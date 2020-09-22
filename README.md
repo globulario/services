@@ -1,2 +1,2 @@
-# globular_services
-Contain the code for grpc globular services
+# Globular Services
+Contain the code for globular micro-services.
