@@ -3,16 +3,18 @@ package imap
 import (
 	"errors"
 
-	"context"
 	// "io/ioutil"
 	"io/ioutil"
 	"log"
 	"time"
 
+	"encoding/json"
+
+	b64 "encoding/base64"
+
 	"github.com/davecourtois/Utility"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend/backendutil"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type MailBox_impl struct {
@@ -22,6 +24,7 @@ type MailBox_impl struct {
 }
 
 func NewMailBox(user string, name string) *MailBox_impl {
+	log.Println("NewMailBox call with name ", name, " and user ", user)
 	box := new(MailBox_impl)
 	box.name = name
 	box.user = user
@@ -29,23 +32,32 @@ func NewMailBox(user string, name string) *MailBox_impl {
 	info := new(imap.MailboxInfo)
 	info.Name = name
 	info.Delimiter = "/"
-
+	jsonStr, err := Utility.ToJson(info)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
 	connectionId := user + "_db"
 
 	// Here I will retreive the info from the database.
-	query := `{"name":"` + name + `"}`
-	count, err := store.Count(context.Background(), connectionId, connectionId, "MailBoxes", query, "")
+	query := `{"Name":"` + name + `"}`
+	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
+
 	if err != nil || count < 1 {
-		_, err = store.InsertOne(context.Background(), connectionId, connectionId, "MailBoxes", info, "")
+
+		log.Println(info)
+		_, err = Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, "")
+
 		if err != nil {
 			log.Println("fail to create mail box!")
 		}
 	}
-
+	log.Println("succeed to create new mail box ", name)
 	return box
 }
 
 func getMailBox(user string, name string) (*MailBox_impl, error) {
+	log.Println("getMailBox ", name, " for user ", name)
 	box := new(MailBox_impl)
 	box.name = name
 	box.user = user
@@ -57,12 +69,12 @@ func getMailBox(user string, name string) (*MailBox_impl, error) {
 	connectionId := user + "_db"
 
 	// Here I will retreive the info from the database.
-	query := `{"name":"` + name + `"}`
-	count, err := store.Count(context.Background(), connectionId, connectionId, "MailBoxes", query, "")
+	query := `{"Name":"` + name + `"}`
+	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
 	if err != nil || count < 1 {
 		return nil, errors.New("No mail box found with name " + name)
 	}
-
+	log.Println("getMailBox ", name, " for user ", name, " succeed!")
 	return box, nil
 }
 
@@ -73,24 +85,33 @@ func (mbox *MailBox_impl) Name() string {
 
 // Info returns this mailbox info.
 func (mbox *MailBox_impl) Info() (*imap.MailboxInfo, error) {
-
+	log.Println("get mail box info for user ", mbox.user, " name ", mbox.name)
 	// TODO Get box info from the server.
 	connectionId := mbox.user + "_db"
-	query := `{"name":"` + mbox.name + `"}`
-	info_, err := store.FindOne(context.Background(), connectionId, connectionId, "MailBoxes", query, "")
-
-	if err == nil {
-		// Now I will insert the message into the inbox of the user.
-		info := new(imap.MailboxInfo)
-		info.Name = info_.(map[string]interface{})["name"].(string)
-		info.Delimiter = info_.(map[string]interface{})["delimiter"].(string)
-		if info_.(map[string]interface{})["attributes"] != nil {
-			log.Println("attributes ", info_.(map[string]interface{})["attributes"])
-		}
-
-		return info, nil
+	query := `{"Name":"` + mbox.name + `"}`
+	jsonStr, err := Store.FindOne(connectionId, connectionId, "MailBoxes", query, "")
+	if err != nil {
+		log.Println(err)
+		return nil, err
 	}
-	return nil, err
+
+	info_ := make(map[string]interface{})
+	err = json.Unmarshal([]byte(jsonStr), &info_)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+
+	// Now I will insert the message into the inbox of the user.
+	info := new(imap.MailboxInfo)
+	info.Name = info_["Name"].(string)
+	info.Delimiter = info_["Delimiter"].(string)
+	if info_["Attributes"] != nil {
+		log.Println("attributes ", info_["Attributes"])
+	}
+	log.Println("get mail box info for user ", mbox.user, " succeed!")
+	return info, nil
+
 }
 
 func (mbox *MailBox_impl) uidNext() uint32 {
@@ -112,15 +133,23 @@ func (mbox *MailBox_impl) getMessages() []*Message {
 	connectionId := mbox.user + "_db"
 
 	// Get the message from the mailbox.
-	data, _ := store.Find(context.Background(), connectionId, connectionId, mbox.Name(), "{}", "")
+	jsonStr, _ := Store.Find(connectionId, connectionId, mbox.Name(), "{}", "")
+	data := make([]interface{}, 0)
+	err := json.Unmarshal([]byte(jsonStr), &data)
+	if err != nil {
+		return messages
+	}
 
 	// return the messages.
 	for i := 0; i < len(data); i++ {
 		msg := data[i].(map[string]interface{})
 		m := new(Message)
-		m.Uid = uint32(msg["Uid"].(int64))           // set the actual index
-		m.Body = msg["Body"].(primitive.Binary).Data // set back to []uint8
-		flags := []interface{}(msg["Flags"].(primitive.A))
+		m.Uid = uint32(msg["Uid"].(float64)) // set the actual index
+		data, err := b64.StdEncoding.DecodeString(msg["Body"].(string))
+		if err == nil {
+			m.Body = data
+		}
+		flags := msg["Flags"].([]interface{})
 		m.Flags = make([]string, 0)
 		for j := 0; j < len(flags); j++ {
 			if len(flags[j].(string)) > 0 {
@@ -128,8 +157,11 @@ func (mbox *MailBox_impl) getMessages() []*Message {
 			}
 		}
 
-		m.Size = uint32(msg["Size"].(int64))
-		m.Date = msg["Date"].(primitive.DateTime).Time()
+		m.Size = uint32(msg["Size"].(float64))
+
+		layout := "2020-11-02T01:45:47.764336457Z"
+		m.Date, _ = time.Parse(layout, msg["Date"].(string))
+
 		messages = append(messages, m)
 	}
 
@@ -137,6 +169,7 @@ func (mbox *MailBox_impl) getMessages() []*Message {
 }
 
 func (mbox *MailBox_impl) unseenSeqNum() uint32 {
+
 	messages := mbox.getMessages()
 	for i, msg := range messages {
 		seqNum := uint32(i + 1)
@@ -156,6 +189,7 @@ func (mbox *MailBox_impl) unseenSeqNum() uint32 {
 }
 
 func (mbox *MailBox_impl) flags() []string {
+
 	flagsMap := make(map[string]bool)
 	messages := mbox.getMessages()
 	for _, msg := range messages {
@@ -178,6 +212,7 @@ func (mbox *MailBox_impl) flags() []string {
 // This function does not affect the state of any messages in the mailbox. See
 // RFC 3501 section 6.3.10 for a list of items that can be requested.
 func (mbox *MailBox_impl) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
+
 	status := imap.NewMailboxStatus(mbox.name, items)
 	status.Flags = mbox.flags()
 	status.PermanentFlags = []string{"\\*"}
@@ -224,6 +259,7 @@ func (mbox *MailBox_impl) Check() error {
 //
 // Messages must be sent to ch. When the function returns, ch must be closed.
 func (mbox *MailBox_impl) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
+
 	defer close(ch)
 	messages := mbox.getMessages()
 
@@ -254,6 +290,7 @@ func (mbox *MailBox_impl) ListMessages(uid bool, seqSet *imap.SeqSet, items []im
 // SearchMessages searches messages. The returned list must contain UIDs if
 // uid is set to true, or sequence numbers otherwise.
 func (mbox *MailBox_impl) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
+
 	var ids []uint32
 	messages := mbox.getMessages()
 	for i, msg := range messages {
@@ -282,6 +319,7 @@ func (mbox *MailBox_impl) SearchMessages(uid bool, criteria *imap.SearchCriteria
 // If the Backend implements Updater, it must notify the client immediately
 // via a mailbox update.
 func (mbox *MailBox_impl) CreateMessage(flags []string, date time.Time, body imap.Literal) error {
+
 	if date.IsZero() {
 		date = time.Now()
 	}
@@ -299,8 +337,9 @@ func (mbox *MailBox_impl) CreateMessage(flags []string, date time.Time, body ima
 // If the Backend implements Updater, it must notify the client immediately
 // via a message update.
 func (mbox *MailBox_impl) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.FlagsOp, flags []string) error {
+	log.Println("-----> flags ", flags)
 	messages := mbox.getMessages()
-	log.Println("------> 303", flags)
+
 	for i, msg := range messages {
 		var id uint32
 		if uid {
@@ -318,8 +357,9 @@ func (mbox *MailBox_impl) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op 
 		connectionId := mbox.user + "_db"
 		jsonStr, _ := Utility.ToJson(msg.Flags)
 
-		err := store.UpdateOne(context.Background(), connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, `{ "$set":{"Flags":`+jsonStr+`}}`, "")
+		err := Store.UpdateOne(connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, `{ "$set":{"Flags":`+jsonStr+`}}`, "")
 		if err != nil {
+			log.Println(err)
 			return err
 		}
 
@@ -337,6 +377,7 @@ func (mbox *MailBox_impl) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op 
 // If the Backend implements Updater, it must notify the client immediately
 // via a mailbox update.
 func (mbox *MailBox_impl) CopyMessages(uid bool, seqset *imap.SeqSet, destName string) error {
+
 	dest, err := getMailBox(mbox.user, destName)
 	if err != nil {
 		return err
@@ -367,11 +408,12 @@ func (mbox *MailBox_impl) CopyMessages(uid bool, seqset *imap.SeqSet, destName s
 // If the Backend implements Updater, it must notify the client immediately
 // via an expunge update.
 func (mbox *MailBox_impl) Expunge() error {
+	log.Println("=--------> expunge!")
 	messages := mbox.getMessages()
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
-
+		log.Println("----> 415")
 		deleted := false
 		for _, flag := range msg.Flags {
 			if flag == imap.DeletedFlag {
@@ -379,13 +421,14 @@ func (mbox *MailBox_impl) Expunge() error {
 				break
 			}
 		}
-
+		log.Println("----> 424")
 		if deleted {
+			log.Println("----> 426")
 			// mbox.Messages = append(mbox.Messages[:i], mbox.Messages[i+1:]...)
 			connectionId := mbox.user + "_db"
-
-			err := store.DeleteOne(context.Background(), connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, "")
+			err := Store.DeleteOne(connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, "")
 			if err != nil {
+				log.Println("--------> fail to delete message from message box ", mbox.name, err)
 				return err
 			}
 		}

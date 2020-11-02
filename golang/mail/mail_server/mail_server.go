@@ -13,11 +13,12 @@ import (
 	"strings"
 
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/persistence/persistence_client"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/mail/mail_client"
 	"github.com/globulario/services/golang/mail/mailpb"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -99,6 +100,8 @@ type server struct {
 	// The backend admin password necessary to validate email address and
 	// store incomming message.
 	Password string
+	DbIpV4   string // The address of the databe ex 0.0.0.0:27017
+
 }
 
 // Globular services implementation...
@@ -605,8 +608,8 @@ func main() {
 	// The actual server implementation.
 	s_impl := new(server)
 	s_impl.Connections = make(map[string]connection)
-	s_impl.Name = string(mailpb.File_services_proto_mail_proto.Services().Get(0).FullName())
-	s_impl.Proto = mailpb.File_services_proto_mail_proto.Path()
+	s_impl.Name = string(mailpb.File_proto_mail_proto.Services().Get(0).FullName())
+	s_impl.Proto = mailpb.File_proto_mail_proto.Path()
 	s_impl.Port = port
 	s_impl.Domain = domain
 	s_impl.Proxy = defaultProxy
@@ -625,6 +628,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+	s_impl.DbIpV4 = "0.0.0.0:27017"
 
 	s_impl.Password = "adminadmin" // The default password for the admin.
 
@@ -687,14 +691,41 @@ func main() {
 				certFile = certFile[0:strings.Index(certFile, "server.crt")] + s_impl.Domain + ".crt"
 			}
 
-			// start imap server.
-			imap.StartImap(s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
+			address := string(strings.Split(s_impl.DbIpV4, ":")[0])
+			port := Utility.ToInt(strings.Split(s_impl.DbIpV4, ":")[1])
 
+			// The backend connection.
+			store, err := persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			// set variable for imap and smtp
+			imap.Backend_address = address
+			smtp.Backend_address = address
+			imap.Backend_port = port
+			smtp.Backend_port = port
+			imap.Backend_password = s_impl.Password
+			imap.Store = store
+			smtp.Store = store
+
+			// Open the backend main connection
+			err = store.CreateConnection("local_ressource", "local_ressource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			log.Println("start imap")
+			// start imap server.
+			imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
+
+			log.Println("start smtp")
 			// start smtp server
-			smtp.StartSmtp(s_impl.Password, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
+			smtp.StartSmtp(store, address, port, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
 
 		}()
-
+		log.Println("start grpc mail service")
 		// Start the service.
 		s_impl.StartService()
 	}

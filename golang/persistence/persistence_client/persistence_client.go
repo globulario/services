@@ -7,9 +7,11 @@ import (
 
 	"context"
 
+	"log"
+
+	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/persistence/persistencepb"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 )
 
@@ -47,7 +49,7 @@ type Persistence_Client struct {
 
 // Create a connection to the service.
 func NewPersistenceService_Client(address string, id string) (*Persistence_Client, error) {
-
+	log.Println("----> ", address, id)
 	client := new(Persistence_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
@@ -357,6 +359,8 @@ func (self *Persistence_Client) Count(connectionId string, database string, coll
  * Insert one value in the database.
  */
 func (self *Persistence_Client) InsertOne(connectionId string, database string, collection string, jsonStr string, options string) (string, error) {
+
+	// Try to marshal object...
 
 	rqst := &persistencepb.InsertOneRqst{
 		Id:         connectionId,

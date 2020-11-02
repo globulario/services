@@ -15,11 +15,11 @@ import (
 
 	globular "github.com/globulario/services/golang/globular_service"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/persistence/persistencepb"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -680,6 +680,12 @@ func (self *server) InsertOne(ctx context.Context, rqst *persistencepb.InsertOne
 	}, nil
 }
 
+func (self *server) InsertLargeOne(stream persistencepb.PersistenceService_InsertLargeOneServer) error {
+	/** TODO Implement me */
+	return nil
+
+}
+
 func (self *server) InsertMany(stream persistencepb.PersistenceService_InsertManyServer) error {
 	ids := make([]interface{}, 0)
 
@@ -729,6 +735,11 @@ func (self *server) InsertMany(stream persistencepb.PersistenceService_InsertMan
 		ids = append(ids, results...)
 
 	}
+}
+
+func (self *server) FindLargeOne(rqst *persistencepb.FindLargeOneRqst, stream persistencepb.PersistenceService_FindLargeOneServer) error {
+	/** Find large one */
+	return nil
 }
 
 // Find many
@@ -1030,9 +1041,9 @@ func main() {
 
 	// The actual server implementation.
 	s_impl := new(server)
-	s_impl.Name = string(persistencepb.File_services_proto_persistence_proto.Services().Get(0).FullName())
+	s_impl.Name = string(persistencepb.File_proto_persistence_proto.Services().Get(0).FullName())
 	s_impl.Port = defaultPort
-	s_impl.Proto = persistencepb.File_services_proto_persistence_proto.Path()
+	s_impl.Proto = persistencepb.File_proto_persistence_proto.Path()
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain

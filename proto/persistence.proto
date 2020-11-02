@@ -75,6 +75,20 @@ message InsertOneRsp {
 	string id = 1; // Json string with id
 }
 
+
+message InsertLargeOneRqst {
+	string id = 1; // The connection id.
+	string database = 2;
+	string collection = 3;
+	string jsonStr = 4;
+	string options = 5;
+}
+
+message InsertLargeOneRsp {
+	string id = 1; // Json string with id
+}
+
+
 message FindRqst {
 	string id = 1;
 	string database = 2;
@@ -96,6 +110,18 @@ message FindOneRqst {
 }
 
 message FindOneResp {
+	string jsonStr = 1; // Json string
+}
+
+message FindLargeOneRqst {
+	string id = 1;
+	string database = 2;
+	string collection = 3;
+	string query = 4;
+	string options = 6;
+}
+
+message FindLargeOneResp {
 	string jsonStr = 1; // Json string
 }
 
@@ -312,6 +338,7 @@ service PersistenceService {
 	
 	// Insert one result
 	rpc InsertOne(InsertOneRqst) returns (InsertOneRsp){};
+	rpc InsertLargeOne(stream InsertLargeOneRqst) returns (InsertLargeOneRsp){};
 	
 	// Insert many result at once.
 	rpc InsertMany(stream InsertManyRqst) returns (InsertManyRsp){};
@@ -321,6 +348,7 @@ service PersistenceService {
 	
 	// Find one
 	rpc FindOne(FindOneRqst) returns (FindOneResp){};
+	rpc FindLargeOne(FindLargeOneRqst) returns (stream FindLargeOneResp){};
 	
 	// Aggregate
 	rpc Aggregate(AggregateRqst) returns (stream AggregateResp){};

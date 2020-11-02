@@ -799,8 +799,8 @@ func main() {
 	// The actual server implementation.
 	s_impl := new(server)
 	s_impl.Connections = make(map[string]connection)
-	s_impl.Name = string(sqlpb.File_services_proto_sql_proto.Services().Get(0).FullName())
-	s_impl.Proto = sqlpb.File_services_proto_sql_proto.Path()
+	s_impl.Name = string(sqlpb.File_proto_sql_proto.Services().Get(0).FullName())
+	s_impl.Proto = sqlpb.File_proto_sql_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

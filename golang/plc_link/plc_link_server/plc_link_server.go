@@ -557,8 +557,8 @@ func main() {
 
 	// The actual server implementation.
 	s_impl := new(server)
-	s_impl.Name = string(plc_link_pb.File_services_proto_plc_link_proto.Services().Get(0).FullName())
-	s_impl.Proto = plc_link_pb.File_services_proto_plc_link_proto.Path()
+	s_impl.Name = string(plc_link_pb.File_proto_plc_link_proto.Services().Get(0).FullName())
+	s_impl.Proto = plc_link_pb.File_proto_plc_link_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

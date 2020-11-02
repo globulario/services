@@ -1,27 +1,26 @@
 package imap
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
 	"time"
 
-	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/davecourtois/Utility"
 
 	// "github.com/emersion/go-imap/backend/memory"
 	imap_server "github.com/emersion/go-imap/server"
+	"github.com/globulario/services/golang/persistence/persistence_client"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // The Backend implementation
 ////////////////////////////////////////////////////////////////////////////////
 var (
-	// The backend.
-	store *persistence_store.MongoStore
-
-	pwd string
+	Store            *persistence_client.Persistence_Client
+	Backend_address  string
+	Backend_port     int
+	Backend_password string
 )
 
 /**
@@ -36,9 +35,12 @@ func saveMessage(user string, mailBox string, body []byte, flags []string, date 
 	data["Size"] = uint32(len(body))
 	data["Body"] = body
 	data["Uid"] = date.Unix() // I will use the unix time as Uid
-
+	jsonStr, err := Utility.ToJson(data)
+	if err != nil {
+		return err
+	}
 	// Now I will insert the message into the inbox of the user.
-	_, err := store.InsertOne(context.Background(), "local_ressource", user+"_db", mailBox, data, "")
+	_, err = Store.InsertOne("local_ressource", user+"_db", mailBox, jsonStr, "")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -51,7 +53,7 @@ func saveMessage(user string, mailBox string, body []byte, flags []string, date 
  */
 func renameCollection(database string, name string, rename string) error {
 	script := `db=db.getSiblingDB('admin');db.adminCommand({renameCollection:'` + database + `.` + name + `', to:'` + database + `.` + rename + `'})`
-	err := store.RunAdminCmd(context.Background(), "local_ressource", "sa", pwd, script)
+	err := Store.RunAdminCmd("local_ressource", "sa", Backend_password, script)
 	return err
 }
 
@@ -88,19 +90,13 @@ func startImap(port int, keyFile string, certFile string) {
 	}()
 }
 
-func StartImap(password string, keyFile string, certFile string, port int, tls_port int, alt_port int) {
+func StartImap(store *persistence_client.Persistence_Client, backend_address string, backend_port int, backend_password string, keyFile string, certFile string, port int, tls_port int, alt_port int) {
 
-	// Keep the password...
-	pwd = password
-
-	// The backend (mongodb)
-	store = new(persistence_store.MongoStore)
-
-	// The admin connection. The local ressource contain necessay information.
-	err := store.Connect("local_ressource", "0.0.0.0", 27017, "sa", password, "local_ressource", 1000, "")
-	if err != nil {
-		log.Println("Fail to connect to the backend!", err)
-	}
+	// keep backend info
+	store = store
+	backend_password = backend_password
+	backend_address = backend_address
+	backend_port = backend_port
 
 	// Create a memory backend
 	startImap(port, "", "")

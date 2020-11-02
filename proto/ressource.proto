@@ -158,6 +158,7 @@ message RessourcePermission {
 		string role = 4;
 		string application = 5;
 		string service = 6;
+		string peer = 7;
 	}
 }
 
@@ -296,6 +297,26 @@ message ValidateApplicationAccessRsp{
 	bool result=1;
 }
 
+message ValidatePeerAccessRqst{
+	string domain=1;
+	string method=2;
+}
+
+message ValidatePeerAccessRsp{
+	bool result=1;
+}
+
+message ValidatePeerRessourceAccessRqst{
+	string domain=1;
+	string method=2;
+	string path=3;
+	int32 permission=4;
+}
+
+message ValidatePeerRessourceAccessRsp{
+	bool result=1;
+}
+
 
 message ValidateUserAccessRqst{
 	string token=1;
@@ -425,6 +446,13 @@ message ClearAllLogRsp{
 
 ////////////////// Ressource //////////////////
 
+/** a globular server **/
+message Peer {
+	string domain = 1; // must be unique on the network.
+	repeated string actions=2;
+}
+
+
 /** A ressource can be anything with a path an a name **/
 message Ressource {
 	string path = 1; // can be recursive.
@@ -528,6 +556,56 @@ message DeleteFilePermissionsRsp{
 	bool result=1;
 }
 
+/**
+ * Register peer request. The peer must be accept before Authenticate.
+ */
+message RegisterPeerRqst{
+	Peer peer = 1;
+}
+
+message RegisterPeerRsp{
+	bool result = 1;
+}
+
+/**
+ * Return the list of peer (query is use to get specific peer's).
+ */
+message GetPeersRqst{
+	string query = 1;
+}
+
+message GetPeersRsp{
+	repeated Peer peers = 1;
+}
+
+/**
+ * Remove a peer from the network.
+ */
+message DeletePeerRqst{
+	Peer peer = 1;
+}
+
+message DeletePeerRsp{
+	bool result = 1;
+}
+
+message AddPeerActionRqst{
+	string domain = 1;
+	string action = 2;
+}
+
+message AddPeerActionRsp{
+	bool result = 1;
+}
+
+message RemovePeerActionRqst{
+	string domain = 1;
+	string action = 2;
+}
+
+message RemovePeerActionRsp{
+	bool result = 1;
+}
 
 /**
  * That service is use to manage Globular ressource like permissions and accounts
@@ -535,7 +613,21 @@ message DeleteFilePermissionsRsp{
  * objects.
  */
 service RessourceService {
+	/** Register a peer on the network **/
+	rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
+	
+	/** Return the list of peers **/
+	rpc GetPeers(GetPeersRqst) returns(stream GetPeersRsp);
 
+	/** Remove a peer from the network **/
+	rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
+	
+	/** Add peer action permission **/
+	rpc AddPeerAction(AddPeerActionRqst) returns(AddPeerActionRsp);
+	
+	/** Remove peer action permission **/
+	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
+	
 	/** Register a new Account **/
 	rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp);
 	
@@ -617,6 +709,12 @@ service RessourceService {
 	/** Validate if application can access a given method. **/
 	rpc ValidateApplicationAccess(ValidateApplicationAccessRqst) returns (ValidateApplicationAccessRsp);
 		
+	/** Validate if a peer can access a given method. **/
+	rpc ValidatePeerAccess(ValidatePeerAccessRqst) returns (ValidatePeerAccessRsp);
+	
+	/** Validate if a peer can access a given ressource. **/
+	rpc ValidatePeerRessourceAccess(ValidatePeerRessourceAccessRqst) returns (ValidatePeerRessourceAccessRsp);
+	
 	/** Delete all permission for a given account **/
 	rpc DeleteAccountPermissions(DeleteAccountPermissionsRqst) returns(DeleteAccountPermissionsRsp);
 	

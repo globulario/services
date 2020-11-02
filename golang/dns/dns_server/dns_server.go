@@ -1719,8 +1719,8 @@ func main() {
 	// The actual server implementation.
 	s_impl := new(server)
 	Utility.RegisterType(s_impl) // must be call dynamically
-	s_impl.Name = string(dnspb.File_services_proto_dns_proto.Services().Get(0).FullName())
-	s_impl.Proto = dnspb.File_services_proto_dns_proto.Path()
+	s_impl.Name = string(dnspb.File_proto_dns_proto.Services().Get(0).FullName())
+	s_impl.Proto = dnspb.File_proto_dns_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

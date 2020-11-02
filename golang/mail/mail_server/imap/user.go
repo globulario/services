@@ -1,10 +1,11 @@
 package imap
 
 import (
+	"encoding/json"
 	"errors"
-	//	"log"
-	"context"
+	"log"
 
+	"github.com/davecourtois/Utility"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 )
@@ -26,16 +27,27 @@ func (self *User_impl) Username() string {
 // ListMailboxes returns a list of mailboxes belonging to this user. If
 // subscribed is set to true, only returns subscribed mailboxes.
 func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error) {
+
 	boxes := make([]backend.Mailbox, 0)
 	connectionId := self.Username() + "_db"
 	// Get list of other mail box here.
-	values, err := store.Find(context.Background(), connectionId, connectionId, "MailBoxes", `{}`, ``)
-	if err == nil {
-		for i := 0; i < len(values); i++ {
-			val := values[i].(map[string]interface{})
-			box := NewMailBox(self.Username(), val["name"].(string))
-			boxes = append(boxes, box)
-		}
+	jsonStr, err := Store.Find(connectionId, connectionId, "MailBoxes", `{}`, ``)
+	if err != nil {
+		return nil, err
+	}
+
+	values := make([]interface{}, 0)
+	log.Println(jsonStr)
+	err = json.Unmarshal([]byte(jsonStr), &values)
+	if err != nil {
+		log.Println("---> ", err)
+		return nil, err
+	}
+
+	for i := 0; i < len(values); i++ {
+		val := values[i].(map[string]interface{})
+		box := NewMailBox(self.Username(), val["Name"].(string))
+		boxes = append(boxes, box)
 	}
 
 	if len(values) == 0 {
@@ -51,10 +63,10 @@ func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 // GetMailbox returns a mailbox. If it doesn't exist, it returns
 // ErrNoSuchMailbox.
 func (self *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
-
+	log.Println("---> 65")
 	connectionId := self.Username() + "_db"
-	query := `{"name":"` + name + `"}`
-	count, err := store.Count(context.Background(), connectionId, connectionId, "MailBoxes", query, "")
+	query := `{"Name":"` + name + `"}`
+	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
 	if err != nil || count < 1 {
 		return nil, errors.New("No mail box found with name " + name)
 	}
@@ -81,13 +93,16 @@ func (self *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
 // used in the previous incarnation of the mailbox UNLESS the new incarnation
 // has a different unique identifier validity value.
 func (self *User_impl) CreateMailbox(name string) error {
-
+	log.Println("---> 95")
 	info := new(imap.MailboxInfo)
 	info.Name = name
 	info.Delimiter = "/"
-
+	jsonStr, err := Utility.ToJson(info)
+	if err != nil {
+		return err
+	}
 	connectionId := self.Username() + "_db"
-	_, err := store.InsertOne(context.Background(), connectionId, connectionId, "MailBoxes", info, "")
+	_, err = Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, "")
 
 	return err
 }
@@ -104,15 +119,16 @@ func (self *User_impl) CreateMailbox(name string) error {
 // reuse the identifiers of the former incarnation, UNLESS the new incarnation
 // has a different unique identifier validity value.
 func (self *User_impl) DeleteMailbox(name string) error {
+	log.Println("---> 121")
 	connectionId := self.Username() + "_db"
 
 	// First I will delete the entry in MailBoxes...
-	err := store.DeleteOne(context.Background(), connectionId, connectionId, "MailBoxes", `{"name":"`+name+`"}`, "")
+	err := Store.DeleteOne(connectionId, connectionId, "MailBoxes", `{"Name":"`+name+`"}`, "")
 	if err != nil {
 		return err
 	}
 
-	err = store.DeleteCollection(context.Background(), connectionId, connectionId, name)
+	err = Store.DeleteCollection(connectionId, connectionId, name)
 
 	return err
 }
@@ -146,7 +162,7 @@ func (self *User_impl) RenameMailbox(existingName, newName string) error {
 	connectionId := self.Username() + "_db"
 
 	// I will rename the
-	err := store.UpdateOne(context.Background(), connectionId, connectionId, "MailBoxes", `{"name":"`+existingName+`"}`, `{"$set":{"name":"`+newName+`"}}`, "")
+	err := Store.UpdateOne(connectionId, connectionId, "MailBoxes", `{"Name":"`+existingName+`"}`, `{"$set":{"Name":"`+newName+`"}}`, "")
 	if err != nil {
 		return err
 	}
@@ -157,5 +173,5 @@ func (self *User_impl) RenameMailbox(existingName, newName string) error {
 // Logout is called when this User will no longer be used, likely because the
 // client closed the connection.
 func (self *User_impl) Logout() error {
-	return nil //store.Disconnect(self.Username() + "_db")
+	return nil //Store.Disconnect(self.Username() + "_db")
 }

@@ -3,7 +3,7 @@ package imap
 import (
 	"log"
 
-	"context"
+	"encoding/json"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
@@ -13,25 +13,30 @@ type Backend_impl struct {
 }
 
 func (self *Backend_impl) Login(connInfo *imap.ConnInfo, username, password string) (backend.User, error) {
-	log.Println("----> try to authenticate the user ", username)
+
 	// I will use the datastore to authenticate the user.
 	connection_id := username + "_db"
-	err := store.Connect(connection_id, "0.0.0.0", 27017, username, password, connection_id, 1000, "")
+
+	err := Store.CreateConnection(connection_id, connection_id, Backend_address, float64(Backend_port), 0, username, password, 5000, "", false)
 	if err != nil {
-		log.Println("fail to login: ", err)
+		log.Println("fail to login: ", connection_id, username, password, err)
 		return nil, err
 	}
 
 	// retreive account info.
 	query := `{"name":"` + username + `"}`
-	info, err := store.FindOne(context.Background(), "local_ressource", "local_ressource", "Accounts", query, "")
+	str, err := Store.FindOne("local_ressource", "local_ressource", "Accounts", query, "")
 	if err != nil {
-		log.Println("fail to retreive account ", username)
+		return nil, err
+	}
+
+	info := make(map[string]interface{})
+	err = json.Unmarshal([]byte(str), &info)
+	if err != nil {
 		return nil, err
 	}
 
 	user := new(User_impl)
-	user.info = info.(map[string]interface{})
-
+	user.info = info
 	return user, nil
 }

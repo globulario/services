@@ -7,9 +7,11 @@ import (
 	"strconv"
 	"time"
 
+	//"log"
+
+	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/ressource/ressourcepb"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -49,14 +51,17 @@ type Ressource_Client struct {
 
 // Create a connection to the service.
 func NewRessourceService_Client(address string, id string) (*Ressource_Client, error) {
+
 	client := new(Ressource_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
+
 		return nil, err
 	}
 
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
+
 		return nil, err
 	}
 
@@ -632,4 +637,44 @@ func (self *Ressource_Client) DeleteFilePermissions(path string) error {
 	}
 	_, err := self.c.DeleteFilePermissions(globular.GetClientContext(self), rqst)
 	return err
+}
+
+func (self *Ressource_Client) ValidatePeerRessourceAccess(domain string, path string, method string, permission int32) (bool, error) {
+	rqst := &ressourcepb.ValidatePeerRessourceAccessRqst{}
+	rqst.Domain = domain
+	rqst.Path = path
+	rqst.Method = method
+	rqst.Permission = permission
+
+	rsp, err := self.c.ValidatePeerRessourceAccess(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return false, err
+	}
+
+	return rsp.GetResult(), nil
+}
+
+func (self *Ressource_Client) ValidatePeerAccess(domain string, method string) (bool, error) {
+	rqst := &ressourcepb.ValidatePeerAccessRqst{}
+	rqst.Domain = domain
+	rqst.Method = method
+	rsp, err := self.c.ValidatePeerAccess(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return false, err
+	}
+
+	return rsp.GetResult(), nil
+}
+
+// Register a peer with a given name and mac address.
+func (self *Ressource_Client) RegisterPeer(domain string) error {
+	rqst := &ressourcepb.RegisterPeerRqst{
+		Peer: &ressourcepb.Peer{
+			Domain: domain,
+		},
+	}
+
+	_, err := self.c.RegisterPeer(globular.GetClientContext(self), rqst)
+	return err
+
 }

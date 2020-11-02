@@ -981,8 +981,8 @@ func main() {
 
 	// The actual server implementation.
 	s_impl := new(server)
-	s_impl.Name = string(searchpb.File_services_proto_search_proto.Services().Get(0).FullName())
-	s_impl.Proto = searchpb.File_services_proto_search_proto.Path()
+	s_impl.Name = string(searchpb.File_proto_search_proto.Services().Get(0).FullName())
+	s_impl.Proto = searchpb.File_proto_search_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

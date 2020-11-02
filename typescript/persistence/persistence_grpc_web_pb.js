@@ -1188,6 +1188,81 @@ proto.persistence.PersistenceServicePromiseClient.prototype.findOne =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.persistence.FindLargeOneRqst,
+ *   !proto.persistence.FindLargeOneResp>}
+ */
+const methodDescriptor_PersistenceService_FindLargeOne = new grpc.web.MethodDescriptor(
+  '/persistence.PersistenceService/FindLargeOne',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.persistence.FindLargeOneRqst,
+  proto.persistence.FindLargeOneResp,
+  /**
+   * @param {!proto.persistence.FindLargeOneRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.persistence.FindLargeOneResp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.persistence.FindLargeOneRqst,
+ *   !proto.persistence.FindLargeOneResp>}
+ */
+const methodInfo_PersistenceService_FindLargeOne = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.persistence.FindLargeOneResp,
+  /**
+   * @param {!proto.persistence.FindLargeOneRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.persistence.FindLargeOneResp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.persistence.FindLargeOneRqst} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.persistence.FindLargeOneResp>}
+ *     The XHR Node Readable Stream
+ */
+proto.persistence.PersistenceServiceClient.prototype.findLargeOne =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/persistence.PersistenceService/FindLargeOne',
+      request,
+      metadata || {},
+      methodDescriptor_PersistenceService_FindLargeOne);
+};
+
+
+/**
+ * @param {!proto.persistence.FindLargeOneRqst} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.persistence.FindLargeOneResp>}
+ *     The XHR Node Readable Stream
+ */
+proto.persistence.PersistenceServicePromiseClient.prototype.findLargeOne =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/persistence.PersistenceService/FindLargeOne',
+      request,
+      metadata || {},
+      methodDescriptor_PersistenceService_FindLargeOne);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.persistence.AggregateRqst,
  *   !proto.persistence.AggregateResp>}
  */

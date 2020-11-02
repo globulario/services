@@ -18,9 +18,9 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
 	"github.com/globulario/services/golang/ressource/ressource_client"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -171,9 +171,8 @@ func InitService(path string, s Service) error {
 		execPath = strings.ReplaceAll(execPath, "\\", "/")
 		s.SetPath(execPath)
 
-		package_ := strings.Split(s.GetProto(), "/")[0]
-		path_ := execPath[0:strings.Index(execPath, package_)]
-		s.SetProto(path_ + s.GetProto())
+		path_ := execPath[0:strings.Index(execPath, "/globulario/services/")]
+		s.SetProto(path_ + "/globulario/services/" + s.GetProto())
 
 		// save the service configuation.
 		return SaveService(path, s)
