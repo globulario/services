@@ -4,9 +4,9 @@
   "CertAuthorityTrust": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/ca.crt",
   "CertFile": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/server.crt",
   "Connections": {
-    "local_ressource": {
+    "dashboard_connection": {
       "Host": "localhost",
-      "Id": "local_ressource",
+      "Id": "dashboard_connection",
       "Port": 9090,
       "Type": 0
     }
@@ -22,12 +22,12 @@
   "Name": "monitoring.MonitoringService",
   "Path": "/home/dave/Documents/Project/src/github.com/globulario/services/golang/monitoring/monitoring_server/monitoring_server",
   "Permissions": [],
-  "Port": 10014,
-  "Process": 83986,
+  "Port": 10020,
+  "Process": 789302,
   "Proto": "/home/dave/Documents/Project/src/github.com/globulario/services/proto/monitoring.proto",
   "Protocol": "grpc",
-  "Proxy": 10016,
-  "ProxyProcess": 83994,
+  "Proxy": 10023,
+  "ProxyProcess": 789308,
   "PublisherId": "globulario",
   "Repositories": [],
   "State": "running",

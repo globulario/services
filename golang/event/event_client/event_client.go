@@ -5,13 +5,14 @@ import (
 	"io"
 	"strconv"
 
+	"log"
 	"time"
 
 	"context"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 )
 
@@ -62,8 +63,10 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
+		log.Panicln("-----> 69 ", err)
 		return nil, err
 	}
 

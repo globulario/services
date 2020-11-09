@@ -285,6 +285,8 @@ func (self *server) SetPermissions(permissions []interface{}) {
 
 // Create the configuration file if is not already exist.
 func (self *server) Init() error {
+	self.stores = make(map[string]monitoring_store.Store)
+	self.Connections = make(map[string]connection)
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewMonitoringService_Client", monitoring_client.NewMonitoringService_Client)
@@ -303,8 +305,29 @@ func (self *server) Init() error {
 		return err
 	}
 
-	self.stores = make(map[string]monitoring_store.Store)
-	self.Connections = make(map[string]connection)
+	// init store for existiong connection.
+	for id, c := range self.Connections {
+		log.Println("init connection ", id)
+		var store monitoring_store.Store
+		var err error
+		address := "http://" + c.Host + ":" + Utility.ToString(c.Port)
+
+		if c.Type == monitoringpb.StoreType_PROMETHEUS {
+			store, err = monitoring_store.NewPrometheusStore(address)
+		}
+
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+
+		if store == nil {
+			return errors.New("Fail to connect to store!")
+		}
+
+		// Keep the ref to the store.
+		self.stores[c.Id] = store
+	}
 
 	return nil
 
@@ -330,16 +353,14 @@ func (self *server) Stop(context.Context, *monitoringpb.StopRequest) (*monitorin
 }
 
 ///////////////////// Monitoring specific functions ////////////////////////////
-
-// Create a connection.
-func (self *server) CreateConnection(ctx context.Context, rqst *monitoringpb.CreateConnectionRqst) (*monitoringpb.CreateConnectionRsp, error) {
+func (self *server) createConnection(id string, host string, port int32, storeType monitoringpb.StoreType) error {
 	var c connection
 
 	// Set the connection info from the request.
-	c.Id = rqst.Connection.Id
-	c.Host = rqst.Connection.Host
-	c.Port = rqst.Connection.Port
-	c.Type = rqst.Connection.Store
+	c.Id = id
+	c.Host = host
+	c.Port = port
+	c.Type = storeType
 
 	if self.Connections == nil {
 		self.Connections = make(map[string]connection, 0)
@@ -357,15 +378,11 @@ func (self *server) CreateConnection(ctx context.Context, rqst *monitoringpb.Cre
 	}
 
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	if store == nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Fail to connect to store!")))
+		return errors.New("Fail to connect to store!")
 	}
 
 	// Keep the ref to the store.
@@ -374,13 +391,23 @@ func (self *server) CreateConnection(ctx context.Context, rqst *monitoringpb.Cre
 	// In that case I will save it in file.
 	err = self.Save()
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	globular.UpdateServiceConfig(self)
 
+	if err != nil {
+		return err
+	}
+
+	// Print the success message here.
+	return nil
+}
+
+// Create a connection.
+func (self *server) CreateConnection(ctx context.Context, rqst *monitoringpb.CreateConnectionRqst) (*monitoringpb.CreateConnectionRsp, error) {
+
+	err := self.createConnection(rqst.Connection.Id, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

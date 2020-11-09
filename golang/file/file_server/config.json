@@ -123,12 +123,12 @@
       ]
     }
   ],
-  "Port": 10018,
-  "Process": 84076,
+  "Port": 10027,
+  "Process": 789337,
   "Proto": "/home/dave/Documents/Project/src/github.com/globulario/services/proto/file.proto",
   "Protocol": "grpc",
-  "Proxy": 10026,
-  "ProxyProcess": 84084,
+  "Proxy": 10025,
+  "ProxyProcess": 789346,
   "PublisherId": "globulario",
   "Repositories": [],
   "Root": "/home/dave/Documents/Project/src/github.com/globulario/Globular/webroot",

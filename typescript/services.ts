@@ -291,13 +291,35 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
  * application to get access to sql, ldap, persistence... service.
  */
 export class Globular {
+  private _eventHub: EventHub;
+  private _services: any;
 
+  public get eventHub(): EventHub {
+    return this._eventHub;
+  }
 
   /** The configuation. */
   constructor(url: string, callback: () => void, errorcallback: (err: any) => void) {
     // Keep the config...
     getFileConfig(url, (config:any)=>{
+     
       this.config = config;
+
+      // force event hub initialysation...
+      this._services = {};
+
+      // here I will connect the event hub...
+      this._eventHub = new EventHub(this.eventService);
+
+      // I will subscribe on services configuration update.
+      this._eventHub.subscribe("update_globular_service_configuration_evt", ()=>{}, (evt: any)=>{
+        let config = JSON.parse(evt);
+        this._services[config.Id] = null
+        this.config.Services[config.Id]=config;
+        // console.log("service has change !", config)
+
+      }, false)
+
       callback();
     }, errorcallback)
   }
@@ -408,6 +430,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._catalogService
       }
       return this._catalogService;
     }
@@ -431,6 +454,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._echoService
       }
       return this._echoService;
     }
@@ -454,6 +478,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._eventService
       }
       return this._eventService;
     }
@@ -477,6 +502,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._fileService
       }
       return this._fileService;
     }
@@ -500,6 +526,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._ldapService
       }
       return this._ldapService;
     }
@@ -523,6 +550,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._persistenceService
       }
       return this._persistenceService;
     }
@@ -546,6 +574,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._mailService
       }
       return this._mailService;
     }
@@ -569,6 +598,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._sqlService
       }
       return this._sqlService;
     }
@@ -592,6 +622,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._storageService
       }
       return this._storageService;
     }
@@ -615,6 +646,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._monitoringService
       }
       return this._monitoringService;
     }
@@ -638,6 +670,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._spcService
       }
       return this._spcService;
     }
@@ -661,6 +694,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._searchService
       }
       return this._searchService;
     }
@@ -682,6 +716,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._plcService_ab
       }
       return this._plcService_ab;
     }
@@ -702,6 +737,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._plcService_siemens
       }
       return this._plcService_siemens;
     }
@@ -722,6 +758,7 @@ export class Globular {
           null,
           null,
         );
+        this._services[config.Id] = this._plcLinkService
       }
       return this._plcLinkService;
     }

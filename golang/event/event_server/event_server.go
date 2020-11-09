@@ -4,15 +4,16 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	//	"github.com/globulario/Globular/Interceptors"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -325,6 +326,7 @@ func (self *server) Stop(context.Context, *eventpb.StopRequest) (*eventpb.StopRe
 
 // That function process channel operation and run in it own go routine.
 func (self *server) run() {
+
 	fmt.Println("start event service")
 	channels := make(map[string][]string)
 	streams := make(map[string]eventpb.EventService_OnEventServer)
@@ -334,12 +336,14 @@ func (self *server) run() {
 	self.actions = make(chan map[string]interface{})
 
 	for {
+
 		select {
 		case <-self.exit:
-			fmt.Println("--------> exit from the run loop.")
 			break
 		case a := <-self.actions:
+
 			action := a["action"].(string)
+
 			if action == "onevent" {
 				streams[a["uuid"].(string)] = a["stream"].(eventpb.EventService_OnEventServer)
 				quits[a["uuid"].(string)] = a["quit"].(chan bool)
@@ -397,6 +401,7 @@ func (self *server) run() {
 				uuids := make([]string, 0)
 				for i := 0; i < len(channels[a["name"].(string)]); i++ {
 					if a["uuid"].(string) != channels[a["name"].(string)][i] {
+						log.Println("unsubscribe ", a["uuid"].(string))
 						uuids = append(uuids, channels[a["name"].(string)][i])
 					}
 				}
