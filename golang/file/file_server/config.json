@@ -124,15 +124,15 @@
     }
   ],
   "Port": 10027,
-  "Process": 789337,
+  "Process": -1,
   "Proto": "/home/dave/Documents/Project/src/github.com/globulario/services/proto/file.proto",
   "Protocol": "grpc",
   "Proxy": 10025,
-  "ProxyProcess": 789346,
+  "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
   "Root": "/home/dave/Documents/Project/src/github.com/globulario/Globular/webroot",
-  "State": "running",
+  "State": "stopped",
   "TLS": true,
   "Version": "0.0.1",
   "configPath": "/home/dave/Documents/Project/src/github.com/globulario/services/golang/file/file_server/config.json"
