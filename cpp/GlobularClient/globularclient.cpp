@@ -80,7 +80,7 @@ std::string getPathName(const std::string& s) {
 
     return("");
 }
-Globular::Client::Client(std::string name, std::string domain, unsigned int configurationPort)
+Globular::Client::Client(std::string name, std::string domain, unsigned int configurationPort=80)
 {
     this->config = new Globular::ServiceConfig();
     this->config->Name = name;
@@ -115,14 +115,14 @@ Globular::Client::Client(std::string name, std::string domain, unsigned int conf
 
 }
 
-void Globular::Client::init(unsigned int configurationPort){
+void Globular::Client::init(unsigned int configurationPort=80){
 
     // Initialyse client stuff here.
     this->initServiceConfig(configurationPort);
 
 }
 
-void Globular::Client::initServiceConfig(unsigned int configurationPort){
+void Globular::Client::initServiceConfig(unsigned int configurationPort=80){
 
     std::stringstream ss;
     ss << "http://" << this->config->Domain << ":" << configurationPort << "/config";
@@ -151,9 +151,6 @@ void Globular::Client::initServiceConfig(unsigned int configurationPort){
             this->config->Port = (*it)["Port"].get<unsigned int>();
             this->config->Proxy = (*it)["Proxy"].get<unsigned int>();
             this->config->TLS= (*it)["TLS"].get<bool>();
-            this->config->Keywords = (*it)["Keywords"].get<std::vector<std::string>>();
-            this->config->Discoveries = (*it)["Discoveries"].get<std::vector<std::string>>();
-            this->config->Repositories = (*it)["Repositories"].get<std::vector<std::string>>();
 
             if(this->config->TLS){
                 // The service is secure.

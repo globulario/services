@@ -669,7 +669,7 @@ all: release-all debug-all  FORCE
 clean: release-clean debug-clean  FORCE
 distclean: release-distclean debug-distclean  FORCE
 	-$(DEL_FILE) Makefile
-	-$(DEL_FILE) C:/Users/mm006819/go/src/github.com/davecourtois/Globular/services/cpp/spc/spc_server/spc_server_plugin_import.cpp .qmake.stash
+	-$(DEL_FILE) C:/Users/mm006819/go/src/github.com/globulario/services/cpp/spc/spc_server/spc_server_plugin_import.cpp .qmake.stash
 
 release-mocclean:
 	$(MAKE) -f $(MAKEFILE).Release mocclean

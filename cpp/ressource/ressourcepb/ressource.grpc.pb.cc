@@ -22,11 +22,6 @@
 namespace ressource {
 
 static const char* RessourceService_method_names[] = {
-  "/ressource.RessourceService/RegisterPeer",
-  "/ressource.RessourceService/GetPeers",
-  "/ressource.RessourceService/DeletePeer",
-  "/ressource.RessourceService/AddPeerAction",
-  "/ressource.RessourceService/RemovePeerAction",
   "/ressource.RessourceService/RegisterAccount",
   "/ressource.RessourceService/DeleteAccount",
   "/ressource.RessourceService/Authenticate",
@@ -54,8 +49,6 @@ static const char* RessourceService_method_names[] = {
   "/ressource.RessourceService/ValidateApplicationRessourceAccess",
   "/ressource.RessourceService/ValidateUserAccess",
   "/ressource.RessourceService/ValidateApplicationAccess",
-  "/ressource.RessourceService/ValidatePeerAccess",
-  "/ressource.RessourceService/ValidatePeerRessourceAccess",
   "/ressource.RessourceService/DeleteAccountPermissions",
   "/ressource.RessourceService/DeleteRolePermissions",
   "/ressource.RessourceService/GetAllApplicationsInfo",
@@ -70,10 +63,6 @@ static const char* RessourceService_method_names[] = {
   "/ressource.RessourceService/SetActionPermission",
   "/ressource.RessourceService/RemoveActionPermission",
   "/ressource.RessourceService/GetActionPermission",
-  "/ressource.RessourceService/CreateDirPermissions",
-  "/ressource.RessourceService/RenameFilePermission",
-  "/ressource.RessourceService/DeleteDirPermissions",
-  "/ressource.RessourceService/DeleteFilePermissions",
 };
 
 std::unique_ptr< RessourceService::Stub> RessourceService::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -83,187 +72,48 @@ std::unique_ptr< RessourceService::Stub> RessourceService::NewStub(const std::sh
 }
 
 RessourceService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel)
-  : channel_(channel), rpcmethod_RegisterPeer_(RessourceService_method_names[0], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPeers_(RessourceService_method_names[1], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeletePeer_(RessourceService_method_names[2], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddPeerAction_(RessourceService_method_names[3], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemovePeerAction_(RessourceService_method_names[4], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RegisterAccount_(RessourceService_method_names[5], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteAccount_(RessourceService_method_names[6], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Authenticate_(RessourceService_method_names[7], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SynchronizeLdap_(RessourceService_method_names[8], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RefreshToken_(RessourceService_method_names[9], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddAccountRole_(RessourceService_method_names[10], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveAccountRole_(RessourceService_method_names[11], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_CreateRole_(RessourceService_method_names[12], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteRole_(RessourceService_method_names[13], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddRoleAction_(RessourceService_method_names[14], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveRoleAction_(RessourceService_method_names[15], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddApplicationAction_(RessourceService_method_names[16], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveApplicationAction_(RessourceService_method_names[17], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetAllActions_(RessourceService_method_names[18], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPermissions_(RessourceService_method_names[19], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetPermission_(RessourceService_method_names[20], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeletePermissions_(RessourceService_method_names[21], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetRessourceOwner_(RessourceService_method_names[22], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetRessourceOwners_(RessourceService_method_names[23], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteRessourceOwner_(RessourceService_method_names[24], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteRessourceOwners_(RessourceService_method_names[25], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetAllFilesInfo_(RessourceService_method_names[26], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ValidateToken_(RessourceService_method_names[27], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ValidateUserRessourceAccess_(RessourceService_method_names[28], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ValidateApplicationRessourceAccess_(RessourceService_method_names[29], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ValidateUserAccess_(RessourceService_method_names[30], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ValidateApplicationAccess_(RessourceService_method_names[31], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ValidatePeerAccess_(RessourceService_method_names[32], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ValidatePeerRessourceAccess_(RessourceService_method_names[33], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteAccountPermissions_(RessourceService_method_names[34], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteRolePermissions_(RessourceService_method_names[35], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetAllApplicationsInfo_(RessourceService_method_names[36], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteApplication_(RessourceService_method_names[37], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Log_(RessourceService_method_names[38], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetLog_(RessourceService_method_names[39], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeleteLog_(RessourceService_method_names[40], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ClearAllLog_(RessourceService_method_names[41], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetRessources_(RessourceService_method_names[42], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_SetRessource_(RessourceService_method_names[43], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveRessource_(RessourceService_method_names[44], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetActionPermission_(RessourceService_method_names[45], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveActionPermission_(RessourceService_method_names[46], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetActionPermission_(RessourceService_method_names[47], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_CreateDirPermissions_(RessourceService_method_names[48], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RenameFilePermission_(RessourceService_method_names[49], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteDirPermissions_(RessourceService_method_names[50], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteFilePermissions_(RessourceService_method_names[51], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  : channel_(channel), rpcmethod_RegisterAccount_(RessourceService_method_names[0], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteAccount_(RessourceService_method_names[1], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Authenticate_(RessourceService_method_names[2], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SynchronizeLdap_(RessourceService_method_names[3], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RefreshToken_(RessourceService_method_names[4], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddAccountRole_(RessourceService_method_names[5], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveAccountRole_(RessourceService_method_names[6], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_CreateRole_(RessourceService_method_names[7], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteRole_(RessourceService_method_names[8], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddRoleAction_(RessourceService_method_names[9], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveRoleAction_(RessourceService_method_names[10], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddApplicationAction_(RessourceService_method_names[11], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveApplicationAction_(RessourceService_method_names[12], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetAllActions_(RessourceService_method_names[13], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPermissions_(RessourceService_method_names[14], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetPermission_(RessourceService_method_names[15], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeletePermissions_(RessourceService_method_names[16], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetRessourceOwner_(RessourceService_method_names[17], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetRessourceOwners_(RessourceService_method_names[18], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteRessourceOwner_(RessourceService_method_names[19], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteRessourceOwners_(RessourceService_method_names[20], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetAllFilesInfo_(RessourceService_method_names[21], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ValidateToken_(RessourceService_method_names[22], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ValidateUserRessourceAccess_(RessourceService_method_names[23], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ValidateApplicationRessourceAccess_(RessourceService_method_names[24], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ValidateUserAccess_(RessourceService_method_names[25], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ValidateApplicationAccess_(RessourceService_method_names[26], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteAccountPermissions_(RessourceService_method_names[27], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteRolePermissions_(RessourceService_method_names[28], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetAllApplicationsInfo_(RessourceService_method_names[29], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteApplication_(RessourceService_method_names[30], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Log_(RessourceService_method_names[31], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetLog_(RessourceService_method_names[32], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeleteLog_(RessourceService_method_names[33], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ClearAllLog_(RessourceService_method_names[34], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetRessources_(RessourceService_method_names[35], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_SetRessource_(RessourceService_method_names[36], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveRessource_(RessourceService_method_names[37], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetActionPermission_(RessourceService_method_names[38], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveActionPermission_(RessourceService_method_names[39], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetActionPermission_(RessourceService_method_names[40], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
-
-::grpc::Status RessourceService::Stub::RegisterPeer(::grpc::ClientContext* context, const ::ressource::RegisterPeerRqst& request, ::ressource::RegisterPeerRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_RegisterPeer_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::RegisterPeer(::grpc::ClientContext* context, const ::ressource::RegisterPeerRqst* request, ::ressource::RegisterPeerRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_RegisterPeer_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::RegisterPeerRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_RegisterPeer_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::RegisterPeer(::grpc::ClientContext* context, const ::ressource::RegisterPeerRqst* request, ::ressource::RegisterPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_RegisterPeer_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::RegisterPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_RegisterPeer_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::RegisterPeerRsp>* RessourceService::Stub::AsyncRegisterPeerRaw(::grpc::ClientContext* context, const ::ressource::RegisterPeerRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::RegisterPeerRsp>::Create(channel_.get(), cq, rpcmethod_RegisterPeer_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::RegisterPeerRsp>* RessourceService::Stub::PrepareAsyncRegisterPeerRaw(::grpc::ClientContext* context, const ::ressource::RegisterPeerRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::RegisterPeerRsp>::Create(channel_.get(), cq, rpcmethod_RegisterPeer_, context, request, false);
-}
-
-::grpc::ClientReader< ::ressource::GetPeersRsp>* RessourceService::Stub::GetPeersRaw(::grpc::ClientContext* context, const ::ressource::GetPeersRqst& request) {
-  return ::grpc_impl::internal::ClientReaderFactory< ::ressource::GetPeersRsp>::Create(channel_.get(), rpcmethod_GetPeers_, context, request);
-}
-
-void RessourceService::Stub::experimental_async::GetPeers(::grpc::ClientContext* context, ::ressource::GetPeersRqst* request, ::grpc::experimental::ClientReadReactor< ::ressource::GetPeersRsp>* reactor) {
-  ::grpc_impl::internal::ClientCallbackReaderFactory< ::ressource::GetPeersRsp>::Create(stub_->channel_.get(), stub_->rpcmethod_GetPeers_, context, request, reactor);
-}
-
-::grpc::ClientAsyncReader< ::ressource::GetPeersRsp>* RessourceService::Stub::AsyncGetPeersRaw(::grpc::ClientContext* context, const ::ressource::GetPeersRqst& request, ::grpc::CompletionQueue* cq, void* tag) {
-  return ::grpc_impl::internal::ClientAsyncReaderFactory< ::ressource::GetPeersRsp>::Create(channel_.get(), cq, rpcmethod_GetPeers_, context, request, true, tag);
-}
-
-::grpc::ClientAsyncReader< ::ressource::GetPeersRsp>* RessourceService::Stub::PrepareAsyncGetPeersRaw(::grpc::ClientContext* context, const ::ressource::GetPeersRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncReaderFactory< ::ressource::GetPeersRsp>::Create(channel_.get(), cq, rpcmethod_GetPeers_, context, request, false, nullptr);
-}
-
-::grpc::Status RessourceService::Stub::DeletePeer(::grpc::ClientContext* context, const ::ressource::DeletePeerRqst& request, ::ressource::DeletePeerRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_DeletePeer_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::DeletePeer(::grpc::ClientContext* context, const ::ressource::DeletePeerRqst* request, ::ressource::DeletePeerRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_DeletePeer_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::DeletePeerRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_DeletePeer_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::DeletePeer(::grpc::ClientContext* context, const ::ressource::DeletePeerRqst* request, ::ressource::DeletePeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_DeletePeer_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::DeletePeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_DeletePeer_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::DeletePeerRsp>* RessourceService::Stub::AsyncDeletePeerRaw(::grpc::ClientContext* context, const ::ressource::DeletePeerRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::DeletePeerRsp>::Create(channel_.get(), cq, rpcmethod_DeletePeer_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::DeletePeerRsp>* RessourceService::Stub::PrepareAsyncDeletePeerRaw(::grpc::ClientContext* context, const ::ressource::DeletePeerRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::DeletePeerRsp>::Create(channel_.get(), cq, rpcmethod_DeletePeer_, context, request, false);
-}
-
-::grpc::Status RessourceService::Stub::AddPeerAction(::grpc::ClientContext* context, const ::ressource::AddPeerActionRqst& request, ::ressource::AddPeerActionRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_AddPeerAction_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::AddPeerAction(::grpc::ClientContext* context, const ::ressource::AddPeerActionRqst* request, ::ressource::AddPeerActionRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_AddPeerAction_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::AddPeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::AddPeerActionRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_AddPeerAction_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::AddPeerAction(::grpc::ClientContext* context, const ::ressource::AddPeerActionRqst* request, ::ressource::AddPeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_AddPeerAction_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::AddPeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::AddPeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_AddPeerAction_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::AddPeerActionRsp>* RessourceService::Stub::AsyncAddPeerActionRaw(::grpc::ClientContext* context, const ::ressource::AddPeerActionRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::AddPeerActionRsp>::Create(channel_.get(), cq, rpcmethod_AddPeerAction_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::AddPeerActionRsp>* RessourceService::Stub::PrepareAsyncAddPeerActionRaw(::grpc::ClientContext* context, const ::ressource::AddPeerActionRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::AddPeerActionRsp>::Create(channel_.get(), cq, rpcmethod_AddPeerAction_, context, request, false);
-}
-
-::grpc::Status RessourceService::Stub::RemovePeerAction(::grpc::ClientContext* context, const ::ressource::RemovePeerActionRqst& request, ::ressource::RemovePeerActionRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_RemovePeerAction_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::RemovePeerAction(::grpc::ClientContext* context, const ::ressource::RemovePeerActionRqst* request, ::ressource::RemovePeerActionRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_RemovePeerAction_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::RemovePeerActionRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_RemovePeerAction_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::RemovePeerAction(::grpc::ClientContext* context, const ::ressource::RemovePeerActionRqst* request, ::ressource::RemovePeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_RemovePeerAction_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::RemovePeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_RemovePeerAction_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::RemovePeerActionRsp>* RessourceService::Stub::AsyncRemovePeerActionRaw(::grpc::ClientContext* context, const ::ressource::RemovePeerActionRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::RemovePeerActionRsp>::Create(channel_.get(), cq, rpcmethod_RemovePeerAction_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::RemovePeerActionRsp>* RessourceService::Stub::PrepareAsyncRemovePeerActionRaw(::grpc::ClientContext* context, const ::ressource::RemovePeerActionRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::RemovePeerActionRsp>::Create(channel_.get(), cq, rpcmethod_RemovePeerAction_, context, request, false);
-}
 
 ::grpc::Status RessourceService::Stub::RegisterAccount(::grpc::ClientContext* context, const ::ressource::RegisterAccountRqst& request, ::ressource::RegisterAccountRsp* response) {
   return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_RegisterAccount_, context, request, response);
@@ -1021,62 +871,6 @@ void RessourceService::Stub::experimental_async::ValidateApplicationAccess(::grp
   return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::ValidateApplicationAccessRsp>::Create(channel_.get(), cq, rpcmethod_ValidateApplicationAccess_, context, request, false);
 }
 
-::grpc::Status RessourceService::Stub::ValidatePeerAccess(::grpc::ClientContext* context, const ::ressource::ValidatePeerAccessRqst& request, ::ressource::ValidatePeerAccessRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_ValidatePeerAccess_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerAccess(::grpc::ClientContext* context, const ::ressource::ValidatePeerAccessRqst* request, ::ressource::ValidatePeerAccessRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerAccess_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerAccess(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::ValidatePeerAccessRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerAccess_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerAccess(::grpc::ClientContext* context, const ::ressource::ValidatePeerAccessRqst* request, ::ressource::ValidatePeerAccessRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerAccess_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerAccess(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::ValidatePeerAccessRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerAccess_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::ValidatePeerAccessRsp>* RessourceService::Stub::AsyncValidatePeerAccessRaw(::grpc::ClientContext* context, const ::ressource::ValidatePeerAccessRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::ValidatePeerAccessRsp>::Create(channel_.get(), cq, rpcmethod_ValidatePeerAccess_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::ValidatePeerAccessRsp>* RessourceService::Stub::PrepareAsyncValidatePeerAccessRaw(::grpc::ClientContext* context, const ::ressource::ValidatePeerAccessRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::ValidatePeerAccessRsp>::Create(channel_.get(), cq, rpcmethod_ValidatePeerAccess_, context, request, false);
-}
-
-::grpc::Status RessourceService::Stub::ValidatePeerRessourceAccess(::grpc::ClientContext* context, const ::ressource::ValidatePeerRessourceAccessRqst& request, ::ressource::ValidatePeerRessourceAccessRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_ValidatePeerRessourceAccess_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerRessourceAccess(::grpc::ClientContext* context, const ::ressource::ValidatePeerRessourceAccessRqst* request, ::ressource::ValidatePeerRessourceAccessRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerRessourceAccess_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerRessourceAccess(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::ValidatePeerRessourceAccessRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerRessourceAccess_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerRessourceAccess(::grpc::ClientContext* context, const ::ressource::ValidatePeerRessourceAccessRqst* request, ::ressource::ValidatePeerRessourceAccessRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerRessourceAccess_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::ValidatePeerRessourceAccess(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::ValidatePeerRessourceAccessRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_ValidatePeerRessourceAccess_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::ValidatePeerRessourceAccessRsp>* RessourceService::Stub::AsyncValidatePeerRessourceAccessRaw(::grpc::ClientContext* context, const ::ressource::ValidatePeerRessourceAccessRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::ValidatePeerRessourceAccessRsp>::Create(channel_.get(), cq, rpcmethod_ValidatePeerRessourceAccess_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::ValidatePeerRessourceAccessRsp>* RessourceService::Stub::PrepareAsyncValidatePeerRessourceAccessRaw(::grpc::ClientContext* context, const ::ressource::ValidatePeerRessourceAccessRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::ValidatePeerRessourceAccessRsp>::Create(channel_.get(), cq, rpcmethod_ValidatePeerRessourceAccess_, context, request, false);
-}
-
 ::grpc::Status RessourceService::Stub::DeleteAccountPermissions(::grpc::ClientContext* context, const ::ressource::DeleteAccountPermissionsRqst& request, ::ressource::DeleteAccountPermissionsRsp* response) {
   return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_DeleteAccountPermissions_, context, request, response);
 }
@@ -1445,171 +1239,9 @@ void RessourceService::Stub::experimental_async::GetActionPermission(::grpc::Cli
   return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::GetActionPermissionRsp>::Create(channel_.get(), cq, rpcmethod_GetActionPermission_, context, request, false);
 }
 
-::grpc::Status RessourceService::Stub::CreateDirPermissions(::grpc::ClientContext* context, const ::ressource::CreateDirPermissionsRqst& request, ::ressource::CreateDirPermissionsRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_CreateDirPermissions_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::CreateDirPermissions(::grpc::ClientContext* context, const ::ressource::CreateDirPermissionsRqst* request, ::ressource::CreateDirPermissionsRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_CreateDirPermissions_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::CreateDirPermissions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::CreateDirPermissionsRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_CreateDirPermissions_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::CreateDirPermissions(::grpc::ClientContext* context, const ::ressource::CreateDirPermissionsRqst* request, ::ressource::CreateDirPermissionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_CreateDirPermissions_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::CreateDirPermissions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::CreateDirPermissionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_CreateDirPermissions_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::CreateDirPermissionsRsp>* RessourceService::Stub::AsyncCreateDirPermissionsRaw(::grpc::ClientContext* context, const ::ressource::CreateDirPermissionsRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::CreateDirPermissionsRsp>::Create(channel_.get(), cq, rpcmethod_CreateDirPermissions_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::CreateDirPermissionsRsp>* RessourceService::Stub::PrepareAsyncCreateDirPermissionsRaw(::grpc::ClientContext* context, const ::ressource::CreateDirPermissionsRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::CreateDirPermissionsRsp>::Create(channel_.get(), cq, rpcmethod_CreateDirPermissions_, context, request, false);
-}
-
-::grpc::Status RessourceService::Stub::RenameFilePermission(::grpc::ClientContext* context, const ::ressource::RenameFilePermissionRqst& request, ::ressource::RenameFilePermissionRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_RenameFilePermission_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::RenameFilePermission(::grpc::ClientContext* context, const ::ressource::RenameFilePermissionRqst* request, ::ressource::RenameFilePermissionRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_RenameFilePermission_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::RenameFilePermission(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::RenameFilePermissionRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_RenameFilePermission_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::RenameFilePermission(::grpc::ClientContext* context, const ::ressource::RenameFilePermissionRqst* request, ::ressource::RenameFilePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_RenameFilePermission_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::RenameFilePermission(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::RenameFilePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_RenameFilePermission_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::RenameFilePermissionRsp>* RessourceService::Stub::AsyncRenameFilePermissionRaw(::grpc::ClientContext* context, const ::ressource::RenameFilePermissionRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::RenameFilePermissionRsp>::Create(channel_.get(), cq, rpcmethod_RenameFilePermission_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::RenameFilePermissionRsp>* RessourceService::Stub::PrepareAsyncRenameFilePermissionRaw(::grpc::ClientContext* context, const ::ressource::RenameFilePermissionRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::RenameFilePermissionRsp>::Create(channel_.get(), cq, rpcmethod_RenameFilePermission_, context, request, false);
-}
-
-::grpc::Status RessourceService::Stub::DeleteDirPermissions(::grpc::ClientContext* context, const ::ressource::DeleteDirPermissionsRqst& request, ::ressource::DeleteDirPermissionsRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_DeleteDirPermissions_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::DeleteDirPermissions(::grpc::ClientContext* context, const ::ressource::DeleteDirPermissionsRqst* request, ::ressource::DeleteDirPermissionsRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_DeleteDirPermissions_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::DeleteDirPermissions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::DeleteDirPermissionsRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_DeleteDirPermissions_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::DeleteDirPermissions(::grpc::ClientContext* context, const ::ressource::DeleteDirPermissionsRqst* request, ::ressource::DeleteDirPermissionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_DeleteDirPermissions_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::DeleteDirPermissions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::DeleteDirPermissionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_DeleteDirPermissions_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::DeleteDirPermissionsRsp>* RessourceService::Stub::AsyncDeleteDirPermissionsRaw(::grpc::ClientContext* context, const ::ressource::DeleteDirPermissionsRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::DeleteDirPermissionsRsp>::Create(channel_.get(), cq, rpcmethod_DeleteDirPermissions_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::DeleteDirPermissionsRsp>* RessourceService::Stub::PrepareAsyncDeleteDirPermissionsRaw(::grpc::ClientContext* context, const ::ressource::DeleteDirPermissionsRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::DeleteDirPermissionsRsp>::Create(channel_.get(), cq, rpcmethod_DeleteDirPermissions_, context, request, false);
-}
-
-::grpc::Status RessourceService::Stub::DeleteFilePermissions(::grpc::ClientContext* context, const ::ressource::DeleteFilePermissionsRqst& request, ::ressource::DeleteFilePermissionsRsp* response) {
-  return ::grpc::internal::BlockingUnaryCall(channel_.get(), rpcmethod_DeleteFilePermissions_, context, request, response);
-}
-
-void RessourceService::Stub::experimental_async::DeleteFilePermissions(::grpc::ClientContext* context, const ::ressource::DeleteFilePermissionsRqst* request, ::ressource::DeleteFilePermissionsRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_DeleteFilePermissions_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::DeleteFilePermissions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::DeleteFilePermissionsRsp* response, std::function<void(::grpc::Status)> f) {
-  ::grpc_impl::internal::CallbackUnaryCall(stub_->channel_.get(), stub_->rpcmethod_DeleteFilePermissions_, context, request, response, std::move(f));
-}
-
-void RessourceService::Stub::experimental_async::DeleteFilePermissions(::grpc::ClientContext* context, const ::ressource::DeleteFilePermissionsRqst* request, ::ressource::DeleteFilePermissionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_DeleteFilePermissions_, context, request, response, reactor);
-}
-
-void RessourceService::Stub::experimental_async::DeleteFilePermissions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::ressource::DeleteFilePermissionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
-  ::grpc_impl::internal::ClientCallbackUnaryFactory::Create(stub_->channel_.get(), stub_->rpcmethod_DeleteFilePermissions_, context, request, response, reactor);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::DeleteFilePermissionsRsp>* RessourceService::Stub::AsyncDeleteFilePermissionsRaw(::grpc::ClientContext* context, const ::ressource::DeleteFilePermissionsRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::DeleteFilePermissionsRsp>::Create(channel_.get(), cq, rpcmethod_DeleteFilePermissions_, context, request, true);
-}
-
-::grpc::ClientAsyncResponseReader< ::ressource::DeleteFilePermissionsRsp>* RessourceService::Stub::PrepareAsyncDeleteFilePermissionsRaw(::grpc::ClientContext* context, const ::ressource::DeleteFilePermissionsRqst& request, ::grpc::CompletionQueue* cq) {
-  return ::grpc_impl::internal::ClientAsyncResponseReaderFactory< ::ressource::DeleteFilePermissionsRsp>::Create(channel_.get(), cq, rpcmethod_DeleteFilePermissions_, context, request, false);
-}
-
 RessourceService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       RessourceService_method_names[0],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RegisterPeerRqst, ::ressource::RegisterPeerRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::RegisterPeerRqst* req,
-             ::ressource::RegisterPeerRsp* resp) {
-               return service->RegisterPeer(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[1],
-      ::grpc::internal::RpcMethod::SERVER_STREAMING,
-      new ::grpc::internal::ServerStreamingHandler< RessourceService::Service, ::ressource::GetPeersRqst, ::ressource::GetPeersRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::GetPeersRqst* req,
-             ::grpc_impl::ServerWriter<::ressource::GetPeersRsp>* writer) {
-               return service->GetPeers(ctx, req, writer);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[2],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeletePeerRqst, ::ressource::DeletePeerRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::DeletePeerRqst* req,
-             ::ressource::DeletePeerRsp* resp) {
-               return service->DeletePeer(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[3],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::AddPeerActionRqst, ::ressource::AddPeerActionRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::AddPeerActionRqst* req,
-             ::ressource::AddPeerActionRsp* resp) {
-               return service->AddPeerAction(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[4],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RemovePeerActionRqst, ::ressource::RemovePeerActionRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::RemovePeerActionRqst* req,
-             ::ressource::RemovePeerActionRsp* resp) {
-               return service->RemovePeerAction(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[5],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RegisterAccountRqst, ::ressource::RegisterAccountRsp>(
           [](RessourceService::Service* service,
@@ -1619,7 +1251,7 @@ RessourceService::Service::Service() {
                return service->RegisterAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[6],
+      RessourceService_method_names[1],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteAccountRqst, ::ressource::DeleteAccountRsp>(
           [](RessourceService::Service* service,
@@ -1629,7 +1261,7 @@ RessourceService::Service::Service() {
                return service->DeleteAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[7],
+      RessourceService_method_names[2],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::AuthenticateRqst, ::ressource::AuthenticateRsp>(
           [](RessourceService::Service* service,
@@ -1639,7 +1271,7 @@ RessourceService::Service::Service() {
                return service->Authenticate(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[8],
+      RessourceService_method_names[3],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::SynchronizeLdapRqst, ::ressource::SynchronizeLdapRsp>(
           [](RessourceService::Service* service,
@@ -1649,7 +1281,7 @@ RessourceService::Service::Service() {
                return service->SynchronizeLdap(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[9],
+      RessourceService_method_names[4],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RefreshTokenRqst, ::ressource::RefreshTokenRsp>(
           [](RessourceService::Service* service,
@@ -1659,7 +1291,7 @@ RessourceService::Service::Service() {
                return service->RefreshToken(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[10],
+      RessourceService_method_names[5],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::AddAccountRoleRqst, ::ressource::AddAccountRoleRsp>(
           [](RessourceService::Service* service,
@@ -1669,7 +1301,7 @@ RessourceService::Service::Service() {
                return service->AddAccountRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[11],
+      RessourceService_method_names[6],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RemoveAccountRoleRqst, ::ressource::RemoveAccountRoleRsp>(
           [](RessourceService::Service* service,
@@ -1679,7 +1311,7 @@ RessourceService::Service::Service() {
                return service->RemoveAccountRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[12],
+      RessourceService_method_names[7],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::CreateRoleRqst, ::ressource::CreateRoleRsp>(
           [](RessourceService::Service* service,
@@ -1689,7 +1321,7 @@ RessourceService::Service::Service() {
                return service->CreateRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[13],
+      RessourceService_method_names[8],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteRoleRqst, ::ressource::DeleteRoleRsp>(
           [](RessourceService::Service* service,
@@ -1699,7 +1331,7 @@ RessourceService::Service::Service() {
                return service->DeleteRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[14],
+      RessourceService_method_names[9],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::AddRoleActionRqst, ::ressource::AddRoleActionRsp>(
           [](RessourceService::Service* service,
@@ -1709,7 +1341,7 @@ RessourceService::Service::Service() {
                return service->AddRoleAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[15],
+      RessourceService_method_names[10],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RemoveRoleActionRqst, ::ressource::RemoveRoleActionRsp>(
           [](RessourceService::Service* service,
@@ -1719,7 +1351,7 @@ RessourceService::Service::Service() {
                return service->RemoveRoleAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[16],
+      RessourceService_method_names[11],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::AddApplicationActionRqst, ::ressource::AddApplicationActionRsp>(
           [](RessourceService::Service* service,
@@ -1729,7 +1361,7 @@ RessourceService::Service::Service() {
                return service->AddApplicationAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[17],
+      RessourceService_method_names[12],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RemoveApplicationActionRqst, ::ressource::RemoveApplicationActionRsp>(
           [](RessourceService::Service* service,
@@ -1739,7 +1371,7 @@ RessourceService::Service::Service() {
                return service->RemoveApplicationAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[18],
+      RessourceService_method_names[13],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::GetAllActionsRqst, ::ressource::GetAllActionsRsp>(
           [](RessourceService::Service* service,
@@ -1749,7 +1381,7 @@ RessourceService::Service::Service() {
                return service->GetAllActions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[19],
+      RessourceService_method_names[14],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::GetPermissionsRqst, ::ressource::GetPermissionsRsp>(
           [](RessourceService::Service* service,
@@ -1759,7 +1391,7 @@ RessourceService::Service::Service() {
                return service->GetPermissions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[20],
+      RessourceService_method_names[15],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::SetPermissionRqst, ::ressource::SetPermissionRsp>(
           [](RessourceService::Service* service,
@@ -1769,7 +1401,7 @@ RessourceService::Service::Service() {
                return service->SetPermission(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[21],
+      RessourceService_method_names[16],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeletePermissionsRqst, ::ressource::DeletePermissionsRsp>(
           [](RessourceService::Service* service,
@@ -1779,7 +1411,7 @@ RessourceService::Service::Service() {
                return service->DeletePermissions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[22],
+      RessourceService_method_names[17],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::SetRessourceOwnerRqst, ::ressource::SetRessourceOwnerRsp>(
           [](RessourceService::Service* service,
@@ -1789,7 +1421,7 @@ RessourceService::Service::Service() {
                return service->SetRessourceOwner(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[23],
+      RessourceService_method_names[18],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::GetRessourceOwnersRqst, ::ressource::GetRessourceOwnersRsp>(
           [](RessourceService::Service* service,
@@ -1799,7 +1431,7 @@ RessourceService::Service::Service() {
                return service->GetRessourceOwners(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[24],
+      RessourceService_method_names[19],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteRessourceOwnerRqst, ::ressource::DeleteRessourceOwnerRsp>(
           [](RessourceService::Service* service,
@@ -1809,7 +1441,7 @@ RessourceService::Service::Service() {
                return service->DeleteRessourceOwner(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[25],
+      RessourceService_method_names[20],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteRessourceOwnersRqst, ::ressource::DeleteRessourceOwnersRsp>(
           [](RessourceService::Service* service,
@@ -1819,7 +1451,7 @@ RessourceService::Service::Service() {
                return service->DeleteRessourceOwners(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[26],
+      RessourceService_method_names[21],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::GetAllFilesInfoRqst, ::ressource::GetAllFilesInfoRsp>(
           [](RessourceService::Service* service,
@@ -1829,7 +1461,7 @@ RessourceService::Service::Service() {
                return service->GetAllFilesInfo(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[27],
+      RessourceService_method_names[22],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ValidateTokenRqst, ::ressource::ValidateTokenRsp>(
           [](RessourceService::Service* service,
@@ -1839,7 +1471,7 @@ RessourceService::Service::Service() {
                return service->ValidateToken(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[28],
+      RessourceService_method_names[23],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ValidateUserRessourceAccessRqst, ::ressource::ValidateUserRessourceAccessRsp>(
           [](RessourceService::Service* service,
@@ -1849,7 +1481,7 @@ RessourceService::Service::Service() {
                return service->ValidateUserRessourceAccess(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[29],
+      RessourceService_method_names[24],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ValidateApplicationRessourceAccessRqst, ::ressource::ValidateApplicationRessourceAccessRsp>(
           [](RessourceService::Service* service,
@@ -1859,7 +1491,7 @@ RessourceService::Service::Service() {
                return service->ValidateApplicationRessourceAccess(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[30],
+      RessourceService_method_names[25],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ValidateUserAccessRqst, ::ressource::ValidateUserAccessRsp>(
           [](RessourceService::Service* service,
@@ -1869,7 +1501,7 @@ RessourceService::Service::Service() {
                return service->ValidateUserAccess(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[31],
+      RessourceService_method_names[26],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ValidateApplicationAccessRqst, ::ressource::ValidateApplicationAccessRsp>(
           [](RessourceService::Service* service,
@@ -1879,27 +1511,7 @@ RessourceService::Service::Service() {
                return service->ValidateApplicationAccess(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[32],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ValidatePeerAccessRqst, ::ressource::ValidatePeerAccessRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::ValidatePeerAccessRqst* req,
-             ::ressource::ValidatePeerAccessRsp* resp) {
-               return service->ValidatePeerAccess(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[33],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ValidatePeerRessourceAccessRqst, ::ressource::ValidatePeerRessourceAccessRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::ValidatePeerRessourceAccessRqst* req,
-             ::ressource::ValidatePeerRessourceAccessRsp* resp) {
-               return service->ValidatePeerRessourceAccess(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[34],
+      RessourceService_method_names[27],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteAccountPermissionsRqst, ::ressource::DeleteAccountPermissionsRsp>(
           [](RessourceService::Service* service,
@@ -1909,7 +1521,7 @@ RessourceService::Service::Service() {
                return service->DeleteAccountPermissions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[35],
+      RessourceService_method_names[28],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteRolePermissionsRqst, ::ressource::DeleteRolePermissionsRsp>(
           [](RessourceService::Service* service,
@@ -1919,7 +1531,7 @@ RessourceService::Service::Service() {
                return service->DeleteRolePermissions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[36],
+      RessourceService_method_names[29],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::GetAllApplicationsInfoRqst, ::ressource::GetAllApplicationsInfoRsp>(
           [](RessourceService::Service* service,
@@ -1929,7 +1541,7 @@ RessourceService::Service::Service() {
                return service->GetAllApplicationsInfo(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[37],
+      RessourceService_method_names[30],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteApplicationRqst, ::ressource::DeleteApplicationRsp>(
           [](RessourceService::Service* service,
@@ -1939,7 +1551,7 @@ RessourceService::Service::Service() {
                return service->DeleteApplication(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[38],
+      RessourceService_method_names[31],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::LogRqst, ::ressource::LogRsp>(
           [](RessourceService::Service* service,
@@ -1949,7 +1561,7 @@ RessourceService::Service::Service() {
                return service->Log(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[39],
+      RessourceService_method_names[32],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< RessourceService::Service, ::ressource::GetLogRqst, ::ressource::GetLogRsp>(
           [](RessourceService::Service* service,
@@ -1959,7 +1571,7 @@ RessourceService::Service::Service() {
                return service->GetLog(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[40],
+      RessourceService_method_names[33],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteLogRqst, ::ressource::DeleteLogRsp>(
           [](RessourceService::Service* service,
@@ -1969,7 +1581,7 @@ RessourceService::Service::Service() {
                return service->DeleteLog(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[41],
+      RessourceService_method_names[34],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::ClearAllLogRqst, ::ressource::ClearAllLogRsp>(
           [](RessourceService::Service* service,
@@ -1979,7 +1591,7 @@ RessourceService::Service::Service() {
                return service->ClearAllLog(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[42],
+      RessourceService_method_names[35],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< RessourceService::Service, ::ressource::GetRessourcesRqst, ::ressource::GetRessourcesRsp>(
           [](RessourceService::Service* service,
@@ -1989,7 +1601,7 @@ RessourceService::Service::Service() {
                return service->GetRessources(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[43],
+      RessourceService_method_names[36],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::SetRessourceRqst, ::ressource::SetRessourceRsp>(
           [](RessourceService::Service* service,
@@ -1999,7 +1611,7 @@ RessourceService::Service::Service() {
                return service->SetRessource(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[44],
+      RessourceService_method_names[37],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RemoveRessourceRqst, ::ressource::RemoveRessourceRsp>(
           [](RessourceService::Service* service,
@@ -2009,7 +1621,7 @@ RessourceService::Service::Service() {
                return service->RemoveRessource(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[45],
+      RessourceService_method_names[38],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::SetActionPermissionRqst, ::ressource::SetActionPermissionRsp>(
           [](RessourceService::Service* service,
@@ -2019,7 +1631,7 @@ RessourceService::Service::Service() {
                return service->SetActionPermission(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[46],
+      RessourceService_method_names[39],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RemoveActionPermissionRqst, ::ressource::RemoveActionPermissionRsp>(
           [](RessourceService::Service* service,
@@ -2029,7 +1641,7 @@ RessourceService::Service::Service() {
                return service->RemoveActionPermission(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[47],
+      RessourceService_method_names[40],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::GetActionPermissionRqst, ::ressource::GetActionPermissionRsp>(
           [](RessourceService::Service* service,
@@ -2038,84 +1650,9 @@ RessourceService::Service::Service() {
              ::ressource::GetActionPermissionRsp* resp) {
                return service->GetActionPermission(ctx, req, resp);
              }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[48],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::CreateDirPermissionsRqst, ::ressource::CreateDirPermissionsRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::CreateDirPermissionsRqst* req,
-             ::ressource::CreateDirPermissionsRsp* resp) {
-               return service->CreateDirPermissions(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[49],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::RenameFilePermissionRqst, ::ressource::RenameFilePermissionRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::RenameFilePermissionRqst* req,
-             ::ressource::RenameFilePermissionRsp* resp) {
-               return service->RenameFilePermission(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[50],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteDirPermissionsRqst, ::ressource::DeleteDirPermissionsRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::DeleteDirPermissionsRqst* req,
-             ::ressource::DeleteDirPermissionsRsp* resp) {
-               return service->DeleteDirPermissions(ctx, req, resp);
-             }, this)));
-  AddMethod(new ::grpc::internal::RpcServiceMethod(
-      RessourceService_method_names[51],
-      ::grpc::internal::RpcMethod::NORMAL_RPC,
-      new ::grpc::internal::RpcMethodHandler< RessourceService::Service, ::ressource::DeleteFilePermissionsRqst, ::ressource::DeleteFilePermissionsRsp>(
-          [](RessourceService::Service* service,
-             ::grpc::ServerContext* ctx,
-             const ::ressource::DeleteFilePermissionsRqst* req,
-             ::ressource::DeleteFilePermissionsRsp* resp) {
-               return service->DeleteFilePermissions(ctx, req, resp);
-             }, this)));
 }
 
 RessourceService::Service::~Service() {
-}
-
-::grpc::Status RessourceService::Service::RegisterPeer(::grpc::ServerContext* context, const ::ressource::RegisterPeerRqst* request, ::ressource::RegisterPeerRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::GetPeers(::grpc::ServerContext* context, const ::ressource::GetPeersRqst* request, ::grpc::ServerWriter< ::ressource::GetPeersRsp>* writer) {
-  (void) context;
-  (void) request;
-  (void) writer;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::DeletePeer(::grpc::ServerContext* context, const ::ressource::DeletePeerRqst* request, ::ressource::DeletePeerRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::AddPeerAction(::grpc::ServerContext* context, const ::ressource::AddPeerActionRqst* request, ::ressource::AddPeerActionRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::RemovePeerAction(::grpc::ServerContext* context, const ::ressource::RemovePeerActionRqst* request, ::ressource::RemovePeerActionRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
 }
 
 ::grpc::Status RessourceService::Service::RegisterAccount(::grpc::ServerContext* context, const ::ressource::RegisterAccountRqst* request, ::ressource::RegisterAccountRsp* response) {
@@ -2307,20 +1844,6 @@ RessourceService::Service::~Service() {
   return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
 }
 
-::grpc::Status RessourceService::Service::ValidatePeerAccess(::grpc::ServerContext* context, const ::ressource::ValidatePeerAccessRqst* request, ::ressource::ValidatePeerAccessRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::ValidatePeerRessourceAccess(::grpc::ServerContext* context, const ::ressource::ValidatePeerRessourceAccessRqst* request, ::ressource::ValidatePeerRessourceAccessRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
 ::grpc::Status RessourceService::Service::DeleteAccountPermissions(::grpc::ServerContext* context, const ::ressource::DeleteAccountPermissionsRqst* request, ::ressource::DeleteAccountPermissionsRsp* response) {
   (void) context;
   (void) request;
@@ -2413,34 +1936,6 @@ RessourceService::Service::~Service() {
 }
 
 ::grpc::Status RessourceService::Service::GetActionPermission(::grpc::ServerContext* context, const ::ressource::GetActionPermissionRqst* request, ::ressource::GetActionPermissionRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::CreateDirPermissions(::grpc::ServerContext* context, const ::ressource::CreateDirPermissionsRqst* request, ::ressource::CreateDirPermissionsRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::RenameFilePermission(::grpc::ServerContext* context, const ::ressource::RenameFilePermissionRqst* request, ::ressource::RenameFilePermissionRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::DeleteDirPermissions(::grpc::ServerContext* context, const ::ressource::DeleteDirPermissionsRqst* request, ::ressource::DeleteDirPermissionsRsp* response) {
-  (void) context;
-  (void) request;
-  (void) response;
-  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-}
-
-::grpc::Status RessourceService::Service::DeleteFilePermissions(::grpc::ServerContext* context, const ::ressource::DeleteFilePermissionsRqst* request, ::ressource::DeleteFilePermissionsRsp* response) {
   (void) context;
   (void) request;
   (void) response;

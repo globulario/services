@@ -5,7 +5,7 @@ Globular::RessourceClient::RessourceClient(std::string name, std::string domain,
     Globular::Client(name,domain, configurationPort),
     stub_(ressource::RessourceService::NewStub(this->channel))
 {
-    std::cout << "init the ressource client!" << std::endl;
+    std::cout << "init the ressource client at address " << domain << ":" << configurationPort << std::endl;
 }
 
 std::string Globular::RessourceClient::authenticate(std::string user, std::string password){
