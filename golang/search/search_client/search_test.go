@@ -8,15 +8,15 @@ import (
 
 var (
 	client    *Search_Client
-	tmpDir    = "C:/temp" // "/media/dave/DCB5-6ABA/tmp"
-	ebookPath = "E:/Ebook/CSS3 Ebook Collection 2014[A4]"
+	tmpDir    = "/tmp" // "/media/dave/DCB5-6ABA/tmp"
+	ebookPath = "/tmp/ebook"
 )
 
 func getClient() *Search_Client {
 	if client != nil {
 		return client
 	}
-	client, _ = NewSearchService_Client("localhost:8080", "cc0342f8-3727-4bd4-a1d9-720b850ee58d")
+	client, _ = NewSearchService_Client("localhost", "02d6c3ca-c0a0-4068-86ed-a275f703f0dc")
 	return client
 }
 
@@ -116,7 +116,6 @@ func TestDeleteDocument(t *testing.T) {
 	log.Println(count)
 }
 
-/*
 func TestIndexDir(t *testing.T) {
 	path := ebookPath
 	err := getClient().IndexDir(tmpDir+"/dir_db", path, "english")
@@ -124,11 +123,10 @@ func TestIndexDir(t *testing.T) {
 		log.Print(err)
 	}
 }
-*/
 
 func TestSearchTextFiles(t *testing.T) {
-	paths := []string{tmpDir + "/dir_db/Cloud"}
-	query := `File AND downloading`
+	paths := []string{tmpDir + "/dir_db"}
+	query := `sync`
 	language := "english"
 	fields := []string{}
 	offset := int32(0)

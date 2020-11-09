@@ -1,6 +1,7 @@
 {
   "AllowAllOrigins": true,
   "AllowedOrigins": "",
+<<<<<<< HEAD
   "CertAuthorityTrust": "",
   "CertFile": "",
   "Connections": null,
@@ -20,11 +21,45 @@
   "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/monitoring.proto",
   "Protocol": "grpc",
   "Proxy": 10025,
+=======
+  "CertAuthorityTrust": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/ca.crt",
+  "CertFile": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/server.crt",
+  "Connections": {
+    "dashboard_connection": {
+      "Host": "localhost",
+      "Id": "dashboard_connection",
+      "Port": 9090,
+      "Type": 0
+    }
+  },
+  "Description": "",
+  "Discoveries": [],
+  "Domain": "hub.globular.io",
+  "Id": "4c4dd5ec-1586-454f-bcf1-54f52e34a1ff",
+  "KeepAlive": false,
+  "KeepUpToDate": false,
+  "KeyFile": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/server.pem",
+  "Keywords": [],
+  "Name": "monitoring.MonitoringService",
+  "Path": "/home/dave/Documents/Project/src/github.com/globulario/services/golang/monitoring/monitoring_server/monitoring_server",
+  "Permissions": [],
+  "Port": 10020,
+  "Process": -1,
+  "Proto": "/home/dave/Documents/Project/src/github.com/globulario/services/proto/monitoring.proto",
+  "Protocol": "grpc",
+  "Proxy": 10023,
+>>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
   "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
   "State": "stopped",
+<<<<<<< HEAD
   "TLS": false,
   "Version": "0.0.1",
   "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/monitoring/monitoring_server/config.json"
+=======
+  "TLS": true,
+  "Version": "0.0.1",
+  "configPath": "/home/dave/Documents/Project/src/github.com/globulario/services/golang/monitoring/monitoring_server/config.json"
+>>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
 }

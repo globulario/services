@@ -14,16 +14,28 @@
   "Name": "event.EventService",
   "Path": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/event/event_server/event_server.exe",
   "Permissions": [],
+<<<<<<< HEAD
   "Port": 10030,
   "Process": -1,
   "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/event.proto",
   "Protocol": "grpc",
   "Proxy": 10019,
+=======
+  "Port": 10024,
+  "Process": -1,
+  "Proto": "/home/dave/Documents/Project/src/github.com/globulario/services/proto/event.proto",
+  "Protocol": "grpc",
+  "Proxy": 10026,
+>>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
   "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
   "State": "stopped",
+<<<<<<< HEAD
   "TLS": false,
+=======
+  "TLS": true,
+>>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
   "Version": "0.0.1",
   "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/event/event_server/config.json"
 }

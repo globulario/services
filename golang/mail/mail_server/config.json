@@ -28,9 +28,15 @@
   "Password": "adminadmin",
   "Path": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/mail/mail_server/mail_server.exe",
   "Permissions": [],
+<<<<<<< HEAD
   "Port": 10022,
   "Process": -1,
   "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/mail.proto",
+=======
+  "Port": 10021,
+  "Process": -1,
+  "Proto": "/home/dave/Documents/Project/src/github.com/globulario/services/proto/mail.proto",
+>>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
   "Protocol": "grpc",
   "Proxy": 10028,
   "ProxyProcess": -1,
@@ -40,7 +46,11 @@
   "SMTP_ALT_Port": 587,
   "SMTP_Port": 25,
   "State": "stopped",
+<<<<<<< HEAD
   "TLS": false,
+=======
+  "TLS": true,
+>>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
   "Version": "0.0.1",
   "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/mail/mail_server/config.json"
 }
