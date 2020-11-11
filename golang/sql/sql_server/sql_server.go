@@ -19,11 +19,11 @@ import (
 	"reflect"
 	"runtime"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/sql/sql_client"
 	"github.com/globulario/services/golang/sql/sqlpb"
-	"github.com/davecourtois/Utility"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -534,6 +534,7 @@ var maxSize = uint(16000) // Value in bytes...
 // Now the execute query.
 func (self *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlService_QueryContextServer) error {
 
+	log.Println("---------> 537")
 	// Be sure the connection is there.
 	if _, ok := self.Connections[rqst.Query.ConnectionId]; !ok {
 

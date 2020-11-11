@@ -1,0 +1,7 @@
+release
+debug
+.Debug
+.Release
+.stash
+.user
+Makefile

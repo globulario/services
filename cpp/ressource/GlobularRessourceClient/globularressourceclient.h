@@ -30,7 +30,7 @@ class RessourceClient : Client
 public:
 
     // The constructor.
-    RessourceClient(std::string name, std::string domain="localhost", unsigned int configurationPort=8080);
+    RessourceClient(std::string name, std::string domain="localhost", unsigned int configurationPort=80);
 
     // Now the ressource client functionnalites.
 

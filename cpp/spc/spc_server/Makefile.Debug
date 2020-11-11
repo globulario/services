@@ -61,7 +61,7 @@ SOURCES       = ../../GlobularClient/globularclient.cpp \
 		DonneesAnalyse.cpp \
 		Erreur.cpp \
 		main.cpp \
-		SousGroupe.cpp C:/Users/mm006819/go/src/github.com/davecourtois/Globular/services/cpp/spc/spc_server/spc_server_plugin_import.cpp
+		SousGroupe.cpp C:/Users/mm006819/go/src/github.com/globulario/services/cpp/spc/spc_server/spc_server_plugin_import.cpp
 OBJECTS       = debug/globularclient.o \
 		debug/globularserver.o \
 		debug/globularressourceclient.o \
@@ -123,7 +123,7 @@ clean: compiler_clean
 	-$(DEL_FILE) debug/globularclient.o debug/globularserver.o debug/globularressourceclient.o debug/ressource.grpc.pb.o debug/ressource.pb.o debug/spc.grpc.pb.o debug/spc.pb.o debug/AnalyseurCSP.o debug/DonneesAnalyse.o debug/Erreur.o debug/main.o debug/SousGroupe.o debug/spc_server_plugin_import.o
 
 distclean: clean 
-	-$(DEL_FILE) C:/Users/mm006819/go/src/github.com/davecourtois/Globular/services/cpp/spc/spc_server/spc_server_plugin_import.cpp .qmake.stash
+	-$(DEL_FILE) C:/Users/mm006819/go/src/github.com/globulario/services/cpp/spc/spc_server/spc_server_plugin_import.cpp .qmake.stash
 	-$(DEL_FILE) $(DESTDIR_TARGET)
 	-$(DEL_FILE) Makefile.Debug
 
@@ -4069,8 +4069,8 @@ debug/SousGroupe.o: SousGroupe.cpp SousGroupe.h \
 		C:/msys64/mingw64/qt5-static/include/QtCore/qjsonobject.h
 	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o debug/SousGroupe.o SousGroupe.cpp
 
-debug/spc_server_plugin_import.o: C:/Users/mm006819/go/src/github.com/davecourtois/Globular/services/cpp/spc/spc_server/spc_server_plugin_import.cpp 
-	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o debug/spc_server_plugin_import.o C:/Users/mm006819/go/src/github.com/davecourtois/Globular/services/cpp/spc/spc_server/spc_server_plugin_import.cpp
+debug/spc_server_plugin_import.o: C:/Users/mm006819/go/src/github.com/globulario/services/cpp/spc/spc_server/spc_server_plugin_import.cpp 
+	$(CXX) -c $(CXXFLAGS) $(INCPATH) -o debug/spc_server_plugin_import.o C:/Users/mm006819/go/src/github.com/globulario/services/cpp/spc/spc_server/spc_server_plugin_import.cpp
 
 ####### Install
 

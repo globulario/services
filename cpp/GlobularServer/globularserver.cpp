@@ -122,6 +122,7 @@ Globular::GlobularService::GlobularService(std::string id,
         this->protocol = j["Protocol"];
 
 
+
         // can be a list of string
         this->allowed_origins = j["AllowedOrigins"];
     }else {

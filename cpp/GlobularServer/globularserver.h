@@ -192,17 +192,22 @@ public:
 
             // Here I will create the ressource client.
             if(ressourceClient == 0){
-                std::cout << "create ressouce client for domain: " << domain  << std::endl;
+                std::cout << "domain read " << domain << std::endl;
                 auto index = domain.find(":");
                 auto port = 80;
                 if(index != 0){
                     port = atoi(domain.substr(index+1).c_str());
+                    if(port == 0){
+                        port = 80;
+                    }
+
                     domain = domain.substr(0, index);
                     std::cout << "port" << domain.substr(index) << std::endl;
                     std::cout << "index "<< index << std::endl;
                     std::cout <<"domain " << domain << std::endl;
                     std::cout << "port int " << port << std::endl;
                 }
+                 std::cout << "create ressouce client for domain " << domain << ":" << port  << std::endl;
                 ressourceClient = new Globular::RessourceClient("ressource.RessourceService", domain, port);
             }
 
