@@ -1,7 +1,6 @@
 {
   "AllowAllOrigins": true,
   "AllowedOrigins": "",
-<<<<<<< HEAD
   "CertAuthorityTrust": "",
   "CertFile": "",
   "Connections": null,
@@ -16,43 +15,16 @@
   "Name": "persistence.PersistenceService",
   "Path": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/persistence/persistence_server/persistence_server.exe",
   "Permissions": [],
-  "Port": 10023,
-  "Process": -1,
+  "Port": 10026,
+  "Process": 8700,
   "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/persistence.proto",
   "Protocol": "grpc",
-  "Proxy": 10026,
-=======
-  "CertAuthorityTrust": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/ca.crt",
-  "CertFile": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/server.crt",
-  "Connections": {},
-  "Description": "",
-  "Discoveries": [],
-  "Domain": "hub.globular.io",
-  "Id": "e60206c1-f1d8-45b4-8b25-49177c1b0e8b",
-  "KeepAlive": false,
-  "KeepUpToDate": false,
-  "KeyFile": "/home/dave/Documents/Project/src/github.com/globulario/Globular/config/tls/server.pem",
-  "Keywords": [],
-  "Name": "persistence.PersistenceService",
-  "Path": "/home/dave/Documents/Project/src/github.com/globulario/services/golang/persistence/persistence_server/persistence_server",
-  "Permissions": [],
-  "Port": 10013,
-  "Process": -1,
-  "Proto": "/home/dave/Documents/Project/src/github.com/globulario/services/proto/persistence.proto",
-  "Protocol": "grpc",
-  "Proxy": 10018,
->>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
-  "ProxyProcess": -1,
+  "Proxy": 10032,
+  "ProxyProcess": 12408,
   "PublisherId": "globulario",
   "Repositories": [],
-  "State": "stopped",
-<<<<<<< HEAD
+  "State": "running",
   "TLS": false,
   "Version": "0.0.1",
   "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/persistence/persistence_server/config.json"
-=======
-  "TLS": true,
-  "Version": "0.0.1",
-  "configPath": "/home/dave/Documents/Project/src/github.com/globulario/services/golang/persistence/persistence_server/config.json"
->>>>>>> a9bc0bff0c79db6ce289c681ba83fcd640d13bfe
 }

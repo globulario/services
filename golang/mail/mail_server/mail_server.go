@@ -306,7 +306,7 @@ func (self *server) SetPermissions(permissions []interface{}) {
 func (self *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewSmtpService_Client", mail_client.NewMailService_Client)
+	Utility.RegisterFunction("NewMailService_Client", mail_client.NewMailService_Client)
 
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -438,7 +438,7 @@ type Attachment struct {
 /**
  * Send mail... The server id is the authentification id...
  */
-func (self *server) sendEmail(id string, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
+func (self *server) sendEmail(host string, user string, pwd string, port int, from string, to []string, cc []*CarbonCopy, subject string, body string, attachs []*Attachment, bodyType string) error {
 
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", from)
@@ -462,11 +462,10 @@ func (self *server) sendEmail(id string, from string, to []string, cc []*CarbonC
 		msg.Attach(f)
 	}
 
-	config := self.Connections[id]
-
-	mailer := gomail.NewMailer(config.Host, config.User, config.Password, int(config.Port))
+	mailer := gomail.NewMailer(host, user, pwd, port)
 
 	if err := mailer.Send(msg); err != nil {
+		log.Println("--> fail to send email ", host, user, port, err)
 		return err
 	}
 	return nil
@@ -474,6 +473,12 @@ func (self *server) sendEmail(id string, from string, to []string, cc []*CarbonC
 
 // Send a simple email whitout file.
 func (self *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (*mailpb.SendEmailRsp, error) {
+
+	if _, ok := self.Connections[rqst.Id]; !ok {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No connection found with id "+rqst.Id)))
+	}
 	if rqst.Email == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -490,7 +495,7 @@ func (self *server) SendEmail(ctx context.Context, rqst *mailpb.SendEmailRqst) (
 		bodyType = "text/html"
 	}
 
-	err := self.sendEmail(rqst.Id, rqst.Email.From, rqst.Email.To, cc, rqst.Email.Subject, rqst.Email.Body, []*Attachment{}, bodyType)
+	err := self.sendEmail(self.Connections[rqst.Id].Host, self.Connections[rqst.Id].User, self.Connections[rqst.Id].Password, int(self.Connections[rqst.Id].Port), rqst.Email.From, rqst.Email.To, cc, rqst.Email.Subject, rqst.Email.Body, []*Attachment{}, bodyType)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -518,9 +523,16 @@ func (self *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmai
 	// So here I will read the stream until it end...
 	for {
 		rqst, err := stream.Recv()
+		if _, ok := self.Connections[rqst.Id]; !ok {
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No connection found with id "+rqst.Id)))
+		}
 		if err == io.EOF {
+
 			// Here all data is read...
-			err := self.sendEmail(id, from, to, cc, subject, body, attachements, bodyType)
+			c := self.Connections[id]
+			err := self.sendEmail(c.Host, c.User, c.Password, int(c.Port), from, to, cc, subject, body, attachements, bodyType)
 
 			if err != nil {
 				return status.Errorf(
@@ -607,7 +619,6 @@ func main() {
 
 	// The actual server implementation.
 	s_impl := new(server)
-	s_impl.Connections = make(map[string]connection)
 	s_impl.Name = string(mailpb.File_proto_mail_proto.Services().Get(0).FullName())
 	s_impl.Proto = mailpb.File_proto_mail_proto.Path()
 	s_impl.Port = port
@@ -628,7 +639,8 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.DbIpV4 = "0.0.0.0:27017"
+	s_impl.Connections = make(map[string]connection)
+	s_impl.DbIpV4 = "0.0.0.0:27017" // default mongodb port.
 
 	s_impl.Password = "adminadmin" // The default password for the admin.
 

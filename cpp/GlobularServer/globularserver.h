@@ -118,6 +118,10 @@ public:
         return this->port;
     }
 
+    void setPort(unsigned int port) {
+        this->port = port;
+    }
+
     unsigned int getDefaulProxy() {
         return this->proxy;
     }

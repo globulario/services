@@ -169,8 +169,13 @@ int main(int argc, char** argv)
     cxxopts::Options options("Statistic process control service", "A c++ gRpc service implementation");
     auto result = options.parse(argc, argv);
 
+
     // Instantiate a new server.
     SpcServiceImpl service;
+    if(argc == 2){
+      int port = atoi(argv[1]);
+      service.setPort(port);
+    }
 
     // Start the service.
     service.run(&service);

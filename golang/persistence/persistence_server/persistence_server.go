@@ -302,6 +302,10 @@ func (self *server) Init() error {
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 
+	// init the connections
+	self.connections = make(map[string]connection)
+	self.Connections = make(map[string]connection)
+
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
@@ -315,10 +319,6 @@ func (self *server) Init() error {
 	if err != nil {
 		return err
 	}
-
-	// init the connections map.
-	self.Connections = make(map[string]connection)
-	self.connections = make(map[string]connection)
 
 	// initialyse store connection here.
 	self.stores = make(map[string]persistence_store.Store)
@@ -762,7 +762,7 @@ func (self *server) Find(rqst *persistencepb.FindRqst, stream persistencepb.Pers
 	}
 
 	// No I will stream the result over the networks.
-	maxSize := 100
+	maxSize := 1
 	values := make([]interface{}, 0)
 	for i := 0; i < len(results); i++ {
 		values = append(values, results[i])
