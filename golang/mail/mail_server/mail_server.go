@@ -607,6 +607,8 @@ func (self *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmai
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
+
+	log.Println("---> start mail server")
 	port := defaultPort // the default value.
 	if len(os.Args) == 2 {
 		port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
