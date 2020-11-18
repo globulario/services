@@ -92,7 +92,6 @@ message DeleteRoleRsp{
 	bool result = 1;
 }
 
-
 message AddRoleActionRqst{
 	string roleId = 1;
 	string action = 2;
@@ -326,7 +325,6 @@ message ValidateUserAccessRqst{
 message ValidateUserAccessRsp{
 	bool result=1;
 }
-
 
 message ValidateUserRessourceAccessRqst{
 	string token=1;

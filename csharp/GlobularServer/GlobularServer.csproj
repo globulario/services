@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.14.0" />
+    <PackageReference Include="Grpc" Version="2.33.1" />
+    <PackageReference Include="Grpc.Core" Version="2.33.1" />
+    <PackageReference Include="System.Reflection" Version="4.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ressource\GlobularRessourceClient\GlobularRessourceClient.csproj" />
+    
+  </ItemGroup>
+</Project>

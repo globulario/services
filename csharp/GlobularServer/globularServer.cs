@@ -67,9 +67,7 @@ namespace Globular
 
             // Get the local globular server infomation.
             string path = System.IO.Path.GetTempPath() +  "GLOBULAR_ROOT";
-            
             string text = System.IO.File.ReadAllText(  path );
-            
             this.Root = text.Substring(0, text.LastIndexOf(":")).Replace("\\", "/");
             this.ConfigurationPort = Int32.Parse( text.Substring(text.LastIndexOf(":") + 1));
         }

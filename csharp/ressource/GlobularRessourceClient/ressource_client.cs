@@ -130,10 +130,14 @@ namespace Globular
         /// <param name="action">The gRPC action</param>
         /// <returns></returns>
         public Int32 GetActionPermission(string action) {
-            Ressource.GetActionPermissionRqst rqst = new Ressource.GetActionPermissionRqst();
-            rqst.Action = action;
-            var rsp = this.client.GetActionPermission(rqst);
-            return rsp.Permission;
+            //Ressource.GetActionPermissionRqst rqst = new Ressource.GetActionPermissionRqst();
+            //rqst.Action = action;
+            //var rsp = this.client.GetActionPermission(rqst);
+            // return rsp.Permission;
+
+            // TODO make correction here...
+            return -1;
+            
         }
 
         /// <summary>

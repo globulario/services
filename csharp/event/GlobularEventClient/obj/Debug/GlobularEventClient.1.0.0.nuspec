@@ -19,7 +19,7 @@
     </dependencies>
   </metadata>
   <files>
-    <file src="C:\Users\mm006819\go\src\github.com\davecourtois\Globular\event\event_client\csharp\GlobularEventClient\bin\Debug\netcoreapp3.1\GlobularEventClient.dll" target="lib\netcoreapp3.1\GlobularEventClient.dll" />
-    <file src="C:\Users\mm006819\go\src\github.com\davecourtois\Globular\event\event_client\csharp\GlobularEventClient\licenses\LICENSE.txt" target="LICENSE.txt" />
+    <file src="C:\Users\mm006819\go\src\github.com\globulario\services\csharp\event\GlobularEventClient\bin\Debug\netcoreapp3.1\GlobularEventClient.dll" target="lib\netcoreapp3.1\GlobularEventClient.dll" />
+    <file src="C:\Users\mm006819\go\src\github.com\globulario\services\csharp\event\GlobularEventClient\licenses\LICENSE.txt" target="LICENSE.txt" />
   </files>
 </package>

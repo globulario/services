@@ -58,7 +58,7 @@ namespace Globular
 
     public class Client
     {
-    	private string id;
+        private string id;
         private string name;
         private string domain;
         private int port;
@@ -66,7 +66,7 @@ namespace Globular
         private string caFile;
         private string keyFile;
         private string certFile;
-        
+
         protected Channel channel;
 
         // Get Domain return the client domain.
@@ -74,7 +74,7 @@ namespace Globular
         {
             return this.domain;
         }
-        
+
         public string GetId()
         {
             return this.id;
@@ -288,6 +288,8 @@ namespace Globular
             process_0.StartInfo.ArgumentList.Add(path + "/client.csr");
             process_0.StartInfo.ArgumentList.Add("-subj");
             process_0.StartInfo.ArgumentList.Add("/CN=" + domain);
+            process_0.StartInfo.ArgumentList.Add("-config");
+            process_0.StartInfo.ArgumentList.Add(path + "/san.conf");
 
             // set options
             process_0.StartInfo.UseShellExecute = false;
@@ -296,6 +298,39 @@ namespace Globular
 
             process_0.Start();
             process_0.WaitForExit();
+        }
+
+        private void generateSanConfig(string path, string country, string state, string city, string organization, List<string> domains)
+        {
+            string san = $@"
+            [req]
+            distinguished_name = req_distinguished_name
+            req_extensions = v3_req
+            prompt = no
+
+            [req_distinguished_name]
+            C = {country}
+            ST = {state}
+            L =  {city}
+            O	= {organization}
+            CN = {domains[0]}
+
+            [v3_req]
+            # Extensions to add to a certificate request
+            basicConstraints = CA:FALSE
+            keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+            subjectAltName = @alt_names
+
+            [alt_names]";
+            var i = 0;
+            domains.ForEach(delegate(string domain)
+            {
+                san += $"DNS.{i++} = {domain}\n";
+            });
+
+            // write the file.
+            File.WriteAllText(path + "/san.conf", san);
+
         }
 
         private void keyToPem(string name, string path, string pwd)
@@ -334,11 +369,11 @@ namespace Globular
             return true;
         }
 
-        private void init(string id , string domain="localhost",  int configurationPort=10000)
+        private void init(string id, string domain = "localhost", int configurationPort = 10000)
         {
             // Get the configuration from the globular server.
             var client = new HttpClient();
-            string rqst = "http://" + domain + ":" + configurationPort +"/config";
+            string rqst = "http://" + domain + ":" + configurationPort + "/config";
             var task = Task.Run(() => client.GetAsync(rqst));
             task.Wait();
             var rsp = task.Result;
@@ -352,17 +387,21 @@ namespace Globular
             ServiceConfig config = null;
             if (!serverConfig.Services.ContainsKey(id))
             {
-                foreach(var s in serverConfig.Services.Values)
+                foreach (var s in serverConfig.Services.Values)
                 {
-                    if(s.Name == id){
+                    if (s.Name == id)
+                    {
                         config = s;
                         break;
                     }
                 }
-                if(config == null){
+                if (config == null)
+                {
                     throw new System.InvalidOperationException("No serivce found with id " + id + "!");
                 }
-            }else{
+            }
+            else
+            {
                 config = serverConfig.Services[id];
             }
 
@@ -402,7 +441,7 @@ namespace Globular
                     }
 
                     // Now I will create the certificates.
-                    var ca_crt = getCaCertificate(this.domain,  configurationPort);
+                    var ca_crt = getCaCertificate(this.domain, configurationPort);
                     File.WriteAllText(path + "/ca.crt", ca_crt);
 
                     var pwd = "1111"; // Set in the configuration...
@@ -486,7 +525,7 @@ namespace Globular
         {
             this.id = id;
             this.domain = domain;
-        
+
             // Now I will get the client configuration.
             this.init(id, domain, configurationPort);
         }

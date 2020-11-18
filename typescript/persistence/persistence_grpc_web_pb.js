@@ -138,7 +138,7 @@ proto.persistence.PersistenceServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.persistence.PersistenceServiceClient.prototype.createDatabase =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.CreateDatabaseRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.createDatabase =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.persistence.PersistenceServiceClient.prototype.connect =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.ConnectRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.connect =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.persistence.PersistenceServiceClient.prototype.disconnect =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.DisconnectRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.disconnect =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.persistence.PersistenceServiceClient.prototype.deleteDatabase =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.DeleteDatabaseRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.deleteDatabase =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.persistence.PersistenceServiceClient.prototype.createCollection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.CreateCollectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.createCollection =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.persistence.PersistenceServiceClient.prototype.deleteCollection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.DeleteCollectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.deleteCollection =
     function(request, metadata) {
@@ -698,7 +698,7 @@ proto.persistence.PersistenceServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.CreateConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -778,7 +778,7 @@ proto.persistence.PersistenceServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.DeleteConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -858,7 +858,7 @@ proto.persistence.PersistenceServiceClient.prototype.ping =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.PingConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.ping =
     function(request, metadata) {
@@ -938,7 +938,7 @@ proto.persistence.PersistenceServiceClient.prototype.count =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.CountRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.count =
     function(request, metadata) {
@@ -1018,7 +1018,7 @@ proto.persistence.PersistenceServiceClient.prototype.insertOne =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.InsertOneRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.insertOne =
     function(request, metadata) {
@@ -1173,7 +1173,7 @@ proto.persistence.PersistenceServiceClient.prototype.findOne =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.FindOneResp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.findOne =
     function(request, metadata) {
@@ -1403,7 +1403,7 @@ proto.persistence.PersistenceServiceClient.prototype.update =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.UpdateRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.update =
     function(request, metadata) {
@@ -1483,7 +1483,7 @@ proto.persistence.PersistenceServiceClient.prototype.updateOne =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.UpdateOneRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.updateOne =
     function(request, metadata) {
@@ -1563,7 +1563,7 @@ proto.persistence.PersistenceServiceClient.prototype.replaceOne =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.ReplaceOneRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.replaceOne =
     function(request, metadata) {
@@ -1643,7 +1643,7 @@ proto.persistence.PersistenceServiceClient.prototype.delete =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.DeleteRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.delete =
     function(request, metadata) {
@@ -1723,7 +1723,7 @@ proto.persistence.PersistenceServiceClient.prototype.deleteOne =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.DeleteOneRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.deleteOne =
     function(request, metadata) {
@@ -1803,7 +1803,7 @@ proto.persistence.PersistenceServiceClient.prototype.runAdminCmd =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.persistence.RunAdminCmdRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.persistence.PersistenceServicePromiseClient.prototype.runAdminCmd =
     function(request, metadata) {

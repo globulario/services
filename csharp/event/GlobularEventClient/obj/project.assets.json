@@ -272,8 +272,8 @@
     },
     "GlobularClient/1.0.2": {
       "type": "project",
-      "path": "../../../../api/csharp/GlobularClient/GlobularClient.csproj",
-      "msbuildProject": "../../../../api/csharp/GlobularClient/GlobularClient.csproj"
+      "path": "../../GlobularClient/GlobularClient.csproj",
+      "msbuildProject": "../../GlobularClient/GlobularClient.csproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -291,11 +291,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\mm006819\\go\\src\\github.com\\davecourtois\\Globular\\event\\event_client\\csharp\\GlobularEventClient\\GlobularEventClient.csproj",
+      "projectUniqueName": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\event\\GlobularEventClient\\GlobularEventClient.csproj",
       "projectName": "GlobularEventClient",
-      "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\davecourtois\\Globular\\event\\event_client\\csharp\\GlobularEventClient\\GlobularEventClient.csproj",
+      "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\event\\GlobularEventClient\\GlobularEventClient.csproj",
       "packagesPath": "C:\\Users\\mm006819\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\mm006819\\go\\src\\github.com\\davecourtois\\Globular\\event\\event_client\\csharp\\GlobularEventClient\\obj\\",
+      "outputPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\event\\GlobularEventClient\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
@@ -313,9 +313,10 @@
       },
       "frameworks": {
         "netcoreapp3.1": {
+          "targetAlias": "netcoreapp3.1",
           "projectReferences": {
-            "C:\\Users\\mm006819\\go\\src\\github.com\\davecourtois\\Globular\\api\\csharp\\GlobularClient\\GlobularClient.csproj": {
-              "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\davecourtois\\Globular\\api\\csharp\\GlobularClient\\GlobularClient.csproj"
+            "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\GlobularClient.csproj": {
+              "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\GlobularClient.csproj"
             }
           }
         }
@@ -328,6 +329,7 @@
     },
     "frameworks": {
       "netcoreapp3.1": {
+        "targetAlias": "netcoreapp3.1",
         "dependencies": {
           "Google.Protobuf": {
             "target": "Package",
@@ -357,7 +359,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\3.1.402\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.100\\RuntimeIdentifierGraph.json"
       }
     }
   }
