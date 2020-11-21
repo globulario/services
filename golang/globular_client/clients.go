@@ -122,7 +122,7 @@ func InitClient(client Client, address string, id string) error {
 }
 
 /**
- * Get the client connection. The token is require to control access to ressource
+ * Get the client connection. The token is require to control access to resource
  */
 func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	// initialyse the client values.

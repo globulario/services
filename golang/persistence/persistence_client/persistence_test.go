@@ -36,13 +36,13 @@ func TestAggregate(t *testing.T) {
 	//fmt.Println("Aggregate")
 	/*user := "sa"
 	pwd := "adminadmin"
-	err := client.CreateConnection("mongo_db_test_connection", "local_ressource", "localhost", 27017, 0, user, pwd, 500, "", true)
+	err := client.CreateConnection("mongo_db_test_connection", "local_resource", "localhost", 27017, 0, user, pwd, 500, "", true)
 	if err != nil {
 		log.Println("fail to create connection! ", err)
 	}
 
 	Id := "mongo_db_test_connection"
-	Database := "local_ressource"
+	Database := "local_resource"
 	Collection := "Employees"
 
 	results, err := client.Aggregate(Id, Database, Collection, `[{"$count":"toto"}]`, "")

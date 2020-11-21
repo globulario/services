@@ -6,7 +6,7 @@
 
 # GO grpc file generation
 protoc proto/admin.proto --go_out=plugins=grpc:./golang
-protoc proto/ressource.proto --go_out=plugins=grpc:./golang
+protoc proto/resource.proto --go_out=plugins=grpc:./golang
 protoc proto/ca.proto --go_out=plugins=grpc:./golang
 protoc proto/lb.proto --go_out=plugins=grpc:./golang
 protoc proto/services.proto --go_out=plugins=grpc:./golang
@@ -33,9 +33,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/admi
 mkdir typescript/lb
 protoc --js_out=import_style=commonjs:typescript/lb  -I ./proto/ lb.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/lb -I ./proto/ lb.proto
-mkdir typescript/ressource
-protoc --js_out=import_style=commonjs:typescript/ressource  -I ./proto/ ressource.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/ressource -I ./proto/ ressource.proto
+mkdir typescript/resource
+protoc --js_out=import_style=commonjs:typescript/resource  -I ./proto/ resource.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/resource -I ./proto/ resource.proto
 mkdir typescript/ca
 protoc --js_out=import_style=commonjs:typescript/ca  -I ./proto/ ca.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/ca -I ./proto/ ca.proto
@@ -90,16 +90,16 @@ mkdir csharp/event/eventpb
 protoc --grpc_out=./csharp/event/eventpb --csharp_out=./csharp/event/eventpb --csharp_opt=file_extension=.g.cs proto/event.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
 mkdir csharp/persistence/persistencepb
 protoc --grpc_out=./csharp/persistence/persistencepb --csharp_out=./csharp/persistence/persistencepb --csharp_opt=file_extension=.g.cs proto/persistence.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
-mkdir csharp/ressource/ressourcepb
-protoc --grpc_out=./csharp/ressource/ressourcepb --csharp_out=./csharp/ressource/ressourcepb --csharp_opt=file_extension=.g.cs proto/ressource.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
+mkdir csharp/resource/resourcepb
+protoc --grpc_out=./csharp/resource/resourcepb --csharp_out=./csharp/resource/resourcepb --csharp_opt=file_extension=.g.cs proto/resource.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
 mkdir csharp/echo/echopb
 protoc --grpc_out=./csharp/echo/echopb --csharp_out=./csharp/echo/echopb --csharp_opt=file_extension=.g.cs proto/echo.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
 
 # C++ grpc files generation.
-mkdir cpp/ressource/ressourcepb
-protoc --plugin="protoc-gen-grpc=C://Users//mm006819//grpc//.build//grpc_cpp_plugin.exe" --grpc_out=./cpp/ressource/ressourcepb -I proto ressource.proto
-protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/ressource/ressourcepb  -I proto ressource.proto
-protoc --cpp_out=./cpp/ressource/ressourcepb -I proto ressource.proto
+mkdir cpp/resource/resourcepb
+protoc --plugin="protoc-gen-grpc=C://Users//mm006819//grpc//.build//grpc_cpp_plugin.exe" --grpc_out=./cpp/resource/resourcepb -I proto resource.proto
+protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/resource/resourcepb  -I proto resource.proto
+protoc --cpp_out=./cpp/resource/resourcepb -I proto resource.proto
 mkdir cpp/echo/echopb
 protoc --plugin="protoc-gen-grpc=C://Users//mm006819//grpc//.build//grpc_cpp_plugin.exe" --grpc_out=./cpp/echo/echopb -I proto/ echo.proto
 protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/echo/echopb -I proto/ echo.proto

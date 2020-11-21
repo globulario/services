@@ -6,7 +6,7 @@ using Grpc.Core.Interceptors;
 using System.Threading.Tasks;
 
 
-// TODO for the validation, use a map to store valid method/token/ressource/access
+// TODO for the validation, use a map to store valid method/token/resource/access
 // the validation will be renew only if the token expire. And when a token expire
 // the value in the map will be discard. That way it will put less charge on the server
 // side.
@@ -43,7 +43,7 @@ namespace Globular
         public string Root; // The globular root.
 
 		
-        private RessourceClient ressourceClient;
+        private ResourceClient resourceClient;
         public ServerUnaryInterceptor interceptor;
 
         /// <summary>
@@ -72,15 +72,15 @@ namespace Globular
             this.ConfigurationPort = Int32.Parse( text.Substring(text.LastIndexOf(":") + 1));
         }
 
-        private RessourceClient getRessourceClient(string domain)
+        private ResourceClient getResourceClient(string domain)
         {
-            if (this.ressourceClient == null)
+            if (this.resourceClient == null)
             {
-                // there must be a globular server runing in order to validate ressources.
+                // there must be a globular server runing in order to validate resources.
                 // TODO set the configuration port in a configuration file.
-                ressourceClient = new RessourceClient("ressource.RessourceService", domain, this.ConfigurationPort );
+                resourceClient = new ResourceClient("resource.ResourceService", domain, this.ConfigurationPort );
             }
-            return this.ressourceClient;
+            return this.resourceClient;
         }
 
         private string getPath()
@@ -123,15 +123,15 @@ namespace Globular
         }
 
         /// <summary>
-        /// Set a ressource on the globular ressource manager.
+        /// Set a resource on the globular resource manager.
         /// </summary>
         /// <param name="path">The path must begin by /. Like a unix file path</param>
-        /// <param name="name">The name of the ressource must be unique in it contex (path + '/' + name)</param>
-        /// <param name="modified">The last time the ressource was access</param>
-        /// <param name="size">The size of the ressource (optional)</param>
-        public void setRessource(string domain, string path, string name, int modified, int size)
+        /// <param name="name">The name of the resource must be unique in it contex (path + '/' + name)</param>
+        /// <param name="modified">The last time the resource was access</param>
+        /// <param name="size">The size of the resource (optional)</param>
+        public void setResource(string domain, string path, string name, int modified, int size)
         {
-            this.getRessourceClient(domain).SetRessource(path, name, modified, size);
+            this.getResourceClient(domain).SetResource(path, name, modified, size);
         }
 
         /// <summary>
@@ -142,32 +142,32 @@ namespace Globular
         /// <returns></returns>
         public bool validateUserAccess(string domain, string token, string method)
         {
-            return this.getRessourceClient(domain).ValidateUserAccess(token, method);
+            return this.getResourceClient(domain).ValidateUserAccess(token, method);
         }
 
         public bool validateApplicationAccess(string domain, string application, string method)
         {
-            return this.getRessourceClient(domain).ValidateApplicationAccess(application, method);
+            return this.getResourceClient(domain).ValidateApplicationAccess(application, method);
         }
 
-        public bool validateUserRessourceAccess(string domain, string token, string path, string method, int permission)
+        public bool validateUserResourceAccess(string domain, string token, string path, string method, int permission)
         {
-            return this.getRessourceClient(domain).ValidateUserRessourceAccess(token, path, method, permission);
+            return this.getResourceClient(domain).ValidateUserResourceAccess(token, path, method, permission);
         }
 
-        public bool validateApplicationRessourceAccess(string domain, string application, string path, string method, int permission)
+        public bool validateApplicationResourceAccess(string domain, string application, string path, string method, int permission)
         {
-            return this.getRessourceClient(domain).ValidateApplicationRessourceAccess(application, path, method, permission);
+            return this.getResourceClient(domain).ValidateApplicationResourceAccess(application, path, method, permission);
         }
 
         public int getActionPermission(string domain, string action)
         {
-            return this.getRessourceClient(domain).GetActionPermission(action);
+            return this.getResourceClient(domain).GetActionPermission(action);
         }
 
         public void logInfo(string domain, string application, string token, string method, string message, int logType)
         {
-            this.getRessourceClient(domain).Log(application, token, method, message, logType);
+            this.getResourceClient(domain).Log(application, token, method, message, logType);
         }
     }
 
@@ -214,7 +214,7 @@ namespace Globular
                 }
             }
 
-            // A domain must be given to get access to the ressource manager.
+            // A domain must be given to get access to the resource manager.
             if (domain.Length == 0)
             {
                 throw new RpcException(new Status(StatusCode.PermissionDenied, "Permission denied, no domain was given!"), metadatas);
@@ -239,19 +239,19 @@ namespace Globular
                 throw new RpcException(new Status(StatusCode.PermissionDenied, "Permission denied"), metadatas);
             }
 
-            // Now if the action has ressource access permission defines...
+            // Now if the action has resource access permission defines...
             var permission = this.service.getActionPermission(domain, method);
             if (permission != -1)
             {
-                // Now I will try to validate ressource if there is none...
+                // Now I will try to validate resource if there is none...
                 if (path.Length > 0)
                 {
-                    var hasRessourcePermission = this.service.validateUserRessourceAccess(domain, token, path, method, permission);
-                    if (!hasRessourcePermission)
+                    var hasResourcePermission = this.service.validateUserResourceAccess(domain, token, path, method, permission);
+                    if (!hasResourcePermission)
                     {
-                        this.service.validateApplicationRessourceAccess(domain, application, path, method, permission);
+                        this.service.validateApplicationResourceAccess(domain, application, path, method, permission);
                     }
-                    if (!hasRessourcePermission)
+                    if (!hasResourcePermission)
                     {
                         throw new RpcException(new Status(StatusCode.PermissionDenied, "Permission denied"), metadatas);
                     }

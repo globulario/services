@@ -22,7 +22,7 @@ namespace Globular
         public int PortHttps { get; set; }
         public int AdminPort { get; set; }
         public string AdminEmail { get; set; }
-        public int RessourcePort { get; set; }
+        public int ResourcePort { get; set; }
         public int ServicesDiscoveryPort { get; set; }
         public int ServicesRepositoryPort { get; set; }
         public int CertificateAuthorityPort { get; set; }
@@ -512,7 +512,7 @@ namespace Globular
                 metadata.Add("application", application);
             }
 
-            // The path of ressource if there one.
+            // The path of resource if there one.
             if (path.Length > 0)
             {
                 metadata.Add("path", path);

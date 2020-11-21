@@ -9,7 +9,7 @@
 // gRpc stuff...
 #include <grpc++/grpc++.h>
 #include <grpcpp/support/server_interceptor.h>
-#include "globularressourceclient.h"
+#include "globularresourceclient.h"
 using grpc::Service;
 using grpc::Server;
 
@@ -145,7 +145,7 @@ public:
 
 
 /**
- * Intercept method call and validate application/user permission to execute method or ressource access.
+ * Intercept method call and validate application/user permission to execute method or resource access.
  * @brief The ServerUnaryInterceptor class
  */
 class ServerInterceptor : public grpc::experimental::Interceptor
@@ -158,7 +158,7 @@ public:
         // Check the method name and compare to the type
         const char* method = info->method();
         grpc::experimental::ServerRpcInfo::Type type = info->type();
-        ressourceClient = 0;
+        resourceClient = 0;
 
     }
 
@@ -194,8 +194,8 @@ public:
                 return;
             }
 
-            // Here I will create the ressource client.
-            if(ressourceClient == 0){
+            // Here I will create the resource client.
+            if(resourceClient == 0){
                 std::cout << "domain read " << domain << std::endl;
                 auto index = domain.find(":");
                 auto port = 80;
@@ -212,16 +212,16 @@ public:
                     std::cout << "port int " << port << std::endl;
                 }
                  std::cout << "create ressouce client for domain " << domain << ":" << port  << std::endl;
-                ressourceClient = new Globular::RessourceClient("ressource.RessourceService", domain, port);
+                resourceClient = new Globular::ResourceClient("resource.ResourceService", domain, port);
             }
 
             if(!application.empty()){
-                hasAccess = ressourceClient->validateApplicationAccess(application, method);
+                hasAccess = resourceClient->validateApplicationAccess(application, method);
             }
 
             if(!hasAccess){
                 std::cout << method << token << std::endl;
-                hasAccess = ressourceClient->validateUserAccess(token, method);
+                hasAccess = resourceClient->validateUserAccess(token, method);
             }
 
             if(!hasAccess){
@@ -231,22 +231,22 @@ public:
                 return;
             }else{
 
-                // Now if the action has ressource access permission defines...
-                auto permissions = ressourceClient->getActionPermission(method);
+                // Now if the action has resource access permission defines...
+                auto permissions = resourceClient->getActionPermission(method);
                 for(auto it = permissions.cbegin(); it != permissions.cend(); ++it){
 
                     auto permission = *(it);
                     std::string path = "";
 
                     // permission.permission()
-                    auto hasRessourcePermission = ServerInterceptor::ressourceClient->validateUserRessourceAccess(token, path, method, permission.permission());
-                    if (!hasRessourcePermission)
+                    auto hasResourcePermission = ServerInterceptor::resourceClient->validateUserResourceAccess(token, path, method, permission.permission());
+                    if (!hasResourcePermission)
                     {
-                        ServerInterceptor::ressourceClient->validateApplicationRessourceAccess(application, path, method, permission.permission());
+                        ServerInterceptor::resourceClient->validateApplicationResourceAccess(application, path, method, permission.permission());
                     }
-                    if (!hasRessourcePermission)
+                    if (!hasResourcePermission)
                     {
-                        grpc::Status error(grpc::StatusCode::PERMISSION_DENIED, "Permission denied access denied on ressource " + path + "!");
+                        grpc::Status error(grpc::StatusCode::PERMISSION_DENIED, "Permission denied access denied on resource " + path + "!");
                         methods->ModifySendStatus(error);
                         methods->Proceed();
                         return;
@@ -281,8 +281,8 @@ private:
     std::string path;
     std::string domain;
 
-    // The ressource client.
-    RessourceClient* ressourceClient;
+    // The resource client.
+    ResourceClient* resourceClient;
 
 }; // namespace Globular.
 

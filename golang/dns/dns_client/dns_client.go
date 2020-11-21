@@ -155,9 +155,9 @@ func (self *DNS_Client) SetCaFile(caFile string) {
 	self.caFile = caFile
 }
 
-// The domain of the globule responsible to do ressource validation.
+// The domain of the globule responsible to do resource validation.
 // That domain will be use by the interceptor and access validation will
-// be evaluated by the ressource manager at the domain address.
+// be evaluated by the resource manager at the domain address.
 func (self *DNS_Client) getDomainContext(domain string) context.Context {
 	// Here I will set the targeted domain as domain in the context.
 	md := metadata.New(map[string]string{"domain": domain})

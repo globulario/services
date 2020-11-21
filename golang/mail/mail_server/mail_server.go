@@ -725,7 +725,7 @@ func main() {
 			smtp.Store = store
 
 			// Open the backend main connection
-			err = store.CreateConnection("local_ressource", "local_ressource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
+			err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
 			if err != nil {
 				log.Println(err)
 				return
