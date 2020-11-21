@@ -5,26 +5,46 @@
 # day of my life just like that. But at then end I learn something...
 
 # GO grpc file generation
-protoc proto/admin.proto --go_out=plugins=grpc:./golang
-protoc proto/resource.proto --go_out=plugins=grpc:./golang
-protoc proto/ca.proto --go_out=plugins=grpc:./golang
-protoc proto/lb.proto --go_out=plugins=grpc:./golang
-protoc proto/services.proto --go_out=plugins=grpc:./golang
-protoc proto/dns.proto --go_out=plugins=grpc:./golang
-protoc proto/echo.proto --go_out=plugins=grpc:./golang
-protoc proto/search.proto --go_out=plugins=grpc:./golang
-protoc proto/event.proto --go_out=plugins=grpc:./golang
-protoc proto/storage.proto --go_out=plugins=grpc:./golang
-protoc proto/file.proto --go_out=plugins=grpc:./golang
-protoc proto/sql.proto --go_out=plugins=grpc:./golang
-protoc proto/ldap.proto --go_out=plugins=grpc:./golang
-protoc proto/mail.proto --go_out=plugins=grpc:./golang
-protoc proto/persistence.proto --go_out=plugins=grpc:./golang
-protoc proto/monitoring.proto --go_out=plugins=grpc:./golang
-protoc proto/plc.proto --go_out=plugins=grpc:./golang
-protoc proto/spc.proto --go_out=plugins=grpc:./golang
-protoc proto/catalog.proto --go_out=plugins=grpc:./golang
-protoc proto/plc_link.proto --go_out=plugins=grpc:./golang
+protoc proto/admin.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/resource.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/ca.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/lb.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/services.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/dns.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/echo.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/search.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/event.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/storage.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/file.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/sql.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/ldap.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/mail.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/persistence.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/monitoring.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/plc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/spc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/catalog.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
+protoc proto/plc_link.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
 
 # TypeScript grpc files generation.
 mkdir typescript/admin
