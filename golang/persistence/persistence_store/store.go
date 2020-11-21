@@ -100,7 +100,7 @@ type Store interface {
 	DeleteOne(ctx context.Context, connectionId string, database string, collection string, query string, options string) error
 
 	////////////////////////////////////////////////////////////////////////////
-	// Ressource management functionality.
+	// Resource management functionality.
 	////////////////////////////////////////////////////////////////////////////
 
 	/**

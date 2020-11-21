@@ -20,7 +20,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
-	"github.com/globulario/services/golang/ressource/ressource_client"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -207,13 +207,13 @@ func PublishService(address string, user string, pwd string, s Service) error {
 	}
 
 	// Authenticate the user in order to get the token
-	ressource_client_, err := ressource_client.NewRessourceService_Client(address, "ressource.RessourceService")
+	resource_client_, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		log.Panicln(err)
 		return err
 	}
 
-	token, err := ressource_client_.Authenticate(user, pwd)
+	token, err := resource_client_.Authenticate(user, pwd)
 	if err != nil {
 		log.Println(err)
 		return err
@@ -376,7 +376,7 @@ var (
 )
 
 /**
- * Get a the local ressource client.
+ * Get a the local resource client.
  */
 func getAdminClient(domain string) (*admin_client.Admin_Client, error) {
 	var err error

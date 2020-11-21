@@ -44,8 +44,8 @@ struct ServerConfig {
     unsigned int AdminPort;
     unsigned int AdminProxy;
     std::string AdminEmail;
-    unsigned int RessourcePort;
-    unsigned int RessourceProxy;
+    unsigned int ResourcePort;
+    unsigned int ResourceProxy;
     unsigned int ServicesDiscoveryPort;
     unsigned int ServicesDiscoveryProxy;
     unsigned int ServicesRepositoryPort;
