@@ -10,11 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-
-	//	"strings"
+	"strings"
 
 	globular "github.com/globulario/services/golang/globular_service"
-	//	"github.com/globulario/services/golang/persistence/persistence_client"
+	"github.com/globulario/services/golang/persistence/persistence_client"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
@@ -25,8 +24,8 @@ import (
 
 	//"google.golang.org/grpc/grpclog"
 
-	//	"github.com/globulario/services/golang/mail/mail_server/imap"
-	//	"github.com/globulario/services/golang/mail/mail_server/smtp"
+	"github.com/globulario/services/golang/mail/mail_server/imap"
+	"github.com/globulario/services/golang/mail/mail_server/smtp"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 
@@ -698,7 +697,7 @@ func main() {
 		reflection.Register(s_impl.grpcServer)
 
 		// Here I will start the local smtp server.
-		/*go func() {
+		go func() {
 			certFile := s_impl.CertFile
 
 			// Here in case of tls connection I will use the domain certificate instead of the server certificate.
@@ -726,7 +725,7 @@ func main() {
 			smtp.Store = store
 
 			// Open the backend main connection
-			err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
+			err = store.CreateConnection("local_ressource", "local_ressource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
 			if err != nil {
 				log.Println(err)
 				return
@@ -739,7 +738,7 @@ func main() {
 			// start smtp server
 			smtp.StartSmtp(store, address, port, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
 
-		}()*/
+		}()
 		log.Println("start grpc mail service")
 		// Start the service.
 		s_impl.StartService()

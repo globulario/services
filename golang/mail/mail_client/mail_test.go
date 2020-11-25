@@ -1,17 +1,17 @@
 package mail_client
 
 import (
+	"fmt"
 	"log"
 	"testing"
 
-	"github.com/globulario/services/golang/mail/mailpb"
+	"github.com/globulario/services/golang/smtp/smtppb"
 )
 
 var (
-	client *Mail_Client
+	client *SMTP_Client
 )
 
-/*
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
 	var err error
@@ -26,26 +26,21 @@ func TestCreateConnection(t *testing.T) {
 	if err != nil {
 		log.Panicln(err)
 	}
-}*/
+}
 
 /**
  * Test send email whitout attachements.
  */
 func TestSendEmail(t *testing.T) {
-	var err error
-	client, err = NewMailService_Client("localhost", "mail.MailService")
-	if err != nil {
-		log.Panicln(err)
-	}
 
-	from := "dave.courtois@safrangroup.com"
+	from := "dave.courtois60@localhost"
 	to := []string{"dave.courtois60@gmail.com"}
-	cc := []*mailpb.CarbonCopy{&mailpb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois@safrangroup.com"}}
+	cc := []*smtppb.CarbonCopy{&smtppb.CarbonCopy{Name: "Dave Courtois", Address: "dave.courtois60@gmail.com"}}
 	subject := "Smtp Test"
 	body := `<meta http-equiv="Content-Type" content="text/html; charset=utf-8"><div dir="ltr">Message test.</div>`
-	bodyType := int32(mailpb.BodyType_HTML)
+	bodyType := int32(smtppb.BodyType_HTML)
 
-	err = client.SendEmail("safran_Mail", from, to, cc, subject, body, bodyType)
+	err := client.SendEmail("test_smtp", from, to, cc, subject, body, bodyType)
 
 	if err != nil {
 		log.Panicln(err)
