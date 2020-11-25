@@ -47,12 +47,9 @@ protoc proto/plc_link.proto --go-grpc_out=require_unimplemented_servers=false:./
 
 
 # TypeScript grpc files generation.
-mkdir typescript/admin
+mkdir typescript\admin
 protoc --js_out=import_style=commonjs:typescript/admin  -I ./proto/ admin.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/admin -I ./proto/ admin.proto
-mkdir typescript/lb
-protoc --js_out=import_style=commonjs:typescript/lb  -I ./proto/ lb.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/lb -I ./proto/ lb.proto
 mkdir typescript/resource
 protoc --js_out=import_style=commonjs:typescript/resource  -I ./proto/ resource.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/resource -I ./proto/ resource.proto

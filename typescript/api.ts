@@ -52,27 +52,27 @@ import {
   DeletePermissionsRqst,
   DeletePermissionsRsp,
   SetPermissionRqst,
-  RessourcePermission,
+  ResourcePermission,
   SetPermissionRsp,
   SynchronizeLdapRqst,
   LdapSyncInfos,
   SynchronizeLdapRsp,
   UserSyncInfos,
   GroupSyncInfos,
-  GetRessourceOwnersRqst,
-  GetRessourceOwnersRsp,
-  SetRessourceOwnerRqst,
-  DeleteRessourceOwnerRqst,
+  GetResourceOwnersRqst,
+  GetResourceOwnersRsp,
+  SetResourceOwnerRqst,
+  DeleteResourceOwnerRqst,
   GetLogRqst,
   LogInfo,
   ClearAllLogRqst,
   LogType,
   DeleteLogRqst,
   SetActionPermissionRqst,
-  Ressource,
+  Resource,
   RemoveActionPermissionRqst,
-  GetRessourcesRqst,
-  RemoveRessourceRqst,
+  GetResourcesRqst,
+  RemoveResourceRqst,
   GetPeersRqst,
   GetPeersRsp,
   Peer,
@@ -81,7 +81,7 @@ import {
   RemovePeerActionRqst,
   DeletePeerRqst,
   RegisterPeerRqst,
-} from "./ressource/ressource_pb";
+} from "./resource/resource_pb";
 
 import * as jwt from "jwt-decode";
 import {
@@ -278,11 +278,11 @@ function hasRunningProcess(
     });
 }
 
-///////////////////////////////////// Ressource & Permissions operations /////////////////////////////////
+///////////////////////////////////// Resource & Permissions operations /////////////////////////////////
 
 /**
  * Return the list of all action permissions.
- * Action permission are apply on ressource managed by those action.
+ * Action permission are apply on resource managed by those action.
  * @param globular
  * @param application
  * @param domain
@@ -294,7 +294,7 @@ export function readAllActionPermissions(
   callback: (results: any) => void,
   errorCallback: (err: any) => void
 ) {
-  const database = "local_ressource";
+  const database = "local_resource";
   const collection = "ActionPermission";
 
   const rqst = new FindRqst();
@@ -327,7 +327,7 @@ export function readAllActionPermissions(
 }
 
 /**
- * Return the list of ressources.
+ * Return the list of resources.
  * @param globular
  * @param application
  * @param domain
@@ -336,29 +336,29 @@ export function readAllActionPermissions(
  * @param callback
  * @param errorCallback
  */
-export function getRessources(
+export function getResources(
   globular: Globular,
   path: string,
   name: string,
-  callback: (results: Ressource[]) => void,
+  callback: (results: Resource[]) => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new GetRessourcesRqst();
+  const rqst = new GetResourcesRqst();
   rqst.setPath(path);
   rqst.setName(name);
 
   // call persist data
-  const stream = globular.ressourceService.getRessources(rqst, {
+  const stream = globular.resourceService.getResources(rqst, {
     token: getToken(),
     application: application,
     domain: domain,
   });
 
-  let results = new Array<Ressource>();
+  let results = new Array<Resource>();
 
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    results = results.concat(rsp.getRessourcesList());
+    results = results.concat(rsp.getResourcesList());
   });
 
   stream.on("status", (status) => {
@@ -393,7 +393,7 @@ export function setActionPermission(
     rqst.setPermission(permission)
 
     // Call set action permission.
-    globular.ressourceService.setActionPermission(rqst, {
+    globular.resourceService.setActionPermission(rqst, {
         "token": token,
         "application": application, "domain": domain
     }).then(callback)
@@ -420,7 +420,7 @@ export function removeActionPermission(
   const rqst = new RemoveActionPermissionRqst();
   rqst.setAction(action);
   // Call set action permission.
-  globular.ressourceService
+  globular.resourceService
     .removeActionPermission(rqst, {
       token: getToken(),
       application: application,
@@ -433,7 +433,7 @@ export function removeActionPermission(
 }
 
 /**
- * Delete a ressource
+ * Delete a resource
  * @param globular
  * @param application
  * @param domain
@@ -442,20 +442,20 @@ export function removeActionPermission(
  * @param callback
  * @param errorCallback
  */
-export function removeRessource(
+export function removeResource(
   globular: Globular,
   path: string,
   name: string,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new RemoveRessourceRqst();
-  const ressource = new Ressource();
-  ressource.setPath(path);
-  ressource.setName(name);
-  rqst.setRessource(ressource);
-  globular.ressourceService
-    .removeRessource(rqst, {
+  const rqst = new RemoveResourceRqst();
+  const resource = new Resource();
+  resource.setPath(path);
+  resource.setName(name);
+  rqst.setResource(resource);
+  globular.resourceService
+    .removeResource(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
@@ -467,28 +467,28 @@ export function removeRessource(
 }
 
 /**
- * Retreive the list of ressource owner.
+ * Retreive the list of resource owner.
  * @param path
  * @param callback
  * @param errorCallback
  */
-export function getRessourceOwners(
+export function getResourceOwners(
   globular: Globular,
   path: string,
   callback: (infos: any[]) => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new GetRessourceOwnersRqst();
+  const rqst = new GetResourceOwnersRqst();
   path = path.replace("/webroot", "");
   rqst.setPath(path);
 
-  globular.ressourceService
-    .getRessourceOwners(rqst, {
+  globular.resourceService
+    .getResourceOwners(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
     })
-    .then((rsp: GetRessourceOwnersRsp) => {
+    .then((rsp: GetResourceOwnersRsp) => {
       callback(rsp.getOwnersList());
     })
     .catch((err: any) => {
@@ -497,26 +497,26 @@ export function getRessourceOwners(
 }
 
 /**
- * The ressource owner to be set.
- * @param path The path of the ressource
- * @param owner The owner of the ressource
+ * The resource owner to be set.
+ * @param path The path of the resource
+ * @param owner The owner of the resource
  * @param callback The success callback
  * @param errorCallback The error callback
  */
-export function setRessourceOwners(
+export function setResourceOwners(
   globular: Globular,
   path: string,
   owner: string,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new SetRessourceOwnerRqst();
+  const rqst = new SetResourceOwnerRqst();
   path = path.replace("/webroot", ""); // remove the /webroot part.
   rqst.setPath(path);
   rqst.setOwner(owner);
 
-  globular.ressourceService
-    .setRessourceOwner(rqst, {
+  globular.resourceService
+    .setResourceOwner(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
@@ -530,26 +530,26 @@ export function setRessourceOwners(
 }
 
 /**
- * Delete a given ressource owner
- * @param path The path of the ressource.
+ * Delete a given resource owner
+ * @param path The path of the resource.
  * @param owner The owner to be remove
  * @param callback The sucess callback
  * @param errorCallback The error callback
  */
-export function deleteRessourceOwners(
+export function deleteResourceOwners(
   globular: Globular,
   path: string,
   owner: string,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new DeleteRessourceOwnerRqst();
+  const rqst = new DeleteResourceOwnerRqst();
   path = path.replace("/webroot", ""); // remove the /webroot part.
   rqst.setPath(path);
   rqst.setOwner(owner);
 
-  globular.ressourceService
-    .deleteRessourceOwner(rqst, {
+  globular.resourceService
+    .deleteResourceOwner(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
@@ -563,12 +563,12 @@ export function deleteRessourceOwners(
 }
 
 /**
- * Retreive the permission for a given ressource.
+ * Retreive the permission for a given resource.
  * @param path
  * @param callback
  * @param errorCallback
  */
-export function getRessourcePermissions(
+export function getResourcePermissions(
   globular: Globular,
   path: string,
   callback: (infos: any[]) => void,
@@ -581,7 +581,7 @@ export function getRessourcePermissions(
   }
   rqst.setPath(path);
 
-  globular.ressourceService
+  globular.resourceService
     .getPermissions(rqst, {
       application: application,
       domain: domain,
@@ -616,7 +616,7 @@ export enum OwnerType {
  * @param callback The success callback
  * @param errorCallback The error callback
  */
-export function setRessourcePermission(
+export function setResourcePermission(
   globular: Globular,
   path: string,
   owner: string,
@@ -632,7 +632,7 @@ export function setRessourcePermission(
     path = "/";
   }
 
-  const permission = new RessourcePermission();
+  const permission = new ResourcePermission();
   permission.setPath(path);
   permission.setNumber(permissionNumber);
   if (ownerType === OwnerType.User) {
@@ -645,7 +645,7 @@ export function setRessourcePermission(
 
   rqst.setPermission(permission);
 
-  globular.ressourceService
+  globular.resourceService
     .setPermission(rqst, {
       token: getToken(),
       application: application,
@@ -668,7 +668,7 @@ export function setRessourcePermission(
  * @param callback The success callback.
  * @param errorCallback The error callback.
  */
-export function deleteRessourcePermissions(
+export function deleteResourcePermissions(
   globular: Globular,
   path: string,
   owner: string,
@@ -684,7 +684,7 @@ export function deleteRessourcePermissions(
   rqst.setPath(path);
   rqst.setOwner(owner);
 
-  globular.ressourceService
+  globular.resourceService
     .deletePermissions(rqst, {
       token: getToken(),
       application: application,
@@ -771,7 +771,7 @@ export function getAllFilesInfo(
   errorCallback: (err: any) => void
 ) {
   const rqst = new GetAllFilesInfoRqst();
-  globular.ressourceService
+  globular.resourceService
     .getAllFilesInfo(rqst, { application: application, domain: domain })
     .then((rsp: GetAllFilesInfoRsp) => {
       const filesInfo = JSON.parse(rsp.getResult());
@@ -1253,8 +1253,8 @@ export function getAllAccountsInfo(
 ) {
   const rqst = new FindRqst();
   rqst.setCollection("Accounts");
-  rqst.setDatabase("local_ressource");
-  rqst.setId("local_ressource");
+  rqst.setDatabase("local_resource");
+  rqst.setId("local_resource");
   rqst.setQuery("{}"); // means all values.
 
   const stream = globular.persistenceService.find(rqst, {
@@ -1304,7 +1304,7 @@ export function registerAccount(
   request.setConfirmPassword(confirmPassword);
 
   // Create the user account.
-  globular.ressourceService
+  globular.resourceService
     .registerAccount(request, {
       application: application,
       domain: domain,
@@ -1333,7 +1333,7 @@ export function deleteAccount(
   rqst.setId(id);
 
   // Remove the account from the database.
-  globular.ressourceService
+  globular.resourceService
     .deleteAccount(rqst, {
       token: getToken(),
       application: application,
@@ -1365,7 +1365,7 @@ export function removeRoleFromAccount(
   rqst.setAccountid(accountId);
   rqst.setRoleid(roleId);
 
-  globular.ressourceService
+  globular.resourceService
     .removeAccountRole(rqst, {
       token: getToken(),
       application: application,
@@ -1397,7 +1397,7 @@ export function appendRoleToAccount(
   rqst.setAccountid(accountId);
   rqst.setRoleid(roleId);
 
-  globular.ressourceService
+  globular.resourceService
     .addAccountRole(rqst, {
       token: getToken(),
       application: application,
@@ -1514,7 +1514,7 @@ export function authenticate(
   rqst.setPassword(password);
 
   // Create the user account.
-  globular.ressourceService
+  globular.resourceService
     .authenticate(rqst, { application: application, domain: domain })
     .then((rsp) => {
       // Here I will set the token in the localstorage.
@@ -1560,7 +1560,7 @@ export function refreshToken(
   const rqst = new RefreshTokenRqst();
   rqst.setToken(localStorage.getItem("user_token"));
 
-  globular.ressourceService
+  globular.resourceService
     .refreshToken(rqst, {
       token: getToken(),
       application: application,
@@ -1728,7 +1728,7 @@ export function getAllActions(
   errorCallback: (err: any) => void
 ) {
   const rqst = new GetAllActionsRqst();
-  globular.ressourceService
+  globular.resourceService
     .getAllActions(rqst, { application: application, domain: domain })
     .then((rsp: GetAllActionsRsp) => {
       callback(rsp.getActionsList());
@@ -1750,8 +1750,8 @@ export function getAllRoles(
 ) {
   const rqst = new FindRqst();
   rqst.setCollection("Roles");
-  rqst.setDatabase("local_ressource");
-  rqst.setId("local_ressource");
+  rqst.setDatabase("local_resource");
+  rqst.setId("local_resource");
   rqst.setQuery("{}"); // means all values.
 
   const stream = globular.persistenceService.find(rqst, {
@@ -1792,7 +1792,7 @@ export function appendActionToRole(
   rqst.setRoleid(role);
   rqst.setAction(action);
 
-  globular.ressourceService
+  globular.resourceService
     .addRoleAction(rqst, {
       token: getToken(),
       application: application,
@@ -1824,7 +1824,7 @@ export function removeActionFromRole(
   rqst.setRoleid(role);
   rqst.setAction(action);
 
-  globular.ressourceService
+  globular.resourceService
     .removeRoleAction(rqst, {
       token: getToken(),
       application: application,
@@ -1859,7 +1859,7 @@ export function createRole(
   role.setName(id);
   rqst.setRole(role);
 
-  globular.ressourceService
+  globular.resourceService
     .createRole(rqst, {
       token: getToken(),
       application: application,
@@ -1891,7 +1891,7 @@ export function deleteRole(
   const rqst = new DeleteRoleRqst();
   rqst.setRoleid(id);
 
-  globular.ressourceService
+  globular.resourceService
     .deleteRole(rqst, {
       token: getToken(),
       application: application,
@@ -1921,7 +1921,7 @@ export function getAllApplicationsInfo(
   errorCallback: (err: any) => void
 ) {
   const rqst = new GetAllApplicationsInfoRqst();
-  globular.ressourceService
+  globular.resourceService
     .getAllApplicationsInfo(rqst)
     .then((rsp: GetAllApplicationsInfoRsp) => {
       const infos = JSON.parse(rsp.getResult());
@@ -1952,7 +1952,7 @@ export function appendActionToApplication(
   const rqst = new AddApplicationActionRqst();
   rqst.setApplicationid(applicationId);
   rqst.setAction(action);
-  globular.ressourceService
+  globular.resourceService
     .addApplicationAction(rqst, {
       token: getToken(),
       application: application,
@@ -1984,7 +1984,7 @@ export function removeActionFromApplication(
   const rqst = new RemoveApplicationActionRqst();
   rqst.setApplicationid(application);
   rqst.setAction(action);
-  globular.ressourceService
+  globular.resourceService
     .removeApplicationAction(rqst, {
       token: getToken(),
       application: application,
@@ -2015,7 +2015,7 @@ export function deleteApplication(
 ) {
   const rqst = new DeleteApplicationRqst();
   rqst.setApplicationid(applicationId);
-  globular.ressourceService
+  globular.resourceService
     .deleteApplication(rqst, {
       token: getToken(),
       application: application,
@@ -2048,8 +2048,8 @@ export function saveApplication(
 ) {
   const rqst = new ReplaceOneRqst();
   rqst.setCollection("Applications");
-  rqst.setDatabase("local_ressource");
-  rqst.setId("local_ressource");
+  rqst.setDatabase("local_resource");
+  rqst.setId("local_resource");
   rqst.setValue(JSON.stringify(_application));
   rqst.setQuery(`{"_id":"${_application._id}"}`); // means all values.
 
@@ -2375,8 +2375,8 @@ export function getServiceBundles(
 ) {
   let rqst = new FindRqst();
   rqst.setCollection("ServiceBundle");
-  rqst.setDatabase("local_ressource");
-  rqst.setId("local_ressource");
+  rqst.setDatabase("local_resource");
+  rqst.setId("local_resource");
   rqst.setQuery(`{}`); // means all values.
 
   var stream = globular.persistenceService.find(rqst, {
@@ -2460,7 +2460,7 @@ export function readErrors(
   callback: (results: any) => void,
   errorCallback: (err: any) => void
 ) {
-  const database = "local_ressource";
+  const database = "local_resource";
   const collection = "Logs";
 
   const rqst = new FindOneRqst();
@@ -2511,7 +2511,7 @@ export function readLogs(
   rqst.setQuery(query);
 
   // call persist data
-  const stream = globular.ressourceService.getLog(rqst, {
+  const stream = globular.resourceService.getLog(rqst, {
     token: getToken(),
     application: application,
     domain: domain,
@@ -2562,7 +2562,7 @@ export function clearAllLog(
 ) {
   const rqst = new ClearAllLogRqst();
   rqst.setType(logType);
-  globular.ressourceService
+  globular.resourceService
     .clearAllLog(rqst, {
       token: getToken(),
       application: application,
@@ -2591,7 +2591,7 @@ export function deleteLogEntry(
 ) {
   const rqst = new DeleteLogRqst();
   rqst.setLog(log);
-  globular.ressourceService
+  globular.resourceService
     .deleteLog(rqst, {
       token: getToken(),
       application: application,
@@ -2614,7 +2614,7 @@ export function getNumbeOfLogsByMethod(
   callback: (resuts: any[]) => void,
   errorCallback: (err: any) => void
 ) {
-  const database = "local_ressource";
+  const database = "local_resource";
   const collection = "Logs";
   const rqst = new AggregateRqst();
   rqst.setId(database);
@@ -2759,7 +2759,7 @@ export function syncLdapInfos(
   rqst.setSyncinfo(syncInfos);
 
   // Try to synchronyze the ldap service.
-  globular.ressourceService
+  globular.resourceService
     .synchronizeLdap(rqst, {
       token: getToken(),
       application: application,
@@ -2872,7 +2872,7 @@ export function createPeer(
   peer.setDomain(name);
 
   rqst.setPeer(peer);
-  globular.ressourceService
+  globular.resourceService
     .registerPeer(rqst, {
       token: localStorage.getItem("user_token"),
       application: application,
@@ -2891,7 +2891,7 @@ export function getAllPeersInfo(
   rqst.setQuery("{}");
   let peers = new Array<Peer>();
 
-  let stream = globular.ressourceService.getPeers(rqst, {
+  let stream = globular.resourceService.getPeers(rqst, {
     token: localStorage.getItem("user_token"),
     application: application,
     domain: domain,
@@ -2921,7 +2921,7 @@ export function appendActionToPeer(
   let rqst = new AddPeerActionRqst();
   rqst.setDomain(domain);
   rqst.setAction(action);
-  globular.ressourceService
+  globular.resourceService
     .addPeerAction(rqst, {
       token: localStorage.getItem("user_token"),
       application: application,
@@ -2946,7 +2946,7 @@ export function removeActionFromPeer(
   let rqst = new RemovePeerActionRqst();
   rqst.setDomain(domain);
   rqst.setAction(action);
-  globular.ressourceService
+  globular.resourceService
     .removePeerAction(rqst, {
       token: localStorage.getItem("user_token"),
       application: application,
@@ -2969,7 +2969,7 @@ export function deletePeer(
 ) {
   let rqst = new DeletePeerRqst();
   rqst.setPeer(peer);
-  globular.ressourceService
+  globular.resourceService
     .deletePeer(rqst, {
       token: localStorage.getItem("user_token"),
       application: application,

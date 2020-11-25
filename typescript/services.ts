@@ -11,15 +11,13 @@ import { SpcServicePromiseClient } from './spc/spc_grpc_web_pb';
 import { SqlServicePromiseClient } from './sql/sql_grpc_web_pb';
 import { StorageServicePromiseClient } from './storage/storage_grpc_web_pb';
 import { MonitoringServicePromiseClient } from './monitoring/monitoring_grpc_web_pb';
+import { SearchServicePromiseClient } from './search/search_grpc_web_pb';
 import { PlcServicePromiseClient } from './plc/plc_grpc_web_pb';
 import { AdminServicePromiseClient } from './admin/admin_grpc_web_pb';
-import { RessourceServicePromiseClient } from './ressource/ressource_grpc_web_pb';
+import { ResourceServicePromiseClient } from './resource/resource_grpc_web_pb';
 import { ServiceDiscoveryPromiseClient, ServiceRepositoryPromiseClient } from './services/services_grpc_web_pb';
 import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
-import { SearchServiceClient, SearchServicePromiseClient } from './search/search_grpc_web_pb';
-import { LoadBalancingServiceClient, LoadBalancingServicePromiseClient } from './lb/lb_grpc_web_pb';
-import { GetThumbnailsRequest } from './file/file_pb';
 
 /**
  * The service configuration information.
@@ -65,8 +63,8 @@ export interface IConfig {
   AdminPort: number;
   AdminProxy: number;
   AdminEmail: string;
-  RessourcePort: number;
-  RessourceProxy: number;
+  ResourcePort: number;
+  ResourceProxy: number;
   ServicesDiscoveryPort: number;
   ServicesDiscoveryProxy: number;
   ServicesRepositoryPort: number;
@@ -346,30 +344,17 @@ export class Globular {
     return this._adminService;
   }
 
-  private _loadBalancingService: LoadBalancingServicePromiseClient
-  public get loadBalancingService(): LoadBalancingServicePromiseClient | undefined {
+  private _resourceService: ResourceServicePromiseClient
+  public get resourceService(): ResourceServicePromiseClient | undefined {
     // refresh the config.
-    if (this._loadBalancingService == null) {
-      this._loadBalancingService = new LoadBalancingServicePromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.LoadBalancingServiceProxy,
+    if (this._resourceService == null) {
+      this._resourceService = new ResourceServicePromiseClient(
+        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.ResourceProxy,
         null,
         null,
       );
     }
-    return this._loadBalancingService;
-  }
-
-  private _ressourceService: RessourceServicePromiseClient
-  public get ressourceService(): RessourceServicePromiseClient | undefined {
-    // refresh the config.
-    if (this._ressourceService == null) {
-      this._ressourceService = new RessourceServicePromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.RessourceProxy,
-        null,
-        null,
-      );
-    }
-    return this._ressourceService;
+    return this._resourceService;
   }
 
   private _servicesDicovery: ServiceDiscoveryPromiseClient
