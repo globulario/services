@@ -6,9 +6,9 @@ QT       += core
 SOURCES += \
     ../../GlobularClient/globularclient.cpp \
     ../../GlobularServer/globularserver.cpp \
-    ../../ressource/GlobularRessourceClient/globularressourceclient.cpp \
-    ../../ressource/ressourcepb/ressource.grpc.pb.cc \
-    ../../ressource/ressourcepb/ressource.pb.cc \
+    ../../Resource/GlobularResourceClient/globularResourceclient.cpp \
+    ../../Resource/Resourcepb/Resource.grpc.pb.cc \
+    ../../Resource/Resourcepb/Resource.pb.cc \
     ../spcpb/spc.grpc.pb.cc \
     ../spcpb/spc.pb.cc \
     AnalyseurCSP.cpp \
@@ -20,9 +20,9 @@ SOURCES += \
 HEADERS += \
     ../../GlobularClient/globularclient.h \
     ../../GlobularServer/globularserver.h \
-    ../../ressource/GlobularRessourceClient/globularressourceclient.h \
-    ../../ressource/ressourcepb/ressource.grpc.pb.h \
-    ../../ressource/ressourcepb/ressource.pb.h \
+    ../../Resource/GlobularResourceClient/globularResourceclient.h \
+    ../../Resource/Resourcepb/Resource.grpc.pb.h \
+    ../../Resource/Resourcepb/Resource.pb.h \
     ../spcpb/spc.grpc.pb.h \
     ../spcpb/spc.pb.h \
     AnalyseurCSP.h \
@@ -32,7 +32,7 @@ HEADERS += \
 
 
 INCLUDEPATH += C:\Users\mm006819\boost_1_74_0 ../../
-INCLUDEPATH +=  ../../ ../echopb ../../GlobularServer ../../GlobularClient ../../ressource/GlobularRessourceClient ../../ressource/ressourcepb
+INCLUDEPATH +=  ../../ ../echopb ../../GlobularServer ../../GlobularClient ../../Resource/GlobularResourceClient ../../Resource/Resourcepb
 
 unix:!macx:INCLUDEPATH += /usr/local/include
 win32:INCLUDEPATH += C:/msys64/mingw64/include

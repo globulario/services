@@ -340,7 +340,6 @@ func (self *server) Init() error {
 	}
 
 	return nil
-
 }
 
 // Save the configuration values.
