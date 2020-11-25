@@ -9,7 +9,7 @@
   "KeepUpToDate": false,
   "KeyFile": "",
   "Name": "Ressource.RessourceService",
-  "Path": "C:/Users/mm006819/go/src/github.com/globulario/services/csharp/ressource/GlobularRessourceServer/bin/Debug/net5.0/GlobularRessourceServer.exe",
+  "Path": "/globular/services/localhost/Ressource.RessourceService/0.0.1/11917bfe-dd85-4f51-9901-f5affce7a43b/GlobularRessourceServer.exe",
   "Port": 10013,
   "Process": -1,
   "Proto": "/proto/ressource.proto",
@@ -17,9 +17,9 @@
   "Proxy": 10014,
   "ProxyProcess": -1,
   "PublisherId": "localhost",
-  "State": "running",
+  "State": "stopped",
   "TLS": false,
   "Value": "Ressource value!",
   "Version": "0.0.1",
-  "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/csharp/resource/GlobularResourceServer/bin/Debug/net5.0/config.json"
+  "configPath": "/home/dave/go/src/github.com/globulario/services/csharp/resource/GlobularResourceServer/bin/Debug/net5.0/config.json"
 }
