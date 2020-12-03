@@ -22,13 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/grpc/metadata"
-
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/davecourtois/Utility"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
 	"github.com/tealeg/xlsx"
@@ -419,8 +417,8 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 
 	// Cut the Root part of the part.
 	if len(s.Root) > 0 {
-		startIndex := strings.Index(info.Path, s.Root)
-		if startIndex == 0 {
+		startindex := strings.Index(info.Path, s.Root)
+		if startindex == 0 {
 			info.Path = info.Path[len(s.Root):]
 			info.Path = strings.Replace(info.Path, "\\", "/", -1) // Set the slash instead of back slash.
 		}
@@ -584,46 +582,6 @@ func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Set Create dir Permission.
-	resource_client, err := Interceptors.GetResourceClient(self.GetDomain())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// The token and the application id.
-	var token string
-	var clientId string
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-	}
-
-	var expiredAt int64
-	clientId, _, expiredAt, err = Interceptors.ValidateToken(token)
-	if err != nil {
-		return nil, err
-	}
-
-	if expiredAt < time.Now().Unix() {
-		return nil, errors.New("The token is expired!")
-	}
-
-	err = resource_client.CreateDirPermissions(token, rqst.GetPath(), rqst.GetName())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Here I will set the resource owner for the directory.
-	if strings.HasSuffix(rqst.GetPath(), "/") {
-		resource_client.SetResourceOwner(clientId, rqst.GetPath()+rqst.GetName(), "")
-	} else {
-		resource_client.SetResourceOwner(clientId, rqst.GetPath()+"/"+rqst.GetName(), "")
-	}
-
 	// The directory was successfuly created.
 	return &filepb.CreateDirResponse{
 		Result: true,
@@ -705,21 +663,6 @@ func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Rename permissions
-	resource_client, err := Interceptors.GetResourceClient(self.GetDomain())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	err = resource_client.RenameFilePermission(rqst.GetPath(), rqst.GetOldName(), rqst.GetNewName())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	return &filepb.RenameResponse{
 		Result: true,
 	}, nil
@@ -751,21 +694,6 @@ func (self *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest
 	}
 	err := os.RemoveAll(path)
 
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	resource_client, err := Interceptors.GetResourceClient(self.GetDomain())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Set permission on the resource.
-	err = resource_client.DeleteDirPermissions(rqst.GetPath())
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -962,20 +890,6 @@ func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReque
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_client, err := Interceptors.GetResourceClient(self.GetDomain())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	err = resource_client.DeleteFilePermissions(rqst.GetPath())
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	return &filepb.DeleteFileResponse{
 		Result: true,
 	}, nil
@@ -1007,18 +921,18 @@ func main() {
 
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.
-	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 4}}}
-	s_impl.Permissions[1] = map[string]interface{}{"action": "/file.FileService/CreateDir", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 2}}}
-	s_impl.Permissions[2] = map[string]interface{}{"action": "/file.FileService/DeleteDir", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 1}}}
-	s_impl.Permissions[3] = map[string]interface{}{"action": "/file.FileService/Rename", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 2}}}
-	s_impl.Permissions[4] = map[string]interface{}{"action": "/file.FileService/GetFileInfo", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 4}}}
-	s_impl.Permissions[5] = map[string]interface{}{"action": "/file.FileService/ReadFile", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 4}}}
-	s_impl.Permissions[6] = map[string]interface{}{"action": "/file.FileService/SaveFile", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 2}}}
-	s_impl.Permissions[7] = map[string]interface{}{"action": "/file.FileService/DeleteFile", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 1}}}
-	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 4}}}
-	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 2}}}
-	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 2}}}
-	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "actionParameterResourcePermissions": []interface{}{map[string]interface{}{"Index": 0, "Permission": 1}}}
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/file.FileService/CreateDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/file.FileService/DeleteDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/file.FileService/Rename", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/file.FileService/GetFileInfo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/file.FileService/ReadFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[6] = map[string]interface{}{"action": "/file.FileService/SaveFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[7] = map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
 	// Set the root path if is pass as argument.
 	if len(s_impl.Root) == 0 {

@@ -138,7 +138,7 @@ proto.storage.StorageServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.StopResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.storage.StorageServiceClient.prototype.open =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.OpenRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.open =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.storage.StorageServiceClient.prototype.close =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.CloseRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.close =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.storage.StorageServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.CreateConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.storage.StorageServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.DeleteConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.storage.StorageServiceClient.prototype.setItem =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.SetItemResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.setItem =
     function(request, metadata) {
@@ -558,7 +558,7 @@ proto.storage.StorageServicePromiseClient.prototype.setItem =
  */
 const methodDescriptor_StorageService_GetItem = new grpc.web.MethodDescriptor(
   '/storage.StorageService/GetItem',
-  grpc.web.MethodType.UNARY,
+  grpc.web.MethodType.SERVER_STREAMING,
   proto.storage.GetItemRequest,
   proto.storage.GetItemResponse,
   /**
@@ -592,37 +592,32 @@ const methodInfo_StorageService_GetItem = new grpc.web.AbstractClientBase.Method
 
 
 /**
- * @param {!proto.storage.GetItemRequest} request The
- *     request proto
+ * @param {!proto.storage.GetItemRequest} request The request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.storage.GetItemResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.storage.GetItemResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.storage.GetItemResponse>}
  *     The XHR Node Readable Stream
  */
 proto.storage.StorageServiceClient.prototype.getItem =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
       '/storage.StorageService/GetItem',
       request,
       metadata || {},
-      methodDescriptor_StorageService_GetItem,
-      callback);
+      methodDescriptor_StorageService_GetItem);
 };
 
 
 /**
- * @param {!proto.storage.GetItemRequest} request The
- *     request proto
+ * @param {!proto.storage.GetItemRequest} request The request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.storage.GetItemResponse>}
- *     A native promise that resolves to the response
+ * @return {!grpc.web.ClientReadableStream<!proto.storage.GetItemResponse>}
+ *     The XHR Node Readable Stream
  */
 proto.storage.StorageServicePromiseClient.prototype.getItem =
     function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
+  return this.client_.serverStreaming(this.hostname_ +
       '/storage.StorageService/GetItem',
       request,
       metadata || {},
@@ -698,7 +693,7 @@ proto.storage.StorageServiceClient.prototype.removeItem =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.RemoveItemResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.removeItem =
     function(request, metadata) {
@@ -778,7 +773,7 @@ proto.storage.StorageServiceClient.prototype.clear =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.ClearResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.clear =
     function(request, metadata) {
@@ -858,7 +853,7 @@ proto.storage.StorageServiceClient.prototype.drop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.DropResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.drop =
     function(request, metadata) {

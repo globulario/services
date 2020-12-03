@@ -138,7 +138,7 @@ proto.plc.PlcServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc.StopResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.plc.PlcServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.plc.PlcServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc.CreateConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.plc.PlcServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.plc.PlcServiceClient.prototype.getConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc.GetConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.plc.PlcServicePromiseClient.prototype.getConnection =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.plc.PlcServiceClient.prototype.closeConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc.CloseConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.plc.PlcServicePromiseClient.prototype.closeConnection =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.plc.PlcServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc.DeleteConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.plc.PlcServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.plc.PlcServiceClient.prototype.readTag =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc.ReadTagRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.plc.PlcServicePromiseClient.prototype.readTag =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.plc.PlcServiceClient.prototype.writeTag =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc.WriteTagRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.plc.PlcServicePromiseClient.prototype.writeTag =
     function(request, metadata) {

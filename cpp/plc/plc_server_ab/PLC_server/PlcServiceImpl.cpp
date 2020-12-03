@@ -7,34 +7,23 @@
 #include <cstddef>
 #include <bitset>         // std::bitset
 #include <math.h>       /* ceil */
+#include <chrono>
+#include <thread>
 
 //  https://github.com/nlohmann/json
 #include "json.hpp"
 
 #ifdef WIN32
 #include <windows.h>
-std::string getexepath()
-{
-	char result[MAX_PATH];
-	return std::string(result, GetModuleFileName(NULL, result, MAX_PATH));
-}
-
-void sleep(unsigned milliseconds)
-{
-	Sleep(milliseconds);
-}
+std::string getexepath();
+void sleep(unsigned milliseconds);
 
 #else
 #include <limits.h>
 #include <unistd.h>
 #include <linux/limits.h>
 
-std::string getexepath()
-{
-	char result[PATH_MAX];
-	ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-	return std::string(result, (count > 0) ? count : 0);
-}
+std::string getexepath();
 
 #endif // WIN32
 
@@ -42,16 +31,10 @@ std::string getexepath()
 //using json = nlohmann::json;
 using std::cout;
 
+
 // The constructor
-PlcServiceImpl::PlcServiceImpl(unsigned int defaultPort, unsigned int defaultProxy) :
-	defaultPort(defaultPort),
-	defaultProxy(defaultProxy),
-	name("plc_server_ab"),
-	domain("localhost"),
-	publisher_id("localhost"),
-	allow_all_origins(true),
-	allowed_origins(""),
-	tls(false)
+PlcServiceImpl::PlcServiceImpl(std::string id, std::string name, std::string domain, std::string publisher_id, bool allow_all_origins, std::string allowed_origins, bool tls, std::string version, unsigned int defaultPort, unsigned int defaultProxy) :
+Globular::GlobularService(id, name, domain, publisher_id, allow_all_origins, allowed_origins, version, tls, defaultPort, defaultProxy)
 {
 
 	// first of all I will try to open the configuration from the file.
@@ -67,7 +50,6 @@ PlcServiceImpl::PlcServiceImpl(unsigned int defaultPort, unsigned int defaultPro
 	inFile.open(configPath); //open the input file
 
 	if (inFile.good()) {
-
 		std::stringstream strStream;
 		strStream << inFile.rdbuf(); //read the file
 		std::string jsonStr = strStream.str(); //str holds the content of the file
@@ -75,28 +57,10 @@ PlcServiceImpl::PlcServiceImpl(unsigned int defaultPort, unsigned int defaultPro
 		// Parse the json file.
 		auto j = nlohmann::json::parse(jsonStr);
 
-		// Now I will initialyse the value from the configuration file.
-		this->publisher_id = j["PublisherId"];
-		this->version = j["Version"];
-		this->keep_up_to_date = j["KeepUpToDate"];
-		this->allow_all_origins = j["AllowAllOrigins"];
-		this->cert_authority_trust = j["CertAuthorityTrust"];
-		this->keep_alive = j["KeepAlive"];
-		this->cert_file = j["CertFile"];
-		this->domain = j["Domain"];
-		this->key_file = j["KeyFile"];
-		this->name = j["Name"];
-		this->defaultPort = j["Port"];
-		this->defaultProxy = j["Proxy"];
-		this->tls = j["TLS"];
-		// can be a list of string
-		this->allowed_origins = j["AllowedOrigins"];
-
 		// Now the connections.
 		auto connections = j["Connections"];
 		for (auto connection : connections) {
 			// Here i will initialyse the connection.
-
 			Connection c;
 			c.id = connection["Id"];
 			c.ip = connection["Ip"];
@@ -105,7 +69,6 @@ PlcServiceImpl::PlcServiceImpl(unsigned int defaultPort, unsigned int defaultPro
 			c.protocol = ProtocolType(connection["Protocol"]);
 			c.cpu = CpuType(connection["Cpu"]);
 			c.portType = PortType(connection["PortType"]);
-
 			this->connections[c.id] = c;
 		}
 	}
@@ -124,22 +87,24 @@ PlcServiceImpl::~PlcServiceImpl() {
 void PlcServiceImpl::save() {
 	/**/
 	nlohmann::json j;
-	j["PublisherId"] = this->publisher_id;
-	j["Version"] = this->version;
-	j["KeepUpToDate"] = this->keep_up_to_date;
-	j["KeepAlive"] = this->keep_alive;
-	j["AllowAllOrigins"] = this->allow_all_origins;
-	j["AllowedOrigins"] = this->allowed_origins; // empty string
-	j["CertAuthorityTrust"] = this->cert_authority_trust;
-	j["CertFile"] = this->cert_file;
-	j["Domain"] = this->domain;
-	j["KeyFile"] = this->key_file;
-	j["Name"] = this->name;
-	j["Port"] = this->defaultPort;
-	j["Name"] = this->name;
-	j["Protocol"] = "grpc";
-	j["Proxy"] = this->defaultProxy;
-	j["TLS"] = this->tls;
+    j["PublisherId"] = this->publisher_id;
+    j["Version"] = this->version;
+    j["KeepUpToDate"] = this->keep_up_to_date;
+    j["KeepAlive"] = this->keep_alive;
+    j["AllowAllOrigins"] = this->allow_all_origins;
+    j["AllowedOrigins"] = this->allowed_origins; // empty string
+    j["CertAuthorityTrust"] = this->cert_authority_trust;
+    j["CertFile"] = this->cert_file;
+    j["Domain"] = this->domain;
+    j["KeyFile"] = this->key_file;
+    j["Name"] = this->name;
+    j["Port"] = this->port;
+    j["Id"] = this->id;
+    j["Protocol"] = "grpc";
+    j["Proto"] = this->proto;
+    j["Proxy"] = this->proxy;
+    j["TLS"] = this->tls;
+    j["Path"] = this->path;
 
 	// Create connection objects.
 	auto connections = nlohmann::json::array();
@@ -161,6 +126,8 @@ void PlcServiceImpl::save() {
 
 	// Set the connections...
 	j["Connections"] = connections;
+
+
 	std::string execPath = getexepath();
 #ifdef WIN32
 	std::size_t lastIndex = execPath.find_last_of("/\\");
@@ -404,7 +371,6 @@ std::string PlcServiceImpl::GetCpuPath(Connection connection)
 		if (!tag) {
 			return ::grpc::Status(::grpc::StatusCode::INTERNAL, grpc::string("ERROR: Could not create tag"));
 		}
-		//std::cout << "tag path : " << tagPath << std::endl;
 
 		// let the connect succeed
 		while (plc_tag_status(tag) == PLCTAG_STATUS_PENDING) {
@@ -457,18 +423,30 @@ std::string PlcServiceImpl::GetCpuPath(Connection connection)
 		return ::grpc::Status(::grpc::StatusCode::INTERNAL, grpc::string("Tag with name " + request->name() + " is not define for connection " + connectionIt->first));
 	}
 
-	// Ask for a data to the plc.
-	int  rc = plc_tag_read(tagIt->second, int(connectionIt->second.timeout)); // read tag into CPI buffer
-	if (rc != PLCTAG_STATUS_OK) {
+    // Ask the for values
+    int  rc = plc_tag_read(tagIt->second, 0); // read tag into CPI buffer
+    auto timeout = 1000;//int(connectionIt->second.timeout);
 
-		// remove the tag  from the local map.
-		plc_tag_destroy(tagIt->second);
-		this->tags.erase(tagIt);
 
-		std::stringstream ss;
-		ss << "ERROR: Unable to read the data! Got error code " << plc_tag_decode_error(rc);
-		return ::grpc::Status(::grpc::StatusCode::INTERNAL, grpc::string(ss.str()));
-	}; // if not status ok - end
+   do{
+        rc =plc_tag_status(tagIt->second);
+        timeout -= 5;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    } while(timeout > 0 && rc != PLCTAG_STATUS_OK);
+
+
+    if (rc != PLCTAG_STATUS_OK){
+        // remove the tag  from the local map.
+        plc_tag_destroy(tagIt->second);
+        this->tags.erase(tagIt);
+
+        std::stringstream ss;
+        ss << "ERROR: Unable to read the data! Got error code " << plc_tag_decode_error(rc);
+        std::cout << ss.str() << std::endl;
+        return ::grpc::Status(::grpc::StatusCode::INTERNAL, grpc::string(ss.str()));
+    }
+
+
 
 	std::string values = "[";
 
@@ -481,8 +459,7 @@ std::string PlcServiceImpl::GetCpuPath(Connection connection)
 				values += ", ";
 			}
 		}
-	}
-	else {
+    } else {
 		for (int i = offset; i < offset + length; i++) {
 			auto index = i * elementSize;
 			if (type == TagType::DINT_TAG_TYPE) {
@@ -535,6 +512,7 @@ std::string PlcServiceImpl::GetCpuPath(Connection connection)
 
 	// Set the response.
 	response->set_values(values);
+    std::cout << values << std::endl;
 
 	return ::grpc::Status::OK;
 }

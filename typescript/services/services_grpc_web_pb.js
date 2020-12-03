@@ -138,7 +138,7 @@ proto.services.ServiceDiscoveryClient.prototype.findServices =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.FindServicesDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.services.ServiceDiscoveryPromiseClient.prototype.findServices =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.services.ServiceDiscoveryClient.prototype.getServiceDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.GetServiceDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.services.ServiceDiscoveryPromiseClient.prototype.getServiceDescriptor =
     function(request, metadata) {
@@ -373,7 +373,7 @@ proto.services.ServiceDiscoveryClient.prototype.setServiceDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.SetServiceDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.services.ServiceDiscoveryPromiseClient.prototype.setServiceDescriptor =
     function(request, metadata) {
@@ -453,7 +453,7 @@ proto.services.ServiceDiscoveryClient.prototype.publishServiceDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.PublishServiceDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.services.ServiceDiscoveryPromiseClient.prototype.publishServiceDescriptor =
     function(request, metadata) {

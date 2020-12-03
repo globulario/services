@@ -444,7 +444,7 @@ func (self *ServicesRepository_Client) UploadBundle(discoveryId string, serviceI
 	if err != nil {
 		return err
 	}
-	log.Println("----------------> 447", descriptors[0])
+
 	bundle.Descriptor_ = descriptors[0]
 
 	/*bundle.Binairies*/

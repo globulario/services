@@ -8,28 +8,65 @@ import (
 
 var (
 	// Connect to the plc client.
-	client = NewResource_Client("10.67.44.131", "resource.ResourceService")
+	client, _ = NewResourceService_Client("localhost", "resource.ResourceService")
+	token     string
 )
 
-/*
-// Test various function here.
-func TestRegisterAccount(t *testing.T) {
-
-	log.Println("---> test register a new account.")
-	err := client.RegisterAccount("davecourtois", "dave.courtois60@gmail.com", "1234", "1234")
-	if err != nil {
-		log.Println("---> ", err)
-	}
-}
-*/
 func TestAuthenticate(t *testing.T) {
 	log.Println("---> test authenticate account.")
-	//token, err := client.Authenticate("dave.courtois60@gmail.com", "1234")
-	token, err := client.Authenticate("sa", "adminadmin")
+	var err error
+	token, err = client.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("---> ", err)
 	} else {
 		log.Println("---> ", token)
+	}
+}
+
+/** Test create account **/
+func TestRegisterAccount(t *testing.T) {
+	err := client.RegisterAccount("dave", "dave@globular.io", "1234", "1234")
+	if err != nil {
+		log.Println("---> create account fail! ", err)
+	} else {
+		log.Println("---> dave account was created!")
+	}
+}
+
+/** Test create group **/
+func TestRegisterGroup(t *testing.T) {
+	err := client.CreateGroup("group_0", "group_0")
+	if err != nil {
+		log.Println("---> create group group_0 fail! ", err)
+	} else {
+		log.Println("---> create group_0 succed!")
+	}
+}
+
+func TestAddGroupMemberAccount(t *testing.T) {
+	err := client.AddGroupMemberAccount("group_0", "dave")
+	if err != nil {
+		log.Println("---> create group group_0 fail! ", err)
+	} else {
+		log.Println("---> create group_0 succed!")
+	}
+}
+
+func TestRemoveMemberAccount(t *testing.T) {
+	err := client.RemoveGroupMemberAccount("group_0", "dave")
+	if err != nil {
+		log.Println("---> remove group group_0 fail! ", err)
+	} else {
+		log.Println("---> remove group_0 succed!")
+	}
+}
+
+func TestGetGroups(t *testing.T) {
+	err := client.GetGroups("group_0")
+	if err != nil {
+		log.Println("---> get group group_0 fail! ", err)
+	} else {
+		log.Println("---> remove group_0 succed!")
 	}
 }
 
@@ -81,67 +118,19 @@ func TestDeleteRole(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-
+*/
 // Remove an account.
+/*
 func TestDeleteAccount(t *testing.T) {
 
 	log.Println("---> test remove existing account.")
-	err := client.DeleteAccount("davecourtois")
+	err := client.DeleteAccount("dave")
 	if err != nil {
 
 		log.Println("---> ", err)
 	}
 }
 */
-
-/** Set file permission **/
-/*func TestSetPermission(t *testing.T) {
-	log.Println("---> Set permission by user")
-	err := client.SetFilePermissionByUser("davecourtois", "test", 6)
-	if err != nil {
-
-		log.Println("---> ", err)
-	}
-
-	err = client.SetFilePermissionByRole("guest", "test/sub-folder/another-text.txt", 6)
-	if err != nil {
-
-		log.Println("---> ", err)
-	}
-}*/
-
-/** Display the created file permission **/
-/*func TestGetPermissions(t *testing.T) {
-	log.Println("---> Get permissions by user")
-	permissions, err := client.GetFilePermissions("test")
-	if err != nil {
-		log.Println("---> ", err)
-		return
-	}
-	for i := 0; i < len(permissions); i++ {
-		log.Println(permissions[i])
-	}
-
-	permissions, err = client.GetFilePermissions("test/sub-folder/another-text.txt")
-	if err != nil {
-		log.Println("---> ", err)
-		return
-	}
-	for i := 0; i < len(permissions); i++ {
-		log.Println(permissions[i])
-	}
-}*/
-
-/** Display the created file permission **/
-/*func TestDeletePermissions(t *testing.T) {
-	log.Println("---> Delete permissions")
-	err := client.DeleteFilePermissions("test", "")
-	if err != nil {
-		log.Println("---> ", err)
-		return
-	}
-}*/
-
 /** Get the root file informations **/
 /*func TestGetAllFilesInfo(t *testing.T) {
 	log.Println("---> Get All File Info")

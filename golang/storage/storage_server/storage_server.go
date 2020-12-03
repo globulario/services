@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,11 +16,11 @@ import (
 	//	"time"
 	globular "github.com/globulario/services/golang/globular_service"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/storage/storage_client"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -26,6 +28,8 @@ import (
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
+
+const BufferSize = 1024 * 5 // the chunck size.
 
 var (
 	defaultPort  = 10013
@@ -504,33 +508,92 @@ func (self *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest)
 	}, nil
 }
 
-// Retreive a value with a given key
-func (self *server) GetItem(ctx context.Context, rqst *storagepb.GetItemRequest) (*storagepb.GetItemResponse, error) {
+// Save an item in the kv store
+func (self *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServer) error {
+
+	var rqst *storagepb.SetLargeItemRequest
+	var buffer bytes.Buffer
+	var err error
+
+	for {
+		rqst, err = stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			stream.SendAndClose(&storagepb.SetLargeItemResponse{})
+			break
+		} else if err != nil {
+			return err
+		} else {
+			buffer.Write(rqst.Value)
+		}
+	}
+
 	if _, ok := self.Connections[rqst.GetId()]; !ok {
-		return nil, status.Errorf(
+		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
 	store := self.stores[rqst.GetId()]
 	if store == nil {
-		return nil, status.Errorf(
+		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no store found for connection with id "+rqst.GetId())))
 	}
-	log.Println("--> try to find key with value:", rqst.GetKey())
-	data, err := store.GetItem(rqst.GetKey())
+
+	err = store.SetItem(rqst.GetKey(), buffer.Bytes())
 	if err != nil {
-		return nil, status.Errorf(
+		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &storagepb.GetItemResponse{
-		Result: data,
-	}, nil
+	return nil
+}
 
-	return nil, nil
+// Retreive a value with a given key
+func (self *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.StorageService_GetItemServer) error {
+
+	if _, ok := self.Connections[rqst.GetId()]; !ok {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
+	}
+
+	store := self.stores[rqst.GetId()]
+	if store == nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no store found for connection with id "+rqst.GetId())))
+	}
+	log.Println("--> try to find key with value:", rqst.GetKey())
+	value, err := store.GetItem(rqst.GetKey())
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	buffer := bytes.NewReader(value) // create the buffer and set it data.
+
+	for {
+		var data [BufferSize]byte
+		bytesread, err := buffer.Read(data[0:BufferSize])
+		if bytesread > 0 {
+			rqst := &storagepb.GetItemResponse{
+				Result: data[0:bytesread],
+			}
+			// send the data to the server.
+			err = stream.Send(rqst)
+		}
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Remove an item with a given key

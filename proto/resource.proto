@@ -6,6 +6,55 @@ package resource;
 
 option go_package = "resource/resourcepb";
 
+message UserSyncInfos{
+	string base = 1;
+	string query = 2; // ldap query to get the list of users.
+	string id = 3; // user account id
+	string email = 4; // ldap email attribute
+}
+
+message GroupSyncInfos{
+	string base = 1;
+	string query = 2; // ldap query
+	string id = 3;
+}
+
+// That Information is use to synchronize LDAP user with Globular Account and
+// LDAP group with Globular Role.
+message LdapSyncInfos {
+	string ldapSeriveId = 1;
+	string connectionId = 2;
+	int32 refresh = 3;
+	UserSyncInfos userSyncInfos = 4;
+	GroupSyncInfos groupSyncInfos = 5;
+}
+
+// Create Account and Roles from LDAP User and Groups
+message SynchronizeLdapRqst{
+	LdapSyncInfos syncInfo = 1;
+}
+
+message SynchronizeLdapRsp{
+	bool result = 1;
+}
+
+message ValidateTokenRqst{
+	string token = 1;
+}
+
+message ValidateTokenRsp{
+	string clientId = 1;
+	int64 expired = 2;
+}
+
+message GetAllActionsRqst{
+
+}
+
+message GetAllActionsRsp{
+	repeated string actions = 1;
+}
+
 /** Account **/
 message Account {
 	string id=1;
@@ -92,6 +141,183 @@ message DeleteRoleRsp{
 	bool result = 1;
 }
 
+message DeleteApplicationRqst{
+	string applicationId = 1;
+}
+
+message DeleteApplicationRsp{
+	bool result = 1;
+}
+
+// Retrun a json with applications informations.
+message GetAllApplicationsInfoRqst{
+	
+}
+
+message GetAllApplicationsInfoRsp{
+	string result = 1;
+}
+
+
+message AccountExistRqst{
+	string id = 1;
+}
+
+message AccountExistRsp{
+	bool result=1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Group's
+////////////////////////////////////////////////////////////////////////////////
+
+/** a globular group **/
+message Group {
+	string id = 1;
+	string name = 2; // must be unique on the network.
+	repeated string  members=3; // can be empty...
+}
+
+/**
+ * Register group request.
+ */
+message CreateGroupRqst{
+	Group group = 1;
+}
+
+message CreateGroupRsp{
+	bool result = 1;
+}
+
+/**
+ * Return list of groups
+ */
+message GetGroupsRqst{
+	string query = 1; // filter...
+}
+
+message GetGroupsRsp{
+	repeated Group groups = 1;
+}
+
+/**
+ * Remove a peer from the network.
+ */
+message DeleteGroupRqst{
+	string group = 1;
+}
+
+message DeleteGroupRsp{
+	bool result = 1;
+}
+
+message AddGroupMemberAccountRqst{
+	string groupId = 1;
+	string accountId = 2;
+}
+
+message AddGroupMemberAccountRsp{
+	bool result = 1;
+}
+
+message RemoveGroupMemberAccountRqst{
+	string groupId = 1;
+	string accountId = 2;
+}
+
+message RemoveGroupMemberAccountRsp{
+	bool result = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Organization's
+////////////////////////////////////////////////////////////////////////////////
+
+/** a globular server **/
+message Organization {
+	string id = 1;
+	string name = 2; // must be unique on the network.
+	repeated string  groups=3; // can be empty...
+}
+
+/**
+ * Register peer request.
+ */
+message CreateOrganizationRqst{
+	Organization organization = 1;
+}
+
+message CreateOrganizationRsp{
+	bool result = 1;
+}
+
+/**
+ * Return list of Organization
+ */
+message GetOrganizationsRqst{
+	string query = 1;
+}
+
+message GetOrganizationsRsp{
+	repeated Organization organizations = 1;
+}
+
+/**
+ * Remove a peer from the network.
+ */
+message DeleteOrganizationRqst{
+	string organization = 1;
+}
+
+message DeleteOrganizationRsp{
+	bool result = 1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Peer's
+////////////////////////////////////////////////////////////////////////////////
+
+/** a globular server **/
+message Peer {
+	string domain = 1; // must be unique on the network.
+	repeated string actions=2;
+}
+
+/**
+ * Register peer request. The peer must be accept before Authenticate.
+ */
+message RegisterPeerRqst{
+	Peer peer = 1;
+}
+
+message RegisterPeerRsp{
+	bool result = 1;
+}
+
+/**
+ * Return the list of peer (query is use to get specific peer's).
+ */
+message GetPeersRqst{
+	string query = 1;
+}
+
+message GetPeersRsp{
+	repeated Peer peers = 1;
+}
+
+/**
+ * Remove a peer from the network.
+ */
+message DeletePeerRqst{
+	Peer peer = 1;
+}
+
+message DeletePeerRsp{
+	bool result = 1;
+}
+
+
 message AddRoleActionRqst{
 	string roleId = 1;
 	string action = 2;
@@ -128,249 +354,368 @@ message RemoveApplicationActionRsp{
 	bool result = 1;
 }
 
-message GetAllActionsRqst{
-
+message AddPeerActionRqst{
+	string domain = 1;
+	string action = 2;
 }
 
-message GetAllActionsRsp{
-	repeated string actions = 1;
-}
-
-message DeleteApplicationRqst{
-	string applicationId = 1;
-}
-
-message DeleteApplicationRsp{
+message AddPeerActionRsp{
 	bool result = 1;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Resource permissions
-////////////////////////////////////////////////////////////////////////////////
-
-// Define a permission to a file or a directory.
-message ResourcePermission {
-	int32 number = 1;
-	string path = 2;
-	oneof owner {
-		string user = 3;
-		string role = 4;
-		string application = 5;
-		string service = 6;
-		string peer = 7;
-	}
+message RemovePeerActionRqst{
+	string domain = 1;
+	string action = 2;
 }
 
-// Get the permission for a given file.
-message GetPermissionsRqst{
-	string path = 1;
-}
-
-message GetPermissionsRsp{
-	string permissions = 1;
-}
-
-// set the permission for a given file.
-message SetPermissionRqst{
-	ResourcePermission permission = 1;
-}
-
-message SetPermissionRsp{
+message RemovePeerActionRsp{
 	bool result = 1;
 }
 
-// set the permission for a given file.
-message DeletePermissionsRqst{
-	string path = 1;
-	string owner = 2;
-}
+/**
+ * That service is use to manage Globular resource like permissions and accounts
+ * or role. The service made use of Persistence service to store various 
+ * objects.
+ */
+service ResourceService {
+	
+	/** Return the list of all grpc methods **/
+	rpc GetAllActions(GetAllActionsRqst) returns(GetAllActionsRsp);
+	
+	/** Validate a token **/
+	rpc ValidateToken(ValidateTokenRqst) returns (ValidateTokenRsp);	
+		
+	/** Refresh token get a new token **/
+	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
+	
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Authentication
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Authenticate a user **/
+	rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
+	
+	/** Synchronize Resource with LDAP if connection exist **/
+	rpc SynchronizeLdap(SynchronizeLdapRqst) returns(SynchronizeLdapRsp);
+		
+	////////////////////////////////////////////////////////////////////////////
+	// Resource's control objects
+	////////////////////////////////////////////////////////////////////////////
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Organization's
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Register a new organization */
+	rpc CreateOrganization(CreateOrganizationRqst) returns (CreateOrganizationRsp);
+	
+	/** Return the list of organizations */
+	rpc GetOrganizations(GetOrganizationsRqst) returns(stream GetOrganizationsRsp);
 
-message DeletePermissionsRsp{
-	bool result = 1;
-}
+	/** Delete organization */
+	rpc DeleteOrganization(DeleteOrganizationRqst) returns (DeleteOrganizationRsp);
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Group's
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Register a new group */
+	rpc CreateGroup(CreateGroupRqst) returns (CreateGroupRsp);
+	
+	/** Return the list of groups */
+	rpc GetGroups(GetGroupsRqst) returns(stream GetGroupsRsp);
 
-// Retrun a json with the root file information.
-message GetAllFilesInfoRqst{
+	/** Delete group */
+	rpc DeleteGroup(DeleteGroupRqst) returns (DeleteGroupRsp);
+	
+	/** Add a member account to the group **/
+	rpc AddGroupMemberAccount(AddGroupMemberAccountRqst) returns(AddGroupMemberAccountRsp);
+	
+	/** Remove member account from the group **/
+	rpc RemoveGroupMemberAccount(RemoveGroupMemberAccountRqst) returns(RemoveGroupMemberAccountRsp);
+
+	////////////////////////////////////////////////////////////////////////////
+	// Account's
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Register a new Account **/
+	rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp);
+	
+	/** Delete an account **/
+	rpc DeleteAccount(DeleteAccountRqst) returns(DeleteAccountRsp);
+	
+	/** Add role to a given account **/
+	rpc AddAccountRole(AddAccountRoleRqst) returns(AddAccountRoleRsp);
+
+	/** Remove a role from a given account **/
+	rpc RemoveAccountRole(RemoveAccountRoleRqst) returns(RemoveAccountRoleRsp);
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Action's control objects
+	////////////////////////////////////////////////////////////////////////////
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Role's
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Create a role with given action list **/
+	rpc CreateRole(CreateRoleRqst) returns(CreateRoleRsp);
+	
+	/** Delete a role with a given id **/
+	rpc DeleteRole(DeleteRoleRqst) returns(DeleteRoleRsp);
+	
+	/** Append an action to existing role. **/
+	rpc AddRoleAction(AddRoleActionRqst) returns(AddRoleActionRsp);
+	
+	/** Remove an action to existing role. **/
+	rpc RemoveRoleAction(RemoveRoleActionRqst) returns(RemoveRoleActionRsp);
+	
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Application's
+	////////////////////////////////////////////////////////////////////////////
+
+	/** Return a json string with all applications informations **/
+	rpc GetAllApplicationsInfo(GetAllApplicationsInfoRqst) returns(GetAllApplicationsInfoRsp);
+	
+	/** Delete an application from the server. **/
+	rpc DeleteApplication(DeleteApplicationRqst) returns(DeleteApplicationRsp);
+	
+	/** Append an action to existing applications. **/
+	rpc AddApplicationAction(AddApplicationActionRqst) returns(AddApplicationActionRsp);
+	
+	/** Remove an action to existing applications. **/
+	rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns(RemoveApplicationActionRsp);
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Peer's
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Register a peer on the network **/
+	rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
+	
+	/** Return the list of peers **/
+	rpc GetPeers(GetPeersRqst) returns(stream GetPeersRsp);
+
+	/** Remove a peer from the network **/
+	rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
+
+	/** Add peer action permission **/
+	rpc AddPeerAction(AddPeerActionRqst) returns(AddPeerActionRsp);
+	
+	/** Remove peer action permission **/
+	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
 	
 }
 
-message GetAllFilesInfoRsp{
-	string result = 1;
+////////////////////////////////////////////////////////////////////////////////
+// Role Based Access Control
+////////////////////////////////////////////////////////////////////////////////
+
+// Permission message struct.
+message Permission {
+	string name = 1; // read, write, executed ... what you need
+	repeated string accounts = 2;
+	repeated string roles = 3;
+	repeated string peers = 4;
+	repeated string organization = 5;
 }
 
-// Retrun a json with applications informations.
-message GetAllApplicationsInfoRqst{
+message Permissions {
+	repeated Permission allowed = 1;
+	repeated Permission denied = 2;
+	Permission owners = 3;
+}
+
+message ActionResourceParameterPermission {
+	int32 index = 1;
+	string permission = 2;
+}
+
+message SetActionResourcesPermissionRqst{
+	string action = 1;
+	repeated ActionResourceParameterPermission resources = 2;
+}
+
+message SetActionResourcesPermissionRsp{
+	/** nothing here **/
+}
+
+message GetActionResourcesPermissionRqst{
+	string action = 1;
+}
+
+message GetActionResourcesPermissionRsp{
+	repeated ActionResourceParameterPermission resources = 1;
+}
+
+/** Append a permission owner **/
+
+/** Return a resource permissions **/
+message GetResourcePermissionsRqst{
+	string path = 1;
+}
+
+/** Delete resource permissions **/
+message GetResourcePermissionsRsp{
+	Permissions permissions = 1;
+}
+
+/** Delete a resource permissions **/
+message DeleteResourcePermissionsRqst{
+	string path = 1;
+}
+
+/** Return permissions **/
+message DeleteResourcePermissionsRsp{
+	Permissions permissions = 1;
+}
+
+/** Get specific resource permission **/
+message GetResourcePermissionRqst{
+	string path = 1;
+	string name = 2;
+}
+
+/** Return permissions **/
+message GetResourcePermissionRsp{
+	Permission permission = 1;
+}
+
+/** Delete specific resource permission **/
+message DeleteResourcePermissionRqst{
+	string path = 1;
+	string name = 2;
+}
+
+/** Delete permissions **/
+message DeleteResourcePermissionRsp{
+	/** do nothing **/
+}
+
+/** Set all resource permissions **/
+message SetResourcePermissionsRqst{
+	string path = 1;
+	Permissions permissions = 2;
+}
+
+message SetResourcePermissionsRsp{
+	/** nothing here **/
+}
+
+message SetResourcePermissionRqst{
+	string path = 1;
+	Permission permission = 2;
+}
+
+message SetResourcePermissionRsp{
+	/** nothing here **/
+}
+
+message AddResourceOwnerRqst{
+	string path = 1;
+	string owner = 2;
+}
+
+message AddResourceOwnerRsp {
 	
 }
 
-message GetAllApplicationsInfoRsp{
-	string result = 1;
-}
-
-message UserSyncInfos{
-	string base = 1;
-	string query = 2; // ldap query to get the list of users.
-	string id = 3; // user account id
-	string email = 4; // ldap email attribute
-}
-
-message GroupSyncInfos{
-	string base = 1;
-	string query = 2; // ldap query
-	string id = 3;
-}
-
-// That Information is use to synchronize LDAP user with Globular Account and
-// LDAP group with Globular Role.
-message LdapSyncInfos {
-	string ldapSeriveId = 1;
-	string connectionId = 2;
-	int32 refresh = 3;
-	UserSyncInfos userSyncInfos = 4;
-	GroupSyncInfos groupSyncInfos = 5;
-}
-
-// Create Account and Roles from LDAP User and Groups
-message SynchronizeLdapRqst{
-	LdapSyncInfos syncInfo = 1;
-}
-
-message SynchronizeLdapRsp{
-	bool result = 1;
-}
-
-// Set a resource owner.
-message SetResourceOwnerRqst{
+message removeResourceOwnerRqst{
 	string path = 1;
 	string owner = 2;
 }
 
-// Get the resource owner
-message SetResourceOwnerRsp{
+message removeResourceOwnerRsp {
+	
+}
+
+enum SubjectType {
+	ACCOUNT = 0;
+	ROLE = 1;
+	PEER = 2;
+	GROUP= 3;
+	ORGANIZATION = 4;
+}
+	
+message deleteAllAccessRqst {
+	string subject = 1;
+	SubjectType type = 2;
+}
+
+message deleteAllAccessRsp {
+	
+}
+
+message validateAccessRqst {
+	string subject = 1;
+	SubjectType type = 2;
+	string path = 3; // The ressource path
+	string permission = 4; // the name of the permission (read, write, execute...)
+}
+
+message validateAccessRsp {
 	bool result = 1;
 }
 
-// Get the resource Owners
-message GetResourceOwnersRqst{
-	string path = 1;
+message getAccessesRqst {
+	string subject = 1;
+	SubjectType type = 2;
+	string path = 3; // The ressource path
 }
 
-message GetResourceOwnersRsp{
-	repeated string owners = 1;
+message getAccessesRsp {
+	repeated string accesses = 1;
 }
 
-// Delete a resource Owner.
-message DeleteResourceOwnerRqst{
-	string path = 1;
-	string owner = 2;
+/**
+ * The service to control action and resource access.
+ */
+service RbacService {
+	/** Set the action resources permissions **/
+	rpc SetActionResourcesPermission(SetActionResourcesPermissionRqst) returns(SetActionResourcesPermissionRsp);
+	
+	/** Get the action ressouces permission **/
+	rpc GetActionResourcesPermission(GetActionResourcesPermissionRqst) returns(GetActionResourcesPermissionRsp);
+	
+	/** Set resource permissions this method will replace existing permission at once **/
+	rpc SetResourcePermissions(SetResourcePermissionsRqst) returns(SetResourcePermissionsRqst);
+	
+	/** Delete a resource permissions (when a resource is deleted) **/
+	rpc DeleteResourcePermissions(DeleteResourcePermissionsRqst) returns(DeleteResourcePermissionsRqst);
+	
+	/** Delete a specific resource permission **/
+	rpc DeleteResourcePermission(DeleteResourcePermissionRqst) returns(DeleteResourcePermissionRqst);
+	
+	/** Set specific resource permission  ex. read permission... **/
+	rpc SetResourcePermission(SetResourcePermissionRqst) returns(SetResourcePermissionRsp);
+	
+	/** Get a specific resource access **/
+	rpc GetResourcePermission(GetResourcePermissionRqst) returns(GetResourcePermissionRsp);
+	
+	/** Get resource permissions **/
+	rpc GetResourcePermissions(GetResourcePermissionsRqst) returns(GetResourcePermissionsRsp);
+	
+	/** Add resource owner do nothing if it already exist */
+	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
+	
+	/** Remove resource owner */
+	rpc removeResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
+	
+	/** That function must be call when a subject is removed to clean up permissions. */
+	rpc deleteAllAccess(deleteAllAccessRqst) returns (deleteAllAccessRsp);
+	
+	/** Validate if a user can get access to a given ressource for a given operation (read, write...) **/
+	rpc validateAccess(validateAccessRqst) returns(validateAccessRsp);
+	
+	/** Return the list of access for a given subject */
+	rpc getAccesses(getAccessesRqst) returns(getAccessesRsp);
 }
 
-message DeleteResourceOwnerRsp{
-	bool result = 1;
-}
-
-// Delete a resource Owner.
-message DeleteResourceOwnersRqst{
-	string path = 1;
-}
-
-message DeleteResourceOwnersRsp{
-	bool result = 1;
-}
-
-message ValidateTokenRqst{
-	string token = 1;
-}
-
-message ValidateTokenRsp{
-	string clientId = 1;
-	int64 expired = 2;
-}
-
-message ValidateApplicationAccessRqst{
-	string name=1;
-	string method=2;
-}
-
-message ValidateApplicationAccessRsp{
-	bool result=1;
-}
-
-message ValidatePeerAccessRqst{
-	string domain=1;
-	string method=2;
-}
-
-message ValidatePeerAccessRsp{
-	bool result=1;
-}
-
-message ValidatePeerResourceAccessRqst{
-	string domain=1;
-	string method=2;
-	string path=3;
-	int32 permission=4;
-}
-
-message ValidatePeerResourceAccessRsp{
-	bool result=1;
-}
-
-
-message ValidateUserAccessRqst{
-	string token=1;
-	string method=2;
-}
-
-message ValidateUserAccessRsp{
-	bool result=1;
-}
-
-message ValidateUserResourceAccessRqst{
-	string token=1;
-	string method=2;
-	string path=3;
-	int32 permission=4;
-}
-
-message ValidateUserResourceAccessRsp{
-	bool result=1;
-}
-
-message ValidateApplicationResourceAccessRqst{
-	string name=1;
-	string method=2;
-	string path=3;
-	int32 permission=4;
-}
-
-message ValidateApplicationResourceAccessRsp{
-	bool result=1;
-}
-
-message AccountExistRqst{
-	string id = 1;
-}
-
-message AccountExistRsp{
-	bool result=1;
-}
-
-message DeleteAccountPermissionsRqst{
-	string id = 1;
-}
-
-message DeleteAccountPermissionsRsp{
-	bool result=1;
-}
-
-message DeleteRolePermissionsRqst{
-	string id = 1;
-}
-
-message DeleteRolePermissionsRsp{
-	bool result=1;
-}
+////////////////////////////////////////////////////////////////////////////////
+// Log service
+////////////////////////////////////////////////////////////////////////////////
 
 enum LogType{
 	INFO_MESSAGE=0;
@@ -442,289 +787,7 @@ message ClearAllLogRsp{
 	bool result=1;
 }
 
-////////////////// Resource //////////////////
-
-/** a globular server **/
-message Peer {
-	string domain = 1; // must be unique on the network.
-	repeated string actions=2;
-}
-
-
-/** A resource can be anything with a path an a name **/
-message Resource {
-	string path = 1; // can be recursive.
-	string name = 2;
-	int64 modified =3;
-	int64 size = 4;
-}
-
-message SetResourceRqst{
-	Resource resource = 1;
-}
-
-message SetResourceRsp{
-	bool result=1;
-}
-
-// gRpc action can modified, delete or create resource.
-// This message specified what parameter of the Action permission
-// as effect on a resource and if so what permission is require.
-message ActionParameterResourcePermission{
-	int32 index = 1; // The index of the parameter in the function start from 0
-	int32 permission = 2; // The assciated resource permission nunber.
-}
-
-message SetActionPermissionRqst{
-	string action = 1;
-	repeated ActionParameterResourcePermission actionParameterResourcePermissions = 2;
-}
-
-message SetActionPermissionRsp{
-	bool result=1;
-}
-
-message GetActionPermissionRqst{
-	string action = 1;
-}
-
-message GetActionPermissionRsp{
-	repeated ActionParameterResourcePermission actionParameterResourcePermissions = 1;
-}
-
-message RemoveResourceRqst{
-	Resource resource = 1;
-}
-
-message RemoveResourceRsp{
-	bool result=1;
-}
-
-message	GetResourcesRqst{
-	string path = 1;
-	string name = 2;
-}
-
-message	GetResourcesRsp{
-	repeated Resource resources = 1;
-}
-
-message RemoveActionPermissionRqst{
-	string action = 1;
-}
-
-message RemoveActionPermissionRsp{
-	bool result=1;
-}
-
-/** File permission specific infos. **/
-message CreateDirPermissionsRqst{
-	string token = 1;
-	string path = 2;
-	string name = 3;
-}
-
-message CreateDirPermissionsRsp{
-	bool result=1;
-}
-
-message RenameFilePermissionRqst{
-	string path = 1;
-	string oldName = 2;
-	string newName = 3;
-}
-
-message RenameFilePermissionRsp{
-	bool result=1;
-}
-
-message DeleteDirPermissionsRqst{
-	string path = 1;
-}
-
-message DeleteDirPermissionsRsp{
-	bool result=1;
-}
-
-message DeleteFilePermissionsRqst{
-	string path = 1;
-}
-
-message DeleteFilePermissionsRsp{
-	bool result=1;
-}
-
-/**
- * Register peer request. The peer must be accept before Authenticate.
- */
-message RegisterPeerRqst{
-	Peer peer = 1;
-}
-
-message RegisterPeerRsp{
-	bool result = 1;
-}
-
-/**
- * Return the list of peer (query is use to get specific peer's).
- */
-message GetPeersRqst{
-	string query = 1;
-}
-
-message GetPeersRsp{
-	repeated Peer peers = 1;
-}
-
-/**
- * Remove a peer from the network.
- */
-message DeletePeerRqst{
-	Peer peer = 1;
-}
-
-message DeletePeerRsp{
-	bool result = 1;
-}
-
-message AddPeerActionRqst{
-	string domain = 1;
-	string action = 2;
-}
-
-message AddPeerActionRsp{
-	bool result = 1;
-}
-
-message RemovePeerActionRqst{
-	string domain = 1;
-	string action = 2;
-}
-
-message RemovePeerActionRsp{
-	bool result = 1;
-}
-
-/**
- * That service is use to manage Globular resource like permissions and accounts
- * or role. The service made use of Persistence service to store various 
- * objects.
- */
-service ResourceService {
-	/** Register a peer on the network **/
-	rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
-	
-	/** Return the list of peers **/
-	rpc GetPeers(GetPeersRqst) returns(stream GetPeersRsp);
-
-	/** Remove a peer from the network **/
-	rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
-	
-	/** Add peer action permission **/
-	rpc AddPeerAction(AddPeerActionRqst) returns(AddPeerActionRsp);
-	
-	/** Remove peer action permission **/
-	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
-	
-	/** Register a new Account **/
-	rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp);
-	
-	/** Delete an account **/
-	rpc DeleteAccount(DeleteAccountRqst) returns(DeleteAccountRsp);
-	
-	/** Authenticate a user **/
-	rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
-	
-	/** Synchronize Resource with LDAP if connection exist **/
-	rpc SynchronizeLdap(SynchronizeLdapRqst) returns(SynchronizeLdapRsp);
-	
-	/** Refresh token get a new token **/
-	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
-	
-	/** Add role to a given account **/
-	rpc AddAccountRole(AddAccountRoleRqst) returns(AddAccountRoleRsp);
-
-	/** Remove a role from a given account **/
-	rpc RemoveAccountRole(RemoveAccountRoleRqst) returns(RemoveAccountRoleRsp);
-	
-	/** Create a role with given action list **/
-	rpc CreateRole(CreateRoleRqst) returns(CreateRoleRsp);
-	
-	/** Delete a role with a given id **/
-	rpc DeleteRole(DeleteRoleRqst) returns(DeleteRoleRsp);
-	
-	/** Append an action to existing role. **/
-	rpc AddRoleAction(AddRoleActionRqst) returns(AddRoleActionRsp);
-	
-	/** Remove an action to existing role. **/
-	rpc RemoveRoleAction(RemoveRoleActionRqst) returns(RemoveRoleActionRsp);
-	
-	/** Append an action to existing applications. **/
-	rpc AddApplicationAction(AddApplicationActionRqst) returns(AddApplicationActionRsp);
-	
-	/** Remove an action to existing applications. **/
-	rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns(RemoveApplicationActionRsp);
-	
-	/** Get all actions **/
-	rpc GetAllActions(GetAllActionsRqst) returns(GetAllActionsRsp);
-	
-	/**  **/
-	rpc GetPermissions(GetPermissionsRqst) returns(GetPermissionsRsp);
-	
-	/** Set a file permission, create new one if not already exist. **/
-	rpc SetPermission(SetPermissionRqst) returns(SetPermissionRsp);
-	
-	/** Delete a file permissions **/
-	rpc DeletePermissions(DeletePermissionsRqst) returns(DeletePermissionsRsp);
-	
-	/** Set Resource owner **/
-	rpc SetResourceOwner(SetResourceOwnerRqst) returns(SetResourceOwnerRsp);
-	
-	/** Get the resource owners **/
-	rpc GetResourceOwners(GetResourceOwnersRqst) returns(GetResourceOwnersRsp);
-	
-	/** Delete the resource owner **/
-	rpc DeleteResourceOwner(DeleteResourceOwnerRqst) returns(DeleteResourceOwnerRsp);
-	
-	/** Delete the resource owners **/
-	rpc DeleteResourceOwners(DeleteResourceOwnersRqst) returns(DeleteResourceOwnersRsp);
-	
-	/** Retrun a json string with all file info **/
-	rpc GetAllFilesInfo(GetAllFilesInfoRqst) returns(GetAllFilesInfoRsp);
-	
-	/** Validate a token **/
-	rpc ValidateToken(ValidateTokenRqst) returns (ValidateTokenRsp);
-	
-	/** Validate if user can access a given resource. **/
-	rpc ValidateUserResourceAccess(ValidateUserResourceAccessRqst) returns (ValidateUserResourceAccessRsp);
-	
-	/** Validate if application can access a given ressouce. **/
-	rpc ValidateApplicationResourceAccess(ValidateApplicationResourceAccessRqst) returns (ValidateApplicationResourceAccessRsp);
-	
-	/** Validate if user can access a given method. **/
-	rpc ValidateUserAccess(ValidateUserAccessRqst) returns (ValidateUserAccessRsp);
-	
-	/** Validate if application can access a given method. **/
-	rpc ValidateApplicationAccess(ValidateApplicationAccessRqst) returns (ValidateApplicationAccessRsp);
-		
-	/** Validate if a peer can access a given method. **/
-	rpc ValidatePeerAccess(ValidatePeerAccessRqst) returns (ValidatePeerAccessRsp);
-	
-	/** Validate if a peer can access a given resource. **/
-	rpc ValidatePeerResourceAccess(ValidatePeerResourceAccessRqst) returns (ValidatePeerResourceAccessRsp);
-	
-	/** Delete all permission for a given account **/
-	rpc DeleteAccountPermissions(DeleteAccountPermissionsRqst) returns(DeleteAccountPermissionsRsp);
-	
-	/** Delete all permission for a given role **/
-	rpc DeleteRolePermissions(DeleteRolePermissionsRqst) returns(DeleteRolePermissionsRsp);
-	
-	/** Return a json string with all applications informations **/
-	rpc GetAllApplicationsInfo(GetAllApplicationsInfoRqst) returns(GetAllApplicationsInfoRsp);
-	
-	/** Delete an application from the server. **/
-	rpc DeleteApplication(DeleteApplicationRqst) returns(DeleteApplicationRsp);
-	
+service LogService {
 	/** Set a method into the log... **/
 	rpc Log(LogRqst) returns(LogRsp);
 	
@@ -736,35 +799,4 @@ service ResourceService {
 	
 	/** Delete all log **/
 	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
-
-	/** Get all resources */
-	rpc GetResources(GetResourcesRqst) returns(stream GetResourcesRsp);
-	
-	/** Set a resource from a client (custom service) to globular */
-	rpc SetResource(SetResourceRqst) returns(SetResourceRsp);
-	
-	/** Remove a resource from a client (custom service) to globular */
-	rpc RemoveResource(RemoveResourceRqst) returns(RemoveResourceRsp);
-	
-	/** Set resource action permission **/
-	rpc SetActionPermission(SetActionPermissionRqst) returns(SetActionPermissionRsp);
-	
-	/** Remove resource action permission **/
-	rpc RemoveActionPermission(RemoveActionPermissionRqst) returns(RemoveActionPermissionRsp);
-	
-	/** Get resource action permission **/
-	rpc GetActionPermission(GetActionPermissionRqst) returns(GetActionPermissionRsp);
-	
-	/** Create Permission for a dir (recursive) **/
-	rpc CreateDirPermissions(CreateDirPermissionsRqst) returns(CreateDirPermissionsRsp);
-	
-	/** Rename file/dir permission **/
-	rpc RenameFilePermission(RenameFilePermissionRqst) returns(RenameFilePermissionRsp);
-	
-	/** Delete Permission for a dir (recursive) **/
-	rpc DeleteDirPermissions(DeleteDirPermissionsRqst) returns(DeleteDirPermissionsRsp);
-	
-	/** Delete a single file permission **/
-	rpc DeleteFilePermissions(DeleteFilePermissionsRqst) returns(DeleteFilePermissionsRsp);
-	
 }

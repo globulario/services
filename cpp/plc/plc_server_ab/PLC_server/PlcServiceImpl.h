@@ -1,11 +1,13 @@
 #pragma once
 
 // The plc service.
+#include "GlobularServer/globularserver.h"
 #include <grpcpp/grpcpp.h>
 #include "plc.pb.h"
 #include "plc.grpc.pb.h"
 
 #include <string>
+#include <map>
 #include <list>
 #include <sstream>
 #include "libplctag.h"
@@ -66,45 +68,12 @@ struct Connection {
 /*
 	Implementation of the PLC service.
  */
-class PlcServiceImpl final : public plc::PlcService::Service
+class PlcServiceImpl final : public plc::PlcService::Service , public Globular::GlobularService
 {
-	// The service port number
-	unsigned int defaultPort;
-	unsigned int defaultProxy;
-
-	// The service name
-	std::string name;
-
-	// The domain
-	std::string domain;
-
-	// The publisher id
-	std::string publisher_id;
-
-	std::string version;
-
-	bool keep_up_to_date;
-
-	bool keep_alive;
-
-	// allow all origin
-	bool allow_all_origins;
-
-	// comma separated list of origin.
-	std::string allowed_origins;
-
 	std::map<std::string, int> tags;
 	std::map<std::string, std::string> paths;
 
-	// true if connection use TLS
-	bool tls;
-
-	// Now certificates.
-	std::string cert_authority_trust;
-	std::string key_file;
-	std::string cert_file;
-
-	// keep map of connection.
+    // keep map of connection.
 	std::map<std::string, Connection> connections;
 
 	// save configuration.
@@ -125,29 +94,18 @@ class PlcServiceImpl final : public plc::PlcService::Service
 
 public:
 	// The constructor
-	PlcServiceImpl(unsigned int defaultPort = 10023, unsigned int defaultProxy = 10024);
+    PlcServiceImpl( std::string id = "plc_server_ab",
+                    std::string name = "plc.PlcService",
+                    std::string domain = "localhost",
+                    std::string publisher_id = "localhost",
+                    bool allow_all_origins = false,
+                    std::string allowed_origins = "",
+                    bool tls = false,
+                    std::string version = "0.0.1",
+                    unsigned int defaultPort = 10081, unsigned int defaultProxy = 10082);
 
 	// The desctructor.
 	~PlcServiceImpl();
-
-	// Getter/Setter
-	const std::string& getName() {
-		return this->name;
-	}
-
-	const std::string& getAddress() {
-		std::stringstream ss;
-		ss << this->domain << ":" << this->defaultPort;
-		return ss.str();
-	}
-
-	unsigned int getDefaultPort() {
-		return this->defaultPort;
-	}
-
-	unsigned int getDefaulProxy() {
-		return this->defaultProxy;
-	}
 
 	::grpc::Status GetConnection(::grpc::ServerContext* context, const ::plc::GetConnectionRqst* request, ::plc::GetConnectionRsp* response);
 

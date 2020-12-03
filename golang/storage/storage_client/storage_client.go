@@ -1,9 +1,10 @@
 package storage_client
 
 import (
-	"strconv"
-
+	"bytes"
 	"context"
+	"io"
+	"strconv"
 
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/storage/storagepb"
@@ -13,6 +14,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // storage Client Service
 ////////////////////////////////////////////////////////////////////////////////
+const BufferSize = 1024 * 5 // the chunck size.
 
 type Storage_Client struct {
 	cc *grpc.ClientConn
@@ -201,6 +203,46 @@ func (self *Storage_Client) SetItem(connectionId string, key string, data []byte
 	return err
 }
 
+func (self *Storage_Client) SetLargeItem(connectionId string, key string, value []byte) error {
+
+	// Open the stream...
+	stream, err := self.c.SetLargeItem(globular.GetClientContext(self))
+	if err != nil {
+		return err
+	}
+
+	buffer := bytes.NewReader(value)
+	if err != nil {
+		return err
+	}
+
+	for {
+		var data [BufferSize]byte
+		bytesread, err := buffer.Read(data[0:BufferSize])
+		if bytesread > 0 {
+			rqst := &storagepb.SetLargeItemRequest{
+				Value: data[0:bytesread],
+			}
+			// send the data to the server.
+			err = stream.Send(rqst)
+		}
+
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+			return err
+		}
+	}
+
+	_, err = stream.CloseAndRecv()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (self *Storage_Client) GetItem(connectionId string, key string) ([]byte, error) {
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.GetItemRequest{
@@ -208,11 +250,31 @@ func (self *Storage_Client) GetItem(connectionId string, key string) ([]byte, er
 		Key: key,
 	}
 
-	rsp, err := self.c.GetItem(globular.GetClientContext(self), rqst)
+	stream, err := self.c.GetItem(globular.GetClientContext(self), rqst)
 	if err != nil {
 		return nil, err
 	}
-	return rsp.Result, nil
+
+	// Here I will create the final array
+	var buffer bytes.Buffer
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = buffer.Write(msg.Result)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return buffer.Bytes(), err
+
 }
 
 func (self *Storage_Client) RemoveItem(connectionId string, key string) error {
