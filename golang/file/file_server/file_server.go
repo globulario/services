@@ -24,11 +24,11 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/davecourtois/Utility"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
 	"github.com/tealeg/xlsx"
@@ -1133,17 +1133,26 @@ func (self *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream file
 func (self *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
 	path := rqst.GetPath()
 
-	// The roo will be the Root specefied by the server.
+	// The root will be the Root specefied by the server.
 	if strings.HasPrefix(path, "/") {
 		path = self.Root + path
 		// Set the path separator...
 		path = strings.Replace(path, "/", string(os.PathSeparator), -1)
 	}
 
+	if Utility.Exists(path) {
+		err := os.Remove(path)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+	}
+
 	sheets := make(map[string]interface{}, 0)
 
 	err := json.Unmarshal([]byte(rqst.Data), &sheets)
-
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

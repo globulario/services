@@ -9,6 +9,8 @@ protoc proto/admin.proto --go-grpc_out=require_unimplemented_servers=false:./gol
 
 protoc proto/resource.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
+protoc proto/log.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+
 protoc proto/ca.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 protoc proto/lb.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
@@ -101,6 +103,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/plc_
 mkdir typescript/catalog
 protoc --js_out=import_style=commonjs:typescript/catalog  -I ./proto/ catalog.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/catalog -I ./proto/ catalog.proto
+mkdir typescript/log
+protoc --js_out=import_style=commonjs:typescript/log  -I ./proto/ log.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/log -I ./proto/ log.proto
 
 # CSharp grpc files generation
 mkdir csharp/event/eventpb

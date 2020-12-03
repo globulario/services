@@ -372,76 +372,6 @@ message DeleteRolePermissionsRsp{
 	bool result=1;
 }
 
-enum LogType{
-	INFO_MESSAGE=0;
-	ERROR_MESSAGE=1;
-}
-
-message LogInfo{
-	int64 date = 1;
-	LogType type = 2;
-	string application = 3;
-	string userId = 4;
-	string userName = 5;
-	string method = 6;
-	string message = 7;
-}
-
-message LogRqst{
-	LogInfo info = 1;
-}
-
-message LogRsp{
-	bool result=1;
-}
-
-message DeleteLogRqst{
-	LogInfo log = 1;
-}
-
-message DeleteLogRsp{
-	bool result=1;
-}
-
-message SetLogMethodRqst{
-	string method = 1;
-}
-
-message SetLogMethodRsp{
-	bool result=1;
-}
-
-message ResetLogMethodRqst{
-	string method = 1;
-}
-
-message ResetLogMethodRsp{
-	bool result=1;
-}
-
-message GetLogMethodsRqst{
-}
-
-message GetLogMethodsRsp{
-	repeated string methods = 1;
-}
-
-message GetLogRqst{
-	string query = 1;
-}
-
-message GetLogRsp{
-	repeated LogInfo info = 1;
-}
-
-message ClearAllLogRqst{
-	LogType type = 1;
-}
-
-message ClearAllLogRsp{
-	bool result=1;
-}
-
 ////////////////// Resource //////////////////
 
 /** a globular server **/
@@ -611,6 +541,25 @@ message RemovePeerActionRsp{
  * objects.
  */
 service ResourceService {
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Authentication
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Authenticate a user **/
+	rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
+	
+	/** Synchronize Resource with LDAP if connection exist **/
+	rpc SynchronizeLdap(SynchronizeLdapRqst) returns(SynchronizeLdapRsp);
+	
+	/** Refresh token get a new token **/
+	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
+	
+		
+	////////////////////////////////////////////////////////////////////////////
+	// Peer management 
+	////////////////////////////////////////////////////////////////////////////
+	
 	/** Register a peer on the network **/
 	rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
 	
@@ -626,26 +575,25 @@ service ResourceService {
 	/** Remove peer action permission **/
 	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
 	
+	////////////////////////////////////////////////////////////////////////////
+	// Account management 
+	////////////////////////////////////////////////////////////////////////////
+	
 	/** Register a new Account **/
 	rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp);
 	
 	/** Delete an account **/
 	rpc DeleteAccount(DeleteAccountRqst) returns(DeleteAccountRsp);
 	
-	/** Authenticate a user **/
-	rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
-	
-	/** Synchronize Resource with LDAP if connection exist **/
-	rpc SynchronizeLdap(SynchronizeLdapRqst) returns(SynchronizeLdapRsp);
-	
-	/** Refresh token get a new token **/
-	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
-	
 	/** Add role to a given account **/
 	rpc AddAccountRole(AddAccountRoleRqst) returns(AddAccountRoleRsp);
 
 	/** Remove a role from a given account **/
 	rpc RemoveAccountRole(RemoveAccountRoleRqst) returns(RemoveAccountRoleRsp);
+	
+	////////////////////////////////////////////////////////////////////////////
+	// Role management 
+	////////////////////////////////////////////////////////////////////////////
 	
 	/** Create a role with given action list **/
 	rpc CreateRole(CreateRoleRqst) returns(CreateRoleRsp);
@@ -659,8 +607,18 @@ service ResourceService {
 	/** Remove an action to existing role. **/
 	rpc RemoveRoleAction(RemoveRoleActionRqst) returns(RemoveRoleActionRsp);
 	
+	////////////////////////////////////////////////////////////////////////////
+	// Application management 
+	////////////////////////////////////////////////////////////////////////////
+	
 	/** Append an action to existing applications. **/
 	rpc AddApplicationAction(AddApplicationActionRqst) returns(AddApplicationActionRsp);
+	
+	/** Return a json string with all applications informations **/
+	rpc GetAllApplicationsInfo(GetAllApplicationsInfoRqst) returns(GetAllApplicationsInfoRsp);
+	
+	/** Delete an application from the server. **/
+	rpc DeleteApplication(DeleteApplicationRqst) returns(DeleteApplicationRsp);
 	
 	/** Remove an action to existing applications. **/
 	rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns(RemoveApplicationActionRsp);
@@ -668,7 +626,11 @@ service ResourceService {
 	/** Get all actions **/
 	rpc GetAllActions(GetAllActionsRqst) returns(GetAllActionsRsp);
 	
-	/**  **/
+	////////////////////////////////////////////////////////////////////////////
+	// Ressource management 
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Return the list of all permission **/
 	rpc GetPermissions(GetPermissionsRqst) returns(GetPermissionsRsp);
 	
 	/** Set a file permission, create new one if not already exist. **/
@@ -688,9 +650,10 @@ service ResourceService {
 	
 	/** Delete the resource owners **/
 	rpc DeleteResourceOwners(DeleteResourceOwnersRqst) returns(DeleteResourceOwnersRsp);
-	
-	/** Retrun a json string with all file info **/
-	rpc GetAllFilesInfo(GetAllFilesInfoRqst) returns(GetAllFilesInfoRsp);
+		
+	////////////////////////////////////////////////////////////////////////////
+	// Validation 
+	////////////////////////////////////////////////////////////////////////////
 	
 	/** Validate a token **/
 	rpc ValidateToken(ValidateTokenRqst) returns (ValidateTokenRsp);
@@ -713,38 +676,15 @@ service ResourceService {
 	/** Validate if a peer can access a given resource. **/
 	rpc ValidatePeerResourceAccess(ValidatePeerResourceAccessRqst) returns (ValidatePeerResourceAccessRsp);
 	
+	////////////////////////////////////////////////////////////////////////////
+	// Permissions 
+	////////////////////////////////////////////////////////////////////////////
+	
 	/** Delete all permission for a given account **/
 	rpc DeleteAccountPermissions(DeleteAccountPermissionsRqst) returns(DeleteAccountPermissionsRsp);
 	
 	/** Delete all permission for a given role **/
 	rpc DeleteRolePermissions(DeleteRolePermissionsRqst) returns(DeleteRolePermissionsRsp);
-	
-	/** Return a json string with all applications informations **/
-	rpc GetAllApplicationsInfo(GetAllApplicationsInfoRqst) returns(GetAllApplicationsInfoRsp);
-	
-	/** Delete an application from the server. **/
-	rpc DeleteApplication(DeleteApplicationRqst) returns(DeleteApplicationRsp);
-	
-	/** Set a method into the log... **/
-	rpc Log(LogRqst) returns(LogRsp);
-	
-	/** Get the list of logs **/
-	rpc GetLog(GetLogRqst) returns(stream GetLogRsp);
-
-	/** Delete a single log entry **/
-	rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
-	
-	/** Delete all log **/
-	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
-
-	/** Get all resources */
-	rpc GetResources(GetResourcesRqst) returns(stream GetResourcesRsp);
-	
-	/** Set a resource from a client (custom service) to globular */
-	rpc SetResource(SetResourceRqst) returns(SetResourceRsp);
-	
-	/** Remove a resource from a client (custom service) to globular */
-	rpc RemoveResource(RemoveResourceRqst) returns(RemoveResourceRsp);
 	
 	/** Set resource action permission **/
 	rpc SetActionPermission(SetActionPermissionRqst) returns(SetActionPermissionRsp);
@@ -754,6 +694,19 @@ service ResourceService {
 	
 	/** Get resource action permission **/
 	rpc GetActionPermission(GetActionPermissionRqst) returns(GetActionPermissionRsp);
+	
+	/** Get all resources */
+	rpc GetResources(GetResourcesRqst) returns(stream GetResourcesRsp);
+	
+	/** Set a resource from a client (custom service) to globular */
+	rpc SetResource(SetResourceRqst) returns(SetResourceRsp);
+	
+	/** Remove a resource from a client (custom service) to globular */
+	rpc RemoveResource(RemoveResourceRqst) returns(RemoveResourceRsp);
+
+	////////////////////////////////////////////////////////////////////////////
+	// Deprecated made use of generic ressource validation function instead.
+	////////////////////////////////////////////////////////////////////////////
 	
 	/** Create Permission for a dir (recursive) **/
 	rpc CreateDirPermissions(CreateDirPermissionsRqst) returns(CreateDirPermissionsRsp);
@@ -767,4 +720,20 @@ service ResourceService {
 	/** Delete a single file permission **/
 	rpc DeleteFilePermissions(DeleteFilePermissionsRqst) returns(DeleteFilePermissionsRsp);
 	
+	/** Retrun a json string with all file info **/
+	rpc GetAllFilesInfo(GetAllFilesInfoRqst) returns(GetAllFilesInfoRsp);
+}
+
+service LogService {
+	/** Set a method into the log... **/
+	rpc Log(LogRqst) returns(LogRsp);
+	
+	/** Get the list of logs **/
+	rpc GetLog(GetLogRqst) returns(stream GetLogRsp);
+
+	/** Delete a single log entry **/
+	rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
+	
+	/** Delete all log **/
+	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
 }
