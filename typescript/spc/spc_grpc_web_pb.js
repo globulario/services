@@ -138,7 +138,7 @@ proto.spc.SpcServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.spc.StopResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.spc.SpcServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.spc.SpcServiceClient.prototype.createAnalyse =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.spc.CreateAnalyseRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.spc.SpcServicePromiseClient.prototype.createAnalyse =
     function(request, metadata) {

@@ -1,6 +1,7 @@
 package persistence_client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -245,7 +246,7 @@ func (self *Persistence_Client) FindOne(connectionId string, database string, co
 	return rsp.GetJsonStr(), err
 }
 
-func (self *Persistence_Client) Find(connectionId string, database string, collection string, query string, options string) (string, error) {
+func (self *Persistence_Client) Find(connectionId string, database string, collection string, query string, options string) ([]interface{}, error) {
 
 	// Retreive a single value...
 	rqst := &persistencepb.FindRqst{
@@ -258,38 +259,39 @@ func (self *Persistence_Client) Find(connectionId string, database string, colle
 
 	stream, err := self.c.Find(globular.GetClientContext(self), rqst)
 
-	if err != nil {
-		return "", err
-	}
-
-	valuesStr := "["
+	// Here I will create the final array
+	var buffer bytes.Buffer
 	for {
-		results, err := stream.Recv()
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
 		if err != nil {
-			if err == io.EOF {
-				// end of stream...
-				break
-			} else {
-				return "", err
-			}
-		} else {
-			if len(valuesStr) > 1 {
-				valuesStr += ","
-			}
-			valuesStr += results.JsonStr[1 : len(results.JsonStr)-1]
+			return nil, err
 		}
 
+		_, err = buffer.Write(msg.Data)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	valuesStr += "]"
+	// The buffer that contain the
+	dec := json.NewDecoder(&buffer)
+	data := make([]interface{}, 0)
+	err = dec.Decode(data)
+	if err != nil {
+		return nil, err
+	}
 
-	return valuesStr, nil
+	return data, nil
 }
 
 /**
  * Usefull function to query and transform document.
  */
-func (self *Persistence_Client) Aggregate(connectionId, database string, collection string, pipeline string, options string) (string, error) {
+func (self *Persistence_Client) Aggregate(connectionId, database string, collection string, pipeline string, options string) ([]interface{}, error) {
 	// Retreive a single value...
 	rqst := &persistencepb.AggregateRqst{
 		Id:         connectionId,
@@ -302,31 +304,36 @@ func (self *Persistence_Client) Aggregate(connectionId, database string, collect
 	stream, err := self.c.Aggregate(globular.GetClientContext(self), rqst)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	valuesStr := "["
+	// Here I will create the final array
+	var buffer bytes.Buffer
 	for {
-		results, err := stream.Recv()
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
 		if err != nil {
-			if err == io.EOF {
-				// end of stream...
-				break
-			} else {
-				return "", err
-			}
-		} else {
-			if len(valuesStr) > 1 {
-				valuesStr += ","
-			}
-			valuesStr += results.JsonStr[1 : len(results.JsonStr)-1]
+			return nil, err
 		}
 
+		_, err = buffer.Write(msg.Data)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	valuesStr += "]"
+	// The buffer that contain the
+	dec := json.NewDecoder(&buffer)
+	data := make([]interface{}, 0)
+	err = dec.Decode(data)
+	if err != nil {
+		return nil, err
+	}
 
-	return string(valuesStr), nil
+	return data, nil
 }
 
 /**
@@ -362,7 +369,7 @@ func (self *Persistence_Client) InsertOne(connectionId string, database string, 
 		Id:         connectionId,
 		Database:   database,
 		Collection: collection,
-		JsonStr:    jsonStr,
+		Data:       jsonStr,
 		Options:    options,
 	}
 
@@ -375,59 +382,52 @@ func (self *Persistence_Client) InsertOne(connectionId string, database string, 
 	return rsp.GetId(), err
 }
 
-func (self *Persistence_Client) InsertMany(connectionId string, database string, collection string, jsonStr string, options string) (string, error) {
+func (self *Persistence_Client) InsertMany(connectionId string, database string, collection string, jsonStr string, options string) error {
 
 	stream, err := self.c.InsertMany(globular.GetClientContext(self))
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	// here you must run the sql service test before runing this test in order
 	// to generate the file Employees.json
-	data := make([]map[string]interface{}, 0)
-
-	err = json.Unmarshal([]byte(jsonStr), &data)
+	const BufferSize = 1024 * 5 // the chunck size.
+	var buffer bytes.Buffer
+	enc := json.NewEncoder(&buffer) // Will write to network.
+	err = enc.Encode([]byte(jsonStr))
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	// Persist 500 rows at time to save marshaling unmarshaling cycle time.
-	chunkSize := 500
+	for {
+		var data [BufferSize]byte
+		bytesread, err := buffer.Read(data[0:BufferSize])
+		if bytesread > 0 {
 
-	for i := 0; i < len(data); i += chunkSize {
-
-		var jsonStr []byte
-		if i+chunkSize < len(data) {
-			jsonStr, err = json.Marshal(data[i : i+chunkSize])
-			if err != nil {
-				return "", err
+			rqst := &persistencepb.InsertManyRqst{
+				Id:         connectionId,
+				Database:   database,
+				Collection: collection,
+				Data:       data[0:bytesread],
 			}
-		} else {
-			jsonStr, err = json.Marshal(data[i:])
-			if err != nil {
-				return "", err
-			}
+			// send the data to the server.
+			err = stream.Send(rqst)
 		}
 
-		rqst := &persistencepb.InsertManyRqst{
-			Id:         connectionId,
-			Database:   database,
-			Collection: collection,
-			JsonStr:    "[" + string(jsonStr) + "]",
-		}
-
-		err = stream.Send(rqst)
-		if err != nil {
-			return "", err
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+			return err
 		}
 	}
 
-	rsp, err := stream.CloseAndRecv()
+	_, err = stream.CloseAndRecv()
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return rsp.Ids, nil
+	return nil
 }
 
 /**

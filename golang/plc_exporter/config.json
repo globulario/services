@@ -1,0 +1,20 @@
+{
+  "Name": "plc_exporter",
+  "Port": 2112,
+  "Proxy": 0,
+  "AllowAllOrigins": false,
+  "AllowedOrigins": "",
+  "Protocol": "http",
+  "Domain": "localhost",
+  "PublisherId": "",
+  "Path": "/home/dave/go/src/github.com/globulario/services/golang/plc_exporter/plc_exporter",
+  "CertFile": "",
+  "KeyFile": "",
+  "CertAuthorityTrust": "",
+  "TLS": false,
+  "Version": "0.0.1",
+  "KeepUpToDate": false,
+  "KeepAlive": false,
+  "Tags": [],
+  "Timeout": 500
+}

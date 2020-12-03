@@ -186,7 +186,7 @@ public:
         if (methods->QueryInterceptionHookPoint(
                     grpc::experimental::InterceptionHookPoints::PRE_SEND_STATUS)) {
 
-            auto hasAccess = false;
+            auto hasAccess = true; // TODO init it at false and do validation.
             if(domain.empty()){
                 grpc::Status error(grpc::StatusCode::PERMISSION_DENIED, "Permission denied to execute " + method + " no domain was given!");
                 methods->ModifySendStatus(error);
@@ -215,13 +215,16 @@ public:
                 resourceClient = new Globular::ResourceClient("resource.ResourceService", domain, port);
             }
 
+
             if(!application.empty()){
-                hasAccess = resourceClient->validateApplicationAccess(application, method);
+                // TODO validate application access here.
+                // hasAccess = resourceClient->validateApplicationAccess(application, method);
             }
 
             if(!hasAccess){
+                // TODO validate user access here.
                 std::cout << method << token << std::endl;
-                hasAccess = resourceClient->validateUserAccess(token, method);
+
             }
 
             if(!hasAccess){
@@ -232,27 +235,7 @@ public:
             }else{
 
                 // Now if the action has resource access permission defines...
-                auto permissions = resourceClient->getActionPermission(method);
-                for(auto it = permissions.cbegin(); it != permissions.cend(); ++it){
-
-                    auto permission = *(it);
-                    std::string path = "";
-
-                    // permission.permission()
-                    auto hasResourcePermission = ServerInterceptor::resourceClient->validateUserResourceAccess(token, path, method, permission.permission());
-                    if (!hasResourcePermission)
-                    {
-                        ServerInterceptor::resourceClient->validateApplicationResourceAccess(application, path, method, permission.permission());
-                    }
-                    if (!hasResourcePermission)
-                    {
-                        grpc::Status error(grpc::StatusCode::PERMISSION_DENIED, "Permission denied access denied on resource " + path + "!");
-                        methods->ModifySendStatus(error);
-                        methods->Proceed();
-                        return;
-                    }
-
-                }
+                // TODO validate ressource access here.
             }
         }
 

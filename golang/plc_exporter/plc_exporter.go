@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os/signal"
-
+	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -29,14 +30,15 @@ type Tag struct {
 	ServiceId    string // The name of the service itself ex. plc_server_ab or plc_server_siemens
 	ConnectionId string // Must be already define within the plc_server.
 	Domain       string // The domain where the plc server that contain the Tag run.
-	Name         string // The name of the tag
-	Label        string // The label is can not contain . []
-	Description  string // The tag description
-	Unit         string // The tag unit
-	TypeName     string // Can be BOOL, SINT, INT, DINT, REAL.
-	Offset       int32  // The offset where to begin to read the s.Tags[i].
-	Length       int32  // The Length of the array of tag's.
-	Unsigned     bool   // If true the tag is read as unsigned value
+
+	Name        string // The name of the tag
+	Label       string // The label is can not contain . []
+	Description string // The tag description
+	Unit        string // The tag unit
+	TypeName    string // Can be BOOL, SINT, INT, DINT, REAL.
+	Offset      int32  // The offset where to begin to read the s.Tags[i].
+	Length      int32  // The Length of the array of tag's.
+	Unsigned    bool   // If true the tag is read as unsigned value
 }
 
 type server struct {
@@ -50,6 +52,7 @@ type server struct {
 	Protocol        string
 	Domain          string
 	PublisherId     string
+	Path            string // The executalbe path
 
 	// self-signed X.509 public keys for distribution
 	CertFile string
@@ -66,9 +69,8 @@ type server struct {
 	KeepAlive    bool
 
 	// The list of tag to monitor.
-	Tags         []Tag
-	Timeout      int
-	NbConnection int
+	Tags    []Tag
+	Timeout int
 
 	// contain pointer to connection.
 	actions chan map[string]interface{}
@@ -96,88 +98,11 @@ func readPlcTag(c *plc_client.Plc_Client, connectionId string, tag Tag) ([]inter
 	return val, err
 }
 
-// Process values here.
-func (self *server) run() {
-
-	self.actions = make(chan map[string]interface{})
-	self.done = make(chan bool)
-
-	// Here I will iterate over the tag's and open connection
-	// with it plc servers.
-	// init container
-	tagsTimeSerie := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "plc_tags",
-		Help: "Contain the values of various plc tags.",
-	},
-		[]string{
-			"name",
-			"label",
-			"connectionId",
-			"unit",
-			"offset",
-			"index"},
-	)
-
-	prometheus.MustRegister(tagsTimeSerie)
-
-	// Here I will keep connection pool...
-	clients := make(map[string]*plc_client.Plc_Client)
-
-	// Contain list of connection that can be use to communicate with the plc.
-	done := make(chan bool)
-
-	// tag reading loop.
-	for {
-		select {
-
-		// we pass here at each timeout...
-		case action := <-self.actions:
-			tag := action["tag"].(Tag)
-
-			// create a new client if none exist.
-			if clients[tag.ServiceId] == nil {
-				clients[tag.ServiceId], _ = plc_client.NewPlcService_Client(tag.Domain, tag.ServiceId)
-			}
-
-			// read the tag value
-			values, err := readPlcTag(clients[tag.ServiceId], tag.ConnectionId, tag)
-
-			// diplay error in that case
-			if err != nil {
-				if strings.HasSuffix(err.Error(), "-32") {
-					err = errors.New("Tag reading error " + tag.Name + " at address " + tag.ServiceId + " " + err.Error())
-				} else {
-					// here I will close the client and reconnect latter.
-					clients[tag.ServiceId].Close()
-					delete(clients, tag.ServiceId)
-				}
-
-				fmt.Println(err)
-				time.Sleep(1000)
-			} else {
-				for i := 0; i < len(values); i++ {
-					tagsTimeSerie.WithLabelValues(tag.Name, tag.Label, tag.ConnectionId, tag.Unit, Utility.ToString(tag.Offset), Utility.ToString(i)).Set(Utility.ToNumeric(values[i]))
-				}
-			}
-
-		case <-self.done:
-			// resume the channel...
-			done <- true
-			<-done
-			self.done <- true
-			break
-		}
-	}
-
-}
-
 func (self *server) init() {
 	// Here I will retreive the list of connections from file if there are some...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	file, err := ioutil.ReadFile(dir + "/config.json")
-
 	self.Timeout = 500
-	self.NbConnection = 5
 	self.Tags = make([]Tag, 0)
 
 	if err == nil {
@@ -218,45 +143,90 @@ func main() {
 	s.Version = "0.0.1"
 	s.Domain = "localhost"
 
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatal(err)
+	}
+	dir := path.Dir(ex)
+
+	s.Path = dir + "/plc_exporter"
+
 	s.init()
 
 	// read tags and keep values in tagsTimeSerie
 
-	// Start the processing loop.
-	go func() {
-		s.run()
-	}()
+	// Here I will iterate over the tag's and open connection
+	// with it plc servers.
+	// init container
+	tagsTimeSerie := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "plc_tags",
+		Help: "Contain the values of various plc tags.",
+	},
+		[]string{
+			"name",
+			"label",
+			"connectionId",
+			"unit",
+			"offset",
+			"index"},
+	)
 
+	prometheus.MustRegister(tagsTimeSerie)
+
+	// Here I will keep connection pool...
+	clients := make(map[string]*plc_client.Plc_Client)
 	done := make(chan bool) // stop tick
 
 	// use ticker to read connection at each interval of time
-	go func() {
-		fmt.Println("Start plc_exporter...")
-		// read tag at each intervals.
-		ticker := time.NewTicker(time.Millisecond * time.Duration(s.Timeout))
-		go func() {
-			for {
-				select {
-				// we pass here at each timeout...
-				case <-ticker.C:
-					// fmt.Println("---> read tags...")
-					// Read all register values.
-					for i := 0; i < len(s.Tags); i++ {
-						action := make(map[string]interface{})
-						action["tag"] = s.Tags[i]
-						// Read tags in separate go routines.
-						go func() {
-							s.actions <- action
-						}()
-					}
 
-				case <-done:
-					fmt.Println("stop ticker!")
-					break
+	fmt.Println("Start plc_exporter...")
+	// read tag at each intervals.
+	ticker := time.NewTicker(time.Millisecond * time.Duration(s.Timeout))
+	go func() {
+		for {
+			select {
+			// we pass here at each timeout...
+			case <-ticker.C:
+				// fmt.Println("---> read tags...")
+				// Read all register values.
+				for i := 0; i < len(s.Tags); i++ {
+
+					// Read tags in separate go routines.
+					go func(tag Tag) {
+						// create a new client if none exist.
+						//tag := s.Tags[i]
+						if clients[tag.ServiceId] == nil {
+							clients[tag.ServiceId], _ = plc_client.NewPlcService_Client(tag.Domain, tag.ServiceId)
+						}
+
+						if clients[tag.ServiceId] != nil {
+							// read the tag value
+							values, err := readPlcTag(clients[tag.ServiceId], tag.ConnectionId, tag)
+
+							// diplay error in that case
+							if err != nil {
+								if strings.HasSuffix(err.Error(), "-32") {
+									err = errors.New("Tag reading error " + tag.Name + " at address " + tag.ServiceId + " " + err.Error())
+								} /*else {
+									// here I will close the client and reconnect latter.
+									clients[tag.ServiceId].Close()
+									delete(clients, tag.ServiceId)
+								}*/
+							} else {
+								for i := 0; i < len(values); i++ {
+									tagsTimeSerie.WithLabelValues(tag.Name, tag.Label, tag.ConnectionId, tag.Unit, Utility.ToString(tag.Offset), Utility.ToString(i)).Set(Utility.ToNumeric(values[i]))
+								}
+							}
+						}
+					}(s.Tags[i])
 				}
 
+			case <-done:
+				fmt.Println("stop ticker!")
+				break
 			}
-		}()
+
+		}
 	}()
 
 	if s.Name == "" {
@@ -281,6 +251,7 @@ func main() {
 	// Start the http server.
 	// TODO set https as needed.
 	go func() {
+		log.Println("lisen on port ", port)
 		if err := server.ListenAndServe(); err != nil {
 			// handle err
 		}

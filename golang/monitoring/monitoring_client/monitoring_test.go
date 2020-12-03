@@ -4,15 +4,12 @@ import (
 	"fmt"
 	"log"
 	"testing"
-
 	//	"time"
-
-	"github.com/globulario/Globular/monitoring/monitoring_client"
 )
 
 // Set the correct addresse here as needed.
 var (
-	client = monitoring_client.NewMonitoring_Client("localhost", "monitoring_server")
+	client, _ = NewMonitoringService_Client("localhost", "monitoring.MonitoringService")
 )
 
 // First test create a fresh new connection...
@@ -24,7 +21,7 @@ func TestMonitoring(t *testing.T) {
 func TestCreateConnection(t *testing.T) {
 	fmt.Println("Connection creation test.")
 	// err := client.CreateConnection("test", "127.0.0.1", 0, 9090)
-	err := client.CreateConnection("test", "steve_pc", 0, 9090)
+	err := client.CreateConnection("dashboard_connection", "localhost", 0, 9090)
 	if err != nil {
 		log.Println("Fail to create a new connection", err)
 		t.Fail()
@@ -34,7 +31,7 @@ func TestCreateConnection(t *testing.T) {
 // Test getting the configurations infromations.
 func TestGetConfig(t *testing.T) {
 	fmt.Println("Get configuration test.")
-	config, err := client.Config("test")
+	config, err := client.Config("dashboard_connection")
 	if err != nil {
 		log.Println("Fail to get test config", err)
 		t.Fail()

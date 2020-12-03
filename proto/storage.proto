@@ -63,6 +63,17 @@ message SetItemResponse {
 	bool result = 1;
 }
 
+// Save an item in the kv store
+message SetLargeItemRequest {
+	string id = 1; // connection id
+	string key = 2; // the key
+	bytes value = 3; // The data to store.
+}
+
+message SetLargeItemResponse {
+	bool result = 1;
+}
+
 // Retreive a value with a given key
 message GetItemRequest {
 	string id = 1; // connection id
@@ -129,8 +140,11 @@ service StorageService {
 	// Save an item in the kv store
 	rpc SetItem(SetItemRequest) returns (SetItemResponse) {};
 	
+	// Save an item in the kv store
+	rpc SetLargeItem(stream SetLargeItemRequest) returns (SetLargeItemResponse) {};
+	
 	// Retreive a value with a given key 
-	rpc GetItem(GetItemRequest) returns (GetItemResponse) {};
+	rpc GetItem(GetItemRequest) returns (stream GetItemResponse) {};
 	
 	// Remove an item with a given key 
 	rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse) {};

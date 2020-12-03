@@ -1,11 +1,14 @@
 package resource_client
 
 import (
+	//"bytes"
 	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
-	"time"
+
+	//	"time"
 
 	//"log"
 
@@ -13,7 +16,6 @@ import (
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,35 +168,6 @@ func (self *Resource_Client) SetCaFile(caFile string) {
 }
 
 ////////////// API ////////////////
-// Register a new Account.
-func (self *Resource_Client) RegisterAccount(name string, email string, password string, confirmation_password string) error {
-	rqst := &resourcepb.RegisterAccountRqst{
-		Account: &resourcepb.Account{
-			Name:     name,
-			Email:    email,
-			Password: "",
-		},
-		Password:        password,
-		ConfirmPassword: confirmation_password,
-	}
-
-	_, err := self.c.RegisterAccount(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Delete an account.
-func (self *Resource_Client) DeleteAccount(id string) error {
-	rqst := &resourcepb.DeleteAccountRqst{
-		Id: id,
-	}
-
-	_, err := self.c.DeleteAccount(globular.GetClientContext(self), rqst)
-	return err
-}
 
 // Authenticate a user.
 func (self *Resource_Client) Authenticate(name string, password string) (string, error) {
@@ -242,6 +215,131 @@ func (self *Resource_Client) RefreshToken(token string) (string, error) {
 
 	return rsp.Token, nil
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Account
+////////////////////////////////////////////////////////////////////////////////
+
+// Register a new Account.
+func (self *Resource_Client) RegisterAccount(name string, email string, password string, confirmation_password string) error {
+	rqst := &resourcepb.RegisterAccountRqst{
+		Account: &resourcepb.Account{
+			Name:     name,
+			Email:    email,
+			Password: "",
+		},
+		Password:        password,
+		ConfirmPassword: confirmation_password,
+	}
+
+	_, err := self.c.RegisterAccount(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Delete an account.
+func (self *Resource_Client) DeleteAccount(id string) error {
+	rqst := &resourcepb.DeleteAccountRqst{
+		Id: id,
+	}
+
+	_, err := self.c.DeleteAccount(globular.GetClientContext(self), rqst)
+	return err
+}
+
+/**
+ * Remove role from an account
+ */
+func (self *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
+	rqst := &resourcepb.RemoveAccountRoleRqst{
+		AccountId: accountId,
+		RoleId:    roleId,
+	}
+	_, err := self.c.RemoveAccountRole(globular.GetClientContext(self), rqst)
+
+	return err
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Group
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Create a new group.
+ */
+func (self *Resource_Client) CreateGroup(id string, name string) error {
+	rqst := new(resourcepb.CreateGroupRqst)
+	g := new(resourcepb.Group)
+	g.Name = name
+	g.Id = id
+	rqst.Group = g
+	ctx := globular.GetClientContext(self)
+	_, err := self.c.CreateGroup(ctx, rqst)
+
+	return err
+}
+
+func (self *Resource_Client) AddGroupMemberAccount(groupId string, accountId string) error {
+	rqst := new(resourcepb.AddGroupMemberAccountRqst)
+	rqst.AccountId = accountId
+	rqst.GroupId = groupId
+
+	ctx := globular.GetClientContext(self)
+	_, err := self.c.AddGroupMemberAccount(ctx, rqst)
+	return err
+}
+
+func (self *Resource_Client) RemoveGroupMemberAccount(groupId string, accountId string) error {
+	rqst := new(resourcepb.RemoveGroupMemberAccountRqst)
+	rqst.AccountId = accountId
+	rqst.GroupId = groupId
+
+	ctx := globular.GetClientContext(self)
+	_, err := self.c.RemoveGroupMemberAccount(ctx, rqst)
+	return err
+}
+
+func (self *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error) {
+
+	// Open the stream...
+	groups := make([]*resourcepb.Group, 0)
+	// I will execute a simple ldap search here...
+	rqst := new(resourcepb.GetGroupsRqst)
+	rqst.Query = query
+
+	stream, err := self.c.GetGroups(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	// Here I will create the final array
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		groups = append(groups, msg.Groups...)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return groups, err
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Role
+////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Create a new role with given action list.
@@ -292,6 +390,26 @@ func (self *Resource_Client) RemoveRoleAction(roleId string, action string) erro
 	return err
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Peer
+////////////////////////////////////////////////////////////////////////////////
+
+// Register a peer with a given name and mac address.
+func (self *Resource_Client) RegisterPeer(domain string) error {
+	rqst := &resourcepb.RegisterPeerRqst{
+		Peer: &resourcepb.Peer{
+			Domain: domain,
+		},
+	}
+
+	_, err := self.c.RegisterPeer(globular.GetClientContext(self), rqst)
+	return err
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Application
+////////////////////////////////////////////////////////////////////////////////
 /**
  * Add a action to a given application.
  */
@@ -316,365 +434,4 @@ func (self *Resource_Client) RemoveApplicationAction(applicationId string, actio
 	_, err := self.c.RemoveApplicationAction(globular.GetClientContext(self), rqst)
 
 	return err
-}
-
-/**
- * Set role to a account
- */
-func (self *Resource_Client) AddAccountRole(accountId string, roleId string) error {
-	rqst := &resourcepb.AddAccountRoleRqst{
-		AccountId: accountId,
-		RoleId:    roleId,
-	}
-	_, err := self.c.AddAccountRole(globular.GetClientContext(self), rqst)
-
-	return err
-}
-
-/**
- * Remove role from an account
- */
-func (self *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
-	rqst := &resourcepb.RemoveAccountRoleRqst{
-		AccountId: accountId,
-		RoleId:    roleId,
-	}
-	_, err := self.c.RemoveAccountRole(globular.GetClientContext(self), rqst)
-
-	return err
-}
-
-/**
- * Return the list of all available actions on the server.
- */
-func (self *Resource_Client) GetAllActions() ([]string, error) {
-	rqst := &resourcepb.GetAllActionsRqst{}
-	rsp, err := self.c.GetAllActions(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return nil, err
-	}
-	return rsp.Actions, err
-}
-
-/////////////////////////////// Ressouce permissions ///////////////////////////////
-
-/**
- * Set file permission for a given user.
- */
-func (self *Resource_Client) SetResourcePermissionByUser(userId string, path string, permission int32) error {
-	rqst := &resourcepb.SetPermissionRqst{
-		Permission: &resourcepb.ResourcePermission{
-			Owner: &resourcepb.ResourcePermission_User{
-				User: userId,
-			},
-			Path:   path,
-			Number: permission,
-		},
-	}
-
-	_, err := self.c.SetPermission(globular.GetClientContext(self), rqst)
-	return err
-}
-
-/**
- * Set file permission for a given role.
- */
-func (self *Resource_Client) SetResourcePermissionByRole(roleId string, path string, permission int32) error {
-	rqst := &resourcepb.SetPermissionRqst{
-		Permission: &resourcepb.ResourcePermission{
-			Owner: &resourcepb.ResourcePermission_Role{
-				Role: roleId,
-			},
-			Path:   path,
-			Number: permission,
-		},
-	}
-
-	_, err := self.c.SetPermission(globular.GetClientContext(self), rqst)
-	return err
-}
-
-func (self *Resource_Client) GetResourcePermissions(path string) (string, error) {
-	rqst := &resourcepb.GetPermissionsRqst{
-		Path: path,
-	}
-
-	rsp, err := self.c.GetPermissions(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return "", err
-	}
-	return rsp.GetPermissions(), nil
-}
-
-func (self *Resource_Client) DeleteResourcePermissions(path string, owner string) error {
-	rqst := &resourcepb.DeletePermissionsRqst{
-		Path:  path,
-		Owner: owner,
-	}
-
-	_, err := self.c.DeletePermissions(globular.GetClientContext(self), rqst)
-
-	return err
-}
-
-func (self *Resource_Client) GetAllFilesInfo() (string, error) {
-	rqst := &resourcepb.GetAllFilesInfoRqst{}
-
-	rsp, err := self.c.GetAllFilesInfo(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return "", err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-func (self *Resource_Client) ValidateUserResourceAccess(token string, path string, method string, permission int32) (bool, error) {
-	rqst := &resourcepb.ValidateUserResourceAccessRqst{}
-	rqst.Token = token
-	rqst.Path = path
-	rqst.Method = method
-	rqst.Permission = permission
-
-	rsp, err := self.c.ValidateUserResourceAccess(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-func (self *Resource_Client) ValidateApplicationResourceAccess(application string, path string, method string, permission int32) (bool, error) {
-	rqst := &resourcepb.ValidateApplicationResourceAccessRqst{}
-	rqst.Name = application
-	rqst.Path = path
-	rqst.Method = method
-	rqst.Permission = permission
-
-	rsp, err := self.c.ValidateApplicationResourceAccess(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-func (self *Resource_Client) ValidateUserAccess(token string, method string) (bool, error) {
-	rqst := &resourcepb.ValidateUserAccessRqst{}
-	rqst.Token = token
-	rqst.Method = method
-
-	rsp, err := self.c.ValidateUserAccess(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-func (self *Resource_Client) ValidateApplicationAccess(application string, method string) (bool, error) {
-	rqst := &resourcepb.ValidateApplicationAccessRqst{}
-	rqst.Name = application
-	rqst.Method = method
-	rsp, err := self.c.ValidateApplicationAccess(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-func (self *Resource_Client) DeleteRolePermissions(id string) error {
-	rqst := &resourcepb.DeleteRolePermissionsRqst{
-		Id: id,
-	}
-	_, err := self.c.DeleteRolePermissions(globular.GetClientContext(self), rqst)
-	return err
-}
-
-func (self *Resource_Client) DeleteAccountPermissions(id string) error {
-	rqst := &resourcepb.DeleteAccountPermissionsRqst{
-		Id: id,
-	}
-	_, err := self.c.DeleteAccountPermissions(globular.GetClientContext(self), rqst)
-	return err
-}
-
-func (self *Resource_Client) GetActionPermission(action string) ([]*resourcepb.ActionParameterResourcePermission, error) {
-	rqst := &resourcepb.GetActionPermissionRqst{
-		Action: action,
-	}
-
-	rsp, err := self.c.GetActionPermission(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return nil, err
-	}
-
-	return rsp.ActionParameterResourcePermissions, nil
-}
-
-func (self *Resource_Client) SetResource(name string, path string, modified int64, size int64, token string) error {
-	resource := &resourcepb.Resource{
-		Name:     name,
-		Path:     path,
-		Modified: modified,
-		Size:     size,
-	}
-
-	rqst := &resourcepb.SetResourceRqst{
-		Resource: resource,
-	}
-	var err error
-	if len(token) > 0 {
-		md := metadata.New(map[string]string{"token": string(token), "domain": self.GetDomain(), "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
-		ctx := metadata.NewOutgoingContext(context.Background(), md)
-
-		_, err = self.c.SetResource(ctx, rqst)
-	} else {
-		_, err = self.c.SetResource(globular.GetClientContext(self), rqst)
-	}
-
-	return err
-}
-
-func (self *Resource_Client) SetResourceOwner(owner string, path string, token string) error {
-	rqst := &resourcepb.SetResourceOwnerRqst{
-		Owner: owner,
-		Path:  path,
-	}
-	var err error
-	if len(token) > 0 {
-		md := metadata.New(map[string]string{"token": string(token), "domain": self.GetDomain(), "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
-		ctx := metadata.NewOutgoingContext(context.Background(), md)
-
-		_, err = self.c.SetResourceOwner(ctx, rqst)
-	} else {
-		_, err = self.c.SetResourceOwner(globular.GetClientContext(self), rqst)
-	}
-
-	return err
-}
-
-// Set action permission
-func (self *Resource_Client) SetActionPermission(action string, actionParameterResourcePermissions []*resourcepb.ActionParameterResourcePermission, token string) error {
-	var err error
-
-	// Set action permission.
-	rqst := &resourcepb.SetActionPermissionRqst{
-		Action:                              action,
-		ActionParameterResourcePermissions: actionParameterResourcePermissions,
-	}
-
-	if len(token) > 0 {
-		md := metadata.New(map[string]string{"token": string(token), "domain": self.GetDomain(), "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
-		ctx := metadata.NewOutgoingContext(context.Background(), md)
-
-		// Set action permission.
-		_, err = self.c.SetActionPermission(ctx, rqst)
-	} else {
-		_, err = self.c.SetActionPermission(globular.GetClientContext(self), rqst)
-	}
-
-	return err
-}
-
-/////////////////////// Log ////////////////////////
-
-// Append a new log information.
-func (self *Resource_Client) Log(application string, user string, method string, err_ error) error {
-
-	// Here I set a log information.
-	rqst := new(resourcepb.LogRqst)
-	info := new(resourcepb.LogInfo)
-	info.Application = application
-	info.UserName = user
-	info.Method = method
-	info.Date = time.Now().Unix()
-	if err_ != nil {
-		info.Message = err_.Error()
-		info.Type = resourcepb.LogType_ERROR_MESSAGE
-	} else {
-		info.Type = resourcepb.LogType_INFO_MESSAGE
-	}
-	rqst.Info = info
-
-	_, err := self.c.Log(globular.GetClientContext(self), rqst)
-
-	return err
-}
-
-func (self *Resource_Client) CreateDirPermissions(token string, path string, name string) error {
-	rqst := &resourcepb.CreateDirPermissionsRqst{
-		Token: token,
-		Path:  path,
-		Name:  name,
-	}
-	_, err := self.c.CreateDirPermissions(globular.GetClientContext(self), rqst)
-	return err
-}
-
-func (self *Resource_Client) RenameFilePermission(path string, oldName string, newName string) error {
-	rqst := &resourcepb.RenameFilePermissionRqst{
-		Path:    path,
-		OldName: oldName,
-		NewName: newName,
-	}
-
-	_, err := self.c.RenameFilePermission(globular.GetClientContext(self), rqst)
-	return err
-}
-
-func (self *Resource_Client) DeleteDirPermissions(path string) error {
-	rqst := &resourcepb.DeleteDirPermissionsRqst{
-		Path: path,
-	}
-	_, err := self.c.DeleteDirPermissions(globular.GetClientContext(self), rqst)
-	return err
-}
-
-func (self *Resource_Client) DeleteFilePermissions(path string) error {
-	rqst := &resourcepb.DeleteFilePermissionsRqst{
-		Path: path,
-	}
-	_, err := self.c.DeleteFilePermissions(globular.GetClientContext(self), rqst)
-	return err
-}
-
-func (self *Resource_Client) ValidatePeerResourceAccess(domain string, path string, method string, permission int32) (bool, error) {
-	rqst := &resourcepb.ValidatePeerResourceAccessRqst{}
-	rqst.Domain = domain
-	rqst.Path = path
-	rqst.Method = method
-	rqst.Permission = permission
-
-	rsp, err := self.c.ValidatePeerResourceAccess(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-func (self *Resource_Client) ValidatePeerAccess(domain string, method string) (bool, error) {
-	rqst := &resourcepb.ValidatePeerAccessRqst{}
-	rqst.Domain = domain
-	rqst.Method = method
-	rsp, err := self.c.ValidatePeerAccess(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-// Register a peer with a given name and mac address.
-func (self *Resource_Client) RegisterPeer(domain string) error {
-	rqst := &resourcepb.RegisterPeerRqst{
-		Peer: &resourcepb.Peer{
-			Domain: domain,
-		},
-	}
-
-	_, err := self.c.RegisterPeer(globular.GetClientContext(self), rqst)
-	return err
-
 }

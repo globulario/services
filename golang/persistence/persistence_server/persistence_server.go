@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,10 @@ import (
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	BufferSize = 1024 * 5 // the chunck size.
 )
 
 var (
@@ -644,16 +649,8 @@ func (self *server) InsertOne(ctx context.Context, rqst *persistencepb.InsertOne
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// In that case I will save it in file.
-	err := self.Save()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	entity := make(map[string]interface{})
-	err = json.Unmarshal([]byte(rqst.JsonStr), &entity)
+	err := json.Unmarshal([]byte(rqst.Data), &entity)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -679,65 +676,38 @@ func (self *server) InsertOne(ctx context.Context, rqst *persistencepb.InsertOne
 	}, nil
 }
 
-func (self *server) InsertLargeOne(stream persistencepb.PersistenceService_InsertLargeOneServer) error {
-	/** TODO Implement me */
-	return nil
-
-}
-
 func (self *server) InsertMany(stream persistencepb.PersistenceService_InsertManyServer) error {
-	ids := make([]interface{}, 0)
+	var buffer bytes.Buffer
+	var rqst *persistencepb.InsertManyRqst
+	var err error
+	for {
+		rqst, err = stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			stream.SendAndClose(&persistencepb.InsertManyRsp{})
+			break
+		} else if err != nil {
+			return err
+		} else {
+			buffer.Write(rqst.Data)
+		}
+	}
 
-	// In that case I will save it in file.
-	err := self.Save()
+	// The buffer that contain the
+	dec := json.NewDecoder(&buffer)
+	entities := make([]interface{}, 0)
+	err = dec.Decode(entities)
+	if err != nil {
+		return err
+	}
+
+	_, err = self.stores[rqst.Id].InsertMany(stream.Context(), strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, entities, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	for {
-		rqst, err := stream.Recv()
 
-		// end of the stream.
-		if err == io.EOF {
-			jsonStr, err := json.Marshal(ids)
-			if err != nil {
-				return status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-			// Close the stream...
-			stream.SendAndClose(&persistencepb.InsertManyRsp{
-				Ids: string(jsonStr),
-			})
-
-			return nil
-		}
-
-		entities := make([]interface{}, 0)
-		err = json.Unmarshal([]byte(rqst.JsonStr), &entities)
-		if err != nil {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		var results []interface{}
-		results, err = self.stores[rqst.Id].InsertMany(stream.Context(), strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, entities, rqst.Options)
-		if err != nil {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		// append to the list of ids.
-		ids = append(ids, results...)
-
-	}
-}
-
-func (self *server) FindLargeOne(rqst *persistencepb.FindLargeOneRqst, stream persistencepb.PersistenceService_FindLargeOneServer) error {
-	/** Find large one */
 	return nil
 }
 
@@ -761,39 +731,32 @@ func (self *server) Find(rqst *persistencepb.FindRqst, stream persistencepb.Pers
 	}
 
 	// No I will stream the result over the networks.
-	maxSize := 1
-	values := make([]interface{}, 0)
-	for i := 0; i < len(results); i++ {
-		values = append(values, results[i])
-		if len(values) >= maxSize {
-			jsonStr, err := json.Marshal(values)
-			if err != nil {
-				return err
-			}
-			stream.Send(
-				&persistencepb.FindResp{
-					JsonStr: string(jsonStr),
-				},
-			)
-			values = make([]interface{}, 0)
-		}
+	var buffer bytes.Buffer
+	enc := json.NewEncoder(&buffer)
+	err = enc.Encode(results)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Send reminding values.
-	if len(values) > 0 {
-		jsonStr, err := json.Marshal(values)
-		if err != nil {
+	for {
+		var data [BufferSize]byte
+		bytesread, err := buffer.Read(data[0:BufferSize])
+		if bytesread > 0 {
+			rqst := &persistencepb.FindResp{
+				Data: data[0:bytesread],
+			}
+			// send the data to the server.
+			err = stream.Send(rqst)
+		}
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
 			return err
 		}
-		stream.Send(
-			&persistencepb.FindResp{
-
-				JsonStr: string(jsonStr),
-			},
-		)
-		values = make([]interface{}, 0)
 	}
-
 	return nil
 }
 
@@ -816,37 +779,31 @@ func (self *server) Aggregate(rqst *persistencepb.AggregateRqst, stream persiste
 	}
 
 	// No I will stream the result over the networks.
-	maxSize := 100
-	values := make([]interface{}, 0)
-	for i := 0; i < len(results); i++ {
-		values = append(values, results[i])
-		if len(values) >= maxSize {
-			jsonStr, err := json.Marshal(values)
-			if err != nil {
-				return err
-			}
-			stream.Send(
-				&persistencepb.AggregateResp{
-					JsonStr: string(jsonStr),
-				},
-			)
-			values = make([]interface{}, 0)
-		}
+	var buffer bytes.Buffer
+	enc := json.NewEncoder(&buffer)
+	err = enc.Encode(results)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Send reminding values.
-	if len(values) > 0 {
-		jsonStr, err := json.Marshal(values)
-		if err != nil {
+	for {
+		var data [BufferSize]byte
+		bytesread, err := buffer.Read(data[0:BufferSize])
+		if bytesread > 0 {
+			rqst := &persistencepb.AggregateResp{
+				Data: data[0:bytesread],
+			}
+			// send the data to the server.
+			err = stream.Send(rqst)
+		}
+
+		if err == io.EOF {
+			break
+		} else if err != nil {
 			return err
 		}
-		stream.Send(
-			&persistencepb.AggregateResp{
-
-				JsonStr: string(jsonStr),
-			},
-		)
-		values = make([]interface{}, 0)
 	}
 
 	return nil

@@ -16,9 +16,9 @@ import (
 	"github.com/globulario/Globular/Interceptors"
 	globular "github.com/globulario/services/golang/globular_service"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/plc/plc_client"
 	"github.com/globulario/services/golang/plc/plcpb"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -895,6 +895,7 @@ func main() {
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
+	s_impl.PublisherId = "localhost"
 	s_impl.Version = "0.0.1"
 	s_impl.Connections = make([]connection, 0)
 	s_impl.connections = make(map[string]*connection)

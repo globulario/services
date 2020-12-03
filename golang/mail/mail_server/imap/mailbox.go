@@ -128,7 +128,7 @@ func (mbox *MailBox_impl) uidNext() uint32 {
 
 // Return the list of message from the bakend.
 func (mbox *MailBox_impl) getMessages() []*Message {
-
+	log.Println("---> getMessages")
 	messages := make([]*Message, 0)
 	connectionId := mbox.user + "_db"
 
@@ -259,7 +259,7 @@ func (mbox *MailBox_impl) Check() error {
 //
 // Messages must be sent to ch. When the function returns, ch must be closed.
 func (mbox *MailBox_impl) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
-
+	log.Println("---> ListMessages")
 	defer close(ch)
 	messages := mbox.getMessages()
 

@@ -190,8 +190,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 func GetClientContext(client Client) context.Context {
 
 	// if the address is local.
-	path := os.TempDir() + string(os.PathSeparator) + client.GetDomain() + "_token"
-	token, err := ioutil.ReadFile(path)
+
 	address := client.GetDomain()
 	if Utility.Exists(os.TempDir() + string(os.PathSeparator) + "GLOBULAR_ROOT") {
 		root, _ := ioutil.ReadFile(os.TempDir() + string(os.PathSeparator) + "GLOBULAR_ROOT")
@@ -199,7 +198,10 @@ func GetClientContext(client Client) context.Context {
 		address += ":" + Utility.ToString(port)
 	}
 
+	path := os.TempDir() + string(os.PathSeparator) + client.GetDomain() + "_token"
+	token, err := ioutil.ReadFile(path)
 	if err == nil {
+		// log.Println("----------> read token ", string(token))
 		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
 		ctx := metadata.NewOutgoingContext(context.Background(), md)
 		return ctx

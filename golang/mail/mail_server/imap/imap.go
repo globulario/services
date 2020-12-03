@@ -27,7 +27,7 @@ var (
  * Save a message in the backend.
  */
 func saveMessage(user string, mailBox string, body []byte, flags []string, date time.Time) error {
-
+	log.Println("---> saveMessage", user, mailBox)
 	data := make(map[string]interface{})
 
 	data["Date"] = date
@@ -40,7 +40,7 @@ func saveMessage(user string, mailBox string, body []byte, flags []string, date 
 		return err
 	}
 	// Now I will insert the message into the inbox of the user.
-	_, err = Store.InsertOne("local_resource", user+"_db", mailBox, jsonStr, "")
+	_, err = Store.InsertOne("local_ressource", user+"_db", mailBox, jsonStr, "")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -52,8 +52,9 @@ func saveMessage(user string, mailBox string, body []byte, flags []string, date 
  * Rename the connection.
  */
 func renameCollection(database string, name string, rename string) error {
+	log.Println("---> rename mailbox", database, name, rename)
 	script := `db=db.getSiblingDB('admin');db.adminCommand({renameCollection:'` + database + `.` + name + `', to:'` + database + `.` + rename + `'})`
-	err := Store.RunAdminCmd("local_resource", "sa", Backend_password, script)
+	err := Store.RunAdminCmd("local_ressource", "sa", Backend_password, script)
 	return err
 }
 
@@ -65,7 +66,8 @@ func startImap(port int, keyFile string, certFile string) {
 	// Create a new server
 	s := imap_server.New(be)
 	s.Addr = "0.0.0.0:" + Utility.ToString(port)
-
+	log.Println("---> Start Imap server", port)
+	log.Println("---> backend ", Backend_address, Backend_port)
 	go func() {
 		if len(certFile) > 0 {
 			cer, err := tls.LoadX509KeyPair(certFile, keyFile)
