@@ -72,16 +72,12 @@ namespace Persistence {
     static readonly grpc::Marshaller<global::Persistence.CountRsp> __Marshaller_persistence_CountRsp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.CountRsp.Parser));
     static readonly grpc::Marshaller<global::Persistence.InsertOneRqst> __Marshaller_persistence_InsertOneRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.InsertOneRqst.Parser));
     static readonly grpc::Marshaller<global::Persistence.InsertOneRsp> __Marshaller_persistence_InsertOneRsp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.InsertOneRsp.Parser));
-    static readonly grpc::Marshaller<global::Persistence.InsertLargeOneRqst> __Marshaller_persistence_InsertLargeOneRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.InsertLargeOneRqst.Parser));
-    static readonly grpc::Marshaller<global::Persistence.InsertLargeOneRsp> __Marshaller_persistence_InsertLargeOneRsp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.InsertLargeOneRsp.Parser));
     static readonly grpc::Marshaller<global::Persistence.InsertManyRqst> __Marshaller_persistence_InsertManyRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.InsertManyRqst.Parser));
     static readonly grpc::Marshaller<global::Persistence.InsertManyRsp> __Marshaller_persistence_InsertManyRsp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.InsertManyRsp.Parser));
     static readonly grpc::Marshaller<global::Persistence.FindRqst> __Marshaller_persistence_FindRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.FindRqst.Parser));
     static readonly grpc::Marshaller<global::Persistence.FindResp> __Marshaller_persistence_FindResp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.FindResp.Parser));
     static readonly grpc::Marshaller<global::Persistence.FindOneRqst> __Marshaller_persistence_FindOneRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.FindOneRqst.Parser));
     static readonly grpc::Marshaller<global::Persistence.FindOneResp> __Marshaller_persistence_FindOneResp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.FindOneResp.Parser));
-    static readonly grpc::Marshaller<global::Persistence.FindLargeOneRqst> __Marshaller_persistence_FindLargeOneRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.FindLargeOneRqst.Parser));
-    static readonly grpc::Marshaller<global::Persistence.FindLargeOneResp> __Marshaller_persistence_FindLargeOneResp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.FindLargeOneResp.Parser));
     static readonly grpc::Marshaller<global::Persistence.AggregateRqst> __Marshaller_persistence_AggregateRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.AggregateRqst.Parser));
     static readonly grpc::Marshaller<global::Persistence.AggregateResp> __Marshaller_persistence_AggregateResp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.AggregateResp.Parser));
     static readonly grpc::Marshaller<global::Persistence.UpdateRqst> __Marshaller_persistence_UpdateRqst = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Persistence.UpdateRqst.Parser));
@@ -181,13 +177,6 @@ namespace Persistence {
         __Marshaller_persistence_InsertOneRqst,
         __Marshaller_persistence_InsertOneRsp);
 
-    static readonly grpc::Method<global::Persistence.InsertLargeOneRqst, global::Persistence.InsertLargeOneRsp> __Method_InsertLargeOne = new grpc::Method<global::Persistence.InsertLargeOneRqst, global::Persistence.InsertLargeOneRsp>(
-        grpc::MethodType.ClientStreaming,
-        __ServiceName,
-        "InsertLargeOne",
-        __Marshaller_persistence_InsertLargeOneRqst,
-        __Marshaller_persistence_InsertLargeOneRsp);
-
     static readonly grpc::Method<global::Persistence.InsertManyRqst, global::Persistence.InsertManyRsp> __Method_InsertMany = new grpc::Method<global::Persistence.InsertManyRqst, global::Persistence.InsertManyRsp>(
         grpc::MethodType.ClientStreaming,
         __ServiceName,
@@ -208,13 +197,6 @@ namespace Persistence {
         "FindOne",
         __Marshaller_persistence_FindOneRqst,
         __Marshaller_persistence_FindOneResp);
-
-    static readonly grpc::Method<global::Persistence.FindLargeOneRqst, global::Persistence.FindLargeOneResp> __Method_FindLargeOne = new grpc::Method<global::Persistence.FindLargeOneRqst, global::Persistence.FindLargeOneResp>(
-        grpc::MethodType.ServerStreaming,
-        __ServiceName,
-        "FindLargeOne",
-        __Marshaller_persistence_FindLargeOneRqst,
-        __Marshaller_persistence_FindLargeOneResp);
 
     static readonly grpc::Method<global::Persistence.AggregateRqst, global::Persistence.AggregateResp> __Method_Aggregate = new grpc::Method<global::Persistence.AggregateRqst, global::Persistence.AggregateResp>(
         grpc::MethodType.ServerStreaming,
@@ -407,11 +389,6 @@ namespace Persistence {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
-      public virtual global::System.Threading.Tasks.Task<global::Persistence.InsertLargeOneRsp> InsertLargeOne(grpc::IAsyncStreamReader<global::Persistence.InsertLargeOneRqst> requestStream, grpc::ServerCallContext context)
-      {
-        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
-      }
-
       /// <summary>
       /// Insert many result at once.
       /// </summary>
@@ -442,11 +419,6 @@ namespace Persistence {
       /// <param name="context">The context of the server-side call handler being invoked.</param>
       /// <returns>The response to send back to the client (wrapped by a task).</returns>
       public virtual global::System.Threading.Tasks.Task<global::Persistence.FindOneResp> FindOne(global::Persistence.FindOneRqst request, grpc::ServerCallContext context)
-      {
-        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
-      }
-
-      public virtual global::System.Threading.Tasks.Task FindLargeOne(global::Persistence.FindLargeOneRqst request, grpc::IServerStreamWriter<global::Persistence.FindLargeOneResp> responseStream, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -1082,14 +1054,6 @@ namespace Persistence {
       {
         return CallInvoker.AsyncUnaryCall(__Method_InsertOne, null, options, request);
       }
-      public virtual grpc::AsyncClientStreamingCall<global::Persistence.InsertLargeOneRqst, global::Persistence.InsertLargeOneRsp> InsertLargeOne(grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
-      {
-        return InsertLargeOne(new grpc::CallOptions(headers, deadline, cancellationToken));
-      }
-      public virtual grpc::AsyncClientStreamingCall<global::Persistence.InsertLargeOneRqst, global::Persistence.InsertLargeOneRsp> InsertLargeOne(grpc::CallOptions options)
-      {
-        return CallInvoker.AsyncClientStreamingCall(__Method_InsertLargeOne, null, options);
-      }
       /// <summary>
       /// Insert many result at once.
       /// </summary>
@@ -1175,14 +1139,6 @@ namespace Persistence {
       public virtual grpc::AsyncUnaryCall<global::Persistence.FindOneResp> FindOneAsync(global::Persistence.FindOneRqst request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_FindOne, null, options, request);
-      }
-      public virtual grpc::AsyncServerStreamingCall<global::Persistence.FindLargeOneResp> FindLargeOne(global::Persistence.FindLargeOneRqst request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
-      {
-        return FindLargeOne(request, new grpc::CallOptions(headers, deadline, cancellationToken));
-      }
-      public virtual grpc::AsyncServerStreamingCall<global::Persistence.FindLargeOneResp> FindLargeOne(global::Persistence.FindLargeOneRqst request, grpc::CallOptions options)
-      {
-        return CallInvoker.AsyncServerStreamingCall(__Method_FindLargeOne, null, options, request);
       }
       /// <summary>
       /// Aggregate
@@ -1494,11 +1450,9 @@ namespace Persistence {
           .AddMethod(__Method_Ping, serviceImpl.Ping)
           .AddMethod(__Method_Count, serviceImpl.Count)
           .AddMethod(__Method_InsertOne, serviceImpl.InsertOne)
-          .AddMethod(__Method_InsertLargeOne, serviceImpl.InsertLargeOne)
           .AddMethod(__Method_InsertMany, serviceImpl.InsertMany)
           .AddMethod(__Method_Find, serviceImpl.Find)
           .AddMethod(__Method_FindOne, serviceImpl.FindOne)
-          .AddMethod(__Method_FindLargeOne, serviceImpl.FindLargeOne)
           .AddMethod(__Method_Aggregate, serviceImpl.Aggregate)
           .AddMethod(__Method_Update, serviceImpl.Update)
           .AddMethod(__Method_UpdateOne, serviceImpl.UpdateOne)
@@ -1526,11 +1480,9 @@ namespace Persistence {
       serviceBinder.AddMethod(__Method_Ping, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Persistence.PingConnectionRqst, global::Persistence.PingConnectionRsp>(serviceImpl.Ping));
       serviceBinder.AddMethod(__Method_Count, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Persistence.CountRqst, global::Persistence.CountRsp>(serviceImpl.Count));
       serviceBinder.AddMethod(__Method_InsertOne, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Persistence.InsertOneRqst, global::Persistence.InsertOneRsp>(serviceImpl.InsertOne));
-      serviceBinder.AddMethod(__Method_InsertLargeOne, serviceImpl == null ? null : new grpc::ClientStreamingServerMethod<global::Persistence.InsertLargeOneRqst, global::Persistence.InsertLargeOneRsp>(serviceImpl.InsertLargeOne));
       serviceBinder.AddMethod(__Method_InsertMany, serviceImpl == null ? null : new grpc::ClientStreamingServerMethod<global::Persistence.InsertManyRqst, global::Persistence.InsertManyRsp>(serviceImpl.InsertMany));
       serviceBinder.AddMethod(__Method_Find, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Persistence.FindRqst, global::Persistence.FindResp>(serviceImpl.Find));
       serviceBinder.AddMethod(__Method_FindOne, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Persistence.FindOneRqst, global::Persistence.FindOneResp>(serviceImpl.FindOne));
-      serviceBinder.AddMethod(__Method_FindLargeOne, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Persistence.FindLargeOneRqst, global::Persistence.FindLargeOneResp>(serviceImpl.FindLargeOne));
       serviceBinder.AddMethod(__Method_Aggregate, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Persistence.AggregateRqst, global::Persistence.AggregateResp>(serviceImpl.Aggregate));
       serviceBinder.AddMethod(__Method_Update, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Persistence.UpdateRqst, global::Persistence.UpdateRsp>(serviceImpl.Update));
       serviceBinder.AddMethod(__Method_UpdateOne, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Persistence.UpdateOneRqst, global::Persistence.UpdateOneRsp>(serviceImpl.UpdateOne));

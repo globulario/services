@@ -36,8 +36,6 @@ import {
   DeleteRoleRqst,
   RefreshTokenRqst,
   RefreshTokenRsp,
-  GetAllFilesInfoRqst,
-  GetAllFilesInfoRsp,
   GetAllApplicationsInfoRqst,
   GetAllApplicationsInfoRsp,
   AddApplicationActionRqst,
@@ -47,32 +45,16 @@ import {
   DeleteAccountRqst,
   AddAccountRoleRqst,
   RemoveAccountRoleRqst,
-  GetPermissionsRqst,
-  GetPermissionsRsp,
-  DeletePermissionsRqst,
-  DeletePermissionsRsp,
-  SetPermissionRqst,
-  ResourcePermission,
-  SetPermissionRsp,
   SynchronizeLdapRqst,
   LdapSyncInfos,
   SynchronizeLdapRsp,
   UserSyncInfos,
   GroupSyncInfos,
-  GetResourceOwnersRqst,
-  GetResourceOwnersRsp,
-  SetResourceOwnerRqst,
-  DeleteResourceOwnerRqst,
   GetLogRqst,
   LogInfo,
   ClearAllLogRqst,
   LogType,
   DeleteLogRqst,
-  SetActionPermissionRqst,
-  Resource,
-  RemoveActionPermissionRqst,
-  GetResourcesRqst,
-  RemoveResourceRqst,
   GetPeersRqst,
   GetPeersRsp,
   Peer,
@@ -131,6 +113,31 @@ import {
 // Here I will get the authentication information.
 const domain = window.location.hostname;
 const application = window.location.pathname.split("/")[1];
+
+function mergeTypedArrays(a: any, b: any) {
+  // Checks for truthy values on both arrays
+  if(!a && !b) throw 'Please specify valid arguments for parameters a and b.';  
+
+  // Checks for truthy values or empty arrays on each argument
+  // to avoid the unnecessary construction of a new array and
+  // the type comparison
+  if(!b || b.length === 0) return a;
+  if(!a || a.length === 0) return b;
+
+  // Make sure that both typed arrays are of the same type
+  if(Object.prototype.toString.call(a) !== Object.prototype.toString.call(b))
+      throw 'The types of the two arguments passed for parameters a and b do not match.';
+
+  var c = new a.constructor(a.length + b.length);
+  c.set(a);
+  c.set(b, a.length);
+
+  return c;
+}
+
+function uint8arrayToStringMethod(myUint8Arr){
+  return String.fromCharCode.apply(null, myUint8Arr);
+}
 
 function getToken(): string {
   let token = localStorage.getItem("user_token");
@@ -281,96 +288,6 @@ function hasRunningProcess(
 ///////////////////////////////////// Resource & Permissions operations /////////////////////////////////
 
 /**
- * Return the list of all action permissions.
- * Action permission are apply on resource managed by those action.
- * @param globular
- * @param application
- * @param domain
- * @param callback
- * @param errorCallback
- */
-export function readAllActionPermissions(
-  globular: Globular,
-  callback: (results: any) => void,
-  errorCallback: (err: any) => void
-) {
-  const database = "local_resource";
-  const collection = "ActionPermission";
-
-  const rqst = new FindRqst();
-  rqst.setId(database);
-  rqst.setDatabase(database);
-  rqst.setCollection(collection);
-  rqst.setOptions("");
-  rqst.setQuery("{}");
-
-  // call persist data
-  const stream = globular.persistenceService.find(rqst, {
-    token: getToken(),
-    application: application,
-    domain: domain,
-  });
-  let results = new Array();
-
-  // Get the stream and set event on it...
-  stream.on("data", (rsp) => {
-    results = results.concat(JSON.parse(rsp.getJsonstr()));
-  });
-
-  stream.on("status", (status) => {
-    if (status.code === 0) {
-      callback(results);
-    } else {
-      errorCallback({ message: status.details });
-    }
-  });
-}
-
-/**
- * Return the list of resources.
- * @param globular
- * @param application
- * @param domain
- * @param path
- * @param name
- * @param callback
- * @param errorCallback
- */
-export function getResources(
-  globular: Globular,
-  path: string,
-  name: string,
-  callback: (results: Resource[]) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new GetResourcesRqst();
-  rqst.setPath(path);
-  rqst.setName(name);
-
-  // call persist data
-  const stream = globular.resourceService.getResources(rqst, {
-    token: getToken(),
-    application: application,
-    domain: domain,
-  });
-
-  let results = new Array<Resource>();
-
-  // Get the stream and set event on it...
-  stream.on("data", (rsp) => {
-    results = results.concat(rsp.getResourcesList());
-  });
-
-  stream.on("status", (status) => {
-    if (status.code === 0) {
-      callback(results);
-    } else {
-      errorCallback({ message: status.details });
-    }
-  });
-}
-
-/**
  * Set/create action permission.
  * @param globular
  * @param application
@@ -402,200 +319,7 @@ export function setActionPermission(
         })*/
 }
 
-/**
- * Delete action permission.
- * @param globular
- * @param application
- * @param domain
- * @param action
- * @param callback
- * @param errorCallback
- */
-export function removeActionPermission(
-  globular: Globular,
-  action: string,
-  callback: (results: any) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new RemoveActionPermissionRqst();
-  rqst.setAction(action);
-  // Call set action permission.
-  globular.resourceService
-    .removeActionPermission(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then(callback)
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
 
-/**
- * Delete a resource
- * @param globular
- * @param application
- * @param domain
- * @param path
- * @param name
- * @param callback
- * @param errorCallback
- */
-export function removeResource(
-  globular: Globular,
-  path: string,
-  name: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new RemoveResourceRqst();
-  const resource = new Resource();
-  resource.setPath(path);
-  resource.setName(name);
-  rqst.setResource(resource);
-  globular.resourceService
-    .removeResource(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then(callback)
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Retreive the list of resource owner.
- * @param path
- * @param callback
- * @param errorCallback
- */
-export function getResourceOwners(
-  globular: Globular,
-  path: string,
-  callback: (infos: any[]) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new GetResourceOwnersRqst();
-  path = path.replace("/webroot", "");
-  rqst.setPath(path);
-
-  globular.resourceService
-    .getResourceOwners(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then((rsp: GetResourceOwnersRsp) => {
-      callback(rsp.getOwnersList());
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * The resource owner to be set.
- * @param path The path of the resource
- * @param owner The owner of the resource
- * @param callback The success callback
- * @param errorCallback The error callback
- */
-export function setResourceOwners(
-  globular: Globular,
-  path: string,
-  owner: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new SetResourceOwnerRqst();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
-  rqst.setPath(path);
-  rqst.setOwner(owner);
-
-  globular.resourceService
-    .setResourceOwner(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then(() => {
-      callback();
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Delete a given resource owner
- * @param path The path of the resource.
- * @param owner The owner to be remove
- * @param callback The sucess callback
- * @param errorCallback The error callback
- */
-export function deleteResourceOwners(
-  globular: Globular,
-  path: string,
-  owner: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new DeleteResourceOwnerRqst();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
-  rqst.setPath(path);
-  rqst.setOwner(owner);
-
-  globular.resourceService
-    .deleteResourceOwner(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then(() => {
-      callback();
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Retreive the permission for a given resource.
- * @param path
- * @param callback
- * @param errorCallback
- */
-export function getResourcePermissions(
-  globular: Globular,
-  path: string,
-  callback: (infos: any[]) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new GetPermissionsRqst();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
-  if (path.length === 0) {
-    path = "/";
-  }
-  rqst.setPath(path);
-
-  globular.resourceService
-    .getPermissions(rqst, {
-      application: application,
-      domain: domain,
-    })
-    .then((rsp: GetPermissionsRsp) => {
-      const permissions = JSON.parse(rsp.getPermissions());
-      callback(permissions);
-    })
-    .catch((error) => {
-      if (errorCallback !== undefined) {
-        errorCallback(error);
-      }
-    });
-}
 
 /**
  * The permission can be assigned to
@@ -607,98 +331,6 @@ export enum OwnerType {
   Application = 3,
 }
 
-/**
- * Create a file permission.
- * @param path The path on the server from the root.
- * @param owner The owner of the permission
- * @param ownerType The owner type
- * @param number The (unix) permission number.
- * @param callback The success callback
- * @param errorCallback The error callback
- */
-export function setResourcePermission(
-  globular: Globular,
-  path: string,
-  owner: string,
-  ownerType: OwnerType,
-  permissionNumber: number,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new SetPermissionRqst();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
-
-  if (path.length === 0) {
-    path = "/";
-  }
-
-  const permission = new ResourcePermission();
-  permission.setPath(path);
-  permission.setNumber(permissionNumber);
-  if (ownerType === OwnerType.User) {
-    permission.setUser(owner);
-  } else if (ownerType === OwnerType.Role) {
-    permission.setRole(owner);
-  } else if (ownerType === OwnerType.Application) {
-    permission.setApplication(owner);
-  }
-
-  rqst.setPermission(permission);
-
-  globular.resourceService
-    .setPermission(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then((rsp: SetPermissionRsp) => {
-      callback();
-    })
-    .catch((error) => {
-      if (errorCallback !== undefined) {
-        errorCallback(error);
-      }
-    });
-}
-
-/**
- * Delete a file permission for a give user.
- * @param path The path of the file on the server.
- * @param owner The owner of the file
- * @param callback The success callback.
- * @param errorCallback The error callback.
- */
-export function deleteResourcePermissions(
-  globular: Globular,
-  path: string,
-  owner: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new DeletePermissionsRqst();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
-  if (path.length === 0) {
-    path = "/";
-  }
-
-  rqst.setPath(path);
-  rqst.setOwner(owner);
-
-  globular.resourceService
-    .deletePermissions(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then((rsp: DeletePermissionsRsp) => {
-      callback();
-    })
-    .catch((error) => {
-      if (errorCallback !== undefined) {
-        errorCallback(error);
-      }
-    });
-}
 
 ///////////////////////////////////// File operations /////////////////////////////////
 
@@ -755,31 +387,6 @@ export function uploadFiles(path: string, files: File[], callback: () => void) {
     }
   };
   xhr.send(fd);
-}
-
-/**
- * Return server files operations.
- * @param globular
- * @param application
- * @param domain
- * @param callbak
- * @param errorCallback
- */
-export function getAllFilesInfo(
-  globular: Globular,
-  callbak: (filesInfo: any) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new GetAllFilesInfoRqst();
-  globular.resourceService
-    .getAllFilesInfo(rqst, { application: application, domain: domain })
-    .then((rsp: GetAllFilesInfoRsp) => {
-      const filesInfo = JSON.parse(rsp.getResult());
-      callbak(filesInfo);
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
 }
 
 /**
@@ -1262,14 +869,16 @@ export function getAllAccountsInfo(
     domain: domain,
   });
 
-  let accounts = [];
+  let data = [];
 
   stream.on("data", (rsp: FindResp) => {
-    accounts = accounts.concat(JSON.parse(rsp.getJsonstr()));
+    //accounts = accounts.concat(JSON.parse(rsp.getJsonstr()));
+    data = mergeTypedArrays(data,rsp.getData()) 
   });
 
   stream.on("status", (status) => {
     if (status.code === 0) {
+      let accounts = JSON.parse(uint8arrayToStringMethod(data));
       callback(accounts);
     } else {
       errorCallback({ message: status.details });
@@ -1608,7 +1217,7 @@ export function appendUserData(
   rqst.setId(database);
   rqst.setDatabase(database);
   rqst.setCollection(collection);
-  rqst.setJsonstr(JSON.stringify(data));
+  rqst.setData(JSON.stringify(data));
   rqst.setOptions("");
 
   // call persist data
@@ -1699,15 +1308,16 @@ export function readUserData(
     application: application,
     domain: domain,
   });
-  let results = new Array();
 
+  let data = []
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    results = results.concat(JSON.parse(rsp.getJsonstr()));
+    data = mergeTypedArrays(data,rsp.getData()) 
   });
 
   stream.on("status", (status) => {
     if (status.code === 0) {
+      let results = JSON.parse(uint8arrayToStringMethod(data))
       callback(results);
     } else {
       errorCallback({ message: status.details });
@@ -1759,15 +1369,15 @@ export function getAllRoles(
     domain: domain,
   });
 
-  let roles = [];
+  let data = [];
 
   stream.on("data", (rsp: FindResp) => {
-    roles = roles.concat(JSON.parse(rsp.getJsonstr()));
+    data = mergeTypedArrays(data,rsp.getData()) 
   });
 
   stream.on("status", (status) => {
     if (status.code === 0) {
-      callback(roles);
+      callback(JSON.parse(uint8arrayToStringMethod(data)));
     } else {
       errorCallback({ message: status.details });
     }
@@ -2384,15 +1994,18 @@ export function getServiceBundles(
     domain: domain + ":" + window.location.port,
   });
 
-  let bundles = new Array<any>();
+  let data = []
 
   stream.on("data", (rsp: FindResp) => {
-    bundles = bundles.concat(JSON.parse(rsp.getJsonstr()));
+
+    data = mergeTypedArrays(data,rsp.getData()) 
   });
 
   stream.on("status", function(status: any) {
     if (status.code == 0) {
       // filter localy.
+      let bundles = JSON.parse(uint8arrayToStringMethod(data))
+
       callback(
         bundles.filter((bundle) =>
           String(bundle._id).startsWith(
@@ -2476,16 +2089,17 @@ export function readErrors(
     application: application,
     domain: domain,
   });
-  let results = new Array();
+
+  let data: any
 
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    results = results.concat(JSON.parse(rsp.getJsonstr()));
+    data = mergeTypedArrays(data,rsp.getData()) 
   });
 
   stream.on("status", (status) => {
     if (status.code === 0) {
-      callback(results);
+      callback(JSON.parse(uint8arrayToStringMethod(data)));
     } else {
       errorCallback({ message: status.details });
     }
@@ -2511,7 +2125,7 @@ export function readLogs(
   rqst.setQuery(query);
 
   // call persist data
-  const stream = globular.resourceService.getLog(rqst, {
+  const stream = globular.logService.getLog(rqst, {
     token: getToken(),
     application: application,
     domain: domain,
@@ -2562,7 +2176,7 @@ export function clearAllLog(
 ) {
   const rqst = new ClearAllLogRqst();
   rqst.setType(logType);
-  globular.resourceService
+  globular.logService
     .clearAllLog(rqst, {
       token: getToken(),
       application: application,
@@ -2591,7 +2205,7 @@ export function deleteLogEntry(
 ) {
   const rqst = new DeleteLogRqst();
   rqst.setLog(log);
-  globular.resourceService
+  globular.logService
     .deleteLog(rqst, {
       token: getToken(),
       application: application,
@@ -2632,16 +2246,17 @@ export function getNumbeOfLogsByMethod(
     application: application,
     domain: domain,
   });
-  let results = new Array();
+
+  let data = [];
 
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    results = results.concat(JSON.parse(rsp.getJsonstr()));
+    data = mergeTypedArrays(data,rsp.getData()) 
   });
 
   stream.on("status", (status) => {
     if (status.code === 0) {
-      callback(results);
+      callback(JSON.parse(uint8arrayToStringMethod(data)));
     } else {
       errorCallback({ message: status.details });
     }

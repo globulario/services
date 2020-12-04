@@ -133,9 +133,7 @@ func (mbox *MailBox_impl) getMessages() []*Message {
 	connectionId := mbox.user + "_db"
 
 	// Get the message from the mailbox.
-	jsonStr, _ := Store.Find(connectionId, connectionId, mbox.Name(), "{}", "")
-	data := make([]interface{}, 0)
-	err := json.Unmarshal([]byte(jsonStr), &data)
+	data, err := Store.Find(connectionId, connectionId, mbox.Name(), "{}", "")
 	if err != nil {
 		return messages
 	}

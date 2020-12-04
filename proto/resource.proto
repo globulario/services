@@ -669,6 +669,7 @@ message getAccessesRsp {
 	repeated string accesses = 1;
 }
 
+
 /**
  * The service to control action and resource access.
  */
@@ -711,6 +712,9 @@ service RbacService {
 	
 	/** Return the list of access for a given subject */
 	rpc getAccesses(getAccessesRqst) returns(getAccessesRsp);
+
+	
+	
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -791,8 +795,12 @@ service LogService {
 	/** Set a method into the log... **/
 	rpc Log(LogRqst) returns(LogRsp);
 	
-	/** Get resource action permission **/
-	rpc GetActionPermission(GetActionPermissionRqst) returns(GetActionPermissionRsp);
+	/** Get the list of logs **/
+	rpc GetLog(GetLogRqst) returns(stream GetLogRsp);
+
+	/** Delete a single log entry **/
+	rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
+	
 	
 	/** Delete all log **/
 	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);

@@ -14,7 +14,7 @@ import { MonitoringServicePromiseClient } from './monitoring/monitoring_grpc_web
 import { SearchServicePromiseClient } from './search/search_grpc_web_pb';
 import { PlcServicePromiseClient } from './plc/plc_grpc_web_pb';
 import { AdminServicePromiseClient } from './admin/admin_grpc_web_pb';
-import { ResourceServicePromiseClient } from './resource/resource_grpc_web_pb';
+import { ResourceServicePromiseClient, LogServicePromiseClient } from './resource/resource_grpc_web_pb';
 import { ServiceDiscoveryPromiseClient, ServiceRepositoryPromiseClient } from './services/services_grpc_web_pb';
 import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
@@ -62,6 +62,7 @@ export interface IConfig {
   PortHttps: number;
   AdminPort: number;
   AdminProxy: number;
+  LogProxy: number;
   AdminEmail: string;
   ResourcePort: number;
   ResourceProxy: number;
@@ -355,6 +356,19 @@ export class Globular {
       );
     }
     return this._resourceService;
+  }
+
+  private _logService: LogServicePromiseClient
+  public get logService(): LogServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._logService == null) {
+      this._logService = new LogServicePromiseClient(
+        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.LogProxy,
+        null,
+        null,
+      );
+    }
+    return this._logService;
   }
 
   private _servicesDicovery: ServiceDiscoveryPromiseClient

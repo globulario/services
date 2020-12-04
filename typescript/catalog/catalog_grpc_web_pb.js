@@ -138,7 +138,7 @@ proto.catalog.CatalogServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.catalog.CatalogServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.CreateConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.catalog.CatalogServiceClient.prototype.saveUnitOfMeasure =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveUnitOfMeasureResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveUnitOfMeasure =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.catalog.CatalogServiceClient.prototype.savePropertyDefinition =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SavePropertyDefinitionResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.savePropertyDefinition =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.catalog.CatalogServiceClient.prototype.saveItemDefinition =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveItemDefinitionResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveItemDefinition =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.catalog.CatalogServiceClient.prototype.saveItemInstance =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveItemInstanceResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveItemInstance =
     function(request, metadata) {
@@ -698,7 +698,7 @@ proto.catalog.CatalogServiceClient.prototype.saveInventory =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveInventoryResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveInventory =
     function(request, metadata) {
@@ -778,7 +778,7 @@ proto.catalog.CatalogServiceClient.prototype.saveManufacturer =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveManufacturerResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveManufacturer =
     function(request, metadata) {
@@ -858,7 +858,7 @@ proto.catalog.CatalogServiceClient.prototype.saveSupplier =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveSupplierResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveSupplier =
     function(request, metadata) {
@@ -938,7 +938,7 @@ proto.catalog.CatalogServiceClient.prototype.saveLocalisation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveLocalisationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveLocalisation =
     function(request, metadata) {
@@ -1018,7 +1018,7 @@ proto.catalog.CatalogServiceClient.prototype.savePackage =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SavePackageResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.savePackage =
     function(request, metadata) {
@@ -1098,7 +1098,7 @@ proto.catalog.CatalogServiceClient.prototype.savePackageSupplier =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SavePackageSupplierResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.savePackageSupplier =
     function(request, metadata) {
@@ -1178,7 +1178,7 @@ proto.catalog.CatalogServiceClient.prototype.saveItemManufacturer =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveItemManufacturerResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveItemManufacturer =
     function(request, metadata) {
@@ -1258,7 +1258,7 @@ proto.catalog.CatalogServiceClient.prototype.saveCategory =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveCategoryResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.saveCategory =
     function(request, metadata) {
@@ -1338,7 +1338,7 @@ proto.catalog.CatalogServiceClient.prototype.appendItemDefinitionCategory =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.AppendItemDefinitionCategoryResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.appendItemDefinitionCategory =
     function(request, metadata) {
@@ -1418,7 +1418,7 @@ proto.catalog.CatalogServiceClient.prototype.removeItemDefinitionCategory =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.RemoveItemDefinitionCategoryResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.removeItemDefinitionCategory =
     function(request, metadata) {
@@ -1498,7 +1498,7 @@ proto.catalog.CatalogServiceClient.prototype.getSupplier =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetSupplierResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getSupplier =
     function(request, metadata) {
@@ -1578,7 +1578,7 @@ proto.catalog.CatalogServiceClient.prototype.getSuppliers =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetSuppliersResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getSuppliers =
     function(request, metadata) {
@@ -1658,7 +1658,7 @@ proto.catalog.CatalogServiceClient.prototype.getManufacturer =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetManufacturerResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getManufacturer =
     function(request, metadata) {
@@ -1738,7 +1738,7 @@ proto.catalog.CatalogServiceClient.prototype.getManufacturers =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetManufacturersResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getManufacturers =
     function(request, metadata) {
@@ -1818,7 +1818,7 @@ proto.catalog.CatalogServiceClient.prototype.getSupplierPackages =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetSupplierPackagesResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getSupplierPackages =
     function(request, metadata) {
@@ -1898,7 +1898,7 @@ proto.catalog.CatalogServiceClient.prototype.getPackage =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetPackageResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getPackage =
     function(request, metadata) {
@@ -1978,7 +1978,7 @@ proto.catalog.CatalogServiceClient.prototype.getPackages =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetPackagesResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getPackages =
     function(request, metadata) {
@@ -2058,7 +2058,7 @@ proto.catalog.CatalogServiceClient.prototype.getUnitOfMeasure =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetUnitOfMeasureResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getUnitOfMeasure =
     function(request, metadata) {
@@ -2138,7 +2138,7 @@ proto.catalog.CatalogServiceClient.prototype.getUnitOfMeasures =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetUnitOfMeasuresResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getUnitOfMeasures =
     function(request, metadata) {
@@ -2218,7 +2218,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemDefinition =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemDefinitionResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getItemDefinition =
     function(request, metadata) {
@@ -2298,7 +2298,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemDefinitions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemDefinitionsResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getItemDefinitions =
     function(request, metadata) {
@@ -2378,7 +2378,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemInstance =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemInstanceResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getItemInstance =
     function(request, metadata) {
@@ -2458,7 +2458,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemInstances =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemInstancesResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getItemInstances =
     function(request, metadata) {
@@ -2538,7 +2538,7 @@ proto.catalog.CatalogServiceClient.prototype.getLocalisation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetLocalisationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getLocalisation =
     function(request, metadata) {
@@ -2618,7 +2618,7 @@ proto.catalog.CatalogServiceClient.prototype.getLocalisations =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetLocalisationsResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getLocalisations =
     function(request, metadata) {
@@ -2698,7 +2698,7 @@ proto.catalog.CatalogServiceClient.prototype.getCategory =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetCategoryResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getCategory =
     function(request, metadata) {
@@ -2778,7 +2778,7 @@ proto.catalog.CatalogServiceClient.prototype.getCategories =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetCategoriesResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getCategories =
     function(request, metadata) {
@@ -2858,7 +2858,7 @@ proto.catalog.CatalogServiceClient.prototype.getInventories =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetInventoriesResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.getInventories =
     function(request, metadata) {
@@ -2938,7 +2938,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteInventory =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteInventoryResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteInventory =
     function(request, metadata) {
@@ -3018,7 +3018,7 @@ proto.catalog.CatalogServiceClient.prototype.deletePackage =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeletePackageResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deletePackage =
     function(request, metadata) {
@@ -3098,7 +3098,7 @@ proto.catalog.CatalogServiceClient.prototype.deletePackageSupplier =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeletePackageSupplierResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deletePackageSupplier =
     function(request, metadata) {
@@ -3178,7 +3178,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteSupplier =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteSupplierResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteSupplier =
     function(request, metadata) {
@@ -3258,7 +3258,7 @@ proto.catalog.CatalogServiceClient.prototype.deletePropertyDefinition =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeletePropertyDefinitionResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deletePropertyDefinition =
     function(request, metadata) {
@@ -3338,7 +3338,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteUnitOfMeasure =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteUnitOfMeasureResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteUnitOfMeasure =
     function(request, metadata) {
@@ -3418,7 +3418,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteItemInstance =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteItemInstanceResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteItemInstance =
     function(request, metadata) {
@@ -3498,7 +3498,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteManufacturer =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteManufacturerResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteManufacturer =
     function(request, metadata) {
@@ -3578,7 +3578,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteItemManufacturer =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteItemManufacturerResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteItemManufacturer =
     function(request, metadata) {
@@ -3658,7 +3658,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteCategory =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteCategoryResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteCategory =
     function(request, metadata) {
@@ -3738,7 +3738,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteLocalisation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteLocalisationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.catalog.CatalogServicePromiseClient.prototype.deleteLocalisation =
     function(request, metadata) {

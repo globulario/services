@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/persistence/persistence_client"
-	"github.com/davecourtois/Utility"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1126,6 +1126,7 @@ func (self *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetIte
 	}
 
 	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemInstance", rqst.Query, options)
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)

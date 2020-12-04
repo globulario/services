@@ -138,7 +138,7 @@ proto.echo.SearchServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.echo.SearchServiceClient.prototype.getEngineVersion =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.GetEngineVersionResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.getEngineVersion =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.echo.SearchServiceClient.prototype.indexJsonObject =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.IndexJsonObjectResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.indexJsonObject =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.echo.SearchServiceClient.prototype.indexFile =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.IndexFileResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.indexFile =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.echo.SearchServiceClient.prototype.indexDir =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.IndexDirResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.indexDir =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.echo.SearchServiceClient.prototype.count =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.CountResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.count =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.echo.SearchServiceClient.prototype.deleteDocument =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.DeleteDocumentResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.deleteDocument =
     function(request, metadata) {
@@ -698,7 +698,7 @@ proto.echo.SearchServiceClient.prototype.searchDocuments =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.SearchDocumentsResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.echo.SearchServicePromiseClient.prototype.searchDocuments =
     function(request, metadata) {

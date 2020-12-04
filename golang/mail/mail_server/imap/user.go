@@ -1,7 +1,6 @@
 package imap
 
 import (
-	"encoding/json"
 	"errors"
 	"log"
 
@@ -31,14 +30,11 @@ func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 	boxes := make([]backend.Mailbox, 0)
 	connectionId := self.Username() + "_db"
 	// Get list of other mail box here.
-	jsonStr, err := Store.Find(connectionId, connectionId, "MailBoxes", `{}`, ``)
+	values, err := Store.Find(connectionId, connectionId, "MailBoxes", `{}`, ``)
 	if err != nil {
 		return nil, err
 	}
 
-	values := make([]interface{}, 0)
-	log.Println(jsonStr)
-	err = json.Unmarshal([]byte(jsonStr), &values)
 	if err != nil {
 		log.Println("---> ", err)
 		return nil, err
