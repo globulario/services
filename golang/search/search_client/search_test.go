@@ -8,15 +8,15 @@ import (
 
 var (
 	client    *Search_Client
-	tmpDir    = "/tmp" // "/media/dave/DCB5-6ABA/tmp"
-	ebookPath = "/tmp/ebook"
+	tmpDir    = "C:/temp" // "/media/dave/DCB5-6ABA/tmp"
+	ebookPath = "K:/Ebook/Oracle"
 )
 
 func getClient() *Search_Client {
 	if client != nil {
 		return client
 	}
-	client, _ = NewSearchService_Client("localhost", "02d6c3ca-c0a0-4068-86ed-a275f703f0dc")
+	client, _ = NewSearchService_Client("localhost", "search.SearchService")
 	return client
 }
 
@@ -116,17 +116,18 @@ func TestDeleteDocument(t *testing.T) {
 	log.Println(count)
 }
 
+/*
 func TestIndexDir(t *testing.T) {
 	path := ebookPath
 	err := getClient().IndexDir(tmpDir+"/dir_db", path, "english")
 	if err != nil {
 		log.Print(err)
 	}
-}
+}*/
 
 func TestSearchTextFiles(t *testing.T) {
 	paths := []string{tmpDir + "/dir_db"}
-	query := `sync`
+	query := `Oracle`
 	language := "english"
 	fields := []string{}
 	offset := int32(0)
@@ -135,6 +136,7 @@ func TestSearchTextFiles(t *testing.T) {
 
 	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
 	if err != nil {
+		log.Println("---> ", err)
 		log.Println(err)
 	}
 

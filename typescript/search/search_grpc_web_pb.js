@@ -1,5 +1,5 @@
 /**
- * @fileoverview gRPC-Web generated client stub for echo
+ * @fileoverview gRPC-Web generated client stub for search
  * @enhanceable
  * @public
  */
@@ -16,7 +16,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 const proto = {};
-proto.echo = require('./search_pb.js');
+proto.search = require('./search_pb.js');
 
 /**
  * @param {string} hostname
@@ -26,7 +26,7 @@ proto.echo = require('./search_pb.js');
  * @struct
  * @final
  */
-proto.echo.SearchServiceClient =
+proto.search.SearchServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
   options['format'] = 'text';
@@ -52,7 +52,7 @@ proto.echo.SearchServiceClient =
  * @struct
  * @final
  */
-proto.echo.SearchServicePromiseClient =
+proto.search.SearchServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
   options['format'] = 'text';
@@ -73,58 +73,58 @@ proto.echo.SearchServicePromiseClient =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.StopRequest,
- *   !proto.echo.StopResponse>}
+ *   !proto.search.StopRequest,
+ *   !proto.search.StopResponse>}
  */
 const methodDescriptor_SearchService_Stop = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/Stop',
+  '/search.SearchService/Stop',
   grpc.web.MethodType.UNARY,
-  proto.echo.StopRequest,
-  proto.echo.StopResponse,
+  proto.search.StopRequest,
+  proto.search.StopResponse,
   /**
-   * @param {!proto.echo.StopRequest} request
+   * @param {!proto.search.StopRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.StopResponse.deserializeBinary
+  proto.search.StopResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.StopRequest,
- *   !proto.echo.StopResponse>}
+ *   !proto.search.StopRequest,
+ *   !proto.search.StopResponse>}
  */
 const methodInfo_SearchService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.StopResponse,
+  proto.search.StopResponse,
   /**
-   * @param {!proto.echo.StopRequest} request
+   * @param {!proto.search.StopRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.StopResponse.deserializeBinary
+  proto.search.StopResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.StopRequest} request The
+ * @param {!proto.search.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.StopResponse)}
+ * @param {function(?grpc.web.Error, ?proto.search.StopResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.StopResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.StopResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.stop =
+proto.search.SearchServiceClient.prototype.stop =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/Stop',
+      '/search.SearchService/Stop',
       request,
       metadata || {},
       methodDescriptor_SearchService_Stop,
@@ -133,17 +133,17 @@ proto.echo.SearchServiceClient.prototype.stop =
 
 
 /**
- * @param {!proto.echo.StopRequest} request The
+ * @param {!proto.search.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.echo.StopResponse>}
+ * @return {!Promise<!proto.search.StopResponse>}
  *     A native promise that resolves to the response
  */
-proto.echo.SearchServicePromiseClient.prototype.stop =
+proto.search.SearchServicePromiseClient.prototype.stop =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/Stop',
+      '/search.SearchService/Stop',
       request,
       metadata || {},
       methodDescriptor_SearchService_Stop);
@@ -153,58 +153,58 @@ proto.echo.SearchServicePromiseClient.prototype.stop =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.GetEngineVersionRequest,
- *   !proto.echo.GetEngineVersionResponse>}
+ *   !proto.search.GetEngineVersionRequest,
+ *   !proto.search.GetEngineVersionResponse>}
  */
 const methodDescriptor_SearchService_GetEngineVersion = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/GetEngineVersion',
+  '/search.SearchService/GetEngineVersion',
   grpc.web.MethodType.UNARY,
-  proto.echo.GetEngineVersionRequest,
-  proto.echo.GetEngineVersionResponse,
+  proto.search.GetEngineVersionRequest,
+  proto.search.GetEngineVersionResponse,
   /**
-   * @param {!proto.echo.GetEngineVersionRequest} request
+   * @param {!proto.search.GetEngineVersionRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.GetEngineVersionResponse.deserializeBinary
+  proto.search.GetEngineVersionResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.GetEngineVersionRequest,
- *   !proto.echo.GetEngineVersionResponse>}
+ *   !proto.search.GetEngineVersionRequest,
+ *   !proto.search.GetEngineVersionResponse>}
  */
 const methodInfo_SearchService_GetEngineVersion = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.GetEngineVersionResponse,
+  proto.search.GetEngineVersionResponse,
   /**
-   * @param {!proto.echo.GetEngineVersionRequest} request
+   * @param {!proto.search.GetEngineVersionRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.GetEngineVersionResponse.deserializeBinary
+  proto.search.GetEngineVersionResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.GetEngineVersionRequest} request The
+ * @param {!proto.search.GetEngineVersionRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.GetEngineVersionResponse)}
+ * @param {function(?grpc.web.Error, ?proto.search.GetEngineVersionResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.GetEngineVersionResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.GetEngineVersionResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.getEngineVersion =
+proto.search.SearchServiceClient.prototype.getEngineVersion =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/GetEngineVersion',
+      '/search.SearchService/GetEngineVersion',
       request,
       metadata || {},
       methodDescriptor_SearchService_GetEngineVersion,
@@ -213,17 +213,17 @@ proto.echo.SearchServiceClient.prototype.getEngineVersion =
 
 
 /**
- * @param {!proto.echo.GetEngineVersionRequest} request The
+ * @param {!proto.search.GetEngineVersionRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.echo.GetEngineVersionResponse>}
+ * @return {!Promise<!proto.search.GetEngineVersionResponse>}
  *     A native promise that resolves to the response
  */
-proto.echo.SearchServicePromiseClient.prototype.getEngineVersion =
+proto.search.SearchServicePromiseClient.prototype.getEngineVersion =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/GetEngineVersion',
+      '/search.SearchService/GetEngineVersion',
       request,
       metadata || {},
       methodDescriptor_SearchService_GetEngineVersion);
@@ -233,58 +233,58 @@ proto.echo.SearchServicePromiseClient.prototype.getEngineVersion =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.IndexJsonObjectRequest,
- *   !proto.echo.IndexJsonObjectResponse>}
+ *   !proto.search.IndexJsonObjectRequest,
+ *   !proto.search.IndexJsonObjectResponse>}
  */
 const methodDescriptor_SearchService_IndexJsonObject = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/IndexJsonObject',
+  '/search.SearchService/IndexJsonObject',
   grpc.web.MethodType.UNARY,
-  proto.echo.IndexJsonObjectRequest,
-  proto.echo.IndexJsonObjectResponse,
+  proto.search.IndexJsonObjectRequest,
+  proto.search.IndexJsonObjectResponse,
   /**
-   * @param {!proto.echo.IndexJsonObjectRequest} request
+   * @param {!proto.search.IndexJsonObjectRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.IndexJsonObjectResponse.deserializeBinary
+  proto.search.IndexJsonObjectResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.IndexJsonObjectRequest,
- *   !proto.echo.IndexJsonObjectResponse>}
+ *   !proto.search.IndexJsonObjectRequest,
+ *   !proto.search.IndexJsonObjectResponse>}
  */
 const methodInfo_SearchService_IndexJsonObject = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.IndexJsonObjectResponse,
+  proto.search.IndexJsonObjectResponse,
   /**
-   * @param {!proto.echo.IndexJsonObjectRequest} request
+   * @param {!proto.search.IndexJsonObjectRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.IndexJsonObjectResponse.deserializeBinary
+  proto.search.IndexJsonObjectResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.IndexJsonObjectRequest} request The
+ * @param {!proto.search.IndexJsonObjectRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.IndexJsonObjectResponse)}
+ * @param {function(?grpc.web.Error, ?proto.search.IndexJsonObjectResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.IndexJsonObjectResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.IndexJsonObjectResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.indexJsonObject =
+proto.search.SearchServiceClient.prototype.indexJsonObject =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/IndexJsonObject',
+      '/search.SearchService/IndexJsonObject',
       request,
       metadata || {},
       methodDescriptor_SearchService_IndexJsonObject,
@@ -293,17 +293,17 @@ proto.echo.SearchServiceClient.prototype.indexJsonObject =
 
 
 /**
- * @param {!proto.echo.IndexJsonObjectRequest} request The
+ * @param {!proto.search.IndexJsonObjectRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.echo.IndexJsonObjectResponse>}
+ * @return {!Promise<!proto.search.IndexJsonObjectResponse>}
  *     A native promise that resolves to the response
  */
-proto.echo.SearchServicePromiseClient.prototype.indexJsonObject =
+proto.search.SearchServicePromiseClient.prototype.indexJsonObject =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/IndexJsonObject',
+      '/search.SearchService/IndexJsonObject',
       request,
       metadata || {},
       methodDescriptor_SearchService_IndexJsonObject);
@@ -313,58 +313,58 @@ proto.echo.SearchServicePromiseClient.prototype.indexJsonObject =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.IndexFileRequest,
- *   !proto.echo.IndexFileResponse>}
+ *   !proto.search.IndexFileRequest,
+ *   !proto.search.IndexFileResponse>}
  */
 const methodDescriptor_SearchService_IndexFile = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/IndexFile',
+  '/search.SearchService/IndexFile',
   grpc.web.MethodType.UNARY,
-  proto.echo.IndexFileRequest,
-  proto.echo.IndexFileResponse,
+  proto.search.IndexFileRequest,
+  proto.search.IndexFileResponse,
   /**
-   * @param {!proto.echo.IndexFileRequest} request
+   * @param {!proto.search.IndexFileRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.IndexFileResponse.deserializeBinary
+  proto.search.IndexFileResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.IndexFileRequest,
- *   !proto.echo.IndexFileResponse>}
+ *   !proto.search.IndexFileRequest,
+ *   !proto.search.IndexFileResponse>}
  */
 const methodInfo_SearchService_IndexFile = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.IndexFileResponse,
+  proto.search.IndexFileResponse,
   /**
-   * @param {!proto.echo.IndexFileRequest} request
+   * @param {!proto.search.IndexFileRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.IndexFileResponse.deserializeBinary
+  proto.search.IndexFileResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.IndexFileRequest} request The
+ * @param {!proto.search.IndexFileRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.IndexFileResponse)}
+ * @param {function(?grpc.web.Error, ?proto.search.IndexFileResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.IndexFileResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.IndexFileResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.indexFile =
+proto.search.SearchServiceClient.prototype.indexFile =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/IndexFile',
+      '/search.SearchService/IndexFile',
       request,
       metadata || {},
       methodDescriptor_SearchService_IndexFile,
@@ -373,17 +373,17 @@ proto.echo.SearchServiceClient.prototype.indexFile =
 
 
 /**
- * @param {!proto.echo.IndexFileRequest} request The
+ * @param {!proto.search.IndexFileRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.echo.IndexFileResponse>}
+ * @return {!Promise<!proto.search.IndexFileResponse>}
  *     A native promise that resolves to the response
  */
-proto.echo.SearchServicePromiseClient.prototype.indexFile =
+proto.search.SearchServicePromiseClient.prototype.indexFile =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/IndexFile',
+      '/search.SearchService/IndexFile',
       request,
       metadata || {},
       methodDescriptor_SearchService_IndexFile);
@@ -393,58 +393,58 @@ proto.echo.SearchServicePromiseClient.prototype.indexFile =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.IndexDirRequest,
- *   !proto.echo.IndexDirResponse>}
+ *   !proto.search.IndexDirRequest,
+ *   !proto.search.IndexDirResponse>}
  */
 const methodDescriptor_SearchService_IndexDir = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/IndexDir',
+  '/search.SearchService/IndexDir',
   grpc.web.MethodType.UNARY,
-  proto.echo.IndexDirRequest,
-  proto.echo.IndexDirResponse,
+  proto.search.IndexDirRequest,
+  proto.search.IndexDirResponse,
   /**
-   * @param {!proto.echo.IndexDirRequest} request
+   * @param {!proto.search.IndexDirRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.IndexDirResponse.deserializeBinary
+  proto.search.IndexDirResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.IndexDirRequest,
- *   !proto.echo.IndexDirResponse>}
+ *   !proto.search.IndexDirRequest,
+ *   !proto.search.IndexDirResponse>}
  */
 const methodInfo_SearchService_IndexDir = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.IndexDirResponse,
+  proto.search.IndexDirResponse,
   /**
-   * @param {!proto.echo.IndexDirRequest} request
+   * @param {!proto.search.IndexDirRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.IndexDirResponse.deserializeBinary
+  proto.search.IndexDirResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.IndexDirRequest} request The
+ * @param {!proto.search.IndexDirRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.IndexDirResponse)}
+ * @param {function(?grpc.web.Error, ?proto.search.IndexDirResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.IndexDirResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.IndexDirResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.indexDir =
+proto.search.SearchServiceClient.prototype.indexDir =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/IndexDir',
+      '/search.SearchService/IndexDir',
       request,
       metadata || {},
       methodDescriptor_SearchService_IndexDir,
@@ -453,17 +453,17 @@ proto.echo.SearchServiceClient.prototype.indexDir =
 
 
 /**
- * @param {!proto.echo.IndexDirRequest} request The
+ * @param {!proto.search.IndexDirRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.echo.IndexDirResponse>}
+ * @return {!Promise<!proto.search.IndexDirResponse>}
  *     A native promise that resolves to the response
  */
-proto.echo.SearchServicePromiseClient.prototype.indexDir =
+proto.search.SearchServicePromiseClient.prototype.indexDir =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/IndexDir',
+      '/search.SearchService/IndexDir',
       request,
       metadata || {},
       methodDescriptor_SearchService_IndexDir);
@@ -473,58 +473,58 @@ proto.echo.SearchServicePromiseClient.prototype.indexDir =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.CountRequest,
- *   !proto.echo.CountResponse>}
+ *   !proto.search.CountRequest,
+ *   !proto.search.CountResponse>}
  */
 const methodDescriptor_SearchService_Count = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/Count',
+  '/search.SearchService/Count',
   grpc.web.MethodType.UNARY,
-  proto.echo.CountRequest,
-  proto.echo.CountResponse,
+  proto.search.CountRequest,
+  proto.search.CountResponse,
   /**
-   * @param {!proto.echo.CountRequest} request
+   * @param {!proto.search.CountRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.CountResponse.deserializeBinary
+  proto.search.CountResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.CountRequest,
- *   !proto.echo.CountResponse>}
+ *   !proto.search.CountRequest,
+ *   !proto.search.CountResponse>}
  */
 const methodInfo_SearchService_Count = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.CountResponse,
+  proto.search.CountResponse,
   /**
-   * @param {!proto.echo.CountRequest} request
+   * @param {!proto.search.CountRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.CountResponse.deserializeBinary
+  proto.search.CountResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.CountRequest} request The
+ * @param {!proto.search.CountRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.CountResponse)}
+ * @param {function(?grpc.web.Error, ?proto.search.CountResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.CountResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.CountResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.count =
+proto.search.SearchServiceClient.prototype.count =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/Count',
+      '/search.SearchService/Count',
       request,
       metadata || {},
       methodDescriptor_SearchService_Count,
@@ -533,17 +533,17 @@ proto.echo.SearchServiceClient.prototype.count =
 
 
 /**
- * @param {!proto.echo.CountRequest} request The
+ * @param {!proto.search.CountRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.echo.CountResponse>}
+ * @return {!Promise<!proto.search.CountResponse>}
  *     A native promise that resolves to the response
  */
-proto.echo.SearchServicePromiseClient.prototype.count =
+proto.search.SearchServicePromiseClient.prototype.count =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/Count',
+      '/search.SearchService/Count',
       request,
       metadata || {},
       methodDescriptor_SearchService_Count);
@@ -553,58 +553,58 @@ proto.echo.SearchServicePromiseClient.prototype.count =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.DeleteDocumentRequest,
- *   !proto.echo.DeleteDocumentResponse>}
+ *   !proto.search.DeleteDocumentRequest,
+ *   !proto.search.DeleteDocumentResponse>}
  */
 const methodDescriptor_SearchService_DeleteDocument = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/DeleteDocument',
+  '/search.SearchService/DeleteDocument',
   grpc.web.MethodType.UNARY,
-  proto.echo.DeleteDocumentRequest,
-  proto.echo.DeleteDocumentResponse,
+  proto.search.DeleteDocumentRequest,
+  proto.search.DeleteDocumentResponse,
   /**
-   * @param {!proto.echo.DeleteDocumentRequest} request
+   * @param {!proto.search.DeleteDocumentRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.DeleteDocumentResponse.deserializeBinary
+  proto.search.DeleteDocumentResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.DeleteDocumentRequest,
- *   !proto.echo.DeleteDocumentResponse>}
+ *   !proto.search.DeleteDocumentRequest,
+ *   !proto.search.DeleteDocumentResponse>}
  */
 const methodInfo_SearchService_DeleteDocument = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.DeleteDocumentResponse,
+  proto.search.DeleteDocumentResponse,
   /**
-   * @param {!proto.echo.DeleteDocumentRequest} request
+   * @param {!proto.search.DeleteDocumentRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.DeleteDocumentResponse.deserializeBinary
+  proto.search.DeleteDocumentResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.DeleteDocumentRequest} request The
+ * @param {!proto.search.DeleteDocumentRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.DeleteDocumentResponse)}
+ * @param {function(?grpc.web.Error, ?proto.search.DeleteDocumentResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.DeleteDocumentResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.DeleteDocumentResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.deleteDocument =
+proto.search.SearchServiceClient.prototype.deleteDocument =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/DeleteDocument',
+      '/search.SearchService/DeleteDocument',
       request,
       metadata || {},
       methodDescriptor_SearchService_DeleteDocument,
@@ -613,17 +613,17 @@ proto.echo.SearchServiceClient.prototype.deleteDocument =
 
 
 /**
- * @param {!proto.echo.DeleteDocumentRequest} request The
+ * @param {!proto.search.DeleteDocumentRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.echo.DeleteDocumentResponse>}
+ * @return {!Promise<!proto.search.DeleteDocumentResponse>}
  *     A native promise that resolves to the response
  */
-proto.echo.SearchServicePromiseClient.prototype.deleteDocument =
+proto.search.SearchServicePromiseClient.prototype.deleteDocument =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/DeleteDocument',
+      '/search.SearchService/DeleteDocument',
       request,
       metadata || {},
       methodDescriptor_SearchService_DeleteDocument);
@@ -633,82 +633,77 @@ proto.echo.SearchServicePromiseClient.prototype.deleteDocument =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.echo.SearchDocumentsRequest,
- *   !proto.echo.SearchDocumentsResponse>}
+ *   !proto.search.SearchDocumentsRequest,
+ *   !proto.search.SearchDocumentsResponse>}
  */
 const methodDescriptor_SearchService_SearchDocuments = new grpc.web.MethodDescriptor(
-  '/echo.SearchService/SearchDocuments',
-  grpc.web.MethodType.UNARY,
-  proto.echo.SearchDocumentsRequest,
-  proto.echo.SearchDocumentsResponse,
+  '/search.SearchService/SearchDocuments',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.search.SearchDocumentsRequest,
+  proto.search.SearchDocumentsResponse,
   /**
-   * @param {!proto.echo.SearchDocumentsRequest} request
+   * @param {!proto.search.SearchDocumentsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.SearchDocumentsResponse.deserializeBinary
+  proto.search.SearchDocumentsResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.SearchDocumentsRequest,
- *   !proto.echo.SearchDocumentsResponse>}
+ *   !proto.search.SearchDocumentsRequest,
+ *   !proto.search.SearchDocumentsResponse>}
  */
 const methodInfo_SearchService_SearchDocuments = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.SearchDocumentsResponse,
+  proto.search.SearchDocumentsResponse,
   /**
-   * @param {!proto.echo.SearchDocumentsRequest} request
+   * @param {!proto.search.SearchDocumentsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.echo.SearchDocumentsResponse.deserializeBinary
+  proto.search.SearchDocumentsResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.echo.SearchDocumentsRequest} request The
- *     request proto
+ * @param {!proto.search.SearchDocumentsRequest} request The request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.SearchDocumentsResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.echo.SearchDocumentsResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.search.SearchDocumentsResponse>}
  *     The XHR Node Readable Stream
  */
-proto.echo.SearchServiceClient.prototype.searchDocuments =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/echo.SearchService/SearchDocuments',
-      request,
-      metadata || {},
-      methodDescriptor_SearchService_SearchDocuments,
-      callback);
-};
-
-
-/**
- * @param {!proto.echo.SearchDocumentsRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.echo.SearchDocumentsResponse>}
- *     A native promise that resolves to the response
- */
-proto.echo.SearchServicePromiseClient.prototype.searchDocuments =
+proto.search.SearchServiceClient.prototype.searchDocuments =
     function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/echo.SearchService/SearchDocuments',
+  return this.client_.serverStreaming(this.hostname_ +
+      '/search.SearchService/SearchDocuments',
       request,
       metadata || {},
       methodDescriptor_SearchService_SearchDocuments);
 };
 
 
-module.exports = proto.echo;
+/**
+ * @param {!proto.search.SearchDocumentsRequest} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.search.SearchDocumentsResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.search.SearchServicePromiseClient.prototype.searchDocuments =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/search.SearchService/SearchDocuments',
+      request,
+      metadata || {},
+      methodDescriptor_SearchService_SearchDocuments);
+};
+
+
+module.exports = proto.search;
 

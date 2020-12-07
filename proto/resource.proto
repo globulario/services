@@ -639,33 +639,33 @@ enum SubjectType {
 	ORGANIZATION = 4;
 }
 	
-message deleteAllAccessRqst {
+message DeleteAllAccessRqst {
 	string subject = 1;
 	SubjectType type = 2;
 }
 
-message deleteAllAccessRsp {
+message DeleteAllAccessRsp {
 	
 }
 
-message validateAccessRqst {
+message ValidateAccessRqst {
 	string subject = 1;
 	SubjectType type = 2;
 	string path = 3; // The ressource path
 	string permission = 4; // the name of the permission (read, write, execute...)
 }
 
-message validateAccessRsp {
+message ValidateAccessRsp {
 	bool result = 1;
 }
 
-message getAccessesRqst {
+message GetAccessesRqst {
 	string subject = 1;
 	SubjectType type = 2;
 	string path = 3; // The ressource path
 }
 
-message getAccessesRsp {
+message GetAccessesRsp {
 	repeated string accesses = 1;
 }
 
@@ -702,19 +702,17 @@ service RbacService {
 	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
 	
 	/** Remove resource owner */
-	rpc removeResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
+	rpc RemoveResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
 	
 	/** That function must be call when a subject is removed to clean up permissions. */
-	rpc deleteAllAccess(deleteAllAccessRqst) returns (deleteAllAccessRsp);
+	rpc DeleteAllAccess(DeleteAllAccessRqst) returns (DeleteAllAccessRsp);
 	
 	/** Validate if a user can get access to a given ressource for a given operation (read, write...) **/
-	rpc validateAccess(validateAccessRqst) returns(validateAccessRsp);
+	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp);
 	
 	/** Return the list of access for a given subject */
-	rpc getAccesses(getAccessesRqst) returns(getAccessesRsp);
+	rpc GetAccesses(GetAccessesRqst) returns(GetAccessesRsp);
 
-	
-	
 }
 
 ////////////////////////////////////////////////////////////////////////////////

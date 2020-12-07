@@ -30,7 +30,7 @@ import (
 	"errors"
 	"os/exec"
 
-	"github.com/davecourtois/GoXapian/xapian"
+	"github.com/davecourtois/GoXapian"
 )
 
 // TODO take care of TLS/https
@@ -592,18 +592,24 @@ func (self *server) searchDocuments(paths []string, language string, fields []st
 }
 
 // Search documents
-func (self *server) SearchDocuments(ctx context.Context, rqst *searchpb.SearchDocumentsRequest) (*searchpb.SearchDocumentsResponse, error) {
+func (self *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream searchpb.SearchService_SearchDocumentsServer) error {
 	var results []*searchpb.SearchResult
 	var err error
 
 	results, err = self.searchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &searchpb.SearchDocumentsResponse{
-		Results: results,
-	}, nil
+	// Here i will send document separately...
+	for i := 0; i < len(results); i++ {
+
+		stream.Send(&searchpb.SearchDocumentsResponse{
+			Results: []*searchpb.SearchResult{results[i]},
+		})
+	}
+
+	return nil
 
 }
 
@@ -1048,7 +1054,7 @@ func main() {
 			s_impl.PublishService(*publishCommand_domain, *publishCommand_user, *publishCommand_password)
 		}
 	} else {
-		// Register the echo services
+		// Register the search services
 		searchpb.RegisterSearchServiceServer(s_impl.grpcServer, s_impl)
 		reflection.Register(s_impl.grpcServer)
 

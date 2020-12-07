@@ -22,7 +22,8 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/grpclog"
+
+	// "google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
@@ -1125,7 +1126,19 @@ func (self *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetIte
 		rqst.Query = `{}`
 	}
 
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemInstance", rqst.Query, options)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemInstance", rqst.Query, options)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
@@ -1223,7 +1236,19 @@ func (self *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInven
 	if len(rqst.Query) == 0 {
 		rqst.Query = `{}`
 	}
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Inventory", rqst.Query, options)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Inventory", rqst.Query, options)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
@@ -1277,7 +1302,26 @@ func (self *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetI
 		rqst.Query = `{}`
 	}
 
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", rqst.Query, options)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", rqst.Query, options)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1373,7 +1417,20 @@ func (self *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplie
 	if len(rqst.Query) == 0 {
 		rqst.Query = `{}`
 	}
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Supplier", rqst.Query, options)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Supplier", rqst.Query, options)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1421,7 +1478,14 @@ func (self *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.Get
 		query = `{"supplier.$id":"` + Utility.GenerateUUID(rqst.SupplierId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", query, `[{"Projection":{"_id":1}}]`)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", query, `[{"Projection":{"_id":1}}]`)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1533,7 +1597,20 @@ func (self *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackages
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Package", rqst.Query, options)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Package", rqst.Query, options)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1633,7 +1710,15 @@ func (self *server) getLocalisations(query string, options string, connectionId 
 		query = `{}`
 	}
 
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Localisation", query, options)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Localisation", query, options)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, err
+	}
 
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
@@ -1747,7 +1832,15 @@ func (self *server) getCategories(query string, options string, connectionId str
 		query = `{}`
 	}
 
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Category", query, options)
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Category", query, options)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, err
+	}
 
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
@@ -1887,7 +1980,20 @@ func (self *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetMan
 	if len(rqst.Query) == 0 {
 		rqst.Query = `{}`
 	}
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Manufacturer", rqst.Query, options)
+
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "Manufacturer", rqst.Query, options)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
@@ -1935,10 +2041,25 @@ func (self *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUn
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	if len(rqst.Query) == 0 {
 		rqst.Query = `{}`
 	}
-	jsonStr, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", rqst.Query, options)
+
+	values, err := self.persistenceClient.Find(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", rqst.Query, options)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	jsonStr, err := Utility.ToJson(&values)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -2230,10 +2351,10 @@ func (self *server) DeleteInventory(ctx context.Context, rqst *catalogpb.DeleteI
 func main() {
 
 	// set the logger.
-	grpclog.SetLogger(log.New(os.Stdout, "catalog_service: ", log.LstdFlags))
+	//grpclog.SetLogger(log.New(os.Stdout, "catalog_service: ", log.LstdFlags))
 
 	// Set the log information in case of crash...
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	//log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// The actual server implementation.
 	s_impl := new(server)

@@ -62,7 +62,7 @@ func TestRemoveMemberAccount(t *testing.T) {
 }
 
 func TestGetGroups(t *testing.T) {
-	err := client.GetGroups("group_0")
+	_, err := client.GetGroups("group_0")
 	if err != nil {
 		log.Println("---> get group group_0 fail! ", err)
 	} else {

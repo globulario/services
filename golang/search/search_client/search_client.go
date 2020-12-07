@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"context"
+	"io"
 
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/search/searchpb"
@@ -257,12 +258,25 @@ func (self *Search_Client) SearchDocuments(paths []string, query string, languag
 	}
 
 	ctx := globular.GetClientContext(self)
-	rsp, err := self.c.SearchDocuments(ctx, rqst)
+	stream, err := self.c.SearchDocuments(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}
 
-	return rsp.GetResults(), nil
+	results := make([]*searchpb.SearchResult, 0)
+	for {
+		rsp, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, rsp.Results...)
+	}
+
+	return results, nil
 
 }
 

@@ -534,7 +534,6 @@ var maxSize = uint(16000) // Value in bytes...
 // Now the execute query.
 func (self *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlService_QueryContextServer) error {
 
-	log.Println("---------> 537")
 	// Be sure the connection is there.
 	if _, ok := self.Connections[rqst.Query.ConnectionId]; !ok {
 

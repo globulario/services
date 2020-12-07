@@ -1,8 +1,8 @@
 /**
- * You can use echo as starter project.
+ * You can use search as starter project.
  */
 syntax = "proto3";
-package echo;
+package search;
 
 option go_package="search/searchpb";
 
@@ -28,7 +28,6 @@ message IndexJsonObjectRequest {
 	repeated string indexs = 5;
 	/** Must be anything, can be the path of object to access it. */
 	string data = 6;
-
 }
 
 message IndexJsonObjectResponse {
@@ -143,6 +142,6 @@ service SearchService {
 	/**
 	 * Search documents
 	 */
-	rpc SearchDocuments(SearchDocumentsRequest) returns (SearchDocumentsResponse);
+	rpc SearchDocuments(SearchDocumentsRequest) returns (stream SearchDocumentsResponse);
 
 }	
