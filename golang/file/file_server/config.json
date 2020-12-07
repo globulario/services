@@ -123,12 +123,12 @@
       ]
     }
   ],
-  "Port": 10037,
-  "Process": 22128,
+  "Port": 10035,
+  "Process": 18272,
   "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/file.proto",
   "Protocol": "grpc",
-  "Proxy": 10030,
-  "ProxyProcess": 24068,
+  "Proxy": 10044,
+  "ProxyProcess": 476,
   "PublisherId": "globulario",
   "Repositories": [],
   "Root": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\Globular\\webroot",

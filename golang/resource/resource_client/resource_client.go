@@ -251,6 +251,19 @@ func (self *Resource_Client) DeleteAccount(id string) error {
 }
 
 /**
+ * Set role to a account
+ */
+func (self *Resource_Client) AddAccountRole(accountId string, roleId string) error {
+	rqst := &resourcepb.AddAccountRoleRqst{
+		AccountId: accountId,
+		RoleId:    roleId,
+	}
+	_, err := self.c.AddAccountRole(globular.GetClientContext(self), rqst)
+
+	return err
+}
+
+/**
  * Remove role from an account
  */
 func (self *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
@@ -289,6 +302,15 @@ func (self *Resource_Client) AddGroupMemberAccount(groupId string, accountId str
 
 	ctx := globular.GetClientContext(self)
 	_, err := self.c.AddGroupMemberAccount(ctx, rqst)
+	return err
+}
+
+func (self *Resource_Client) DeleteGroup(groupId string) error {
+	rqst := new(resourcepb.DeleteGroupRqst)
+	rqst.Group = groupId
+
+	ctx := globular.GetClientContext(self)
+	_, err := self.c.DeleteGroup(ctx, rqst)
 	return err
 }
 
@@ -344,9 +366,10 @@ func (self *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error
 /**
  * Create a new role with given action list.
  */
-func (self *Resource_Client) CreateRole(name string, actions []string) error {
+func (self *Resource_Client) CreateRole(id string, name string, actions []string) error {
 	rqst := new(resourcepb.CreateRoleRqst)
 	role := new(resourcepb.Role)
+	role.Id = id
 	role.Name = name
 	role.Actions = actions
 	rqst.Role = role
