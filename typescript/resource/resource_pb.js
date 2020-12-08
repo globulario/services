@@ -9496,7 +9496,7 @@ proto.resource.RemoveGroupMemberAccountRsp.prototype.setResult = function(value)
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Organization.repeatedFields_ = [3];
+proto.resource.Organization.repeatedFields_ = [3,4,5,6];
 
 
 
@@ -9531,7 +9531,10 @@ proto.resource.Organization.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f
+    accountsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+    groupsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+    rolesList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+    applicationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -9578,7 +9581,19 @@ proto.resource.Organization.deserializeBinaryFromReader = function(msg, reader) 
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
+      msg.addAccounts(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
       msg.addGroups(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addRoles(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addApplications(value);
       break;
     default:
       reader.skipField();
@@ -9623,10 +9638,31 @@ proto.resource.Organization.serializeBinaryToWriter = function(message, writer) 
       f
     );
   }
-  f = message.getGroupsList();
+  f = message.getAccountsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       3,
+      f
+    );
+  }
+  f = message.getGroupsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      4,
+      f
+    );
+  }
+  f = message.getRolesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      5,
+      f
+    );
+  }
+  f = message.getApplicationsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      6,
       f
     );
   }
@@ -9670,10 +9706,10 @@ proto.resource.Organization.prototype.setName = function(value) {
 
 
 /**
- * repeated string groups = 3;
+ * repeated string accounts = 3;
  * @return {!Array<string>}
  */
-proto.resource.Organization.prototype.getGroupsList = function() {
+proto.resource.Organization.prototype.getAccountsList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
 };
 
@@ -9682,7 +9718,7 @@ proto.resource.Organization.prototype.getGroupsList = function() {
  * @param {!Array<string>} value
  * @return {!proto.resource.Organization} returns this
  */
-proto.resource.Organization.prototype.setGroupsList = function(value) {
+proto.resource.Organization.prototype.setAccountsList = function(value) {
   return jspb.Message.setField(this, 3, value || []);
 };
 
@@ -9692,8 +9728,45 @@ proto.resource.Organization.prototype.setGroupsList = function(value) {
  * @param {number=} opt_index
  * @return {!proto.resource.Organization} returns this
  */
-proto.resource.Organization.prototype.addGroups = function(value, opt_index) {
+proto.resource.Organization.prototype.addAccounts = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.clearAccountsList = function() {
+  return this.setAccountsList([]);
+};
+
+
+/**
+ * repeated string groups = 4;
+ * @return {!Array<string>}
+ */
+proto.resource.Organization.prototype.getGroupsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.setGroupsList = function(value) {
+  return jspb.Message.setField(this, 4, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.addGroups = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
 };
 
 
@@ -9703,6 +9776,80 @@ proto.resource.Organization.prototype.addGroups = function(value, opt_index) {
  */
 proto.resource.Organization.prototype.clearGroupsList = function() {
   return this.setGroupsList([]);
+};
+
+
+/**
+ * repeated string roles = 5;
+ * @return {!Array<string>}
+ */
+proto.resource.Organization.prototype.getRolesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.setRolesList = function(value) {
+  return jspb.Message.setField(this, 5, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.addRoles = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.clearRolesList = function() {
+  return this.setRolesList([]);
+};
+
+
+/**
+ * repeated string applications = 6;
+ * @return {!Array<string>}
+ */
+proto.resource.Organization.prototype.getApplicationsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.setApplicationsList = function(value) {
+  return jspb.Message.setField(this, 6, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.addApplications = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.clearApplicationsList = function() {
+  return this.setApplicationsList([]);
 };
 
 

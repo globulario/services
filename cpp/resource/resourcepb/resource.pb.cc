@@ -2689,7 +2689,10 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::resource::Organization, id_),
   PROTOBUF_FIELD_OFFSET(::resource::Organization, name_),
+  PROTOBUF_FIELD_OFFSET(::resource::Organization, accounts_),
   PROTOBUF_FIELD_OFFSET(::resource::Organization, groups_),
+  PROTOBUF_FIELD_OFFSET(::resource::Organization, roles_),
+  PROTOBUF_FIELD_OFFSET(::resource::Organization, applications_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::CreateOrganizationRqst, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -3280,91 +3283,91 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 273, -1, sizeof(::resource::RemoveGroupMemberAccountRqst)},
   { 280, -1, sizeof(::resource::RemoveGroupMemberAccountRsp)},
   { 286, -1, sizeof(::resource::Organization)},
-  { 294, -1, sizeof(::resource::CreateOrganizationRqst)},
-  { 300, -1, sizeof(::resource::CreateOrganizationRsp)},
-  { 306, -1, sizeof(::resource::GetOrganizationsRqst)},
-  { 312, -1, sizeof(::resource::GetOrganizationsRsp)},
-  { 318, -1, sizeof(::resource::DeleteOrganizationRqst)},
-  { 324, -1, sizeof(::resource::DeleteOrganizationRsp)},
-  { 330, -1, sizeof(::resource::Peer)},
-  { 337, -1, sizeof(::resource::RegisterPeerRqst)},
-  { 343, -1, sizeof(::resource::RegisterPeerRsp)},
-  { 349, -1, sizeof(::resource::GetPeersRqst)},
-  { 355, -1, sizeof(::resource::GetPeersRsp)},
-  { 361, -1, sizeof(::resource::DeletePeerRqst)},
-  { 367, -1, sizeof(::resource::DeletePeerRsp)},
-  { 373, -1, sizeof(::resource::AddRoleActionRqst)},
-  { 380, -1, sizeof(::resource::AddRoleActionRsp)},
-  { 386, -1, sizeof(::resource::RemoveRoleActionRqst)},
-  { 393, -1, sizeof(::resource::RemoveRoleActionRsp)},
-  { 399, -1, sizeof(::resource::AddApplicationActionRqst)},
-  { 406, -1, sizeof(::resource::AddApplicationActionRsp)},
-  { 412, -1, sizeof(::resource::RemoveApplicationActionRqst)},
-  { 419, -1, sizeof(::resource::RemoveApplicationActionRsp)},
-  { 425, -1, sizeof(::resource::AddPeerActionRqst)},
-  { 432, -1, sizeof(::resource::AddPeerActionRsp)},
-  { 438, -1, sizeof(::resource::RemovePeerActionRqst)},
-  { 445, -1, sizeof(::resource::RemovePeerActionRsp)},
-  { 451, -1, sizeof(::resource::AddOrganizationAccountRqst)},
-  { 458, -1, sizeof(::resource::AddOrganizationAccountRsp)},
-  { 464, -1, sizeof(::resource::AddOrganizationGroupRqst)},
-  { 471, -1, sizeof(::resource::AddOrganizationGroupRsp)},
-  { 477, -1, sizeof(::resource::AddOrganizationRoleRqst)},
-  { 484, -1, sizeof(::resource::AddOrganizationRoleRsp)},
-  { 490, -1, sizeof(::resource::AddOrganizationApplicationRqst)},
-  { 497, -1, sizeof(::resource::AddOrganizationApplicationRsp)},
-  { 503, -1, sizeof(::resource::RemoveOrganizationGroupRqst)},
-  { 510, -1, sizeof(::resource::RemoveOrganizationGroupRsp)},
-  { 516, -1, sizeof(::resource::RemoveOrganizationRoleRqst)},
-  { 523, -1, sizeof(::resource::RemoveOrganizationRoleRsp)},
-  { 529, -1, sizeof(::resource::RemoveOrganizationApplicationRqst)},
-  { 536, -1, sizeof(::resource::RemoveOrganizationApplicationRsp)},
-  { 542, -1, sizeof(::resource::RemoveOrganizationAccountRqst)},
-  { 549, -1, sizeof(::resource::RemoveOrganizationAccountRsp)},
-  { 555, -1, sizeof(::resource::Permission)},
-  { 565, -1, sizeof(::resource::Permissions)},
-  { 573, -1, sizeof(::resource::ActionResourceParameterPermission)},
-  { 580, -1, sizeof(::resource::SetActionResourcesPermissionRqst)},
-  { 587, -1, sizeof(::resource::SetActionResourcesPermissionRsp)},
-  { 592, -1, sizeof(::resource::GetActionResourcesPermissionRqst)},
-  { 598, -1, sizeof(::resource::GetActionResourcesPermissionRsp)},
-  { 604, -1, sizeof(::resource::GetResourcePermissionsRqst)},
-  { 610, -1, sizeof(::resource::GetResourcePermissionsRsp)},
-  { 616, -1, sizeof(::resource::DeleteResourcePermissionsRqst)},
-  { 622, -1, sizeof(::resource::DeleteResourcePermissionsRsp)},
-  { 628, -1, sizeof(::resource::GetResourcePermissionRqst)},
-  { 635, -1, sizeof(::resource::GetResourcePermissionRsp)},
-  { 641, -1, sizeof(::resource::DeleteResourcePermissionRqst)},
-  { 648, -1, sizeof(::resource::DeleteResourcePermissionRsp)},
-  { 653, -1, sizeof(::resource::SetResourcePermissionsRqst)},
-  { 660, -1, sizeof(::resource::SetResourcePermissionsRsp)},
-  { 665, -1, sizeof(::resource::SetResourcePermissionRqst)},
-  { 672, -1, sizeof(::resource::SetResourcePermissionRsp)},
-  { 677, -1, sizeof(::resource::AddResourceOwnerRqst)},
-  { 684, -1, sizeof(::resource::AddResourceOwnerRsp)},
-  { 689, -1, sizeof(::resource::removeResourceOwnerRqst)},
-  { 696, -1, sizeof(::resource::removeResourceOwnerRsp)},
-  { 701, -1, sizeof(::resource::DeleteAllAccessRqst)},
-  { 708, -1, sizeof(::resource::DeleteAllAccessRsp)},
-  { 713, -1, sizeof(::resource::ValidateAccessRqst)},
-  { 722, -1, sizeof(::resource::ValidateAccessRsp)},
-  { 728, -1, sizeof(::resource::GetAccessesRqst)},
-  { 736, -1, sizeof(::resource::GetAccessesRsp)},
-  { 742, -1, sizeof(::resource::LogInfo)},
-  { 754, -1, sizeof(::resource::LogRqst)},
-  { 760, -1, sizeof(::resource::LogRsp)},
-  { 766, -1, sizeof(::resource::DeleteLogRqst)},
-  { 772, -1, sizeof(::resource::DeleteLogRsp)},
-  { 778, -1, sizeof(::resource::SetLogMethodRqst)},
-  { 784, -1, sizeof(::resource::SetLogMethodRsp)},
-  { 790, -1, sizeof(::resource::ResetLogMethodRqst)},
-  { 796, -1, sizeof(::resource::ResetLogMethodRsp)},
-  { 802, -1, sizeof(::resource::GetLogMethodsRqst)},
-  { 807, -1, sizeof(::resource::GetLogMethodsRsp)},
-  { 813, -1, sizeof(::resource::GetLogRqst)},
-  { 819, -1, sizeof(::resource::GetLogRsp)},
-  { 825, -1, sizeof(::resource::ClearAllLogRqst)},
-  { 831, -1, sizeof(::resource::ClearAllLogRsp)},
+  { 297, -1, sizeof(::resource::CreateOrganizationRqst)},
+  { 303, -1, sizeof(::resource::CreateOrganizationRsp)},
+  { 309, -1, sizeof(::resource::GetOrganizationsRqst)},
+  { 315, -1, sizeof(::resource::GetOrganizationsRsp)},
+  { 321, -1, sizeof(::resource::DeleteOrganizationRqst)},
+  { 327, -1, sizeof(::resource::DeleteOrganizationRsp)},
+  { 333, -1, sizeof(::resource::Peer)},
+  { 340, -1, sizeof(::resource::RegisterPeerRqst)},
+  { 346, -1, sizeof(::resource::RegisterPeerRsp)},
+  { 352, -1, sizeof(::resource::GetPeersRqst)},
+  { 358, -1, sizeof(::resource::GetPeersRsp)},
+  { 364, -1, sizeof(::resource::DeletePeerRqst)},
+  { 370, -1, sizeof(::resource::DeletePeerRsp)},
+  { 376, -1, sizeof(::resource::AddRoleActionRqst)},
+  { 383, -1, sizeof(::resource::AddRoleActionRsp)},
+  { 389, -1, sizeof(::resource::RemoveRoleActionRqst)},
+  { 396, -1, sizeof(::resource::RemoveRoleActionRsp)},
+  { 402, -1, sizeof(::resource::AddApplicationActionRqst)},
+  { 409, -1, sizeof(::resource::AddApplicationActionRsp)},
+  { 415, -1, sizeof(::resource::RemoveApplicationActionRqst)},
+  { 422, -1, sizeof(::resource::RemoveApplicationActionRsp)},
+  { 428, -1, sizeof(::resource::AddPeerActionRqst)},
+  { 435, -1, sizeof(::resource::AddPeerActionRsp)},
+  { 441, -1, sizeof(::resource::RemovePeerActionRqst)},
+  { 448, -1, sizeof(::resource::RemovePeerActionRsp)},
+  { 454, -1, sizeof(::resource::AddOrganizationAccountRqst)},
+  { 461, -1, sizeof(::resource::AddOrganizationAccountRsp)},
+  { 467, -1, sizeof(::resource::AddOrganizationGroupRqst)},
+  { 474, -1, sizeof(::resource::AddOrganizationGroupRsp)},
+  { 480, -1, sizeof(::resource::AddOrganizationRoleRqst)},
+  { 487, -1, sizeof(::resource::AddOrganizationRoleRsp)},
+  { 493, -1, sizeof(::resource::AddOrganizationApplicationRqst)},
+  { 500, -1, sizeof(::resource::AddOrganizationApplicationRsp)},
+  { 506, -1, sizeof(::resource::RemoveOrganizationGroupRqst)},
+  { 513, -1, sizeof(::resource::RemoveOrganizationGroupRsp)},
+  { 519, -1, sizeof(::resource::RemoveOrganizationRoleRqst)},
+  { 526, -1, sizeof(::resource::RemoveOrganizationRoleRsp)},
+  { 532, -1, sizeof(::resource::RemoveOrganizationApplicationRqst)},
+  { 539, -1, sizeof(::resource::RemoveOrganizationApplicationRsp)},
+  { 545, -1, sizeof(::resource::RemoveOrganizationAccountRqst)},
+  { 552, -1, sizeof(::resource::RemoveOrganizationAccountRsp)},
+  { 558, -1, sizeof(::resource::Permission)},
+  { 568, -1, sizeof(::resource::Permissions)},
+  { 576, -1, sizeof(::resource::ActionResourceParameterPermission)},
+  { 583, -1, sizeof(::resource::SetActionResourcesPermissionRqst)},
+  { 590, -1, sizeof(::resource::SetActionResourcesPermissionRsp)},
+  { 595, -1, sizeof(::resource::GetActionResourcesPermissionRqst)},
+  { 601, -1, sizeof(::resource::GetActionResourcesPermissionRsp)},
+  { 607, -1, sizeof(::resource::GetResourcePermissionsRqst)},
+  { 613, -1, sizeof(::resource::GetResourcePermissionsRsp)},
+  { 619, -1, sizeof(::resource::DeleteResourcePermissionsRqst)},
+  { 625, -1, sizeof(::resource::DeleteResourcePermissionsRsp)},
+  { 631, -1, sizeof(::resource::GetResourcePermissionRqst)},
+  { 638, -1, sizeof(::resource::GetResourcePermissionRsp)},
+  { 644, -1, sizeof(::resource::DeleteResourcePermissionRqst)},
+  { 651, -1, sizeof(::resource::DeleteResourcePermissionRsp)},
+  { 656, -1, sizeof(::resource::SetResourcePermissionsRqst)},
+  { 663, -1, sizeof(::resource::SetResourcePermissionsRsp)},
+  { 668, -1, sizeof(::resource::SetResourcePermissionRqst)},
+  { 675, -1, sizeof(::resource::SetResourcePermissionRsp)},
+  { 680, -1, sizeof(::resource::AddResourceOwnerRqst)},
+  { 687, -1, sizeof(::resource::AddResourceOwnerRsp)},
+  { 692, -1, sizeof(::resource::removeResourceOwnerRqst)},
+  { 699, -1, sizeof(::resource::removeResourceOwnerRsp)},
+  { 704, -1, sizeof(::resource::DeleteAllAccessRqst)},
+  { 711, -1, sizeof(::resource::DeleteAllAccessRsp)},
+  { 716, -1, sizeof(::resource::ValidateAccessRqst)},
+  { 725, -1, sizeof(::resource::ValidateAccessRsp)},
+  { 731, -1, sizeof(::resource::GetAccessesRqst)},
+  { 739, -1, sizeof(::resource::GetAccessesRsp)},
+  { 745, -1, sizeof(::resource::LogInfo)},
+  { 757, -1, sizeof(::resource::LogRqst)},
+  { 763, -1, sizeof(::resource::LogRsp)},
+  { 769, -1, sizeof(::resource::DeleteLogRqst)},
+  { 775, -1, sizeof(::resource::DeleteLogRsp)},
+  { 781, -1, sizeof(::resource::SetLogMethodRqst)},
+  { 787, -1, sizeof(::resource::SetLogMethodRsp)},
+  { 793, -1, sizeof(::resource::ResetLogMethodRqst)},
+  { 799, -1, sizeof(::resource::ResetLogMethodRsp)},
+  { 805, -1, sizeof(::resource::GetLogMethodsRqst)},
+  { 810, -1, sizeof(::resource::GetLogMethodsRsp)},
+  { 816, -1, sizeof(::resource::GetLogRqst)},
+  { 822, -1, sizeof(::resource::GetLogRsp)},
+  { 828, -1, sizeof(::resource::ClearAllLogRqst)},
+  { 834, -1, sizeof(::resource::ClearAllLogRsp)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -3554,247 +3557,249 @@ const char descriptor_table_protodef_resource_2eproto[] PROTOBUF_SECTION_VARIABL
   "\030AddGroupMemberAccountRsp\022\016\n\006result\030\001 \001("
   "\010\"B\n\034RemoveGroupMemberAccountRqst\022\017\n\007gro"
   "upId\030\001 \001(\t\022\021\n\taccountId\030\002 \001(\t\"-\n\033RemoveG"
-  "roupMemberAccountRsp\022\016\n\006result\030\001 \001(\010\"8\n\014"
-  "Organization\022\n\n\002id\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\016"
-  "\n\006groups\030\003 \003(\t\"F\n\026CreateOrganizationRqst"
-  "\022,\n\014organization\030\001 \001(\0132\026.resource.Organi"
-  "zation\"\'\n\025CreateOrganizationRsp\022\016\n\006resul"
-  "t\030\001 \001(\010\"%\n\024GetOrganizationsRqst\022\r\n\005query"
-  "\030\001 \001(\t\"D\n\023GetOrganizationsRsp\022-\n\rorganiz"
-  "ations\030\001 \003(\0132\026.resource.Organization\".\n\026"
-  "DeleteOrganizationRqst\022\024\n\014organization\030\001"
-  " \001(\t\"\'\n\025DeleteOrganizationRsp\022\016\n\006result\030"
-  "\001 \001(\010\"\'\n\004Peer\022\016\n\006domain\030\001 \001(\t\022\017\n\007actions"
-  "\030\002 \003(\t\"0\n\020RegisterPeerRqst\022\034\n\004peer\030\001 \001(\013"
-  "2\016.resource.Peer\"!\n\017RegisterPeerRsp\022\016\n\006r"
-  "esult\030\001 \001(\010\"\035\n\014GetPeersRqst\022\r\n\005query\030\001 \001"
-  "(\t\",\n\013GetPeersRsp\022\035\n\005peers\030\001 \003(\0132\016.resou"
-  "rce.Peer\".\n\016DeletePeerRqst\022\034\n\004peer\030\001 \001(\013"
-  "2\016.resource.Peer\"\037\n\rDeletePeerRsp\022\016\n\006res"
-  "ult\030\001 \001(\010\"3\n\021AddRoleActionRqst\022\016\n\006roleId"
-  "\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"\"\n\020AddRoleActionR"
-  "sp\022\016\n\006result\030\001 \001(\010\"6\n\024RemoveRoleActionRq"
-  "st\022\016\n\006roleId\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"%\n\023Re"
-  "moveRoleActionRsp\022\016\n\006result\030\001 \001(\010\"A\n\030Add"
-  "ApplicationActionRqst\022\025\n\rapplicationId\030\001"
-  " \001(\t\022\016\n\006action\030\002 \001(\t\")\n\027AddApplicationAc"
-  "tionRsp\022\016\n\006result\030\001 \001(\010\"D\n\033RemoveApplica"
-  "tionActionRqst\022\025\n\rapplicationId\030\001 \001(\t\022\016\n"
-  "\006action\030\002 \001(\t\",\n\032RemoveApplicationAction"
-  "Rsp\022\016\n\006result\030\001 \001(\010\"3\n\021AddPeerActionRqst"
-  "\022\016\n\006domain\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"\"\n\020AddP"
-  "eerActionRsp\022\016\n\006result\030\001 \001(\010\"6\n\024RemovePe"
-  "erActionRqst\022\016\n\006domain\030\001 \001(\t\022\016\n\006action\030\002"
-  " \001(\t\"%\n\023RemovePeerActionRsp\022\016\n\006result\030\001 "
-  "\001(\010\"G\n\032AddOrganizationAccountRqst\022\026\n\016org"
-  "anizationId\030\001 \001(\t\022\021\n\taccountId\030\002 \001(\t\"+\n\031"
-  "AddOrganizationAccountRsp\022\016\n\006result\030\001 \001("
-  "\010\"C\n\030AddOrganizationGroupRqst\022\026\n\016organiz"
-  "ationId\030\001 \001(\t\022\017\n\007groupId\030\002 \001(\t\")\n\027AddOrg"
-  "anizationGroupRsp\022\016\n\006result\030\001 \001(\010\"A\n\027Add"
-  "OrganizationRoleRqst\022\026\n\016organizationId\030\001"
-  " \001(\t\022\016\n\006roleId\030\002 \001(\t\"(\n\026AddOrganizationR"
-  "oleRsp\022\016\n\006result\030\001 \001(\010\"O\n\036AddOrganizatio"
-  "nApplicationRqst\022\026\n\016organizationId\030\001 \001(\t"
-  "\022\025\n\rapplicationId\030\002 \001(\t\"/\n\035AddOrganizati"
-  "onApplicationRsp\022\016\n\006result\030\001 \001(\010\"F\n\033Remo"
-  "veOrganizationGroupRqst\022\026\n\016organizationI"
-  "d\030\001 \001(\t\022\017\n\007groupId\030\002 \001(\t\",\n\032RemoveOrgani"
-  "zationGroupRsp\022\016\n\006result\030\001 \001(\010\"D\n\032Remove"
-  "OrganizationRoleRqst\022\026\n\016organizationId\030\001"
-  " \001(\t\022\016\n\006roleId\030\002 \001(\t\"+\n\031RemoveOrganizati"
-  "onRoleRsp\022\016\n\006result\030\001 \001(\010\"R\n!RemoveOrgan"
-  "izationApplicationRqst\022\026\n\016organizationId"
-  "\030\001 \001(\t\022\025\n\rapplicationId\030\002 \001(\t\"2\n RemoveO"
-  "rganizationApplicationRsp\022\016\n\006result\030\001 \001("
-  "\010\"J\n\035RemoveOrganizationAccountRqst\022\026\n\016or"
-  "ganizationId\030\001 \001(\t\022\021\n\taccountId\030\002 \001(\t\".\n"
-  "\034RemoveOrganizationAccountRsp\022\016\n\006result\030"
-  "\001 \001(\010\"`\n\nPermission\022\014\n\004name\030\001 \001(\t\022\020\n\010acc"
-  "ounts\030\002 \003(\t\022\r\n\005roles\030\003 \003(\t\022\r\n\005peers\030\004 \003("
-  "\t\022\024\n\014organization\030\005 \003(\t\"\200\001\n\013Permissions\022"
-  "%\n\007allowed\030\001 \003(\0132\024.resource.Permission\022$"
-  "\n\006denied\030\002 \003(\0132\024.resource.Permission\022$\n\006"
-  "owners\030\003 \001(\0132\024.resource.Permission\"F\n!Ac"
-  "tionResourceParameterPermission\022\r\n\005index"
-  "\030\001 \001(\005\022\022\n\npermission\030\002 \001(\t\"r\n SetActionR"
-  "esourcesPermissionRqst\022\016\n\006action\030\001 \001(\t\022>"
-  "\n\tresources\030\002 \003(\0132+.resource.ActionResou"
-  "rceParameterPermission\"!\n\037SetActionResou"
-  "rcesPermissionRsp\"2\n GetActionResourcesP"
-  "ermissionRqst\022\016\n\006action\030\001 \001(\t\"a\n\037GetActi"
-  "onResourcesPermissionRsp\022>\n\tresources\030\001 "
-  "\003(\0132+.resource.ActionResourceParameterPe"
-  "rmission\"*\n\032GetResourcePermissionsRqst\022\014"
-  "\n\004path\030\001 \001(\t\"G\n\031GetResourcePermissionsRs"
-  "p\022*\n\013permissions\030\001 \001(\0132\025.resource.Permis"
-  "sions\"-\n\035DeleteResourcePermissionsRqst\022\014"
-  "\n\004path\030\001 \001(\t\"J\n\034DeleteResourcePermission"
-  "sRsp\022*\n\013permissions\030\001 \001(\0132\025.resource.Per"
-  "missions\"7\n\031GetResourcePermissionRqst\022\014\n"
-  "\004path\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\"D\n\030GetResource"
-  "PermissionRsp\022(\n\npermission\030\001 \001(\0132\024.reso"
-  "urce.Permission\":\n\034DeleteResourcePermiss"
-  "ionRqst\022\014\n\004path\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\"\035\n\033D"
-  "eleteResourcePermissionRsp\"V\n\032SetResourc"
-  "ePermissionsRqst\022\014\n\004path\030\001 \001(\t\022*\n\013permis"
-  "sions\030\002 \001(\0132\025.resource.Permissions\"\033\n\031Se"
-  "tResourcePermissionsRsp\"S\n\031SetResourcePe"
-  "rmissionRqst\022\014\n\004path\030\001 \001(\t\022(\n\npermission"
-  "\030\002 \001(\0132\024.resource.Permission\"\032\n\030SetResou"
-  "rcePermissionRsp\"3\n\024AddResourceOwnerRqst"
-  "\022\014\n\004path\030\001 \001(\t\022\r\n\005owner\030\002 \001(\t\"\025\n\023AddReso"
-  "urceOwnerRsp\"6\n\027removeResourceOwnerRqst\022"
-  "\014\n\004path\030\001 \001(\t\022\r\n\005owner\030\002 \001(\t\"\030\n\026removeRe"
-  "sourceOwnerRsp\"K\n\023DeleteAllAccessRqst\022\017\n"
-  "\007subject\030\001 \001(\t\022#\n\004type\030\002 \001(\0162\025.resource."
-  "SubjectType\"\024\n\022DeleteAllAccessRsp\"l\n\022Val"
-  "idateAccessRqst\022\017\n\007subject\030\001 \001(\t\022#\n\004type"
-  "\030\002 \001(\0162\025.resource.SubjectType\022\014\n\004path\030\003 "
-  "\001(\t\022\022\n\npermission\030\004 \001(\t\"#\n\021ValidateAcces"
-  "sRsp\022\016\n\006result\030\001 \001(\010\"U\n\017GetAccessesRqst\022"
-  "\017\n\007subject\030\001 \001(\t\022#\n\004type\030\002 \001(\0162\025.resourc"
-  "e.SubjectType\022\014\n\004path\030\003 \001(\t\"\"\n\016GetAccess"
-  "esRsp\022\020\n\010accesses\030\001 \003(\t\"\220\001\n\007LogInfo\022\014\n\004d"
-  "ate\030\001 \001(\003\022\037\n\004type\030\002 \001(\0162\021.resource.LogTy"
-  "pe\022\023\n\013application\030\003 \001(\t\022\016\n\006userId\030\004 \001(\t\022"
-  "\020\n\010userName\030\005 \001(\t\022\016\n\006method\030\006 \001(\t\022\017\n\007mes"
-  "sage\030\007 \001(\t\"*\n\007LogRqst\022\037\n\004info\030\001 \001(\0132\021.re"
-  "source.LogInfo\"\030\n\006LogRsp\022\016\n\006result\030\001 \001(\010"
-  "\"/\n\rDeleteLogRqst\022\036\n\003log\030\001 \001(\0132\021.resourc"
-  "e.LogInfo\"\036\n\014DeleteLogRsp\022\016\n\006result\030\001 \001("
-  "\010\"\"\n\020SetLogMethodRqst\022\016\n\006method\030\001 \001(\t\"!\n"
-  "\017SetLogMethodRsp\022\016\n\006result\030\001 \001(\010\"$\n\022Rese"
-  "tLogMethodRqst\022\016\n\006method\030\001 \001(\t\"#\n\021ResetL"
-  "ogMethodRsp\022\016\n\006result\030\001 \001(\010\"\023\n\021GetLogMet"
-  "hodsRqst\"#\n\020GetLogMethodsRsp\022\017\n\007methods\030"
-  "\001 \003(\t\"\033\n\nGetLogRqst\022\r\n\005query\030\001 \001(\t\",\n\tGe"
-  "tLogRsp\022\037\n\004info\030\001 \003(\0132\021.resource.LogInfo"
-  "\"2\n\017ClearAllLogRqst\022\037\n\004type\030\001 \001(\0162\021.reso"
-  "urce.LogType\" \n\016ClearAllLogRsp\022\016\n\006result"
-  "\030\001 \001(\010*K\n\013SubjectType\022\013\n\007ACCOUNT\020\000\022\010\n\004RO"
-  "LE\020\001\022\010\n\004PEER\020\002\022\t\n\005GROUP\020\003\022\020\n\014ORGANIZATIO"
-  "N\020\004*.\n\007LogType\022\020\n\014INFO_MESSAGE\020\000\022\021\n\rERRO"
-  "R_MESSAGE\020\0012\245\031\n\017ResourceService\022H\n\rGetAl"
-  "lActions\022\033.resource.GetAllActionsRqst\032\032."
-  "resource.GetAllActionsRsp\022H\n\rValidateTok"
-  "en\022\033.resource.ValidateTokenRqst\032\032.resour"
-  "ce.ValidateTokenRsp\022E\n\014RefreshToken\022\032.re"
-  "source.RefreshTokenRqst\032\031.resource.Refre"
-  "shTokenRsp\022E\n\014Authenticate\022\032.resource.Au"
-  "thenticateRqst\032\031.resource.AuthenticateRs"
-  "p\022N\n\017SynchronizeLdap\022\035.resource.Synchron"
-  "izeLdapRqst\032\034.resource.SynchronizeLdapRs"
-  "p\022W\n\022CreateOrganization\022 .resource.Creat"
-  "eOrganizationRqst\032\037.resource.CreateOrgan"
-  "izationRsp\022S\n\020GetOrganizations\022\036.resourc"
-  "e.GetOrganizationsRqst\032\035.resource.GetOrg"
-  "anizationsRsp0\001\022W\n\022DeleteOrganization\022 ."
-  "resource.DeleteOrganizationRqst\032\037.resour"
-  "ce.DeleteOrganizationRsp\022c\n\026AddOrganizat"
-  "ionAccount\022$.resource.AddOrganizationAcc"
-  "ountRqst\032#.resource.AddOrganizationAccou"
-  "ntRsp\022]\n\024AddOrganizationGroup\022\".resource"
-  ".AddOrganizationGroupRqst\032!.resource.Add"
-  "OrganizationGroupRsp\022Z\n\023AddOrganizationR"
-  "ole\022!.resource.AddOrganizationRoleRqst\032 "
-  ".resource.AddOrganizationRoleRsp\022o\n\032AddO"
-  "rganizationApplication\022(.resource.AddOrg"
-  "anizationApplicationRqst\032\'.resource.AddO"
-  "rganizationApplicationRsp\022l\n\031RemoveOrgan"
-  "izationAccount\022\'.resource.RemoveOrganiza"
-  "tionAccountRqst\032&.resource.RemoveOrganiz"
-  "ationAccountRsp\022f\n\027RemoveOrganizationGro"
-  "up\022%.resource.RemoveOrganizationGroupRqs"
-  "t\032$.resource.RemoveOrganizationGroupRsp\022"
-  "c\n\026RemoveOrganizationRole\022$.resource.Rem"
-  "oveOrganizationRoleRqst\032#.resource.Remov"
-  "eOrganizationRoleRsp\022x\n\035RemoveOrganizati"
-  "onApplication\022+.resource.RemoveOrganizat"
-  "ionApplicationRqst\032*.resource.RemoveOrga"
-  "nizationApplicationRsp\022B\n\013CreateGroup\022\031."
-  "resource.CreateGroupRqst\032\030.resource.Crea"
-  "teGroupRsp\022>\n\tGetGroups\022\027.resource.GetGr"
-  "oupsRqst\032\026.resource.GetGroupsRsp0\001\022B\n\013De"
-  "leteGroup\022\031.resource.DeleteGroupRqst\032\030.r"
-  "esource.DeleteGroupRsp\022`\n\025AddGroupMember"
-  "Account\022#.resource.AddGroupMemberAccount"
-  "Rqst\032\".resource.AddGroupMemberAccountRsp"
-  "\022i\n\030RemoveGroupMemberAccount\022&.resource."
-  "RemoveGroupMemberAccountRqst\032%.resource."
-  "RemoveGroupMemberAccountRsp\022N\n\017RegisterA"
-  "ccount\022\035.resource.RegisterAccountRqst\032\034."
-  "resource.RegisterAccountRsp\022H\n\rDeleteAcc"
-  "ount\022\033.resource.DeleteAccountRqst\032\032.reso"
-  "urce.DeleteAccountRsp\022K\n\016AddAccountRole\022"
-  "\034.resource.AddAccountRoleRqst\032\033.resource"
-  ".AddAccountRoleRsp\022T\n\021RemoveAccountRole\022"
-  "\037.resource.RemoveAccountRoleRqst\032\036.resou"
-  "rce.RemoveAccountRoleRsp\022\?\n\nCreateRole\022\030"
-  ".resource.CreateRoleRqst\032\027.resource.Crea"
-  "teRoleRsp\022\?\n\nDeleteRole\022\030.resource.Delet"
-  "eRoleRqst\032\027.resource.DeleteRoleRsp\022H\n\rAd"
-  "dRoleAction\022\033.resource.AddRoleActionRqst"
-  "\032\032.resource.AddRoleActionRsp\022Q\n\020RemoveRo"
-  "leAction\022\036.resource.RemoveRoleActionRqst"
-  "\032\035.resource.RemoveRoleActionRsp\022c\n\026GetAl"
-  "lApplicationsInfo\022$.resource.GetAllAppli"
-  "cationsInfoRqst\032#.resource.GetAllApplica"
-  "tionsInfoRsp\022T\n\021DeleteApplication\022\037.reso"
-  "urce.DeleteApplicationRqst\032\036.resource.De"
-  "leteApplicationRsp\022]\n\024AddApplicationActi"
-  "on\022\".resource.AddApplicationActionRqst\032!"
-  ".resource.AddApplicationActionRsp\022f\n\027Rem"
-  "oveApplicationAction\022%.resource.RemoveAp"
-  "plicationActionRqst\032$.resource.RemoveApp"
-  "licationActionRsp\022E\n\014RegisterPeer\022\032.reso"
-  "urce.RegisterPeerRqst\032\031.resource.Registe"
-  "rPeerRsp\022;\n\010GetPeers\022\026.resource.GetPeers"
-  "Rqst\032\025.resource.GetPeersRsp0\001\022\?\n\nDeleteP"
-  "eer\022\030.resource.DeletePeerRqst\032\027.resource"
-  ".DeletePeerRsp\022H\n\rAddPeerAction\022\033.resour"
-  "ce.AddPeerActionRqst\032\032.resource.AddPeerA"
-  "ctionRsp\022Q\n\020RemovePeerAction\022\036.resource."
-  "RemovePeerActionRqst\032\035.resource.RemovePe"
-  "erActionRsp2\357\t\n\013RbacService\022u\n\034SetAction"
-  "ResourcesPermission\022*.resource.SetAction"
-  "ResourcesPermissionRqst\032).resource.SetAc"
-  "tionResourcesPermissionRsp\022u\n\034GetActionR"
-  "esourcesPermission\022*.resource.GetActionR"
-  "esourcesPermissionRqst\032).resource.GetAct"
-  "ionResourcesPermissionRsp\022d\n\026SetResource"
-  "Permissions\022$.resource.SetResourcePermis"
-  "sionsRqst\032$.resource.SetResourcePermissi"
-  "onsRqst\022m\n\031DeleteResourcePermissions\022\'.r"
-  "esource.DeleteResourcePermissionsRqst\032\'."
-  "resource.DeleteResourcePermissionsRqst\022j"
-  "\n\030DeleteResourcePermission\022&.resource.De"
-  "leteResourcePermissionRqst\032&.resource.De"
-  "leteResourcePermissionRqst\022`\n\025SetResourc"
-  "ePermission\022#.resource.SetResourcePermis"
-  "sionRqst\032\".resource.SetResourcePermissio"
-  "nRsp\022`\n\025GetResourcePermission\022#.resource"
-  ".GetResourcePermissionRqst\032\".resource.Ge"
-  "tResourcePermissionRsp\022c\n\026GetResourcePer"
-  "missions\022$.resource.GetResourcePermissio"
-  "nsRqst\032#.resource.GetResourcePermissions"
-  "Rsp\022Q\n\020AddResourceOwner\022\036.resource.AddRe"
-  "sourceOwnerRqst\032\035.resource.AddResourceOw"
-  "nerRsp\022T\n\023RemoveResourceOwner\022\036.resource"
-  ".AddResourceOwnerRqst\032\035.resource.AddReso"
-  "urceOwnerRsp\022N\n\017DeleteAllAccess\022\035.resour"
-  "ce.DeleteAllAccessRqst\032\034.resource.Delete"
-  "AllAccessRsp\022K\n\016ValidateAccess\022\034.resourc"
-  "e.ValidateAccessRqst\032\033.resource.Validate"
-  "AccessRsp\022B\n\013GetAccesses\022\031.resource.GetA"
-  "ccessesRqst\032\030.resource.GetAccessesRsp2\361\001"
-  "\n\nLogService\022*\n\003Log\022\021.resource.LogRqst\032\020"
-  ".resource.LogRsp\0225\n\006GetLog\022\024.resource.Ge"
-  "tLogRqst\032\023.resource.GetLogRsp0\001\022<\n\tDelet"
-  "eLog\022\027.resource.DeleteLogRqst\032\026.resource"
-  ".DeleteLogRsp\022B\n\013ClearAllLog\022\031.resource."
-  "ClearAllLogRqst\032\030.resource.ClearAllLogRs"
-  "pB\025Z\023resource/resourcepbb\006proto3"
+  "roupMemberAccountRsp\022\016\n\006result\030\001 \001(\010\"o\n\014"
+  "Organization\022\n\n\002id\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\022\020"
+  "\n\010accounts\030\003 \003(\t\022\016\n\006groups\030\004 \003(\t\022\r\n\005role"
+  "s\030\005 \003(\t\022\024\n\014applications\030\006 \003(\t\"F\n\026CreateO"
+  "rganizationRqst\022,\n\014organization\030\001 \001(\0132\026."
+  "resource.Organization\"\'\n\025CreateOrganizat"
+  "ionRsp\022\016\n\006result\030\001 \001(\010\"%\n\024GetOrganizatio"
+  "nsRqst\022\r\n\005query\030\001 \001(\t\"D\n\023GetOrganization"
+  "sRsp\022-\n\rorganizations\030\001 \003(\0132\026.resource.O"
+  "rganization\".\n\026DeleteOrganizationRqst\022\024\n"
+  "\014organization\030\001 \001(\t\"\'\n\025DeleteOrganizatio"
+  "nRsp\022\016\n\006result\030\001 \001(\010\"\'\n\004Peer\022\016\n\006domain\030\001"
+  " \001(\t\022\017\n\007actions\030\002 \003(\t\"0\n\020RegisterPeerRqs"
+  "t\022\034\n\004peer\030\001 \001(\0132\016.resource.Peer\"!\n\017Regis"
+  "terPeerRsp\022\016\n\006result\030\001 \001(\010\"\035\n\014GetPeersRq"
+  "st\022\r\n\005query\030\001 \001(\t\",\n\013GetPeersRsp\022\035\n\005peer"
+  "s\030\001 \003(\0132\016.resource.Peer\".\n\016DeletePeerRqs"
+  "t\022\034\n\004peer\030\001 \001(\0132\016.resource.Peer\"\037\n\rDelet"
+  "ePeerRsp\022\016\n\006result\030\001 \001(\010\"3\n\021AddRoleActio"
+  "nRqst\022\016\n\006roleId\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"\"\n"
+  "\020AddRoleActionRsp\022\016\n\006result\030\001 \001(\010\"6\n\024Rem"
+  "oveRoleActionRqst\022\016\n\006roleId\030\001 \001(\t\022\016\n\006act"
+  "ion\030\002 \001(\t\"%\n\023RemoveRoleActionRsp\022\016\n\006resu"
+  "lt\030\001 \001(\010\"A\n\030AddApplicationActionRqst\022\025\n\r"
+  "applicationId\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\")\n\027A"
+  "ddApplicationActionRsp\022\016\n\006result\030\001 \001(\010\"D"
+  "\n\033RemoveApplicationActionRqst\022\025\n\rapplica"
+  "tionId\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\",\n\032RemoveAp"
+  "plicationActionRsp\022\016\n\006result\030\001 \001(\010\"3\n\021Ad"
+  "dPeerActionRqst\022\016\n\006domain\030\001 \001(\t\022\016\n\006actio"
+  "n\030\002 \001(\t\"\"\n\020AddPeerActionRsp\022\016\n\006result\030\001 "
+  "\001(\010\"6\n\024RemovePeerActionRqst\022\016\n\006domain\030\001 "
+  "\001(\t\022\016\n\006action\030\002 \001(\t\"%\n\023RemovePeerActionR"
+  "sp\022\016\n\006result\030\001 \001(\010\"G\n\032AddOrganizationAcc"
+  "ountRqst\022\026\n\016organizationId\030\001 \001(\t\022\021\n\tacco"
+  "untId\030\002 \001(\t\"+\n\031AddOrganizationAccountRsp"
+  "\022\016\n\006result\030\001 \001(\010\"C\n\030AddOrganizationGroup"
+  "Rqst\022\026\n\016organizationId\030\001 \001(\t\022\017\n\007groupId\030"
+  "\002 \001(\t\")\n\027AddOrganizationGroupRsp\022\016\n\006resu"
+  "lt\030\001 \001(\010\"A\n\027AddOrganizationRoleRqst\022\026\n\016o"
+  "rganizationId\030\001 \001(\t\022\016\n\006roleId\030\002 \001(\t\"(\n\026A"
+  "ddOrganizationRoleRsp\022\016\n\006result\030\001 \001(\010\"O\n"
+  "\036AddOrganizationApplicationRqst\022\026\n\016organ"
+  "izationId\030\001 \001(\t\022\025\n\rapplicationId\030\002 \001(\t\"/"
+  "\n\035AddOrganizationApplicationRsp\022\016\n\006resul"
+  "t\030\001 \001(\010\"F\n\033RemoveOrganizationGroupRqst\022\026"
+  "\n\016organizationId\030\001 \001(\t\022\017\n\007groupId\030\002 \001(\t\""
+  ",\n\032RemoveOrganizationGroupRsp\022\016\n\006result\030"
+  "\001 \001(\010\"D\n\032RemoveOrganizationRoleRqst\022\026\n\016o"
+  "rganizationId\030\001 \001(\t\022\016\n\006roleId\030\002 \001(\t\"+\n\031R"
+  "emoveOrganizationRoleRsp\022\016\n\006result\030\001 \001(\010"
+  "\"R\n!RemoveOrganizationApplicationRqst\022\026\n"
+  "\016organizationId\030\001 \001(\t\022\025\n\rapplicationId\030\002"
+  " \001(\t\"2\n RemoveOrganizationApplicationRsp"
+  "\022\016\n\006result\030\001 \001(\010\"J\n\035RemoveOrganizationAc"
+  "countRqst\022\026\n\016organizationId\030\001 \001(\t\022\021\n\tacc"
+  "ountId\030\002 \001(\t\".\n\034RemoveOrganizationAccoun"
+  "tRsp\022\016\n\006result\030\001 \001(\010\"`\n\nPermission\022\014\n\004na"
+  "me\030\001 \001(\t\022\020\n\010accounts\030\002 \003(\t\022\r\n\005roles\030\003 \003("
+  "\t\022\r\n\005peers\030\004 \003(\t\022\024\n\014organization\030\005 \003(\t\"\200"
+  "\001\n\013Permissions\022%\n\007allowed\030\001 \003(\0132\024.resour"
+  "ce.Permission\022$\n\006denied\030\002 \003(\0132\024.resource"
+  ".Permission\022$\n\006owners\030\003 \001(\0132\024.resource.P"
+  "ermission\"F\n!ActionResourceParameterPerm"
+  "ission\022\r\n\005index\030\001 \001(\005\022\022\n\npermission\030\002 \001("
+  "\t\"r\n SetActionResourcesPermissionRqst\022\016\n"
+  "\006action\030\001 \001(\t\022>\n\tresources\030\002 \003(\0132+.resou"
+  "rce.ActionResourceParameterPermission\"!\n"
+  "\037SetActionResourcesPermissionRsp\"2\n GetA"
+  "ctionResourcesPermissionRqst\022\016\n\006action\030\001"
+  " \001(\t\"a\n\037GetActionResourcesPermissionRsp\022"
+  ">\n\tresources\030\001 \003(\0132+.resource.ActionReso"
+  "urceParameterPermission\"*\n\032GetResourcePe"
+  "rmissionsRqst\022\014\n\004path\030\001 \001(\t\"G\n\031GetResour"
+  "cePermissionsRsp\022*\n\013permissions\030\001 \001(\0132\025."
+  "resource.Permissions\"-\n\035DeleteResourcePe"
+  "rmissionsRqst\022\014\n\004path\030\001 \001(\t\"J\n\034DeleteRes"
+  "ourcePermissionsRsp\022*\n\013permissions\030\001 \001(\013"
+  "2\025.resource.Permissions\"7\n\031GetResourcePe"
+  "rmissionRqst\022\014\n\004path\030\001 \001(\t\022\014\n\004name\030\002 \001(\t"
+  "\"D\n\030GetResourcePermissionRsp\022(\n\npermissi"
+  "on\030\001 \001(\0132\024.resource.Permission\":\n\034Delete"
+  "ResourcePermissionRqst\022\014\n\004path\030\001 \001(\t\022\014\n\004"
+  "name\030\002 \001(\t\"\035\n\033DeleteResourcePermissionRs"
+  "p\"V\n\032SetResourcePermissionsRqst\022\014\n\004path\030"
+  "\001 \001(\t\022*\n\013permissions\030\002 \001(\0132\025.resource.Pe"
+  "rmissions\"\033\n\031SetResourcePermissionsRsp\"S"
+  "\n\031SetResourcePermissionRqst\022\014\n\004path\030\001 \001("
+  "\t\022(\n\npermission\030\002 \001(\0132\024.resource.Permiss"
+  "ion\"\032\n\030SetResourcePermissionRsp\"3\n\024AddRe"
+  "sourceOwnerRqst\022\014\n\004path\030\001 \001(\t\022\r\n\005owner\030\002"
+  " \001(\t\"\025\n\023AddResourceOwnerRsp\"6\n\027removeRes"
+  "ourceOwnerRqst\022\014\n\004path\030\001 \001(\t\022\r\n\005owner\030\002 "
+  "\001(\t\"\030\n\026removeResourceOwnerRsp\"K\n\023DeleteA"
+  "llAccessRqst\022\017\n\007subject\030\001 \001(\t\022#\n\004type\030\002 "
+  "\001(\0162\025.resource.SubjectType\"\024\n\022DeleteAllA"
+  "ccessRsp\"l\n\022ValidateAccessRqst\022\017\n\007subjec"
+  "t\030\001 \001(\t\022#\n\004type\030\002 \001(\0162\025.resource.Subject"
+  "Type\022\014\n\004path\030\003 \001(\t\022\022\n\npermission\030\004 \001(\t\"#"
+  "\n\021ValidateAccessRsp\022\016\n\006result\030\001 \001(\010\"U\n\017G"
+  "etAccessesRqst\022\017\n\007subject\030\001 \001(\t\022#\n\004type\030"
+  "\002 \001(\0162\025.resource.SubjectType\022\014\n\004path\030\003 \001"
+  "(\t\"\"\n\016GetAccessesRsp\022\020\n\010accesses\030\001 \003(\t\"\220"
+  "\001\n\007LogInfo\022\014\n\004date\030\001 \001(\003\022\037\n\004type\030\002 \001(\0162\021"
+  ".resource.LogType\022\023\n\013application\030\003 \001(\t\022\016"
+  "\n\006userId\030\004 \001(\t\022\020\n\010userName\030\005 \001(\t\022\016\n\006meth"
+  "od\030\006 \001(\t\022\017\n\007message\030\007 \001(\t\"*\n\007LogRqst\022\037\n\004"
+  "info\030\001 \001(\0132\021.resource.LogInfo\"\030\n\006LogRsp\022"
+  "\016\n\006result\030\001 \001(\010\"/\n\rDeleteLogRqst\022\036\n\003log\030"
+  "\001 \001(\0132\021.resource.LogInfo\"\036\n\014DeleteLogRsp"
+  "\022\016\n\006result\030\001 \001(\010\"\"\n\020SetLogMethodRqst\022\016\n\006"
+  "method\030\001 \001(\t\"!\n\017SetLogMethodRsp\022\016\n\006resul"
+  "t\030\001 \001(\010\"$\n\022ResetLogMethodRqst\022\016\n\006method\030"
+  "\001 \001(\t\"#\n\021ResetLogMethodRsp\022\016\n\006result\030\001 \001"
+  "(\010\"\023\n\021GetLogMethodsRqst\"#\n\020GetLogMethods"
+  "Rsp\022\017\n\007methods\030\001 \003(\t\"\033\n\nGetLogRqst\022\r\n\005qu"
+  "ery\030\001 \001(\t\",\n\tGetLogRsp\022\037\n\004info\030\001 \003(\0132\021.r"
+  "esource.LogInfo\"2\n\017ClearAllLogRqst\022\037\n\004ty"
+  "pe\030\001 \001(\0162\021.resource.LogType\" \n\016ClearAllL"
+  "ogRsp\022\016\n\006result\030\001 \001(\010*K\n\013SubjectType\022\013\n\007"
+  "ACCOUNT\020\000\022\010\n\004ROLE\020\001\022\010\n\004PEER\020\002\022\t\n\005GROUP\020\003"
+  "\022\020\n\014ORGANIZATION\020\004*.\n\007LogType\022\020\n\014INFO_ME"
+  "SSAGE\020\000\022\021\n\rERROR_MESSAGE\020\0012\245\031\n\017ResourceS"
+  "ervice\022H\n\rGetAllActions\022\033.resource.GetAl"
+  "lActionsRqst\032\032.resource.GetAllActionsRsp"
+  "\022H\n\rValidateToken\022\033.resource.ValidateTok"
+  "enRqst\032\032.resource.ValidateTokenRsp\022E\n\014Re"
+  "freshToken\022\032.resource.RefreshTokenRqst\032\031"
+  ".resource.RefreshTokenRsp\022E\n\014Authenticat"
+  "e\022\032.resource.AuthenticateRqst\032\031.resource"
+  ".AuthenticateRsp\022N\n\017SynchronizeLdap\022\035.re"
+  "source.SynchronizeLdapRqst\032\034.resource.Sy"
+  "nchronizeLdapRsp\022W\n\022CreateOrganization\022 "
+  ".resource.CreateOrganizationRqst\032\037.resou"
+  "rce.CreateOrganizationRsp\022S\n\020GetOrganiza"
+  "tions\022\036.resource.GetOrganizationsRqst\032\035."
+  "resource.GetOrganizationsRsp0\001\022W\n\022Delete"
+  "Organization\022 .resource.DeleteOrganizati"
+  "onRqst\032\037.resource.DeleteOrganizationRsp\022"
+  "c\n\026AddOrganizationAccount\022$.resource.Add"
+  "OrganizationAccountRqst\032#.resource.AddOr"
+  "ganizationAccountRsp\022]\n\024AddOrganizationG"
+  "roup\022\".resource.AddOrganizationGroupRqst"
+  "\032!.resource.AddOrganizationGroupRsp\022Z\n\023A"
+  "ddOrganizationRole\022!.resource.AddOrganiz"
+  "ationRoleRqst\032 .resource.AddOrganization"
+  "RoleRsp\022o\n\032AddOrganizationApplication\022(."
+  "resource.AddOrganizationApplicationRqst\032"
+  "\'.resource.AddOrganizationApplicationRsp"
+  "\022l\n\031RemoveOrganizationAccount\022\'.resource"
+  ".RemoveOrganizationAccountRqst\032&.resourc"
+  "e.RemoveOrganizationAccountRsp\022f\n\027Remove"
+  "OrganizationGroup\022%.resource.RemoveOrgan"
+  "izationGroupRqst\032$.resource.RemoveOrgani"
+  "zationGroupRsp\022c\n\026RemoveOrganizationRole"
+  "\022$.resource.RemoveOrganizationRoleRqst\032#"
+  ".resource.RemoveOrganizationRoleRsp\022x\n\035R"
+  "emoveOrganizationApplication\022+.resource."
+  "RemoveOrganizationApplicationRqst\032*.reso"
+  "urce.RemoveOrganizationApplicationRsp\022B\n"
+  "\013CreateGroup\022\031.resource.CreateGroupRqst\032"
+  "\030.resource.CreateGroupRsp\022>\n\tGetGroups\022\027"
+  ".resource.GetGroupsRqst\032\026.resource.GetGr"
+  "oupsRsp0\001\022B\n\013DeleteGroup\022\031.resource.Dele"
+  "teGroupRqst\032\030.resource.DeleteGroupRsp\022`\n"
+  "\025AddGroupMemberAccount\022#.resource.AddGro"
+  "upMemberAccountRqst\032\".resource.AddGroupM"
+  "emberAccountRsp\022i\n\030RemoveGroupMemberAcco"
+  "unt\022&.resource.RemoveGroupMemberAccountR"
+  "qst\032%.resource.RemoveGroupMemberAccountR"
+  "sp\022N\n\017RegisterAccount\022\035.resource.Registe"
+  "rAccountRqst\032\034.resource.RegisterAccountR"
+  "sp\022H\n\rDeleteAccount\022\033.resource.DeleteAcc"
+  "ountRqst\032\032.resource.DeleteAccountRsp\022K\n\016"
+  "AddAccountRole\022\034.resource.AddAccountRole"
+  "Rqst\032\033.resource.AddAccountRoleRsp\022T\n\021Rem"
+  "oveAccountRole\022\037.resource.RemoveAccountR"
+  "oleRqst\032\036.resource.RemoveAccountRoleRsp\022"
+  "\?\n\nCreateRole\022\030.resource.CreateRoleRqst\032"
+  "\027.resource.CreateRoleRsp\022\?\n\nDeleteRole\022\030"
+  ".resource.DeleteRoleRqst\032\027.resource.Dele"
+  "teRoleRsp\022H\n\rAddRoleAction\022\033.resource.Ad"
+  "dRoleActionRqst\032\032.resource.AddRoleAction"
+  "Rsp\022Q\n\020RemoveRoleAction\022\036.resource.Remov"
+  "eRoleActionRqst\032\035.resource.RemoveRoleAct"
+  "ionRsp\022c\n\026GetAllApplicationsInfo\022$.resou"
+  "rce.GetAllApplicationsInfoRqst\032#.resourc"
+  "e.GetAllApplicationsInfoRsp\022T\n\021DeleteApp"
+  "lication\022\037.resource.DeleteApplicationRqs"
+  "t\032\036.resource.DeleteApplicationRsp\022]\n\024Add"
+  "ApplicationAction\022\".resource.AddApplicat"
+  "ionActionRqst\032!.resource.AddApplicationA"
+  "ctionRsp\022f\n\027RemoveApplicationAction\022%.re"
+  "source.RemoveApplicationActionRqst\032$.res"
+  "ource.RemoveApplicationActionRsp\022E\n\014Regi"
+  "sterPeer\022\032.resource.RegisterPeerRqst\032\031.r"
+  "esource.RegisterPeerRsp\022;\n\010GetPeers\022\026.re"
+  "source.GetPeersRqst\032\025.resource.GetPeersR"
+  "sp0\001\022\?\n\nDeletePeer\022\030.resource.DeletePeer"
+  "Rqst\032\027.resource.DeletePeerRsp\022H\n\rAddPeer"
+  "Action\022\033.resource.AddPeerActionRqst\032\032.re"
+  "source.AddPeerActionRsp\022Q\n\020RemovePeerAct"
+  "ion\022\036.resource.RemovePeerActionRqst\032\035.re"
+  "source.RemovePeerActionRsp2\357\t\n\013RbacServi"
+  "ce\022u\n\034SetActionResourcesPermission\022*.res"
+  "ource.SetActionResourcesPermissionRqst\032)"
+  ".resource.SetActionResourcesPermissionRs"
+  "p\022u\n\034GetActionResourcesPermission\022*.reso"
+  "urce.GetActionResourcesPermissionRqst\032)."
+  "resource.GetActionResourcesPermissionRsp"
+  "\022d\n\026SetResourcePermissions\022$.resource.Se"
+  "tResourcePermissionsRqst\032$.resource.SetR"
+  "esourcePermissionsRqst\022m\n\031DeleteResource"
+  "Permissions\022\'.resource.DeleteResourcePer"
+  "missionsRqst\032\'.resource.DeleteResourcePe"
+  "rmissionsRqst\022j\n\030DeleteResourcePermissio"
+  "n\022&.resource.DeleteResourcePermissionRqs"
+  "t\032&.resource.DeleteResourcePermissionRqs"
+  "t\022`\n\025SetResourcePermission\022#.resource.Se"
+  "tResourcePermissionRqst\032\".resource.SetRe"
+  "sourcePermissionRsp\022`\n\025GetResourcePermis"
+  "sion\022#.resource.GetResourcePermissionRqs"
+  "t\032\".resource.GetResourcePermissionRsp\022c\n"
+  "\026GetResourcePermissions\022$.resource.GetRe"
+  "sourcePermissionsRqst\032#.resource.GetReso"
+  "urcePermissionsRsp\022Q\n\020AddResourceOwner\022\036"
+  ".resource.AddResourceOwnerRqst\032\035.resourc"
+  "e.AddResourceOwnerRsp\022T\n\023RemoveResourceO"
+  "wner\022\036.resource.AddResourceOwnerRqst\032\035.r"
+  "esource.AddResourceOwnerRsp\022N\n\017DeleteAll"
+  "Access\022\035.resource.DeleteAllAccessRqst\032\034."
+  "resource.DeleteAllAccessRsp\022K\n\016ValidateA"
+  "ccess\022\034.resource.ValidateAccessRqst\032\033.re"
+  "source.ValidateAccessRsp\022B\n\013GetAccesses\022"
+  "\031.resource.GetAccessesRqst\032\030.resource.Ge"
+  "tAccessesRsp2\361\001\n\nLogService\022*\n\003Log\022\021.res"
+  "ource.LogRqst\032\020.resource.LogRsp\0225\n\006GetLo"
+  "g\022\024.resource.GetLogRqst\032\023.resource.GetLo"
+  "gRsp0\001\022<\n\tDeleteLog\022\027.resource.DeleteLog"
+  "Rqst\032\026.resource.DeleteLogRsp\022B\n\013ClearAll"
+  "Log\022\031.resource.ClearAllLogRqst\032\030.resourc"
+  "e.ClearAllLogRspB\025Z\023resource/resourcepbb"
+  "\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_resource_2eproto_deps[1] = {
 };
@@ -3932,7 +3937,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_resource_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_resource_2eproto = {
-  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 11752,
+  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 11807,
   &descriptor_table_resource_2eproto_once, descriptor_table_resource_2eproto_sccs, descriptor_table_resource_2eproto_deps, 130, 0,
   schemas, file_default_instances, TableStruct_resource_2eproto::offsets,
   file_level_metadata_resource_2eproto, 130, file_level_enum_descriptors_resource_2eproto, file_level_service_descriptors_resource_2eproto,
@@ -13857,14 +13862,20 @@ class Organization::_Internal {
 
 Organization::Organization(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  groups_(arena) {
+  accounts_(arena),
+  groups_(arena),
+  roles_(arena),
+  applications_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
   // @@protoc_insertion_point(arena_constructor:resource.Organization)
 }
 Organization::Organization(const Organization& from)
   : ::PROTOBUF_NAMESPACE_ID::Message(),
-      groups_(from.groups_) {
+      accounts_(from.accounts_),
+      groups_(from.groups_),
+      roles_(from.roles_),
+      applications_(from.applications_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   id_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_id().empty()) {
@@ -13918,7 +13929,10 @@ void Organization::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  accounts_.Clear();
   groups_.Clear();
+  roles_.Clear();
+  applications_.Clear();
   id_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   name_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
@@ -13950,9 +13964,23 @@ const char* Organization::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_I
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // repeated string groups = 3;
+      // repeated string accounts = 3;
       case 3:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            auto str = _internal_add_accounts();
+            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Organization.accounts"));
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<26>(ptr));
+        } else goto handle_unusual;
+        continue;
+      // repeated string groups = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 34)) {
           ptr -= 1;
           do {
             ptr += 1;
@@ -13961,7 +13989,35 @@ const char* Organization::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_I
             CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Organization.groups"));
             CHK_(ptr);
             if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<26>(ptr));
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<34>(ptr));
+        } else goto handle_unusual;
+        continue;
+      // repeated string roles = 5;
+      case 5:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 42)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            auto str = _internal_add_roles();
+            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Organization.roles"));
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<42>(ptr));
+        } else goto handle_unusual;
+        continue;
+      // repeated string applications = 6;
+      case 6:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 50)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            auto str = _internal_add_applications();
+            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Organization.applications"));
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<50>(ptr));
         } else goto handle_unusual;
         continue;
       default: {
@@ -14012,14 +14068,44 @@ failure:
         2, this->_internal_name(), target);
   }
 
-  // repeated string groups = 3;
+  // repeated string accounts = 3;
+  for (int i = 0, n = this->_internal_accounts_size(); i < n; i++) {
+    const auto& s = this->_internal_accounts(i);
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      s.data(), static_cast<int>(s.length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.Organization.accounts");
+    target = stream->WriteString(3, s, target);
+  }
+
+  // repeated string groups = 4;
   for (int i = 0, n = this->_internal_groups_size(); i < n; i++) {
     const auto& s = this->_internal_groups(i);
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       s.data(), static_cast<int>(s.length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
       "resource.Organization.groups");
-    target = stream->WriteString(3, s, target);
+    target = stream->WriteString(4, s, target);
+  }
+
+  // repeated string roles = 5;
+  for (int i = 0, n = this->_internal_roles_size(); i < n; i++) {
+    const auto& s = this->_internal_roles(i);
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      s.data(), static_cast<int>(s.length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.Organization.roles");
+    target = stream->WriteString(5, s, target);
+  }
+
+  // repeated string applications = 6;
+  for (int i = 0, n = this->_internal_applications_size(); i < n; i++) {
+    const auto& s = this->_internal_applications(i);
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      s.data(), static_cast<int>(s.length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.Organization.applications");
+    target = stream->WriteString(6, s, target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -14038,12 +14124,36 @@ size_t Organization::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // repeated string groups = 3;
+  // repeated string accounts = 3;
+  total_size += 1 *
+      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(accounts_.size());
+  for (int i = 0, n = accounts_.size(); i < n; i++) {
+    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+      accounts_.Get(i));
+  }
+
+  // repeated string groups = 4;
   total_size += 1 *
       ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(groups_.size());
   for (int i = 0, n = groups_.size(); i < n; i++) {
     total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
       groups_.Get(i));
+  }
+
+  // repeated string roles = 5;
+  total_size += 1 *
+      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(roles_.size());
+  for (int i = 0, n = roles_.size(); i < n; i++) {
+    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+      roles_.Get(i));
+  }
+
+  // repeated string applications = 6;
+  total_size += 1 *
+      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(applications_.size());
+  for (int i = 0, n = applications_.size(); i < n; i++) {
+    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+      applications_.Get(i));
   }
 
   // string id = 1;
@@ -14091,7 +14201,10 @@ void Organization::MergeFrom(const Organization& from) {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  accounts_.MergeFrom(from.accounts_);
   groups_.MergeFrom(from.groups_);
+  roles_.MergeFrom(from.roles_);
+  applications_.MergeFrom(from.applications_);
   if (from.id().size() > 0) {
     _internal_set_id(from._internal_id());
   }
@@ -14121,7 +14234,10 @@ bool Organization::IsInitialized() const {
 void Organization::InternalSwap(Organization* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  accounts_.InternalSwap(&other->accounts_);
   groups_.InternalSwap(&other->groups_);
+  roles_.InternalSwap(&other->roles_);
+  applications_.InternalSwap(&other->applications_);
   id_.Swap(&other->id_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   name_.Swap(&other->name_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }

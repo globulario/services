@@ -7424,11 +7424,38 @@ class Organization PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kGroupsFieldNumber = 3,
+    kAccountsFieldNumber = 3,
+    kGroupsFieldNumber = 4,
+    kRolesFieldNumber = 5,
+    kApplicationsFieldNumber = 6,
     kIdFieldNumber = 1,
     kNameFieldNumber = 2,
   };
-  // repeated string groups = 3;
+  // repeated string accounts = 3;
+  int accounts_size() const;
+  private:
+  int _internal_accounts_size() const;
+  public:
+  void clear_accounts();
+  const std::string& accounts(int index) const;
+  std::string* mutable_accounts(int index);
+  void set_accounts(int index, const std::string& value);
+  void set_accounts(int index, std::string&& value);
+  void set_accounts(int index, const char* value);
+  void set_accounts(int index, const char* value, size_t size);
+  std::string* add_accounts();
+  void add_accounts(const std::string& value);
+  void add_accounts(std::string&& value);
+  void add_accounts(const char* value);
+  void add_accounts(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& accounts() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_accounts();
+  private:
+  const std::string& _internal_accounts(int index) const;
+  std::string* _internal_add_accounts();
+  public:
+
+  // repeated string groups = 4;
   int groups_size() const;
   private:
   int _internal_groups_size() const;
@@ -7450,6 +7477,54 @@ class Organization PROTOBUF_FINAL :
   private:
   const std::string& _internal_groups(int index) const;
   std::string* _internal_add_groups();
+  public:
+
+  // repeated string roles = 5;
+  int roles_size() const;
+  private:
+  int _internal_roles_size() const;
+  public:
+  void clear_roles();
+  const std::string& roles(int index) const;
+  std::string* mutable_roles(int index);
+  void set_roles(int index, const std::string& value);
+  void set_roles(int index, std::string&& value);
+  void set_roles(int index, const char* value);
+  void set_roles(int index, const char* value, size_t size);
+  std::string* add_roles();
+  void add_roles(const std::string& value);
+  void add_roles(std::string&& value);
+  void add_roles(const char* value);
+  void add_roles(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& roles() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_roles();
+  private:
+  const std::string& _internal_roles(int index) const;
+  std::string* _internal_add_roles();
+  public:
+
+  // repeated string applications = 6;
+  int applications_size() const;
+  private:
+  int _internal_applications_size() const;
+  public:
+  void clear_applications();
+  const std::string& applications(int index) const;
+  std::string* mutable_applications(int index);
+  void set_applications(int index, const std::string& value);
+  void set_applications(int index, std::string&& value);
+  void set_applications(int index, const char* value);
+  void set_applications(int index, const char* value, size_t size);
+  std::string* add_applications();
+  void add_applications(const std::string& value);
+  void add_applications(std::string&& value);
+  void add_applications(const char* value);
+  void add_applications(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& applications() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_applications();
+  private:
+  const std::string& _internal_applications(int index) const;
+  std::string* _internal_add_applications();
   public:
 
   // string id = 1;
@@ -7491,7 +7566,10 @@ class Organization PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> accounts_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> groups_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> roles_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> applications_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr id_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
@@ -24186,7 +24264,81 @@ inline void Organization::set_allocated_name(std::string* name) {
   // @@protoc_insertion_point(field_set_allocated:resource.Organization.name)
 }
 
-// repeated string groups = 3;
+// repeated string accounts = 3;
+inline int Organization::_internal_accounts_size() const {
+  return accounts_.size();
+}
+inline int Organization::accounts_size() const {
+  return _internal_accounts_size();
+}
+inline void Organization::clear_accounts() {
+  accounts_.Clear();
+}
+inline std::string* Organization::add_accounts() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Organization.accounts)
+  return _internal_add_accounts();
+}
+inline const std::string& Organization::_internal_accounts(int index) const {
+  return accounts_.Get(index);
+}
+inline const std::string& Organization::accounts(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Organization.accounts)
+  return _internal_accounts(index);
+}
+inline std::string* Organization::mutable_accounts(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Organization.accounts)
+  return accounts_.Mutable(index);
+}
+inline void Organization::set_accounts(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Organization.accounts)
+  accounts_.Mutable(index)->assign(value);
+}
+inline void Organization::set_accounts(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Organization.accounts)
+  accounts_.Mutable(index)->assign(std::move(value));
+}
+inline void Organization::set_accounts(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  accounts_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Organization.accounts)
+}
+inline void Organization::set_accounts(int index, const char* value, size_t size) {
+  accounts_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Organization.accounts)
+}
+inline std::string* Organization::_internal_add_accounts() {
+  return accounts_.Add();
+}
+inline void Organization::add_accounts(const std::string& value) {
+  accounts_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Organization.accounts)
+}
+inline void Organization::add_accounts(std::string&& value) {
+  accounts_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Organization.accounts)
+}
+inline void Organization::add_accounts(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  accounts_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Organization.accounts)
+}
+inline void Organization::add_accounts(const char* value, size_t size) {
+  accounts_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Organization.accounts)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Organization::accounts() const {
+  // @@protoc_insertion_point(field_list:resource.Organization.accounts)
+  return accounts_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Organization::mutable_accounts() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Organization.accounts)
+  return &accounts_;
+}
+
+// repeated string groups = 4;
 inline int Organization::_internal_groups_size() const {
   return groups_.size();
 }
@@ -24258,6 +24410,154 @@ inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
 Organization::mutable_groups() {
   // @@protoc_insertion_point(field_mutable_list:resource.Organization.groups)
   return &groups_;
+}
+
+// repeated string roles = 5;
+inline int Organization::_internal_roles_size() const {
+  return roles_.size();
+}
+inline int Organization::roles_size() const {
+  return _internal_roles_size();
+}
+inline void Organization::clear_roles() {
+  roles_.Clear();
+}
+inline std::string* Organization::add_roles() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Organization.roles)
+  return _internal_add_roles();
+}
+inline const std::string& Organization::_internal_roles(int index) const {
+  return roles_.Get(index);
+}
+inline const std::string& Organization::roles(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Organization.roles)
+  return _internal_roles(index);
+}
+inline std::string* Organization::mutable_roles(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Organization.roles)
+  return roles_.Mutable(index);
+}
+inline void Organization::set_roles(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Organization.roles)
+  roles_.Mutable(index)->assign(value);
+}
+inline void Organization::set_roles(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Organization.roles)
+  roles_.Mutable(index)->assign(std::move(value));
+}
+inline void Organization::set_roles(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  roles_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Organization.roles)
+}
+inline void Organization::set_roles(int index, const char* value, size_t size) {
+  roles_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Organization.roles)
+}
+inline std::string* Organization::_internal_add_roles() {
+  return roles_.Add();
+}
+inline void Organization::add_roles(const std::string& value) {
+  roles_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Organization.roles)
+}
+inline void Organization::add_roles(std::string&& value) {
+  roles_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Organization.roles)
+}
+inline void Organization::add_roles(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  roles_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Organization.roles)
+}
+inline void Organization::add_roles(const char* value, size_t size) {
+  roles_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Organization.roles)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Organization::roles() const {
+  // @@protoc_insertion_point(field_list:resource.Organization.roles)
+  return roles_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Organization::mutable_roles() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Organization.roles)
+  return &roles_;
+}
+
+// repeated string applications = 6;
+inline int Organization::_internal_applications_size() const {
+  return applications_.size();
+}
+inline int Organization::applications_size() const {
+  return _internal_applications_size();
+}
+inline void Organization::clear_applications() {
+  applications_.Clear();
+}
+inline std::string* Organization::add_applications() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Organization.applications)
+  return _internal_add_applications();
+}
+inline const std::string& Organization::_internal_applications(int index) const {
+  return applications_.Get(index);
+}
+inline const std::string& Organization::applications(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Organization.applications)
+  return _internal_applications(index);
+}
+inline std::string* Organization::mutable_applications(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Organization.applications)
+  return applications_.Mutable(index);
+}
+inline void Organization::set_applications(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Organization.applications)
+  applications_.Mutable(index)->assign(value);
+}
+inline void Organization::set_applications(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Organization.applications)
+  applications_.Mutable(index)->assign(std::move(value));
+}
+inline void Organization::set_applications(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  applications_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Organization.applications)
+}
+inline void Organization::set_applications(int index, const char* value, size_t size) {
+  applications_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Organization.applications)
+}
+inline std::string* Organization::_internal_add_applications() {
+  return applications_.Add();
+}
+inline void Organization::add_applications(const std::string& value) {
+  applications_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Organization.applications)
+}
+inline void Organization::add_applications(std::string&& value) {
+  applications_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Organization.applications)
+}
+inline void Organization::add_applications(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  applications_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Organization.applications)
+}
+inline void Organization::add_applications(const char* value, size_t size) {
+  applications_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Organization.applications)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Organization::applications() const {
+  // @@protoc_insertion_point(field_list:resource.Organization.applications)
+  return applications_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Organization::mutable_applications() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Organization.applications)
+  return &applications_;
 }
 
 // -------------------------------------------------------------------

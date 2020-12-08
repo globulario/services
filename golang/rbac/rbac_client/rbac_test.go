@@ -23,45 +23,45 @@ func TestSetActionResourcesPermission(t *testing.T) {
 }
 
 func TestGetActionResourcesPermission(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestSetResourcePermissions(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestDeleteResourcePermissions(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestDeleteResourcePermission(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestSetResourcePermission(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestGetResourcePermission(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestAddResourceOwner(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestRemoveResourceOwner(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestDeleteAllAccess(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestValidateAccess(t *testing.T) {
-
+	t.FailNow()
 }
 
 func TestGetAccesses(t *testing.T) {
-
+	t.FailNow()
 }

@@ -237,7 +237,12 @@ message RemoveGroupMemberAccountRsp{
 message Organization {
 	string id = 1;
 	string name = 2; // must be unique on the network.
-	repeated string  groups=3; // can be empty...
+	
+	// Aggregations
+	repeated string  accounts=3;
+	repeated string  groups=4;
+	repeated string  roles=5;
+	repeated string  applications=6;
 }
 
 /**
