@@ -12,17 +12,17 @@ var (
 	client, _ = NewRbacService_Client("localhost", "resource.RbacService")
 )
 
-func TestSetActionResourcesPermission(t *testing.T) {
+func TestSetActionPermission(t *testing.T) {
 	action := ""
 	resources := make([]*resourcepb.ActionResourceParameterPermission, 0)
 
-	err := client.SetActionResourcesPermission(action, resources)
+	err := client.SetActionPermission(action, resources)
 	if err != nil {
 		log.Panicln("error ", err)
 	}
 }
 
-func TestGetActionResourcesPermission(t *testing.T) {
+func TestGetActionPermission(t *testing.T) {
 	t.FailNow()
 }
 
