@@ -21,18 +21,18 @@
   "KeyFile": "",
   "Keywords": [],
   "Name": "ldap.LdapService",
-  "Path": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/ldap/ldap_server/ldap_server.exe",
+  "Path": "/home/dave/go/src/github.com/globulario/Globular/services/globulario/ldap.LdapService/0.0.1/d9213adc-4c37-4ad1-a315-762c32c03468/ldap_server.exe",
   "Permissions": [],
   "Port": 10031,
-  "Process": 10024,
+  "Process": -1,
   "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/ldap.proto",
   "Protocol": "grpc",
   "Proxy": 10040,
-  "ProxyProcess": 22480,
+  "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
-  "State": "running",
+  "State": "stopped",
   "TLS": false,
   "Version": "0.0.1",
-  "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/ldap/ldap_server/config.json"
+  "configPath": "/home/dave/go/src/github.com/globulario/services/golang/ldap/ldap_server/config.json"
 }

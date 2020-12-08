@@ -23,8 +23,19 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
+/** Test create Organisation */
+func TestCreateOrganisation(t *testing.T) {
+	log.Println("---> test create organisation.")
+	err := client.CreateOrganization("globulario", "globulario")
+	if err != nil {
+		log.Println("---> create organization fail! ", err)
+	} else {
+		log.Println("successed create organisation globulario")
+	}
+}
+
 /** Test create account **/
-func TestRegisterAccount(t *testing.T) {
+func TestCreateAccount(t *testing.T) {
 	err := client.RegisterAccount("dave", "dave@globular.io", "1234", "1234")
 	if err != nil {
 		log.Println("---> create account fail! ", err)
@@ -34,7 +45,7 @@ func TestRegisterAccount(t *testing.T) {
 }
 
 /** Test create group **/
-func TestRegisterGroup(t *testing.T) {
+func TestCreateGroup(t *testing.T) {
 	err := client.CreateGroup("group_0", "group_0")
 	if err != nil {
 		log.Println("---> create group group_0 fail! ", err)
@@ -111,10 +122,9 @@ func TestAddAccountRole(t *testing.T) {
 	}
 }
 
-/*
 func TestRemoveAccountRole(t *testing.T) {
 	log.Println("---> Remove account Role ")
-	err := client.RemoveAccountRole("davecourtois", "db_user")
+	err := client.RemoveAccountRole("dave", "db_user")
 	if err != nil {
 		log.Println("---> ", err)
 	}
@@ -127,9 +137,8 @@ func TestDeleteRole(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-*/
+
 // Remove an account.
-/*
 func TestDeleteAccount(t *testing.T) {
 
 	log.Println("---> test remove existing account.")
@@ -139,14 +148,3 @@ func TestDeleteAccount(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-*/
-/** Get the root file informations **/
-/*func TestGetAllFilesInfo(t *testing.T) {
-	log.Println("---> Get All File Info")
-	infos, err := client.GetAllFilesInfo()
-	if err != nil {
-		log.Println("---> ", err)
-		return
-	}
-	log.Println(infos)
-}*/

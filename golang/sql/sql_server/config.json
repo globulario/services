@@ -64,18 +64,18 @@
   "KeyFile": "",
   "Keywords": [],
   "Name": "sql.SqlService",
-  "Path": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/sql/sql_server/sql_server.exe",
+  "Path": "/home/dave/go/src/github.com/globulario/Globular/services/globulario/sql.SqlService/0.0.1/475f1bbb-42ca-44a8-9bfd-b6db1fadf2d9/sql_server.exe",
   "Permissions": [],
   "Port": 10023,
-  "Process": 22272,
+  "Process": -1,
   "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/sql.proto",
   "Protocol": "grpc",
   "Proxy": 10038,
-  "ProxyProcess": 14144,
+  "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
-  "State": "running",
+  "State": "stopped",
   "TLS": false,
   "Version": "0.0.1",
-  "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/sql/sql_server/config.json"
+  "configPath": "/home/dave/go/src/github.com/globulario/services/golang/sql/sql_server/config.json"
 }

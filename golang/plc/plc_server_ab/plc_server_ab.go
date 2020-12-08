@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-
 	"errors"
 	"flag"
 	"io/ioutil"
@@ -11,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
+
 	"strings"
 
 	"github.com/globulario/Globular/Interceptors"
@@ -28,8 +29,6 @@ import (
 
 	"fmt"
 	"math"
-	"time"
-
 	"plctag"
 )
 
@@ -60,22 +59,16 @@ const (
 	UNKNOW_TAG_TYPE TagType = 7
 )
 
-type PortType int
-
-const (
-	SERIAL PortType = 4
-	TCP    PortType = 5
-)
-
 // Keep connection information here.
 type connection struct {
-	Id      string // The connection id
-	IP      string // can also be ipv4 addresse.
-	Port    PortType
-	Slot    int32
-	Rack    int32
-	Timeout int64         // Time out for reading/writing tags
-	Cpu     plcpb.CpuType // The cpu type
+	Id       string // The connection id
+	IP       string // can also be ipv4 addresse.
+	Port     plcpb.PortType
+	Slot     int32
+	Rack     int32
+	Timeout  int64         // Time out for reading/writing tags
+	Cpu      plcpb.CpuType // The cpu type
+	Protocol plcpb.ProtocolType
 
 	isOpen bool
 }
@@ -116,6 +109,10 @@ type server struct {
 
 	// use only for serialization.
 	Connections []connection
+
+	// The list of open tags.
+	paths map[string]string
+	tags  map[string]int32
 }
 
 // Create the configuration file if is not already exist.
@@ -385,6 +382,99 @@ func (self *server) Stop(context.Context, *plcpb.StopRequest) (*plcpb.StopRespon
 
 ////////////////// Now the API ////////////////
 
+func (self *server) getCpuType(cpuType plcpb.CpuType) string {
+	if cpuType == plcpb.CpuType_PLC {
+		return "PLC"
+	} else if cpuType == plcpb.CpuType_PLC5 {
+		return "PLC5"
+	} else if cpuType == plcpb.CpuType_SLC {
+		return "SLC"
+
+	} else if cpuType == plcpb.CpuType_SLC500 {
+		return "SLC500"
+
+	} else if cpuType == plcpb.CpuType_MICROLOGIX {
+		return "MICROLOGIX"
+
+	} else if cpuType == plcpb.CpuType_MLGX {
+		return "MLGX"
+
+	} else if cpuType == plcpb.CpuType_COMPACTLOGIX {
+		return "COMPACTLOGIX"
+
+	} else if cpuType == plcpb.CpuType_CLGX {
+		return "CLGX"
+
+	} else if cpuType == plcpb.CpuType_LGX {
+		return "LGX"
+
+	} else if cpuType == plcpb.CpuType_CONTROLLOGIX {
+		return "CONTROLLOGIX"
+
+	} else if cpuType == plcpb.CpuType_CONTROLOGIX {
+		return "CONTROLOGIX"
+
+	} else if cpuType == plcpb.CpuType_FLEXLOGIX {
+		return "FLEXLOGIX"
+
+	} else if cpuType == plcpb.CpuType_FLGX {
+		return "FLGX"
+	}
+
+	return ""
+}
+
+func (self *server) getPortType(portType plcpb.PortType) string {
+
+	if portType == plcpb.PortType_BACKPLANE {
+		return "1"
+	} else if portType == plcpb.PortType_NET_ETHERNET {
+		return "2"
+	} else if portType == plcpb.PortType_DH_PLUS_CHANNEL_A {
+		return "2"
+	} else if portType == plcpb.PortType_DH_PLUS_CHANNEL_B {
+		return "2"
+	} else if portType == plcpb.PortType_SERIAL {
+		return "3"
+	}
+
+	return ""
+}
+
+func (self *server) getProtocol(protocolType plcpb.ProtocolType) string {
+	if protocolType == plcpb.ProtocolType_AB_EIP {
+		return "ab_eip"
+	} else if protocolType == plcpb.ProtocolType_AB_CIP {
+		return "ab_cip"
+	}
+
+	return ""
+}
+
+func (self *server) getTypeSize(tagType plcpb.TagType) int32 {
+	if tagType == plcpb.TagType_SINT {
+		return 1
+	}
+
+	if tagType == plcpb.TagType_INT {
+		return 2
+	}
+
+	if tagType == plcpb.TagType_BOOL || tagType == plcpb.TagType_DINT || tagType == plcpb.TagType_REAL {
+		return 4
+	}
+
+	if tagType == plcpb.TagType_LINT || tagType == plcpb.TagType_LREAL {
+		return 8
+	}
+
+	return 0
+}
+
+func (self *server) getCpuPath(c connection) string {
+	return "protocol=" + self.getProtocol(c.Protocol) + "&gateway=" + c.IP + "&path=" + self.getPortType(c.Port) + "," + Utility.ToString(c.Slot) + "&cpu=" + self.getCpuType(c.Cpu)
+}
+
 // Create a new connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
 func (self *server) CreateConnection(ctx context.Context, rqst *plcpb.CreateConnectionRqst) (*plcpb.CreateConnectionRsp, error) {
@@ -396,7 +486,7 @@ func (self *server) CreateConnection(ctx context.Context, rqst *plcpb.CreateConn
 	c.Id = rqst.Connection.Id
 	c.IP = rqst.Connection.Ip
 	c.Rack = rqst.Connection.Rack
-	c.Port = PortType(rqst.Connection.PortType)
+	c.Port = rqst.Connection.PortType
 	c.Slot = rqst.Connection.Slot
 	c.Timeout = rqst.Connection.Timeout
 	c.Cpu = rqst.Connection.Cpu
@@ -423,7 +513,7 @@ func (self *server) CreateConnection(ctx context.Context, rqst *plcpb.CreateConn
 }
 
 func (self *server) getConnection(id string) (connection, error) {
-	exist := false
+
 	var c connection
 	for i := 0; i < len(self.Connections); i++ {
 		if self.Connections[i].Id == id {
@@ -470,6 +560,9 @@ func (self *server) DeleteConnection(ctx context.Context, rqst *plcpb.DeleteConn
 		}
 	}
 
+	// close the connection
+	self.closeConnection(id)
+
 	// In that case I will save it in file.
 	err = self.Save()
 	if err != nil {
@@ -484,17 +577,29 @@ func (self *server) DeleteConnection(ctx context.Context, rqst *plcpb.DeleteConn
 	}, nil
 }
 
+func (self *server) closeConnection(id string) {
+	// Here I will close all tags for that connection.
+	for tag, _ := range self.tags {
+		values := strings.Split(tag, ":")
+		if values[0] == id {
+			self.closeTag(values[0], values[1])
+		}
+	}
+
+}
+
 // Close a connection
 func (self *server) CloseConnection(ctx context.Context, rqst *plcpb.CloseConnectionRqst) (*plcpb.CloseConnectionRsp, error) {
 	id := rqst.ConnectionId
-	c, err := self.getConnection(id)
+	_, err := self.getConnection(id)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection with id "+id+" does not exist!")))
 	}
 
-	// TODO get the opend connection and delete it.
+	self.closeConnection(id)
 
 	return &plcpb.CloseConnectionRsp{
 		Result: true,
@@ -516,323 +621,214 @@ func (self *server) getTagTypeSize(tagType TagType) int {
 	return -1 // must not be taken.
 }
 
+// Open a tag and return the status.
+func (self *server) openTag(connectionId string, name string, tagType plcpb.TagType, elementCount int32) (int32, error) {
+
+	c, err := self.getConnection(connectionId)
+	if err != nil {
+		return 0, err
+	}
+
+	tagPath := self.getCpuPath(c) + "&elem_count=" + Utility.ToString(elementCount) + "&elem_size=" + Utility.ToString(self.getTypeSize(tagType)) + "&name=" + name
+	hasChange := true
+
+	// get the path
+	if p, ok := self.paths[connectionId+":"+name]; ok {
+		// The path exist
+		hasChange = tagPath != p
+	}
+
+	// If the tag path has change or no path exist.
+	if hasChange {
+		// Keep the path.
+		self.paths[connectionId+":"+name] = tagPath
+
+		// Create a connection for the tagPath.
+		tag := plctag.Create(tagPath, int(c.Timeout))
+		self.tags[tagPath] = tag
+
+		/* everything OK? */
+		if rc := plctag.Status(tag); rc != plctag.STATUS_OK {
+			err := errors.New("ERROR %s: Error setting up tag internal state. " + plctag.DecodeError(rc))
+			plctag.Destroy(tag)
+			delete(self.tags, tagPath)
+			log.Println("fail to open tag ", err)
+			return -1, err
+		}
+	}
+
+	return self.tags[tagPath], nil
+}
+
+func (self *server) closeTag(connectionId string, name string) {
+	if tag, ok := self.tags[connectionId+":"+name]; ok {
+
+		// Destroy the connection.
+		plctag.Destroy(tag)
+
+		// The path exist
+		delete(self.tags, connectionId+":"+name)
+	}
+}
+
 // Read Tag
 func (self *server) ReadTag(ctx context.Context, rqst *plcpb.ReadTagRqst) (*plcpb.ReadTagRsp, error) {
 
-	// first of all I will retreive the connection.
-	if c, ok := self.connections[rqst.ConnectionId]; ok {
-		if c.isOpen == false {
-			c.handler.Connect()
-			c.isOpen = true
-		}
-
-		tagType := TagType(int(rqst.Type))
-		size := self.getTagTypeSize(tagType)
-		if size == -1 {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No datatype size was found for tag "+rqst.Name)))
-		}
-
-		length := int(rqst.Length)
-		offset := int(rqst.Offset)
-		name := strings.ToUpper(rqst.Name)
-		number := Utility.ToInt(name[2:])
-
-		var err error
-		buf := make([]byte, size*length)
-
-		values := make([]interface{}, 0)
-
-		// Read the value from the buffer and return the response.
-		var s7 gos7.Helper
-
-		if strings.HasPrefix(name, "DB") {
-			//Read data blocks from PLC
-			if tagType == BOOL_TAG_TYPE {
-				// Here I read bits and not bytes, so I need to divide value by
-				// 8 bits.
-				size := int(math.Ceil(float64(length) / 8.0))
-				offset := int(offset / 8)
-				err = c.client.AGReadDB(number, offset, size+offset, buf)
-			} else {
-				err = c.client.AGReadDB(number, offset*size, size*length, buf)
-			}
-		} else if strings.HasPrefix(name, "MB") {
-			//Read Merkers area from PLC
-			err = c.client.AGReadMB(number, size*length, buf)
-
-		} else if strings.HasPrefix(name, "EB") {
-			//Read IPI from PLC
-			err = c.client.AGReadEB(number, size*length, buf)
-
-		} else if strings.HasPrefix(name, "AB") {
-			//Read IPU from PLC
-			err = c.client.AGReadAB(number, size*length, buf)
-
-		} else if strings.HasPrefix(name, "T") {
-			//Read timer from PLC
-			err = c.client.AGReadAB(number, size*length, buf)
-
-		} else if strings.HasPrefix(name, "C") {
-			//Read counter from PLC
-			err = c.client.AGReadCT(number, size*length, buf)
-
-		} else {
-			err = errors.New("No data type found for " + name)
-		}
-
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-		if strings.HasPrefix(name, "DB") || strings.HasPrefix(name, "MB") || strings.HasPrefix(name, "EB") || strings.HasPrefix(name, "AB") {
-			if tagType == BOOL_TAG_TYPE {
-				size := int(math.Ceil(float64(length) / 8.0))
-				var j = offset % 8 // start at ask offset by skipping complete group of 8 bit's
-				for i := 0; i < size; i++ {
-					for ; j < 8 && len(values) < length; j++ {
-						b := s7.GetBoolAt(buf[i], uint(j))
-						if b {
-							values = append(values, uint8(1))
-						} else {
-							values = append(values, uint8(0))
-						}
-					}
-					j = 0
-				}
-
-			} else {
-
-				for i := 0; i < length*size; i = i + size {
-					if tagType == SINT_TAG_TYPE {
-						if rqst.GetUnsigned() {
-							values = append(values, uint8(buf[i]))
-						} else {
-							values = append(values, int8(buf[i]))
-						}
-					} else if tagType == INT_TAG_TYPE {
-						if rqst.GetUnsigned() {
-							var result uint16
-							s7.GetValueAt(buf, i, &result)
-							values = append(values, result)
-						} else {
-							var result int16
-							s7.GetValueAt(buf, i, &result)
-							values = append(values, result)
-						}
-
-					} else if tagType == DINT_TAG_TYPE {
-						if rqst.GetUnsigned() {
-							var result uint32
-							s7.GetValueAt(buf, i, &result)
-							values = append(values, result)
-						} else {
-							var result int32
-							s7.GetValueAt(buf, i, &result)
-							values = append(values, result)
-						}
-					} else if tagType == LINT_TAG_TYPE {
-						if rqst.GetUnsigned() {
-							var result uint64
-							s7.GetValueAt(buf, i, &result)
-							values = append(values, result)
-						} else {
-							var result int64
-							s7.GetValueAt(buf, i, &result)
-							values = append(values, result)
-						}
-					} else if tagType == REAL_TAG_TYPE {
-						values = append(values, s7.GetRealAt(buf, i))
-					} else if tagType == LREAL_TAG_TYPE {
-						values = append(values, s7.GetLRealAt(buf, i))
-					} else {
-						return nil, status.Errorf(
-							codes.Internal,
-							Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Tag type not found!")))
-					}
-				}
-			}
-		} else if strings.HasPrefix(name, "C") {
-			fmt.Println("---> CT not implemented!")
-			//Read counter from PLC
-			/*for i := 0; i < length*size; i = i + size {
-				s7.GetCounterAt(buf, i)
-			}*/
-
-		} else if strings.HasPrefix(name, "T") {
-			for i := 0; i < length*size; i = i + size {
-				t := s7.GetDateTimeAt(buf, i)
-				values = append(values, t.Unix())
-			}
-		}
-
-		// return the values as string.
-		jsonStr, _ := Utility.ToJson(values)
-		return &plcpb.ReadTagRsp{
-			Values: jsonStr,
-		}, nil
-
-	} else {
+	id := rqst.GetConnectionId()
+	c, err := self.getConnection(id)
+	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No connection found with id "+rqst.ConnectionId)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection with id "+id+" does not exist!")))
 	}
 
+	values := make([]interface{}, 0)
+
+	offset := rqst.Offset
+	length := rqst.Length
+	size := offset + length
+	if rqst.Type == plcpb.TagType_BOOL {
+		size = int32(math.Ceil(float64(size) / 32.0))
+	}
+
+	tag, err := self.openTag(id, rqst.Name, rqst.Type, size)
+
+	if rc := plctag.Read(tag, int(c.Timeout)); rc != plctag.STATUS_OK {
+		err := errors.New("ERROR %s: Error setting up tag internal state. " + plctag.DecodeError(rc))
+		plctag.Destroy(tag)
+		log.Println(err)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	time.Sleep(time.Millisecond * time.Duration(250))
+
+	// Keep the tag for further use.
+	self.tags[id+":"+rqst.Name] = tag
+
+	// Read the tag.
+	for i := offset; i < offset+length; i++ {
+		index := int(i * self.getTypeSize(rqst.Type))
+
+		if rqst.Type == plcpb.TagType_BOOL {
+			values = append(values, plctag.GetUint8(tag, index))
+		} else if rqst.Type == plcpb.TagType_DINT {
+
+			if rqst.Unsigned {
+				values = append(values, plctag.GetUint32(tag, index))
+			} else {
+				values = append(values, plctag.GetInt32(tag, index))
+			}
+
+		} else if rqst.Type == plcpb.TagType_INT {
+			if rqst.Unsigned {
+				values = append(values, plctag.GetUint16(tag, index))
+			} else {
+				values = append(values, plctag.GetInt16(tag, index))
+			}
+		} else if rqst.Type == plcpb.TagType_SINT {
+			if rqst.Unsigned {
+				values = append(values, plctag.GetUint8(tag, index))
+			} else {
+				values = append(values, plctag.GetInt8(tag, index))
+			}
+		} else if rqst.Type == plcpb.TagType_LINT {
+			if rqst.Unsigned {
+				values = append(values, plctag.GetUint64(tag, index))
+			} else {
+				values = append(values, plctag.GetInt64(tag, index))
+			}
+		} else if rqst.Type == plcpb.TagType_REAL {
+			values = append(values, plctag.GetFloat32(tag, index))
+		} else if rqst.Type == plcpb.TagType_LREAL {
+			values = append(values, plctag.GetFloat64(tag, index))
+		}
+	}
+
+	// return the values as string.
+	jsonStr, _ := Utility.ToJson(values)
+	return &plcpb.ReadTagRsp{
+		Values: jsonStr,
+	}, nil
 }
 
 // Write Tag
 func (self *server) WriteTag(ctx context.Context, rqst *plcpb.WriteTagRqst) (*plcpb.WriteTagRsp, error) {
 
-	// first of all I will retreive the connection.
-	if c, ok := self.connections[rqst.ConnectionId]; ok {
-
-		if c.isOpen == false {
-			c.handler.Connect()
-			c.isOpen = true
-		}
-		tagType := TagType(int(rqst.Type))
-		size := self.getTagTypeSize(tagType)
-		if size == -1 {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No datatype size was found for tag "+rqst.Name)))
-		}
-
-		offset := int(rqst.Offset)
-		length := int(rqst.Length)
-		name := strings.ToUpper(rqst.Name)
-		number := Utility.ToInt(name[2:])
-
-		var err error
-		var buf []byte
-		if tagType == BOOL_TAG_TYPE {
-			// The length given in parameter reprente the bit's here and not
-			// the byte's so I must divide by 8 (the lengt of Byte's in Bit's)
-			size := int(math.Ceil(float64(length) / 8.0))
-			if offset%8 != 0 {
-				size++
-			}
-			buf = make([]byte, size)
-
-			offset := int(offset / 8)
-			// Init the buffer with actual values.
-			err = c.client.AGReadDB(number, offset, size, buf)
-		} else {
-			buf = make([]byte, size*length) // large enought buffer allocated.
-		}
-		var helper gos7.Helper
-
-		values := make([]interface{}, 0)
-		json.Unmarshal([]byte(rqst.Values), &values)
-
-		// Convert the receive string value and write it to the buffer.
-		if tagType == BOOL_TAG_TYPE {
-			// each value represent a bit.
-			offset_ := offset % 8 // the actual bit offset in the buffer.
-			//fmt.Println("511 bool buffer length is ", len(buf), "values length is ", len(values))
-
-			for i := 0; i < len(values); i++ {
-				index := offset_ + i     // the bit index in the array of bits...
-				index_ := int(index / 8) // The index in the buffer.
-				//fmt.Println("516 write bit ", index, " of bytes ", index_, " with value ", values[i])
-				if Utility.ToInt(values[i]) == 1 {
-					buf[index_] = helper.SetBoolAt(buf[index_], uint(index%8), true)
-				} else {
-					buf[index_] = helper.SetBoolAt(buf[index_], uint(index%8), false)
-				}
-			}
-		} else {
-			index := 0
-			for i := 0; i < length*size; i = i + size {
-				if index < len(values) {
-					value := values[index]
-					index++
-					if strings.HasPrefix(name, "DB") || strings.HasPrefix(name, "MB") || strings.HasPrefix(name, "EB") || strings.HasPrefix(name, "AB") {
-						if tagType == SINT_TAG_TYPE {
-							if rqst.Unsigned {
-								buf[i] = byte(uint8(Utility.ToInt(value)))
-							} else {
-								buf[i] = byte(int8(Utility.ToInt(value)))
-							}
-						} else if tagType == INT_TAG_TYPE {
-							val := Utility.ToInt(value)
-							if rqst.Unsigned {
-								helper.SetValueAt(buf, i, uint16(val))
-							} else {
-								helper.SetValueAt(buf, i, int16(val))
-							}
-						} else if tagType == DINT_TAG_TYPE {
-							val := Utility.ToInt(value)
-							if rqst.Unsigned {
-								helper.SetValueAt(buf, i, uint32(val))
-							} else {
-								helper.SetValueAt(buf, i, int32(val))
-							}
-						} else if tagType == LINT_TAG_TYPE {
-							val := Utility.ToInt(value)
-							if rqst.Unsigned {
-								helper.SetValueAt(buf, i, uint64(val))
-							} else {
-								helper.SetValueAt(buf, i, int64(val))
-							}
-						} else if tagType == REAL_TAG_TYPE {
-							val := Utility.ToNumeric(value)
-							helper.SetRealAt(buf, i, float32(val))
-						} else if tagType == LREAL_TAG_TYPE {
-							val := Utility.ToNumeric(value)
-							helper.SetLRealAt(buf, i, float64(val))
-						} else {
-							return nil, status.Errorf(
-								codes.Internal,
-								Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Tag type not found!")))
-						}
-					} else if strings.HasPrefix(name, "T") {
-
-						// The values must be a unix time.
-						helper.SetDateTimeAt(buf, i, time.Unix(int64(value.(float64)), 0))
-					} else if strings.HasPrefix(name, "C") {
-						fmt.Println("---> CT not implemented!")
-
-						//helper.SetCounterAt()
-					}
-				}
-			}
-		}
-
-		// write the value to the plc.
-		if strings.HasPrefix(name, "DB") || strings.HasPrefix(name, "MB") || strings.HasPrefix(name, "EB") || strings.HasPrefix(name, "AB") {
-			//Write data blocks from PLC
-			if tagType == BOOL_TAG_TYPE {
-				// recalculate values for boolean...
-				offset := int(offset / 8)
-				err = c.client.AGWriteDB(number, offset, len(buf), buf)
-			} else {
-				err = c.client.AGWriteDB(number, offset, size*length, buf)
-			}
-			if err != nil {
-				fmt.Println("line 575: write value: at address ", number, "offset", offset, "size", size*length, " buffer size ", len(buf))
-				fmt.Println("line 576: error ", err)
-			}
-		} else if strings.HasPrefix(name, "T") {
-			//Write timer from PLC
-			err = c.client.AGWriteTM(number, size*length, buf)
-		} else if strings.HasPrefix(name, "C") {
-			//Write counter from PLC
-			err = c.client.AGWriteCT(number, size*length, buf)
-		}
-
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-	} else {
+	id := rqst.GetConnectionId()
+	c, err := self.getConnection(id)
+	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No connection found with id "+rqst.ConnectionId)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection with id "+id+" does not exist!")))
+	}
+
+	offset := rqst.Offset
+	length := rqst.Length
+	size := offset + length
+
+	if rqst.Type == plcpb.TagType_BOOL {
+		size = int32(math.Ceil(float64(size) / 32.0))
+	}
+
+	tag, err := self.openTag(id, rqst.Name, rqst.Type, size)
+	if rc := plctag.Write(tag, int(c.Timeout)); rc != plctag.STATUS_OK {
+		err := errors.New("ERROR %s: Error setting up tag internal state. " + plctag.DecodeError(rc))
+		plctag.Destroy(tag)
+		log.Println(err)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Get the values to write into the plc.
+	values := make([]interface{}, 0)
+	json.Unmarshal([]byte(rqst.Values), &values)
+
+	// Read the tag.
+	i := offset
+	j := 0
+	for i < offset+length {
+		index := int(i * self.getTypeSize(rqst.Type))
+		v := values[j]
+
+		if rqst.Type == plcpb.TagType_BOOL {
+			plctag.SetUint8(tag, index, uint8(Utility.ToInt(v)))
+		} else if rqst.Type == plcpb.TagType_DINT {
+
+			if rqst.Unsigned {
+				plctag.SetUint32(tag, index, uint32(Utility.ToInt(v)))
+			} else {
+				plctag.SetInt32(tag, index, int32(Utility.ToInt(v)))
+			}
+
+		} else if rqst.Type == plcpb.TagType_INT {
+			if rqst.Unsigned {
+				plctag.SetUint16(tag, index, uint16(Utility.ToInt(v)))
+			} else {
+				plctag.SetInt16(tag, index, int16(Utility.ToInt(v)))
+			}
+		} else if rqst.Type == plcpb.TagType_SINT {
+			if rqst.Unsigned {
+				plctag.SetUint8(tag, index, uint8(Utility.ToInt(v)))
+			} else {
+				plctag.SetInt8(tag, index, int8(Utility.ToInt(v)))
+			}
+		} else if rqst.Type == plcpb.TagType_LINT {
+			if rqst.Unsigned {
+				plctag.SetUint64(tag, index, uint64(Utility.ToInt(v)))
+			} else {
+				plctag.SetInt64(tag, index, int64(Utility.ToInt(v)))
+			}
+		} else if rqst.Type == plcpb.TagType_REAL {
+			plctag.SetFloat32(tag, index, float32(Utility.ToNumeric(v)))
+		} else if rqst.Type == plcpb.TagType_LREAL {
+			plctag.SetFloat64(tag, index, Utility.ToNumeric(v))
+		}
+
+		j++
+		i++
 	}
 
 	return &plcpb.WriteTagRsp{
@@ -843,12 +839,6 @@ func (self *server) WriteTag(ctx context.Context, rqst *plcpb.WriteTagRqst) (*pl
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
-	// set the logger.
-	//grpclog.SetLogger(log.New(os.Stdout, "plc_service: ", log.LstdFlags))
-
-	// Set the log information in case of crash...
-	//log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// The actual server implementation.
 	s_impl := new(server)
@@ -861,11 +851,14 @@ func main() {
 	s_impl.PublisherId = "localhost"
 	s_impl.Version = "0.0.1"
 	s_impl.Connections = make([]connection, 0)
-	s_impl.connections = make(map[string]*connection)
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+
+	// The list of paths.
+	s_impl.tags = make(map[string]int32, 0)
+	s_impl.paths = make(map[string]string, 0)
 
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins

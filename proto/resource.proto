@@ -372,6 +372,78 @@ message RemovePeerActionRsp{
 	bool result = 1;
 }
 
+message AddOrganizationAccountRqst{
+	string organizationId = 1;
+	string accountId = 2;
+}
+
+message AddOrganizationAccountRsp{
+	bool result = 1;
+}
+
+message AddOrganizationGroupRqst{
+	string organizationId = 1;
+	string groupId = 2;
+}
+
+message AddOrganizationGroupRsp{
+	bool result = 1;
+}
+
+message AddOrganizationRoleRqst{
+	string organizationId = 1;
+	string roleId = 2;
+}
+
+message AddOrganizationRoleRsp{
+	bool result = 1;
+}
+
+message AddOrganizationApplicationRqst{
+	string organizationId = 1;
+	string applicationId = 2;
+}
+
+message AddOrganizationApplicationRsp{
+	bool result = 1;
+}
+
+message RemoveOrganizationGroupRqst{
+	string organizationId = 1;
+	string groupId = 2;
+}
+
+message RemoveOrganizationGroupRsp{
+	bool result = 1;
+}
+
+message RemoveOrganizationRoleRqst{
+	string organizationId = 1;
+	string roleId = 2;
+}
+
+message RemoveOrganizationRoleRsp{
+	bool result = 1;
+}
+
+message RemoveOrganizationApplicationRqst{
+	string organizationId = 1;
+	string applicationId = 2;
+}
+
+message RemoveOrganizationApplicationRsp{
+	bool result = 1;
+}
+
+message RemoveOrganizationAccountRqst{
+	string organizationId = 1;
+	string accountId = 2;
+}
+
+message RemoveOrganizationAccountRsp{
+	bool result = 1;
+}
+
 /**
  * That service is use to manage Globular resource like permissions and accounts
  * or role. The service made use of Persistence service to store various 
@@ -413,8 +485,32 @@ service ResourceService {
 	/** Return the list of organizations */
 	rpc GetOrganizations(GetOrganizationsRqst) returns(stream GetOrganizationsRsp);
 
-	/** Delete organization */
+	/** Delete Organization */
 	rpc DeleteOrganization(DeleteOrganizationRqst) returns (DeleteOrganizationRsp);
+	
+	/** Add Account **/
+	rpc AddOrganizationAccount(AddOrganizationAccountRqst) returns (AddOrganizationAccountRsp);
+	
+	/** Add Group **/
+	rpc AddOrganizationGroup(AddOrganizationGroupRqst) returns (AddOrganizationGroupRsp);
+	
+	/** Add Role **/
+	rpc AddOrganizationRole(AddOrganizationRoleRqst) returns (AddOrganizationRoleRsp);
+	
+	/** Add Application **/
+	rpc AddOrganizationApplication(AddOrganizationApplicationRqst) returns (AddOrganizationApplicationRsp);
+	
+	/** Remove Account **/
+	rpc RemoveOrganizationAccount(RemoveOrganizationAccountRqst) returns (RemoveOrganizationAccountRsp);
+	
+	/** Remove Group **/
+	rpc RemoveOrganizationGroup(RemoveOrganizationGroupRqst) returns (RemoveOrganizationGroupRsp);
+	
+	/** Remove Role **/
+	rpc RemoveOrganizationRole(RemoveOrganizationRoleRqst) returns (RemoveOrganizationRoleRsp);
+	
+	/** Remove Application **/
+	rpc RemoveOrganizationApplication(RemoveOrganizationApplicationRqst) returns (RemoveOrganizationApplicationRsp);
 	
 	////////////////////////////////////////////////////////////////////////////
 	// Group's

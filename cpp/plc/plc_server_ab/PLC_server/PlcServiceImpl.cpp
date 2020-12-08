@@ -352,6 +352,7 @@ std::string PlcServiceImpl::GetCpuPath(Connection connection)
 	// Create the path.
 	std::string path = this->GetCpuPath(connectionIt->second);
 	std::string tagPath = path + "&elem_count=" + std::to_string(elementCount) + "&elem_size=" + std::to_string(this->GetTypeSize(type)) + "&name=" + name;
+    std::cout << tagPath << std::endl;
 
 	// test if the path has change if it does I need to re-open the tag before reading it.
 	std::map<std::string, std::string>::const_iterator pathIt = this->paths.find(connectionId + ":" + name);

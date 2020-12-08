@@ -217,6 +217,26 @@ func (self *Resource_Client) RefreshToken(token string) (string, error) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Organisation
+////////////////////////////////////////////////////////////////////////////////
+
+// Create a new Organization
+func (self *Resource_Client) CreateOrganization(id string, name string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.CreateOrganizationRqst{
+		Organization: &resourcepb.Organization{
+			Id:   id,
+			Name: name,
+		},
+	}
+
+	_, err := self.c.CreateOrganization(globular.GetClientContext(self), rqst)
+	return err
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Account
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,11 +253,7 @@ func (self *Resource_Client) RegisterAccount(name string, email string, password
 	}
 
 	_, err := self.c.RegisterAccount(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // Delete an account.

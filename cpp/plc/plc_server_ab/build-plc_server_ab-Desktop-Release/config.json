@@ -9,16 +9,16 @@
   "KeepUpToDate": false,
   "KeyFile": "",
   "Name": "plc.PlcService",
-  "Path": "C:/Users/mm006819/go/src/github.com/globulario/Globular/services/localhost/plc.PlcService/0.0.1/plc_server_ab/plc_server_ab",
-  "Port": 10015,
-  "Process": -1,
+  "Path": "/home/dave/go/src/github.com/globulario/services/cpp/plc/plc_server_ab/build-plc_server_ab-Desktop-Release/plc_server_ab",
+  "Port": 10022,
+  "Process": 123681,
   "Proto": "/home/dave/go/src/github.com/globulario/services/proto/plc.proto",
   "Protocol": "grpc",
-  "Proxy": 10020,
-  "ProxyProcess": -1,
+  "Proxy": 10033,
+  "ProxyProcess": 123682,
   "PublisherId": "localhost",
-  "State": "stopped",
+  "State": "running",
   "TLS": false,
   "Version": "0.0.1",
-  "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/cpp/plc/plc_server_ab/build-plc_server_ab-Desktop-Release/config.json"
+  "configPath": "/home/dave/go/src/github.com/globulario/services/cpp/plc/plc_server_ab/build-plc_server_ab-Desktop-Release/config.json"
 }
