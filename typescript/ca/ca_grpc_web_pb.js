@@ -138,7 +138,7 @@ proto.ca.CertificateAuthorityClient.prototype.signCertificate =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ca.SignCertificateResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.ca.CertificateAuthorityPromiseClient.prototype.signCertificate =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.ca.CertificateAuthorityClient.prototype.getCaCertificate =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ca.GetCaCertificateResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.ca.CertificateAuthorityPromiseClient.prototype.getCaCertificate =
     function(request, metadata) {

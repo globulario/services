@@ -6,134 +6,134 @@
   "Description": "",
   "Discoveries": [],
   "Domain": "localhost",
-  "Id": "8f600993-a062-4e4a-824d-5d6648ea041f",
+  "Id": "45794eef-d09f-4ced-846c-45c1af9e1573",
   "KeepAlive": false,
   "KeepUpToDate": false,
   "KeyFile": "",
   "Keywords": [],
   "Name": "file.FileService",
-  "Path": "/home/dave/go/src/github.com/globulario/services/golang/file/file_server/file_server",
+  "Path": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/file/file_server/file_server.exe",
   "Permissions": [
     {
       "action": "/file.FileService/ReadDir",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "read"
+          "Index": 0,
+          "Permission": 4
         }
       ]
     },
     {
       "action": "/file.FileService/CreateDir",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "write"
+          "Index": 0,
+          "Permission": 2
         }
       ]
     },
     {
       "action": "/file.FileService/DeleteDir",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "delete"
+          "Index": 0,
+          "Permission": 1
         }
       ]
     },
     {
       "action": "/file.FileService/Rename",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "write"
+          "Index": 0,
+          "Permission": 2
         }
       ]
     },
     {
       "action": "/file.FileService/GetFileInfo",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "read"
+          "Index": 0,
+          "Permission": 4
         }
       ]
     },
     {
       "action": "/file.FileService/ReadFile",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "read"
+          "Index": 0,
+          "Permission": 4
         }
       ]
     },
     {
       "action": "/file.FileService/SaveFile",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "write"
+          "Index": 0,
+          "Permission": 2
         }
       ]
     },
     {
       "action": "/file.FileService/DeleteFile",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "delete"
+          "Index": 0,
+          "Permission": 1
         }
       ]
     },
     {
       "action": "/file.FileService/GetThumbnails",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "read"
+          "Index": 0,
+          "Permission": 4
         }
       ]
     },
     {
       "action": "/file.FileService/WriteExcelFile",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "write"
+          "Index": 0,
+          "Permission": 2
         }
       ]
     },
     {
       "action": "/file.FileService/CreateAchive",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "write"
+          "Index": 0,
+          "Permission": 2
         }
       ]
     },
     {
       "action": "/file.FileService/FileUploadHandler",
-      "resources": [
+      "actionParameterResourcePermissions": [
         {
-          "index": 0,
-          "permission": "delete"
+          "Index": 0,
+          "Permission": 1
         }
       ]
     }
   ],
-  "Port": 10044,
-  "Process": 123652,
-  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/file.proto",
+  "Port": 10034,
+  "Process": 20388,
+  "Proto": "C:/Users/mm006819/go/src/github.com/globulario/services/proto/file.proto",
   "Protocol": "grpc",
-  "Proxy": 10029,
-  "ProxyProcess": 123653,
+  "Proxy": 10026,
+  "ProxyProcess": 22268,
   "PublisherId": "globulario",
   "Repositories": [],
-  "Root": "/home/dave/go/src/github.com/globulario/Globular/webroot",
+  "Root": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\Globular\\webroot",
   "State": "running",
   "TLS": false,
   "Version": "0.0.1",
-  "configPath": "/home/dave/go/src/github.com/globulario/services/golang/file/file_server/config.json"
+  "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/file/file_server/config.json"
 }

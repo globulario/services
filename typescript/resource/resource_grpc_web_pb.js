@@ -708,6 +708,646 @@ proto.resource.ResourceServicePromiseClient.prototype.deleteOrganization =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.AddOrganizationAccountRqst,
+ *   !proto.resource.AddOrganizationAccountRsp>}
+ */
+const methodDescriptor_ResourceService_AddOrganizationAccount = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/AddOrganizationAccount',
+  grpc.web.MethodType.UNARY,
+  proto.resource.AddOrganizationAccountRqst,
+  proto.resource.AddOrganizationAccountRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationAccountRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationAccountRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.AddOrganizationAccountRqst,
+ *   !proto.resource.AddOrganizationAccountRsp>}
+ */
+const methodInfo_ResourceService_AddOrganizationAccount = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.AddOrganizationAccountRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationAccountRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationAccountRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.AddOrganizationAccountRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.AddOrganizationAccountRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.AddOrganizationAccountRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.addOrganizationAccount =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationAccount',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationAccount,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.AddOrganizationAccountRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.AddOrganizationAccountRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.addOrganizationAccount =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationAccount',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationAccount);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.AddOrganizationGroupRqst,
+ *   !proto.resource.AddOrganizationGroupRsp>}
+ */
+const methodDescriptor_ResourceService_AddOrganizationGroup = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/AddOrganizationGroup',
+  grpc.web.MethodType.UNARY,
+  proto.resource.AddOrganizationGroupRqst,
+  proto.resource.AddOrganizationGroupRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationGroupRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationGroupRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.AddOrganizationGroupRqst,
+ *   !proto.resource.AddOrganizationGroupRsp>}
+ */
+const methodInfo_ResourceService_AddOrganizationGroup = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.AddOrganizationGroupRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationGroupRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationGroupRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.AddOrganizationGroupRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.AddOrganizationGroupRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.AddOrganizationGroupRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.addOrganizationGroup =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationGroup',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationGroup,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.AddOrganizationGroupRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.AddOrganizationGroupRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.addOrganizationGroup =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationGroup',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationGroup);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.AddOrganizationRoleRqst,
+ *   !proto.resource.AddOrganizationRoleRsp>}
+ */
+const methodDescriptor_ResourceService_AddOrganizationRole = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/AddOrganizationRole',
+  grpc.web.MethodType.UNARY,
+  proto.resource.AddOrganizationRoleRqst,
+  proto.resource.AddOrganizationRoleRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationRoleRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationRoleRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.AddOrganizationRoleRqst,
+ *   !proto.resource.AddOrganizationRoleRsp>}
+ */
+const methodInfo_ResourceService_AddOrganizationRole = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.AddOrganizationRoleRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationRoleRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationRoleRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.AddOrganizationRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.AddOrganizationRoleRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.AddOrganizationRoleRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.addOrganizationRole =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationRole,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.AddOrganizationRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.AddOrganizationRoleRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.addOrganizationRole =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationRole);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.AddOrganizationApplicationRqst,
+ *   !proto.resource.AddOrganizationApplicationRsp>}
+ */
+const methodDescriptor_ResourceService_AddOrganizationApplication = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/AddOrganizationApplication',
+  grpc.web.MethodType.UNARY,
+  proto.resource.AddOrganizationApplicationRqst,
+  proto.resource.AddOrganizationApplicationRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationApplicationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationApplicationRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.AddOrganizationApplicationRqst,
+ *   !proto.resource.AddOrganizationApplicationRsp>}
+ */
+const methodInfo_ResourceService_AddOrganizationApplication = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.AddOrganizationApplicationRsp,
+  /**
+   * @param {!proto.resource.AddOrganizationApplicationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddOrganizationApplicationRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.AddOrganizationApplicationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.AddOrganizationApplicationRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.AddOrganizationApplicationRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.addOrganizationApplication =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationApplication',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationApplication,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.AddOrganizationApplicationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.AddOrganizationApplicationRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.addOrganizationApplication =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/AddOrganizationApplication',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddOrganizationApplication);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.RemoveOrganizationAccountRqst,
+ *   !proto.resource.RemoveOrganizationAccountRsp>}
+ */
+const methodDescriptor_ResourceService_RemoveOrganizationAccount = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/RemoveOrganizationAccount',
+  grpc.web.MethodType.UNARY,
+  proto.resource.RemoveOrganizationAccountRqst,
+  proto.resource.RemoveOrganizationAccountRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationAccountRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationAccountRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.RemoveOrganizationAccountRqst,
+ *   !proto.resource.RemoveOrganizationAccountRsp>}
+ */
+const methodInfo_ResourceService_RemoveOrganizationAccount = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.RemoveOrganizationAccountRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationAccountRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationAccountRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationAccountRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.RemoveOrganizationAccountRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.RemoveOrganizationAccountRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.removeOrganizationAccount =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationAccount',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationAccount,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationAccountRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.RemoveOrganizationAccountRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationAccount =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationAccount',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationAccount);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.RemoveOrganizationGroupRqst,
+ *   !proto.resource.RemoveOrganizationGroupRsp>}
+ */
+const methodDescriptor_ResourceService_RemoveOrganizationGroup = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/RemoveOrganizationGroup',
+  grpc.web.MethodType.UNARY,
+  proto.resource.RemoveOrganizationGroupRqst,
+  proto.resource.RemoveOrganizationGroupRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationGroupRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationGroupRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.RemoveOrganizationGroupRqst,
+ *   !proto.resource.RemoveOrganizationGroupRsp>}
+ */
+const methodInfo_ResourceService_RemoveOrganizationGroup = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.RemoveOrganizationGroupRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationGroupRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationGroupRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationGroupRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.RemoveOrganizationGroupRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.RemoveOrganizationGroupRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.removeOrganizationGroup =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationGroup',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationGroup,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationGroupRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.RemoveOrganizationGroupRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationGroup =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationGroup',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationGroup);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.RemoveOrganizationRoleRqst,
+ *   !proto.resource.RemoveOrganizationRoleRsp>}
+ */
+const methodDescriptor_ResourceService_RemoveOrganizationRole = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/RemoveOrganizationRole',
+  grpc.web.MethodType.UNARY,
+  proto.resource.RemoveOrganizationRoleRqst,
+  proto.resource.RemoveOrganizationRoleRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationRoleRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationRoleRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.RemoveOrganizationRoleRqst,
+ *   !proto.resource.RemoveOrganizationRoleRsp>}
+ */
+const methodInfo_ResourceService_RemoveOrganizationRole = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.RemoveOrganizationRoleRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationRoleRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationRoleRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.RemoveOrganizationRoleRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.RemoveOrganizationRoleRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.removeOrganizationRole =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationRole,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.RemoveOrganizationRoleRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationRole =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationRole);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.RemoveOrganizationApplicationRqst,
+ *   !proto.resource.RemoveOrganizationApplicationRsp>}
+ */
+const methodDescriptor_ResourceService_RemoveOrganizationApplication = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/RemoveOrganizationApplication',
+  grpc.web.MethodType.UNARY,
+  proto.resource.RemoveOrganizationApplicationRqst,
+  proto.resource.RemoveOrganizationApplicationRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationApplicationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationApplicationRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.RemoveOrganizationApplicationRqst,
+ *   !proto.resource.RemoveOrganizationApplicationRsp>}
+ */
+const methodInfo_ResourceService_RemoveOrganizationApplication = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.RemoveOrganizationApplicationRsp,
+  /**
+   * @param {!proto.resource.RemoveOrganizationApplicationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveOrganizationApplicationRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationApplicationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.RemoveOrganizationApplicationRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.RemoveOrganizationApplicationRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.removeOrganizationApplication =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationApplication',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationApplication,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.RemoveOrganizationApplicationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.RemoveOrganizationApplicationRsp>}
+ *     A native promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationApplication =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/RemoveOrganizationApplication',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveOrganizationApplication);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.CreateGroupRqst,
  *   !proto.resource.CreateGroupRsp>}
  */

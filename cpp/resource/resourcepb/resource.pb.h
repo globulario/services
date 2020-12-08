@@ -48,7 +48,7 @@ struct TableStruct_resource_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxiliaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[114]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[130]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -86,6 +86,30 @@ extern AddGroupMemberAccountRqstDefaultTypeInternal _AddGroupMemberAccountRqst_d
 class AddGroupMemberAccountRsp;
 class AddGroupMemberAccountRspDefaultTypeInternal;
 extern AddGroupMemberAccountRspDefaultTypeInternal _AddGroupMemberAccountRsp_default_instance_;
+class AddOrganizationAccountRqst;
+class AddOrganizationAccountRqstDefaultTypeInternal;
+extern AddOrganizationAccountRqstDefaultTypeInternal _AddOrganizationAccountRqst_default_instance_;
+class AddOrganizationAccountRsp;
+class AddOrganizationAccountRspDefaultTypeInternal;
+extern AddOrganizationAccountRspDefaultTypeInternal _AddOrganizationAccountRsp_default_instance_;
+class AddOrganizationApplicationRqst;
+class AddOrganizationApplicationRqstDefaultTypeInternal;
+extern AddOrganizationApplicationRqstDefaultTypeInternal _AddOrganizationApplicationRqst_default_instance_;
+class AddOrganizationApplicationRsp;
+class AddOrganizationApplicationRspDefaultTypeInternal;
+extern AddOrganizationApplicationRspDefaultTypeInternal _AddOrganizationApplicationRsp_default_instance_;
+class AddOrganizationGroupRqst;
+class AddOrganizationGroupRqstDefaultTypeInternal;
+extern AddOrganizationGroupRqstDefaultTypeInternal _AddOrganizationGroupRqst_default_instance_;
+class AddOrganizationGroupRsp;
+class AddOrganizationGroupRspDefaultTypeInternal;
+extern AddOrganizationGroupRspDefaultTypeInternal _AddOrganizationGroupRsp_default_instance_;
+class AddOrganizationRoleRqst;
+class AddOrganizationRoleRqstDefaultTypeInternal;
+extern AddOrganizationRoleRqstDefaultTypeInternal _AddOrganizationRoleRqst_default_instance_;
+class AddOrganizationRoleRsp;
+class AddOrganizationRoleRspDefaultTypeInternal;
+extern AddOrganizationRoleRspDefaultTypeInternal _AddOrganizationRoleRsp_default_instance_;
 class AddPeerActionRqst;
 class AddPeerActionRqstDefaultTypeInternal;
 extern AddPeerActionRqstDefaultTypeInternal _AddPeerActionRqst_default_instance_;
@@ -326,6 +350,30 @@ extern RemoveGroupMemberAccountRqstDefaultTypeInternal _RemoveGroupMemberAccount
 class RemoveGroupMemberAccountRsp;
 class RemoveGroupMemberAccountRspDefaultTypeInternal;
 extern RemoveGroupMemberAccountRspDefaultTypeInternal _RemoveGroupMemberAccountRsp_default_instance_;
+class RemoveOrganizationAccountRqst;
+class RemoveOrganizationAccountRqstDefaultTypeInternal;
+extern RemoveOrganizationAccountRqstDefaultTypeInternal _RemoveOrganizationAccountRqst_default_instance_;
+class RemoveOrganizationAccountRsp;
+class RemoveOrganizationAccountRspDefaultTypeInternal;
+extern RemoveOrganizationAccountRspDefaultTypeInternal _RemoveOrganizationAccountRsp_default_instance_;
+class RemoveOrganizationApplicationRqst;
+class RemoveOrganizationApplicationRqstDefaultTypeInternal;
+extern RemoveOrganizationApplicationRqstDefaultTypeInternal _RemoveOrganizationApplicationRqst_default_instance_;
+class RemoveOrganizationApplicationRsp;
+class RemoveOrganizationApplicationRspDefaultTypeInternal;
+extern RemoveOrganizationApplicationRspDefaultTypeInternal _RemoveOrganizationApplicationRsp_default_instance_;
+class RemoveOrganizationGroupRqst;
+class RemoveOrganizationGroupRqstDefaultTypeInternal;
+extern RemoveOrganizationGroupRqstDefaultTypeInternal _RemoveOrganizationGroupRqst_default_instance_;
+class RemoveOrganizationGroupRsp;
+class RemoveOrganizationGroupRspDefaultTypeInternal;
+extern RemoveOrganizationGroupRspDefaultTypeInternal _RemoveOrganizationGroupRsp_default_instance_;
+class RemoveOrganizationRoleRqst;
+class RemoveOrganizationRoleRqstDefaultTypeInternal;
+extern RemoveOrganizationRoleRqstDefaultTypeInternal _RemoveOrganizationRoleRqst_default_instance_;
+class RemoveOrganizationRoleRsp;
+class RemoveOrganizationRoleRspDefaultTypeInternal;
+extern RemoveOrganizationRoleRspDefaultTypeInternal _RemoveOrganizationRoleRsp_default_instance_;
 class RemovePeerActionRqst;
 class RemovePeerActionRqstDefaultTypeInternal;
 extern RemovePeerActionRqstDefaultTypeInternal _RemovePeerActionRqst_default_instance_;
@@ -410,6 +458,14 @@ template<> ::resource::AddApplicationActionRqst* Arena::CreateMaybeMessage<::res
 template<> ::resource::AddApplicationActionRsp* Arena::CreateMaybeMessage<::resource::AddApplicationActionRsp>(Arena*);
 template<> ::resource::AddGroupMemberAccountRqst* Arena::CreateMaybeMessage<::resource::AddGroupMemberAccountRqst>(Arena*);
 template<> ::resource::AddGroupMemberAccountRsp* Arena::CreateMaybeMessage<::resource::AddGroupMemberAccountRsp>(Arena*);
+template<> ::resource::AddOrganizationAccountRqst* Arena::CreateMaybeMessage<::resource::AddOrganizationAccountRqst>(Arena*);
+template<> ::resource::AddOrganizationAccountRsp* Arena::CreateMaybeMessage<::resource::AddOrganizationAccountRsp>(Arena*);
+template<> ::resource::AddOrganizationApplicationRqst* Arena::CreateMaybeMessage<::resource::AddOrganizationApplicationRqst>(Arena*);
+template<> ::resource::AddOrganizationApplicationRsp* Arena::CreateMaybeMessage<::resource::AddOrganizationApplicationRsp>(Arena*);
+template<> ::resource::AddOrganizationGroupRqst* Arena::CreateMaybeMessage<::resource::AddOrganizationGroupRqst>(Arena*);
+template<> ::resource::AddOrganizationGroupRsp* Arena::CreateMaybeMessage<::resource::AddOrganizationGroupRsp>(Arena*);
+template<> ::resource::AddOrganizationRoleRqst* Arena::CreateMaybeMessage<::resource::AddOrganizationRoleRqst>(Arena*);
+template<> ::resource::AddOrganizationRoleRsp* Arena::CreateMaybeMessage<::resource::AddOrganizationRoleRsp>(Arena*);
 template<> ::resource::AddPeerActionRqst* Arena::CreateMaybeMessage<::resource::AddPeerActionRqst>(Arena*);
 template<> ::resource::AddPeerActionRsp* Arena::CreateMaybeMessage<::resource::AddPeerActionRsp>(Arena*);
 template<> ::resource::AddResourceOwnerRqst* Arena::CreateMaybeMessage<::resource::AddResourceOwnerRqst>(Arena*);
@@ -490,6 +546,14 @@ template<> ::resource::RemoveApplicationActionRqst* Arena::CreateMaybeMessage<::
 template<> ::resource::RemoveApplicationActionRsp* Arena::CreateMaybeMessage<::resource::RemoveApplicationActionRsp>(Arena*);
 template<> ::resource::RemoveGroupMemberAccountRqst* Arena::CreateMaybeMessage<::resource::RemoveGroupMemberAccountRqst>(Arena*);
 template<> ::resource::RemoveGroupMemberAccountRsp* Arena::CreateMaybeMessage<::resource::RemoveGroupMemberAccountRsp>(Arena*);
+template<> ::resource::RemoveOrganizationAccountRqst* Arena::CreateMaybeMessage<::resource::RemoveOrganizationAccountRqst>(Arena*);
+template<> ::resource::RemoveOrganizationAccountRsp* Arena::CreateMaybeMessage<::resource::RemoveOrganizationAccountRsp>(Arena*);
+template<> ::resource::RemoveOrganizationApplicationRqst* Arena::CreateMaybeMessage<::resource::RemoveOrganizationApplicationRqst>(Arena*);
+template<> ::resource::RemoveOrganizationApplicationRsp* Arena::CreateMaybeMessage<::resource::RemoveOrganizationApplicationRsp>(Arena*);
+template<> ::resource::RemoveOrganizationGroupRqst* Arena::CreateMaybeMessage<::resource::RemoveOrganizationGroupRqst>(Arena*);
+template<> ::resource::RemoveOrganizationGroupRsp* Arena::CreateMaybeMessage<::resource::RemoveOrganizationGroupRsp>(Arena*);
+template<> ::resource::RemoveOrganizationRoleRqst* Arena::CreateMaybeMessage<::resource::RemoveOrganizationRoleRqst>(Arena*);
+template<> ::resource::RemoveOrganizationRoleRsp* Arena::CreateMaybeMessage<::resource::RemoveOrganizationRoleRsp>(Arena*);
 template<> ::resource::RemovePeerActionRqst* Arena::CreateMaybeMessage<::resource::RemovePeerActionRqst>(Arena*);
 template<> ::resource::RemovePeerActionRsp* Arena::CreateMaybeMessage<::resource::RemovePeerActionRsp>(Arena*);
 template<> ::resource::RemoveRoleActionRqst* Arena::CreateMaybeMessage<::resource::RemoveRoleActionRqst>(Arena*);
@@ -11109,6 +11173,2398 @@ class RemovePeerActionRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
+class AddOrganizationAccountRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationAccountRqst) */ {
+ public:
+  inline AddOrganizationAccountRqst() : AddOrganizationAccountRqst(nullptr) {}
+  virtual ~AddOrganizationAccountRqst();
+
+  AddOrganizationAccountRqst(const AddOrganizationAccountRqst& from);
+  AddOrganizationAccountRqst(AddOrganizationAccountRqst&& from) noexcept
+    : AddOrganizationAccountRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationAccountRqst& operator=(const AddOrganizationAccountRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationAccountRqst& operator=(AddOrganizationAccountRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationAccountRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationAccountRqst* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationAccountRqst*>(
+               &_AddOrganizationAccountRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    70;
+
+  friend void swap(AddOrganizationAccountRqst& a, AddOrganizationAccountRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationAccountRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationAccountRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationAccountRqst* New() const final {
+    return CreateMaybeMessage<AddOrganizationAccountRqst>(nullptr);
+  }
+
+  AddOrganizationAccountRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationAccountRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationAccountRqst& from);
+  void MergeFrom(const AddOrganizationAccountRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationAccountRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationAccountRqst";
+  }
+  protected:
+  explicit AddOrganizationAccountRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kAccountIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string accountId = 2;
+  void clear_accountid();
+  const std::string& accountid() const;
+  void set_accountid(const std::string& value);
+  void set_accountid(std::string&& value);
+  void set_accountid(const char* value);
+  void set_accountid(const char* value, size_t size);
+  std::string* mutable_accountid();
+  std::string* release_accountid();
+  void set_allocated_accountid(std::string* accountid);
+  private:
+  const std::string& _internal_accountid() const;
+  void _internal_set_accountid(const std::string& value);
+  std::string* _internal_mutable_accountid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationAccountRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr accountid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddOrganizationAccountRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationAccountRsp) */ {
+ public:
+  inline AddOrganizationAccountRsp() : AddOrganizationAccountRsp(nullptr) {}
+  virtual ~AddOrganizationAccountRsp();
+
+  AddOrganizationAccountRsp(const AddOrganizationAccountRsp& from);
+  AddOrganizationAccountRsp(AddOrganizationAccountRsp&& from) noexcept
+    : AddOrganizationAccountRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationAccountRsp& operator=(const AddOrganizationAccountRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationAccountRsp& operator=(AddOrganizationAccountRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationAccountRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationAccountRsp* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationAccountRsp*>(
+               &_AddOrganizationAccountRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    71;
+
+  friend void swap(AddOrganizationAccountRsp& a, AddOrganizationAccountRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationAccountRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationAccountRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationAccountRsp* New() const final {
+    return CreateMaybeMessage<AddOrganizationAccountRsp>(nullptr);
+  }
+
+  AddOrganizationAccountRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationAccountRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationAccountRsp& from);
+  void MergeFrom(const AddOrganizationAccountRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationAccountRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationAccountRsp";
+  }
+  protected:
+  explicit AddOrganizationAccountRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationAccountRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddOrganizationGroupRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationGroupRqst) */ {
+ public:
+  inline AddOrganizationGroupRqst() : AddOrganizationGroupRqst(nullptr) {}
+  virtual ~AddOrganizationGroupRqst();
+
+  AddOrganizationGroupRqst(const AddOrganizationGroupRqst& from);
+  AddOrganizationGroupRqst(AddOrganizationGroupRqst&& from) noexcept
+    : AddOrganizationGroupRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationGroupRqst& operator=(const AddOrganizationGroupRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationGroupRqst& operator=(AddOrganizationGroupRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationGroupRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationGroupRqst* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationGroupRqst*>(
+               &_AddOrganizationGroupRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    72;
+
+  friend void swap(AddOrganizationGroupRqst& a, AddOrganizationGroupRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationGroupRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationGroupRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationGroupRqst* New() const final {
+    return CreateMaybeMessage<AddOrganizationGroupRqst>(nullptr);
+  }
+
+  AddOrganizationGroupRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationGroupRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationGroupRqst& from);
+  void MergeFrom(const AddOrganizationGroupRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationGroupRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationGroupRqst";
+  }
+  protected:
+  explicit AddOrganizationGroupRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kGroupIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string groupId = 2;
+  void clear_groupid();
+  const std::string& groupid() const;
+  void set_groupid(const std::string& value);
+  void set_groupid(std::string&& value);
+  void set_groupid(const char* value);
+  void set_groupid(const char* value, size_t size);
+  std::string* mutable_groupid();
+  std::string* release_groupid();
+  void set_allocated_groupid(std::string* groupid);
+  private:
+  const std::string& _internal_groupid() const;
+  void _internal_set_groupid(const std::string& value);
+  std::string* _internal_mutable_groupid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationGroupRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr groupid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddOrganizationGroupRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationGroupRsp) */ {
+ public:
+  inline AddOrganizationGroupRsp() : AddOrganizationGroupRsp(nullptr) {}
+  virtual ~AddOrganizationGroupRsp();
+
+  AddOrganizationGroupRsp(const AddOrganizationGroupRsp& from);
+  AddOrganizationGroupRsp(AddOrganizationGroupRsp&& from) noexcept
+    : AddOrganizationGroupRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationGroupRsp& operator=(const AddOrganizationGroupRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationGroupRsp& operator=(AddOrganizationGroupRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationGroupRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationGroupRsp* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationGroupRsp*>(
+               &_AddOrganizationGroupRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    73;
+
+  friend void swap(AddOrganizationGroupRsp& a, AddOrganizationGroupRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationGroupRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationGroupRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationGroupRsp* New() const final {
+    return CreateMaybeMessage<AddOrganizationGroupRsp>(nullptr);
+  }
+
+  AddOrganizationGroupRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationGroupRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationGroupRsp& from);
+  void MergeFrom(const AddOrganizationGroupRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationGroupRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationGroupRsp";
+  }
+  protected:
+  explicit AddOrganizationGroupRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationGroupRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddOrganizationRoleRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationRoleRqst) */ {
+ public:
+  inline AddOrganizationRoleRqst() : AddOrganizationRoleRqst(nullptr) {}
+  virtual ~AddOrganizationRoleRqst();
+
+  AddOrganizationRoleRqst(const AddOrganizationRoleRqst& from);
+  AddOrganizationRoleRqst(AddOrganizationRoleRqst&& from) noexcept
+    : AddOrganizationRoleRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationRoleRqst& operator=(const AddOrganizationRoleRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationRoleRqst& operator=(AddOrganizationRoleRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationRoleRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationRoleRqst* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationRoleRqst*>(
+               &_AddOrganizationRoleRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    74;
+
+  friend void swap(AddOrganizationRoleRqst& a, AddOrganizationRoleRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationRoleRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationRoleRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationRoleRqst* New() const final {
+    return CreateMaybeMessage<AddOrganizationRoleRqst>(nullptr);
+  }
+
+  AddOrganizationRoleRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationRoleRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationRoleRqst& from);
+  void MergeFrom(const AddOrganizationRoleRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationRoleRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationRoleRqst";
+  }
+  protected:
+  explicit AddOrganizationRoleRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kRoleIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string roleId = 2;
+  void clear_roleid();
+  const std::string& roleid() const;
+  void set_roleid(const std::string& value);
+  void set_roleid(std::string&& value);
+  void set_roleid(const char* value);
+  void set_roleid(const char* value, size_t size);
+  std::string* mutable_roleid();
+  std::string* release_roleid();
+  void set_allocated_roleid(std::string* roleid);
+  private:
+  const std::string& _internal_roleid() const;
+  void _internal_set_roleid(const std::string& value);
+  std::string* _internal_mutable_roleid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationRoleRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr roleid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddOrganizationRoleRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationRoleRsp) */ {
+ public:
+  inline AddOrganizationRoleRsp() : AddOrganizationRoleRsp(nullptr) {}
+  virtual ~AddOrganizationRoleRsp();
+
+  AddOrganizationRoleRsp(const AddOrganizationRoleRsp& from);
+  AddOrganizationRoleRsp(AddOrganizationRoleRsp&& from) noexcept
+    : AddOrganizationRoleRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationRoleRsp& operator=(const AddOrganizationRoleRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationRoleRsp& operator=(AddOrganizationRoleRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationRoleRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationRoleRsp* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationRoleRsp*>(
+               &_AddOrganizationRoleRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    75;
+
+  friend void swap(AddOrganizationRoleRsp& a, AddOrganizationRoleRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationRoleRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationRoleRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationRoleRsp* New() const final {
+    return CreateMaybeMessage<AddOrganizationRoleRsp>(nullptr);
+  }
+
+  AddOrganizationRoleRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationRoleRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationRoleRsp& from);
+  void MergeFrom(const AddOrganizationRoleRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationRoleRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationRoleRsp";
+  }
+  protected:
+  explicit AddOrganizationRoleRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationRoleRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddOrganizationApplicationRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationApplicationRqst) */ {
+ public:
+  inline AddOrganizationApplicationRqst() : AddOrganizationApplicationRqst(nullptr) {}
+  virtual ~AddOrganizationApplicationRqst();
+
+  AddOrganizationApplicationRqst(const AddOrganizationApplicationRqst& from);
+  AddOrganizationApplicationRqst(AddOrganizationApplicationRqst&& from) noexcept
+    : AddOrganizationApplicationRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationApplicationRqst& operator=(const AddOrganizationApplicationRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationApplicationRqst& operator=(AddOrganizationApplicationRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationApplicationRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationApplicationRqst* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationApplicationRqst*>(
+               &_AddOrganizationApplicationRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    76;
+
+  friend void swap(AddOrganizationApplicationRqst& a, AddOrganizationApplicationRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationApplicationRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationApplicationRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationApplicationRqst* New() const final {
+    return CreateMaybeMessage<AddOrganizationApplicationRqst>(nullptr);
+  }
+
+  AddOrganizationApplicationRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationApplicationRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationApplicationRqst& from);
+  void MergeFrom(const AddOrganizationApplicationRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationApplicationRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationApplicationRqst";
+  }
+  protected:
+  explicit AddOrganizationApplicationRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kApplicationIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string applicationId = 2;
+  void clear_applicationid();
+  const std::string& applicationid() const;
+  void set_applicationid(const std::string& value);
+  void set_applicationid(std::string&& value);
+  void set_applicationid(const char* value);
+  void set_applicationid(const char* value, size_t size);
+  std::string* mutable_applicationid();
+  std::string* release_applicationid();
+  void set_allocated_applicationid(std::string* applicationid);
+  private:
+  const std::string& _internal_applicationid() const;
+  void _internal_set_applicationid(const std::string& value);
+  std::string* _internal_mutable_applicationid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationApplicationRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr applicationid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddOrganizationApplicationRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddOrganizationApplicationRsp) */ {
+ public:
+  inline AddOrganizationApplicationRsp() : AddOrganizationApplicationRsp(nullptr) {}
+  virtual ~AddOrganizationApplicationRsp();
+
+  AddOrganizationApplicationRsp(const AddOrganizationApplicationRsp& from);
+  AddOrganizationApplicationRsp(AddOrganizationApplicationRsp&& from) noexcept
+    : AddOrganizationApplicationRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline AddOrganizationApplicationRsp& operator=(const AddOrganizationApplicationRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddOrganizationApplicationRsp& operator=(AddOrganizationApplicationRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddOrganizationApplicationRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddOrganizationApplicationRsp* internal_default_instance() {
+    return reinterpret_cast<const AddOrganizationApplicationRsp*>(
+               &_AddOrganizationApplicationRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    77;
+
+  friend void swap(AddOrganizationApplicationRsp& a, AddOrganizationApplicationRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddOrganizationApplicationRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddOrganizationApplicationRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddOrganizationApplicationRsp* New() const final {
+    return CreateMaybeMessage<AddOrganizationApplicationRsp>(nullptr);
+  }
+
+  AddOrganizationApplicationRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddOrganizationApplicationRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddOrganizationApplicationRsp& from);
+  void MergeFrom(const AddOrganizationApplicationRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddOrganizationApplicationRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddOrganizationApplicationRsp";
+  }
+  protected:
+  explicit AddOrganizationApplicationRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddOrganizationApplicationRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationGroupRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationGroupRqst) */ {
+ public:
+  inline RemoveOrganizationGroupRqst() : RemoveOrganizationGroupRqst(nullptr) {}
+  virtual ~RemoveOrganizationGroupRqst();
+
+  RemoveOrganizationGroupRqst(const RemoveOrganizationGroupRqst& from);
+  RemoveOrganizationGroupRqst(RemoveOrganizationGroupRqst&& from) noexcept
+    : RemoveOrganizationGroupRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationGroupRqst& operator=(const RemoveOrganizationGroupRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationGroupRqst& operator=(RemoveOrganizationGroupRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationGroupRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationGroupRqst* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationGroupRqst*>(
+               &_RemoveOrganizationGroupRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    78;
+
+  friend void swap(RemoveOrganizationGroupRqst& a, RemoveOrganizationGroupRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationGroupRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationGroupRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationGroupRqst* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationGroupRqst>(nullptr);
+  }
+
+  RemoveOrganizationGroupRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationGroupRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationGroupRqst& from);
+  void MergeFrom(const RemoveOrganizationGroupRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationGroupRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationGroupRqst";
+  }
+  protected:
+  explicit RemoveOrganizationGroupRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kGroupIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string groupId = 2;
+  void clear_groupid();
+  const std::string& groupid() const;
+  void set_groupid(const std::string& value);
+  void set_groupid(std::string&& value);
+  void set_groupid(const char* value);
+  void set_groupid(const char* value, size_t size);
+  std::string* mutable_groupid();
+  std::string* release_groupid();
+  void set_allocated_groupid(std::string* groupid);
+  private:
+  const std::string& _internal_groupid() const;
+  void _internal_set_groupid(const std::string& value);
+  std::string* _internal_mutable_groupid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationGroupRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr groupid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationGroupRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationGroupRsp) */ {
+ public:
+  inline RemoveOrganizationGroupRsp() : RemoveOrganizationGroupRsp(nullptr) {}
+  virtual ~RemoveOrganizationGroupRsp();
+
+  RemoveOrganizationGroupRsp(const RemoveOrganizationGroupRsp& from);
+  RemoveOrganizationGroupRsp(RemoveOrganizationGroupRsp&& from) noexcept
+    : RemoveOrganizationGroupRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationGroupRsp& operator=(const RemoveOrganizationGroupRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationGroupRsp& operator=(RemoveOrganizationGroupRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationGroupRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationGroupRsp* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationGroupRsp*>(
+               &_RemoveOrganizationGroupRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    79;
+
+  friend void swap(RemoveOrganizationGroupRsp& a, RemoveOrganizationGroupRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationGroupRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationGroupRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationGroupRsp* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationGroupRsp>(nullptr);
+  }
+
+  RemoveOrganizationGroupRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationGroupRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationGroupRsp& from);
+  void MergeFrom(const RemoveOrganizationGroupRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationGroupRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationGroupRsp";
+  }
+  protected:
+  explicit RemoveOrganizationGroupRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationGroupRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationRoleRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationRoleRqst) */ {
+ public:
+  inline RemoveOrganizationRoleRqst() : RemoveOrganizationRoleRqst(nullptr) {}
+  virtual ~RemoveOrganizationRoleRqst();
+
+  RemoveOrganizationRoleRqst(const RemoveOrganizationRoleRqst& from);
+  RemoveOrganizationRoleRqst(RemoveOrganizationRoleRqst&& from) noexcept
+    : RemoveOrganizationRoleRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationRoleRqst& operator=(const RemoveOrganizationRoleRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationRoleRqst& operator=(RemoveOrganizationRoleRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationRoleRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationRoleRqst* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationRoleRqst*>(
+               &_RemoveOrganizationRoleRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    80;
+
+  friend void swap(RemoveOrganizationRoleRqst& a, RemoveOrganizationRoleRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationRoleRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationRoleRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationRoleRqst* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationRoleRqst>(nullptr);
+  }
+
+  RemoveOrganizationRoleRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationRoleRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationRoleRqst& from);
+  void MergeFrom(const RemoveOrganizationRoleRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationRoleRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationRoleRqst";
+  }
+  protected:
+  explicit RemoveOrganizationRoleRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kRoleIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string roleId = 2;
+  void clear_roleid();
+  const std::string& roleid() const;
+  void set_roleid(const std::string& value);
+  void set_roleid(std::string&& value);
+  void set_roleid(const char* value);
+  void set_roleid(const char* value, size_t size);
+  std::string* mutable_roleid();
+  std::string* release_roleid();
+  void set_allocated_roleid(std::string* roleid);
+  private:
+  const std::string& _internal_roleid() const;
+  void _internal_set_roleid(const std::string& value);
+  std::string* _internal_mutable_roleid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationRoleRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr roleid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationRoleRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationRoleRsp) */ {
+ public:
+  inline RemoveOrganizationRoleRsp() : RemoveOrganizationRoleRsp(nullptr) {}
+  virtual ~RemoveOrganizationRoleRsp();
+
+  RemoveOrganizationRoleRsp(const RemoveOrganizationRoleRsp& from);
+  RemoveOrganizationRoleRsp(RemoveOrganizationRoleRsp&& from) noexcept
+    : RemoveOrganizationRoleRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationRoleRsp& operator=(const RemoveOrganizationRoleRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationRoleRsp& operator=(RemoveOrganizationRoleRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationRoleRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationRoleRsp* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationRoleRsp*>(
+               &_RemoveOrganizationRoleRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    81;
+
+  friend void swap(RemoveOrganizationRoleRsp& a, RemoveOrganizationRoleRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationRoleRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationRoleRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationRoleRsp* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationRoleRsp>(nullptr);
+  }
+
+  RemoveOrganizationRoleRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationRoleRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationRoleRsp& from);
+  void MergeFrom(const RemoveOrganizationRoleRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationRoleRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationRoleRsp";
+  }
+  protected:
+  explicit RemoveOrganizationRoleRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationRoleRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationApplicationRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationApplicationRqst) */ {
+ public:
+  inline RemoveOrganizationApplicationRqst() : RemoveOrganizationApplicationRqst(nullptr) {}
+  virtual ~RemoveOrganizationApplicationRqst();
+
+  RemoveOrganizationApplicationRqst(const RemoveOrganizationApplicationRqst& from);
+  RemoveOrganizationApplicationRqst(RemoveOrganizationApplicationRqst&& from) noexcept
+    : RemoveOrganizationApplicationRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationApplicationRqst& operator=(const RemoveOrganizationApplicationRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationApplicationRqst& operator=(RemoveOrganizationApplicationRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationApplicationRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationApplicationRqst* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationApplicationRqst*>(
+               &_RemoveOrganizationApplicationRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    82;
+
+  friend void swap(RemoveOrganizationApplicationRqst& a, RemoveOrganizationApplicationRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationApplicationRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationApplicationRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationApplicationRqst* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationApplicationRqst>(nullptr);
+  }
+
+  RemoveOrganizationApplicationRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationApplicationRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationApplicationRqst& from);
+  void MergeFrom(const RemoveOrganizationApplicationRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationApplicationRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationApplicationRqst";
+  }
+  protected:
+  explicit RemoveOrganizationApplicationRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kApplicationIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string applicationId = 2;
+  void clear_applicationid();
+  const std::string& applicationid() const;
+  void set_applicationid(const std::string& value);
+  void set_applicationid(std::string&& value);
+  void set_applicationid(const char* value);
+  void set_applicationid(const char* value, size_t size);
+  std::string* mutable_applicationid();
+  std::string* release_applicationid();
+  void set_allocated_applicationid(std::string* applicationid);
+  private:
+  const std::string& _internal_applicationid() const;
+  void _internal_set_applicationid(const std::string& value);
+  std::string* _internal_mutable_applicationid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationApplicationRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr applicationid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationApplicationRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationApplicationRsp) */ {
+ public:
+  inline RemoveOrganizationApplicationRsp() : RemoveOrganizationApplicationRsp(nullptr) {}
+  virtual ~RemoveOrganizationApplicationRsp();
+
+  RemoveOrganizationApplicationRsp(const RemoveOrganizationApplicationRsp& from);
+  RemoveOrganizationApplicationRsp(RemoveOrganizationApplicationRsp&& from) noexcept
+    : RemoveOrganizationApplicationRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationApplicationRsp& operator=(const RemoveOrganizationApplicationRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationApplicationRsp& operator=(RemoveOrganizationApplicationRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationApplicationRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationApplicationRsp* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationApplicationRsp*>(
+               &_RemoveOrganizationApplicationRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    83;
+
+  friend void swap(RemoveOrganizationApplicationRsp& a, RemoveOrganizationApplicationRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationApplicationRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationApplicationRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationApplicationRsp* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationApplicationRsp>(nullptr);
+  }
+
+  RemoveOrganizationApplicationRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationApplicationRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationApplicationRsp& from);
+  void MergeFrom(const RemoveOrganizationApplicationRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationApplicationRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationApplicationRsp";
+  }
+  protected:
+  explicit RemoveOrganizationApplicationRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationApplicationRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationAccountRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationAccountRqst) */ {
+ public:
+  inline RemoveOrganizationAccountRqst() : RemoveOrganizationAccountRqst(nullptr) {}
+  virtual ~RemoveOrganizationAccountRqst();
+
+  RemoveOrganizationAccountRqst(const RemoveOrganizationAccountRqst& from);
+  RemoveOrganizationAccountRqst(RemoveOrganizationAccountRqst&& from) noexcept
+    : RemoveOrganizationAccountRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationAccountRqst& operator=(const RemoveOrganizationAccountRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationAccountRqst& operator=(RemoveOrganizationAccountRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationAccountRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationAccountRqst* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationAccountRqst*>(
+               &_RemoveOrganizationAccountRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    84;
+
+  friend void swap(RemoveOrganizationAccountRqst& a, RemoveOrganizationAccountRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationAccountRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationAccountRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationAccountRqst* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationAccountRqst>(nullptr);
+  }
+
+  RemoveOrganizationAccountRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationAccountRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationAccountRqst& from);
+  void MergeFrom(const RemoveOrganizationAccountRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationAccountRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationAccountRqst";
+  }
+  protected:
+  explicit RemoveOrganizationAccountRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kOrganizationIdFieldNumber = 1,
+    kAccountIdFieldNumber = 2,
+  };
+  // string organizationId = 1;
+  void clear_organizationid();
+  const std::string& organizationid() const;
+  void set_organizationid(const std::string& value);
+  void set_organizationid(std::string&& value);
+  void set_organizationid(const char* value);
+  void set_organizationid(const char* value, size_t size);
+  std::string* mutable_organizationid();
+  std::string* release_organizationid();
+  void set_allocated_organizationid(std::string* organizationid);
+  private:
+  const std::string& _internal_organizationid() const;
+  void _internal_set_organizationid(const std::string& value);
+  std::string* _internal_mutable_organizationid();
+  public:
+
+  // string accountId = 2;
+  void clear_accountid();
+  const std::string& accountid() const;
+  void set_accountid(const std::string& value);
+  void set_accountid(std::string&& value);
+  void set_accountid(const char* value);
+  void set_accountid(const char* value, size_t size);
+  std::string* mutable_accountid();
+  std::string* release_accountid();
+  void set_allocated_accountid(std::string* accountid);
+  private:
+  const std::string& _internal_accountid() const;
+  void _internal_set_accountid(const std::string& value);
+  std::string* _internal_mutable_accountid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationAccountRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr organizationid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr accountid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveOrganizationAccountRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveOrganizationAccountRsp) */ {
+ public:
+  inline RemoveOrganizationAccountRsp() : RemoveOrganizationAccountRsp(nullptr) {}
+  virtual ~RemoveOrganizationAccountRsp();
+
+  RemoveOrganizationAccountRsp(const RemoveOrganizationAccountRsp& from);
+  RemoveOrganizationAccountRsp(RemoveOrganizationAccountRsp&& from) noexcept
+    : RemoveOrganizationAccountRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveOrganizationAccountRsp& operator=(const RemoveOrganizationAccountRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveOrganizationAccountRsp& operator=(RemoveOrganizationAccountRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveOrganizationAccountRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveOrganizationAccountRsp* internal_default_instance() {
+    return reinterpret_cast<const RemoveOrganizationAccountRsp*>(
+               &_RemoveOrganizationAccountRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    85;
+
+  friend void swap(RemoveOrganizationAccountRsp& a, RemoveOrganizationAccountRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveOrganizationAccountRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveOrganizationAccountRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveOrganizationAccountRsp* New() const final {
+    return CreateMaybeMessage<RemoveOrganizationAccountRsp>(nullptr);
+  }
+
+  RemoveOrganizationAccountRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveOrganizationAccountRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveOrganizationAccountRsp& from);
+  void MergeFrom(const RemoveOrganizationAccountRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveOrganizationAccountRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveOrganizationAccountRsp";
+  }
+  protected:
+  explicit RemoveOrganizationAccountRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveOrganizationAccountRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
 class Permission PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.Permission) */ {
  public:
@@ -11151,7 +13607,7 @@ class Permission PROTOBUF_FINAL :
                &_Permission_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    70;
+    86;
 
   friend void swap(Permission& a, Permission& b) {
     a.Swap(&b);
@@ -11399,7 +13855,7 @@ class Permissions PROTOBUF_FINAL :
                &_Permissions_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    71;
+    87;
 
   friend void swap(Permissions& a, Permissions& b) {
     a.Swap(&b);
@@ -11585,7 +14041,7 @@ class ActionResourceParameterPermission PROTOBUF_FINAL :
                &_ActionResourceParameterPermission_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    72;
+    88;
 
   friend void swap(ActionResourceParameterPermission& a, ActionResourceParameterPermission& b) {
     a.Swap(&b);
@@ -11740,7 +14196,7 @@ class SetActionResourcesPermissionRqst PROTOBUF_FINAL :
                &_SetActionResourcesPermissionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    73;
+    89;
 
   friend void swap(SetActionResourcesPermissionRqst& a, SetActionResourcesPermissionRqst& b) {
     a.Swap(&b);
@@ -11904,7 +14360,7 @@ class SetActionResourcesPermissionRsp PROTOBUF_FINAL :
                &_SetActionResourcesPermissionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    74;
+    90;
 
   friend void swap(SetActionResourcesPermissionRsp& a, SetActionResourcesPermissionRsp& b) {
     a.Swap(&b);
@@ -12028,7 +14484,7 @@ class GetActionResourcesPermissionRqst PROTOBUF_FINAL :
                &_GetActionResourcesPermissionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    75;
+    91;
 
   friend void swap(GetActionResourcesPermissionRqst& a, GetActionResourcesPermissionRqst& b) {
     a.Swap(&b);
@@ -12172,7 +14628,7 @@ class GetActionResourcesPermissionRsp PROTOBUF_FINAL :
                &_GetActionResourcesPermissionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    76;
+    92;
 
   friend void swap(GetActionResourcesPermissionRsp& a, GetActionResourcesPermissionRsp& b) {
     a.Swap(&b);
@@ -12318,7 +14774,7 @@ class GetResourcePermissionsRqst PROTOBUF_FINAL :
                &_GetResourcePermissionsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    77;
+    93;
 
   friend void swap(GetResourcePermissionsRqst& a, GetResourcePermissionsRqst& b) {
     a.Swap(&b);
@@ -12462,7 +14918,7 @@ class GetResourcePermissionsRsp PROTOBUF_FINAL :
                &_GetResourcePermissionsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    78;
+    94;
 
   friend void swap(GetResourcePermissionsRsp& a, GetResourcePermissionsRsp& b) {
     a.Swap(&b);
@@ -12608,7 +15064,7 @@ class DeleteResourcePermissionsRqst PROTOBUF_FINAL :
                &_DeleteResourcePermissionsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    79;
+    95;
 
   friend void swap(DeleteResourcePermissionsRqst& a, DeleteResourcePermissionsRqst& b) {
     a.Swap(&b);
@@ -12752,7 +15208,7 @@ class DeleteResourcePermissionsRsp PROTOBUF_FINAL :
                &_DeleteResourcePermissionsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    80;
+    96;
 
   friend void swap(DeleteResourcePermissionsRsp& a, DeleteResourcePermissionsRsp& b) {
     a.Swap(&b);
@@ -12898,7 +15354,7 @@ class GetResourcePermissionRqst PROTOBUF_FINAL :
                &_GetResourcePermissionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    81;
+    97;
 
   friend void swap(GetResourcePermissionRqst& a, GetResourcePermissionRqst& b) {
     a.Swap(&b);
@@ -13060,7 +15516,7 @@ class GetResourcePermissionRsp PROTOBUF_FINAL :
                &_GetResourcePermissionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    82;
+    98;
 
   friend void swap(GetResourcePermissionRsp& a, GetResourcePermissionRsp& b) {
     a.Swap(&b);
@@ -13206,7 +15662,7 @@ class DeleteResourcePermissionRqst PROTOBUF_FINAL :
                &_DeleteResourcePermissionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    83;
+    99;
 
   friend void swap(DeleteResourcePermissionRqst& a, DeleteResourcePermissionRqst& b) {
     a.Swap(&b);
@@ -13368,7 +15824,7 @@ class DeleteResourcePermissionRsp PROTOBUF_FINAL :
                &_DeleteResourcePermissionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    84;
+    100;
 
   friend void swap(DeleteResourcePermissionRsp& a, DeleteResourcePermissionRsp& b) {
     a.Swap(&b);
@@ -13492,7 +15948,7 @@ class SetResourcePermissionsRqst PROTOBUF_FINAL :
                &_SetResourcePermissionsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    85;
+    101;
 
   friend void swap(SetResourcePermissionsRqst& a, SetResourcePermissionsRqst& b) {
     a.Swap(&b);
@@ -13656,7 +16112,7 @@ class SetResourcePermissionsRsp PROTOBUF_FINAL :
                &_SetResourcePermissionsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    86;
+    102;
 
   friend void swap(SetResourcePermissionsRsp& a, SetResourcePermissionsRsp& b) {
     a.Swap(&b);
@@ -13780,7 +16236,7 @@ class SetResourcePermissionRqst PROTOBUF_FINAL :
                &_SetResourcePermissionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    87;
+    103;
 
   friend void swap(SetResourcePermissionRqst& a, SetResourcePermissionRqst& b) {
     a.Swap(&b);
@@ -13944,7 +16400,7 @@ class SetResourcePermissionRsp PROTOBUF_FINAL :
                &_SetResourcePermissionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    88;
+    104;
 
   friend void swap(SetResourcePermissionRsp& a, SetResourcePermissionRsp& b) {
     a.Swap(&b);
@@ -14068,7 +16524,7 @@ class AddResourceOwnerRqst PROTOBUF_FINAL :
                &_AddResourceOwnerRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    89;
+    105;
 
   friend void swap(AddResourceOwnerRqst& a, AddResourceOwnerRqst& b) {
     a.Swap(&b);
@@ -14230,7 +16686,7 @@ class AddResourceOwnerRsp PROTOBUF_FINAL :
                &_AddResourceOwnerRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    90;
+    106;
 
   friend void swap(AddResourceOwnerRsp& a, AddResourceOwnerRsp& b) {
     a.Swap(&b);
@@ -14354,7 +16810,7 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
                &_removeResourceOwnerRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    91;
+    107;
 
   friend void swap(removeResourceOwnerRqst& a, removeResourceOwnerRqst& b) {
     a.Swap(&b);
@@ -14516,7 +16972,7 @@ class removeResourceOwnerRsp PROTOBUF_FINAL :
                &_removeResourceOwnerRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    92;
+    108;
 
   friend void swap(removeResourceOwnerRsp& a, removeResourceOwnerRsp& b) {
     a.Swap(&b);
@@ -14640,7 +17096,7 @@ class DeleteAllAccessRqst PROTOBUF_FINAL :
                &_DeleteAllAccessRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    93;
+    109;
 
   friend void swap(DeleteAllAccessRqst& a, DeleteAllAccessRqst& b) {
     a.Swap(&b);
@@ -14795,7 +17251,7 @@ class DeleteAllAccessRsp PROTOBUF_FINAL :
                &_DeleteAllAccessRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    94;
+    110;
 
   friend void swap(DeleteAllAccessRsp& a, DeleteAllAccessRsp& b) {
     a.Swap(&b);
@@ -14919,7 +17375,7 @@ class ValidateAccessRqst PROTOBUF_FINAL :
                &_ValidateAccessRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    95;
+    111;
 
   friend void swap(ValidateAccessRqst& a, ValidateAccessRqst& b) {
     a.Swap(&b);
@@ -15110,7 +17566,7 @@ class ValidateAccessRsp PROTOBUF_FINAL :
                &_ValidateAccessRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    96;
+    112;
 
   friend void swap(ValidateAccessRsp& a, ValidateAccessRsp& b) {
     a.Swap(&b);
@@ -15247,7 +17703,7 @@ class GetAccessesRqst PROTOBUF_FINAL :
                &_GetAccessesRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    97;
+    113;
 
   friend void swap(GetAccessesRqst& a, GetAccessesRqst& b) {
     a.Swap(&b);
@@ -15420,7 +17876,7 @@ class GetAccessesRsp PROTOBUF_FINAL :
                &_GetAccessesRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    98;
+    114;
 
   friend void swap(GetAccessesRsp& a, GetAccessesRsp& b) {
     a.Swap(&b);
@@ -15572,7 +18028,7 @@ class LogInfo PROTOBUF_FINAL :
                &_LogInfo_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    99;
+    115;
 
   friend void swap(LogInfo& a, LogInfo& b) {
     a.Swap(&b);
@@ -15810,7 +18266,7 @@ class LogRqst PROTOBUF_FINAL :
                &_LogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    100;
+    116;
 
   friend void swap(LogRqst& a, LogRqst& b) {
     a.Swap(&b);
@@ -15956,7 +18412,7 @@ class LogRsp PROTOBUF_FINAL :
                &_LogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    101;
+    117;
 
   friend void swap(LogRsp& a, LogRsp& b) {
     a.Swap(&b);
@@ -16093,7 +18549,7 @@ class DeleteLogRqst PROTOBUF_FINAL :
                &_DeleteLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    102;
+    118;
 
   friend void swap(DeleteLogRqst& a, DeleteLogRqst& b) {
     a.Swap(&b);
@@ -16239,7 +18695,7 @@ class DeleteLogRsp PROTOBUF_FINAL :
                &_DeleteLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    103;
+    119;
 
   friend void swap(DeleteLogRsp& a, DeleteLogRsp& b) {
     a.Swap(&b);
@@ -16376,7 +18832,7 @@ class SetLogMethodRqst PROTOBUF_FINAL :
                &_SetLogMethodRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    104;
+    120;
 
   friend void swap(SetLogMethodRqst& a, SetLogMethodRqst& b) {
     a.Swap(&b);
@@ -16520,7 +18976,7 @@ class SetLogMethodRsp PROTOBUF_FINAL :
                &_SetLogMethodRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    105;
+    121;
 
   friend void swap(SetLogMethodRsp& a, SetLogMethodRsp& b) {
     a.Swap(&b);
@@ -16657,7 +19113,7 @@ class ResetLogMethodRqst PROTOBUF_FINAL :
                &_ResetLogMethodRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    106;
+    122;
 
   friend void swap(ResetLogMethodRqst& a, ResetLogMethodRqst& b) {
     a.Swap(&b);
@@ -16801,7 +19257,7 @@ class ResetLogMethodRsp PROTOBUF_FINAL :
                &_ResetLogMethodRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    107;
+    123;
 
   friend void swap(ResetLogMethodRsp& a, ResetLogMethodRsp& b) {
     a.Swap(&b);
@@ -16938,7 +19394,7 @@ class GetLogMethodsRqst PROTOBUF_FINAL :
                &_GetLogMethodsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    108;
+    124;
 
   friend void swap(GetLogMethodsRqst& a, GetLogMethodsRqst& b) {
     a.Swap(&b);
@@ -17062,7 +19518,7 @@ class GetLogMethodsRsp PROTOBUF_FINAL :
                &_GetLogMethodsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    109;
+    125;
 
   friend void swap(GetLogMethodsRsp& a, GetLogMethodsRsp& b) {
     a.Swap(&b);
@@ -17214,7 +19670,7 @@ class GetLogRqst PROTOBUF_FINAL :
                &_GetLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    110;
+    126;
 
   friend void swap(GetLogRqst& a, GetLogRqst& b) {
     a.Swap(&b);
@@ -17358,7 +19814,7 @@ class GetLogRsp PROTOBUF_FINAL :
                &_GetLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    111;
+    127;
 
   friend void swap(GetLogRsp& a, GetLogRsp& b) {
     a.Swap(&b);
@@ -17504,7 +19960,7 @@ class ClearAllLogRqst PROTOBUF_FINAL :
                &_ClearAllLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    112;
+    128;
 
   friend void swap(ClearAllLogRqst& a, ClearAllLogRqst& b) {
     a.Swap(&b);
@@ -17641,7 +20097,7 @@ class ClearAllLogRsp PROTOBUF_FINAL :
                &_ClearAllLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    113;
+    129;
 
   friend void swap(ClearAllLogRsp& a, ClearAllLogRsp& b) {
     a.Swap(&b);
@@ -23499,6 +25955,1222 @@ inline void RemovePeerActionRsp::set_result(bool value) {
 
 // -------------------------------------------------------------------
 
+// AddOrganizationAccountRqst
+
+// string organizationId = 1;
+inline void AddOrganizationAccountRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationAccountRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationAccountRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void AddOrganizationAccountRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationAccountRqst.organizationId)
+}
+inline std::string* AddOrganizationAccountRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationAccountRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& AddOrganizationAccountRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void AddOrganizationAccountRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationAccountRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationAccountRqst.organizationId)
+}
+inline void AddOrganizationAccountRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationAccountRqst.organizationId)
+}
+inline void AddOrganizationAccountRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationAccountRqst.organizationId)
+}
+inline std::string* AddOrganizationAccountRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationAccountRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationAccountRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationAccountRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationAccountRqst.organizationId)
+}
+
+// string accountId = 2;
+inline void AddOrganizationAccountRqst::clear_accountid() {
+  accountid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationAccountRqst::accountid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationAccountRqst.accountId)
+  return _internal_accountid();
+}
+inline void AddOrganizationAccountRqst::set_accountid(const std::string& value) {
+  _internal_set_accountid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationAccountRqst.accountId)
+}
+inline std::string* AddOrganizationAccountRqst::mutable_accountid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationAccountRqst.accountId)
+  return _internal_mutable_accountid();
+}
+inline const std::string& AddOrganizationAccountRqst::_internal_accountid() const {
+  return accountid_.Get();
+}
+inline void AddOrganizationAccountRqst::_internal_set_accountid(const std::string& value) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationAccountRqst::set_accountid(std::string&& value) {
+  
+  accountid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationAccountRqst.accountId)
+}
+inline void AddOrganizationAccountRqst::set_accountid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationAccountRqst.accountId)
+}
+inline void AddOrganizationAccountRqst::set_accountid(const char* value,
+    size_t size) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationAccountRqst.accountId)
+}
+inline std::string* AddOrganizationAccountRqst::_internal_mutable_accountid() {
+  
+  return accountid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationAccountRqst::release_accountid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationAccountRqst.accountId)
+  return accountid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationAccountRqst::set_allocated_accountid(std::string* accountid) {
+  if (accountid != nullptr) {
+    
+  } else {
+    
+  }
+  accountid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), accountid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationAccountRqst.accountId)
+}
+
+// -------------------------------------------------------------------
+
+// AddOrganizationAccountRsp
+
+// bool result = 1;
+inline void AddOrganizationAccountRsp::clear_result() {
+  result_ = false;
+}
+inline bool AddOrganizationAccountRsp::_internal_result() const {
+  return result_;
+}
+inline bool AddOrganizationAccountRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationAccountRsp.result)
+  return _internal_result();
+}
+inline void AddOrganizationAccountRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void AddOrganizationAccountRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationAccountRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// AddOrganizationGroupRqst
+
+// string organizationId = 1;
+inline void AddOrganizationGroupRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationGroupRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationGroupRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void AddOrganizationGroupRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationGroupRqst.organizationId)
+}
+inline std::string* AddOrganizationGroupRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationGroupRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& AddOrganizationGroupRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void AddOrganizationGroupRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationGroupRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationGroupRqst.organizationId)
+}
+inline void AddOrganizationGroupRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationGroupRqst.organizationId)
+}
+inline void AddOrganizationGroupRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationGroupRqst.organizationId)
+}
+inline std::string* AddOrganizationGroupRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationGroupRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationGroupRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationGroupRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationGroupRqst.organizationId)
+}
+
+// string groupId = 2;
+inline void AddOrganizationGroupRqst::clear_groupid() {
+  groupid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationGroupRqst::groupid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationGroupRqst.groupId)
+  return _internal_groupid();
+}
+inline void AddOrganizationGroupRqst::set_groupid(const std::string& value) {
+  _internal_set_groupid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationGroupRqst.groupId)
+}
+inline std::string* AddOrganizationGroupRqst::mutable_groupid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationGroupRqst.groupId)
+  return _internal_mutable_groupid();
+}
+inline const std::string& AddOrganizationGroupRqst::_internal_groupid() const {
+  return groupid_.Get();
+}
+inline void AddOrganizationGroupRqst::_internal_set_groupid(const std::string& value) {
+  
+  groupid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationGroupRqst::set_groupid(std::string&& value) {
+  
+  groupid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationGroupRqst.groupId)
+}
+inline void AddOrganizationGroupRqst::set_groupid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  groupid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationGroupRqst.groupId)
+}
+inline void AddOrganizationGroupRqst::set_groupid(const char* value,
+    size_t size) {
+  
+  groupid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationGroupRqst.groupId)
+}
+inline std::string* AddOrganizationGroupRqst::_internal_mutable_groupid() {
+  
+  return groupid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationGroupRqst::release_groupid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationGroupRqst.groupId)
+  return groupid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationGroupRqst::set_allocated_groupid(std::string* groupid) {
+  if (groupid != nullptr) {
+    
+  } else {
+    
+  }
+  groupid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), groupid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationGroupRqst.groupId)
+}
+
+// -------------------------------------------------------------------
+
+// AddOrganizationGroupRsp
+
+// bool result = 1;
+inline void AddOrganizationGroupRsp::clear_result() {
+  result_ = false;
+}
+inline bool AddOrganizationGroupRsp::_internal_result() const {
+  return result_;
+}
+inline bool AddOrganizationGroupRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationGroupRsp.result)
+  return _internal_result();
+}
+inline void AddOrganizationGroupRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void AddOrganizationGroupRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationGroupRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// AddOrganizationRoleRqst
+
+// string organizationId = 1;
+inline void AddOrganizationRoleRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationRoleRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationRoleRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void AddOrganizationRoleRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationRoleRqst.organizationId)
+}
+inline std::string* AddOrganizationRoleRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationRoleRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& AddOrganizationRoleRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void AddOrganizationRoleRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationRoleRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationRoleRqst.organizationId)
+}
+inline void AddOrganizationRoleRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationRoleRqst.organizationId)
+}
+inline void AddOrganizationRoleRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationRoleRqst.organizationId)
+}
+inline std::string* AddOrganizationRoleRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationRoleRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationRoleRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationRoleRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationRoleRqst.organizationId)
+}
+
+// string roleId = 2;
+inline void AddOrganizationRoleRqst::clear_roleid() {
+  roleid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationRoleRqst::roleid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationRoleRqst.roleId)
+  return _internal_roleid();
+}
+inline void AddOrganizationRoleRqst::set_roleid(const std::string& value) {
+  _internal_set_roleid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationRoleRqst.roleId)
+}
+inline std::string* AddOrganizationRoleRqst::mutable_roleid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationRoleRqst.roleId)
+  return _internal_mutable_roleid();
+}
+inline const std::string& AddOrganizationRoleRqst::_internal_roleid() const {
+  return roleid_.Get();
+}
+inline void AddOrganizationRoleRqst::_internal_set_roleid(const std::string& value) {
+  
+  roleid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationRoleRqst::set_roleid(std::string&& value) {
+  
+  roleid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationRoleRqst.roleId)
+}
+inline void AddOrganizationRoleRqst::set_roleid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  roleid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationRoleRqst.roleId)
+}
+inline void AddOrganizationRoleRqst::set_roleid(const char* value,
+    size_t size) {
+  
+  roleid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationRoleRqst.roleId)
+}
+inline std::string* AddOrganizationRoleRqst::_internal_mutable_roleid() {
+  
+  return roleid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationRoleRqst::release_roleid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationRoleRqst.roleId)
+  return roleid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationRoleRqst::set_allocated_roleid(std::string* roleid) {
+  if (roleid != nullptr) {
+    
+  } else {
+    
+  }
+  roleid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), roleid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationRoleRqst.roleId)
+}
+
+// -------------------------------------------------------------------
+
+// AddOrganizationRoleRsp
+
+// bool result = 1;
+inline void AddOrganizationRoleRsp::clear_result() {
+  result_ = false;
+}
+inline bool AddOrganizationRoleRsp::_internal_result() const {
+  return result_;
+}
+inline bool AddOrganizationRoleRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationRoleRsp.result)
+  return _internal_result();
+}
+inline void AddOrganizationRoleRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void AddOrganizationRoleRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationRoleRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// AddOrganizationApplicationRqst
+
+// string organizationId = 1;
+inline void AddOrganizationApplicationRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationApplicationRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationApplicationRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void AddOrganizationApplicationRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationApplicationRqst.organizationId)
+}
+inline std::string* AddOrganizationApplicationRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationApplicationRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& AddOrganizationApplicationRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void AddOrganizationApplicationRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationApplicationRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationApplicationRqst.organizationId)
+}
+inline void AddOrganizationApplicationRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationApplicationRqst.organizationId)
+}
+inline void AddOrganizationApplicationRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationApplicationRqst.organizationId)
+}
+inline std::string* AddOrganizationApplicationRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationApplicationRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationApplicationRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationApplicationRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationApplicationRqst.organizationId)
+}
+
+// string applicationId = 2;
+inline void AddOrganizationApplicationRqst::clear_applicationid() {
+  applicationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddOrganizationApplicationRqst::applicationid() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationApplicationRqst.applicationId)
+  return _internal_applicationid();
+}
+inline void AddOrganizationApplicationRqst::set_applicationid(const std::string& value) {
+  _internal_set_applicationid(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationApplicationRqst.applicationId)
+}
+inline std::string* AddOrganizationApplicationRqst::mutable_applicationid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddOrganizationApplicationRqst.applicationId)
+  return _internal_mutable_applicationid();
+}
+inline const std::string& AddOrganizationApplicationRqst::_internal_applicationid() const {
+  return applicationid_.Get();
+}
+inline void AddOrganizationApplicationRqst::_internal_set_applicationid(const std::string& value) {
+  
+  applicationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddOrganizationApplicationRqst::set_applicationid(std::string&& value) {
+  
+  applicationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddOrganizationApplicationRqst.applicationId)
+}
+inline void AddOrganizationApplicationRqst::set_applicationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  applicationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddOrganizationApplicationRqst.applicationId)
+}
+inline void AddOrganizationApplicationRqst::set_applicationid(const char* value,
+    size_t size) {
+  
+  applicationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddOrganizationApplicationRqst.applicationId)
+}
+inline std::string* AddOrganizationApplicationRqst::_internal_mutable_applicationid() {
+  
+  return applicationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddOrganizationApplicationRqst::release_applicationid() {
+  // @@protoc_insertion_point(field_release:resource.AddOrganizationApplicationRqst.applicationId)
+  return applicationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddOrganizationApplicationRqst::set_allocated_applicationid(std::string* applicationid) {
+  if (applicationid != nullptr) {
+    
+  } else {
+    
+  }
+  applicationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), applicationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddOrganizationApplicationRqst.applicationId)
+}
+
+// -------------------------------------------------------------------
+
+// AddOrganizationApplicationRsp
+
+// bool result = 1;
+inline void AddOrganizationApplicationRsp::clear_result() {
+  result_ = false;
+}
+inline bool AddOrganizationApplicationRsp::_internal_result() const {
+  return result_;
+}
+inline bool AddOrganizationApplicationRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.AddOrganizationApplicationRsp.result)
+  return _internal_result();
+}
+inline void AddOrganizationApplicationRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void AddOrganizationApplicationRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.AddOrganizationApplicationRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationGroupRqst
+
+// string organizationId = 1;
+inline void RemoveOrganizationGroupRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationGroupRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationGroupRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void RemoveOrganizationGroupRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationGroupRqst.organizationId)
+}
+inline std::string* RemoveOrganizationGroupRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationGroupRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& RemoveOrganizationGroupRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void RemoveOrganizationGroupRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationGroupRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationGroupRqst.organizationId)
+}
+inline void RemoveOrganizationGroupRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationGroupRqst.organizationId)
+}
+inline void RemoveOrganizationGroupRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationGroupRqst.organizationId)
+}
+inline std::string* RemoveOrganizationGroupRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationGroupRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationGroupRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationGroupRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationGroupRqst.organizationId)
+}
+
+// string groupId = 2;
+inline void RemoveOrganizationGroupRqst::clear_groupid() {
+  groupid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationGroupRqst::groupid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationGroupRqst.groupId)
+  return _internal_groupid();
+}
+inline void RemoveOrganizationGroupRqst::set_groupid(const std::string& value) {
+  _internal_set_groupid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationGroupRqst.groupId)
+}
+inline std::string* RemoveOrganizationGroupRqst::mutable_groupid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationGroupRqst.groupId)
+  return _internal_mutable_groupid();
+}
+inline const std::string& RemoveOrganizationGroupRqst::_internal_groupid() const {
+  return groupid_.Get();
+}
+inline void RemoveOrganizationGroupRqst::_internal_set_groupid(const std::string& value) {
+  
+  groupid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationGroupRqst::set_groupid(std::string&& value) {
+  
+  groupid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationGroupRqst.groupId)
+}
+inline void RemoveOrganizationGroupRqst::set_groupid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  groupid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationGroupRqst.groupId)
+}
+inline void RemoveOrganizationGroupRqst::set_groupid(const char* value,
+    size_t size) {
+  
+  groupid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationGroupRqst.groupId)
+}
+inline std::string* RemoveOrganizationGroupRqst::_internal_mutable_groupid() {
+  
+  return groupid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationGroupRqst::release_groupid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationGroupRqst.groupId)
+  return groupid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationGroupRqst::set_allocated_groupid(std::string* groupid) {
+  if (groupid != nullptr) {
+    
+  } else {
+    
+  }
+  groupid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), groupid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationGroupRqst.groupId)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationGroupRsp
+
+// bool result = 1;
+inline void RemoveOrganizationGroupRsp::clear_result() {
+  result_ = false;
+}
+inline bool RemoveOrganizationGroupRsp::_internal_result() const {
+  return result_;
+}
+inline bool RemoveOrganizationGroupRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationGroupRsp.result)
+  return _internal_result();
+}
+inline void RemoveOrganizationGroupRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void RemoveOrganizationGroupRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationGroupRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationRoleRqst
+
+// string organizationId = 1;
+inline void RemoveOrganizationRoleRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationRoleRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationRoleRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void RemoveOrganizationRoleRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationRoleRqst.organizationId)
+}
+inline std::string* RemoveOrganizationRoleRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationRoleRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& RemoveOrganizationRoleRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void RemoveOrganizationRoleRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationRoleRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationRoleRqst.organizationId)
+}
+inline void RemoveOrganizationRoleRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationRoleRqst.organizationId)
+}
+inline void RemoveOrganizationRoleRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationRoleRqst.organizationId)
+}
+inline std::string* RemoveOrganizationRoleRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationRoleRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationRoleRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationRoleRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationRoleRqst.organizationId)
+}
+
+// string roleId = 2;
+inline void RemoveOrganizationRoleRqst::clear_roleid() {
+  roleid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationRoleRqst::roleid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationRoleRqst.roleId)
+  return _internal_roleid();
+}
+inline void RemoveOrganizationRoleRqst::set_roleid(const std::string& value) {
+  _internal_set_roleid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationRoleRqst.roleId)
+}
+inline std::string* RemoveOrganizationRoleRqst::mutable_roleid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationRoleRqst.roleId)
+  return _internal_mutable_roleid();
+}
+inline const std::string& RemoveOrganizationRoleRqst::_internal_roleid() const {
+  return roleid_.Get();
+}
+inline void RemoveOrganizationRoleRqst::_internal_set_roleid(const std::string& value) {
+  
+  roleid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationRoleRqst::set_roleid(std::string&& value) {
+  
+  roleid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationRoleRqst.roleId)
+}
+inline void RemoveOrganizationRoleRqst::set_roleid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  roleid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationRoleRqst.roleId)
+}
+inline void RemoveOrganizationRoleRqst::set_roleid(const char* value,
+    size_t size) {
+  
+  roleid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationRoleRqst.roleId)
+}
+inline std::string* RemoveOrganizationRoleRqst::_internal_mutable_roleid() {
+  
+  return roleid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationRoleRqst::release_roleid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationRoleRqst.roleId)
+  return roleid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationRoleRqst::set_allocated_roleid(std::string* roleid) {
+  if (roleid != nullptr) {
+    
+  } else {
+    
+  }
+  roleid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), roleid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationRoleRqst.roleId)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationRoleRsp
+
+// bool result = 1;
+inline void RemoveOrganizationRoleRsp::clear_result() {
+  result_ = false;
+}
+inline bool RemoveOrganizationRoleRsp::_internal_result() const {
+  return result_;
+}
+inline bool RemoveOrganizationRoleRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationRoleRsp.result)
+  return _internal_result();
+}
+inline void RemoveOrganizationRoleRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void RemoveOrganizationRoleRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationRoleRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationApplicationRqst
+
+// string organizationId = 1;
+inline void RemoveOrganizationApplicationRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationApplicationRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationApplicationRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void RemoveOrganizationApplicationRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationApplicationRqst.organizationId)
+}
+inline std::string* RemoveOrganizationApplicationRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationApplicationRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& RemoveOrganizationApplicationRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void RemoveOrganizationApplicationRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationApplicationRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationApplicationRqst.organizationId)
+}
+inline void RemoveOrganizationApplicationRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationApplicationRqst.organizationId)
+}
+inline void RemoveOrganizationApplicationRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationApplicationRqst.organizationId)
+}
+inline std::string* RemoveOrganizationApplicationRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationApplicationRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationApplicationRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationApplicationRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationApplicationRqst.organizationId)
+}
+
+// string applicationId = 2;
+inline void RemoveOrganizationApplicationRqst::clear_applicationid() {
+  applicationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationApplicationRqst::applicationid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationApplicationRqst.applicationId)
+  return _internal_applicationid();
+}
+inline void RemoveOrganizationApplicationRqst::set_applicationid(const std::string& value) {
+  _internal_set_applicationid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationApplicationRqst.applicationId)
+}
+inline std::string* RemoveOrganizationApplicationRqst::mutable_applicationid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationApplicationRqst.applicationId)
+  return _internal_mutable_applicationid();
+}
+inline const std::string& RemoveOrganizationApplicationRqst::_internal_applicationid() const {
+  return applicationid_.Get();
+}
+inline void RemoveOrganizationApplicationRqst::_internal_set_applicationid(const std::string& value) {
+  
+  applicationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationApplicationRqst::set_applicationid(std::string&& value) {
+  
+  applicationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationApplicationRqst.applicationId)
+}
+inline void RemoveOrganizationApplicationRqst::set_applicationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  applicationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationApplicationRqst.applicationId)
+}
+inline void RemoveOrganizationApplicationRqst::set_applicationid(const char* value,
+    size_t size) {
+  
+  applicationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationApplicationRqst.applicationId)
+}
+inline std::string* RemoveOrganizationApplicationRqst::_internal_mutable_applicationid() {
+  
+  return applicationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationApplicationRqst::release_applicationid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationApplicationRqst.applicationId)
+  return applicationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationApplicationRqst::set_allocated_applicationid(std::string* applicationid) {
+  if (applicationid != nullptr) {
+    
+  } else {
+    
+  }
+  applicationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), applicationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationApplicationRqst.applicationId)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationApplicationRsp
+
+// bool result = 1;
+inline void RemoveOrganizationApplicationRsp::clear_result() {
+  result_ = false;
+}
+inline bool RemoveOrganizationApplicationRsp::_internal_result() const {
+  return result_;
+}
+inline bool RemoveOrganizationApplicationRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationApplicationRsp.result)
+  return _internal_result();
+}
+inline void RemoveOrganizationApplicationRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void RemoveOrganizationApplicationRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationApplicationRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationAccountRqst
+
+// string organizationId = 1;
+inline void RemoveOrganizationAccountRqst::clear_organizationid() {
+  organizationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationAccountRqst::organizationid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationAccountRqst.organizationId)
+  return _internal_organizationid();
+}
+inline void RemoveOrganizationAccountRqst::set_organizationid(const std::string& value) {
+  _internal_set_organizationid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationAccountRqst.organizationId)
+}
+inline std::string* RemoveOrganizationAccountRqst::mutable_organizationid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationAccountRqst.organizationId)
+  return _internal_mutable_organizationid();
+}
+inline const std::string& RemoveOrganizationAccountRqst::_internal_organizationid() const {
+  return organizationid_.Get();
+}
+inline void RemoveOrganizationAccountRqst::_internal_set_organizationid(const std::string& value) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationAccountRqst::set_organizationid(std::string&& value) {
+  
+  organizationid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationAccountRqst.organizationId)
+}
+inline void RemoveOrganizationAccountRqst::set_organizationid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationAccountRqst.organizationId)
+}
+inline void RemoveOrganizationAccountRqst::set_organizationid(const char* value,
+    size_t size) {
+  
+  organizationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationAccountRqst.organizationId)
+}
+inline std::string* RemoveOrganizationAccountRqst::_internal_mutable_organizationid() {
+  
+  return organizationid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationAccountRqst::release_organizationid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationAccountRqst.organizationId)
+  return organizationid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationAccountRqst::set_allocated_organizationid(std::string* organizationid) {
+  if (organizationid != nullptr) {
+    
+  } else {
+    
+  }
+  organizationid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), organizationid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationAccountRqst.organizationId)
+}
+
+// string accountId = 2;
+inline void RemoveOrganizationAccountRqst::clear_accountid() {
+  accountid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveOrganizationAccountRqst::accountid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationAccountRqst.accountId)
+  return _internal_accountid();
+}
+inline void RemoveOrganizationAccountRqst::set_accountid(const std::string& value) {
+  _internal_set_accountid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationAccountRqst.accountId)
+}
+inline std::string* RemoveOrganizationAccountRqst::mutable_accountid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveOrganizationAccountRqst.accountId)
+  return _internal_mutable_accountid();
+}
+inline const std::string& RemoveOrganizationAccountRqst::_internal_accountid() const {
+  return accountid_.Get();
+}
+inline void RemoveOrganizationAccountRqst::_internal_set_accountid(const std::string& value) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveOrganizationAccountRqst::set_accountid(std::string&& value) {
+  
+  accountid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveOrganizationAccountRqst.accountId)
+}
+inline void RemoveOrganizationAccountRqst::set_accountid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveOrganizationAccountRqst.accountId)
+}
+inline void RemoveOrganizationAccountRqst::set_accountid(const char* value,
+    size_t size) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveOrganizationAccountRqst.accountId)
+}
+inline std::string* RemoveOrganizationAccountRqst::_internal_mutable_accountid() {
+  
+  return accountid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveOrganizationAccountRqst::release_accountid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveOrganizationAccountRqst.accountId)
+  return accountid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveOrganizationAccountRqst::set_allocated_accountid(std::string* accountid) {
+  if (accountid != nullptr) {
+    
+  } else {
+    
+  }
+  accountid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), accountid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveOrganizationAccountRqst.accountId)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveOrganizationAccountRsp
+
+// bool result = 1;
+inline void RemoveOrganizationAccountRsp::clear_result() {
+  result_ = false;
+}
+inline bool RemoveOrganizationAccountRsp::_internal_result() const {
+  return result_;
+}
+inline bool RemoveOrganizationAccountRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveOrganizationAccountRsp.result)
+  return _internal_result();
+}
+inline void RemoveOrganizationAccountRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void RemoveOrganizationAccountRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveOrganizationAccountRsp.result)
+}
+
+// -------------------------------------------------------------------
+
 // Permission
 
 // string name = 1;
@@ -27099,6 +30771,38 @@ inline void ClearAllLogRsp::set_result(bool value) {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

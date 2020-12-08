@@ -138,7 +138,7 @@ proto.plc_link.PlcLinkServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc_link.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.plc_link.PlcLinkServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.plc_link.PlcLinkServiceClient.prototype.link =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc_link.LinkRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.plc_link.PlcLinkServicePromiseClient.prototype.link =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.plc_link.PlcLinkServiceClient.prototype.unLink =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc_link.UnLinkRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.plc_link.PlcLinkServicePromiseClient.prototype.unLink =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.plc_link.PlcLinkServiceClient.prototype.suspend =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc_link.SuspendRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.plc_link.PlcLinkServicePromiseClient.prototype.suspend =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.plc_link.PlcLinkServiceClient.prototype.resume =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.plc_link.ResumeRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.plc_link.PlcLinkServicePromiseClient.prototype.resume =
     function(request, metadata) {

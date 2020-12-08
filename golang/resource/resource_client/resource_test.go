@@ -23,8 +23,8 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
-/** Test create Organisation */
-func TestCreateOrganisation(t *testing.T) {
+/** Test create Organization */
+func TestCreateOrganization(t *testing.T) {
 	log.Println("---> test create organisation.")
 	err := client.CreateOrganization("globulario", "globulario")
 	if err != nil {
@@ -54,6 +54,19 @@ func TestCreateGroup(t *testing.T) {
 	}
 }
 
+/** Test Add account, group and role to the organization **/
+func TestAddToOrganization(t *testing.T) {
+	client.AddOrganizationAccount("globulario", "dave")
+	client.AddOrganizationRole("globulario", "db_user")
+	client.AddOrganizationGroup("globulario", "group_0")
+}
+
+func TestRemoveFromOrganization(t *testing.T) {
+	client.RemoveOrganizationAccount("globulario", "dave")
+	client.RemoveOrganizationRole("globulario", "db_user")
+	client.RemoveOrganizationGroup("globulario", "group_0")
+}
+
 func TestAddGroupMemberAccount(t *testing.T) {
 	err := client.AddGroupMemberAccount("group_0", "dave")
 	if err != nil {
@@ -72,6 +85,14 @@ func TestGetGroups(t *testing.T) {
 	}
 }
 
+func TestCreateRole(t *testing.T) {
+	log.Println("---> create role ")
+	err := client.CreateRole("db_user", "db_user", []string{"/persistence.PersistenceService/InsertOne", "/persistence.PersistenceService/InsertMany", "/persistence.PersistenceService/Find", "/persistence.PersistenceService/FindOne", "/persistence.PersistenceService/ReplaceOne", "/persistence.PersistenceService/DeleteOne", "/persistence.PersistenceService/Delete", "/persistence.PersistenceService/Count", "/persistence.PersistenceService/Update", "/persistence.PersistenceService/UpdateOne"})
+	if err != nil {
+		log.Println("---> ", err)
+	}
+}
+
 func TestRemoveMemberAccount(t *testing.T) {
 	err := client.RemoveGroupMemberAccount("group_0", "dave")
 	if err != nil {
@@ -87,14 +108,6 @@ func TestDeleteGroup(t *testing.T) {
 		log.Println("---> delete group group_0 fail! ", err)
 	} else {
 		log.Println("---> delete group_0 succed!")
-	}
-}
-
-func TestCreateRole(t *testing.T) {
-	log.Println("---> create role ")
-	err := client.CreateRole("db_user", "db_user", []string{"/persistence.PersistenceService/InsertOne", "/persistence.PersistenceService/InsertMany", "/persistence.PersistenceService/Find", "/persistence.PersistenceService/FindOne", "/persistence.PersistenceService/ReplaceOne", "/persistence.PersistenceService/DeleteOne", "/persistence.PersistenceService/Delete", "/persistence.PersistenceService/Count", "/persistence.PersistenceService/Update", "/persistence.PersistenceService/UpdateOne"})
-	if err != nil {
-		log.Println("---> ", err)
 	}
 }
 
@@ -143,6 +156,15 @@ func TestDeleteAccount(t *testing.T) {
 
 	log.Println("---> test remove existing account.")
 	err := client.DeleteAccount("dave")
+	if err != nil {
+
+		log.Println("---> ", err)
+	}
+}
+
+func TestDeleteOrganization(t *testing.T) {
+	log.Println("---> test delete organization")
+	err := client.DeleteOrganization("globulario")
 	if err != nil {
 
 		log.Println("---> ", err)

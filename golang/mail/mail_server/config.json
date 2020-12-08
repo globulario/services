@@ -26,7 +26,7 @@
   "Keywords": [],
   "Name": "mail.MailService",
   "Password": "adminadmin",
-  "Path": "/home/dave/go/src/github.com/globulario/Globular/services/globulario/mail.MailService/0.0.1/87f1acd6-db92-4024-a2a3-249e5c5e7d5c/mail_server.exe",
+  "Path": "C:/Users/mm006819/go/src/github.com/globulario/Globular/services/globulario/mail.MailService/0.0.1/87f1acd6-db92-4024-a2a3-249e5c5e7d5c/mail_server.exe",
   "Permissions": [],
   "Port": 10039,
   "Process": -1,
@@ -42,5 +42,5 @@
   "State": "stopped",
   "TLS": false,
   "Version": "0.0.1",
-  "configPath": "/home/dave/go/src/github.com/globulario/services/golang/mail/mail_server/config.json"
+  "configPath": "C:/Users/mm006819/go/src/github.com/globulario/services/golang/mail/mail_server/config.json"
 }

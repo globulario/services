@@ -236,6 +236,118 @@ func (self *Resource_Client) CreateOrganization(id string, name string) error {
 
 }
 
+// Create a new Organization
+func (self *Resource_Client) DeleteOrganization(id string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.DeleteOrganizationRqst{
+		Organization: id,
+	}
+
+	_, err := self.c.DeleteOrganization(globular.GetClientContext(self), rqst)
+	return err
+
+}
+
+// Add to Organisation...
+func (self *Resource_Client) AddOrganizationAccount(organisationId string, accountId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.AddOrganizationAccountRqst{
+		OrganizationId: organisationId,
+		AccountId:      accountId,
+	}
+
+	_, err := self.c.AddOrganizationAccount(globular.GetClientContext(self), rqst)
+	return err
+}
+
+func (self *Resource_Client) AddOrganizationRole(organisationId string, roleId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.AddOrganizationRoleRqst{
+		OrganizationId: organisationId,
+		RoleId:         roleId,
+	}
+
+	_, err := self.c.AddOrganizationRole(globular.GetClientContext(self), rqst)
+	return err
+}
+
+func (self *Resource_Client) AddOrganizationGroup(organisationId string, groupId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.AddOrganizationGroupRqst{
+		OrganizationId: organisationId,
+		GroupId:        groupId,
+	}
+
+	_, err := self.c.AddOrganizationGroup(globular.GetClientContext(self), rqst)
+	return err
+}
+
+func (self *Resource_Client) AddOrganizationApplication(organisationId string, applicationId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.AddOrganizationApplicationRqst{
+		OrganizationId: organisationId,
+		ApplicationId:  applicationId,
+	}
+
+	_, err := self.c.AddOrganizationApplication(globular.GetClientContext(self), rqst)
+	return err
+}
+
+// Remove from organization
+
+func (self *Resource_Client) RemoveOrganizationAccount(organisationId string, accountId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.RemoveOrganizationAccountRqst{
+		OrganizationId: organisationId,
+		AccountId:      accountId,
+	}
+
+	_, err := self.c.RemoveOrganizationAccount(globular.GetClientContext(self), rqst)
+	return err
+}
+
+func (self *Resource_Client) RemoveOrganizationRole(organisationId string, roleId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.RemoveOrganizationRoleRqst{
+		OrganizationId: organisationId,
+		RoleId:         roleId,
+	}
+
+	_, err := self.c.RemoveOrganizationRole(globular.GetClientContext(self), rqst)
+	return err
+}
+
+func (self *Resource_Client) RemoveOrganizationGroup(organisationId string, groupId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.RemoveOrganizationGroupRqst{
+		OrganizationId: organisationId,
+		GroupId:        groupId,
+	}
+
+	_, err := self.c.RemoveOrganizationGroup(globular.GetClientContext(self), rqst)
+	return err
+}
+
+func (self *Resource_Client) RemoveOrganizationApplication(organisationId string, applicationId string) error {
+
+	// Create a new Organization.
+	rqst := &resourcepb.RemoveOrganizationApplicationRqst{
+		OrganizationId: organisationId,
+		ApplicationId:  applicationId,
+	}
+
+	_, err := self.c.RemoveOrganizationApplication(globular.GetClientContext(self), rqst)
+	return err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Account
 ////////////////////////////////////////////////////////////////////////////////

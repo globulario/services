@@ -138,7 +138,7 @@ proto.sql.SqlServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.sql.SqlServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.sql.SqlServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.CreateConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.sql.SqlServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.sql.SqlServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.DeleteConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.sql.SqlServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.sql.SqlServiceClient.prototype.ping =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.PingConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.sql.SqlServicePromiseClient.prototype.ping =
     function(request, metadata) {
@@ -533,7 +533,7 @@ proto.sql.SqlServiceClient.prototype.execContext =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.ExecContextRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.sql.SqlServicePromiseClient.prototype.execContext =
     function(request, metadata) {
