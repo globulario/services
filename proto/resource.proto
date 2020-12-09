@@ -634,20 +634,20 @@ message ActionResourceParameterPermission {
 	string permission = 2;
 }
 
-message SetActionPermissionRqst{
+message SetActionResourcesPermissionsRqst{
 	string action = 1;
 	repeated ActionResourceParameterPermission resources = 2;
 }
 
-message SetActionPermissionsRsp{
+message SetActionResourcesPermissionsRsp{
 	/** nothing here **/
 }
 
-message GetActionPermissionsRqst{
+message GetActionResourcesPermissionsRqst{
 	string action = 1;
 }
 
-message GetActionPermissionsRsp{
+message GetActionResourcesPermissionsRsp{
 	repeated ActionResourceParameterPermission resources = 1;
 }
 
@@ -752,7 +752,7 @@ message DeleteAllAccessRsp {
 message ValidateAccessRqst {
 	string subject = 1;
 	SubjectType type = 2;
-	string path = 3; // The ressource path
+	string path = 3; // The Resource path
 	string permission = 4; // the name of the permission (read, write, execute...)
 }
 
@@ -763,7 +763,7 @@ message ValidateAccessRsp {
 message GetAccessesRqst {
 	string subject = 1;
 	SubjectType type = 2;
-	string path = 3; // The ressource path
+	string path = 3; // The Resource path
 }
 
 message GetAccessesRsp {
@@ -776,10 +776,10 @@ message GetAccessesRsp {
  */
 service RbacService {
 	/** Set the action resources permissions **/
-	rpc SetActionPermissions(SetActionPermissionsRqst) returns(SetActionPermissionsRsp);
+	rpc SetActionResourcesPermissions(SetActionResourcesPermissionsRqst) returns(SetActionResourcesPermissionsRsp);
 	
 	/** Get the action ressouces permission **/
-	rpc GetActionPermissions(GetActionPermissionsRqst) returns(GetActionPermissionsRsp);
+	rpc GetActionResourcesPermissions(GetActionResourcesPermissionsRqst) returns(GetActionResourcesPermissionsRsp);
 	
 	/** Set resource permissions this method will replace existing permission at once **/
 	rpc SetResourcePermissions(SetResourcePermissionsRqst) returns(SetResourcePermissionsRqst);
@@ -808,7 +808,7 @@ service RbacService {
 	/** That function must be call when a subject is removed to clean up permissions. */
 	rpc DeleteAllAccess(DeleteAllAccessRqst) returns (DeleteAllAccessRsp);
 	
-	/** Validate if a user can get access to a given ressource for a given operation (read, write...) **/
+	/** Validate if a user can get access to a given Resource for a given operation (read, write...) **/
 	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp);
 	
 	/** Return the list of access for a given subject */

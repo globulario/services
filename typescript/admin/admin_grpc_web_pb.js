@@ -138,7 +138,7 @@ proto.admin.AdminServiceClient.prototype.setRootPassword =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetRootPasswordResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setRootPassword =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.admin.AdminServiceClient.prototype.setRootEmail =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetRootEmailResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setRootEmail =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.admin.AdminServiceClient.prototype.setPassword =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetPasswordResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setPassword =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.admin.AdminServiceClient.prototype.setEmail =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetEmailResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setEmail =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.admin.AdminServiceClient.prototype.getConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.getConfig =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.admin.AdminServiceClient.prototype.getFullConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.getFullConfig =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.admin.AdminServiceClient.prototype.saveConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SaveConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.saveConfig =
     function(request, metadata) {
@@ -698,7 +698,7 @@ proto.admin.AdminServiceClient.prototype.stopService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.StopServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.stopService =
     function(request, metadata) {
@@ -778,7 +778,7 @@ proto.admin.AdminServiceClient.prototype.startService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.StartServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.startService =
     function(request, metadata) {
@@ -858,7 +858,7 @@ proto.admin.AdminServiceClient.prototype.restartServices =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.RestartServicesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.restartServices =
     function(request, metadata) {
@@ -938,7 +938,7 @@ proto.admin.AdminServiceClient.prototype.publishService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.PublishServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.publishService =
     function(request, metadata) {
@@ -1018,7 +1018,7 @@ proto.admin.AdminServiceClient.prototype.installService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.InstallServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.installService =
     function(request, metadata) {
@@ -1098,7 +1098,7 @@ proto.admin.AdminServiceClient.prototype.uninstallService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.UninstallServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.uninstallService =
     function(request, metadata) {
@@ -1178,7 +1178,7 @@ proto.admin.AdminServiceClient.prototype.registerExternalApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.RegisterExternalApplicationResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.registerExternalApplication =
     function(request, metadata) {
@@ -1258,7 +1258,7 @@ proto.admin.AdminServiceClient.prototype.hasRunningProcess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.HasRunningProcessResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.hasRunningProcess =
     function(request, metadata) {

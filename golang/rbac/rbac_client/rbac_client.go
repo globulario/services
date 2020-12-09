@@ -156,18 +156,18 @@ func (self *Rbac_Client) SetCaFile(caFile string) {
 
 ////////////////////////////////////  Api  /////////////////////////////////////
 /** Set the action resources permissions **/
-func (self *Rbac_Client) SetActionResourcesPermission(action string, resources []*resourcepb.ActionResourceParameterPermission) error {
-	rqst := &resourcepb.SetActionResourcesPermissionRqst{
+func (self *Rbac_Client) SetActionResourcesPermissions(action string, resources []*resourcepb.ActionResourceParameterPermission) error {
+	rqst := &resourcepb.SetActionResourcesPermissionsRqst{
 		Action:    action,
 		Resources: resources,
 	}
 
-	_, err := self.c.SetActionResourcesPermission(globular.GetClientContext(self), rqst)
+	_, err := self.c.SetActionResourcesPermissions(globular.GetClientContext(self), rqst)
 	return err
 }
 
 /** Get the action ressouces permission **/
-func (self *Rbac_Client) GetActionResourcesPermission() {
+func (self *Rbac_Client) GetActionResourcesPermissions() {
 	// Implement it
 }
 
@@ -216,7 +216,7 @@ func (self *Rbac_Client) DeleteAllAccess() {
 	// Implement it
 }
 
-/** Validate if a user can get access to a given ressource for a given operation (read, write...) **/
+/** Validate if a user can get access to a given Resource for a given operation (read, write...) **/
 func (self *Rbac_Client) ValidateAccess() {
 	// Implement it
 }
