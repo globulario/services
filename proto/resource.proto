@@ -634,23 +634,6 @@ message ActionResourceParameterPermission {
 	string permission = 2;
 }
 
-message SetActionResourcesPermissionsRqst{
-	string action = 1;
-	repeated ActionResourceParameterPermission resources = 2;
-}
-
-message SetActionResourcesPermissionsRsp{
-	/** nothing here **/
-}
-
-message GetActionResourcesPermissionsRqst{
-	string action = 1;
-}
-
-message GetActionResourcesPermissionsRsp{
-	repeated ActionResourceParameterPermission resources = 1;
-}
-
 /** Append a permission owner **/
 
 /** Return a resource permissions **/
@@ -775,12 +758,7 @@ message GetAccessesRsp {
  * The service to control action and resource access.
  */
 service RbacService {
-	/** Set the action resources permissions **/
-	rpc SetActionResourcesPermissions(SetActionResourcesPermissionsRqst) returns(SetActionResourcesPermissionsRsp);
-	
-	/** Get the action ressouces permission **/
-	rpc GetActionResourcesPermissions(GetActionResourcesPermissionsRqst) returns(GetActionResourcesPermissionsRsp);
-	
+
 	/** Set resource permissions this method will replace existing permission at once **/
 	rpc SetResourcePermissions(SetResourcePermissionsRqst) returns(SetResourcePermissionsRqst);
 	
