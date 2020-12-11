@@ -717,7 +717,6 @@ enum SubjectType {
 	
 message DeleteAllAccessRqst {
 	string subject = 1;
-	SubjectType type = 2;
 }
 
 message DeleteAllAccessRsp {

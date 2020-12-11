@@ -12,22 +12,47 @@ var (
 	client, _ = NewRbacService_Client("localhost", "resource.RbacService")
 )
 
-func TestSetActionPermission(t *testing.T) {
-	action := ""
-	resources := make([]*resourcepb.ActionResourceParameterPermission, 0)
-
-	err := client.SetActionPermission(action, resources)
-	if err != nil {
-		log.Panicln("error ", err)
-	}
-}
-
-func TestGetActionPermission(t *testing.T) {
-	t.FailNow()
-}
-
 func TestSetResourcePermissions(t *testing.T) {
-	t.FailNow()
+
+	// A fictive file path...
+	filePath := "C:/temp/toto.txt"
+
+	permissions := &resourcepb.Permissions{
+		Allowed: []*resourcepb.Permission{
+			&resourcepb.Permission{
+				Name:          "read",
+				Applications:  []string{},
+				Accounts:      []string{"dave"},
+				Groups:        []string{"group_0"},
+				Peers:         []string{"peer_0"},
+				Organizations: []string{"peer_0"},
+			},
+		},
+		Denied: []*resourcepb.Permission{
+			&resourcepb.Permission{
+				Name:          "read",
+				Applications:  []string{},
+				Accounts:      []string{"dave"},
+				Groups:        []string{"group_0"},
+				Peers:         []string{"peer_0"},
+				Organizations: []string{"peer_0"},
+			},
+		},
+		Owners: &resourcepb.Permission{
+			Name:          "read",
+			Applications:  []string{},
+			Accounts:      []string{"dave"},
+			Groups:        []string{"group_0"},
+			Peers:         []string{"peer_0"},
+			Organizations: []string{"peer_0"},
+		},
+	}
+
+	err := client.SetResourcePermissions(filePath, permissions)
+	if err != nil {
+		log.Println(err)
+	}
+
 }
 
 func TestDeleteResourcePermissions(t *testing.T) {
