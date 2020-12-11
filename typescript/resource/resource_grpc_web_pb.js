@@ -138,7 +138,7 @@ proto.resource.ResourceServiceClient.prototype.getAllActions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.GetAllActionsRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.getAllActions =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.resource.ResourceServiceClient.prototype.validateToken =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.ValidateTokenRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.validateToken =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.resource.ResourceServiceClient.prototype.refreshToken =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RefreshTokenRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.refreshToken =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.resource.ResourceServiceClient.prototype.authenticate =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AuthenticateRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.authenticate =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.resource.ResourceServiceClient.prototype.synchronizeLdap =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.SynchronizeLdapRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.synchronizeLdap =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.resource.ResourceServiceClient.prototype.createOrganization =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.CreateOrganizationRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.createOrganization =
     function(request, metadata) {
@@ -693,7 +693,7 @@ proto.resource.ResourceServiceClient.prototype.deleteOrganization =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteOrganizationRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.deleteOrganization =
     function(request, metadata) {
@@ -773,7 +773,7 @@ proto.resource.ResourceServiceClient.prototype.addOrganizationAccount =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddOrganizationAccountRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addOrganizationAccount =
     function(request, metadata) {
@@ -853,7 +853,7 @@ proto.resource.ResourceServiceClient.prototype.addOrganizationGroup =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddOrganizationGroupRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addOrganizationGroup =
     function(request, metadata) {
@@ -933,7 +933,7 @@ proto.resource.ResourceServiceClient.prototype.addOrganizationRole =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddOrganizationRoleRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addOrganizationRole =
     function(request, metadata) {
@@ -1013,7 +1013,7 @@ proto.resource.ResourceServiceClient.prototype.addOrganizationApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddOrganizationApplicationRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addOrganizationApplication =
     function(request, metadata) {
@@ -1093,7 +1093,7 @@ proto.resource.ResourceServiceClient.prototype.removeOrganizationAccount =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveOrganizationAccountRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationAccount =
     function(request, metadata) {
@@ -1173,7 +1173,7 @@ proto.resource.ResourceServiceClient.prototype.removeOrganizationGroup =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveOrganizationGroupRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationGroup =
     function(request, metadata) {
@@ -1253,7 +1253,7 @@ proto.resource.ResourceServiceClient.prototype.removeOrganizationRole =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveOrganizationRoleRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationRole =
     function(request, metadata) {
@@ -1333,7 +1333,7 @@ proto.resource.ResourceServiceClient.prototype.removeOrganizationApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveOrganizationApplicationRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeOrganizationApplication =
     function(request, metadata) {
@@ -1413,7 +1413,7 @@ proto.resource.ResourceServiceClient.prototype.createGroup =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.CreateGroupRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.createGroup =
     function(request, metadata) {
@@ -1568,7 +1568,7 @@ proto.resource.ResourceServiceClient.prototype.deleteGroup =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteGroupRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.deleteGroup =
     function(request, metadata) {
@@ -1648,7 +1648,7 @@ proto.resource.ResourceServiceClient.prototype.addGroupMemberAccount =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddGroupMemberAccountRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addGroupMemberAccount =
     function(request, metadata) {
@@ -1728,7 +1728,7 @@ proto.resource.ResourceServiceClient.prototype.removeGroupMemberAccount =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveGroupMemberAccountRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeGroupMemberAccount =
     function(request, metadata) {
@@ -1808,7 +1808,7 @@ proto.resource.ResourceServiceClient.prototype.registerAccount =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RegisterAccountRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.registerAccount =
     function(request, metadata) {
@@ -1888,7 +1888,7 @@ proto.resource.ResourceServiceClient.prototype.deleteAccount =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteAccountRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.deleteAccount =
     function(request, metadata) {
@@ -1968,7 +1968,7 @@ proto.resource.ResourceServiceClient.prototype.addAccountRole =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddAccountRoleRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addAccountRole =
     function(request, metadata) {
@@ -2048,7 +2048,7 @@ proto.resource.ResourceServiceClient.prototype.removeAccountRole =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveAccountRoleRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeAccountRole =
     function(request, metadata) {
@@ -2128,7 +2128,7 @@ proto.resource.ResourceServiceClient.prototype.createRole =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.CreateRoleRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.createRole =
     function(request, metadata) {
@@ -2208,7 +2208,7 @@ proto.resource.ResourceServiceClient.prototype.deleteRole =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteRoleRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.deleteRole =
     function(request, metadata) {
@@ -2288,7 +2288,7 @@ proto.resource.ResourceServiceClient.prototype.addRoleAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddRoleActionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addRoleAction =
     function(request, metadata) {
@@ -2368,7 +2368,7 @@ proto.resource.ResourceServiceClient.prototype.removeRoleAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveRoleActionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeRoleAction =
     function(request, metadata) {
@@ -2448,7 +2448,7 @@ proto.resource.ResourceServiceClient.prototype.getAllApplicationsInfo =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.GetAllApplicationsInfoRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.getAllApplicationsInfo =
     function(request, metadata) {
@@ -2528,7 +2528,7 @@ proto.resource.ResourceServiceClient.prototype.deleteApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteApplicationRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.deleteApplication =
     function(request, metadata) {
@@ -2608,7 +2608,7 @@ proto.resource.ResourceServiceClient.prototype.addApplicationAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddApplicationActionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addApplicationAction =
     function(request, metadata) {
@@ -2688,7 +2688,7 @@ proto.resource.ResourceServiceClient.prototype.removeApplicationAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemoveApplicationActionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removeApplicationAction =
     function(request, metadata) {
@@ -2768,7 +2768,7 @@ proto.resource.ResourceServiceClient.prototype.registerPeer =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RegisterPeerRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.registerPeer =
     function(request, metadata) {
@@ -2923,7 +2923,7 @@ proto.resource.ResourceServiceClient.prototype.deletePeer =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeletePeerRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.deletePeer =
     function(request, metadata) {
@@ -3003,7 +3003,7 @@ proto.resource.ResourceServiceClient.prototype.addPeerAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddPeerActionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.addPeerAction =
     function(request, metadata) {
@@ -3083,7 +3083,7 @@ proto.resource.ResourceServiceClient.prototype.removePeerAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.RemovePeerActionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.ResourceServicePromiseClient.prototype.removePeerAction =
     function(request, metadata) {
@@ -3144,166 +3144,6 @@ proto.resource.RbacServicePromiseClient =
    */
   this.hostname_ = hostname;
 
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.resource.SetActionResourcesPermissionRqst,
- *   !proto.resource.SetActionResourcesPermissionRsp>}
- */
-const methodDescriptor_RbacService_SetActionResourcesPermission = new grpc.web.MethodDescriptor(
-  '/resource.RbacService/SetActionResourcesPermission',
-  grpc.web.MethodType.UNARY,
-  proto.resource.SetActionResourcesPermissionRqst,
-  proto.resource.SetActionResourcesPermissionRsp,
-  /**
-   * @param {!proto.resource.SetActionResourcesPermissionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.resource.SetActionResourcesPermissionRsp.deserializeBinary
-);
-
-
-/**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.resource.SetActionResourcesPermissionRqst,
- *   !proto.resource.SetActionResourcesPermissionRsp>}
- */
-const methodInfo_RbacService_SetActionResourcesPermission = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.resource.SetActionResourcesPermissionRsp,
-  /**
-   * @param {!proto.resource.SetActionResourcesPermissionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.resource.SetActionResourcesPermissionRsp.deserializeBinary
-);
-
-
-/**
- * @param {!proto.resource.SetActionResourcesPermissionRqst} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.Error, ?proto.resource.SetActionResourcesPermissionRsp)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.resource.SetActionResourcesPermissionRsp>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.resource.RbacServiceClient.prototype.setActionResourcesPermission =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/resource.RbacService/SetActionResourcesPermission',
-      request,
-      metadata || {},
-      methodDescriptor_RbacService_SetActionResourcesPermission,
-      callback);
-};
-
-
-/**
- * @param {!proto.resource.SetActionResourcesPermissionRqst} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.resource.SetActionResourcesPermissionRsp>}
- *     A native promise that resolves to the response
- */
-proto.resource.RbacServicePromiseClient.prototype.setActionResourcesPermission =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/resource.RbacService/SetActionResourcesPermission',
-      request,
-      metadata || {},
-      methodDescriptor_RbacService_SetActionResourcesPermission);
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.resource.GetActionResourcesPermissionRqst,
- *   !proto.resource.GetActionResourcesPermissionRsp>}
- */
-const methodDescriptor_RbacService_GetActionResourcesPermission = new grpc.web.MethodDescriptor(
-  '/resource.RbacService/GetActionResourcesPermission',
-  grpc.web.MethodType.UNARY,
-  proto.resource.GetActionResourcesPermissionRqst,
-  proto.resource.GetActionResourcesPermissionRsp,
-  /**
-   * @param {!proto.resource.GetActionResourcesPermissionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.resource.GetActionResourcesPermissionRsp.deserializeBinary
-);
-
-
-/**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.resource.GetActionResourcesPermissionRqst,
- *   !proto.resource.GetActionResourcesPermissionRsp>}
- */
-const methodInfo_RbacService_GetActionResourcesPermission = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.resource.GetActionResourcesPermissionRsp,
-  /**
-   * @param {!proto.resource.GetActionResourcesPermissionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.resource.GetActionResourcesPermissionRsp.deserializeBinary
-);
-
-
-/**
- * @param {!proto.resource.GetActionResourcesPermissionRqst} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.Error, ?proto.resource.GetActionResourcesPermissionRsp)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.resource.GetActionResourcesPermissionRsp>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.resource.RbacServiceClient.prototype.getActionResourcesPermission =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/resource.RbacService/GetActionResourcesPermission',
-      request,
-      metadata || {},
-      methodDescriptor_RbacService_GetActionResourcesPermission,
-      callback);
-};
-
-
-/**
- * @param {!proto.resource.GetActionResourcesPermissionRqst} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.resource.GetActionResourcesPermissionRsp>}
- *     A native promise that resolves to the response
- */
-proto.resource.RbacServicePromiseClient.prototype.getActionResourcesPermission =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/resource.RbacService/GetActionResourcesPermission',
-      request,
-      metadata || {},
-      methodDescriptor_RbacService_GetActionResourcesPermission);
 };
 
 
@@ -3375,7 +3215,7 @@ proto.resource.RbacServiceClient.prototype.setResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.SetResourcePermissionsRqst>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.setResourcePermissions =
     function(request, metadata) {
@@ -3455,7 +3295,7 @@ proto.resource.RbacServiceClient.prototype.deleteResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteResourcePermissionsRqst>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.deleteResourcePermissions =
     function(request, metadata) {
@@ -3535,7 +3375,7 @@ proto.resource.RbacServiceClient.prototype.deleteResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteResourcePermissionRqst>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.deleteResourcePermission =
     function(request, metadata) {
@@ -3615,7 +3455,7 @@ proto.resource.RbacServiceClient.prototype.setResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.SetResourcePermissionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.setResourcePermission =
     function(request, metadata) {
@@ -3695,7 +3535,7 @@ proto.resource.RbacServiceClient.prototype.getResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.GetResourcePermissionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.getResourcePermission =
     function(request, metadata) {
@@ -3775,7 +3615,7 @@ proto.resource.RbacServiceClient.prototype.getResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.GetResourcePermissionsRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.getResourcePermissions =
     function(request, metadata) {
@@ -3855,7 +3695,7 @@ proto.resource.RbacServiceClient.prototype.addResourceOwner =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddResourceOwnerRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.addResourceOwner =
     function(request, metadata) {
@@ -3935,7 +3775,7 @@ proto.resource.RbacServiceClient.prototype.removeResourceOwner =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.AddResourceOwnerRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.removeResourceOwner =
     function(request, metadata) {
@@ -4015,7 +3855,7 @@ proto.resource.RbacServiceClient.prototype.deleteAllAccess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteAllAccessRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.deleteAllAccess =
     function(request, metadata) {
@@ -4095,7 +3935,7 @@ proto.resource.RbacServiceClient.prototype.validateAccess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.ValidateAccessRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.validateAccess =
     function(request, metadata) {
@@ -4175,7 +4015,7 @@ proto.resource.RbacServiceClient.prototype.getAccesses =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.GetAccessesRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.RbacServicePromiseClient.prototype.getAccesses =
     function(request, metadata) {
@@ -4307,7 +4147,7 @@ proto.resource.LogServiceClient.prototype.log =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.LogRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.LogServicePromiseClient.prototype.log =
     function(request, metadata) {
@@ -4462,7 +4302,7 @@ proto.resource.LogServiceClient.prototype.deleteLog =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.DeleteLogRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.LogServicePromiseClient.prototype.deleteLog =
     function(request, metadata) {
@@ -4542,7 +4382,7 @@ proto.resource.LogServiceClient.prototype.clearAllLog =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.resource.ClearAllLogRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.resource.LogServicePromiseClient.prototype.clearAllLog =
     function(request, metadata) {

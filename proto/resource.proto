@@ -616,11 +616,12 @@ service ResourceService {
 
 // Permission message struct.
 message Permission {
-	string name = 1; // read, write, executed ... what you need
-	repeated string accounts = 2;
-	repeated string roles = 3;
-	repeated string peers = 4;
-	repeated string organization = 5;
+	string name = 1; // read, write, delete ... what you need
+	repeated string applications = 2;
+	repeated string peers = 3;
+	repeated string accounts = 4;
+	repeated string groups = 5;
+	repeated string organizations = 6;
 }
 
 message Permissions {
@@ -656,16 +657,6 @@ message DeleteResourcePermissionsRsp{
 	Permissions permissions = 1;
 }
 
-/** Get specific resource permission **/
-message GetResourcePermissionRqst{
-	string path = 1;
-	string name = 2;
-}
-
-/** Return permissions **/
-message GetResourcePermissionRsp{
-	Permission permission = 1;
-}
 
 /** Delete specific resource permission **/
 message DeleteResourcePermissionRqst{
@@ -700,6 +691,7 @@ message SetResourcePermissionRsp{
 message AddResourceOwnerRqst{
 	string path = 1;
 	string owner = 2;
+	SubjectType subject = 3;
 }
 
 message AddResourceOwnerRsp {
@@ -717,10 +709,10 @@ message removeResourceOwnerRsp {
 
 enum SubjectType {
 	ACCOUNT = 0;
-	ROLE = 1;
-	PEER = 2;
-	GROUP= 3;
-	ORGANIZATION = 4;
+	PEER = 1;
+	GROUP= 2;
+	ORGANIZATION = 3;
+	APPLICATION = 4;
 }
 	
 message DeleteAllAccessRqst {
@@ -743,15 +735,6 @@ message ValidateAccessRsp {
 	bool result = 1;
 }
 
-message GetAccessesRqst {
-	string subject = 1;
-	SubjectType type = 2;
-	string path = 3; // The Resource path
-}
-
-message GetAccessesRsp {
-	repeated string accesses = 1;
-}
 
 
 /**
@@ -771,9 +754,6 @@ service RbacService {
 	/** Set specific resource permission  ex. read permission... **/
 	rpc SetResourcePermission(SetResourcePermissionRqst) returns(SetResourcePermissionRsp);
 	
-	/** Get a specific resource access **/
-	rpc GetResourcePermission(GetResourcePermissionRqst) returns(GetResourcePermissionRsp);
-	
 	/** Get resource permissions **/
 	rpc GetResourcePermissions(GetResourcePermissionsRqst) returns(GetResourcePermissionsRsp);
 	
@@ -789,9 +769,6 @@ service RbacService {
 	/** Validate if a user can get access to a given Resource for a given operation (read, write...) **/
 	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp);
 	
-	/** Return the list of access for a given subject */
-	rpc GetAccesses(GetAccessesRqst) returns(GetAccessesRsp);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

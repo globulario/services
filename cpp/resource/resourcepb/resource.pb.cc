@@ -15,7 +15,6 @@
 // @@protoc_insertion_point(includes)
 #include <google/protobuf/port_def.inc>
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_Account_resource_2eproto;
-extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_ActionResourceParameterPermission_resource_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_Group_resource_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_GroupSyncInfos_resource_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<2> scc_info_LdapSyncInfos_resource_2eproto;
@@ -383,22 +382,6 @@ class ActionResourceParameterPermissionDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<ActionResourceParameterPermission> _instance;
 } _ActionResourceParameterPermission_default_instance_;
-class SetActionResourcesPermissionRqstDefaultTypeInternal {
- public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<SetActionResourcesPermissionRqst> _instance;
-} _SetActionResourcesPermissionRqst_default_instance_;
-class SetActionResourcesPermissionRspDefaultTypeInternal {
- public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<SetActionResourcesPermissionRsp> _instance;
-} _SetActionResourcesPermissionRsp_default_instance_;
-class GetActionResourcesPermissionRqstDefaultTypeInternal {
- public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<GetActionResourcesPermissionRqst> _instance;
-} _GetActionResourcesPermissionRqst_default_instance_;
-class GetActionResourcesPermissionRspDefaultTypeInternal {
- public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<GetActionResourcesPermissionRsp> _instance;
-} _GetActionResourcesPermissionRsp_default_instance_;
 class GetResourcePermissionsRqstDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<GetResourcePermissionsRqst> _instance;
@@ -1338,35 +1321,6 @@ static void InitDefaultsscc_info_GetAccessesRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_GetAccessesRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_GetAccessesRsp_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_GetActionResourcesPermissionRqst_resource_2eproto() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  {
-    void* ptr = &::resource::_GetActionResourcesPermissionRqst_default_instance_;
-    new (ptr) ::resource::GetActionResourcesPermissionRqst();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
-  }
-  ::resource::GetActionResourcesPermissionRqst::InitAsDefaultInstance();
-}
-
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_GetActionResourcesPermissionRqst_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_GetActionResourcesPermissionRqst_resource_2eproto}, {}};
-
-static void InitDefaultsscc_info_GetActionResourcesPermissionRsp_resource_2eproto() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  {
-    void* ptr = &::resource::_GetActionResourcesPermissionRsp_default_instance_;
-    new (ptr) ::resource::GetActionResourcesPermissionRsp();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
-  }
-  ::resource::GetActionResourcesPermissionRsp::InitAsDefaultInstance();
-}
-
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_GetActionResourcesPermissionRsp_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_GetActionResourcesPermissionRsp_resource_2eproto}, {
-      &scc_info_ActionResourceParameterPermission_resource_2eproto.base,}};
-
 static void InitDefaultsscc_info_GetAllActionsRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -2149,35 +2103,6 @@ static void InitDefaultsscc_info_Role_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_Role_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_Role_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_SetActionResourcesPermissionRqst_resource_2eproto() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  {
-    void* ptr = &::resource::_SetActionResourcesPermissionRqst_default_instance_;
-    new (ptr) ::resource::SetActionResourcesPermissionRqst();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
-  }
-  ::resource::SetActionResourcesPermissionRqst::InitAsDefaultInstance();
-}
-
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_SetActionResourcesPermissionRqst_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_SetActionResourcesPermissionRqst_resource_2eproto}, {
-      &scc_info_ActionResourceParameterPermission_resource_2eproto.base,}};
-
-static void InitDefaultsscc_info_SetActionResourcesPermissionRsp_resource_2eproto() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  {
-    void* ptr = &::resource::_SetActionResourcesPermissionRsp_default_instance_;
-    new (ptr) ::resource::SetActionResourcesPermissionRsp();
-    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
-  }
-  ::resource::SetActionResourcesPermissionRsp::InitAsDefaultInstance();
-}
-
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_SetActionResourcesPermissionRsp_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_SetActionResourcesPermissionRsp_resource_2eproto}, {}};
-
 static void InitDefaultsscc_info_SetLogMethodRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -2391,7 +2316,7 @@ static void InitDefaultsscc_info_removeResourceOwnerRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_removeResourceOwnerRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_removeResourceOwnerRsp_resource_2eproto}, {}};
 
-static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_resource_2eproto[130];
+static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_resource_2eproto[126];
 static const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* file_level_enum_descriptors_resource_2eproto[2];
 static constexpr ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor const** file_level_service_descriptors_resource_2eproto = nullptr;
 
@@ -2980,30 +2905,6 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   PROTOBUF_FIELD_OFFSET(::resource::ActionResourceParameterPermission, index_),
   PROTOBUF_FIELD_OFFSET(::resource::ActionResourceParameterPermission, permission_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::SetActionResourcesPermissionRqst, _internal_metadata_),
-  ~0u,  // no _extensions_
-  ~0u,  // no _oneof_case_
-  ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::SetActionResourcesPermissionRqst, action_),
-  PROTOBUF_FIELD_OFFSET(::resource::SetActionResourcesPermissionRqst, resources_),
-  ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::SetActionResourcesPermissionRsp, _internal_metadata_),
-  ~0u,  // no _extensions_
-  ~0u,  // no _oneof_case_
-  ~0u,  // no _weak_field_map_
-  ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourcesPermissionRqst, _internal_metadata_),
-  ~0u,  // no _extensions_
-  ~0u,  // no _oneof_case_
-  ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourcesPermissionRqst, action_),
-  ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourcesPermissionRsp, _internal_metadata_),
-  ~0u,  // no _extensions_
-  ~0u,  // no _oneof_case_
-  ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourcesPermissionRsp, resources_),
-  ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::GetResourcePermissionsRqst, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
@@ -3327,47 +3228,43 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 558, -1, sizeof(::resource::Permission)},
   { 568, -1, sizeof(::resource::Permissions)},
   { 576, -1, sizeof(::resource::ActionResourceParameterPermission)},
-  { 583, -1, sizeof(::resource::SetActionResourcesPermissionRqst)},
-  { 590, -1, sizeof(::resource::SetActionResourcesPermissionRsp)},
-  { 595, -1, sizeof(::resource::GetActionResourcesPermissionRqst)},
-  { 601, -1, sizeof(::resource::GetActionResourcesPermissionRsp)},
-  { 607, -1, sizeof(::resource::GetResourcePermissionsRqst)},
-  { 613, -1, sizeof(::resource::GetResourcePermissionsRsp)},
-  { 619, -1, sizeof(::resource::DeleteResourcePermissionsRqst)},
-  { 625, -1, sizeof(::resource::DeleteResourcePermissionsRsp)},
-  { 631, -1, sizeof(::resource::GetResourcePermissionRqst)},
-  { 638, -1, sizeof(::resource::GetResourcePermissionRsp)},
-  { 644, -1, sizeof(::resource::DeleteResourcePermissionRqst)},
-  { 651, -1, sizeof(::resource::DeleteResourcePermissionRsp)},
-  { 656, -1, sizeof(::resource::SetResourcePermissionsRqst)},
-  { 663, -1, sizeof(::resource::SetResourcePermissionsRsp)},
-  { 668, -1, sizeof(::resource::SetResourcePermissionRqst)},
-  { 675, -1, sizeof(::resource::SetResourcePermissionRsp)},
-  { 680, -1, sizeof(::resource::AddResourceOwnerRqst)},
-  { 687, -1, sizeof(::resource::AddResourceOwnerRsp)},
-  { 692, -1, sizeof(::resource::removeResourceOwnerRqst)},
-  { 699, -1, sizeof(::resource::removeResourceOwnerRsp)},
-  { 704, -1, sizeof(::resource::DeleteAllAccessRqst)},
-  { 711, -1, sizeof(::resource::DeleteAllAccessRsp)},
-  { 716, -1, sizeof(::resource::ValidateAccessRqst)},
-  { 725, -1, sizeof(::resource::ValidateAccessRsp)},
-  { 731, -1, sizeof(::resource::GetAccessesRqst)},
-  { 739, -1, sizeof(::resource::GetAccessesRsp)},
-  { 745, -1, sizeof(::resource::LogInfo)},
-  { 757, -1, sizeof(::resource::LogRqst)},
-  { 763, -1, sizeof(::resource::LogRsp)},
-  { 769, -1, sizeof(::resource::DeleteLogRqst)},
-  { 775, -1, sizeof(::resource::DeleteLogRsp)},
-  { 781, -1, sizeof(::resource::SetLogMethodRqst)},
-  { 787, -1, sizeof(::resource::SetLogMethodRsp)},
-  { 793, -1, sizeof(::resource::ResetLogMethodRqst)},
-  { 799, -1, sizeof(::resource::ResetLogMethodRsp)},
-  { 805, -1, sizeof(::resource::GetLogMethodsRqst)},
-  { 810, -1, sizeof(::resource::GetLogMethodsRsp)},
-  { 816, -1, sizeof(::resource::GetLogRqst)},
-  { 822, -1, sizeof(::resource::GetLogRsp)},
-  { 828, -1, sizeof(::resource::ClearAllLogRqst)},
-  { 834, -1, sizeof(::resource::ClearAllLogRsp)},
+  { 583, -1, sizeof(::resource::GetResourcePermissionsRqst)},
+  { 589, -1, sizeof(::resource::GetResourcePermissionsRsp)},
+  { 595, -1, sizeof(::resource::DeleteResourcePermissionsRqst)},
+  { 601, -1, sizeof(::resource::DeleteResourcePermissionsRsp)},
+  { 607, -1, sizeof(::resource::GetResourcePermissionRqst)},
+  { 614, -1, sizeof(::resource::GetResourcePermissionRsp)},
+  { 620, -1, sizeof(::resource::DeleteResourcePermissionRqst)},
+  { 627, -1, sizeof(::resource::DeleteResourcePermissionRsp)},
+  { 632, -1, sizeof(::resource::SetResourcePermissionsRqst)},
+  { 639, -1, sizeof(::resource::SetResourcePermissionsRsp)},
+  { 644, -1, sizeof(::resource::SetResourcePermissionRqst)},
+  { 651, -1, sizeof(::resource::SetResourcePermissionRsp)},
+  { 656, -1, sizeof(::resource::AddResourceOwnerRqst)},
+  { 663, -1, sizeof(::resource::AddResourceOwnerRsp)},
+  { 668, -1, sizeof(::resource::removeResourceOwnerRqst)},
+  { 675, -1, sizeof(::resource::removeResourceOwnerRsp)},
+  { 680, -1, sizeof(::resource::DeleteAllAccessRqst)},
+  { 687, -1, sizeof(::resource::DeleteAllAccessRsp)},
+  { 692, -1, sizeof(::resource::ValidateAccessRqst)},
+  { 701, -1, sizeof(::resource::ValidateAccessRsp)},
+  { 707, -1, sizeof(::resource::GetAccessesRqst)},
+  { 715, -1, sizeof(::resource::GetAccessesRsp)},
+  { 721, -1, sizeof(::resource::LogInfo)},
+  { 733, -1, sizeof(::resource::LogRqst)},
+  { 739, -1, sizeof(::resource::LogRsp)},
+  { 745, -1, sizeof(::resource::DeleteLogRqst)},
+  { 751, -1, sizeof(::resource::DeleteLogRsp)},
+  { 757, -1, sizeof(::resource::SetLogMethodRqst)},
+  { 763, -1, sizeof(::resource::SetLogMethodRsp)},
+  { 769, -1, sizeof(::resource::ResetLogMethodRqst)},
+  { 775, -1, sizeof(::resource::ResetLogMethodRsp)},
+  { 781, -1, sizeof(::resource::GetLogMethodsRqst)},
+  { 786, -1, sizeof(::resource::GetLogMethodsRsp)},
+  { 792, -1, sizeof(::resource::GetLogRqst)},
+  { 798, -1, sizeof(::resource::GetLogRsp)},
+  { 804, -1, sizeof(::resource::ClearAllLogRqst)},
+  { 810, -1, sizeof(::resource::ClearAllLogRsp)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -3460,10 +3357,6 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_Permission_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_Permissions_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_ActionResourceParameterPermission_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_SetActionResourcesPermissionRqst_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_SetActionResourcesPermissionRsp_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_GetActionResourcesPermissionRqst_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_GetActionResourcesPermissionRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_GetResourcePermissionsRqst_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_GetResourcePermissionsRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_DeleteResourcePermissionsRqst_default_instance_),
@@ -3622,188 +3515,174 @@ const char descriptor_table_protodef_resource_2eproto[] PROTOBUF_SECTION_VARIABL
   ".Permission\022$\n\006owners\030\003 \001(\0132\024.resource.P"
   "ermission\"F\n!ActionResourceParameterPerm"
   "ission\022\r\n\005index\030\001 \001(\005\022\022\n\npermission\030\002 \001("
-  "\t\"r\n SetActionResourcesPermissionRqst\022\016\n"
-  "\006action\030\001 \001(\t\022>\n\tresources\030\002 \003(\0132+.resou"
-  "rce.ActionResourceParameterPermission\"!\n"
-  "\037SetActionResourcesPermissionRsp\"2\n GetA"
-  "ctionResourcesPermissionRqst\022\016\n\006action\030\001"
-  " \001(\t\"a\n\037GetActionResourcesPermissionRsp\022"
-  ">\n\tresources\030\001 \003(\0132+.resource.ActionReso"
-  "urceParameterPermission\"*\n\032GetResourcePe"
-  "rmissionsRqst\022\014\n\004path\030\001 \001(\t\"G\n\031GetResour"
-  "cePermissionsRsp\022*\n\013permissions\030\001 \001(\0132\025."
-  "resource.Permissions\"-\n\035DeleteResourcePe"
-  "rmissionsRqst\022\014\n\004path\030\001 \001(\t\"J\n\034DeleteRes"
-  "ourcePermissionsRsp\022*\n\013permissions\030\001 \001(\013"
-  "2\025.resource.Permissions\"7\n\031GetResourcePe"
-  "rmissionRqst\022\014\n\004path\030\001 \001(\t\022\014\n\004name\030\002 \001(\t"
-  "\"D\n\030GetResourcePermissionRsp\022(\n\npermissi"
-  "on\030\001 \001(\0132\024.resource.Permission\":\n\034Delete"
-  "ResourcePermissionRqst\022\014\n\004path\030\001 \001(\t\022\014\n\004"
-  "name\030\002 \001(\t\"\035\n\033DeleteResourcePermissionRs"
-  "p\"V\n\032SetResourcePermissionsRqst\022\014\n\004path\030"
-  "\001 \001(\t\022*\n\013permissions\030\002 \001(\0132\025.resource.Pe"
-  "rmissions\"\033\n\031SetResourcePermissionsRsp\"S"
-  "\n\031SetResourcePermissionRqst\022\014\n\004path\030\001 \001("
-  "\t\022(\n\npermission\030\002 \001(\0132\024.resource.Permiss"
-  "ion\"\032\n\030SetResourcePermissionRsp\"3\n\024AddRe"
-  "sourceOwnerRqst\022\014\n\004path\030\001 \001(\t\022\r\n\005owner\030\002"
-  " \001(\t\"\025\n\023AddResourceOwnerRsp\"6\n\027removeRes"
-  "ourceOwnerRqst\022\014\n\004path\030\001 \001(\t\022\r\n\005owner\030\002 "
-  "\001(\t\"\030\n\026removeResourceOwnerRsp\"K\n\023DeleteA"
-  "llAccessRqst\022\017\n\007subject\030\001 \001(\t\022#\n\004type\030\002 "
-  "\001(\0162\025.resource.SubjectType\"\024\n\022DeleteAllA"
-  "ccessRsp\"l\n\022ValidateAccessRqst\022\017\n\007subjec"
+  "\t\"*\n\032GetResourcePermissionsRqst\022\014\n\004path\030"
+  "\001 \001(\t\"G\n\031GetResourcePermissionsRsp\022*\n\013pe"
+  "rmissions\030\001 \001(\0132\025.resource.Permissions\"-"
+  "\n\035DeleteResourcePermissionsRqst\022\014\n\004path\030"
+  "\001 \001(\t\"J\n\034DeleteResourcePermissionsRsp\022*\n"
+  "\013permissions\030\001 \001(\0132\025.resource.Permission"
+  "s\"7\n\031GetResourcePermissionRqst\022\014\n\004path\030\001"
+  " \001(\t\022\014\n\004name\030\002 \001(\t\"D\n\030GetResourcePermiss"
+  "ionRsp\022(\n\npermission\030\001 \001(\0132\024.resource.Pe"
+  "rmission\":\n\034DeleteResourcePermissionRqst"
+  "\022\014\n\004path\030\001 \001(\t\022\014\n\004name\030\002 \001(\t\"\035\n\033DeleteRe"
+  "sourcePermissionRsp\"V\n\032SetResourcePermis"
+  "sionsRqst\022\014\n\004path\030\001 \001(\t\022*\n\013permissions\030\002"
+  " \001(\0132\025.resource.Permissions\"\033\n\031SetResour"
+  "cePermissionsRsp\"S\n\031SetResourcePermissio"
+  "nRqst\022\014\n\004path\030\001 \001(\t\022(\n\npermission\030\002 \001(\0132"
+  "\024.resource.Permission\"\032\n\030SetResourcePerm"
+  "issionRsp\"3\n\024AddResourceOwnerRqst\022\014\n\004pat"
+  "h\030\001 \001(\t\022\r\n\005owner\030\002 \001(\t\"\025\n\023AddResourceOwn"
+  "erRsp\"6\n\027removeResourceOwnerRqst\022\014\n\004path"
+  "\030\001 \001(\t\022\r\n\005owner\030\002 \001(\t\"\030\n\026removeResourceO"
+  "wnerRsp\"K\n\023DeleteAllAccessRqst\022\017\n\007subjec"
   "t\030\001 \001(\t\022#\n\004type\030\002 \001(\0162\025.resource.Subject"
-  "Type\022\014\n\004path\030\003 \001(\t\022\022\n\npermission\030\004 \001(\t\"#"
-  "\n\021ValidateAccessRsp\022\016\n\006result\030\001 \001(\010\"U\n\017G"
-  "etAccessesRqst\022\017\n\007subject\030\001 \001(\t\022#\n\004type\030"
-  "\002 \001(\0162\025.resource.SubjectType\022\014\n\004path\030\003 \001"
-  "(\t\"\"\n\016GetAccessesRsp\022\020\n\010accesses\030\001 \003(\t\"\220"
-  "\001\n\007LogInfo\022\014\n\004date\030\001 \001(\003\022\037\n\004type\030\002 \001(\0162\021"
-  ".resource.LogType\022\023\n\013application\030\003 \001(\t\022\016"
-  "\n\006userId\030\004 \001(\t\022\020\n\010userName\030\005 \001(\t\022\016\n\006meth"
-  "od\030\006 \001(\t\022\017\n\007message\030\007 \001(\t\"*\n\007LogRqst\022\037\n\004"
-  "info\030\001 \001(\0132\021.resource.LogInfo\"\030\n\006LogRsp\022"
-  "\016\n\006result\030\001 \001(\010\"/\n\rDeleteLogRqst\022\036\n\003log\030"
-  "\001 \001(\0132\021.resource.LogInfo\"\036\n\014DeleteLogRsp"
-  "\022\016\n\006result\030\001 \001(\010\"\"\n\020SetLogMethodRqst\022\016\n\006"
-  "method\030\001 \001(\t\"!\n\017SetLogMethodRsp\022\016\n\006resul"
-  "t\030\001 \001(\010\"$\n\022ResetLogMethodRqst\022\016\n\006method\030"
-  "\001 \001(\t\"#\n\021ResetLogMethodRsp\022\016\n\006result\030\001 \001"
-  "(\010\"\023\n\021GetLogMethodsRqst\"#\n\020GetLogMethods"
-  "Rsp\022\017\n\007methods\030\001 \003(\t\"\033\n\nGetLogRqst\022\r\n\005qu"
-  "ery\030\001 \001(\t\",\n\tGetLogRsp\022\037\n\004info\030\001 \003(\0132\021.r"
-  "esource.LogInfo\"2\n\017ClearAllLogRqst\022\037\n\004ty"
-  "pe\030\001 \001(\0162\021.resource.LogType\" \n\016ClearAllL"
-  "ogRsp\022\016\n\006result\030\001 \001(\010*K\n\013SubjectType\022\013\n\007"
-  "ACCOUNT\020\000\022\010\n\004ROLE\020\001\022\010\n\004PEER\020\002\022\t\n\005GROUP\020\003"
-  "\022\020\n\014ORGANIZATION\020\004*.\n\007LogType\022\020\n\014INFO_ME"
-  "SSAGE\020\000\022\021\n\rERROR_MESSAGE\020\0012\245\031\n\017ResourceS"
-  "ervice\022H\n\rGetAllActions\022\033.resource.GetAl"
-  "lActionsRqst\032\032.resource.GetAllActionsRsp"
-  "\022H\n\rValidateToken\022\033.resource.ValidateTok"
-  "enRqst\032\032.resource.ValidateTokenRsp\022E\n\014Re"
-  "freshToken\022\032.resource.RefreshTokenRqst\032\031"
-  ".resource.RefreshTokenRsp\022E\n\014Authenticat"
-  "e\022\032.resource.AuthenticateRqst\032\031.resource"
-  ".AuthenticateRsp\022N\n\017SynchronizeLdap\022\035.re"
-  "source.SynchronizeLdapRqst\032\034.resource.Sy"
-  "nchronizeLdapRsp\022W\n\022CreateOrganization\022 "
-  ".resource.CreateOrganizationRqst\032\037.resou"
-  "rce.CreateOrganizationRsp\022S\n\020GetOrganiza"
-  "tions\022\036.resource.GetOrganizationsRqst\032\035."
-  "resource.GetOrganizationsRsp0\001\022W\n\022Delete"
-  "Organization\022 .resource.DeleteOrganizati"
-  "onRqst\032\037.resource.DeleteOrganizationRsp\022"
-  "c\n\026AddOrganizationAccount\022$.resource.Add"
-  "OrganizationAccountRqst\032#.resource.AddOr"
-  "ganizationAccountRsp\022]\n\024AddOrganizationG"
-  "roup\022\".resource.AddOrganizationGroupRqst"
-  "\032!.resource.AddOrganizationGroupRsp\022Z\n\023A"
-  "ddOrganizationRole\022!.resource.AddOrganiz"
-  "ationRoleRqst\032 .resource.AddOrganization"
-  "RoleRsp\022o\n\032AddOrganizationApplication\022(."
-  "resource.AddOrganizationApplicationRqst\032"
-  "\'.resource.AddOrganizationApplicationRsp"
-  "\022l\n\031RemoveOrganizationAccount\022\'.resource"
-  ".RemoveOrganizationAccountRqst\032&.resourc"
-  "e.RemoveOrganizationAccountRsp\022f\n\027Remove"
-  "OrganizationGroup\022%.resource.RemoveOrgan"
-  "izationGroupRqst\032$.resource.RemoveOrgani"
-  "zationGroupRsp\022c\n\026RemoveOrganizationRole"
-  "\022$.resource.RemoveOrganizationRoleRqst\032#"
-  ".resource.RemoveOrganizationRoleRsp\022x\n\035R"
-  "emoveOrganizationApplication\022+.resource."
-  "RemoveOrganizationApplicationRqst\032*.reso"
-  "urce.RemoveOrganizationApplicationRsp\022B\n"
-  "\013CreateGroup\022\031.resource.CreateGroupRqst\032"
-  "\030.resource.CreateGroupRsp\022>\n\tGetGroups\022\027"
-  ".resource.GetGroupsRqst\032\026.resource.GetGr"
-  "oupsRsp0\001\022B\n\013DeleteGroup\022\031.resource.Dele"
-  "teGroupRqst\032\030.resource.DeleteGroupRsp\022`\n"
-  "\025AddGroupMemberAccount\022#.resource.AddGro"
-  "upMemberAccountRqst\032\".resource.AddGroupM"
-  "emberAccountRsp\022i\n\030RemoveGroupMemberAcco"
-  "unt\022&.resource.RemoveGroupMemberAccountR"
-  "qst\032%.resource.RemoveGroupMemberAccountR"
-  "sp\022N\n\017RegisterAccount\022\035.resource.Registe"
-  "rAccountRqst\032\034.resource.RegisterAccountR"
-  "sp\022H\n\rDeleteAccount\022\033.resource.DeleteAcc"
-  "ountRqst\032\032.resource.DeleteAccountRsp\022K\n\016"
-  "AddAccountRole\022\034.resource.AddAccountRole"
-  "Rqst\032\033.resource.AddAccountRoleRsp\022T\n\021Rem"
-  "oveAccountRole\022\037.resource.RemoveAccountR"
-  "oleRqst\032\036.resource.RemoveAccountRoleRsp\022"
-  "\?\n\nCreateRole\022\030.resource.CreateRoleRqst\032"
-  "\027.resource.CreateRoleRsp\022\?\n\nDeleteRole\022\030"
-  ".resource.DeleteRoleRqst\032\027.resource.Dele"
-  "teRoleRsp\022H\n\rAddRoleAction\022\033.resource.Ad"
-  "dRoleActionRqst\032\032.resource.AddRoleAction"
-  "Rsp\022Q\n\020RemoveRoleAction\022\036.resource.Remov"
-  "eRoleActionRqst\032\035.resource.RemoveRoleAct"
-  "ionRsp\022c\n\026GetAllApplicationsInfo\022$.resou"
-  "rce.GetAllApplicationsInfoRqst\032#.resourc"
-  "e.GetAllApplicationsInfoRsp\022T\n\021DeleteApp"
-  "lication\022\037.resource.DeleteApplicationRqs"
-  "t\032\036.resource.DeleteApplicationRsp\022]\n\024Add"
-  "ApplicationAction\022\".resource.AddApplicat"
-  "ionActionRqst\032!.resource.AddApplicationA"
-  "ctionRsp\022f\n\027RemoveApplicationAction\022%.re"
-  "source.RemoveApplicationActionRqst\032$.res"
-  "ource.RemoveApplicationActionRsp\022E\n\014Regi"
-  "sterPeer\022\032.resource.RegisterPeerRqst\032\031.r"
-  "esource.RegisterPeerRsp\022;\n\010GetPeers\022\026.re"
-  "source.GetPeersRqst\032\025.resource.GetPeersR"
-  "sp0\001\022\?\n\nDeletePeer\022\030.resource.DeletePeer"
-  "Rqst\032\027.resource.DeletePeerRsp\022H\n\rAddPeer"
-  "Action\022\033.resource.AddPeerActionRqst\032\032.re"
-  "source.AddPeerActionRsp\022Q\n\020RemovePeerAct"
-  "ion\022\036.resource.RemovePeerActionRqst\032\035.re"
-  "source.RemovePeerActionRsp2\357\t\n\013RbacServi"
-  "ce\022u\n\034SetActionResourcesPermission\022*.res"
-  "ource.SetActionResourcesPermissionRqst\032)"
-  ".resource.SetActionResourcesPermissionRs"
-  "p\022u\n\034GetActionResourcesPermission\022*.reso"
-  "urce.GetActionResourcesPermissionRqst\032)."
-  "resource.GetActionResourcesPermissionRsp"
-  "\022d\n\026SetResourcePermissions\022$.resource.Se"
-  "tResourcePermissionsRqst\032$.resource.SetR"
-  "esourcePermissionsRqst\022m\n\031DeleteResource"
-  "Permissions\022\'.resource.DeleteResourcePer"
-  "missionsRqst\032\'.resource.DeleteResourcePe"
-  "rmissionsRqst\022j\n\030DeleteResourcePermissio"
-  "n\022&.resource.DeleteResourcePermissionRqs"
-  "t\032&.resource.DeleteResourcePermissionRqs"
-  "t\022`\n\025SetResourcePermission\022#.resource.Se"
-  "tResourcePermissionRqst\032\".resource.SetRe"
-  "sourcePermissionRsp\022`\n\025GetResourcePermis"
-  "sion\022#.resource.GetResourcePermissionRqs"
-  "t\032\".resource.GetResourcePermissionRsp\022c\n"
-  "\026GetResourcePermissions\022$.resource.GetRe"
-  "sourcePermissionsRqst\032#.resource.GetReso"
-  "urcePermissionsRsp\022Q\n\020AddResourceOwner\022\036"
-  ".resource.AddResourceOwnerRqst\032\035.resourc"
-  "e.AddResourceOwnerRsp\022T\n\023RemoveResourceO"
-  "wner\022\036.resource.AddResourceOwnerRqst\032\035.r"
-  "esource.AddResourceOwnerRsp\022N\n\017DeleteAll"
-  "Access\022\035.resource.DeleteAllAccessRqst\032\034."
-  "resource.DeleteAllAccessRsp\022K\n\016ValidateA"
-  "ccess\022\034.resource.ValidateAccessRqst\032\033.re"
-  "source.ValidateAccessRsp\022B\n\013GetAccesses\022"
-  "\031.resource.GetAccessesRqst\032\030.resource.Ge"
-  "tAccessesRsp2\361\001\n\nLogService\022*\n\003Log\022\021.res"
-  "ource.LogRqst\032\020.resource.LogRsp\0225\n\006GetLo"
-  "g\022\024.resource.GetLogRqst\032\023.resource.GetLo"
-  "gRsp0\001\022<\n\tDeleteLog\022\027.resource.DeleteLog"
-  "Rqst\032\026.resource.DeleteLogRsp\022B\n\013ClearAll"
-  "Log\022\031.resource.ClearAllLogRqst\032\030.resourc"
-  "e.ClearAllLogRspB\025Z\023resource/resourcepbb"
-  "\006proto3"
+  "Type\"\024\n\022DeleteAllAccessRsp\"l\n\022ValidateAc"
+  "cessRqst\022\017\n\007subject\030\001 \001(\t\022#\n\004type\030\002 \001(\0162"
+  "\025.resource.SubjectType\022\014\n\004path\030\003 \001(\t\022\022\n\n"
+  "permission\030\004 \001(\t\"#\n\021ValidateAccessRsp\022\016\n"
+  "\006result\030\001 \001(\010\"U\n\017GetAccessesRqst\022\017\n\007subj"
+  "ect\030\001 \001(\t\022#\n\004type\030\002 \001(\0162\025.resource.Subje"
+  "ctType\022\014\n\004path\030\003 \001(\t\"\"\n\016GetAccessesRsp\022\020"
+  "\n\010accesses\030\001 \003(\t\"\220\001\n\007LogInfo\022\014\n\004date\030\001 \001"
+  "(\003\022\037\n\004type\030\002 \001(\0162\021.resource.LogType\022\023\n\013a"
+  "pplication\030\003 \001(\t\022\016\n\006userId\030\004 \001(\t\022\020\n\010user"
+  "Name\030\005 \001(\t\022\016\n\006method\030\006 \001(\t\022\017\n\007message\030\007 "
+  "\001(\t\"*\n\007LogRqst\022\037\n\004info\030\001 \001(\0132\021.resource."
+  "LogInfo\"\030\n\006LogRsp\022\016\n\006result\030\001 \001(\010\"/\n\rDel"
+  "eteLogRqst\022\036\n\003log\030\001 \001(\0132\021.resource.LogIn"
+  "fo\"\036\n\014DeleteLogRsp\022\016\n\006result\030\001 \001(\010\"\"\n\020Se"
+  "tLogMethodRqst\022\016\n\006method\030\001 \001(\t\"!\n\017SetLog"
+  "MethodRsp\022\016\n\006result\030\001 \001(\010\"$\n\022ResetLogMet"
+  "hodRqst\022\016\n\006method\030\001 \001(\t\"#\n\021ResetLogMetho"
+  "dRsp\022\016\n\006result\030\001 \001(\010\"\023\n\021GetLogMethodsRqs"
+  "t\"#\n\020GetLogMethodsRsp\022\017\n\007methods\030\001 \003(\t\"\033"
+  "\n\nGetLogRqst\022\r\n\005query\030\001 \001(\t\",\n\tGetLogRsp"
+  "\022\037\n\004info\030\001 \003(\0132\021.resource.LogInfo\"2\n\017Cle"
+  "arAllLogRqst\022\037\n\004type\030\001 \001(\0162\021.resource.Lo"
+  "gType\" \n\016ClearAllLogRsp\022\016\n\006result\030\001 \001(\010*"
+  "K\n\013SubjectType\022\013\n\007ACCOUNT\020\000\022\010\n\004ROLE\020\001\022\010\n"
+  "\004PEER\020\002\022\t\n\005GROUP\020\003\022\020\n\014ORGANIZATION\020\004*.\n\007"
+  "LogType\022\020\n\014INFO_MESSAGE\020\000\022\021\n\rERROR_MESSA"
+  "GE\020\0012\245\031\n\017ResourceService\022H\n\rGetAllAction"
+  "s\022\033.resource.GetAllActionsRqst\032\032.resourc"
+  "e.GetAllActionsRsp\022H\n\rValidateToken\022\033.re"
+  "source.ValidateTokenRqst\032\032.resource.Vali"
+  "dateTokenRsp\022E\n\014RefreshToken\022\032.resource."
+  "RefreshTokenRqst\032\031.resource.RefreshToken"
+  "Rsp\022E\n\014Authenticate\022\032.resource.Authentic"
+  "ateRqst\032\031.resource.AuthenticateRsp\022N\n\017Sy"
+  "nchronizeLdap\022\035.resource.SynchronizeLdap"
+  "Rqst\032\034.resource.SynchronizeLdapRsp\022W\n\022Cr"
+  "eateOrganization\022 .resource.CreateOrgani"
+  "zationRqst\032\037.resource.CreateOrganization"
+  "Rsp\022S\n\020GetOrganizations\022\036.resource.GetOr"
+  "ganizationsRqst\032\035.resource.GetOrganizati"
+  "onsRsp0\001\022W\n\022DeleteOrganization\022 .resourc"
+  "e.DeleteOrganizationRqst\032\037.resource.Dele"
+  "teOrganizationRsp\022c\n\026AddOrganizationAcco"
+  "unt\022$.resource.AddOrganizationAccountRqs"
+  "t\032#.resource.AddOrganizationAccountRsp\022]"
+  "\n\024AddOrganizationGroup\022\".resource.AddOrg"
+  "anizationGroupRqst\032!.resource.AddOrganiz"
+  "ationGroupRsp\022Z\n\023AddOrganizationRole\022!.r"
+  "esource.AddOrganizationRoleRqst\032 .resour"
+  "ce.AddOrganizationRoleRsp\022o\n\032AddOrganiza"
+  "tionApplication\022(.resource.AddOrganizati"
+  "onApplicationRqst\032\'.resource.AddOrganiza"
+  "tionApplicationRsp\022l\n\031RemoveOrganization"
+  "Account\022\'.resource.RemoveOrganizationAcc"
+  "ountRqst\032&.resource.RemoveOrganizationAc"
+  "countRsp\022f\n\027RemoveOrganizationGroup\022%.re"
+  "source.RemoveOrganizationGroupRqst\032$.res"
+  "ource.RemoveOrganizationGroupRsp\022c\n\026Remo"
+  "veOrganizationRole\022$.resource.RemoveOrga"
+  "nizationRoleRqst\032#.resource.RemoveOrgani"
+  "zationRoleRsp\022x\n\035RemoveOrganizationAppli"
+  "cation\022+.resource.RemoveOrganizationAppl"
+  "icationRqst\032*.resource.RemoveOrganizatio"
+  "nApplicationRsp\022B\n\013CreateGroup\022\031.resourc"
+  "e.CreateGroupRqst\032\030.resource.CreateGroup"
+  "Rsp\022>\n\tGetGroups\022\027.resource.GetGroupsRqs"
+  "t\032\026.resource.GetGroupsRsp0\001\022B\n\013DeleteGro"
+  "up\022\031.resource.DeleteGroupRqst\032\030.resource"
+  ".DeleteGroupRsp\022`\n\025AddGroupMemberAccount"
+  "\022#.resource.AddGroupMemberAccountRqst\032\"."
+  "resource.AddGroupMemberAccountRsp\022i\n\030Rem"
+  "oveGroupMemberAccount\022&.resource.RemoveG"
+  "roupMemberAccountRqst\032%.resource.RemoveG"
+  "roupMemberAccountRsp\022N\n\017RegisterAccount\022"
+  "\035.resource.RegisterAccountRqst\032\034.resourc"
+  "e.RegisterAccountRsp\022H\n\rDeleteAccount\022\033."
+  "resource.DeleteAccountRqst\032\032.resource.De"
+  "leteAccountRsp\022K\n\016AddAccountRole\022\034.resou"
+  "rce.AddAccountRoleRqst\032\033.resource.AddAcc"
+  "ountRoleRsp\022T\n\021RemoveAccountRole\022\037.resou"
+  "rce.RemoveAccountRoleRqst\032\036.resource.Rem"
+  "oveAccountRoleRsp\022\?\n\nCreateRole\022\030.resour"
+  "ce.CreateRoleRqst\032\027.resource.CreateRoleR"
+  "sp\022\?\n\nDeleteRole\022\030.resource.DeleteRoleRq"
+  "st\032\027.resource.DeleteRoleRsp\022H\n\rAddRoleAc"
+  "tion\022\033.resource.AddRoleActionRqst\032\032.reso"
+  "urce.AddRoleActionRsp\022Q\n\020RemoveRoleActio"
+  "n\022\036.resource.RemoveRoleActionRqst\032\035.reso"
+  "urce.RemoveRoleActionRsp\022c\n\026GetAllApplic"
+  "ationsInfo\022$.resource.GetAllApplications"
+  "InfoRqst\032#.resource.GetAllApplicationsIn"
+  "foRsp\022T\n\021DeleteApplication\022\037.resource.De"
+  "leteApplicationRqst\032\036.resource.DeleteApp"
+  "licationRsp\022]\n\024AddApplicationAction\022\".re"
+  "source.AddApplicationActionRqst\032!.resour"
+  "ce.AddApplicationActionRsp\022f\n\027RemoveAppl"
+  "icationAction\022%.resource.RemoveApplicati"
+  "onActionRqst\032$.resource.RemoveApplicatio"
+  "nActionRsp\022E\n\014RegisterPeer\022\032.resource.Re"
+  "gisterPeerRqst\032\031.resource.RegisterPeerRs"
+  "p\022;\n\010GetPeers\022\026.resource.GetPeersRqst\032\025."
+  "resource.GetPeersRsp0\001\022\?\n\nDeletePeer\022\030.r"
+  "esource.DeletePeerRqst\032\027.resource.Delete"
+  "PeerRsp\022H\n\rAddPeerAction\022\033.resource.AddP"
+  "eerActionRqst\032\032.resource.AddPeerActionRs"
+  "p\022Q\n\020RemovePeerAction\022\036.resource.RemoveP"
+  "eerActionRqst\032\035.resource.RemovePeerActio"
+  "nRsp2\201\010\n\013RbacService\022d\n\026SetResourcePermi"
+  "ssions\022$.resource.SetResourcePermissions"
+  "Rqst\032$.resource.SetResourcePermissionsRq"
+  "st\022m\n\031DeleteResourcePermissions\022\'.resour"
+  "ce.DeleteResourcePermissionsRqst\032\'.resou"
+  "rce.DeleteResourcePermissionsRqst\022j\n\030Del"
+  "eteResourcePermission\022&.resource.DeleteR"
+  "esourcePermissionRqst\032&.resource.DeleteR"
+  "esourcePermissionRqst\022`\n\025SetResourcePerm"
+  "ission\022#.resource.SetResourcePermissionR"
+  "qst\032\".resource.SetResourcePermissionRsp\022"
+  "`\n\025GetResourcePermission\022#.resource.GetR"
+  "esourcePermissionRqst\032\".resource.GetReso"
+  "urcePermissionRsp\022c\n\026GetResourcePermissi"
+  "ons\022$.resource.GetResourcePermissionsRqs"
+  "t\032#.resource.GetResourcePermissionsRsp\022Q"
+  "\n\020AddResourceOwner\022\036.resource.AddResourc"
+  "eOwnerRqst\032\035.resource.AddResourceOwnerRs"
+  "p\022T\n\023RemoveResourceOwner\022\036.resource.AddR"
+  "esourceOwnerRqst\032\035.resource.AddResourceO"
+  "wnerRsp\022N\n\017DeleteAllAccess\022\035.resource.De"
+  "leteAllAccessRqst\032\034.resource.DeleteAllAc"
+  "cessRsp\022K\n\016ValidateAccess\022\034.resource.Val"
+  "idateAccessRqst\032\033.resource.ValidateAcces"
+  "sRsp\022B\n\013GetAccesses\022\031.resource.GetAccess"
+  "esRqst\032\030.resource.GetAccessesRsp2\361\001\n\nLog"
+  "Service\022*\n\003Log\022\021.resource.LogRqst\032\020.reso"
+  "urce.LogRsp\0225\n\006GetLog\022\024.resource.GetLogR"
+  "qst\032\023.resource.GetLogRsp0\001\022<\n\tDeleteLog\022"
+  "\027.resource.DeleteLogRqst\032\026.resource.Dele"
+  "teLogRsp\022B\n\013ClearAllLog\022\031.resource.Clear"
+  "AllLogRqst\032\030.resource.ClearAllLogRspB\025Z\023"
+  "resource/resourcepbb\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_resource_2eproto_deps[1] = {
 };
-static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_resource_2eproto_sccs[130] = {
+static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_resource_2eproto_sccs[126] = {
   &scc_info_Account_resource_2eproto.base,
   &scc_info_AccountExistRqst_resource_2eproto.base,
   &scc_info_AccountExistRsp_resource_2eproto.base,
@@ -3860,8 +3739,6 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
   &scc_info_DeleteRoleRsp_resource_2eproto.base,
   &scc_info_GetAccessesRqst_resource_2eproto.base,
   &scc_info_GetAccessesRsp_resource_2eproto.base,
-  &scc_info_GetActionResourcesPermissionRqst_resource_2eproto.base,
-  &scc_info_GetActionResourcesPermissionRsp_resource_2eproto.base,
   &scc_info_GetAllActionsRqst_resource_2eproto.base,
   &scc_info_GetAllActionsRsp_resource_2eproto.base,
   &scc_info_GetAllApplicationsInfoRqst_resource_2eproto.base,
@@ -3917,8 +3794,6 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
   &scc_info_ResetLogMethodRqst_resource_2eproto.base,
   &scc_info_ResetLogMethodRsp_resource_2eproto.base,
   &scc_info_Role_resource_2eproto.base,
-  &scc_info_SetActionResourcesPermissionRqst_resource_2eproto.base,
-  &scc_info_SetActionResourcesPermissionRsp_resource_2eproto.base,
   &scc_info_SetLogMethodRqst_resource_2eproto.base,
   &scc_info_SetLogMethodRsp_resource_2eproto.base,
   &scc_info_SetResourcePermissionRqst_resource_2eproto.base,
@@ -3937,10 +3812,10 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_resource_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_resource_2eproto = {
-  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 11807,
-  &descriptor_table_resource_2eproto_once, descriptor_table_resource_2eproto_sccs, descriptor_table_resource_2eproto_deps, 130, 0,
+  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 11267,
+  &descriptor_table_resource_2eproto_once, descriptor_table_resource_2eproto_sccs, descriptor_table_resource_2eproto_deps, 126, 0,
   schemas, file_default_instances, TableStruct_resource_2eproto::offsets,
-  file_level_metadata_resource_2eproto, 130, file_level_enum_descriptors_resource_2eproto, file_level_service_descriptors_resource_2eproto,
+  file_level_metadata_resource_2eproto, 126, file_level_enum_descriptors_resource_2eproto, file_level_service_descriptors_resource_2eproto,
 };
 
 // Force running AddDescriptors() at dynamic initialization time.
@@ -24013,824 +23888,6 @@ void ActionResourceParameterPermission::InternalSwap(ActionResourceParameterPerm
 
 // ===================================================================
 
-void SetActionResourcesPermissionRqst::InitAsDefaultInstance() {
-}
-class SetActionResourcesPermissionRqst::_Internal {
- public:
-};
-
-SetActionResourcesPermissionRqst::SetActionResourcesPermissionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  resources_(arena) {
-  SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.SetActionResourcesPermissionRqst)
-}
-SetActionResourcesPermissionRqst::SetActionResourcesPermissionRqst(const SetActionResourcesPermissionRqst& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
-      resources_(from.resources_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_action().empty()) {
-    action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_action(),
-      GetArena());
-  }
-  // @@protoc_insertion_point(copy_constructor:resource.SetActionResourcesPermissionRqst)
-}
-
-void SetActionResourcesPermissionRqst::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_SetActionResourcesPermissionRqst_resource_2eproto.base);
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-}
-
-SetActionResourcesPermissionRqst::~SetActionResourcesPermissionRqst() {
-  // @@protoc_insertion_point(destructor:resource.SetActionResourcesPermissionRqst)
-  SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-void SetActionResourcesPermissionRqst::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  action_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-}
-
-void SetActionResourcesPermissionRqst::ArenaDtor(void* object) {
-  SetActionResourcesPermissionRqst* _this = reinterpret_cast< SetActionResourcesPermissionRqst* >(object);
-  (void)_this;
-}
-void SetActionResourcesPermissionRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
-void SetActionResourcesPermissionRqst::SetCachedSize(int size) const {
-  _cached_size_.Set(size);
-}
-const SetActionResourcesPermissionRqst& SetActionResourcesPermissionRqst::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_SetActionResourcesPermissionRqst_resource_2eproto.base);
-  return *internal_default_instance();
-}
-
-
-void SetActionResourcesPermissionRqst::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.SetActionResourcesPermissionRqst)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  resources_.Clear();
-  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-const char* SetActionResourcesPermissionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
-      // string action = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_action();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.SetActionResourcesPermissionRqst.action"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
-      // repeated .resource.ActionResourceParameterPermission resources = 2;
-      case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
-          ptr -= 1;
-          do {
-            ptr += 1;
-            ptr = ctx->ParseMessage(_internal_add_resources(), ptr);
-            CHK_(ptr);
-            if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<18>(ptr));
-        } else goto handle_unusual;
-        continue;
-      default: {
-      handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
-          goto success;
-        }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
-      }
-    }  // switch
-  }  // while
-success:
-  return ptr;
-failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
-}
-
-::PROTOBUF_NAMESPACE_ID::uint8* SetActionResourcesPermissionRqst::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.SetActionResourcesPermissionRqst)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  // string action = 1;
-  if (this->action().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_action().data(), static_cast<int>(this->_internal_action().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.SetActionResourcesPermissionRqst.action");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_action(), target);
-  }
-
-  // repeated .resource.ActionResourceParameterPermission resources = 2;
-  for (unsigned int i = 0,
-      n = static_cast<unsigned int>(this->_internal_resources_size()); i < n; i++) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(2, this->_internal_resources(i), target, stream);
-  }
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
-  }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.SetActionResourcesPermissionRqst)
-  return target;
-}
-
-size_t SetActionResourcesPermissionRqst::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.SetActionResourcesPermissionRqst)
-  size_t total_size = 0;
-
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  // repeated .resource.ActionResourceParameterPermission resources = 2;
-  total_size += 1UL * this->_internal_resources_size();
-  for (const auto& msg : this->resources_) {
-    total_size +=
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
-  }
-
-  // string action = 1;
-  if (this->action().size() > 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_action());
-  }
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
-  SetCachedSize(cached_size);
-  return total_size;
-}
-
-void SetActionResourcesPermissionRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.SetActionResourcesPermissionRqst)
-  GOOGLE_DCHECK_NE(&from, this);
-  const SetActionResourcesPermissionRqst* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<SetActionResourcesPermissionRqst>(
-          &from);
-  if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.SetActionResourcesPermissionRqst)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
-  } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.SetActionResourcesPermissionRqst)
-    MergeFrom(*source);
-  }
-}
-
-void SetActionResourcesPermissionRqst::MergeFrom(const SetActionResourcesPermissionRqst& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.SetActionResourcesPermissionRqst)
-  GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  resources_.MergeFrom(from.resources_);
-  if (from.action().size() > 0) {
-    _internal_set_action(from._internal_action());
-  }
-}
-
-void SetActionResourcesPermissionRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.SetActionResourcesPermissionRqst)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-void SetActionResourcesPermissionRqst::CopyFrom(const SetActionResourcesPermissionRqst& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.SetActionResourcesPermissionRqst)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-bool SetActionResourcesPermissionRqst::IsInitialized() const {
-  return true;
-}
-
-void SetActionResourcesPermissionRqst::InternalSwap(SetActionResourcesPermissionRqst* other) {
-  using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  resources_.InternalSwap(&other->resources_);
-  action_.Swap(&other->action_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-
-::PROTOBUF_NAMESPACE_ID::Metadata SetActionResourcesPermissionRqst::GetMetadata() const {
-  return GetMetadataStatic();
-}
-
-
-// ===================================================================
-
-void SetActionResourcesPermissionRsp::InitAsDefaultInstance() {
-}
-class SetActionResourcesPermissionRsp::_Internal {
- public:
-};
-
-SetActionResourcesPermissionRsp::SetActionResourcesPermissionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
-  SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.SetActionResourcesPermissionRsp)
-}
-SetActionResourcesPermissionRsp::SetActionResourcesPermissionRsp(const SetActionResourcesPermissionRsp& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  // @@protoc_insertion_point(copy_constructor:resource.SetActionResourcesPermissionRsp)
-}
-
-void SetActionResourcesPermissionRsp::SharedCtor() {
-}
-
-SetActionResourcesPermissionRsp::~SetActionResourcesPermissionRsp() {
-  // @@protoc_insertion_point(destructor:resource.SetActionResourcesPermissionRsp)
-  SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-void SetActionResourcesPermissionRsp::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-}
-
-void SetActionResourcesPermissionRsp::ArenaDtor(void* object) {
-  SetActionResourcesPermissionRsp* _this = reinterpret_cast< SetActionResourcesPermissionRsp* >(object);
-  (void)_this;
-}
-void SetActionResourcesPermissionRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
-void SetActionResourcesPermissionRsp::SetCachedSize(int size) const {
-  _cached_size_.Set(size);
-}
-const SetActionResourcesPermissionRsp& SetActionResourcesPermissionRsp::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_SetActionResourcesPermissionRsp_resource_2eproto.base);
-  return *internal_default_instance();
-}
-
-
-void SetActionResourcesPermissionRsp::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.SetActionResourcesPermissionRsp)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-const char* SetActionResourcesPermissionRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
-          goto success;
-        }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
-  }  // while
-success:
-  return ptr;
-failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
-}
-
-::PROTOBUF_NAMESPACE_ID::uint8* SetActionResourcesPermissionRsp::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.SetActionResourcesPermissionRsp)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
-  }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.SetActionResourcesPermissionRsp)
-  return target;
-}
-
-size_t SetActionResourcesPermissionRsp::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.SetActionResourcesPermissionRsp)
-  size_t total_size = 0;
-
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
-  SetCachedSize(cached_size);
-  return total_size;
-}
-
-void SetActionResourcesPermissionRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.SetActionResourcesPermissionRsp)
-  GOOGLE_DCHECK_NE(&from, this);
-  const SetActionResourcesPermissionRsp* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<SetActionResourcesPermissionRsp>(
-          &from);
-  if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.SetActionResourcesPermissionRsp)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
-  } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.SetActionResourcesPermissionRsp)
-    MergeFrom(*source);
-  }
-}
-
-void SetActionResourcesPermissionRsp::MergeFrom(const SetActionResourcesPermissionRsp& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.SetActionResourcesPermissionRsp)
-  GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-}
-
-void SetActionResourcesPermissionRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.SetActionResourcesPermissionRsp)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-void SetActionResourcesPermissionRsp::CopyFrom(const SetActionResourcesPermissionRsp& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.SetActionResourcesPermissionRsp)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-bool SetActionResourcesPermissionRsp::IsInitialized() const {
-  return true;
-}
-
-void SetActionResourcesPermissionRsp::InternalSwap(SetActionResourcesPermissionRsp* other) {
-  using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-}
-
-::PROTOBUF_NAMESPACE_ID::Metadata SetActionResourcesPermissionRsp::GetMetadata() const {
-  return GetMetadataStatic();
-}
-
-
-// ===================================================================
-
-void GetActionResourcesPermissionRqst::InitAsDefaultInstance() {
-}
-class GetActionResourcesPermissionRqst::_Internal {
- public:
-};
-
-GetActionResourcesPermissionRqst::GetActionResourcesPermissionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
-  SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.GetActionResourcesPermissionRqst)
-}
-GetActionResourcesPermissionRqst::GetActionResourcesPermissionRqst(const GetActionResourcesPermissionRqst& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_action().empty()) {
-    action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_action(),
-      GetArena());
-  }
-  // @@protoc_insertion_point(copy_constructor:resource.GetActionResourcesPermissionRqst)
-}
-
-void GetActionResourcesPermissionRqst::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_GetActionResourcesPermissionRqst_resource_2eproto.base);
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-}
-
-GetActionResourcesPermissionRqst::~GetActionResourcesPermissionRqst() {
-  // @@protoc_insertion_point(destructor:resource.GetActionResourcesPermissionRqst)
-  SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-void GetActionResourcesPermissionRqst::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  action_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-}
-
-void GetActionResourcesPermissionRqst::ArenaDtor(void* object) {
-  GetActionResourcesPermissionRqst* _this = reinterpret_cast< GetActionResourcesPermissionRqst* >(object);
-  (void)_this;
-}
-void GetActionResourcesPermissionRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
-void GetActionResourcesPermissionRqst::SetCachedSize(int size) const {
-  _cached_size_.Set(size);
-}
-const GetActionResourcesPermissionRqst& GetActionResourcesPermissionRqst::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_GetActionResourcesPermissionRqst_resource_2eproto.base);
-  return *internal_default_instance();
-}
-
-
-void GetActionResourcesPermissionRqst::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.GetActionResourcesPermissionRqst)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-const char* GetActionResourcesPermissionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
-      // string action = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_action();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.GetActionResourcesPermissionRqst.action"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
-      default: {
-      handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
-          goto success;
-        }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
-      }
-    }  // switch
-  }  // while
-success:
-  return ptr;
-failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
-}
-
-::PROTOBUF_NAMESPACE_ID::uint8* GetActionResourcesPermissionRqst::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.GetActionResourcesPermissionRqst)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  // string action = 1;
-  if (this->action().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_action().data(), static_cast<int>(this->_internal_action().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.GetActionResourcesPermissionRqst.action");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_action(), target);
-  }
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
-  }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.GetActionResourcesPermissionRqst)
-  return target;
-}
-
-size_t GetActionResourcesPermissionRqst::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.GetActionResourcesPermissionRqst)
-  size_t total_size = 0;
-
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  // string action = 1;
-  if (this->action().size() > 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_action());
-  }
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
-  SetCachedSize(cached_size);
-  return total_size;
-}
-
-void GetActionResourcesPermissionRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.GetActionResourcesPermissionRqst)
-  GOOGLE_DCHECK_NE(&from, this);
-  const GetActionResourcesPermissionRqst* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetActionResourcesPermissionRqst>(
-          &from);
-  if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.GetActionResourcesPermissionRqst)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
-  } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.GetActionResourcesPermissionRqst)
-    MergeFrom(*source);
-  }
-}
-
-void GetActionResourcesPermissionRqst::MergeFrom(const GetActionResourcesPermissionRqst& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.GetActionResourcesPermissionRqst)
-  GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  if (from.action().size() > 0) {
-    _internal_set_action(from._internal_action());
-  }
-}
-
-void GetActionResourcesPermissionRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.GetActionResourcesPermissionRqst)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-void GetActionResourcesPermissionRqst::CopyFrom(const GetActionResourcesPermissionRqst& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.GetActionResourcesPermissionRqst)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-bool GetActionResourcesPermissionRqst::IsInitialized() const {
-  return true;
-}
-
-void GetActionResourcesPermissionRqst::InternalSwap(GetActionResourcesPermissionRqst* other) {
-  using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  action_.Swap(&other->action_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-
-::PROTOBUF_NAMESPACE_ID::Metadata GetActionResourcesPermissionRqst::GetMetadata() const {
-  return GetMetadataStatic();
-}
-
-
-// ===================================================================
-
-void GetActionResourcesPermissionRsp::InitAsDefaultInstance() {
-}
-class GetActionResourcesPermissionRsp::_Internal {
- public:
-};
-
-GetActionResourcesPermissionRsp::GetActionResourcesPermissionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  resources_(arena) {
-  SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.GetActionResourcesPermissionRsp)
-}
-GetActionResourcesPermissionRsp::GetActionResourcesPermissionRsp(const GetActionResourcesPermissionRsp& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
-      resources_(from.resources_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  // @@protoc_insertion_point(copy_constructor:resource.GetActionResourcesPermissionRsp)
-}
-
-void GetActionResourcesPermissionRsp::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_GetActionResourcesPermissionRsp_resource_2eproto.base);
-}
-
-GetActionResourcesPermissionRsp::~GetActionResourcesPermissionRsp() {
-  // @@protoc_insertion_point(destructor:resource.GetActionResourcesPermissionRsp)
-  SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-void GetActionResourcesPermissionRsp::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-}
-
-void GetActionResourcesPermissionRsp::ArenaDtor(void* object) {
-  GetActionResourcesPermissionRsp* _this = reinterpret_cast< GetActionResourcesPermissionRsp* >(object);
-  (void)_this;
-}
-void GetActionResourcesPermissionRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
-void GetActionResourcesPermissionRsp::SetCachedSize(int size) const {
-  _cached_size_.Set(size);
-}
-const GetActionResourcesPermissionRsp& GetActionResourcesPermissionRsp::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_GetActionResourcesPermissionRsp_resource_2eproto.base);
-  return *internal_default_instance();
-}
-
-
-void GetActionResourcesPermissionRsp::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.GetActionResourcesPermissionRsp)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  resources_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-}
-
-const char* GetActionResourcesPermissionRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    CHK_(ptr);
-    switch (tag >> 3) {
-      // repeated .resource.ActionResourceParameterPermission resources = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          ptr -= 1;
-          do {
-            ptr += 1;
-            ptr = ctx->ParseMessage(_internal_add_resources(), ptr);
-            CHK_(ptr);
-            if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<10>(ptr));
-        } else goto handle_unusual;
-        continue;
-      default: {
-      handle_unusual:
-        if ((tag & 7) == 4 || tag == 0) {
-          ctx->SetLastTag(tag);
-          goto success;
-        }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
-      }
-    }  // switch
-  }  // while
-success:
-  return ptr;
-failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
-}
-
-::PROTOBUF_NAMESPACE_ID::uint8* GetActionResourcesPermissionRsp::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.GetActionResourcesPermissionRsp)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  // repeated .resource.ActionResourceParameterPermission resources = 1;
-  for (unsigned int i = 0,
-      n = static_cast<unsigned int>(this->_internal_resources_size()); i < n; i++) {
-    target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(1, this->_internal_resources(i), target, stream);
-  }
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
-  }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.GetActionResourcesPermissionRsp)
-  return target;
-}
-
-size_t GetActionResourcesPermissionRsp::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.GetActionResourcesPermissionRsp)
-  size_t total_size = 0;
-
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  // repeated .resource.ActionResourceParameterPermission resources = 1;
-  total_size += 1UL * this->_internal_resources_size();
-  for (const auto& msg : this->resources_) {
-    total_size +=
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
-  }
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
-  SetCachedSize(cached_size);
-  return total_size;
-}
-
-void GetActionResourcesPermissionRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.GetActionResourcesPermissionRsp)
-  GOOGLE_DCHECK_NE(&from, this);
-  const GetActionResourcesPermissionRsp* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetActionResourcesPermissionRsp>(
-          &from);
-  if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.GetActionResourcesPermissionRsp)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
-  } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.GetActionResourcesPermissionRsp)
-    MergeFrom(*source);
-  }
-}
-
-void GetActionResourcesPermissionRsp::MergeFrom(const GetActionResourcesPermissionRsp& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.GetActionResourcesPermissionRsp)
-  GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  (void) cached_has_bits;
-
-  resources_.MergeFrom(from.resources_);
-}
-
-void GetActionResourcesPermissionRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.GetActionResourcesPermissionRsp)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-void GetActionResourcesPermissionRsp::CopyFrom(const GetActionResourcesPermissionRsp& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.GetActionResourcesPermissionRsp)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-bool GetActionResourcesPermissionRsp::IsInitialized() const {
-  return true;
-}
-
-void GetActionResourcesPermissionRsp::InternalSwap(GetActionResourcesPermissionRsp* other) {
-  using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  resources_.InternalSwap(&other->resources_);
-}
-
-::PROTOBUF_NAMESPACE_ID::Metadata GetActionResourcesPermissionRsp::GetMetadata() const {
-  return GetMetadataStatic();
-}
-
-
-// ===================================================================
-
 void GetResourcePermissionsRqst::InitAsDefaultInstance() {
 }
 class GetResourcePermissionsRqst::_Internal {
@@ -33102,18 +32159,6 @@ template<> PROTOBUF_NOINLINE ::resource::Permissions* Arena::CreateMaybeMessage<
 }
 template<> PROTOBUF_NOINLINE ::resource::ActionResourceParameterPermission* Arena::CreateMaybeMessage< ::resource::ActionResourceParameterPermission >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::ActionResourceParameterPermission >(arena);
-}
-template<> PROTOBUF_NOINLINE ::resource::SetActionResourcesPermissionRqst* Arena::CreateMaybeMessage< ::resource::SetActionResourcesPermissionRqst >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::SetActionResourcesPermissionRqst >(arena);
-}
-template<> PROTOBUF_NOINLINE ::resource::SetActionResourcesPermissionRsp* Arena::CreateMaybeMessage< ::resource::SetActionResourcesPermissionRsp >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::SetActionResourcesPermissionRsp >(arena);
-}
-template<> PROTOBUF_NOINLINE ::resource::GetActionResourcesPermissionRqst* Arena::CreateMaybeMessage< ::resource::GetActionResourcesPermissionRqst >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::GetActionResourcesPermissionRqst >(arena);
-}
-template<> PROTOBUF_NOINLINE ::resource::GetActionResourcesPermissionRsp* Arena::CreateMaybeMessage< ::resource::GetActionResourcesPermissionRsp >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::GetActionResourcesPermissionRsp >(arena);
 }
 template<> PROTOBUF_NOINLINE ::resource::GetResourcePermissionsRqst* Arena::CreateMaybeMessage< ::resource::GetResourcePermissionsRqst >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::GetResourcePermissionsRqst >(arena);
