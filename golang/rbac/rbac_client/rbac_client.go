@@ -155,25 +155,17 @@ func (self *Rbac_Client) SetCaFile(caFile string) {
 }
 
 ////////////////////////////////////  Api  /////////////////////////////////////
-/** Set the action resources permissions **/
-func (self *Rbac_Client) SetActionResourcesPermissions(action string, resources []*resourcepb.ActionResourceParameterPermission) error {
-	rqst := &resourcepb.SetActionResourcesPermissionsRqst{
-		Action:    action,
-		Resources: resources,
-	}
-
-	_, err := self.c.SetActionResourcesPermissions(globular.GetClientContext(self), rqst)
-	return err
-}
-
-/** Get the action ressouces permission **/
-func (self *Rbac_Client) GetActionResourcesPermissions() {
-	// Implement it
-}
 
 /** Set resource permissions this method will replace existing permission at once **/
-func (self *Rbac_Client) SetResourcePermissions() {
-	// Implement it
+func (self *Rbac_Client) SetResourcePermissions(path string, permissions *resourcepb.Permissions) error {
+	rqst := &resourcepb.SetResourcePermissionsRqst{
+		Path:        path,
+		Permissions: permissions,
+	}
+
+	_, err := self.c.SetResourcePermissions(globular.GetClientContext(self), rqst)
+	return err
+
 }
 
 /** Delete a resource permissions (when a resource is deleted) **/
