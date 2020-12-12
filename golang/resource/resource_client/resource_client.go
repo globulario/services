@@ -558,6 +558,17 @@ func (self *Resource_Client) RegisterPeer(domain string) error {
 
 }
 
+// Delete a peer
+func (self *Resource_Client) DeletePeer(domain string) error {
+	rqst := &resourcepb.DeletePeerRqst{
+		Peer: &resourcepb.Peer{
+			Domain: domain,
+		},
+	}
+	_, err := self.c.DeletePeer(globular.GetClientContext(self), rqst)
+	return err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Application
 ////////////////////////////////////////////////////////////////////////////////

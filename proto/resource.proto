@@ -657,11 +657,11 @@ message DeleteResourcePermissionsRsp{
 	Permissions permissions = 1;
 }
 
-
 /** Delete specific resource permission **/
 message DeleteResourcePermissionRqst{
 	string path = 1;
 	string name = 2;
+	PermissionType type = 3;
 }
 
 /** Delete permissions **/
@@ -679,9 +679,25 @@ message SetResourcePermissionsRsp{
 	/** nothing here **/
 }
 
+enum PermissionType {
+	DENIED = 0;
+	ALLOWED = 1;
+}
+
+message GetResourcePermissionRqst{
+	string path = 1;
+	string name = 2;
+	PermissionType type = 3;
+}
+
+message GetResourcePermissionRsp{
+	Permission permission = 1;
+}
+
 message SetResourcePermissionRqst{
 	string path = 1;
 	Permission permission = 2;
+	PermissionType type = 3;
 }
 
 message SetResourcePermissionRsp{
@@ -690,20 +706,21 @@ message SetResourcePermissionRsp{
 
 message AddResourceOwnerRqst{
 	string path = 1;
-	string owner = 2;
-	SubjectType subject = 3;
+	string subject = 2;
+	SubjectType type = 3;
 }
 
 message AddResourceOwnerRsp {
 	
 }
 
-message removeResourceOwnerRqst{
+message RemoveResourceOwnerRqst{
 	string path = 1;
-	string owner = 2;
+	string subject = 2;
+	SubjectType type = 3;
 }
 
-message removeResourceOwnerRsp {
+message RemoveResourceOwnerRsp {
 	
 }
 
@@ -717,6 +734,7 @@ enum SubjectType {
 	
 message DeleteAllAccessRqst {
 	string subject = 1;
+	SubjectType type = 2;
 }
 
 message DeleteAllAccessRsp {
@@ -750,6 +768,9 @@ service RbacService {
 	/** Delete a specific resource permission **/
 	rpc DeleteResourcePermission(DeleteResourcePermissionRqst) returns(DeleteResourcePermissionRqst);
 	
+	/** Get specific resource permission  ex. read permission... **/
+	rpc GetResourcePermission(GetResourcePermissionRqst) returns(GetResourcePermissionRsp);
+	
 	/** Set specific resource permission  ex. read permission... **/
 	rpc SetResourcePermission(SetResourcePermissionRqst) returns(SetResourcePermissionRsp);
 	
@@ -760,7 +781,7 @@ service RbacService {
 	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
 	
 	/** Remove resource owner */
-	rpc RemoveResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
+	rpc RemoveResourceOwner(RemoveResourceOwnerRqst) returns(RemoveResourceOwnerRsp);
 	
 	/** That function must be call when a subject is removed to clean up permissions. */
 	rpc DeleteAllAccess(DeleteAllAccessRqst) returns (DeleteAllAccessRsp);
