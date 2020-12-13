@@ -7971,6 +7971,14 @@ class RbacService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeleteResourcePermissionRqst>> PrepareAsyncDeleteResourcePermission(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeleteResourcePermissionRqst>>(PrepareAsyncDeleteResourcePermissionRaw(context, request, cq));
     }
+    // * Get specific resource permission  ex. read permission... *
+    virtual ::grpc::Status GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::resource::GetResourcePermissionRsp* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>> AsyncGetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>>(AsyncGetResourcePermissionRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>> PrepareAsyncGetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>>(PrepareAsyncGetResourcePermissionRaw(context, request, cq));
+    }
     // * Set specific resource permission  ex. read permission... *
     virtual ::grpc::Status SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::resource::SetResourcePermissionRsp* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::SetResourcePermissionRsp>> AsyncSetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
@@ -7978,14 +7986,6 @@ class RbacService final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::SetResourcePermissionRsp>> PrepareAsyncSetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::SetResourcePermissionRsp>>(PrepareAsyncSetResourcePermissionRaw(context, request, cq));
-    }
-    // * Get a specific resource access *
-    virtual ::grpc::Status GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::resource::GetResourcePermissionRsp* response) = 0;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>> AsyncGetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>>(AsyncGetResourcePermissionRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>> PrepareAsyncGetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>>(PrepareAsyncGetResourcePermissionRaw(context, request, cq));
     }
     // * Get resource permissions *
     virtual ::grpc::Status GetResourcePermissions(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst& request, ::resource::GetResourcePermissionsRsp* response) = 0;
@@ -8004,12 +8004,12 @@ class RbacService final {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>>(PrepareAsyncAddResourceOwnerRaw(context, request, cq));
     }
     // * Remove resource owner 
-    virtual ::grpc::Status RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::resource::AddResourceOwnerRsp* response) = 0;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>> AsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>>(AsyncRemoveResourceOwnerRaw(context, request, cq));
+    virtual ::grpc::Status RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::resource::RemoveResourceOwnerRsp* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RemoveResourceOwnerRsp>> AsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RemoveResourceOwnerRsp>>(AsyncRemoveResourceOwnerRaw(context, request, cq));
     }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>> PrepareAsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>>(PrepareAsyncRemoveResourceOwnerRaw(context, request, cq));
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RemoveResourceOwnerRsp>> PrepareAsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RemoveResourceOwnerRsp>>(PrepareAsyncRemoveResourceOwnerRaw(context, request, cq));
     }
     // * That function must be call when a subject is removed to clean up permissions. 
     virtual ::grpc::Status DeleteAllAccess(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst& request, ::resource::DeleteAllAccessRsp* response) = 0;
@@ -8026,14 +8026,6 @@ class RbacService final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::ValidateAccessRsp>> PrepareAsyncValidateAccess(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::ValidateAccessRsp>>(PrepareAsyncValidateAccessRaw(context, request, cq));
-    }
-    // * Return the list of access for a given subject 
-    virtual ::grpc::Status GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::resource::GetAccessesRsp* response) = 0;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetAccessesRsp>> AsyncGetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetAccessesRsp>>(AsyncGetAccessesRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetAccessesRsp>> PrepareAsyncGetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetAccessesRsp>>(PrepareAsyncGetAccessesRaw(context, request, cq));
     }
     class experimental_async_interface {
      public:
@@ -8059,19 +8051,19 @@ class RbacService final {
       #else
       virtual void DeleteResourcePermission(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst* request, ::resource::DeleteResourcePermissionRqst* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
+      // * Get specific resource permission  ex. read permission... *
+      virtual void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, std::function<void(::grpc::Status)>) = 0;
+      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      virtual void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      #else
+      virtual void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
+      #endif
       // * Set specific resource permission  ex. read permission... *
       virtual void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      // * Get a specific resource access *
-      virtual void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, std::function<void(::grpc::Status)>) = 0;
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Get resource permissions *
       virtual void GetResourcePermissions(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst* request, ::resource::GetResourcePermissionsRsp* response, std::function<void(::grpc::Status)>) = 0;
@@ -8088,11 +8080,11 @@ class RbacService final {
       virtual void AddResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Remove resource owner 
-      virtual void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      virtual void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
-      virtual void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
+      virtual void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * That function must be call when a subject is removed to clean up permissions. 
       virtual void DeleteAllAccess(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst* request, ::resource::DeleteAllAccessRsp* response, std::function<void(::grpc::Status)>) = 0;
@@ -8107,13 +8099,6 @@ class RbacService final {
       virtual void ValidateAccess(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst* request, ::resource::ValidateAccessRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void ValidateAccess(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst* request, ::resource::ValidateAccessRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      // * Return the list of access for a given subject 
-      virtual void GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response, std::function<void(::grpc::Status)>) = 0;
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
     };
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -8130,22 +8115,20 @@ class RbacService final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeleteResourcePermissionsRqst>* PrepareAsyncDeleteResourcePermissionsRaw(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionsRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeleteResourcePermissionRqst>* AsyncDeleteResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeleteResourcePermissionRqst>* PrepareAsyncDeleteResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::SetResourcePermissionRsp>* AsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::SetResourcePermissionRsp>* PrepareAsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>* AsyncGetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionRsp>* PrepareAsyncGetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::SetResourcePermissionRsp>* AsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::SetResourcePermissionRsp>* PrepareAsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionsRsp>* AsyncGetResourcePermissionsRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetResourcePermissionsRsp>* PrepareAsyncGetResourcePermissionsRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>* AsyncAddResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>* PrepareAsyncAddResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>* AsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddResourceOwnerRsp>* PrepareAsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::RemoveResourceOwnerRsp>* AsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::RemoveResourceOwnerRsp>* PrepareAsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeleteAllAccessRsp>* AsyncDeleteAllAccessRaw(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeleteAllAccessRsp>* PrepareAsyncDeleteAllAccessRaw(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::ValidateAccessRsp>* AsyncValidateAccessRaw(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::ValidateAccessRsp>* PrepareAsyncValidateAccessRaw(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetAccessesRsp>* AsyncGetAccessesRaw(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetAccessesRsp>* PrepareAsyncGetAccessesRaw(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -8171,19 +8154,19 @@ class RbacService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::DeleteResourcePermissionRqst>> PrepareAsyncDeleteResourcePermission(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::DeleteResourcePermissionRqst>>(PrepareAsyncDeleteResourcePermissionRaw(context, request, cq));
     }
-    ::grpc::Status SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::resource::SetResourcePermissionRsp* response) override;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>> AsyncSetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>>(AsyncSetResourcePermissionRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>> PrepareAsyncSetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>>(PrepareAsyncSetResourcePermissionRaw(context, request, cq));
-    }
     ::grpc::Status GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::resource::GetResourcePermissionRsp* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionRsp>> AsyncGetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionRsp>>(AsyncGetResourcePermissionRaw(context, request, cq));
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionRsp>> PrepareAsyncGetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionRsp>>(PrepareAsyncGetResourcePermissionRaw(context, request, cq));
+    }
+    ::grpc::Status SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::resource::SetResourcePermissionRsp* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>> AsyncSetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>>(AsyncSetResourcePermissionRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>> PrepareAsyncSetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>>(PrepareAsyncSetResourcePermissionRaw(context, request, cq));
     }
     ::grpc::Status GetResourcePermissions(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst& request, ::resource::GetResourcePermissionsRsp* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionsRsp>> AsyncGetResourcePermissions(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst& request, ::grpc::CompletionQueue* cq) {
@@ -8199,12 +8182,12 @@ class RbacService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>> PrepareAsyncAddResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>>(PrepareAsyncAddResourceOwnerRaw(context, request, cq));
     }
-    ::grpc::Status RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::resource::AddResourceOwnerRsp* response) override;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>> AsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>>(AsyncRemoveResourceOwnerRaw(context, request, cq));
+    ::grpc::Status RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::resource::RemoveResourceOwnerRsp* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::RemoveResourceOwnerRsp>> AsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::RemoveResourceOwnerRsp>>(AsyncRemoveResourceOwnerRaw(context, request, cq));
     }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>> PrepareAsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>>(PrepareAsyncRemoveResourceOwnerRaw(context, request, cq));
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::RemoveResourceOwnerRsp>> PrepareAsyncRemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::RemoveResourceOwnerRsp>>(PrepareAsyncRemoveResourceOwnerRaw(context, request, cq));
     }
     ::grpc::Status DeleteAllAccess(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst& request, ::resource::DeleteAllAccessRsp* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::DeleteAllAccessRsp>> AsyncDeleteAllAccess(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst& request, ::grpc::CompletionQueue* cq) {
@@ -8219,13 +8202,6 @@ class RbacService final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::ValidateAccessRsp>> PrepareAsyncValidateAccess(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::ValidateAccessRsp>>(PrepareAsyncValidateAccessRaw(context, request, cq));
-    }
-    ::grpc::Status GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::resource::GetAccessesRsp* response) override;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetAccessesRsp>> AsyncGetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetAccessesRsp>>(AsyncGetAccessesRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetAccessesRsp>> PrepareAsyncGetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetAccessesRsp>>(PrepareAsyncGetAccessesRaw(context, request, cq));
     }
     class experimental_async final :
       public StubInterface::experimental_async_interface {
@@ -8248,17 +8224,17 @@ class RbacService final {
       #else
       void DeleteResourcePermission(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst* request, ::resource::DeleteResourcePermissionRqst* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, std::function<void(::grpc::Status)>) override;
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void GetResourcePermission(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
+      #endif
+      void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, std::function<void(::grpc::Status)>) override;
+      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
+      #else
+      void SetResourcePermission(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       void GetResourcePermissions(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst* request, ::resource::GetResourcePermissionsRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -8272,11 +8248,11 @@ class RbacService final {
       #else
       void AddResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, std::function<void(::grpc::Status)>) override;
+      void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
-      void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
+      void RemoveResourceOwner(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       void DeleteAllAccess(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst* request, ::resource::DeleteAllAccessRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -8289,12 +8265,6 @@ class RbacService final {
       void ValidateAccess(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst* request, ::resource::ValidateAccessRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void ValidateAccess(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst* request, ::resource::ValidateAccessRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
-      void GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response, std::function<void(::grpc::Status)>) override;
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void GetAccesses(::grpc::ClientContext* context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
      private:
       friend class Stub;
@@ -8313,33 +8283,30 @@ class RbacService final {
     ::grpc::ClientAsyncResponseReader< ::resource::DeleteResourcePermissionsRqst>* PrepareAsyncDeleteResourcePermissionsRaw(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionsRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::DeleteResourcePermissionRqst>* AsyncDeleteResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::DeleteResourcePermissionRqst>* PrepareAsyncDeleteResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::DeleteResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>* AsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>* PrepareAsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionRsp>* AsyncGetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionRsp>* PrepareAsyncGetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>* AsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::SetResourcePermissionRsp>* PrepareAsyncSetResourcePermissionRaw(::grpc::ClientContext* context, const ::resource::SetResourcePermissionRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionsRsp>* AsyncGetResourcePermissionsRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::GetResourcePermissionsRsp>* PrepareAsyncGetResourcePermissionsRaw(::grpc::ClientContext* context, const ::resource::GetResourcePermissionsRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>* AsyncAddResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>* PrepareAsyncAddResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>* AsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::resource::AddResourceOwnerRsp>* PrepareAsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::AddResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::RemoveResourceOwnerRsp>* AsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::RemoveResourceOwnerRsp>* PrepareAsyncRemoveResourceOwnerRaw(::grpc::ClientContext* context, const ::resource::RemoveResourceOwnerRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::DeleteAllAccessRsp>* AsyncDeleteAllAccessRaw(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::DeleteAllAccessRsp>* PrepareAsyncDeleteAllAccessRaw(::grpc::ClientContext* context, const ::resource::DeleteAllAccessRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::ValidateAccessRsp>* AsyncValidateAccessRaw(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::ValidateAccessRsp>* PrepareAsyncValidateAccessRaw(::grpc::ClientContext* context, const ::resource::ValidateAccessRqst& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::resource::GetAccessesRsp>* AsyncGetAccessesRaw(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::resource::GetAccessesRsp>* PrepareAsyncGetAccessesRaw(::grpc::ClientContext* context, const ::resource::GetAccessesRqst& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_SetResourcePermissions_;
     const ::grpc::internal::RpcMethod rpcmethod_DeleteResourcePermissions_;
     const ::grpc::internal::RpcMethod rpcmethod_DeleteResourcePermission_;
-    const ::grpc::internal::RpcMethod rpcmethod_SetResourcePermission_;
     const ::grpc::internal::RpcMethod rpcmethod_GetResourcePermission_;
+    const ::grpc::internal::RpcMethod rpcmethod_SetResourcePermission_;
     const ::grpc::internal::RpcMethod rpcmethod_GetResourcePermissions_;
     const ::grpc::internal::RpcMethod rpcmethod_AddResourceOwner_;
     const ::grpc::internal::RpcMethod rpcmethod_RemoveResourceOwner_;
     const ::grpc::internal::RpcMethod rpcmethod_DeleteAllAccess_;
     const ::grpc::internal::RpcMethod rpcmethod_ValidateAccess_;
-    const ::grpc::internal::RpcMethod rpcmethod_GetAccesses_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -8353,22 +8320,20 @@ class RbacService final {
     virtual ::grpc::Status DeleteResourcePermissions(::grpc::ServerContext* context, const ::resource::DeleteResourcePermissionsRqst* request, ::resource::DeleteResourcePermissionsRqst* response);
     // * Delete a specific resource permission *
     virtual ::grpc::Status DeleteResourcePermission(::grpc::ServerContext* context, const ::resource::DeleteResourcePermissionRqst* request, ::resource::DeleteResourcePermissionRqst* response);
+    // * Get specific resource permission  ex. read permission... *
+    virtual ::grpc::Status GetResourcePermission(::grpc::ServerContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response);
     // * Set specific resource permission  ex. read permission... *
     virtual ::grpc::Status SetResourcePermission(::grpc::ServerContext* context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response);
-    // * Get a specific resource access *
-    virtual ::grpc::Status GetResourcePermission(::grpc::ServerContext* context, const ::resource::GetResourcePermissionRqst* request, ::resource::GetResourcePermissionRsp* response);
     // * Get resource permissions *
     virtual ::grpc::Status GetResourcePermissions(::grpc::ServerContext* context, const ::resource::GetResourcePermissionsRqst* request, ::resource::GetResourcePermissionsRsp* response);
     // * Add resource owner do nothing if it already exist 
     virtual ::grpc::Status AddResourceOwner(::grpc::ServerContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response);
     // * Remove resource owner 
-    virtual ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response);
+    virtual ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response);
     // * That function must be call when a subject is removed to clean up permissions. 
     virtual ::grpc::Status DeleteAllAccess(::grpc::ServerContext* context, const ::resource::DeleteAllAccessRqst* request, ::resource::DeleteAllAccessRsp* response);
     // * Validate if a user can get access to a given Resource for a given operation (read, write...) *
     virtual ::grpc::Status ValidateAccess(::grpc::ServerContext* context, const ::resource::ValidateAccessRqst* request, ::resource::ValidateAccessRsp* response);
-    // * Return the list of access for a given subject 
-    virtual ::grpc::Status GetAccesses(::grpc::ServerContext* context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_SetResourcePermissions : public BaseClass {
@@ -8431,32 +8396,12 @@ class RbacService final {
     }
   };
   template <class BaseClass>
-  class WithAsyncMethod_SetResourcePermission : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithAsyncMethod_SetResourcePermission() {
-      ::grpc::Service::MarkMethodAsync(3);
-    }
-    ~WithAsyncMethod_SetResourcePermission() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestSetResourcePermission(::grpc::ServerContext* context, ::resource::SetResourcePermissionRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::SetResourcePermissionRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
   class WithAsyncMethod_GetResourcePermission : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetResourcePermission() {
-      ::grpc::Service::MarkMethodAsync(4);
+      ::grpc::Service::MarkMethodAsync(3);
     }
     ~WithAsyncMethod_GetResourcePermission() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8467,6 +8412,26 @@ class RbacService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetResourcePermission(::grpc::ServerContext* context, ::resource::GetResourcePermissionRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetResourcePermissionRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_SetResourcePermission : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_SetResourcePermission() {
+      ::grpc::Service::MarkMethodAsync(4);
+    }
+    ~WithAsyncMethod_SetResourcePermission() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestSetResourcePermission(::grpc::ServerContext* context, ::resource::SetResourcePermissionRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::SetResourcePermissionRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
@@ -8522,11 +8487,11 @@ class RbacService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/) override {
+    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
-    void RequestRemoveResourceOwner(::grpc::ServerContext* context, ::resource::AddResourceOwnerRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::AddResourceOwnerRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+    void RequestRemoveResourceOwner(::grpc::ServerContext* context, ::resource::RemoveResourceOwnerRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::RemoveResourceOwnerRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
@@ -8570,27 +8535,7 @@ class RbacService final {
       ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  template <class BaseClass>
-  class WithAsyncMethod_GetAccesses : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithAsyncMethod_GetAccesses() {
-      ::grpc::Service::MarkMethodAsync(10);
-    }
-    ~WithAsyncMethod_GetAccesses() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status GetAccesses(::grpc::ServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestGetAccesses(::grpc::ServerContext* context, ::resource::GetAccessesRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetAccessesRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  typedef WithAsyncMethod_SetResourcePermissions<WithAsyncMethod_DeleteResourcePermissions<WithAsyncMethod_DeleteResourcePermission<WithAsyncMethod_SetResourcePermission<WithAsyncMethod_GetResourcePermission<WithAsyncMethod_GetResourcePermissions<WithAsyncMethod_AddResourceOwner<WithAsyncMethod_RemoveResourceOwner<WithAsyncMethod_DeleteAllAccess<WithAsyncMethod_ValidateAccess<WithAsyncMethod_GetAccesses<Service > > > > > > > > > > > AsyncService;
+  typedef WithAsyncMethod_SetResourcePermissions<WithAsyncMethod_DeleteResourcePermissions<WithAsyncMethod_DeleteResourcePermission<WithAsyncMethod_GetResourcePermission<WithAsyncMethod_SetResourcePermission<WithAsyncMethod_GetResourcePermissions<WithAsyncMethod_AddResourceOwner<WithAsyncMethod_RemoveResourceOwner<WithAsyncMethod_DeleteAllAccess<WithAsyncMethod_ValidateAccess<Service > > > > > > > > > > AsyncService;
   template <class BaseClass>
   class ExperimentalWithCallbackMethod_SetResourcePermissions : public BaseClass {
    private:
@@ -8733,53 +8678,6 @@ class RbacService final {
       { return nullptr; }
   };
   template <class BaseClass>
-  class ExperimentalWithCallbackMethod_SetResourcePermission : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    ExperimentalWithCallbackMethod_SetResourcePermission() {
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::Service::
-    #else
-      ::grpc::Service::experimental().
-    #endif
-        MarkMethodCallback(3,
-          new ::grpc::internal::CallbackUnaryHandler< ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>(
-            [this](
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-                   ::grpc::CallbackServerContext*
-    #else
-                   ::grpc::experimental::CallbackServerContext*
-    #endif
-                     context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response) { return this->SetResourcePermission(context, request, response); }));}
-    void SetMessageAllocatorFor_SetResourcePermission(
-        ::grpc::experimental::MessageAllocator< ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>* allocator) {
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(3);
-    #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(3);
-    #endif
-      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>*>(handler)
-              ->SetMessageAllocator(allocator);
-    }
-    ~ExperimentalWithCallbackMethod_SetResourcePermission() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-    virtual ::grpc::ServerUnaryReactor* SetResourcePermission(
-      ::grpc::CallbackServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/)
-    #else
-    virtual ::grpc::experimental::ServerUnaryReactor* SetResourcePermission(
-      ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/)
-    #endif
-      { return nullptr; }
-  };
-  template <class BaseClass>
   class ExperimentalWithCallbackMethod_GetResourcePermission : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -8790,7 +8688,7 @@ class RbacService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(4,
+        MarkMethodCallback(3,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::GetResourcePermissionRqst, ::resource::GetResourcePermissionRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -8802,9 +8700,9 @@ class RbacService final {
     void SetMessageAllocatorFor_GetResourcePermission(
         ::grpc::experimental::MessageAllocator< ::resource::GetResourcePermissionRqst, ::resource::GetResourcePermissionRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(4);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(3);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(4);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(3);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetResourcePermissionRqst, ::resource::GetResourcePermissionRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -8823,6 +8721,53 @@ class RbacService final {
     #else
     virtual ::grpc::experimental::ServerUnaryReactor* GetResourcePermission(
       ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::GetResourcePermissionRqst* /*request*/, ::resource::GetResourcePermissionRsp* /*response*/)
+    #endif
+      { return nullptr; }
+  };
+  template <class BaseClass>
+  class ExperimentalWithCallbackMethod_SetResourcePermission : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    ExperimentalWithCallbackMethod_SetResourcePermission() {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::Service::
+    #else
+      ::grpc::Service::experimental().
+    #endif
+        MarkMethodCallback(4,
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>(
+            [this](
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+                   ::grpc::CallbackServerContext*
+    #else
+                   ::grpc::experimental::CallbackServerContext*
+    #endif
+                     context, const ::resource::SetResourcePermissionRqst* request, ::resource::SetResourcePermissionRsp* response) { return this->SetResourcePermission(context, request, response); }));}
+    void SetMessageAllocatorFor_SetResourcePermission(
+        ::grpc::experimental::MessageAllocator< ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>* allocator) {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(4);
+    #else
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(4);
+    #endif
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~ExperimentalWithCallbackMethod_SetResourcePermission() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+    virtual ::grpc::ServerUnaryReactor* SetResourcePermission(
+      ::grpc::CallbackServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/)
+    #else
+    virtual ::grpc::experimental::ServerUnaryReactor* SetResourcePermission(
+      ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/)
     #endif
       { return nullptr; }
   };
@@ -8932,38 +8877,38 @@ class RbacService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(7,
-          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddResourceOwnerRqst, ::resource::AddResourceOwnerRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveResourceOwnerRqst, ::resource::RemoveResourceOwnerRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
     #else
                    ::grpc::experimental::CallbackServerContext*
     #endif
-                     context, const ::resource::AddResourceOwnerRqst* request, ::resource::AddResourceOwnerRsp* response) { return this->RemoveResourceOwner(context, request, response); }));}
+                     context, const ::resource::RemoveResourceOwnerRqst* request, ::resource::RemoveResourceOwnerRsp* response) { return this->RemoveResourceOwner(context, request, response); }));}
     void SetMessageAllocatorFor_RemoveResourceOwner(
-        ::grpc::experimental::MessageAllocator< ::resource::AddResourceOwnerRqst, ::resource::AddResourceOwnerRsp>* allocator) {
+        ::grpc::experimental::MessageAllocator< ::resource::RemoveResourceOwnerRqst, ::resource::RemoveResourceOwnerRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(7);
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(7);
     #endif
-      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddResourceOwnerRqst, ::resource::AddResourceOwnerRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveResourceOwnerRqst, ::resource::RemoveResourceOwnerRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveResourceOwner() override {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/) override {
+    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
     virtual ::grpc::ServerUnaryReactor* RemoveResourceOwner(
-      ::grpc::CallbackServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/)
+      ::grpc::CallbackServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/)
     #else
     virtual ::grpc::experimental::ServerUnaryReactor* RemoveResourceOwner(
-      ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/)
+      ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/)
     #endif
       { return nullptr; }
   };
@@ -9061,58 +9006,11 @@ class RbacService final {
     #endif
       { return nullptr; }
   };
-  template <class BaseClass>
-  class ExperimentalWithCallbackMethod_GetAccesses : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    ExperimentalWithCallbackMethod_GetAccesses() {
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::Service::
-    #else
-      ::grpc::Service::experimental().
-    #endif
-        MarkMethodCallback(10,
-          new ::grpc::internal::CallbackUnaryHandler< ::resource::GetAccessesRqst, ::resource::GetAccessesRsp>(
-            [this](
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-                   ::grpc::CallbackServerContext*
-    #else
-                   ::grpc::experimental::CallbackServerContext*
-    #endif
-                     context, const ::resource::GetAccessesRqst* request, ::resource::GetAccessesRsp* response) { return this->GetAccesses(context, request, response); }));}
-    void SetMessageAllocatorFor_GetAccesses(
-        ::grpc::experimental::MessageAllocator< ::resource::GetAccessesRqst, ::resource::GetAccessesRsp>* allocator) {
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(10);
-    #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(10);
-    #endif
-      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetAccessesRqst, ::resource::GetAccessesRsp>*>(handler)
-              ->SetMessageAllocator(allocator);
-    }
-    ~ExperimentalWithCallbackMethod_GetAccesses() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status GetAccesses(::grpc::ServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-    virtual ::grpc::ServerUnaryReactor* GetAccesses(
-      ::grpc::CallbackServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/)
-    #else
-    virtual ::grpc::experimental::ServerUnaryReactor* GetAccesses(
-      ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/)
-    #endif
-      { return nullptr; }
-  };
   #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-  typedef ExperimentalWithCallbackMethod_SetResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermission<ExperimentalWithCallbackMethod_SetResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermissions<ExperimentalWithCallbackMethod_AddResourceOwner<ExperimentalWithCallbackMethod_RemoveResourceOwner<ExperimentalWithCallbackMethod_DeleteAllAccess<ExperimentalWithCallbackMethod_ValidateAccess<ExperimentalWithCallbackMethod_GetAccesses<Service > > > > > > > > > > > CallbackService;
+  typedef ExperimentalWithCallbackMethod_SetResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermission<ExperimentalWithCallbackMethod_SetResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermissions<ExperimentalWithCallbackMethod_AddResourceOwner<ExperimentalWithCallbackMethod_RemoveResourceOwner<ExperimentalWithCallbackMethod_DeleteAllAccess<ExperimentalWithCallbackMethod_ValidateAccess<Service > > > > > > > > > > CallbackService;
   #endif
 
-  typedef ExperimentalWithCallbackMethod_SetResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermission<ExperimentalWithCallbackMethod_SetResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermissions<ExperimentalWithCallbackMethod_AddResourceOwner<ExperimentalWithCallbackMethod_RemoveResourceOwner<ExperimentalWithCallbackMethod_DeleteAllAccess<ExperimentalWithCallbackMethod_ValidateAccess<ExperimentalWithCallbackMethod_GetAccesses<Service > > > > > > > > > > > ExperimentalCallbackService;
+  typedef ExperimentalWithCallbackMethod_SetResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermissions<ExperimentalWithCallbackMethod_DeleteResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermission<ExperimentalWithCallbackMethod_SetResourcePermission<ExperimentalWithCallbackMethod_GetResourcePermissions<ExperimentalWithCallbackMethod_AddResourceOwner<ExperimentalWithCallbackMethod_RemoveResourceOwner<ExperimentalWithCallbackMethod_DeleteAllAccess<ExperimentalWithCallbackMethod_ValidateAccess<Service > > > > > > > > > > ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_SetResourcePermissions : public BaseClass {
    private:
@@ -9165,35 +9063,35 @@ class RbacService final {
     }
   };
   template <class BaseClass>
-  class WithGenericMethod_SetResourcePermission : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithGenericMethod_SetResourcePermission() {
-      ::grpc::Service::MarkMethodGeneric(3);
-    }
-    ~WithGenericMethod_SetResourcePermission() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-  };
-  template <class BaseClass>
   class WithGenericMethod_GetResourcePermission : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetResourcePermission() {
-      ::grpc::Service::MarkMethodGeneric(4);
+      ::grpc::Service::MarkMethodGeneric(3);
     }
     ~WithGenericMethod_GetResourcePermission() override {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
     ::grpc::Status GetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::GetResourcePermissionRqst* /*request*/, ::resource::GetResourcePermissionRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_SetResourcePermission : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_SetResourcePermission() {
+      ::grpc::Service::MarkMethodGeneric(4);
+    }
+    ~WithGenericMethod_SetResourcePermission() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -9244,7 +9142,7 @@ class RbacService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/) override {
+    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -9279,23 +9177,6 @@ class RbacService final {
     }
     // disable synchronous version of this method
     ::grpc::Status ValidateAccess(::grpc::ServerContext* /*context*/, const ::resource::ValidateAccessRqst* /*request*/, ::resource::ValidateAccessRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-  };
-  template <class BaseClass>
-  class WithGenericMethod_GetAccesses : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithGenericMethod_GetAccesses() {
-      ::grpc::Service::MarkMethodGeneric(10);
-    }
-    ~WithGenericMethod_GetAccesses() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status GetAccesses(::grpc::ServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -9361,32 +9242,12 @@ class RbacService final {
     }
   };
   template <class BaseClass>
-  class WithRawMethod_SetResourcePermission : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawMethod_SetResourcePermission() {
-      ::grpc::Service::MarkMethodRaw(3);
-    }
-    ~WithRawMethod_SetResourcePermission() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestSetResourcePermission(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
   class WithRawMethod_GetResourcePermission : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetResourcePermission() {
-      ::grpc::Service::MarkMethodRaw(4);
+      ::grpc::Service::MarkMethodRaw(3);
     }
     ~WithRawMethod_GetResourcePermission() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9397,6 +9258,26 @@ class RbacService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetResourcePermission(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_SetResourcePermission : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_SetResourcePermission() {
+      ::grpc::Service::MarkMethodRaw(4);
+    }
+    ~WithRawMethod_SetResourcePermission() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestSetResourcePermission(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
@@ -9452,7 +9333,7 @@ class RbacService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/) override {
+    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -9498,26 +9379,6 @@ class RbacService final {
     }
     void RequestValidateAccess(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
-  class WithRawMethod_GetAccesses : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawMethod_GetAccesses() {
-      ::grpc::Service::MarkMethodRaw(10);
-    }
-    ~WithRawMethod_GetAccesses() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status GetAccesses(::grpc::ServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestGetAccesses(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9635,44 +9496,6 @@ class RbacService final {
       { return nullptr; }
   };
   template <class BaseClass>
-  class ExperimentalWithRawCallbackMethod_SetResourcePermission : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    ExperimentalWithRawCallbackMethod_SetResourcePermission() {
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::Service::
-    #else
-      ::grpc::Service::experimental().
-    #endif
-        MarkMethodRawCallback(3,
-          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
-            [this](
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-                   ::grpc::CallbackServerContext*
-    #else
-                   ::grpc::experimental::CallbackServerContext*
-    #endif
-                     context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->SetResourcePermission(context, request, response); }));
-    }
-    ~ExperimentalWithRawCallbackMethod_SetResourcePermission() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-    virtual ::grpc::ServerUnaryReactor* SetResourcePermission(
-      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
-    #else
-    virtual ::grpc::experimental::ServerUnaryReactor* SetResourcePermission(
-      ::grpc::experimental::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
-    #endif
-      { return nullptr; }
-  };
-  template <class BaseClass>
   class ExperimentalWithRawCallbackMethod_GetResourcePermission : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -9683,7 +9506,7 @@ class RbacService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(4,
+        MarkMethodRawCallback(3,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -9706,6 +9529,44 @@ class RbacService final {
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
     #else
     virtual ::grpc::experimental::ServerUnaryReactor* GetResourcePermission(
+      ::grpc::experimental::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
+    #endif
+      { return nullptr; }
+  };
+  template <class BaseClass>
+  class ExperimentalWithRawCallbackMethod_SetResourcePermission : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    ExperimentalWithRawCallbackMethod_SetResourcePermission() {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::Service::
+    #else
+      ::grpc::Service::experimental().
+    #endif
+        MarkMethodRawCallback(4,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+                   ::grpc::CallbackServerContext*
+    #else
+                   ::grpc::experimental::CallbackServerContext*
+    #endif
+                     context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->SetResourcePermission(context, request, response); }));
+    }
+    ~ExperimentalWithRawCallbackMethod_SetResourcePermission() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+    virtual ::grpc::ServerUnaryReactor* SetResourcePermission(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
+    #else
+    virtual ::grpc::experimental::ServerUnaryReactor* SetResourcePermission(
       ::grpc::experimental::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
     #endif
       { return nullptr; }
@@ -9811,7 +9672,7 @@ class RbacService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
-    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/) override {
+    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -9901,44 +9762,6 @@ class RbacService final {
       { return nullptr; }
   };
   template <class BaseClass>
-  class ExperimentalWithRawCallbackMethod_GetAccesses : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    ExperimentalWithRawCallbackMethod_GetAccesses() {
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::Service::
-    #else
-      ::grpc::Service::experimental().
-    #endif
-        MarkMethodRawCallback(10,
-          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
-            [this](
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-                   ::grpc::CallbackServerContext*
-    #else
-                   ::grpc::experimental::CallbackServerContext*
-    #endif
-                     context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->GetAccesses(context, request, response); }));
-    }
-    ~ExperimentalWithRawCallbackMethod_GetAccesses() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status GetAccesses(::grpc::ServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-    virtual ::grpc::ServerUnaryReactor* GetAccesses(
-      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
-    #else
-    virtual ::grpc::experimental::ServerUnaryReactor* GetAccesses(
-      ::grpc::experimental::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
-    #endif
-      { return nullptr; }
-  };
-  template <class BaseClass>
   class WithStreamedUnaryMethod_SetResourcePermissions : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -10020,39 +9843,12 @@ class RbacService final {
     virtual ::grpc::Status StreamedDeleteResourcePermission(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::DeleteResourcePermissionRqst,::resource::DeleteResourcePermissionRqst>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
-  class WithStreamedUnaryMethod_SetResourcePermission : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithStreamedUnaryMethod_SetResourcePermission() {
-      ::grpc::Service::MarkMethodStreamed(3,
-        new ::grpc::internal::StreamedUnaryHandler<
-          ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>(
-            [this](::grpc::ServerContext* context,
-                   ::grpc::ServerUnaryStreamer<
-                     ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>* streamer) {
-                       return this->StreamedSetResourcePermission(context,
-                         streamer);
-                  }));
-    }
-    ~WithStreamedUnaryMethod_SetResourcePermission() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable regular version of this method
-    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    // replace default version of method with streamed unary
-    virtual ::grpc::Status StreamedSetResourcePermission(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::SetResourcePermissionRqst,::resource::SetResourcePermissionRsp>* server_unary_streamer) = 0;
-  };
-  template <class BaseClass>
   class WithStreamedUnaryMethod_GetResourcePermission : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_GetResourcePermission() {
-      ::grpc::Service::MarkMethodStreamed(4,
+      ::grpc::Service::MarkMethodStreamed(3,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::GetResourcePermissionRqst, ::resource::GetResourcePermissionRsp>(
             [this](::grpc::ServerContext* context,
@@ -10072,6 +9868,33 @@ class RbacService final {
     }
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedGetResourcePermission(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::GetResourcePermissionRqst,::resource::GetResourcePermissionRsp>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_SetResourcePermission : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_SetResourcePermission() {
+      ::grpc::Service::MarkMethodStreamed(4,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::resource::SetResourcePermissionRqst, ::resource::SetResourcePermissionRsp>* streamer) {
+                       return this->StreamedSetResourcePermission(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_SetResourcePermission() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status SetResourcePermission(::grpc::ServerContext* /*context*/, const ::resource::SetResourcePermissionRqst* /*request*/, ::resource::SetResourcePermissionRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedSetResourcePermission(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::SetResourcePermissionRqst,::resource::SetResourcePermissionRsp>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
   class WithStreamedUnaryMethod_GetResourcePermissions : public BaseClass {
@@ -10135,10 +9958,10 @@ class RbacService final {
     WithStreamedUnaryMethod_RemoveResourceOwner() {
       ::grpc::Service::MarkMethodStreamed(7,
         new ::grpc::internal::StreamedUnaryHandler<
-          ::resource::AddResourceOwnerRqst, ::resource::AddResourceOwnerRsp>(
+          ::resource::RemoveResourceOwnerRqst, ::resource::RemoveResourceOwnerRsp>(
             [this](::grpc::ServerContext* context,
                    ::grpc::ServerUnaryStreamer<
-                     ::resource::AddResourceOwnerRqst, ::resource::AddResourceOwnerRsp>* streamer) {
+                     ::resource::RemoveResourceOwnerRqst, ::resource::RemoveResourceOwnerRsp>* streamer) {
                        return this->StreamedRemoveResourceOwner(context,
                          streamer);
                   }));
@@ -10147,12 +9970,12 @@ class RbacService final {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable regular version of this method
-    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::AddResourceOwnerRqst* /*request*/, ::resource::AddResourceOwnerRsp* /*response*/) override {
+    ::grpc::Status RemoveResourceOwner(::grpc::ServerContext* /*context*/, const ::resource::RemoveResourceOwnerRqst* /*request*/, ::resource::RemoveResourceOwnerRsp* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     // replace default version of method with streamed unary
-    virtual ::grpc::Status StreamedRemoveResourceOwner(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::AddResourceOwnerRqst,::resource::AddResourceOwnerRsp>* server_unary_streamer) = 0;
+    virtual ::grpc::Status StreamedRemoveResourceOwner(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::RemoveResourceOwnerRqst,::resource::RemoveResourceOwnerRsp>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
   class WithStreamedUnaryMethod_DeleteAllAccess : public BaseClass {
@@ -10208,36 +10031,9 @@ class RbacService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedValidateAccess(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::ValidateAccessRqst,::resource::ValidateAccessRsp>* server_unary_streamer) = 0;
   };
-  template <class BaseClass>
-  class WithStreamedUnaryMethod_GetAccesses : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithStreamedUnaryMethod_GetAccesses() {
-      ::grpc::Service::MarkMethodStreamed(10,
-        new ::grpc::internal::StreamedUnaryHandler<
-          ::resource::GetAccessesRqst, ::resource::GetAccessesRsp>(
-            [this](::grpc::ServerContext* context,
-                   ::grpc::ServerUnaryStreamer<
-                     ::resource::GetAccessesRqst, ::resource::GetAccessesRsp>* streamer) {
-                       return this->StreamedGetAccesses(context,
-                         streamer);
-                  }));
-    }
-    ~WithStreamedUnaryMethod_GetAccesses() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable regular version of this method
-    ::grpc::Status GetAccesses(::grpc::ServerContext* /*context*/, const ::resource::GetAccessesRqst* /*request*/, ::resource::GetAccessesRsp* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    // replace default version of method with streamed unary
-    virtual ::grpc::Status StreamedGetAccesses(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::GetAccessesRqst,::resource::GetAccessesRsp>* server_unary_streamer) = 0;
-  };
-  typedef WithStreamedUnaryMethod_SetResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermission<WithStreamedUnaryMethod_SetResourcePermission<WithStreamedUnaryMethod_GetResourcePermission<WithStreamedUnaryMethod_GetResourcePermissions<WithStreamedUnaryMethod_AddResourceOwner<WithStreamedUnaryMethod_RemoveResourceOwner<WithStreamedUnaryMethod_DeleteAllAccess<WithStreamedUnaryMethod_ValidateAccess<WithStreamedUnaryMethod_GetAccesses<Service > > > > > > > > > > > StreamedUnaryService;
+  typedef WithStreamedUnaryMethod_SetResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermission<WithStreamedUnaryMethod_GetResourcePermission<WithStreamedUnaryMethod_SetResourcePermission<WithStreamedUnaryMethod_GetResourcePermissions<WithStreamedUnaryMethod_AddResourceOwner<WithStreamedUnaryMethod_RemoveResourceOwner<WithStreamedUnaryMethod_DeleteAllAccess<WithStreamedUnaryMethod_ValidateAccess<Service > > > > > > > > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_SetResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermission<WithStreamedUnaryMethod_SetResourcePermission<WithStreamedUnaryMethod_GetResourcePermission<WithStreamedUnaryMethod_GetResourcePermissions<WithStreamedUnaryMethod_AddResourceOwner<WithStreamedUnaryMethod_RemoveResourceOwner<WithStreamedUnaryMethod_DeleteAllAccess<WithStreamedUnaryMethod_ValidateAccess<WithStreamedUnaryMethod_GetAccesses<Service > > > > > > > > > > > StreamedService;
+  typedef WithStreamedUnaryMethod_SetResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermissions<WithStreamedUnaryMethod_DeleteResourcePermission<WithStreamedUnaryMethod_GetResourcePermission<WithStreamedUnaryMethod_SetResourcePermission<WithStreamedUnaryMethod_GetResourcePermissions<WithStreamedUnaryMethod_AddResourceOwner<WithStreamedUnaryMethod_RemoveResourceOwner<WithStreamedUnaryMethod_DeleteAllAccess<WithStreamedUnaryMethod_ValidateAccess<Service > > > > > > > > > > StreamedService;
 };
 
 class LogService final {

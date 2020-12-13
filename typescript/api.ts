@@ -116,17 +116,17 @@ const application = window.location.pathname.split("/")[1];
 
 function mergeTypedArrays(a: any, b: any) {
   // Checks for truthy values on both arrays
-  if(!a && !b) throw 'Please specify valid arguments for parameters a and b.';  
+  if (!a && !b) throw 'Please specify valid arguments for parameters a and b.';
 
   // Checks for truthy values or empty arrays on each argument
   // to avoid the unnecessary construction of a new array and
   // the type comparison
-  if(!b || b.length === 0) return a;
-  if(!a || a.length === 0) return b;
+  if (!b || b.length === 0) return a;
+  if (!a || a.length === 0) return b;
 
   // Make sure that both typed arrays are of the same type
-  if(Object.prototype.toString.call(a) !== Object.prototype.toString.call(b))
-      throw 'The types of the two arguments passed for parameters a and b do not match.';
+  if (Object.prototype.toString.call(a) !== Object.prototype.toString.call(b))
+    throw 'The types of the two arguments passed for parameters a and b do not match.';
 
   var c = new a.constructor(a.length + b.length);
   c.set(a);
@@ -135,7 +135,7 @@ function mergeTypedArrays(a: any, b: any) {
   return c;
 }
 
-function uint8arrayToStringMethod(myUint8Arr){
+function uint8arrayToStringMethod(myUint8Arr) {
   return String.fromCharCode.apply(null, myUint8Arr);
 }
 
@@ -373,7 +373,7 @@ export function uploadFiles(path: string, files: File[], callback: () => void) {
   xhr.setRequestHeader("application", application);
   xhr.setRequestHeader("domain", domain);
   xhr.setRequestHeader("path", path);
-  xhr.onerror = (err: any) => {};
+  xhr.onerror = (err: any) => { };
 
   xhr.onreadystatechange = () => {
     if (xhr.readyState === 4) {
@@ -872,8 +872,7 @@ export function getAllAccountsInfo(
   let data = [];
 
   stream.on("data", (rsp: FindResp) => {
-    //accounts = accounts.concat(JSON.parse(rsp.getJsonstr()));
-    data = mergeTypedArrays(data,rsp.getData()) 
+    data = mergeTypedArrays(data, rsp.getData())
   });
 
   stream.on("status", (status) => {
@@ -1312,7 +1311,7 @@ export function readUserData(
   let data = []
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    data = mergeTypedArrays(data,rsp.getData()) 
+    data = mergeTypedArrays(data, rsp.getData())
   });
 
   stream.on("status", (status) => {
@@ -1372,7 +1371,7 @@ export function getAllRoles(
   let data = [];
 
   stream.on("data", (rsp: FindResp) => {
-    data = mergeTypedArrays(data,rsp.getData()) 
+    data = mergeTypedArrays(data, rsp.getData())
   });
 
   stream.on("status", (status) => {
@@ -1998,10 +1997,10 @@ export function getServiceBundles(
 
   stream.on("data", (rsp: FindResp) => {
 
-    data = mergeTypedArrays(data,rsp.getData()) 
+    data = mergeTypedArrays(data, rsp.getData())
   });
 
-  stream.on("status", function(status: any) {
+  stream.on("status", function (status: any) {
     if (status.code == 0) {
       // filter localy.
       let bundles = JSON.parse(uint8arrayToStringMethod(data))
@@ -2094,7 +2093,7 @@ export function readErrors(
 
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    data = mergeTypedArrays(data,rsp.getData()) 
+    data = mergeTypedArrays(data, rsp.getData())
   });
 
   stream.on("status", (status) => {
@@ -2251,7 +2250,7 @@ export function getNumbeOfLogsByMethod(
 
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    data = mergeTypedArrays(data,rsp.getData()) 
+    data = mergeTypedArrays(data, rsp.getData())
   });
 
   stream.on("status", (status) => {
@@ -2458,18 +2457,26 @@ export function searchDocuments(
   rqst.setPagesize(pageSize);
   rqst.setSnippetlength(snippetLength);
 
-  globular.searchService
-    .searchDocuments(rqst, {
-      token: getToken(),
-      application: application,
-      domain: domain,
-    })
-    .then((rsp: SearchDocumentsResponse) => {
-      callback(rsp.getResultsList());
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
+  let stream = globular.searchService.searchDocuments(rqst, {
+    token: localStorage.getItem("user_token"),
+    application: application,
+    domain: domain,
+  });
+
+  let results = new Array<SearchResult>();
+
+  // Get the stream and set event on it...
+  stream.on("data", (rsp: SearchDocumentsResponse) => {
+    results = results.concat(rsp.getResultsList())
+  });
+
+  stream.on("status", (status) => {
+    if (status.code == 0) {
+      callback(results)
+    } else {
+      errorCallback({ message: status.details });
+    }
+  });
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////

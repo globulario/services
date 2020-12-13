@@ -48,7 +48,7 @@ struct TableStruct_resource_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxiliaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[126]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[124]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -218,12 +218,6 @@ extern DeleteRoleRqstDefaultTypeInternal _DeleteRoleRqst_default_instance_;
 class DeleteRoleRsp;
 class DeleteRoleRspDefaultTypeInternal;
 extern DeleteRoleRspDefaultTypeInternal _DeleteRoleRsp_default_instance_;
-class GetAccessesRqst;
-class GetAccessesRqstDefaultTypeInternal;
-extern GetAccessesRqstDefaultTypeInternal _GetAccessesRqst_default_instance_;
-class GetAccessesRsp;
-class GetAccessesRspDefaultTypeInternal;
-extern GetAccessesRspDefaultTypeInternal _GetAccessesRsp_default_instance_;
 class GetAllActionsRqst;
 class GetAllActionsRqstDefaultTypeInternal;
 extern GetAllActionsRqstDefaultTypeInternal _GetAllActionsRqst_default_instance_;
@@ -374,6 +368,12 @@ extern RemovePeerActionRqstDefaultTypeInternal _RemovePeerActionRqst_default_ins
 class RemovePeerActionRsp;
 class RemovePeerActionRspDefaultTypeInternal;
 extern RemovePeerActionRspDefaultTypeInternal _RemovePeerActionRsp_default_instance_;
+class RemoveResourceOwnerRqst;
+class RemoveResourceOwnerRqstDefaultTypeInternal;
+extern RemoveResourceOwnerRqstDefaultTypeInternal _RemoveResourceOwnerRqst_default_instance_;
+class RemoveResourceOwnerRsp;
+class RemoveResourceOwnerRspDefaultTypeInternal;
+extern RemoveResourceOwnerRspDefaultTypeInternal _RemoveResourceOwnerRsp_default_instance_;
 class RemoveRoleActionRqst;
 class RemoveRoleActionRqstDefaultTypeInternal;
 extern RemoveRoleActionRqstDefaultTypeInternal _RemoveRoleActionRqst_default_instance_;
@@ -428,12 +428,6 @@ extern ValidateTokenRqstDefaultTypeInternal _ValidateTokenRqst_default_instance_
 class ValidateTokenRsp;
 class ValidateTokenRspDefaultTypeInternal;
 extern ValidateTokenRspDefaultTypeInternal _ValidateTokenRsp_default_instance_;
-class removeResourceOwnerRqst;
-class removeResourceOwnerRqstDefaultTypeInternal;
-extern removeResourceOwnerRqstDefaultTypeInternal _removeResourceOwnerRqst_default_instance_;
-class removeResourceOwnerRsp;
-class removeResourceOwnerRspDefaultTypeInternal;
-extern removeResourceOwnerRspDefaultTypeInternal _removeResourceOwnerRsp_default_instance_;
 }  // namespace resource
 PROTOBUF_NAMESPACE_OPEN
 template<> ::resource::Account* Arena::CreateMaybeMessage<::resource::Account>(Arena*);
@@ -490,8 +484,6 @@ template<> ::resource::DeleteResourcePermissionsRqst* Arena::CreateMaybeMessage<
 template<> ::resource::DeleteResourcePermissionsRsp* Arena::CreateMaybeMessage<::resource::DeleteResourcePermissionsRsp>(Arena*);
 template<> ::resource::DeleteRoleRqst* Arena::CreateMaybeMessage<::resource::DeleteRoleRqst>(Arena*);
 template<> ::resource::DeleteRoleRsp* Arena::CreateMaybeMessage<::resource::DeleteRoleRsp>(Arena*);
-template<> ::resource::GetAccessesRqst* Arena::CreateMaybeMessage<::resource::GetAccessesRqst>(Arena*);
-template<> ::resource::GetAccessesRsp* Arena::CreateMaybeMessage<::resource::GetAccessesRsp>(Arena*);
 template<> ::resource::GetAllActionsRqst* Arena::CreateMaybeMessage<::resource::GetAllActionsRqst>(Arena*);
 template<> ::resource::GetAllActionsRsp* Arena::CreateMaybeMessage<::resource::GetAllActionsRsp>(Arena*);
 template<> ::resource::GetAllApplicationsInfoRqst* Arena::CreateMaybeMessage<::resource::GetAllApplicationsInfoRqst>(Arena*);
@@ -542,6 +534,8 @@ template<> ::resource::RemoveOrganizationRoleRqst* Arena::CreateMaybeMessage<::r
 template<> ::resource::RemoveOrganizationRoleRsp* Arena::CreateMaybeMessage<::resource::RemoveOrganizationRoleRsp>(Arena*);
 template<> ::resource::RemovePeerActionRqst* Arena::CreateMaybeMessage<::resource::RemovePeerActionRqst>(Arena*);
 template<> ::resource::RemovePeerActionRsp* Arena::CreateMaybeMessage<::resource::RemovePeerActionRsp>(Arena*);
+template<> ::resource::RemoveResourceOwnerRqst* Arena::CreateMaybeMessage<::resource::RemoveResourceOwnerRqst>(Arena*);
+template<> ::resource::RemoveResourceOwnerRsp* Arena::CreateMaybeMessage<::resource::RemoveResourceOwnerRsp>(Arena*);
 template<> ::resource::RemoveRoleActionRqst* Arena::CreateMaybeMessage<::resource::RemoveRoleActionRqst>(Arena*);
 template<> ::resource::RemoveRoleActionRsp* Arena::CreateMaybeMessage<::resource::RemoveRoleActionRsp>(Arena*);
 template<> ::resource::ResetLogMethodRqst* Arena::CreateMaybeMessage<::resource::ResetLogMethodRqst>(Arena*);
@@ -560,23 +554,46 @@ template<> ::resource::ValidateAccessRqst* Arena::CreateMaybeMessage<::resource:
 template<> ::resource::ValidateAccessRsp* Arena::CreateMaybeMessage<::resource::ValidateAccessRsp>(Arena*);
 template<> ::resource::ValidateTokenRqst* Arena::CreateMaybeMessage<::resource::ValidateTokenRqst>(Arena*);
 template<> ::resource::ValidateTokenRsp* Arena::CreateMaybeMessage<::resource::ValidateTokenRsp>(Arena*);
-template<> ::resource::removeResourceOwnerRqst* Arena::CreateMaybeMessage<::resource::removeResourceOwnerRqst>(Arena*);
-template<> ::resource::removeResourceOwnerRsp* Arena::CreateMaybeMessage<::resource::removeResourceOwnerRsp>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
 namespace resource {
 
+enum PermissionType : int {
+  DENIED = 0,
+  ALLOWED = 1,
+  PermissionType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::min(),
+  PermissionType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::max()
+};
+bool PermissionType_IsValid(int value);
+constexpr PermissionType PermissionType_MIN = DENIED;
+constexpr PermissionType PermissionType_MAX = ALLOWED;
+constexpr int PermissionType_ARRAYSIZE = PermissionType_MAX + 1;
+
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* PermissionType_descriptor();
+template<typename T>
+inline const std::string& PermissionType_Name(T enum_t_value) {
+  static_assert(::std::is_same<T, PermissionType>::value ||
+    ::std::is_integral<T>::value,
+    "Incorrect type passed to function PermissionType_Name.");
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfEnum(
+    PermissionType_descriptor(), enum_t_value);
+}
+inline bool PermissionType_Parse(
+    ::PROTOBUF_NAMESPACE_ID::ConstStringParam name, PermissionType* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<PermissionType>(
+    PermissionType_descriptor(), name, value);
+}
 enum SubjectType : int {
   ACCOUNT = 0,
-  ROLE = 1,
-  PEER = 2,
-  GROUP = 3,
-  ORGANIZATION = 4,
+  PEER = 1,
+  GROUP = 2,
+  ORGANIZATION = 3,
+  APPLICATION = 4,
   SubjectType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::min(),
   SubjectType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::max()
 };
 bool SubjectType_IsValid(int value);
 constexpr SubjectType SubjectType_MIN = ACCOUNT;
-constexpr SubjectType SubjectType_MAX = ORGANIZATION;
+constexpr SubjectType SubjectType_MAX = APPLICATION;
 constexpr int SubjectType_ARRAYSIZE = SubjectType_MAX + 1;
 
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* SubjectType_descriptor();
@@ -13740,61 +13757,38 @@ class Permission PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kAccountsFieldNumber = 2,
-    kRolesFieldNumber = 3,
-    kPeersFieldNumber = 4,
-    kOrganizationFieldNumber = 5,
+    kApplicationsFieldNumber = 2,
+    kPeersFieldNumber = 3,
+    kAccountsFieldNumber = 4,
+    kGroupsFieldNumber = 5,
+    kOrganizationsFieldNumber = 6,
     kNameFieldNumber = 1,
   };
-  // repeated string accounts = 2;
-  int accounts_size() const;
+  // repeated string applications = 2;
+  int applications_size() const;
   private:
-  int _internal_accounts_size() const;
+  int _internal_applications_size() const;
   public:
-  void clear_accounts();
-  const std::string& accounts(int index) const;
-  std::string* mutable_accounts(int index);
-  void set_accounts(int index, const std::string& value);
-  void set_accounts(int index, std::string&& value);
-  void set_accounts(int index, const char* value);
-  void set_accounts(int index, const char* value, size_t size);
-  std::string* add_accounts();
-  void add_accounts(const std::string& value);
-  void add_accounts(std::string&& value);
-  void add_accounts(const char* value);
-  void add_accounts(const char* value, size_t size);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& accounts() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_accounts();
+  void clear_applications();
+  const std::string& applications(int index) const;
+  std::string* mutable_applications(int index);
+  void set_applications(int index, const std::string& value);
+  void set_applications(int index, std::string&& value);
+  void set_applications(int index, const char* value);
+  void set_applications(int index, const char* value, size_t size);
+  std::string* add_applications();
+  void add_applications(const std::string& value);
+  void add_applications(std::string&& value);
+  void add_applications(const char* value);
+  void add_applications(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& applications() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_applications();
   private:
-  const std::string& _internal_accounts(int index) const;
-  std::string* _internal_add_accounts();
-  public:
-
-  // repeated string roles = 3;
-  int roles_size() const;
-  private:
-  int _internal_roles_size() const;
-  public:
-  void clear_roles();
-  const std::string& roles(int index) const;
-  std::string* mutable_roles(int index);
-  void set_roles(int index, const std::string& value);
-  void set_roles(int index, std::string&& value);
-  void set_roles(int index, const char* value);
-  void set_roles(int index, const char* value, size_t size);
-  std::string* add_roles();
-  void add_roles(const std::string& value);
-  void add_roles(std::string&& value);
-  void add_roles(const char* value);
-  void add_roles(const char* value, size_t size);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& roles() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_roles();
-  private:
-  const std::string& _internal_roles(int index) const;
-  std::string* _internal_add_roles();
+  const std::string& _internal_applications(int index) const;
+  std::string* _internal_add_applications();
   public:
 
-  // repeated string peers = 4;
+  // repeated string peers = 3;
   int peers_size() const;
   private:
   int _internal_peers_size() const;
@@ -13818,28 +13812,76 @@ class Permission PROTOBUF_FINAL :
   std::string* _internal_add_peers();
   public:
 
-  // repeated string organization = 5;
-  int organization_size() const;
+  // repeated string accounts = 4;
+  int accounts_size() const;
   private:
-  int _internal_organization_size() const;
+  int _internal_accounts_size() const;
   public:
-  void clear_organization();
-  const std::string& organization(int index) const;
-  std::string* mutable_organization(int index);
-  void set_organization(int index, const std::string& value);
-  void set_organization(int index, std::string&& value);
-  void set_organization(int index, const char* value);
-  void set_organization(int index, const char* value, size_t size);
-  std::string* add_organization();
-  void add_organization(const std::string& value);
-  void add_organization(std::string&& value);
-  void add_organization(const char* value);
-  void add_organization(const char* value, size_t size);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& organization() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_organization();
+  void clear_accounts();
+  const std::string& accounts(int index) const;
+  std::string* mutable_accounts(int index);
+  void set_accounts(int index, const std::string& value);
+  void set_accounts(int index, std::string&& value);
+  void set_accounts(int index, const char* value);
+  void set_accounts(int index, const char* value, size_t size);
+  std::string* add_accounts();
+  void add_accounts(const std::string& value);
+  void add_accounts(std::string&& value);
+  void add_accounts(const char* value);
+  void add_accounts(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& accounts() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_accounts();
   private:
-  const std::string& _internal_organization(int index) const;
-  std::string* _internal_add_organization();
+  const std::string& _internal_accounts(int index) const;
+  std::string* _internal_add_accounts();
+  public:
+
+  // repeated string groups = 5;
+  int groups_size() const;
+  private:
+  int _internal_groups_size() const;
+  public:
+  void clear_groups();
+  const std::string& groups(int index) const;
+  std::string* mutable_groups(int index);
+  void set_groups(int index, const std::string& value);
+  void set_groups(int index, std::string&& value);
+  void set_groups(int index, const char* value);
+  void set_groups(int index, const char* value, size_t size);
+  std::string* add_groups();
+  void add_groups(const std::string& value);
+  void add_groups(std::string&& value);
+  void add_groups(const char* value);
+  void add_groups(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& groups() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_groups();
+  private:
+  const std::string& _internal_groups(int index) const;
+  std::string* _internal_add_groups();
+  public:
+
+  // repeated string organizations = 6;
+  int organizations_size() const;
+  private:
+  int _internal_organizations_size() const;
+  public:
+  void clear_organizations();
+  const std::string& organizations(int index) const;
+  std::string* mutable_organizations(int index);
+  void set_organizations(int index, const std::string& value);
+  void set_organizations(int index, std::string&& value);
+  void set_organizations(int index, const char* value);
+  void set_organizations(int index, const char* value, size_t size);
+  std::string* add_organizations();
+  void add_organizations(const std::string& value);
+  void add_organizations(std::string&& value);
+  void add_organizations(const char* value);
+  void add_organizations(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& organizations() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_organizations();
+  private:
+  const std::string& _internal_organizations(int index) const;
+  std::string* _internal_add_organizations();
   public:
 
   // string name = 1;
@@ -13865,10 +13907,11 @@ class Permission PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> accounts_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> roles_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> applications_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> peers_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> organization_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> accounts_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> groups_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> organizations_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
@@ -14796,314 +14839,6 @@ class DeleteResourcePermissionsRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
-class GetResourcePermissionRqst PROTOBUF_FINAL :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetResourcePermissionRqst) */ {
- public:
-  inline GetResourcePermissionRqst() : GetResourcePermissionRqst(nullptr) {}
-  virtual ~GetResourcePermissionRqst();
-
-  GetResourcePermissionRqst(const GetResourcePermissionRqst& from);
-  GetResourcePermissionRqst(GetResourcePermissionRqst&& from) noexcept
-    : GetResourcePermissionRqst() {
-    *this = ::std::move(from);
-  }
-
-  inline GetResourcePermissionRqst& operator=(const GetResourcePermissionRqst& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline GetResourcePermissionRqst& operator=(GetResourcePermissionRqst&& from) noexcept {
-    if (GetArena() == from.GetArena()) {
-      if (this != &from) InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return GetMetadataStatic().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return GetMetadataStatic().reflection;
-  }
-  static const GetResourcePermissionRqst& default_instance();
-
-  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
-  static inline const GetResourcePermissionRqst* internal_default_instance() {
-    return reinterpret_cast<const GetResourcePermissionRqst*>(
-               &_GetResourcePermissionRqst_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    93;
-
-  friend void swap(GetResourcePermissionRqst& a, GetResourcePermissionRqst& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(GetResourcePermissionRqst* other) {
-    if (other == this) return;
-    if (GetArena() == other->GetArena()) {
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(GetResourcePermissionRqst* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  inline GetResourcePermissionRqst* New() const final {
-    return CreateMaybeMessage<GetResourcePermissionRqst>(nullptr);
-  }
-
-  GetResourcePermissionRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
-    return CreateMaybeMessage<GetResourcePermissionRqst>(arena);
-  }
-  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void CopyFrom(const GetResourcePermissionRqst& from);
-  void MergeFrom(const GetResourcePermissionRqst& from);
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
-      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _cached_size_.Get(); }
-
-  private:
-  inline void SharedCtor();
-  inline void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(GetResourcePermissionRqst* other);
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "resource.GetResourcePermissionRqst";
-  }
-  protected:
-  explicit GetResourcePermissionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  private:
-  static void ArenaDtor(void* object);
-  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  public:
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-  private:
-  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
-    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
-    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
-  }
-
-  public:
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kPathFieldNumber = 1,
-    kNameFieldNumber = 2,
-  };
-  // string path = 1;
-  void clear_path();
-  const std::string& path() const;
-  void set_path(const std::string& value);
-  void set_path(std::string&& value);
-  void set_path(const char* value);
-  void set_path(const char* value, size_t size);
-  std::string* mutable_path();
-  std::string* release_path();
-  void set_allocated_path(std::string* path);
-  private:
-  const std::string& _internal_path() const;
-  void _internal_set_path(const std::string& value);
-  std::string* _internal_mutable_path();
-  public:
-
-  // string name = 2;
-  void clear_name();
-  const std::string& name() const;
-  void set_name(const std::string& value);
-  void set_name(std::string&& value);
-  void set_name(const char* value);
-  void set_name(const char* value, size_t size);
-  std::string* mutable_name();
-  std::string* release_name();
-  void set_allocated_name(std::string* name);
-  private:
-  const std::string& _internal_name() const;
-  void _internal_set_name(const std::string& value);
-  std::string* _internal_mutable_name();
-  public:
-
-  // @@protoc_insertion_point(class_scope:resource.GetResourcePermissionRqst)
- private:
-  class _Internal;
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
-  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  friend struct ::TableStruct_resource_2eproto;
-};
-// -------------------------------------------------------------------
-
-class GetResourcePermissionRsp PROTOBUF_FINAL :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetResourcePermissionRsp) */ {
- public:
-  inline GetResourcePermissionRsp() : GetResourcePermissionRsp(nullptr) {}
-  virtual ~GetResourcePermissionRsp();
-
-  GetResourcePermissionRsp(const GetResourcePermissionRsp& from);
-  GetResourcePermissionRsp(GetResourcePermissionRsp&& from) noexcept
-    : GetResourcePermissionRsp() {
-    *this = ::std::move(from);
-  }
-
-  inline GetResourcePermissionRsp& operator=(const GetResourcePermissionRsp& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline GetResourcePermissionRsp& operator=(GetResourcePermissionRsp&& from) noexcept {
-    if (GetArena() == from.GetArena()) {
-      if (this != &from) InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return GetMetadataStatic().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return GetMetadataStatic().reflection;
-  }
-  static const GetResourcePermissionRsp& default_instance();
-
-  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
-  static inline const GetResourcePermissionRsp* internal_default_instance() {
-    return reinterpret_cast<const GetResourcePermissionRsp*>(
-               &_GetResourcePermissionRsp_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    94;
-
-  friend void swap(GetResourcePermissionRsp& a, GetResourcePermissionRsp& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(GetResourcePermissionRsp* other) {
-    if (other == this) return;
-    if (GetArena() == other->GetArena()) {
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(GetResourcePermissionRsp* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  inline GetResourcePermissionRsp* New() const final {
-    return CreateMaybeMessage<GetResourcePermissionRsp>(nullptr);
-  }
-
-  GetResourcePermissionRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
-    return CreateMaybeMessage<GetResourcePermissionRsp>(arena);
-  }
-  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void CopyFrom(const GetResourcePermissionRsp& from);
-  void MergeFrom(const GetResourcePermissionRsp& from);
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
-      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _cached_size_.Get(); }
-
-  private:
-  inline void SharedCtor();
-  inline void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(GetResourcePermissionRsp* other);
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "resource.GetResourcePermissionRsp";
-  }
-  protected:
-  explicit GetResourcePermissionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  private:
-  static void ArenaDtor(void* object);
-  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  public:
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-  private:
-  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
-    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
-    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
-  }
-
-  public:
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kPermissionFieldNumber = 1,
-  };
-  // .resource.Permission permission = 1;
-  bool has_permission() const;
-  private:
-  bool _internal_has_permission() const;
-  public:
-  void clear_permission();
-  const ::resource::Permission& permission() const;
-  ::resource::Permission* release_permission();
-  ::resource::Permission* mutable_permission();
-  void set_allocated_permission(::resource::Permission* permission);
-  private:
-  const ::resource::Permission& _internal_permission() const;
-  ::resource::Permission* _internal_mutable_permission();
-  public:
-  void unsafe_arena_set_allocated_permission(
-      ::resource::Permission* permission);
-  ::resource::Permission* unsafe_arena_release_permission();
-
-  // @@protoc_insertion_point(class_scope:resource.GetResourcePermissionRsp)
- private:
-  class _Internal;
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  ::resource::Permission* permission_;
-  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  friend struct ::TableStruct_resource_2eproto;
-};
-// -------------------------------------------------------------------
-
 class DeleteResourcePermissionRqst PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.DeleteResourcePermissionRqst) */ {
  public:
@@ -15146,7 +14881,7 @@ class DeleteResourcePermissionRqst PROTOBUF_FINAL :
                &_DeleteResourcePermissionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    95;
+    93;
 
   friend void swap(DeleteResourcePermissionRqst& a, DeleteResourcePermissionRqst& b) {
     a.Swap(&b);
@@ -15219,6 +14954,7 @@ class DeleteResourcePermissionRqst PROTOBUF_FINAL :
   enum : int {
     kPathFieldNumber = 1,
     kNameFieldNumber = 2,
+    kTypeFieldNumber = 3,
   };
   // string path = 1;
   void clear_path();
@@ -15252,6 +14988,15 @@ class DeleteResourcePermissionRqst PROTOBUF_FINAL :
   std::string* _internal_mutable_name();
   public:
 
+  // .resource.PermissionType type = 3;
+  void clear_type();
+  ::resource::PermissionType type() const;
+  void set_type(::resource::PermissionType value);
+  private:
+  ::resource::PermissionType _internal_type() const;
+  void _internal_set_type(::resource::PermissionType value);
+  public:
+
   // @@protoc_insertion_point(class_scope:resource.DeleteResourcePermissionRqst)
  private:
   class _Internal;
@@ -15261,6 +15006,7 @@ class DeleteResourcePermissionRqst PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
+  int type_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
 };
@@ -15308,7 +15054,7 @@ class DeleteResourcePermissionRsp PROTOBUF_FINAL :
                &_DeleteResourcePermissionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    96;
+    94;
 
   friend void swap(DeleteResourcePermissionRsp& a, DeleteResourcePermissionRsp& b) {
     a.Swap(&b);
@@ -15432,7 +15178,7 @@ class SetResourcePermissionsRqst PROTOBUF_FINAL :
                &_SetResourcePermissionsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    97;
+    95;
 
   friend void swap(SetResourcePermissionsRqst& a, SetResourcePermissionsRqst& b) {
     a.Swap(&b);
@@ -15596,7 +15342,7 @@ class SetResourcePermissionsRsp PROTOBUF_FINAL :
                &_SetResourcePermissionsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    98;
+    96;
 
   friend void swap(SetResourcePermissionsRsp& a, SetResourcePermissionsRsp& b) {
     a.Swap(&b);
@@ -15673,6 +15419,325 @@ class SetResourcePermissionsRsp PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class GetResourcePermissionRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetResourcePermissionRqst) */ {
+ public:
+  inline GetResourcePermissionRqst() : GetResourcePermissionRqst(nullptr) {}
+  virtual ~GetResourcePermissionRqst();
+
+  GetResourcePermissionRqst(const GetResourcePermissionRqst& from);
+  GetResourcePermissionRqst(GetResourcePermissionRqst&& from) noexcept
+    : GetResourcePermissionRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline GetResourcePermissionRqst& operator=(const GetResourcePermissionRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetResourcePermissionRqst& operator=(GetResourcePermissionRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetResourcePermissionRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetResourcePermissionRqst* internal_default_instance() {
+    return reinterpret_cast<const GetResourcePermissionRqst*>(
+               &_GetResourcePermissionRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    97;
+
+  friend void swap(GetResourcePermissionRqst& a, GetResourcePermissionRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetResourcePermissionRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetResourcePermissionRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetResourcePermissionRqst* New() const final {
+    return CreateMaybeMessage<GetResourcePermissionRqst>(nullptr);
+  }
+
+  GetResourcePermissionRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetResourcePermissionRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetResourcePermissionRqst& from);
+  void MergeFrom(const GetResourcePermissionRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetResourcePermissionRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetResourcePermissionRqst";
+  }
+  protected:
+  explicit GetResourcePermissionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kPathFieldNumber = 1,
+    kNameFieldNumber = 2,
+    kTypeFieldNumber = 3,
+  };
+  // string path = 1;
+  void clear_path();
+  const std::string& path() const;
+  void set_path(const std::string& value);
+  void set_path(std::string&& value);
+  void set_path(const char* value);
+  void set_path(const char* value, size_t size);
+  std::string* mutable_path();
+  std::string* release_path();
+  void set_allocated_path(std::string* path);
+  private:
+  const std::string& _internal_path() const;
+  void _internal_set_path(const std::string& value);
+  std::string* _internal_mutable_path();
+  public:
+
+  // string name = 2;
+  void clear_name();
+  const std::string& name() const;
+  void set_name(const std::string& value);
+  void set_name(std::string&& value);
+  void set_name(const char* value);
+  void set_name(const char* value, size_t size);
+  std::string* mutable_name();
+  std::string* release_name();
+  void set_allocated_name(std::string* name);
+  private:
+  const std::string& _internal_name() const;
+  void _internal_set_name(const std::string& value);
+  std::string* _internal_mutable_name();
+  public:
+
+  // .resource.PermissionType type = 3;
+  void clear_type();
+  ::resource::PermissionType type() const;
+  void set_type(::resource::PermissionType value);
+  private:
+  ::resource::PermissionType _internal_type() const;
+  void _internal_set_type(::resource::PermissionType value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.GetResourcePermissionRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
+  int type_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class GetResourcePermissionRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetResourcePermissionRsp) */ {
+ public:
+  inline GetResourcePermissionRsp() : GetResourcePermissionRsp(nullptr) {}
+  virtual ~GetResourcePermissionRsp();
+
+  GetResourcePermissionRsp(const GetResourcePermissionRsp& from);
+  GetResourcePermissionRsp(GetResourcePermissionRsp&& from) noexcept
+    : GetResourcePermissionRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline GetResourcePermissionRsp& operator=(const GetResourcePermissionRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetResourcePermissionRsp& operator=(GetResourcePermissionRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetResourcePermissionRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetResourcePermissionRsp* internal_default_instance() {
+    return reinterpret_cast<const GetResourcePermissionRsp*>(
+               &_GetResourcePermissionRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    98;
+
+  friend void swap(GetResourcePermissionRsp& a, GetResourcePermissionRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetResourcePermissionRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetResourcePermissionRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetResourcePermissionRsp* New() const final {
+    return CreateMaybeMessage<GetResourcePermissionRsp>(nullptr);
+  }
+
+  GetResourcePermissionRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetResourcePermissionRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetResourcePermissionRsp& from);
+  void MergeFrom(const GetResourcePermissionRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetResourcePermissionRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetResourcePermissionRsp";
+  }
+  protected:
+  explicit GetResourcePermissionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kPermissionFieldNumber = 1,
+  };
+  // .resource.Permission permission = 1;
+  bool has_permission() const;
+  private:
+  bool _internal_has_permission() const;
+  public:
+  void clear_permission();
+  const ::resource::Permission& permission() const;
+  ::resource::Permission* release_permission();
+  ::resource::Permission* mutable_permission();
+  void set_allocated_permission(::resource::Permission* permission);
+  private:
+  const ::resource::Permission& _internal_permission() const;
+  ::resource::Permission* _internal_mutable_permission();
+  public:
+  void unsafe_arena_set_allocated_permission(
+      ::resource::Permission* permission);
+  ::resource::Permission* unsafe_arena_release_permission();
+
+  // @@protoc_insertion_point(class_scope:resource.GetResourcePermissionRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::resource::Permission* permission_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
 };
@@ -15793,6 +15858,7 @@ class SetResourcePermissionRqst PROTOBUF_FINAL :
   enum : int {
     kPathFieldNumber = 1,
     kPermissionFieldNumber = 2,
+    kTypeFieldNumber = 3,
   };
   // string path = 1;
   void clear_path();
@@ -15828,6 +15894,15 @@ class SetResourcePermissionRqst PROTOBUF_FINAL :
       ::resource::Permission* permission);
   ::resource::Permission* unsafe_arena_release_permission();
 
+  // .resource.PermissionType type = 3;
+  void clear_type();
+  ::resource::PermissionType type() const;
+  void set_type(::resource::PermissionType value);
+  private:
+  ::resource::PermissionType _internal_type() const;
+  void _internal_set_type(::resource::PermissionType value);
+  public:
+
   // @@protoc_insertion_point(class_scope:resource.SetResourcePermissionRqst)
  private:
   class _Internal;
@@ -15837,6 +15912,7 @@ class SetResourcePermissionRqst PROTOBUF_FINAL :
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
   ::resource::Permission* permission_;
+  int type_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
 };
@@ -16080,7 +16156,8 @@ class AddResourceOwnerRqst PROTOBUF_FINAL :
 
   enum : int {
     kPathFieldNumber = 1,
-    kOwnerFieldNumber = 2,
+    kSubjectFieldNumber = 2,
+    kTypeFieldNumber = 3,
   };
   // string path = 1;
   void clear_path();
@@ -16098,20 +16175,29 @@ class AddResourceOwnerRqst PROTOBUF_FINAL :
   std::string* _internal_mutable_path();
   public:
 
-  // string owner = 2;
-  void clear_owner();
-  const std::string& owner() const;
-  void set_owner(const std::string& value);
-  void set_owner(std::string&& value);
-  void set_owner(const char* value);
-  void set_owner(const char* value, size_t size);
-  std::string* mutable_owner();
-  std::string* release_owner();
-  void set_allocated_owner(std::string* owner);
+  // string subject = 2;
+  void clear_subject();
+  const std::string& subject() const;
+  void set_subject(const std::string& value);
+  void set_subject(std::string&& value);
+  void set_subject(const char* value);
+  void set_subject(const char* value, size_t size);
+  std::string* mutable_subject();
+  std::string* release_subject();
+  void set_allocated_subject(std::string* subject);
   private:
-  const std::string& _internal_owner() const;
-  void _internal_set_owner(const std::string& value);
-  std::string* _internal_mutable_owner();
+  const std::string& _internal_subject() const;
+  void _internal_set_subject(const std::string& value);
+  std::string* _internal_mutable_subject();
+  public:
+
+  // .resource.SubjectType type = 3;
+  void clear_type();
+  ::resource::SubjectType type() const;
+  void set_type(::resource::SubjectType value);
+  private:
+  ::resource::SubjectType _internal_type() const;
+  void _internal_set_type(::resource::SubjectType value);
   public:
 
   // @@protoc_insertion_point(class_scope:resource.AddResourceOwnerRqst)
@@ -16122,7 +16208,8 @@ class AddResourceOwnerRqst PROTOBUF_FINAL :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr owner_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr subject_;
+  int type_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
 };
@@ -16252,23 +16339,23 @@ class AddResourceOwnerRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
-class removeResourceOwnerRqst PROTOBUF_FINAL :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.removeResourceOwnerRqst) */ {
+class RemoveResourceOwnerRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveResourceOwnerRqst) */ {
  public:
-  inline removeResourceOwnerRqst() : removeResourceOwnerRqst(nullptr) {}
-  virtual ~removeResourceOwnerRqst();
+  inline RemoveResourceOwnerRqst() : RemoveResourceOwnerRqst(nullptr) {}
+  virtual ~RemoveResourceOwnerRqst();
 
-  removeResourceOwnerRqst(const removeResourceOwnerRqst& from);
-  removeResourceOwnerRqst(removeResourceOwnerRqst&& from) noexcept
-    : removeResourceOwnerRqst() {
+  RemoveResourceOwnerRqst(const RemoveResourceOwnerRqst& from);
+  RemoveResourceOwnerRqst(RemoveResourceOwnerRqst&& from) noexcept
+    : RemoveResourceOwnerRqst() {
     *this = ::std::move(from);
   }
 
-  inline removeResourceOwnerRqst& operator=(const removeResourceOwnerRqst& from) {
+  inline RemoveResourceOwnerRqst& operator=(const RemoveResourceOwnerRqst& from) {
     CopyFrom(from);
     return *this;
   }
-  inline removeResourceOwnerRqst& operator=(removeResourceOwnerRqst&& from) noexcept {
+  inline RemoveResourceOwnerRqst& operator=(RemoveResourceOwnerRqst&& from) noexcept {
     if (GetArena() == from.GetArena()) {
       if (this != &from) InternalSwap(&from);
     } else {
@@ -16286,20 +16373,20 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
   static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
     return GetMetadataStatic().reflection;
   }
-  static const removeResourceOwnerRqst& default_instance();
+  static const RemoveResourceOwnerRqst& default_instance();
 
   static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
-  static inline const removeResourceOwnerRqst* internal_default_instance() {
-    return reinterpret_cast<const removeResourceOwnerRqst*>(
-               &_removeResourceOwnerRqst_default_instance_);
+  static inline const RemoveResourceOwnerRqst* internal_default_instance() {
+    return reinterpret_cast<const RemoveResourceOwnerRqst*>(
+               &_RemoveResourceOwnerRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
     103;
 
-  friend void swap(removeResourceOwnerRqst& a, removeResourceOwnerRqst& b) {
+  friend void swap(RemoveResourceOwnerRqst& a, RemoveResourceOwnerRqst& b) {
     a.Swap(&b);
   }
-  inline void Swap(removeResourceOwnerRqst* other) {
+  inline void Swap(RemoveResourceOwnerRqst* other) {
     if (other == this) return;
     if (GetArena() == other->GetArena()) {
       InternalSwap(other);
@@ -16307,7 +16394,7 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
       ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
     }
   }
-  void UnsafeArenaSwap(removeResourceOwnerRqst* other) {
+  void UnsafeArenaSwap(RemoveResourceOwnerRqst* other) {
     if (other == this) return;
     GOOGLE_DCHECK(GetArena() == other->GetArena());
     InternalSwap(other);
@@ -16315,17 +16402,17 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
 
   // implements Message ----------------------------------------------
 
-  inline removeResourceOwnerRqst* New() const final {
-    return CreateMaybeMessage<removeResourceOwnerRqst>(nullptr);
+  inline RemoveResourceOwnerRqst* New() const final {
+    return CreateMaybeMessage<RemoveResourceOwnerRqst>(nullptr);
   }
 
-  removeResourceOwnerRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
-    return CreateMaybeMessage<removeResourceOwnerRqst>(arena);
+  RemoveResourceOwnerRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveResourceOwnerRqst>(arena);
   }
   void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
   void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void CopyFrom(const removeResourceOwnerRqst& from);
-  void MergeFrom(const removeResourceOwnerRqst& from);
+  void CopyFrom(const RemoveResourceOwnerRqst& from);
+  void MergeFrom(const RemoveResourceOwnerRqst& from);
   PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
   bool IsInitialized() const final;
 
@@ -16339,13 +16426,13 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
   inline void SharedCtor();
   inline void SharedDtor();
   void SetCachedSize(int size) const final;
-  void InternalSwap(removeResourceOwnerRqst* other);
+  void InternalSwap(RemoveResourceOwnerRqst* other);
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "resource.removeResourceOwnerRqst";
+    return "resource.RemoveResourceOwnerRqst";
   }
   protected:
-  explicit removeResourceOwnerRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  explicit RemoveResourceOwnerRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
   private:
   static void ArenaDtor(void* object);
   inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
@@ -16366,7 +16453,8 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
 
   enum : int {
     kPathFieldNumber = 1,
-    kOwnerFieldNumber = 2,
+    kSubjectFieldNumber = 2,
+    kTypeFieldNumber = 3,
   };
   // string path = 1;
   void clear_path();
@@ -16384,23 +16472,32 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
   std::string* _internal_mutable_path();
   public:
 
-  // string owner = 2;
-  void clear_owner();
-  const std::string& owner() const;
-  void set_owner(const std::string& value);
-  void set_owner(std::string&& value);
-  void set_owner(const char* value);
-  void set_owner(const char* value, size_t size);
-  std::string* mutable_owner();
-  std::string* release_owner();
-  void set_allocated_owner(std::string* owner);
+  // string subject = 2;
+  void clear_subject();
+  const std::string& subject() const;
+  void set_subject(const std::string& value);
+  void set_subject(std::string&& value);
+  void set_subject(const char* value);
+  void set_subject(const char* value, size_t size);
+  std::string* mutable_subject();
+  std::string* release_subject();
+  void set_allocated_subject(std::string* subject);
   private:
-  const std::string& _internal_owner() const;
-  void _internal_set_owner(const std::string& value);
-  std::string* _internal_mutable_owner();
+  const std::string& _internal_subject() const;
+  void _internal_set_subject(const std::string& value);
+  std::string* _internal_mutable_subject();
   public:
 
-  // @@protoc_insertion_point(class_scope:resource.removeResourceOwnerRqst)
+  // .resource.SubjectType type = 3;
+  void clear_type();
+  ::resource::SubjectType type() const;
+  void set_type(::resource::SubjectType value);
+  private:
+  ::resource::SubjectType _internal_type() const;
+  void _internal_set_type(::resource::SubjectType value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveResourceOwnerRqst)
  private:
   class _Internal;
 
@@ -16408,29 +16505,30 @@ class removeResourceOwnerRqst PROTOBUF_FINAL :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr owner_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr subject_;
+  int type_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
 };
 // -------------------------------------------------------------------
 
-class removeResourceOwnerRsp PROTOBUF_FINAL :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.removeResourceOwnerRsp) */ {
+class RemoveResourceOwnerRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveResourceOwnerRsp) */ {
  public:
-  inline removeResourceOwnerRsp() : removeResourceOwnerRsp(nullptr) {}
-  virtual ~removeResourceOwnerRsp();
+  inline RemoveResourceOwnerRsp() : RemoveResourceOwnerRsp(nullptr) {}
+  virtual ~RemoveResourceOwnerRsp();
 
-  removeResourceOwnerRsp(const removeResourceOwnerRsp& from);
-  removeResourceOwnerRsp(removeResourceOwnerRsp&& from) noexcept
-    : removeResourceOwnerRsp() {
+  RemoveResourceOwnerRsp(const RemoveResourceOwnerRsp& from);
+  RemoveResourceOwnerRsp(RemoveResourceOwnerRsp&& from) noexcept
+    : RemoveResourceOwnerRsp() {
     *this = ::std::move(from);
   }
 
-  inline removeResourceOwnerRsp& operator=(const removeResourceOwnerRsp& from) {
+  inline RemoveResourceOwnerRsp& operator=(const RemoveResourceOwnerRsp& from) {
     CopyFrom(from);
     return *this;
   }
-  inline removeResourceOwnerRsp& operator=(removeResourceOwnerRsp&& from) noexcept {
+  inline RemoveResourceOwnerRsp& operator=(RemoveResourceOwnerRsp&& from) noexcept {
     if (GetArena() == from.GetArena()) {
       if (this != &from) InternalSwap(&from);
     } else {
@@ -16448,20 +16546,20 @@ class removeResourceOwnerRsp PROTOBUF_FINAL :
   static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
     return GetMetadataStatic().reflection;
   }
-  static const removeResourceOwnerRsp& default_instance();
+  static const RemoveResourceOwnerRsp& default_instance();
 
   static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
-  static inline const removeResourceOwnerRsp* internal_default_instance() {
-    return reinterpret_cast<const removeResourceOwnerRsp*>(
-               &_removeResourceOwnerRsp_default_instance_);
+  static inline const RemoveResourceOwnerRsp* internal_default_instance() {
+    return reinterpret_cast<const RemoveResourceOwnerRsp*>(
+               &_RemoveResourceOwnerRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
     104;
 
-  friend void swap(removeResourceOwnerRsp& a, removeResourceOwnerRsp& b) {
+  friend void swap(RemoveResourceOwnerRsp& a, RemoveResourceOwnerRsp& b) {
     a.Swap(&b);
   }
-  inline void Swap(removeResourceOwnerRsp* other) {
+  inline void Swap(RemoveResourceOwnerRsp* other) {
     if (other == this) return;
     if (GetArena() == other->GetArena()) {
       InternalSwap(other);
@@ -16469,7 +16567,7 @@ class removeResourceOwnerRsp PROTOBUF_FINAL :
       ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
     }
   }
-  void UnsafeArenaSwap(removeResourceOwnerRsp* other) {
+  void UnsafeArenaSwap(RemoveResourceOwnerRsp* other) {
     if (other == this) return;
     GOOGLE_DCHECK(GetArena() == other->GetArena());
     InternalSwap(other);
@@ -16477,17 +16575,17 @@ class removeResourceOwnerRsp PROTOBUF_FINAL :
 
   // implements Message ----------------------------------------------
 
-  inline removeResourceOwnerRsp* New() const final {
-    return CreateMaybeMessage<removeResourceOwnerRsp>(nullptr);
+  inline RemoveResourceOwnerRsp* New() const final {
+    return CreateMaybeMessage<RemoveResourceOwnerRsp>(nullptr);
   }
 
-  removeResourceOwnerRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
-    return CreateMaybeMessage<removeResourceOwnerRsp>(arena);
+  RemoveResourceOwnerRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveResourceOwnerRsp>(arena);
   }
   void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
   void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void CopyFrom(const removeResourceOwnerRsp& from);
-  void MergeFrom(const removeResourceOwnerRsp& from);
+  void CopyFrom(const RemoveResourceOwnerRsp& from);
+  void MergeFrom(const RemoveResourceOwnerRsp& from);
   PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
   bool IsInitialized() const final;
 
@@ -16501,13 +16599,13 @@ class removeResourceOwnerRsp PROTOBUF_FINAL :
   inline void SharedCtor();
   inline void SharedDtor();
   void SetCachedSize(int size) const final;
-  void InternalSwap(removeResourceOwnerRsp* other);
+  void InternalSwap(RemoveResourceOwnerRsp* other);
   friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
   static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "resource.removeResourceOwnerRsp";
+    return "resource.RemoveResourceOwnerRsp";
   }
   protected:
-  explicit removeResourceOwnerRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  explicit RemoveResourceOwnerRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
   private:
   static void ArenaDtor(void* object);
   inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
@@ -16526,7 +16624,7 @@ class removeResourceOwnerRsp PROTOBUF_FINAL :
 
   // accessors -------------------------------------------------------
 
-  // @@protoc_insertion_point(class_scope:resource.removeResourceOwnerRsp)
+  // @@protoc_insertion_point(class_scope:resource.RemoveResourceOwnerRsp)
  private:
   class _Internal;
 
@@ -17145,331 +17243,6 @@ class ValidateAccessRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
-class GetAccessesRqst PROTOBUF_FINAL :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetAccessesRqst) */ {
- public:
-  inline GetAccessesRqst() : GetAccessesRqst(nullptr) {}
-  virtual ~GetAccessesRqst();
-
-  GetAccessesRqst(const GetAccessesRqst& from);
-  GetAccessesRqst(GetAccessesRqst&& from) noexcept
-    : GetAccessesRqst() {
-    *this = ::std::move(from);
-  }
-
-  inline GetAccessesRqst& operator=(const GetAccessesRqst& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline GetAccessesRqst& operator=(GetAccessesRqst&& from) noexcept {
-    if (GetArena() == from.GetArena()) {
-      if (this != &from) InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return GetMetadataStatic().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return GetMetadataStatic().reflection;
-  }
-  static const GetAccessesRqst& default_instance();
-
-  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
-  static inline const GetAccessesRqst* internal_default_instance() {
-    return reinterpret_cast<const GetAccessesRqst*>(
-               &_GetAccessesRqst_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    109;
-
-  friend void swap(GetAccessesRqst& a, GetAccessesRqst& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(GetAccessesRqst* other) {
-    if (other == this) return;
-    if (GetArena() == other->GetArena()) {
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(GetAccessesRqst* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  inline GetAccessesRqst* New() const final {
-    return CreateMaybeMessage<GetAccessesRqst>(nullptr);
-  }
-
-  GetAccessesRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
-    return CreateMaybeMessage<GetAccessesRqst>(arena);
-  }
-  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void CopyFrom(const GetAccessesRqst& from);
-  void MergeFrom(const GetAccessesRqst& from);
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
-      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _cached_size_.Get(); }
-
-  private:
-  inline void SharedCtor();
-  inline void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(GetAccessesRqst* other);
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "resource.GetAccessesRqst";
-  }
-  protected:
-  explicit GetAccessesRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  private:
-  static void ArenaDtor(void* object);
-  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  public:
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-  private:
-  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
-    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
-    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
-  }
-
-  public:
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kSubjectFieldNumber = 1,
-    kPathFieldNumber = 3,
-    kTypeFieldNumber = 2,
-  };
-  // string subject = 1;
-  void clear_subject();
-  const std::string& subject() const;
-  void set_subject(const std::string& value);
-  void set_subject(std::string&& value);
-  void set_subject(const char* value);
-  void set_subject(const char* value, size_t size);
-  std::string* mutable_subject();
-  std::string* release_subject();
-  void set_allocated_subject(std::string* subject);
-  private:
-  const std::string& _internal_subject() const;
-  void _internal_set_subject(const std::string& value);
-  std::string* _internal_mutable_subject();
-  public:
-
-  // string path = 3;
-  void clear_path();
-  const std::string& path() const;
-  void set_path(const std::string& value);
-  void set_path(std::string&& value);
-  void set_path(const char* value);
-  void set_path(const char* value, size_t size);
-  std::string* mutable_path();
-  std::string* release_path();
-  void set_allocated_path(std::string* path);
-  private:
-  const std::string& _internal_path() const;
-  void _internal_set_path(const std::string& value);
-  std::string* _internal_mutable_path();
-  public:
-
-  // .resource.SubjectType type = 2;
-  void clear_type();
-  ::resource::SubjectType type() const;
-  void set_type(::resource::SubjectType value);
-  private:
-  ::resource::SubjectType _internal_type() const;
-  void _internal_set_type(::resource::SubjectType value);
-  public:
-
-  // @@protoc_insertion_point(class_scope:resource.GetAccessesRqst)
- private:
-  class _Internal;
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr subject_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
-  int type_;
-  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  friend struct ::TableStruct_resource_2eproto;
-};
-// -------------------------------------------------------------------
-
-class GetAccessesRsp PROTOBUF_FINAL :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetAccessesRsp) */ {
- public:
-  inline GetAccessesRsp() : GetAccessesRsp(nullptr) {}
-  virtual ~GetAccessesRsp();
-
-  GetAccessesRsp(const GetAccessesRsp& from);
-  GetAccessesRsp(GetAccessesRsp&& from) noexcept
-    : GetAccessesRsp() {
-    *this = ::std::move(from);
-  }
-
-  inline GetAccessesRsp& operator=(const GetAccessesRsp& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline GetAccessesRsp& operator=(GetAccessesRsp&& from) noexcept {
-    if (GetArena() == from.GetArena()) {
-      if (this != &from) InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return GetMetadataStatic().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return GetMetadataStatic().reflection;
-  }
-  static const GetAccessesRsp& default_instance();
-
-  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
-  static inline const GetAccessesRsp* internal_default_instance() {
-    return reinterpret_cast<const GetAccessesRsp*>(
-               &_GetAccessesRsp_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    110;
-
-  friend void swap(GetAccessesRsp& a, GetAccessesRsp& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(GetAccessesRsp* other) {
-    if (other == this) return;
-    if (GetArena() == other->GetArena()) {
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(GetAccessesRsp* other) {
-    if (other == this) return;
-    GOOGLE_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  inline GetAccessesRsp* New() const final {
-    return CreateMaybeMessage<GetAccessesRsp>(nullptr);
-  }
-
-  GetAccessesRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
-    return CreateMaybeMessage<GetAccessesRsp>(arena);
-  }
-  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
-  void CopyFrom(const GetAccessesRsp& from);
-  void MergeFrom(const GetAccessesRsp& from);
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
-      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _cached_size_.Get(); }
-
-  private:
-  inline void SharedCtor();
-  inline void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(GetAccessesRsp* other);
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
-    return "resource.GetAccessesRsp";
-  }
-  protected:
-  explicit GetAccessesRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  private:
-  static void ArenaDtor(void* object);
-  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  public:
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-  private:
-  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
-    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
-    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
-  }
-
-  public:
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kAccessesFieldNumber = 1,
-  };
-  // repeated string accesses = 1;
-  int accesses_size() const;
-  private:
-  int _internal_accesses_size() const;
-  public:
-  void clear_accesses();
-  const std::string& accesses(int index) const;
-  std::string* mutable_accesses(int index);
-  void set_accesses(int index, const std::string& value);
-  void set_accesses(int index, std::string&& value);
-  void set_accesses(int index, const char* value);
-  void set_accesses(int index, const char* value, size_t size);
-  std::string* add_accesses();
-  void add_accesses(const std::string& value);
-  void add_accesses(std::string&& value);
-  void add_accesses(const char* value);
-  void add_accesses(const char* value, size_t size);
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& accesses() const;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_accesses();
-  private:
-  const std::string& _internal_accesses(int index) const;
-  std::string* _internal_add_accesses();
-  public:
-
-  // @@protoc_insertion_point(class_scope:resource.GetAccessesRsp)
- private:
-  class _Internal;
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> accesses_;
-  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  friend struct ::TableStruct_resource_2eproto;
-};
-// -------------------------------------------------------------------
-
 class LogInfo PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.LogInfo) */ {
  public:
@@ -17512,7 +17285,7 @@ class LogInfo PROTOBUF_FINAL :
                &_LogInfo_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    111;
+    109;
 
   friend void swap(LogInfo& a, LogInfo& b) {
     a.Swap(&b);
@@ -17750,7 +17523,7 @@ class LogRqst PROTOBUF_FINAL :
                &_LogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    112;
+    110;
 
   friend void swap(LogRqst& a, LogRqst& b) {
     a.Swap(&b);
@@ -17896,7 +17669,7 @@ class LogRsp PROTOBUF_FINAL :
                &_LogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    113;
+    111;
 
   friend void swap(LogRsp& a, LogRsp& b) {
     a.Swap(&b);
@@ -18033,7 +17806,7 @@ class DeleteLogRqst PROTOBUF_FINAL :
                &_DeleteLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    114;
+    112;
 
   friend void swap(DeleteLogRqst& a, DeleteLogRqst& b) {
     a.Swap(&b);
@@ -18179,7 +17952,7 @@ class DeleteLogRsp PROTOBUF_FINAL :
                &_DeleteLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    115;
+    113;
 
   friend void swap(DeleteLogRsp& a, DeleteLogRsp& b) {
     a.Swap(&b);
@@ -18316,7 +18089,7 @@ class SetLogMethodRqst PROTOBUF_FINAL :
                &_SetLogMethodRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    116;
+    114;
 
   friend void swap(SetLogMethodRqst& a, SetLogMethodRqst& b) {
     a.Swap(&b);
@@ -18460,7 +18233,7 @@ class SetLogMethodRsp PROTOBUF_FINAL :
                &_SetLogMethodRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    117;
+    115;
 
   friend void swap(SetLogMethodRsp& a, SetLogMethodRsp& b) {
     a.Swap(&b);
@@ -18597,7 +18370,7 @@ class ResetLogMethodRqst PROTOBUF_FINAL :
                &_ResetLogMethodRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    118;
+    116;
 
   friend void swap(ResetLogMethodRqst& a, ResetLogMethodRqst& b) {
     a.Swap(&b);
@@ -18741,7 +18514,7 @@ class ResetLogMethodRsp PROTOBUF_FINAL :
                &_ResetLogMethodRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    119;
+    117;
 
   friend void swap(ResetLogMethodRsp& a, ResetLogMethodRsp& b) {
     a.Swap(&b);
@@ -18878,7 +18651,7 @@ class GetLogMethodsRqst PROTOBUF_FINAL :
                &_GetLogMethodsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    120;
+    118;
 
   friend void swap(GetLogMethodsRqst& a, GetLogMethodsRqst& b) {
     a.Swap(&b);
@@ -19002,7 +18775,7 @@ class GetLogMethodsRsp PROTOBUF_FINAL :
                &_GetLogMethodsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    121;
+    119;
 
   friend void swap(GetLogMethodsRsp& a, GetLogMethodsRsp& b) {
     a.Swap(&b);
@@ -19154,7 +18927,7 @@ class GetLogRqst PROTOBUF_FINAL :
                &_GetLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    122;
+    120;
 
   friend void swap(GetLogRqst& a, GetLogRqst& b) {
     a.Swap(&b);
@@ -19298,7 +19071,7 @@ class GetLogRsp PROTOBUF_FINAL :
                &_GetLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    123;
+    121;
 
   friend void swap(GetLogRsp& a, GetLogRsp& b) {
     a.Swap(&b);
@@ -19444,7 +19217,7 @@ class ClearAllLogRqst PROTOBUF_FINAL :
                &_ClearAllLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    124;
+    122;
 
   friend void swap(ClearAllLogRqst& a, ClearAllLogRqst& b) {
     a.Swap(&b);
@@ -19581,7 +19354,7 @@ class ClearAllLogRsp PROTOBUF_FINAL :
                &_ClearAllLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    125;
+    123;
 
   friend void swap(ClearAllLogRsp& a, ClearAllLogRsp& b) {
     a.Swap(&b);
@@ -26941,155 +26714,81 @@ inline void Permission::set_allocated_name(std::string* name) {
   // @@protoc_insertion_point(field_set_allocated:resource.Permission.name)
 }
 
-// repeated string accounts = 2;
-inline int Permission::_internal_accounts_size() const {
-  return accounts_.size();
+// repeated string applications = 2;
+inline int Permission::_internal_applications_size() const {
+  return applications_.size();
 }
-inline int Permission::accounts_size() const {
-  return _internal_accounts_size();
+inline int Permission::applications_size() const {
+  return _internal_applications_size();
 }
-inline void Permission::clear_accounts() {
-  accounts_.Clear();
+inline void Permission::clear_applications() {
+  applications_.Clear();
 }
-inline std::string* Permission::add_accounts() {
-  // @@protoc_insertion_point(field_add_mutable:resource.Permission.accounts)
-  return _internal_add_accounts();
+inline std::string* Permission::add_applications() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Permission.applications)
+  return _internal_add_applications();
 }
-inline const std::string& Permission::_internal_accounts(int index) const {
-  return accounts_.Get(index);
+inline const std::string& Permission::_internal_applications(int index) const {
+  return applications_.Get(index);
 }
-inline const std::string& Permission::accounts(int index) const {
-  // @@protoc_insertion_point(field_get:resource.Permission.accounts)
-  return _internal_accounts(index);
+inline const std::string& Permission::applications(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Permission.applications)
+  return _internal_applications(index);
 }
-inline std::string* Permission::mutable_accounts(int index) {
-  // @@protoc_insertion_point(field_mutable:resource.Permission.accounts)
-  return accounts_.Mutable(index);
+inline std::string* Permission::mutable_applications(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Permission.applications)
+  return applications_.Mutable(index);
 }
-inline void Permission::set_accounts(int index, const std::string& value) {
-  // @@protoc_insertion_point(field_set:resource.Permission.accounts)
-  accounts_.Mutable(index)->assign(value);
+inline void Permission::set_applications(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.applications)
+  applications_.Mutable(index)->assign(value);
 }
-inline void Permission::set_accounts(int index, std::string&& value) {
-  // @@protoc_insertion_point(field_set:resource.Permission.accounts)
-  accounts_.Mutable(index)->assign(std::move(value));
+inline void Permission::set_applications(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.applications)
+  applications_.Mutable(index)->assign(std::move(value));
 }
-inline void Permission::set_accounts(int index, const char* value) {
+inline void Permission::set_applications(int index, const char* value) {
   GOOGLE_DCHECK(value != nullptr);
-  accounts_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:resource.Permission.accounts)
+  applications_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Permission.applications)
 }
-inline void Permission::set_accounts(int index, const char* value, size_t size) {
-  accounts_.Mutable(index)->assign(
+inline void Permission::set_applications(int index, const char* value, size_t size) {
+  applications_.Mutable(index)->assign(
     reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:resource.Permission.accounts)
+  // @@protoc_insertion_point(field_set_pointer:resource.Permission.applications)
 }
-inline std::string* Permission::_internal_add_accounts() {
-  return accounts_.Add();
+inline std::string* Permission::_internal_add_applications() {
+  return applications_.Add();
 }
-inline void Permission::add_accounts(const std::string& value) {
-  accounts_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add:resource.Permission.accounts)
+inline void Permission::add_applications(const std::string& value) {
+  applications_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Permission.applications)
 }
-inline void Permission::add_accounts(std::string&& value) {
-  accounts_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:resource.Permission.accounts)
+inline void Permission::add_applications(std::string&& value) {
+  applications_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Permission.applications)
 }
-inline void Permission::add_accounts(const char* value) {
+inline void Permission::add_applications(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
-  accounts_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:resource.Permission.accounts)
+  applications_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Permission.applications)
 }
-inline void Permission::add_accounts(const char* value, size_t size) {
-  accounts_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:resource.Permission.accounts)
+inline void Permission::add_applications(const char* value, size_t size) {
+  applications_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Permission.applications)
 }
 inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
-Permission::accounts() const {
-  // @@protoc_insertion_point(field_list:resource.Permission.accounts)
-  return accounts_;
+Permission::applications() const {
+  // @@protoc_insertion_point(field_list:resource.Permission.applications)
+  return applications_;
 }
 inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
-Permission::mutable_accounts() {
-  // @@protoc_insertion_point(field_mutable_list:resource.Permission.accounts)
-  return &accounts_;
+Permission::mutable_applications() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Permission.applications)
+  return &applications_;
 }
 
-// repeated string roles = 3;
-inline int Permission::_internal_roles_size() const {
-  return roles_.size();
-}
-inline int Permission::roles_size() const {
-  return _internal_roles_size();
-}
-inline void Permission::clear_roles() {
-  roles_.Clear();
-}
-inline std::string* Permission::add_roles() {
-  // @@protoc_insertion_point(field_add_mutable:resource.Permission.roles)
-  return _internal_add_roles();
-}
-inline const std::string& Permission::_internal_roles(int index) const {
-  return roles_.Get(index);
-}
-inline const std::string& Permission::roles(int index) const {
-  // @@protoc_insertion_point(field_get:resource.Permission.roles)
-  return _internal_roles(index);
-}
-inline std::string* Permission::mutable_roles(int index) {
-  // @@protoc_insertion_point(field_mutable:resource.Permission.roles)
-  return roles_.Mutable(index);
-}
-inline void Permission::set_roles(int index, const std::string& value) {
-  // @@protoc_insertion_point(field_set:resource.Permission.roles)
-  roles_.Mutable(index)->assign(value);
-}
-inline void Permission::set_roles(int index, std::string&& value) {
-  // @@protoc_insertion_point(field_set:resource.Permission.roles)
-  roles_.Mutable(index)->assign(std::move(value));
-}
-inline void Permission::set_roles(int index, const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  roles_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:resource.Permission.roles)
-}
-inline void Permission::set_roles(int index, const char* value, size_t size) {
-  roles_.Mutable(index)->assign(
-    reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:resource.Permission.roles)
-}
-inline std::string* Permission::_internal_add_roles() {
-  return roles_.Add();
-}
-inline void Permission::add_roles(const std::string& value) {
-  roles_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add:resource.Permission.roles)
-}
-inline void Permission::add_roles(std::string&& value) {
-  roles_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:resource.Permission.roles)
-}
-inline void Permission::add_roles(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  roles_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:resource.Permission.roles)
-}
-inline void Permission::add_roles(const char* value, size_t size) {
-  roles_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:resource.Permission.roles)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
-Permission::roles() const {
-  // @@protoc_insertion_point(field_list:resource.Permission.roles)
-  return roles_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
-Permission::mutable_roles() {
-  // @@protoc_insertion_point(field_mutable_list:resource.Permission.roles)
-  return &roles_;
-}
-
-// repeated string peers = 4;
+// repeated string peers = 3;
 inline int Permission::_internal_peers_size() const {
   return peers_.size();
 }
@@ -27163,78 +26862,226 @@ Permission::mutable_peers() {
   return &peers_;
 }
 
-// repeated string organization = 5;
-inline int Permission::_internal_organization_size() const {
-  return organization_.size();
+// repeated string accounts = 4;
+inline int Permission::_internal_accounts_size() const {
+  return accounts_.size();
 }
-inline int Permission::organization_size() const {
-  return _internal_organization_size();
+inline int Permission::accounts_size() const {
+  return _internal_accounts_size();
 }
-inline void Permission::clear_organization() {
-  organization_.Clear();
+inline void Permission::clear_accounts() {
+  accounts_.Clear();
 }
-inline std::string* Permission::add_organization() {
-  // @@protoc_insertion_point(field_add_mutable:resource.Permission.organization)
-  return _internal_add_organization();
+inline std::string* Permission::add_accounts() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Permission.accounts)
+  return _internal_add_accounts();
 }
-inline const std::string& Permission::_internal_organization(int index) const {
-  return organization_.Get(index);
+inline const std::string& Permission::_internal_accounts(int index) const {
+  return accounts_.Get(index);
 }
-inline const std::string& Permission::organization(int index) const {
-  // @@protoc_insertion_point(field_get:resource.Permission.organization)
-  return _internal_organization(index);
+inline const std::string& Permission::accounts(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Permission.accounts)
+  return _internal_accounts(index);
 }
-inline std::string* Permission::mutable_organization(int index) {
-  // @@protoc_insertion_point(field_mutable:resource.Permission.organization)
-  return organization_.Mutable(index);
+inline std::string* Permission::mutable_accounts(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Permission.accounts)
+  return accounts_.Mutable(index);
 }
-inline void Permission::set_organization(int index, const std::string& value) {
-  // @@protoc_insertion_point(field_set:resource.Permission.organization)
-  organization_.Mutable(index)->assign(value);
+inline void Permission::set_accounts(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.accounts)
+  accounts_.Mutable(index)->assign(value);
 }
-inline void Permission::set_organization(int index, std::string&& value) {
-  // @@protoc_insertion_point(field_set:resource.Permission.organization)
-  organization_.Mutable(index)->assign(std::move(value));
+inline void Permission::set_accounts(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.accounts)
+  accounts_.Mutable(index)->assign(std::move(value));
 }
-inline void Permission::set_organization(int index, const char* value) {
+inline void Permission::set_accounts(int index, const char* value) {
   GOOGLE_DCHECK(value != nullptr);
-  organization_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:resource.Permission.organization)
+  accounts_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Permission.accounts)
 }
-inline void Permission::set_organization(int index, const char* value, size_t size) {
-  organization_.Mutable(index)->assign(
+inline void Permission::set_accounts(int index, const char* value, size_t size) {
+  accounts_.Mutable(index)->assign(
     reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:resource.Permission.organization)
+  // @@protoc_insertion_point(field_set_pointer:resource.Permission.accounts)
 }
-inline std::string* Permission::_internal_add_organization() {
-  return organization_.Add();
+inline std::string* Permission::_internal_add_accounts() {
+  return accounts_.Add();
 }
-inline void Permission::add_organization(const std::string& value) {
-  organization_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add:resource.Permission.organization)
+inline void Permission::add_accounts(const std::string& value) {
+  accounts_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Permission.accounts)
 }
-inline void Permission::add_organization(std::string&& value) {
-  organization_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:resource.Permission.organization)
+inline void Permission::add_accounts(std::string&& value) {
+  accounts_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Permission.accounts)
 }
-inline void Permission::add_organization(const char* value) {
+inline void Permission::add_accounts(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
-  organization_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:resource.Permission.organization)
+  accounts_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Permission.accounts)
 }
-inline void Permission::add_organization(const char* value, size_t size) {
-  organization_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:resource.Permission.organization)
+inline void Permission::add_accounts(const char* value, size_t size) {
+  accounts_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Permission.accounts)
 }
 inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
-Permission::organization() const {
-  // @@protoc_insertion_point(field_list:resource.Permission.organization)
-  return organization_;
+Permission::accounts() const {
+  // @@protoc_insertion_point(field_list:resource.Permission.accounts)
+  return accounts_;
 }
 inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
-Permission::mutable_organization() {
-  // @@protoc_insertion_point(field_mutable_list:resource.Permission.organization)
-  return &organization_;
+Permission::mutable_accounts() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Permission.accounts)
+  return &accounts_;
+}
+
+// repeated string groups = 5;
+inline int Permission::_internal_groups_size() const {
+  return groups_.size();
+}
+inline int Permission::groups_size() const {
+  return _internal_groups_size();
+}
+inline void Permission::clear_groups() {
+  groups_.Clear();
+}
+inline std::string* Permission::add_groups() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Permission.groups)
+  return _internal_add_groups();
+}
+inline const std::string& Permission::_internal_groups(int index) const {
+  return groups_.Get(index);
+}
+inline const std::string& Permission::groups(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Permission.groups)
+  return _internal_groups(index);
+}
+inline std::string* Permission::mutable_groups(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Permission.groups)
+  return groups_.Mutable(index);
+}
+inline void Permission::set_groups(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.groups)
+  groups_.Mutable(index)->assign(value);
+}
+inline void Permission::set_groups(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.groups)
+  groups_.Mutable(index)->assign(std::move(value));
+}
+inline void Permission::set_groups(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  groups_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Permission.groups)
+}
+inline void Permission::set_groups(int index, const char* value, size_t size) {
+  groups_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Permission.groups)
+}
+inline std::string* Permission::_internal_add_groups() {
+  return groups_.Add();
+}
+inline void Permission::add_groups(const std::string& value) {
+  groups_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Permission.groups)
+}
+inline void Permission::add_groups(std::string&& value) {
+  groups_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Permission.groups)
+}
+inline void Permission::add_groups(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  groups_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Permission.groups)
+}
+inline void Permission::add_groups(const char* value, size_t size) {
+  groups_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Permission.groups)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Permission::groups() const {
+  // @@protoc_insertion_point(field_list:resource.Permission.groups)
+  return groups_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Permission::mutable_groups() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Permission.groups)
+  return &groups_;
+}
+
+// repeated string organizations = 6;
+inline int Permission::_internal_organizations_size() const {
+  return organizations_.size();
+}
+inline int Permission::organizations_size() const {
+  return _internal_organizations_size();
+}
+inline void Permission::clear_organizations() {
+  organizations_.Clear();
+}
+inline std::string* Permission::add_organizations() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Permission.organizations)
+  return _internal_add_organizations();
+}
+inline const std::string& Permission::_internal_organizations(int index) const {
+  return organizations_.Get(index);
+}
+inline const std::string& Permission::organizations(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Permission.organizations)
+  return _internal_organizations(index);
+}
+inline std::string* Permission::mutable_organizations(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Permission.organizations)
+  return organizations_.Mutable(index);
+}
+inline void Permission::set_organizations(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.organizations)
+  organizations_.Mutable(index)->assign(value);
+}
+inline void Permission::set_organizations(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Permission.organizations)
+  organizations_.Mutable(index)->assign(std::move(value));
+}
+inline void Permission::set_organizations(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  organizations_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Permission.organizations)
+}
+inline void Permission::set_organizations(int index, const char* value, size_t size) {
+  organizations_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Permission.organizations)
+}
+inline std::string* Permission::_internal_add_organizations() {
+  return organizations_.Add();
+}
+inline void Permission::add_organizations(const std::string& value) {
+  organizations_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Permission.organizations)
+}
+inline void Permission::add_organizations(std::string&& value) {
+  organizations_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Permission.organizations)
+}
+inline void Permission::add_organizations(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  organizations_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Permission.organizations)
+}
+inline void Permission::add_organizations(const char* value, size_t size) {
+  organizations_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Permission.organizations)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Permission::organizations() const {
+  // @@protoc_insertion_point(field_list:resource.Permission.organizations)
+  return organizations_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Permission::mutable_organizations() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Permission.organizations)
+  return &organizations_;
 }
 
 // -------------------------------------------------------------------
@@ -27796,221 +27643,6 @@ inline void DeleteResourcePermissionsRsp::set_allocated_permissions(::resource::
 
 // -------------------------------------------------------------------
 
-// GetResourcePermissionRqst
-
-// string path = 1;
-inline void GetResourcePermissionRqst::clear_path() {
-  path_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline const std::string& GetResourcePermissionRqst::path() const {
-  // @@protoc_insertion_point(field_get:resource.GetResourcePermissionRqst.path)
-  return _internal_path();
-}
-inline void GetResourcePermissionRqst::set_path(const std::string& value) {
-  _internal_set_path(value);
-  // @@protoc_insertion_point(field_set:resource.GetResourcePermissionRqst.path)
-}
-inline std::string* GetResourcePermissionRqst::mutable_path() {
-  // @@protoc_insertion_point(field_mutable:resource.GetResourcePermissionRqst.path)
-  return _internal_mutable_path();
-}
-inline const std::string& GetResourcePermissionRqst::_internal_path() const {
-  return path_.Get();
-}
-inline void GetResourcePermissionRqst::_internal_set_path(const std::string& value) {
-  
-  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
-}
-inline void GetResourcePermissionRqst::set_path(std::string&& value) {
-  
-  path_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.GetResourcePermissionRqst.path)
-}
-inline void GetResourcePermissionRqst::set_path(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  
-  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.GetResourcePermissionRqst.path)
-}
-inline void GetResourcePermissionRqst::set_path(const char* value,
-    size_t size) {
-  
-  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.GetResourcePermissionRqst.path)
-}
-inline std::string* GetResourcePermissionRqst::_internal_mutable_path() {
-  
-  return path_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* GetResourcePermissionRqst::release_path() {
-  // @@protoc_insertion_point(field_release:resource.GetResourcePermissionRqst.path)
-  return path_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void GetResourcePermissionRqst::set_allocated_path(std::string* path) {
-  if (path != nullptr) {
-    
-  } else {
-    
-  }
-  path_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), path,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.GetResourcePermissionRqst.path)
-}
-
-// string name = 2;
-inline void GetResourcePermissionRqst::clear_name() {
-  name_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline const std::string& GetResourcePermissionRqst::name() const {
-  // @@protoc_insertion_point(field_get:resource.GetResourcePermissionRqst.name)
-  return _internal_name();
-}
-inline void GetResourcePermissionRqst::set_name(const std::string& value) {
-  _internal_set_name(value);
-  // @@protoc_insertion_point(field_set:resource.GetResourcePermissionRqst.name)
-}
-inline std::string* GetResourcePermissionRqst::mutable_name() {
-  // @@protoc_insertion_point(field_mutable:resource.GetResourcePermissionRqst.name)
-  return _internal_mutable_name();
-}
-inline const std::string& GetResourcePermissionRqst::_internal_name() const {
-  return name_.Get();
-}
-inline void GetResourcePermissionRqst::_internal_set_name(const std::string& value) {
-  
-  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
-}
-inline void GetResourcePermissionRqst::set_name(std::string&& value) {
-  
-  name_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.GetResourcePermissionRqst.name)
-}
-inline void GetResourcePermissionRqst::set_name(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  
-  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.GetResourcePermissionRqst.name)
-}
-inline void GetResourcePermissionRqst::set_name(const char* value,
-    size_t size) {
-  
-  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.GetResourcePermissionRqst.name)
-}
-inline std::string* GetResourcePermissionRqst::_internal_mutable_name() {
-  
-  return name_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* GetResourcePermissionRqst::release_name() {
-  // @@protoc_insertion_point(field_release:resource.GetResourcePermissionRqst.name)
-  return name_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void GetResourcePermissionRqst::set_allocated_name(std::string* name) {
-  if (name != nullptr) {
-    
-  } else {
-    
-  }
-  name_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), name,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.GetResourcePermissionRqst.name)
-}
-
-// -------------------------------------------------------------------
-
-// GetResourcePermissionRsp
-
-// .resource.Permission permission = 1;
-inline bool GetResourcePermissionRsp::_internal_has_permission() const {
-  return this != internal_default_instance() && permission_ != nullptr;
-}
-inline bool GetResourcePermissionRsp::has_permission() const {
-  return _internal_has_permission();
-}
-inline void GetResourcePermissionRsp::clear_permission() {
-  if (GetArena() == nullptr && permission_ != nullptr) {
-    delete permission_;
-  }
-  permission_ = nullptr;
-}
-inline const ::resource::Permission& GetResourcePermissionRsp::_internal_permission() const {
-  const ::resource::Permission* p = permission_;
-  return p != nullptr ? *p : *reinterpret_cast<const ::resource::Permission*>(
-      &::resource::_Permission_default_instance_);
-}
-inline const ::resource::Permission& GetResourcePermissionRsp::permission() const {
-  // @@protoc_insertion_point(field_get:resource.GetResourcePermissionRsp.permission)
-  return _internal_permission();
-}
-inline void GetResourcePermissionRsp::unsafe_arena_set_allocated_permission(
-    ::resource::Permission* permission) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(permission_);
-  }
-  permission_ = permission;
-  if (permission) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:resource.GetResourcePermissionRsp.permission)
-}
-inline ::resource::Permission* GetResourcePermissionRsp::release_permission() {
-  
-  ::resource::Permission* temp = permission_;
-  permission_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline ::resource::Permission* GetResourcePermissionRsp::unsafe_arena_release_permission() {
-  // @@protoc_insertion_point(field_release:resource.GetResourcePermissionRsp.permission)
-  
-  ::resource::Permission* temp = permission_;
-  permission_ = nullptr;
-  return temp;
-}
-inline ::resource::Permission* GetResourcePermissionRsp::_internal_mutable_permission() {
-  
-  if (permission_ == nullptr) {
-    auto* p = CreateMaybeMessage<::resource::Permission>(GetArena());
-    permission_ = p;
-  }
-  return permission_;
-}
-inline ::resource::Permission* GetResourcePermissionRsp::mutable_permission() {
-  // @@protoc_insertion_point(field_mutable:resource.GetResourcePermissionRsp.permission)
-  return _internal_mutable_permission();
-}
-inline void GetResourcePermissionRsp::set_allocated_permission(::resource::Permission* permission) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete permission_;
-  }
-  if (permission) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(permission);
-    if (message_arena != submessage_arena) {
-      permission = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, permission, submessage_arena);
-    }
-    
-  } else {
-    
-  }
-  permission_ = permission;
-  // @@protoc_insertion_point(field_set_allocated:resource.GetResourcePermissionRsp.permission)
-}
-
-// -------------------------------------------------------------------
-
 // DeleteResourcePermissionRqst
 
 // string path = 1;
@@ -28135,6 +27767,26 @@ inline void DeleteResourcePermissionRqst::set_allocated_name(std::string* name) 
   name_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), name,
       GetArena());
   // @@protoc_insertion_point(field_set_allocated:resource.DeleteResourcePermissionRqst.name)
+}
+
+// .resource.PermissionType type = 3;
+inline void DeleteResourcePermissionRqst::clear_type() {
+  type_ = 0;
+}
+inline ::resource::PermissionType DeleteResourcePermissionRqst::_internal_type() const {
+  return static_cast< ::resource::PermissionType >(type_);
+}
+inline ::resource::PermissionType DeleteResourcePermissionRqst::type() const {
+  // @@protoc_insertion_point(field_get:resource.DeleteResourcePermissionRqst.type)
+  return _internal_type();
+}
+inline void DeleteResourcePermissionRqst::_internal_set_type(::resource::PermissionType value) {
+  
+  type_ = value;
+}
+inline void DeleteResourcePermissionRqst::set_type(::resource::PermissionType value) {
+  _internal_set_type(value);
+  // @@protoc_insertion_point(field_set:resource.DeleteResourcePermissionRqst.type)
 }
 
 // -------------------------------------------------------------------
@@ -28296,6 +27948,241 @@ inline void SetResourcePermissionsRqst::set_allocated_permissions(::resource::Pe
 
 // -------------------------------------------------------------------
 
+// GetResourcePermissionRqst
+
+// string path = 1;
+inline void GetResourcePermissionRqst::clear_path() {
+  path_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& GetResourcePermissionRqst::path() const {
+  // @@protoc_insertion_point(field_get:resource.GetResourcePermissionRqst.path)
+  return _internal_path();
+}
+inline void GetResourcePermissionRqst::set_path(const std::string& value) {
+  _internal_set_path(value);
+  // @@protoc_insertion_point(field_set:resource.GetResourcePermissionRqst.path)
+}
+inline std::string* GetResourcePermissionRqst::mutable_path() {
+  // @@protoc_insertion_point(field_mutable:resource.GetResourcePermissionRqst.path)
+  return _internal_mutable_path();
+}
+inline const std::string& GetResourcePermissionRqst::_internal_path() const {
+  return path_.Get();
+}
+inline void GetResourcePermissionRqst::_internal_set_path(const std::string& value) {
+  
+  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void GetResourcePermissionRqst::set_path(std::string&& value) {
+  
+  path_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.GetResourcePermissionRqst.path)
+}
+inline void GetResourcePermissionRqst::set_path(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.GetResourcePermissionRqst.path)
+}
+inline void GetResourcePermissionRqst::set_path(const char* value,
+    size_t size) {
+  
+  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.GetResourcePermissionRqst.path)
+}
+inline std::string* GetResourcePermissionRqst::_internal_mutable_path() {
+  
+  return path_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* GetResourcePermissionRqst::release_path() {
+  // @@protoc_insertion_point(field_release:resource.GetResourcePermissionRqst.path)
+  return path_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void GetResourcePermissionRqst::set_allocated_path(std::string* path) {
+  if (path != nullptr) {
+    
+  } else {
+    
+  }
+  path_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), path,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.GetResourcePermissionRqst.path)
+}
+
+// string name = 2;
+inline void GetResourcePermissionRqst::clear_name() {
+  name_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& GetResourcePermissionRqst::name() const {
+  // @@protoc_insertion_point(field_get:resource.GetResourcePermissionRqst.name)
+  return _internal_name();
+}
+inline void GetResourcePermissionRqst::set_name(const std::string& value) {
+  _internal_set_name(value);
+  // @@protoc_insertion_point(field_set:resource.GetResourcePermissionRqst.name)
+}
+inline std::string* GetResourcePermissionRqst::mutable_name() {
+  // @@protoc_insertion_point(field_mutable:resource.GetResourcePermissionRqst.name)
+  return _internal_mutable_name();
+}
+inline const std::string& GetResourcePermissionRqst::_internal_name() const {
+  return name_.Get();
+}
+inline void GetResourcePermissionRqst::_internal_set_name(const std::string& value) {
+  
+  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void GetResourcePermissionRqst::set_name(std::string&& value) {
+  
+  name_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.GetResourcePermissionRqst.name)
+}
+inline void GetResourcePermissionRqst::set_name(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.GetResourcePermissionRqst.name)
+}
+inline void GetResourcePermissionRqst::set_name(const char* value,
+    size_t size) {
+  
+  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.GetResourcePermissionRqst.name)
+}
+inline std::string* GetResourcePermissionRqst::_internal_mutable_name() {
+  
+  return name_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* GetResourcePermissionRqst::release_name() {
+  // @@protoc_insertion_point(field_release:resource.GetResourcePermissionRqst.name)
+  return name_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void GetResourcePermissionRqst::set_allocated_name(std::string* name) {
+  if (name != nullptr) {
+    
+  } else {
+    
+  }
+  name_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), name,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.GetResourcePermissionRqst.name)
+}
+
+// .resource.PermissionType type = 3;
+inline void GetResourcePermissionRqst::clear_type() {
+  type_ = 0;
+}
+inline ::resource::PermissionType GetResourcePermissionRqst::_internal_type() const {
+  return static_cast< ::resource::PermissionType >(type_);
+}
+inline ::resource::PermissionType GetResourcePermissionRqst::type() const {
+  // @@protoc_insertion_point(field_get:resource.GetResourcePermissionRqst.type)
+  return _internal_type();
+}
+inline void GetResourcePermissionRqst::_internal_set_type(::resource::PermissionType value) {
+  
+  type_ = value;
+}
+inline void GetResourcePermissionRqst::set_type(::resource::PermissionType value) {
+  _internal_set_type(value);
+  // @@protoc_insertion_point(field_set:resource.GetResourcePermissionRqst.type)
+}
+
+// -------------------------------------------------------------------
+
+// GetResourcePermissionRsp
+
+// .resource.Permission permission = 1;
+inline bool GetResourcePermissionRsp::_internal_has_permission() const {
+  return this != internal_default_instance() && permission_ != nullptr;
+}
+inline bool GetResourcePermissionRsp::has_permission() const {
+  return _internal_has_permission();
+}
+inline void GetResourcePermissionRsp::clear_permission() {
+  if (GetArena() == nullptr && permission_ != nullptr) {
+    delete permission_;
+  }
+  permission_ = nullptr;
+}
+inline const ::resource::Permission& GetResourcePermissionRsp::_internal_permission() const {
+  const ::resource::Permission* p = permission_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::resource::Permission*>(
+      &::resource::_Permission_default_instance_);
+}
+inline const ::resource::Permission& GetResourcePermissionRsp::permission() const {
+  // @@protoc_insertion_point(field_get:resource.GetResourcePermissionRsp.permission)
+  return _internal_permission();
+}
+inline void GetResourcePermissionRsp::unsafe_arena_set_allocated_permission(
+    ::resource::Permission* permission) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(permission_);
+  }
+  permission_ = permission;
+  if (permission) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:resource.GetResourcePermissionRsp.permission)
+}
+inline ::resource::Permission* GetResourcePermissionRsp::release_permission() {
+  
+  ::resource::Permission* temp = permission_;
+  permission_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
+}
+inline ::resource::Permission* GetResourcePermissionRsp::unsafe_arena_release_permission() {
+  // @@protoc_insertion_point(field_release:resource.GetResourcePermissionRsp.permission)
+  
+  ::resource::Permission* temp = permission_;
+  permission_ = nullptr;
+  return temp;
+}
+inline ::resource::Permission* GetResourcePermissionRsp::_internal_mutable_permission() {
+  
+  if (permission_ == nullptr) {
+    auto* p = CreateMaybeMessage<::resource::Permission>(GetArena());
+    permission_ = p;
+  }
+  return permission_;
+}
+inline ::resource::Permission* GetResourcePermissionRsp::mutable_permission() {
+  // @@protoc_insertion_point(field_mutable:resource.GetResourcePermissionRsp.permission)
+  return _internal_mutable_permission();
+}
+inline void GetResourcePermissionRsp::set_allocated_permission(::resource::Permission* permission) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete permission_;
+  }
+  if (permission) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(permission);
+    if (message_arena != submessage_arena) {
+      permission = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, permission, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  permission_ = permission;
+  // @@protoc_insertion_point(field_set_allocated:resource.GetResourcePermissionRsp.permission)
+}
+
+// -------------------------------------------------------------------
+
 // SetResourcePermissionRqst
 
 // string path = 1;
@@ -28443,6 +28330,26 @@ inline void SetResourcePermissionRqst::set_allocated_permission(::resource::Perm
   // @@protoc_insertion_point(field_set_allocated:resource.SetResourcePermissionRqst.permission)
 }
 
+// .resource.PermissionType type = 3;
+inline void SetResourcePermissionRqst::clear_type() {
+  type_ = 0;
+}
+inline ::resource::PermissionType SetResourcePermissionRqst::_internal_type() const {
+  return static_cast< ::resource::PermissionType >(type_);
+}
+inline ::resource::PermissionType SetResourcePermissionRqst::type() const {
+  // @@protoc_insertion_point(field_get:resource.SetResourcePermissionRqst.type)
+  return _internal_type();
+}
+inline void SetResourcePermissionRqst::_internal_set_type(::resource::PermissionType value) {
+  
+  type_ = value;
+}
+inline void SetResourcePermissionRqst::set_type(::resource::PermissionType value) {
+  _internal_set_type(value);
+  // @@protoc_insertion_point(field_set:resource.SetResourcePermissionRqst.type)
+}
+
 // -------------------------------------------------------------------
 
 // SetResourcePermissionRsp
@@ -28513,66 +28420,86 @@ inline void AddResourceOwnerRqst::set_allocated_path(std::string* path) {
   // @@protoc_insertion_point(field_set_allocated:resource.AddResourceOwnerRqst.path)
 }
 
-// string owner = 2;
-inline void AddResourceOwnerRqst::clear_owner() {
-  owner_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+// string subject = 2;
+inline void AddResourceOwnerRqst::clear_subject() {
+  subject_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline const std::string& AddResourceOwnerRqst::owner() const {
-  // @@protoc_insertion_point(field_get:resource.AddResourceOwnerRqst.owner)
-  return _internal_owner();
+inline const std::string& AddResourceOwnerRqst::subject() const {
+  // @@protoc_insertion_point(field_get:resource.AddResourceOwnerRqst.subject)
+  return _internal_subject();
 }
-inline void AddResourceOwnerRqst::set_owner(const std::string& value) {
-  _internal_set_owner(value);
-  // @@protoc_insertion_point(field_set:resource.AddResourceOwnerRqst.owner)
+inline void AddResourceOwnerRqst::set_subject(const std::string& value) {
+  _internal_set_subject(value);
+  // @@protoc_insertion_point(field_set:resource.AddResourceOwnerRqst.subject)
 }
-inline std::string* AddResourceOwnerRqst::mutable_owner() {
-  // @@protoc_insertion_point(field_mutable:resource.AddResourceOwnerRqst.owner)
-  return _internal_mutable_owner();
+inline std::string* AddResourceOwnerRqst::mutable_subject() {
+  // @@protoc_insertion_point(field_mutable:resource.AddResourceOwnerRqst.subject)
+  return _internal_mutable_subject();
 }
-inline const std::string& AddResourceOwnerRqst::_internal_owner() const {
-  return owner_.Get();
+inline const std::string& AddResourceOwnerRqst::_internal_subject() const {
+  return subject_.Get();
 }
-inline void AddResourceOwnerRqst::_internal_set_owner(const std::string& value) {
+inline void AddResourceOwnerRqst::_internal_set_subject(const std::string& value) {
   
-  owner_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
 }
-inline void AddResourceOwnerRqst::set_owner(std::string&& value) {
+inline void AddResourceOwnerRqst::set_subject(std::string&& value) {
   
-  owner_.Set(
+  subject_.Set(
     &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.AddResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddResourceOwnerRqst.subject)
 }
-inline void AddResourceOwnerRqst::set_owner(const char* value) {
+inline void AddResourceOwnerRqst::set_subject(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   
-  owner_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
               GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.AddResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_char:resource.AddResourceOwnerRqst.subject)
 }
-inline void AddResourceOwnerRqst::set_owner(const char* value,
+inline void AddResourceOwnerRqst::set_subject(const char* value,
     size_t size) {
   
-  owner_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
       reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.AddResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_pointer:resource.AddResourceOwnerRqst.subject)
 }
-inline std::string* AddResourceOwnerRqst::_internal_mutable_owner() {
+inline std::string* AddResourceOwnerRqst::_internal_mutable_subject() {
   
-  return owner_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  return subject_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline std::string* AddResourceOwnerRqst::release_owner() {
-  // @@protoc_insertion_point(field_release:resource.AddResourceOwnerRqst.owner)
-  return owner_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+inline std::string* AddResourceOwnerRqst::release_subject() {
+  // @@protoc_insertion_point(field_release:resource.AddResourceOwnerRqst.subject)
+  return subject_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline void AddResourceOwnerRqst::set_allocated_owner(std::string* owner) {
-  if (owner != nullptr) {
+inline void AddResourceOwnerRqst::set_allocated_subject(std::string* subject) {
+  if (subject != nullptr) {
     
   } else {
     
   }
-  owner_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), owner,
+  subject_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), subject,
       GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.AddResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_allocated:resource.AddResourceOwnerRqst.subject)
+}
+
+// .resource.SubjectType type = 3;
+inline void AddResourceOwnerRqst::clear_type() {
+  type_ = 0;
+}
+inline ::resource::SubjectType AddResourceOwnerRqst::_internal_type() const {
+  return static_cast< ::resource::SubjectType >(type_);
+}
+inline ::resource::SubjectType AddResourceOwnerRqst::type() const {
+  // @@protoc_insertion_point(field_get:resource.AddResourceOwnerRqst.type)
+  return _internal_type();
+}
+inline void AddResourceOwnerRqst::_internal_set_type(::resource::SubjectType value) {
+  
+  type_ = value;
+}
+inline void AddResourceOwnerRqst::set_type(::resource::SubjectType value) {
+  _internal_set_type(value);
+  // @@protoc_insertion_point(field_set:resource.AddResourceOwnerRqst.type)
 }
 
 // -------------------------------------------------------------------
@@ -28581,60 +28508,60 @@ inline void AddResourceOwnerRqst::set_allocated_owner(std::string* owner) {
 
 // -------------------------------------------------------------------
 
-// removeResourceOwnerRqst
+// RemoveResourceOwnerRqst
 
 // string path = 1;
-inline void removeResourceOwnerRqst::clear_path() {
+inline void RemoveResourceOwnerRqst::clear_path() {
   path_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline const std::string& removeResourceOwnerRqst::path() const {
-  // @@protoc_insertion_point(field_get:resource.removeResourceOwnerRqst.path)
+inline const std::string& RemoveResourceOwnerRqst::path() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveResourceOwnerRqst.path)
   return _internal_path();
 }
-inline void removeResourceOwnerRqst::set_path(const std::string& value) {
+inline void RemoveResourceOwnerRqst::set_path(const std::string& value) {
   _internal_set_path(value);
-  // @@protoc_insertion_point(field_set:resource.removeResourceOwnerRqst.path)
+  // @@protoc_insertion_point(field_set:resource.RemoveResourceOwnerRqst.path)
 }
-inline std::string* removeResourceOwnerRqst::mutable_path() {
-  // @@protoc_insertion_point(field_mutable:resource.removeResourceOwnerRqst.path)
+inline std::string* RemoveResourceOwnerRqst::mutable_path() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveResourceOwnerRqst.path)
   return _internal_mutable_path();
 }
-inline const std::string& removeResourceOwnerRqst::_internal_path() const {
+inline const std::string& RemoveResourceOwnerRqst::_internal_path() const {
   return path_.Get();
 }
-inline void removeResourceOwnerRqst::_internal_set_path(const std::string& value) {
+inline void RemoveResourceOwnerRqst::_internal_set_path(const std::string& value) {
   
   path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
 }
-inline void removeResourceOwnerRqst::set_path(std::string&& value) {
+inline void RemoveResourceOwnerRqst::set_path(std::string&& value) {
   
   path_.Set(
     &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.removeResourceOwnerRqst.path)
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveResourceOwnerRqst.path)
 }
-inline void removeResourceOwnerRqst::set_path(const char* value) {
+inline void RemoveResourceOwnerRqst::set_path(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   
   path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
               GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.removeResourceOwnerRqst.path)
+  // @@protoc_insertion_point(field_set_char:resource.RemoveResourceOwnerRqst.path)
 }
-inline void removeResourceOwnerRqst::set_path(const char* value,
+inline void RemoveResourceOwnerRqst::set_path(const char* value,
     size_t size) {
   
   path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
       reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.removeResourceOwnerRqst.path)
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveResourceOwnerRqst.path)
 }
-inline std::string* removeResourceOwnerRqst::_internal_mutable_path() {
+inline std::string* RemoveResourceOwnerRqst::_internal_mutable_path() {
   
   return path_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline std::string* removeResourceOwnerRqst::release_path() {
-  // @@protoc_insertion_point(field_release:resource.removeResourceOwnerRqst.path)
+inline std::string* RemoveResourceOwnerRqst::release_path() {
+  // @@protoc_insertion_point(field_release:resource.RemoveResourceOwnerRqst.path)
   return path_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline void removeResourceOwnerRqst::set_allocated_path(std::string* path) {
+inline void RemoveResourceOwnerRqst::set_allocated_path(std::string* path) {
   if (path != nullptr) {
     
   } else {
@@ -28642,74 +28569,94 @@ inline void removeResourceOwnerRqst::set_allocated_path(std::string* path) {
   }
   path_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), path,
       GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.removeResourceOwnerRqst.path)
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveResourceOwnerRqst.path)
 }
 
-// string owner = 2;
-inline void removeResourceOwnerRqst::clear_owner() {
-  owner_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+// string subject = 2;
+inline void RemoveResourceOwnerRqst::clear_subject() {
+  subject_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline const std::string& removeResourceOwnerRqst::owner() const {
-  // @@protoc_insertion_point(field_get:resource.removeResourceOwnerRqst.owner)
-  return _internal_owner();
+inline const std::string& RemoveResourceOwnerRqst::subject() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveResourceOwnerRqst.subject)
+  return _internal_subject();
 }
-inline void removeResourceOwnerRqst::set_owner(const std::string& value) {
-  _internal_set_owner(value);
-  // @@protoc_insertion_point(field_set:resource.removeResourceOwnerRqst.owner)
+inline void RemoveResourceOwnerRqst::set_subject(const std::string& value) {
+  _internal_set_subject(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveResourceOwnerRqst.subject)
 }
-inline std::string* removeResourceOwnerRqst::mutable_owner() {
-  // @@protoc_insertion_point(field_mutable:resource.removeResourceOwnerRqst.owner)
-  return _internal_mutable_owner();
+inline std::string* RemoveResourceOwnerRqst::mutable_subject() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveResourceOwnerRqst.subject)
+  return _internal_mutable_subject();
 }
-inline const std::string& removeResourceOwnerRqst::_internal_owner() const {
-  return owner_.Get();
+inline const std::string& RemoveResourceOwnerRqst::_internal_subject() const {
+  return subject_.Get();
 }
-inline void removeResourceOwnerRqst::_internal_set_owner(const std::string& value) {
+inline void RemoveResourceOwnerRqst::_internal_set_subject(const std::string& value) {
   
-  owner_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
 }
-inline void removeResourceOwnerRqst::set_owner(std::string&& value) {
+inline void RemoveResourceOwnerRqst::set_subject(std::string&& value) {
   
-  owner_.Set(
+  subject_.Set(
     &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.removeResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveResourceOwnerRqst.subject)
 }
-inline void removeResourceOwnerRqst::set_owner(const char* value) {
+inline void RemoveResourceOwnerRqst::set_subject(const char* value) {
   GOOGLE_DCHECK(value != nullptr);
   
-  owner_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
               GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.removeResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_char:resource.RemoveResourceOwnerRqst.subject)
 }
-inline void removeResourceOwnerRqst::set_owner(const char* value,
+inline void RemoveResourceOwnerRqst::set_subject(const char* value,
     size_t size) {
   
-  owner_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
       reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.removeResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveResourceOwnerRqst.subject)
 }
-inline std::string* removeResourceOwnerRqst::_internal_mutable_owner() {
+inline std::string* RemoveResourceOwnerRqst::_internal_mutable_subject() {
   
-  return owner_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  return subject_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline std::string* removeResourceOwnerRqst::release_owner() {
-  // @@protoc_insertion_point(field_release:resource.removeResourceOwnerRqst.owner)
-  return owner_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+inline std::string* RemoveResourceOwnerRqst::release_subject() {
+  // @@protoc_insertion_point(field_release:resource.RemoveResourceOwnerRqst.subject)
+  return subject_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
-inline void removeResourceOwnerRqst::set_allocated_owner(std::string* owner) {
-  if (owner != nullptr) {
+inline void RemoveResourceOwnerRqst::set_allocated_subject(std::string* subject) {
+  if (subject != nullptr) {
     
   } else {
     
   }
-  owner_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), owner,
+  subject_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), subject,
       GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.removeResourceOwnerRqst.owner)
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveResourceOwnerRqst.subject)
+}
+
+// .resource.SubjectType type = 3;
+inline void RemoveResourceOwnerRqst::clear_type() {
+  type_ = 0;
+}
+inline ::resource::SubjectType RemoveResourceOwnerRqst::_internal_type() const {
+  return static_cast< ::resource::SubjectType >(type_);
+}
+inline ::resource::SubjectType RemoveResourceOwnerRqst::type() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveResourceOwnerRqst.type)
+  return _internal_type();
+}
+inline void RemoveResourceOwnerRqst::_internal_set_type(::resource::SubjectType value) {
+  
+  type_ = value;
+}
+inline void RemoveResourceOwnerRqst::set_type(::resource::SubjectType value) {
+  _internal_set_type(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveResourceOwnerRqst.type)
 }
 
 // -------------------------------------------------------------------
 
-// removeResourceOwnerRsp
+// RemoveResourceOwnerRsp
 
 // -------------------------------------------------------------------
 
@@ -29033,232 +28980,6 @@ inline void ValidateAccessRsp::_internal_set_result(bool value) {
 inline void ValidateAccessRsp::set_result(bool value) {
   _internal_set_result(value);
   // @@protoc_insertion_point(field_set:resource.ValidateAccessRsp.result)
-}
-
-// -------------------------------------------------------------------
-
-// GetAccessesRqst
-
-// string subject = 1;
-inline void GetAccessesRqst::clear_subject() {
-  subject_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline const std::string& GetAccessesRqst::subject() const {
-  // @@protoc_insertion_point(field_get:resource.GetAccessesRqst.subject)
-  return _internal_subject();
-}
-inline void GetAccessesRqst::set_subject(const std::string& value) {
-  _internal_set_subject(value);
-  // @@protoc_insertion_point(field_set:resource.GetAccessesRqst.subject)
-}
-inline std::string* GetAccessesRqst::mutable_subject() {
-  // @@protoc_insertion_point(field_mutable:resource.GetAccessesRqst.subject)
-  return _internal_mutable_subject();
-}
-inline const std::string& GetAccessesRqst::_internal_subject() const {
-  return subject_.Get();
-}
-inline void GetAccessesRqst::_internal_set_subject(const std::string& value) {
-  
-  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
-}
-inline void GetAccessesRqst::set_subject(std::string&& value) {
-  
-  subject_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.GetAccessesRqst.subject)
-}
-inline void GetAccessesRqst::set_subject(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  
-  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.GetAccessesRqst.subject)
-}
-inline void GetAccessesRqst::set_subject(const char* value,
-    size_t size) {
-  
-  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.GetAccessesRqst.subject)
-}
-inline std::string* GetAccessesRqst::_internal_mutable_subject() {
-  
-  return subject_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* GetAccessesRqst::release_subject() {
-  // @@protoc_insertion_point(field_release:resource.GetAccessesRqst.subject)
-  return subject_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void GetAccessesRqst::set_allocated_subject(std::string* subject) {
-  if (subject != nullptr) {
-    
-  } else {
-    
-  }
-  subject_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), subject,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.GetAccessesRqst.subject)
-}
-
-// .resource.SubjectType type = 2;
-inline void GetAccessesRqst::clear_type() {
-  type_ = 0;
-}
-inline ::resource::SubjectType GetAccessesRqst::_internal_type() const {
-  return static_cast< ::resource::SubjectType >(type_);
-}
-inline ::resource::SubjectType GetAccessesRqst::type() const {
-  // @@protoc_insertion_point(field_get:resource.GetAccessesRqst.type)
-  return _internal_type();
-}
-inline void GetAccessesRqst::_internal_set_type(::resource::SubjectType value) {
-  
-  type_ = value;
-}
-inline void GetAccessesRqst::set_type(::resource::SubjectType value) {
-  _internal_set_type(value);
-  // @@protoc_insertion_point(field_set:resource.GetAccessesRqst.type)
-}
-
-// string path = 3;
-inline void GetAccessesRqst::clear_path() {
-  path_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline const std::string& GetAccessesRqst::path() const {
-  // @@protoc_insertion_point(field_get:resource.GetAccessesRqst.path)
-  return _internal_path();
-}
-inline void GetAccessesRqst::set_path(const std::string& value) {
-  _internal_set_path(value);
-  // @@protoc_insertion_point(field_set:resource.GetAccessesRqst.path)
-}
-inline std::string* GetAccessesRqst::mutable_path() {
-  // @@protoc_insertion_point(field_mutable:resource.GetAccessesRqst.path)
-  return _internal_mutable_path();
-}
-inline const std::string& GetAccessesRqst::_internal_path() const {
-  return path_.Get();
-}
-inline void GetAccessesRqst::_internal_set_path(const std::string& value) {
-  
-  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
-}
-inline void GetAccessesRqst::set_path(std::string&& value) {
-  
-  path_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.GetAccessesRqst.path)
-}
-inline void GetAccessesRqst::set_path(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  
-  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.GetAccessesRqst.path)
-}
-inline void GetAccessesRqst::set_path(const char* value,
-    size_t size) {
-  
-  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.GetAccessesRqst.path)
-}
-inline std::string* GetAccessesRqst::_internal_mutable_path() {
-  
-  return path_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* GetAccessesRqst::release_path() {
-  // @@protoc_insertion_point(field_release:resource.GetAccessesRqst.path)
-  return path_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void GetAccessesRqst::set_allocated_path(std::string* path) {
-  if (path != nullptr) {
-    
-  } else {
-    
-  }
-  path_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), path,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.GetAccessesRqst.path)
-}
-
-// -------------------------------------------------------------------
-
-// GetAccessesRsp
-
-// repeated string accesses = 1;
-inline int GetAccessesRsp::_internal_accesses_size() const {
-  return accesses_.size();
-}
-inline int GetAccessesRsp::accesses_size() const {
-  return _internal_accesses_size();
-}
-inline void GetAccessesRsp::clear_accesses() {
-  accesses_.Clear();
-}
-inline std::string* GetAccessesRsp::add_accesses() {
-  // @@protoc_insertion_point(field_add_mutable:resource.GetAccessesRsp.accesses)
-  return _internal_add_accesses();
-}
-inline const std::string& GetAccessesRsp::_internal_accesses(int index) const {
-  return accesses_.Get(index);
-}
-inline const std::string& GetAccessesRsp::accesses(int index) const {
-  // @@protoc_insertion_point(field_get:resource.GetAccessesRsp.accesses)
-  return _internal_accesses(index);
-}
-inline std::string* GetAccessesRsp::mutable_accesses(int index) {
-  // @@protoc_insertion_point(field_mutable:resource.GetAccessesRsp.accesses)
-  return accesses_.Mutable(index);
-}
-inline void GetAccessesRsp::set_accesses(int index, const std::string& value) {
-  // @@protoc_insertion_point(field_set:resource.GetAccessesRsp.accesses)
-  accesses_.Mutable(index)->assign(value);
-}
-inline void GetAccessesRsp::set_accesses(int index, std::string&& value) {
-  // @@protoc_insertion_point(field_set:resource.GetAccessesRsp.accesses)
-  accesses_.Mutable(index)->assign(std::move(value));
-}
-inline void GetAccessesRsp::set_accesses(int index, const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  accesses_.Mutable(index)->assign(value);
-  // @@protoc_insertion_point(field_set_char:resource.GetAccessesRsp.accesses)
-}
-inline void GetAccessesRsp::set_accesses(int index, const char* value, size_t size) {
-  accesses_.Mutable(index)->assign(
-    reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_set_pointer:resource.GetAccessesRsp.accesses)
-}
-inline std::string* GetAccessesRsp::_internal_add_accesses() {
-  return accesses_.Add();
-}
-inline void GetAccessesRsp::add_accesses(const std::string& value) {
-  accesses_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add:resource.GetAccessesRsp.accesses)
-}
-inline void GetAccessesRsp::add_accesses(std::string&& value) {
-  accesses_.Add(std::move(value));
-  // @@protoc_insertion_point(field_add:resource.GetAccessesRsp.accesses)
-}
-inline void GetAccessesRsp::add_accesses(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  accesses_.Add()->assign(value);
-  // @@protoc_insertion_point(field_add_char:resource.GetAccessesRsp.accesses)
-}
-inline void GetAccessesRsp::add_accesses(const char* value, size_t size) {
-  accesses_.Add()->assign(reinterpret_cast<const char*>(value), size);
-  // @@protoc_insertion_point(field_add_pointer:resource.GetAccessesRsp.accesses)
-}
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
-GetAccessesRsp::accesses() const {
-  // @@protoc_insertion_point(field_list:resource.GetAccessesRsp.accesses)
-  return accesses_;
-}
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
-GetAccessesRsp::mutable_accesses() {
-  // @@protoc_insertion_point(field_mutable_list:resource.GetAccessesRsp.accesses)
-  return &accesses_;
 }
 
 // -------------------------------------------------------------------
@@ -30505,10 +30226,6 @@ inline void ClearAllLogRsp::set_result(bool value) {
 
 // -------------------------------------------------------------------
 
-// -------------------------------------------------------------------
-
-// -------------------------------------------------------------------
-
 
 // @@protoc_insertion_point(namespace_scope)
 
@@ -30516,6 +30233,11 @@ inline void ClearAllLogRsp::set_result(bool value) {
 
 PROTOBUF_NAMESPACE_OPEN
 
+template <> struct is_proto_enum< ::resource::PermissionType> : ::std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor< ::resource::PermissionType>() {
+  return ::resource::PermissionType_descriptor();
+}
 template <> struct is_proto_enum< ::resource::SubjectType> : ::std::true_type {};
 template <>
 inline const EnumDescriptor* GetEnumDescriptor< ::resource::SubjectType>() {

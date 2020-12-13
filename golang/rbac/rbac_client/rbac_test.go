@@ -136,6 +136,14 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
+			&resourcepb.Permission{
+				Name:          "delete",
+				Applications:  []string{},
+				Accounts:      []string{"account_0", "account_1"}, // must not work because of organization_0 is in the list of denied...
+				Groups:        []string{},
+				Peers:         []string{},
+				Organizations: []string{},
+			},
 		},
 		Denied: []*resourcepb.Permission{
 			&resourcepb.Permission{
@@ -146,9 +154,17 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
+			&resourcepb.Permission{
+				Name:          "delete",
+				Applications:  []string{},
+				Accounts:      []string{},
+				Groups:        []string{"group_1"},
+				Peers:         []string{},
+				Organizations: []string{"organization_1"},
+			},
 		},
 		Owners: &resourcepb.Permission{
-			Name:          "read",
+			Name:          "owner", // The name is informative in that particular case.
 			Applications:  []string{},
 			Accounts:      []string{"account_0"},
 			Groups:        []string{},
@@ -199,12 +215,41 @@ func TestValidateAccess(t *testing.T) {
 		t.Fail()
 	}
 
+	// Now I will test remove the ressource owner and play the same action again.
+	err = rbac_client_.RemoveResourceOwner(filePath, "account_0", resourcepb.SubjectType_ACCOUNT)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
 	// Test if the owner has permission event the permission is explicitly specify!
 	hasPermission_3, err := rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "execute", filePath)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+
+	if hasPermission_3 {
+		log.Println("account_0 has the permission to execute " + filePath)
+		t.Fail()
+	} else {
+		log.Println("account_0 has not the permission to execute " + filePath)
+
+	}
+
+	// Put back account_0 in list of owners
+	err = rbac_client_.AddResourceOwner(filePath, "account_0", resourcepb.SubjectType_ACCOUNT)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
+	hasPermission_3, err = rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "execute", filePath)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
 	if hasPermission_3 {
 		log.Println("account_0 has the permission to execute " + filePath)
 	} else {
@@ -241,33 +286,91 @@ func TestValidateAccess(t *testing.T) {
 	if err != nil {
 		log.Println(err)
 	}
+
 	if !hasPermission_4 {
 		log.Println("account_2 has permission denied to read " + filePath)
 	} else {
 		log.Println("account_2 can read  " + filePath)
 		t.Fail()
 	}
+
+	// Test permission denied for orgnization...
+	hasPermission_5, err := rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "delete", filePath)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Here the owner write beat the denied permission.
+	if !hasPermission_5 {
+		log.Println("account_0 has permission denied to delete " + filePath)
+		t.Fail()
+	} else {
+		log.Println("account_0 can delete  " + filePath)
+	}
+
+	// Test permission denied because of account is in denied organisation.
+	hasPermission_6, err := rbac_client_.ValidateAccess("account_1", resourcepb.SubjectType_ACCOUNT, "delete", filePath)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Here the owner write beat the denied permission.
+	if !hasPermission_6 {
+		log.Println("account_1 has permission denied to delete " + filePath)
+
+	} else {
+		log.Println("account_1 can delete  " + filePath)
+		t.Fail()
+	}
+
+	// Now I will try to delete one permission...
+	err = rbac_client_.DeleteResourcePermission(filePath, "execute", resourcepb.PermissionType_ALLOWED)
+	if err != nil {
+		log.Println(err)
+	}
+	hasPermission_3, err = rbac_client_.ValidateAccess("account_1", resourcepb.SubjectType_ACCOUNT, "execute", filePath)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
+	if hasPermission_3 {
+		log.Println("account_1 has the permission to execute " + filePath)
+		t.Fail()
+	} else {
+		log.Println("account_1 has not the permission to execute " + filePath)
+
+	}
+
+	// Here I will try to remove all access ...
+	err = rbac_client_.DeleteAllAccess("account_0", resourcepb.SubjectType_ACCOUNT)
+	if err != nil {
+		log.Println(err)
+	}
+
+	hasPermission_6, err = rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "delete", filePath)
+	if err != nil {
+		log.Println(err)
+	}
+
+	// Here the owner write beat the denied permission.
+	if !hasPermission_6 {
+		log.Println("account_0 dosen't has the permission to delete " + filePath)
+		t.Fail()
+	} else {
+		log.Println("account_0 can delete  " + filePath)
+	}
 }
 
 // Test delete a specific ressource permission...
 func TestDeleteResourcePermissions(t *testing.T) {
-	t.FailNow()
-}
+	filePath := "C:/temp/toto.txt"
 
-func TestDeleteResourcePermission(t *testing.T) {
-	t.FailNow()
-}
-
-func TestAddResourceOwner(t *testing.T) {
-	t.FailNow()
-}
-
-func TestRemoveResourceOwner(t *testing.T) {
-	t.FailNow()
-}
-
-func TestDeleteAllAccess(t *testing.T) {
-	t.FailNow()
+	err := rbac_client_.DeleteResourcePermissions(filePath)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
 }
 
 func TestResetResources(t *testing.T) {

@@ -875,7 +875,6 @@ service LogService {
 	/** Delete a single log entry **/
 	rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
 	
-	
 	/** Delete all log **/
 	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
 }
