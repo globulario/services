@@ -608,6 +608,14 @@ service ResourceService {
 	/** Remove peer action permission **/
 	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
 	
+	/////////////////////////// Rpc Valdisation ////////////////////////////////
+	
+	/** Return the action ressource informations. */
+	rpc GetActionResourceInfos(GetActionResourceInfosRqst) returns(GetActionResourceInfosRsp);
+	
+	/** Validate the actions */
+	rpc ValidateAction(ValidateActionRqst) returns(ValidateActionRsp);
+	
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -730,6 +738,7 @@ enum SubjectType {
 	GROUP= 2;
 	ORGANIZATION = 3;
 	APPLICATION = 4;
+	ROLE = 5;
 }
 	
 message DeleteAllAccessRqst {
@@ -752,7 +761,30 @@ message ValidateAccessRsp {
 	bool result = 1;
 }
 
+message GetActionResourceInfosRqst{
+	string action = 1;
+}
 
+message ResourceInfos {
+	int32 index = 1; // The parameter index.
+	string permission = 2; // The permission name, read, write, ect...
+	string path = 3; // The resource path (use by ValidateActionRsp)
+}
+
+message GetActionResourceInfosRsp{
+	repeated ResourceInfos infos = 1;
+}
+
+message ValidateActionRqst {
+	string subject = 1;
+	SubjectType type = 2;
+	string action = 3; // The Action path (grpc path)
+	repeated ResourceInfos infos = 4; // The resource information associated with the rpc call.
+}
+
+message ValidateActionRsp {
+	bool result = 1;
+}
 
 /**
  * The service to control action and resource access.
@@ -786,7 +818,7 @@ service RbacService {
 	/** That function must be call when a subject is removed to clean up permissions. */
 	rpc DeleteAllAccess(DeleteAllAccessRqst) returns (DeleteAllAccessRsp);
 	
-	/** Validate if a user can get access to a given Resource for a given operation (read, write...) **/
+	/** Validate if a user can get access to a given Resource for a given operation (read, write...) */
 	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp);
 	
 }
