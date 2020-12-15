@@ -18,9 +18,9 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // Service Discovery Client
 ////////////////////////////////////////////////////////////////////////////////
-type ServicesDiscovery_Client struct {
+type PackagesDiscovery_Client struct {
 	cc *grpc.ClientConn
-	c  servicespb.ServiceDiscoveryClient
+	c  servicespb.PackageDiscoveryClient
 
 	// The id of the service
 	id string
@@ -48,8 +48,8 @@ type ServicesDiscovery_Client struct {
 }
 
 // Create a connection to the service.
-func NewServicesDiscoveryService_Client(address string, id string) (*ServicesDiscovery_Client, error) {
-	client := new(ServicesDiscovery_Client)
+func NewPackagesDiscoveryService_Client(address string, id string) (*PackagesDiscovery_Client, error) {
+	client := new(PackagesDiscovery_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
 		return nil, err
@@ -60,12 +60,12 @@ func NewServicesDiscoveryService_Client(address string, id string) (*ServicesDis
 		return nil, err
 	}
 
-	client.c = servicespb.NewServiceDiscoveryClient(client.cc)
+	client.c = servicespb.NewPackageDiscoveryClient(client.cc)
 
 	return client, nil
 }
 
-func (self *ServicesDiscovery_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (self *PackagesDiscovery_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = globular.GetClientContext(self)
 	}
@@ -73,89 +73,89 @@ func (self *ServicesDiscovery_Client) Invoke(method string, rqst interface{}, ct
 }
 
 // Return the ipv4 address
-func (self *ServicesDiscovery_Client) GetAddress() string {
+func (self *PackagesDiscovery_Client) GetAddress() string {
 	return self.domain + ":" + strconv.Itoa(self.port)
 }
 
 // Return the domain
-func (self *ServicesDiscovery_Client) GetDomain() string {
+func (self *PackagesDiscovery_Client) GetDomain() string {
 	return self.domain
 }
 
 // Return the id of the service instance
-func (self *ServicesDiscovery_Client) GetId() string {
+func (self *PackagesDiscovery_Client) GetId() string {
 	return self.id
 }
 
 // Return the name of the service
-func (self *ServicesDiscovery_Client) GetName() string {
+func (self *PackagesDiscovery_Client) GetName() string {
 	return self.name
 }
 
 // must be close when no more needed.
-func (self *ServicesDiscovery_Client) Close() {
+func (self *PackagesDiscovery_Client) Close() {
 	self.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *ServicesDiscovery_Client) SetPort(port int) {
+func (self *PackagesDiscovery_Client) SetPort(port int) {
 	self.port = port
 }
 
 // Set the client name.
-func (self *ServicesDiscovery_Client) SetId(id string) {
+func (self *PackagesDiscovery_Client) SetId(id string) {
 	self.id = id
 }
 
 // Set the client name.
-func (self *ServicesDiscovery_Client) SetName(name string) {
+func (self *PackagesDiscovery_Client) SetName(name string) {
 	self.name = name
 }
 
 // Set the domain.
-func (self *ServicesDiscovery_Client) SetDomain(domain string) {
+func (self *PackagesDiscovery_Client) SetDomain(domain string) {
 	self.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *ServicesDiscovery_Client) HasTLS() bool {
+func (self *PackagesDiscovery_Client) HasTLS() bool {
 	return self.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *ServicesDiscovery_Client) GetCertFile() string {
+func (self *PackagesDiscovery_Client) GetCertFile() string {
 	return self.certFile
 }
 
 // Get the TLS key file path
-func (self *ServicesDiscovery_Client) GetKeyFile() string {
+func (self *PackagesDiscovery_Client) GetKeyFile() string {
 	return self.keyFile
 }
 
 // Get the TLS key file path
-func (self *ServicesDiscovery_Client) GetCaFile() string {
+func (self *PackagesDiscovery_Client) GetCaFile() string {
 	return self.caFile
 }
 
 // Set the client is a secure client.
-func (self *ServicesDiscovery_Client) SetTLS(hasTls bool) {
+func (self *PackagesDiscovery_Client) SetTLS(hasTls bool) {
 	self.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *ServicesDiscovery_Client) SetCertFile(certFile string) {
+func (self *PackagesDiscovery_Client) SetCertFile(certFile string) {
 	self.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *ServicesDiscovery_Client) SetKeyFile(keyFile string) {
+func (self *PackagesDiscovery_Client) SetKeyFile(keyFile string) {
 	self.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *ServicesDiscovery_Client) SetCaFile(caFile string) {
+func (self *PackagesDiscovery_Client) SetCaFile(caFile string) {
 	self.caFile = caFile
 }
 
@@ -164,11 +164,11 @@ func (self *ServicesDiscovery_Client) SetCaFile(caFile string) {
 /**
  * Find a services by keywords.
  */
-func (self *ServicesDiscovery_Client) FindServices(keywords []string) ([]*servicespb.ServiceDescriptor, error) {
-	rqst := new(servicespb.FindServicesDescriptorRequest)
+func (self *PackagesDiscovery_Client) FindServices(keywords []string) ([]*servicespb.PackageDescriptor, error) {
+	rqst := new(servicespb.FindPackagesDescriptorRequest)
 	rqst.Keywords = keywords
 
-	rsp, err := self.c.FindServices(globular.GetClientContext(self), rqst)
+	rsp, err := self.c.FindPackages(globular.GetClientContext(self), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -179,13 +179,13 @@ func (self *ServicesDiscovery_Client) FindServices(keywords []string) ([]*servic
 /**
  * Get list of service descriptor for one service with  various version.
  */
-func (self *ServicesDiscovery_Client) GetServiceDescriptor(service_id string, publisher_id string) ([]*servicespb.ServiceDescriptor, error) {
-	rqst := &servicespb.GetServiceDescriptorRequest{
+func (self *PackagesDiscovery_Client) GetPackageDescriptor(service_id string, publisher_id string) ([]*servicespb.PackageDescriptor, error) {
+	rqst := &servicespb.GetPackageDescriptorRequest{
 		ServiceId:   service_id,
 		PublisherId: publisher_id,
 	}
 
-	rsp, err := self.c.GetServiceDescriptor(globular.GetClientContext(self), rqst)
+	rsp, err := self.c.GetPackageDescriptor(globular.GetClientContext(self), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -196,11 +196,11 @@ func (self *ServicesDiscovery_Client) GetServiceDescriptor(service_id string, pu
 /**
  * Get a list of all services descriptor for a given server.
  */
-func (self *ServicesDiscovery_Client) GetServicesDescriptor() ([]*servicespb.ServiceDescriptor, error) {
-	descriptors := make([]*servicespb.ServiceDescriptor, 0)
-	rqst := &servicespb.GetServicesDescriptorRequest{}
+func (self *PackagesDiscovery_Client) GetPackagesDescriptorDescriptor() ([]*servicespb.PackageDescriptor, error) {
+	descriptors := make([]*servicespb.PackageDescriptor, 0)
+	rqst := &servicespb.GetPackagesDescriptorRequest{}
 
-	stream, err := self.c.GetServicesDescriptor(globular.GetClientContext(self), rqst)
+	stream, err := self.c.GetPackagesDescriptor(globular.GetClientContext(self), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -226,12 +226,12 @@ func (self *ServicesDiscovery_Client) GetServicesDescriptor() ([]*servicespb.Ser
 }
 
 /** Publish a service to service discovery **/
-func (self *ServicesDiscovery_Client) PublishServiceDescriptor(descriptor *servicespb.ServiceDescriptor) error {
-	rqst := new(servicespb.PublishServiceDescriptorRequest)
+func (self *PackagesDiscovery_Client) PublishPackageDescriptor(descriptor *servicespb.PackageDescriptor) error {
+	rqst := new(servicespb.PublishPackageDescriptorRequest)
 	rqst.Descriptor_ = descriptor
 
 	// publish a service descriptor on the network.
-	_, err := self.c.PublishServiceDescriptor(globular.GetClientContext(self), rqst)
+	_, err := self.c.PublishPackageDescriptor(globular.GetClientContext(self), rqst)
 
 	return err
 }
@@ -241,7 +241,7 @@ func (self *ServicesDiscovery_Client) PublishServiceDescriptor(descriptor *servi
 ////////////////////////////////////////////////////////////////////////////////
 type ServicesRepository_Client struct {
 	cc *grpc.ClientConn
-	c  servicespb.ServiceRepositoryClient
+	c  servicespb.PackageRepositoryClient
 
 	// The id of the service
 	id string
@@ -281,7 +281,7 @@ func NewServicesRepositoryService_Client(address string, id string) (*ServicesRe
 		return nil, err
 	}
 
-	client.c = servicespb.NewServiceRepositoryClient(client.cc)
+	client.c = servicespb.NewPackageRepositoryClient(client.cc)
 	return client, nil
 }
 
@@ -384,7 +384,7 @@ func (self *ServicesRepository_Client) SetCaFile(caFile string) {
 /**
  * Download bundle from a repository and return it as an object in memory.
  */
-func (self *ServicesRepository_Client) DownloadBundle(descriptor *servicespb.ServiceDescriptor, platform string) (*servicespb.ServiceBundle, error) {
+func (self *ServicesRepository_Client) DownloadBundle(descriptor *servicespb.PackageDescriptor, platform string) (*servicespb.ServiceBundle, error) {
 
 	rqst := &servicespb.DownloadBundleRequest{
 		Descriptor_: descriptor,
@@ -435,12 +435,12 @@ func (self *ServicesRepository_Client) UploadBundle(discoveryId string, serviceI
 	bundle.Plaform = platform
 
 	// Here I will find the service descriptor from the given information.
-	discoveryService, err := NewServicesDiscoveryService_Client(discoveryId, "services.ServiceDiscovery")
+	discoveryService, err := NewPackagesDiscoveryService_Client(discoveryId, "services.PackageDiscovery")
 	if err != nil {
 		return err
 	}
 
-	descriptors, err := discoveryService.GetServiceDescriptor(serviceId, publisherId)
+	descriptors, err := discoveryService.GetPackageDescriptor(serviceId, publisherId)
 	if err != nil {
 		return err
 	}

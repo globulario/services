@@ -73,395 +73,395 @@ proto.services.ServiceDiscoveryPromiseClient =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.services.FindServicesDescriptorRequest,
- *   !proto.services.FindServicesDescriptorResponse>}
+ *   !proto.services.FindPackagesDescriptorRequest,
+ *   !proto.services.FindPackagesDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_FindServices = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/FindServices',
+const methodDescriptor_ServiceDiscovery_FindPackages = new grpc.web.MethodDescriptor(
+  '/services.ServiceDiscovery/FindPackages',
   grpc.web.MethodType.UNARY,
-  proto.services.FindServicesDescriptorRequest,
-  proto.services.FindServicesDescriptorResponse,
+  proto.services.FindPackagesDescriptorRequest,
+  proto.services.FindPackagesDescriptorResponse,
   /**
-   * @param {!proto.services.FindServicesDescriptorRequest} request
+   * @param {!proto.services.FindPackagesDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.FindServicesDescriptorResponse.deserializeBinary
+  proto.services.FindPackagesDescriptorResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services.FindServicesDescriptorRequest,
- *   !proto.services.FindServicesDescriptorResponse>}
+ *   !proto.services.FindPackagesDescriptorRequest,
+ *   !proto.services.FindPackagesDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_FindServices = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services.FindServicesDescriptorResponse,
+const methodInfo_ServiceDiscovery_FindPackages = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.services.FindPackagesDescriptorResponse,
   /**
-   * @param {!proto.services.FindServicesDescriptorRequest} request
+   * @param {!proto.services.FindPackagesDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.FindServicesDescriptorResponse.deserializeBinary
+  proto.services.FindPackagesDescriptorResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.services.FindServicesDescriptorRequest} request The
+ * @param {!proto.services.FindPackagesDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services.FindServicesDescriptorResponse)}
+ * @param {function(?grpc.web.Error, ?proto.services.FindPackagesDescriptorResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.services.FindServicesDescriptorResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.services.FindPackagesDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.findServices =
+proto.services.ServiceDiscoveryClient.prototype.findPackages =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/FindServices',
+      '/services.ServiceDiscovery/FindPackages',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_FindServices,
+      methodDescriptor_ServiceDiscovery_FindPackages,
       callback);
 };
 
 
 /**
- * @param {!proto.services.FindServicesDescriptorRequest} request The
+ * @param {!proto.services.FindPackagesDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.services.FindServicesDescriptorResponse>}
- *     Promise that resolves to the response
+ * @return {!Promise<!proto.services.FindPackagesDescriptorResponse>}
+ *     A native promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.findServices =
+proto.services.ServiceDiscoveryPromiseClient.prototype.findPackages =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/FindServices',
+      '/services.ServiceDiscovery/FindPackages',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_FindServices);
+      methodDescriptor_ServiceDiscovery_FindPackages);
 };
 
 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.services.GetServiceDescriptorRequest,
- *   !proto.services.GetServiceDescriptorResponse>}
+ *   !proto.services.GetPackageDescriptorRequest,
+ *   !proto.services.GetPackageDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_GetServiceDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/GetServiceDescriptor',
+const methodDescriptor_ServiceDiscovery_GetPackageDescriptor = new grpc.web.MethodDescriptor(
+  '/services.ServiceDiscovery/GetPackageDescriptor',
   grpc.web.MethodType.UNARY,
-  proto.services.GetServiceDescriptorRequest,
-  proto.services.GetServiceDescriptorResponse,
+  proto.services.GetPackageDescriptorRequest,
+  proto.services.GetPackageDescriptorResponse,
   /**
-   * @param {!proto.services.GetServiceDescriptorRequest} request
+   * @param {!proto.services.GetPackageDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.GetServiceDescriptorResponse.deserializeBinary
+  proto.services.GetPackageDescriptorResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services.GetServiceDescriptorRequest,
- *   !proto.services.GetServiceDescriptorResponse>}
+ *   !proto.services.GetPackageDescriptorRequest,
+ *   !proto.services.GetPackageDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_GetServiceDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services.GetServiceDescriptorResponse,
+const methodInfo_ServiceDiscovery_GetPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.services.GetPackageDescriptorResponse,
   /**
-   * @param {!proto.services.GetServiceDescriptorRequest} request
+   * @param {!proto.services.GetPackageDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.GetServiceDescriptorResponse.deserializeBinary
+  proto.services.GetPackageDescriptorResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.services.GetServiceDescriptorRequest} request The
+ * @param {!proto.services.GetPackageDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services.GetServiceDescriptorResponse)}
+ * @param {function(?grpc.web.Error, ?proto.services.GetPackageDescriptorResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.services.GetServiceDescriptorResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.services.GetPackageDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.getServiceDescriptor =
+proto.services.ServiceDiscoveryClient.prototype.getPackageDescriptor =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/GetServiceDescriptor',
+      '/services.ServiceDiscovery/GetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetServiceDescriptor,
+      methodDescriptor_ServiceDiscovery_GetPackageDescriptor,
       callback);
 };
 
 
 /**
- * @param {!proto.services.GetServiceDescriptorRequest} request The
+ * @param {!proto.services.GetPackageDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.services.GetServiceDescriptorResponse>}
- *     Promise that resolves to the response
+ * @return {!Promise<!proto.services.GetPackageDescriptorResponse>}
+ *     A native promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.getServiceDescriptor =
+proto.services.ServiceDiscoveryPromiseClient.prototype.getPackageDescriptor =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/GetServiceDescriptor',
+      '/services.ServiceDiscovery/GetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetServiceDescriptor);
+      methodDescriptor_ServiceDiscovery_GetPackageDescriptor);
 };
 
 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.services.GetServicesDescriptorRequest,
- *   !proto.services.GetServicesDescriptorResponse>}
+ *   !proto.services.GetPackagesDescriptorRequest,
+ *   !proto.services.GetPackagesDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_GetServicesDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/GetServicesDescriptor',
+const methodDescriptor_ServiceDiscovery_GetPackagesDescriptor = new grpc.web.MethodDescriptor(
+  '/services.ServiceDiscovery/GetPackagesDescriptor',
   grpc.web.MethodType.SERVER_STREAMING,
-  proto.services.GetServicesDescriptorRequest,
-  proto.services.GetServicesDescriptorResponse,
+  proto.services.GetPackagesDescriptorRequest,
+  proto.services.GetPackagesDescriptorResponse,
   /**
-   * @param {!proto.services.GetServicesDescriptorRequest} request
+   * @param {!proto.services.GetPackagesDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.GetServicesDescriptorResponse.deserializeBinary
+  proto.services.GetPackagesDescriptorResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services.GetServicesDescriptorRequest,
- *   !proto.services.GetServicesDescriptorResponse>}
+ *   !proto.services.GetPackagesDescriptorRequest,
+ *   !proto.services.GetPackagesDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_GetServicesDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services.GetServicesDescriptorResponse,
+const methodInfo_ServiceDiscovery_GetPackagesDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.services.GetPackagesDescriptorResponse,
   /**
-   * @param {!proto.services.GetServicesDescriptorRequest} request
+   * @param {!proto.services.GetPackagesDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.GetServicesDescriptorResponse.deserializeBinary
+  proto.services.GetPackagesDescriptorResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.services.GetServicesDescriptorRequest} request The request proto
+ * @param {!proto.services.GetPackagesDescriptorRequest} request The request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!grpc.web.ClientReadableStream<!proto.services.GetServicesDescriptorResponse>}
+ * @return {!grpc.web.ClientReadableStream<!proto.services.GetPackagesDescriptorResponse>}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.getServicesDescriptor =
+proto.services.ServiceDiscoveryClient.prototype.getPackagesDescriptor =
     function(request, metadata) {
   return this.client_.serverStreaming(this.hostname_ +
-      '/services.ServiceDiscovery/GetServicesDescriptor',
+      '/services.ServiceDiscovery/GetPackagesDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetServicesDescriptor);
+      methodDescriptor_ServiceDiscovery_GetPackagesDescriptor);
 };
 
 
 /**
- * @param {!proto.services.GetServicesDescriptorRequest} request The request proto
+ * @param {!proto.services.GetPackagesDescriptorRequest} request The request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!grpc.web.ClientReadableStream<!proto.services.GetServicesDescriptorResponse>}
+ * @return {!grpc.web.ClientReadableStream<!proto.services.GetPackagesDescriptorResponse>}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.getServicesDescriptor =
+proto.services.ServiceDiscoveryPromiseClient.prototype.getPackagesDescriptor =
     function(request, metadata) {
   return this.client_.serverStreaming(this.hostname_ +
-      '/services.ServiceDiscovery/GetServicesDescriptor',
+      '/services.ServiceDiscovery/GetPackagesDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetServicesDescriptor);
+      methodDescriptor_ServiceDiscovery_GetPackagesDescriptor);
 };
 
 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.services.SetServiceDescriptorRequest,
- *   !proto.services.SetServiceDescriptorResponse>}
+ *   !proto.services.SetPackageDescriptorRequest,
+ *   !proto.services.SetPackageDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_SetServiceDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/SetServiceDescriptor',
+const methodDescriptor_ServiceDiscovery_SetPackageDescriptor = new grpc.web.MethodDescriptor(
+  '/services.ServiceDiscovery/SetPackageDescriptor',
   grpc.web.MethodType.UNARY,
-  proto.services.SetServiceDescriptorRequest,
-  proto.services.SetServiceDescriptorResponse,
+  proto.services.SetPackageDescriptorRequest,
+  proto.services.SetPackageDescriptorResponse,
   /**
-   * @param {!proto.services.SetServiceDescriptorRequest} request
+   * @param {!proto.services.SetPackageDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.SetServiceDescriptorResponse.deserializeBinary
+  proto.services.SetPackageDescriptorResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services.SetServiceDescriptorRequest,
- *   !proto.services.SetServiceDescriptorResponse>}
+ *   !proto.services.SetPackageDescriptorRequest,
+ *   !proto.services.SetPackageDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_SetServiceDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services.SetServiceDescriptorResponse,
+const methodInfo_ServiceDiscovery_SetPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.services.SetPackageDescriptorResponse,
   /**
-   * @param {!proto.services.SetServiceDescriptorRequest} request
+   * @param {!proto.services.SetPackageDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.SetServiceDescriptorResponse.deserializeBinary
+  proto.services.SetPackageDescriptorResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.services.SetServiceDescriptorRequest} request The
+ * @param {!proto.services.SetPackageDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services.SetServiceDescriptorResponse)}
+ * @param {function(?grpc.web.Error, ?proto.services.SetPackageDescriptorResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.services.SetServiceDescriptorResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.services.SetPackageDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.setServiceDescriptor =
+proto.services.ServiceDiscoveryClient.prototype.setPackageDescriptor =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/SetServiceDescriptor',
+      '/services.ServiceDiscovery/SetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_SetServiceDescriptor,
+      methodDescriptor_ServiceDiscovery_SetPackageDescriptor,
       callback);
 };
 
 
 /**
- * @param {!proto.services.SetServiceDescriptorRequest} request The
+ * @param {!proto.services.SetPackageDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.services.SetServiceDescriptorResponse>}
- *     Promise that resolves to the response
+ * @return {!Promise<!proto.services.SetPackageDescriptorResponse>}
+ *     A native promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.setServiceDescriptor =
+proto.services.ServiceDiscoveryPromiseClient.prototype.setPackageDescriptor =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/SetServiceDescriptor',
+      '/services.ServiceDiscovery/SetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_SetServiceDescriptor);
+      methodDescriptor_ServiceDiscovery_SetPackageDescriptor);
 };
 
 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.services.PublishServiceDescriptorRequest,
- *   !proto.services.PublishServiceDescriptorResponse>}
+ *   !proto.services.PublishPackageDescriptorRequest,
+ *   !proto.services.PublishPackageDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_PublishServiceDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/PublishServiceDescriptor',
+const methodDescriptor_ServiceDiscovery_PublishPackageDescriptor = new grpc.web.MethodDescriptor(
+  '/services.ServiceDiscovery/PublishPackageDescriptor',
   grpc.web.MethodType.UNARY,
-  proto.services.PublishServiceDescriptorRequest,
-  proto.services.PublishServiceDescriptorResponse,
+  proto.services.PublishPackageDescriptorRequest,
+  proto.services.PublishPackageDescriptorResponse,
   /**
-   * @param {!proto.services.PublishServiceDescriptorRequest} request
+   * @param {!proto.services.PublishPackageDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.PublishServiceDescriptorResponse.deserializeBinary
+  proto.services.PublishPackageDescriptorResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services.PublishServiceDescriptorRequest,
- *   !proto.services.PublishServiceDescriptorResponse>}
+ *   !proto.services.PublishPackageDescriptorRequest,
+ *   !proto.services.PublishPackageDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_PublishServiceDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services.PublishServiceDescriptorResponse,
+const methodInfo_ServiceDiscovery_PublishPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.services.PublishPackageDescriptorResponse,
   /**
-   * @param {!proto.services.PublishServiceDescriptorRequest} request
+   * @param {!proto.services.PublishPackageDescriptorRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.services.PublishServiceDescriptorResponse.deserializeBinary
+  proto.services.PublishPackageDescriptorResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.services.PublishServiceDescriptorRequest} request The
+ * @param {!proto.services.PublishPackageDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services.PublishServiceDescriptorResponse)}
+ * @param {function(?grpc.web.Error, ?proto.services.PublishPackageDescriptorResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.services.PublishServiceDescriptorResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.services.PublishPackageDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.publishServiceDescriptor =
+proto.services.ServiceDiscoveryClient.prototype.publishPackageDescriptor =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/PublishServiceDescriptor',
+      '/services.ServiceDiscovery/PublishPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_PublishServiceDescriptor,
+      methodDescriptor_ServiceDiscovery_PublishPackageDescriptor,
       callback);
 };
 
 
 /**
- * @param {!proto.services.PublishServiceDescriptorRequest} request The
+ * @param {!proto.services.PublishPackageDescriptorRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.services.PublishServiceDescriptorResponse>}
- *     Promise that resolves to the response
+ * @return {!Promise<!proto.services.PublishPackageDescriptorResponse>}
+ *     A native promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.publishServiceDescriptor =
+proto.services.ServiceDiscoveryPromiseClient.prototype.publishPackageDescriptor =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/PublishServiceDescriptor',
+      '/services.ServiceDiscovery/PublishPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_PublishServiceDescriptor);
+      methodDescriptor_ServiceDiscovery_PublishPackageDescriptor);
 };
 
 

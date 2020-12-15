@@ -152,6 +152,28 @@ message UninstallServiceResponse{
 	bool result = 1;
 }
 
+message InstallApplicationRequest{
+	string dicorveryId = 1;
+	string applicationId = 2;
+	string publisherId = 3;
+	string version = 4;
+}
+
+message InstallApplicationResponse{
+	bool result = 1;
+}
+
+message UninstallApplicationRequest{
+	string applicationId = 1;
+	string publisherId = 2;
+	string version = 3;
+	bool deletePermissions = 4;
+}
+
+message UninstallApplicationResponse{
+	bool result = 1;
+}
+
 message DeployApplicationRequest{
 	string name = 1;
 	string domain = 2;
@@ -210,8 +232,14 @@ service AdminService {
   // as exemple MongoDB and Prometheus.
   rpc RegisterExternalApplication(RegisterExternalApplicationRequest) returns (RegisterExternalApplicationResponse);
 
-  // Deloyed a web application to a globular node.
+  // Deloyed a web application to a globular node. That must be use at development mostly...
   rpc DeployApplication(stream DeployApplicationRequest) returns (DeployApplicationResponse);
+
+  // Install application...
+  rpc InstallApplication(InstallApplicationRequest) returns (InstallApplicationResponse);
+
+  // Uninstall application...
+  rpc UninstallApplication(UninstallApplicationRequest) returns (UninstallApplicationResponse);
 
   // Test if a process of given name is running...
   rpc HasRunningProcess(HasRunningProcessRequest) returns(HasRunningProcessResponse);

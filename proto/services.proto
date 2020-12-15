@@ -6,22 +6,31 @@ package services;
 
 option go_package="services/servicespb";
 
-/** Description of the service **/
-message ServiceDescriptor {
+enum PackageType {
+	SERVICE = 0;
+	APPLICATION = 1;
+}
+
+/**
+ * A package can contain Service or Application. The type will be use to dertmine 
+ * what the package contain.
+ */
+message PackageDescriptor {
 	string id = 1;
 	string name = 2;
-	string publisherId = 3;
-	string version = 4;
-	string description = 5;
-	repeated string repositories = 6; // The list of repositories that has the services
-	repeated string discoveries = 7; // The list of dicoveries that has the services
-	repeated string keywords = 8;
+	PackageType type = 3;
+	string publisherId = 4; // Cam be Organization or Account.
+	string version = 5;
+	string description = 6;
+	repeated string repositories = 7; // The list of repositories that has the services
+	repeated string discoveries = 8; // The list of dicoveries that has the services
+	repeated string keywords = 9;
 }
 
 
 /** That message will contain the information to update a service on a node. **/
 message ServiceBundle {
-	ServiceDescriptor descriptor = 1;
+	PackageDescriptor descriptor = 1;
 	string buildNumber = 2;
 	string plaform = 3;
 	
@@ -29,11 +38,11 @@ message ServiceBundle {
 	bytes binairies = 4;
 }
 
-message PublishServiceDescriptorRequest {
-	ServiceDescriptor descriptor = 1;
+message PublishPackageDescriptorRequest {
+	PackageDescriptor descriptor = 1;
 }
 
-message PublishServiceDescriptorResponse {
+message PublishPackageDescriptorResponse {
 	bool result = 1;
 }
 
@@ -46,7 +55,7 @@ message UploadBundleResponse {
 }
 
 message DownloadBundleRequest {
-	ServiceDescriptor descriptor = 1;
+	PackageDescriptor descriptor = 1;
 	string plaform = 2;
 }
 
@@ -54,61 +63,62 @@ message DownloadBundleResponse {
 	bytes data = 1;
 }
 
-message GetServiceDescriptorRequest {
+message GetPackageDescriptorRequest {
 	string serviceId = 1;
 	string publisherId = 2;
 }
 
-message GetServiceDescriptorResponse {
+message GetPackageDescriptorResponse {
 	// Return one of more service descriptor with various versions.
-	repeated ServiceDescriptor results = 1;
+	repeated PackageDescriptor results = 1;
 }
 
-message GetServicesDescriptorRequest {
+message GetPackagesDescriptorRequest {
 	string query = 1;
 }
 
-message GetServicesDescriptorResponse {
-	repeated ServiceDescriptor results = 1;
+message GetPackagesDescriptorResponse {
+	repeated PackageDescriptor results = 1;
 }
 
-message SetServiceDescriptorRequest {
-	ServiceDescriptor descriptor = 1;
+message SetPackageDescriptorRequest {
+	PackageDescriptor descriptor = 1;
 }
 
-message SetServiceDescriptorResponse {
+message SetPackageDescriptorResponse {
 	bool result = 1;
 }
 
-message FindServicesDescriptorRequest {
+message FindPackagesDescriptorRequest {
 	repeated string keywords = 1;
 }
 
-message FindServicesDescriptorResponse {
-	repeated ServiceDescriptor results = 1;
+message FindPackagesDescriptorResponse {
+	repeated PackageDescriptor results = 1;
 }
 
 /** functionality to retreive a service **/
-service ServiceDiscovery {
+service PackageDiscovery {
+	
 	/** Search service by keywords **/
-	rpc FindServices(FindServicesDescriptorRequest) returns (FindServicesDescriptorResponse);
+	rpc FindPackages(FindPackagesDescriptorRequest) returns (FindPackagesDescriptorResponse);
 	
 	/** Return the list of all services **/
-	rpc GetServiceDescriptor(GetServiceDescriptorRequest) returns ( GetServiceDescriptorResponse);
+	rpc GetPackageDescriptor(GetPackageDescriptorRequest) returns ( GetPackageDescriptorResponse);
 	
 	/** Return the list of all services **/
-	rpc GetServicesDescriptor(GetServicesDescriptorRequest) returns(stream GetServicesDescriptorResponse);
+	rpc GetPackagesDescriptor(GetPackagesDescriptorRequest) returns(stream GetPackagesDescriptorResponse);
 	
 	/** Save a service descriptor **/
-	rpc SetServiceDescriptor(SetServiceDescriptorRequest) returns(SetServiceDescriptorResponse);
+	rpc SetPackageDescriptor(SetPackageDescriptorRequest) returns(SetPackageDescriptorResponse);
 	
 	/** Publish a service to service discovery **/
-	rpc PublishServiceDescriptor(PublishServiceDescriptorRequest) returns(PublishServiceDescriptorResponse);
+	rpc PublishPackageDescriptor(PublishPackageDescriptorRequest) returns(PublishPackageDescriptorResponse);
 	
 }
 
 /** functionality to download/upload a service **/
-service ServiceRepository {
+service PackageRepository {
 	/** Download a service from a service directory **/
 	rpc DownloadBundle(DownloadBundleRequest) returns(stream DownloadBundleResponse);
 	
