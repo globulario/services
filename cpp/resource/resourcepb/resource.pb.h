@@ -48,7 +48,7 @@ struct TableStruct_resource_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxiliaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[124]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[129]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -218,6 +218,12 @@ extern DeleteRoleRqstDefaultTypeInternal _DeleteRoleRqst_default_instance_;
 class DeleteRoleRsp;
 class DeleteRoleRspDefaultTypeInternal;
 extern DeleteRoleRspDefaultTypeInternal _DeleteRoleRsp_default_instance_;
+class GetActionResourceInfosRqst;
+class GetActionResourceInfosRqstDefaultTypeInternal;
+extern GetActionResourceInfosRqstDefaultTypeInternal _GetActionResourceInfosRqst_default_instance_;
+class GetActionResourceInfosRsp;
+class GetActionResourceInfosRspDefaultTypeInternal;
+extern GetActionResourceInfosRspDefaultTypeInternal _GetActionResourceInfosRsp_default_instance_;
 class GetAllActionsRqst;
 class GetAllActionsRqstDefaultTypeInternal;
 extern GetAllActionsRqstDefaultTypeInternal _GetAllActionsRqst_default_instance_;
@@ -386,6 +392,9 @@ extern ResetLogMethodRqstDefaultTypeInternal _ResetLogMethodRqst_default_instanc
 class ResetLogMethodRsp;
 class ResetLogMethodRspDefaultTypeInternal;
 extern ResetLogMethodRspDefaultTypeInternal _ResetLogMethodRsp_default_instance_;
+class ResourceInfos;
+class ResourceInfosDefaultTypeInternal;
+extern ResourceInfosDefaultTypeInternal _ResourceInfos_default_instance_;
 class Role;
 class RoleDefaultTypeInternal;
 extern RoleDefaultTypeInternal _Role_default_instance_;
@@ -422,6 +431,12 @@ extern ValidateAccessRqstDefaultTypeInternal _ValidateAccessRqst_default_instanc
 class ValidateAccessRsp;
 class ValidateAccessRspDefaultTypeInternal;
 extern ValidateAccessRspDefaultTypeInternal _ValidateAccessRsp_default_instance_;
+class ValidateActionRqst;
+class ValidateActionRqstDefaultTypeInternal;
+extern ValidateActionRqstDefaultTypeInternal _ValidateActionRqst_default_instance_;
+class ValidateActionRsp;
+class ValidateActionRspDefaultTypeInternal;
+extern ValidateActionRspDefaultTypeInternal _ValidateActionRsp_default_instance_;
 class ValidateTokenRqst;
 class ValidateTokenRqstDefaultTypeInternal;
 extern ValidateTokenRqstDefaultTypeInternal _ValidateTokenRqst_default_instance_;
@@ -484,6 +499,8 @@ template<> ::resource::DeleteResourcePermissionsRqst* Arena::CreateMaybeMessage<
 template<> ::resource::DeleteResourcePermissionsRsp* Arena::CreateMaybeMessage<::resource::DeleteResourcePermissionsRsp>(Arena*);
 template<> ::resource::DeleteRoleRqst* Arena::CreateMaybeMessage<::resource::DeleteRoleRqst>(Arena*);
 template<> ::resource::DeleteRoleRsp* Arena::CreateMaybeMessage<::resource::DeleteRoleRsp>(Arena*);
+template<> ::resource::GetActionResourceInfosRqst* Arena::CreateMaybeMessage<::resource::GetActionResourceInfosRqst>(Arena*);
+template<> ::resource::GetActionResourceInfosRsp* Arena::CreateMaybeMessage<::resource::GetActionResourceInfosRsp>(Arena*);
 template<> ::resource::GetAllActionsRqst* Arena::CreateMaybeMessage<::resource::GetAllActionsRqst>(Arena*);
 template<> ::resource::GetAllActionsRsp* Arena::CreateMaybeMessage<::resource::GetAllActionsRsp>(Arena*);
 template<> ::resource::GetAllApplicationsInfoRqst* Arena::CreateMaybeMessage<::resource::GetAllApplicationsInfoRqst>(Arena*);
@@ -540,6 +557,7 @@ template<> ::resource::RemoveRoleActionRqst* Arena::CreateMaybeMessage<::resourc
 template<> ::resource::RemoveRoleActionRsp* Arena::CreateMaybeMessage<::resource::RemoveRoleActionRsp>(Arena*);
 template<> ::resource::ResetLogMethodRqst* Arena::CreateMaybeMessage<::resource::ResetLogMethodRqst>(Arena*);
 template<> ::resource::ResetLogMethodRsp* Arena::CreateMaybeMessage<::resource::ResetLogMethodRsp>(Arena*);
+template<> ::resource::ResourceInfos* Arena::CreateMaybeMessage<::resource::ResourceInfos>(Arena*);
 template<> ::resource::Role* Arena::CreateMaybeMessage<::resource::Role>(Arena*);
 template<> ::resource::SetLogMethodRqst* Arena::CreateMaybeMessage<::resource::SetLogMethodRqst>(Arena*);
 template<> ::resource::SetLogMethodRsp* Arena::CreateMaybeMessage<::resource::SetLogMethodRsp>(Arena*);
@@ -552,6 +570,8 @@ template<> ::resource::SynchronizeLdapRsp* Arena::CreateMaybeMessage<::resource:
 template<> ::resource::UserSyncInfos* Arena::CreateMaybeMessage<::resource::UserSyncInfos>(Arena*);
 template<> ::resource::ValidateAccessRqst* Arena::CreateMaybeMessage<::resource::ValidateAccessRqst>(Arena*);
 template<> ::resource::ValidateAccessRsp* Arena::CreateMaybeMessage<::resource::ValidateAccessRsp>(Arena*);
+template<> ::resource::ValidateActionRqst* Arena::CreateMaybeMessage<::resource::ValidateActionRqst>(Arena*);
+template<> ::resource::ValidateActionRsp* Arena::CreateMaybeMessage<::resource::ValidateActionRsp>(Arena*);
 template<> ::resource::ValidateTokenRqst* Arena::CreateMaybeMessage<::resource::ValidateTokenRqst>(Arena*);
 template<> ::resource::ValidateTokenRsp* Arena::CreateMaybeMessage<::resource::ValidateTokenRsp>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
@@ -588,12 +608,13 @@ enum SubjectType : int {
   GROUP = 2,
   ORGANIZATION = 3,
   APPLICATION = 4,
+  ROLE = 5,
   SubjectType_INT_MIN_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::min(),
   SubjectType_INT_MAX_SENTINEL_DO_NOT_USE_ = std::numeric_limits<::PROTOBUF_NAMESPACE_ID::int32>::max()
 };
 bool SubjectType_IsValid(int value);
 constexpr SubjectType SubjectType_MIN = ACCOUNT;
-constexpr SubjectType SubjectType_MAX = APPLICATION;
+constexpr SubjectType SubjectType_MAX = ROLE;
 constexpr int SubjectType_ARRAYSIZE = SubjectType_MAX + 1;
 
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* SubjectType_descriptor();
@@ -17243,6 +17264,799 @@ class ValidateAccessRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
+class GetActionResourceInfosRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetActionResourceInfosRqst) */ {
+ public:
+  inline GetActionResourceInfosRqst() : GetActionResourceInfosRqst(nullptr) {}
+  virtual ~GetActionResourceInfosRqst();
+
+  GetActionResourceInfosRqst(const GetActionResourceInfosRqst& from);
+  GetActionResourceInfosRqst(GetActionResourceInfosRqst&& from) noexcept
+    : GetActionResourceInfosRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline GetActionResourceInfosRqst& operator=(const GetActionResourceInfosRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetActionResourceInfosRqst& operator=(GetActionResourceInfosRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetActionResourceInfosRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetActionResourceInfosRqst* internal_default_instance() {
+    return reinterpret_cast<const GetActionResourceInfosRqst*>(
+               &_GetActionResourceInfosRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    109;
+
+  friend void swap(GetActionResourceInfosRqst& a, GetActionResourceInfosRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetActionResourceInfosRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetActionResourceInfosRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetActionResourceInfosRqst* New() const final {
+    return CreateMaybeMessage<GetActionResourceInfosRqst>(nullptr);
+  }
+
+  GetActionResourceInfosRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetActionResourceInfosRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetActionResourceInfosRqst& from);
+  void MergeFrom(const GetActionResourceInfosRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetActionResourceInfosRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetActionResourceInfosRqst";
+  }
+  protected:
+  explicit GetActionResourceInfosRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kActionFieldNumber = 1,
+  };
+  // string action = 1;
+  void clear_action();
+  const std::string& action() const;
+  void set_action(const std::string& value);
+  void set_action(std::string&& value);
+  void set_action(const char* value);
+  void set_action(const char* value, size_t size);
+  std::string* mutable_action();
+  std::string* release_action();
+  void set_allocated_action(std::string* action);
+  private:
+  const std::string& _internal_action() const;
+  void _internal_set_action(const std::string& value);
+  std::string* _internal_mutable_action();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.GetActionResourceInfosRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr action_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class ResourceInfos PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.ResourceInfos) */ {
+ public:
+  inline ResourceInfos() : ResourceInfos(nullptr) {}
+  virtual ~ResourceInfos();
+
+  ResourceInfos(const ResourceInfos& from);
+  ResourceInfos(ResourceInfos&& from) noexcept
+    : ResourceInfos() {
+    *this = ::std::move(from);
+  }
+
+  inline ResourceInfos& operator=(const ResourceInfos& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ResourceInfos& operator=(ResourceInfos&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const ResourceInfos& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const ResourceInfos* internal_default_instance() {
+    return reinterpret_cast<const ResourceInfos*>(
+               &_ResourceInfos_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    110;
+
+  friend void swap(ResourceInfos& a, ResourceInfos& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ResourceInfos* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ResourceInfos* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline ResourceInfos* New() const final {
+    return CreateMaybeMessage<ResourceInfos>(nullptr);
+  }
+
+  ResourceInfos* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<ResourceInfos>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const ResourceInfos& from);
+  void MergeFrom(const ResourceInfos& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ResourceInfos* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.ResourceInfos";
+  }
+  protected:
+  explicit ResourceInfos(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kPermissionFieldNumber = 2,
+    kPathFieldNumber = 3,
+    kIndexFieldNumber = 1,
+  };
+  // string permission = 2;
+  void clear_permission();
+  const std::string& permission() const;
+  void set_permission(const std::string& value);
+  void set_permission(std::string&& value);
+  void set_permission(const char* value);
+  void set_permission(const char* value, size_t size);
+  std::string* mutable_permission();
+  std::string* release_permission();
+  void set_allocated_permission(std::string* permission);
+  private:
+  const std::string& _internal_permission() const;
+  void _internal_set_permission(const std::string& value);
+  std::string* _internal_mutable_permission();
+  public:
+
+  // string path = 3;
+  void clear_path();
+  const std::string& path() const;
+  void set_path(const std::string& value);
+  void set_path(std::string&& value);
+  void set_path(const char* value);
+  void set_path(const char* value, size_t size);
+  std::string* mutable_path();
+  std::string* release_path();
+  void set_allocated_path(std::string* path);
+  private:
+  const std::string& _internal_path() const;
+  void _internal_set_path(const std::string& value);
+  std::string* _internal_mutable_path();
+  public:
+
+  // int32 index = 1;
+  void clear_index();
+  ::PROTOBUF_NAMESPACE_ID::int32 index() const;
+  void set_index(::PROTOBUF_NAMESPACE_ID::int32 value);
+  private:
+  ::PROTOBUF_NAMESPACE_ID::int32 _internal_index() const;
+  void _internal_set_index(::PROTOBUF_NAMESPACE_ID::int32 value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.ResourceInfos)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr permission_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr path_;
+  ::PROTOBUF_NAMESPACE_ID::int32 index_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class GetActionResourceInfosRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetActionResourceInfosRsp) */ {
+ public:
+  inline GetActionResourceInfosRsp() : GetActionResourceInfosRsp(nullptr) {}
+  virtual ~GetActionResourceInfosRsp();
+
+  GetActionResourceInfosRsp(const GetActionResourceInfosRsp& from);
+  GetActionResourceInfosRsp(GetActionResourceInfosRsp&& from) noexcept
+    : GetActionResourceInfosRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline GetActionResourceInfosRsp& operator=(const GetActionResourceInfosRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetActionResourceInfosRsp& operator=(GetActionResourceInfosRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetActionResourceInfosRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetActionResourceInfosRsp* internal_default_instance() {
+    return reinterpret_cast<const GetActionResourceInfosRsp*>(
+               &_GetActionResourceInfosRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    111;
+
+  friend void swap(GetActionResourceInfosRsp& a, GetActionResourceInfosRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetActionResourceInfosRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetActionResourceInfosRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetActionResourceInfosRsp* New() const final {
+    return CreateMaybeMessage<GetActionResourceInfosRsp>(nullptr);
+  }
+
+  GetActionResourceInfosRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetActionResourceInfosRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetActionResourceInfosRsp& from);
+  void MergeFrom(const GetActionResourceInfosRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetActionResourceInfosRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetActionResourceInfosRsp";
+  }
+  protected:
+  explicit GetActionResourceInfosRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kInfosFieldNumber = 1,
+  };
+  // repeated .resource.ResourceInfos infos = 1;
+  int infos_size() const;
+  private:
+  int _internal_infos_size() const;
+  public:
+  void clear_infos();
+  ::resource::ResourceInfos* mutable_infos(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >*
+      mutable_infos();
+  private:
+  const ::resource::ResourceInfos& _internal_infos(int index) const;
+  ::resource::ResourceInfos* _internal_add_infos();
+  public:
+  const ::resource::ResourceInfos& infos(int index) const;
+  ::resource::ResourceInfos* add_infos();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >&
+      infos() const;
+
+  // @@protoc_insertion_point(class_scope:resource.GetActionResourceInfosRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos > infos_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class ValidateActionRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.ValidateActionRqst) */ {
+ public:
+  inline ValidateActionRqst() : ValidateActionRqst(nullptr) {}
+  virtual ~ValidateActionRqst();
+
+  ValidateActionRqst(const ValidateActionRqst& from);
+  ValidateActionRqst(ValidateActionRqst&& from) noexcept
+    : ValidateActionRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline ValidateActionRqst& operator=(const ValidateActionRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ValidateActionRqst& operator=(ValidateActionRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const ValidateActionRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const ValidateActionRqst* internal_default_instance() {
+    return reinterpret_cast<const ValidateActionRqst*>(
+               &_ValidateActionRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    112;
+
+  friend void swap(ValidateActionRqst& a, ValidateActionRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ValidateActionRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ValidateActionRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline ValidateActionRqst* New() const final {
+    return CreateMaybeMessage<ValidateActionRqst>(nullptr);
+  }
+
+  ValidateActionRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<ValidateActionRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const ValidateActionRqst& from);
+  void MergeFrom(const ValidateActionRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ValidateActionRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.ValidateActionRqst";
+  }
+  protected:
+  explicit ValidateActionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kInfosFieldNumber = 4,
+    kSubjectFieldNumber = 1,
+    kActionFieldNumber = 3,
+    kTypeFieldNumber = 2,
+  };
+  // repeated .resource.ResourceInfos infos = 4;
+  int infos_size() const;
+  private:
+  int _internal_infos_size() const;
+  public:
+  void clear_infos();
+  ::resource::ResourceInfos* mutable_infos(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >*
+      mutable_infos();
+  private:
+  const ::resource::ResourceInfos& _internal_infos(int index) const;
+  ::resource::ResourceInfos* _internal_add_infos();
+  public:
+  const ::resource::ResourceInfos& infos(int index) const;
+  ::resource::ResourceInfos* add_infos();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >&
+      infos() const;
+
+  // string subject = 1;
+  void clear_subject();
+  const std::string& subject() const;
+  void set_subject(const std::string& value);
+  void set_subject(std::string&& value);
+  void set_subject(const char* value);
+  void set_subject(const char* value, size_t size);
+  std::string* mutable_subject();
+  std::string* release_subject();
+  void set_allocated_subject(std::string* subject);
+  private:
+  const std::string& _internal_subject() const;
+  void _internal_set_subject(const std::string& value);
+  std::string* _internal_mutable_subject();
+  public:
+
+  // string action = 3;
+  void clear_action();
+  const std::string& action() const;
+  void set_action(const std::string& value);
+  void set_action(std::string&& value);
+  void set_action(const char* value);
+  void set_action(const char* value, size_t size);
+  std::string* mutable_action();
+  std::string* release_action();
+  void set_allocated_action(std::string* action);
+  private:
+  const std::string& _internal_action() const;
+  void _internal_set_action(const std::string& value);
+  std::string* _internal_mutable_action();
+  public:
+
+  // .resource.SubjectType type = 2;
+  void clear_type();
+  ::resource::SubjectType type() const;
+  void set_type(::resource::SubjectType value);
+  private:
+  ::resource::SubjectType _internal_type() const;
+  void _internal_set_type(::resource::SubjectType value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.ValidateActionRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos > infos_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr subject_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr action_;
+  int type_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class ValidateActionRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.ValidateActionRsp) */ {
+ public:
+  inline ValidateActionRsp() : ValidateActionRsp(nullptr) {}
+  virtual ~ValidateActionRsp();
+
+  ValidateActionRsp(const ValidateActionRsp& from);
+  ValidateActionRsp(ValidateActionRsp&& from) noexcept
+    : ValidateActionRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline ValidateActionRsp& operator=(const ValidateActionRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ValidateActionRsp& operator=(ValidateActionRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const ValidateActionRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const ValidateActionRsp* internal_default_instance() {
+    return reinterpret_cast<const ValidateActionRsp*>(
+               &_ValidateActionRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    113;
+
+  friend void swap(ValidateActionRsp& a, ValidateActionRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ValidateActionRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ValidateActionRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline ValidateActionRsp* New() const final {
+    return CreateMaybeMessage<ValidateActionRsp>(nullptr);
+  }
+
+  ValidateActionRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<ValidateActionRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const ValidateActionRsp& from);
+  void MergeFrom(const ValidateActionRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ValidateActionRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.ValidateActionRsp";
+  }
+  protected:
+  explicit ValidateActionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.ValidateActionRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
 class LogInfo PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.LogInfo) */ {
  public:
@@ -17285,7 +18099,7 @@ class LogInfo PROTOBUF_FINAL :
                &_LogInfo_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    109;
+    114;
 
   friend void swap(LogInfo& a, LogInfo& b) {
     a.Swap(&b);
@@ -17523,7 +18337,7 @@ class LogRqst PROTOBUF_FINAL :
                &_LogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    110;
+    115;
 
   friend void swap(LogRqst& a, LogRqst& b) {
     a.Swap(&b);
@@ -17669,7 +18483,7 @@ class LogRsp PROTOBUF_FINAL :
                &_LogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    111;
+    116;
 
   friend void swap(LogRsp& a, LogRsp& b) {
     a.Swap(&b);
@@ -17806,7 +18620,7 @@ class DeleteLogRqst PROTOBUF_FINAL :
                &_DeleteLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    112;
+    117;
 
   friend void swap(DeleteLogRqst& a, DeleteLogRqst& b) {
     a.Swap(&b);
@@ -17952,7 +18766,7 @@ class DeleteLogRsp PROTOBUF_FINAL :
                &_DeleteLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    113;
+    118;
 
   friend void swap(DeleteLogRsp& a, DeleteLogRsp& b) {
     a.Swap(&b);
@@ -18089,7 +18903,7 @@ class SetLogMethodRqst PROTOBUF_FINAL :
                &_SetLogMethodRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    114;
+    119;
 
   friend void swap(SetLogMethodRqst& a, SetLogMethodRqst& b) {
     a.Swap(&b);
@@ -18233,7 +19047,7 @@ class SetLogMethodRsp PROTOBUF_FINAL :
                &_SetLogMethodRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    115;
+    120;
 
   friend void swap(SetLogMethodRsp& a, SetLogMethodRsp& b) {
     a.Swap(&b);
@@ -18370,7 +19184,7 @@ class ResetLogMethodRqst PROTOBUF_FINAL :
                &_ResetLogMethodRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    116;
+    121;
 
   friend void swap(ResetLogMethodRqst& a, ResetLogMethodRqst& b) {
     a.Swap(&b);
@@ -18514,7 +19328,7 @@ class ResetLogMethodRsp PROTOBUF_FINAL :
                &_ResetLogMethodRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    117;
+    122;
 
   friend void swap(ResetLogMethodRsp& a, ResetLogMethodRsp& b) {
     a.Swap(&b);
@@ -18651,7 +19465,7 @@ class GetLogMethodsRqst PROTOBUF_FINAL :
                &_GetLogMethodsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    118;
+    123;
 
   friend void swap(GetLogMethodsRqst& a, GetLogMethodsRqst& b) {
     a.Swap(&b);
@@ -18775,7 +19589,7 @@ class GetLogMethodsRsp PROTOBUF_FINAL :
                &_GetLogMethodsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    119;
+    124;
 
   friend void swap(GetLogMethodsRsp& a, GetLogMethodsRsp& b) {
     a.Swap(&b);
@@ -18927,7 +19741,7 @@ class GetLogRqst PROTOBUF_FINAL :
                &_GetLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    120;
+    125;
 
   friend void swap(GetLogRqst& a, GetLogRqst& b) {
     a.Swap(&b);
@@ -19071,7 +19885,7 @@ class GetLogRsp PROTOBUF_FINAL :
                &_GetLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    121;
+    126;
 
   friend void swap(GetLogRsp& a, GetLogRsp& b) {
     a.Swap(&b);
@@ -19217,7 +20031,7 @@ class ClearAllLogRqst PROTOBUF_FINAL :
                &_ClearAllLogRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    122;
+    127;
 
   friend void swap(ClearAllLogRqst& a, ClearAllLogRqst& b) {
     a.Swap(&b);
@@ -19354,7 +20168,7 @@ class ClearAllLogRsp PROTOBUF_FINAL :
                &_ClearAllLogRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    123;
+    128;
 
   friend void swap(ClearAllLogRsp& a, ClearAllLogRsp& b) {
     a.Swap(&b);
@@ -28984,6 +29798,474 @@ inline void ValidateAccessRsp::set_result(bool value) {
 
 // -------------------------------------------------------------------
 
+// GetActionResourceInfosRqst
+
+// string action = 1;
+inline void GetActionResourceInfosRqst::clear_action() {
+  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& GetActionResourceInfosRqst::action() const {
+  // @@protoc_insertion_point(field_get:resource.GetActionResourceInfosRqst.action)
+  return _internal_action();
+}
+inline void GetActionResourceInfosRqst::set_action(const std::string& value) {
+  _internal_set_action(value);
+  // @@protoc_insertion_point(field_set:resource.GetActionResourceInfosRqst.action)
+}
+inline std::string* GetActionResourceInfosRqst::mutable_action() {
+  // @@protoc_insertion_point(field_mutable:resource.GetActionResourceInfosRqst.action)
+  return _internal_mutable_action();
+}
+inline const std::string& GetActionResourceInfosRqst::_internal_action() const {
+  return action_.Get();
+}
+inline void GetActionResourceInfosRqst::_internal_set_action(const std::string& value) {
+  
+  action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void GetActionResourceInfosRqst::set_action(std::string&& value) {
+  
+  action_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.GetActionResourceInfosRqst.action)
+}
+inline void GetActionResourceInfosRqst::set_action(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.GetActionResourceInfosRqst.action)
+}
+inline void GetActionResourceInfosRqst::set_action(const char* value,
+    size_t size) {
+  
+  action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.GetActionResourceInfosRqst.action)
+}
+inline std::string* GetActionResourceInfosRqst::_internal_mutable_action() {
+  
+  return action_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* GetActionResourceInfosRqst::release_action() {
+  // @@protoc_insertion_point(field_release:resource.GetActionResourceInfosRqst.action)
+  return action_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void GetActionResourceInfosRqst::set_allocated_action(std::string* action) {
+  if (action != nullptr) {
+    
+  } else {
+    
+  }
+  action_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), action,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.GetActionResourceInfosRqst.action)
+}
+
+// -------------------------------------------------------------------
+
+// ResourceInfos
+
+// int32 index = 1;
+inline void ResourceInfos::clear_index() {
+  index_ = 0;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 ResourceInfos::_internal_index() const {
+  return index_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::int32 ResourceInfos::index() const {
+  // @@protoc_insertion_point(field_get:resource.ResourceInfos.index)
+  return _internal_index();
+}
+inline void ResourceInfos::_internal_set_index(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  
+  index_ = value;
+}
+inline void ResourceInfos::set_index(::PROTOBUF_NAMESPACE_ID::int32 value) {
+  _internal_set_index(value);
+  // @@protoc_insertion_point(field_set:resource.ResourceInfos.index)
+}
+
+// string permission = 2;
+inline void ResourceInfos::clear_permission() {
+  permission_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& ResourceInfos::permission() const {
+  // @@protoc_insertion_point(field_get:resource.ResourceInfos.permission)
+  return _internal_permission();
+}
+inline void ResourceInfos::set_permission(const std::string& value) {
+  _internal_set_permission(value);
+  // @@protoc_insertion_point(field_set:resource.ResourceInfos.permission)
+}
+inline std::string* ResourceInfos::mutable_permission() {
+  // @@protoc_insertion_point(field_mutable:resource.ResourceInfos.permission)
+  return _internal_mutable_permission();
+}
+inline const std::string& ResourceInfos::_internal_permission() const {
+  return permission_.Get();
+}
+inline void ResourceInfos::_internal_set_permission(const std::string& value) {
+  
+  permission_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void ResourceInfos::set_permission(std::string&& value) {
+  
+  permission_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.ResourceInfos.permission)
+}
+inline void ResourceInfos::set_permission(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  permission_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.ResourceInfos.permission)
+}
+inline void ResourceInfos::set_permission(const char* value,
+    size_t size) {
+  
+  permission_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.ResourceInfos.permission)
+}
+inline std::string* ResourceInfos::_internal_mutable_permission() {
+  
+  return permission_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* ResourceInfos::release_permission() {
+  // @@protoc_insertion_point(field_release:resource.ResourceInfos.permission)
+  return permission_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void ResourceInfos::set_allocated_permission(std::string* permission) {
+  if (permission != nullptr) {
+    
+  } else {
+    
+  }
+  permission_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), permission,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.ResourceInfos.permission)
+}
+
+// string path = 3;
+inline void ResourceInfos::clear_path() {
+  path_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& ResourceInfos::path() const {
+  // @@protoc_insertion_point(field_get:resource.ResourceInfos.path)
+  return _internal_path();
+}
+inline void ResourceInfos::set_path(const std::string& value) {
+  _internal_set_path(value);
+  // @@protoc_insertion_point(field_set:resource.ResourceInfos.path)
+}
+inline std::string* ResourceInfos::mutable_path() {
+  // @@protoc_insertion_point(field_mutable:resource.ResourceInfos.path)
+  return _internal_mutable_path();
+}
+inline const std::string& ResourceInfos::_internal_path() const {
+  return path_.Get();
+}
+inline void ResourceInfos::_internal_set_path(const std::string& value) {
+  
+  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void ResourceInfos::set_path(std::string&& value) {
+  
+  path_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.ResourceInfos.path)
+}
+inline void ResourceInfos::set_path(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.ResourceInfos.path)
+}
+inline void ResourceInfos::set_path(const char* value,
+    size_t size) {
+  
+  path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.ResourceInfos.path)
+}
+inline std::string* ResourceInfos::_internal_mutable_path() {
+  
+  return path_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* ResourceInfos::release_path() {
+  // @@protoc_insertion_point(field_release:resource.ResourceInfos.path)
+  return path_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void ResourceInfos::set_allocated_path(std::string* path) {
+  if (path != nullptr) {
+    
+  } else {
+    
+  }
+  path_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), path,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.ResourceInfos.path)
+}
+
+// -------------------------------------------------------------------
+
+// GetActionResourceInfosRsp
+
+// repeated .resource.ResourceInfos infos = 1;
+inline int GetActionResourceInfosRsp::_internal_infos_size() const {
+  return infos_.size();
+}
+inline int GetActionResourceInfosRsp::infos_size() const {
+  return _internal_infos_size();
+}
+inline void GetActionResourceInfosRsp::clear_infos() {
+  infos_.Clear();
+}
+inline ::resource::ResourceInfos* GetActionResourceInfosRsp::mutable_infos(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.GetActionResourceInfosRsp.infos)
+  return infos_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >*
+GetActionResourceInfosRsp::mutable_infos() {
+  // @@protoc_insertion_point(field_mutable_list:resource.GetActionResourceInfosRsp.infos)
+  return &infos_;
+}
+inline const ::resource::ResourceInfos& GetActionResourceInfosRsp::_internal_infos(int index) const {
+  return infos_.Get(index);
+}
+inline const ::resource::ResourceInfos& GetActionResourceInfosRsp::infos(int index) const {
+  // @@protoc_insertion_point(field_get:resource.GetActionResourceInfosRsp.infos)
+  return _internal_infos(index);
+}
+inline ::resource::ResourceInfos* GetActionResourceInfosRsp::_internal_add_infos() {
+  return infos_.Add();
+}
+inline ::resource::ResourceInfos* GetActionResourceInfosRsp::add_infos() {
+  // @@protoc_insertion_point(field_add:resource.GetActionResourceInfosRsp.infos)
+  return _internal_add_infos();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >&
+GetActionResourceInfosRsp::infos() const {
+  // @@protoc_insertion_point(field_list:resource.GetActionResourceInfosRsp.infos)
+  return infos_;
+}
+
+// -------------------------------------------------------------------
+
+// ValidateActionRqst
+
+// string subject = 1;
+inline void ValidateActionRqst::clear_subject() {
+  subject_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& ValidateActionRqst::subject() const {
+  // @@protoc_insertion_point(field_get:resource.ValidateActionRqst.subject)
+  return _internal_subject();
+}
+inline void ValidateActionRqst::set_subject(const std::string& value) {
+  _internal_set_subject(value);
+  // @@protoc_insertion_point(field_set:resource.ValidateActionRqst.subject)
+}
+inline std::string* ValidateActionRqst::mutable_subject() {
+  // @@protoc_insertion_point(field_mutable:resource.ValidateActionRqst.subject)
+  return _internal_mutable_subject();
+}
+inline const std::string& ValidateActionRqst::_internal_subject() const {
+  return subject_.Get();
+}
+inline void ValidateActionRqst::_internal_set_subject(const std::string& value) {
+  
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void ValidateActionRqst::set_subject(std::string&& value) {
+  
+  subject_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.ValidateActionRqst.subject)
+}
+inline void ValidateActionRqst::set_subject(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.ValidateActionRqst.subject)
+}
+inline void ValidateActionRqst::set_subject(const char* value,
+    size_t size) {
+  
+  subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.ValidateActionRqst.subject)
+}
+inline std::string* ValidateActionRqst::_internal_mutable_subject() {
+  
+  return subject_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* ValidateActionRqst::release_subject() {
+  // @@protoc_insertion_point(field_release:resource.ValidateActionRqst.subject)
+  return subject_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void ValidateActionRqst::set_allocated_subject(std::string* subject) {
+  if (subject != nullptr) {
+    
+  } else {
+    
+  }
+  subject_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), subject,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.ValidateActionRqst.subject)
+}
+
+// .resource.SubjectType type = 2;
+inline void ValidateActionRqst::clear_type() {
+  type_ = 0;
+}
+inline ::resource::SubjectType ValidateActionRqst::_internal_type() const {
+  return static_cast< ::resource::SubjectType >(type_);
+}
+inline ::resource::SubjectType ValidateActionRqst::type() const {
+  // @@protoc_insertion_point(field_get:resource.ValidateActionRqst.type)
+  return _internal_type();
+}
+inline void ValidateActionRqst::_internal_set_type(::resource::SubjectType value) {
+  
+  type_ = value;
+}
+inline void ValidateActionRqst::set_type(::resource::SubjectType value) {
+  _internal_set_type(value);
+  // @@protoc_insertion_point(field_set:resource.ValidateActionRqst.type)
+}
+
+// string action = 3;
+inline void ValidateActionRqst::clear_action() {
+  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& ValidateActionRqst::action() const {
+  // @@protoc_insertion_point(field_get:resource.ValidateActionRqst.action)
+  return _internal_action();
+}
+inline void ValidateActionRqst::set_action(const std::string& value) {
+  _internal_set_action(value);
+  // @@protoc_insertion_point(field_set:resource.ValidateActionRqst.action)
+}
+inline std::string* ValidateActionRqst::mutable_action() {
+  // @@protoc_insertion_point(field_mutable:resource.ValidateActionRqst.action)
+  return _internal_mutable_action();
+}
+inline const std::string& ValidateActionRqst::_internal_action() const {
+  return action_.Get();
+}
+inline void ValidateActionRqst::_internal_set_action(const std::string& value) {
+  
+  action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void ValidateActionRqst::set_action(std::string&& value) {
+  
+  action_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.ValidateActionRqst.action)
+}
+inline void ValidateActionRqst::set_action(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.ValidateActionRqst.action)
+}
+inline void ValidateActionRqst::set_action(const char* value,
+    size_t size) {
+  
+  action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.ValidateActionRqst.action)
+}
+inline std::string* ValidateActionRqst::_internal_mutable_action() {
+  
+  return action_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* ValidateActionRqst::release_action() {
+  // @@protoc_insertion_point(field_release:resource.ValidateActionRqst.action)
+  return action_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void ValidateActionRqst::set_allocated_action(std::string* action) {
+  if (action != nullptr) {
+    
+  } else {
+    
+  }
+  action_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), action,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.ValidateActionRqst.action)
+}
+
+// repeated .resource.ResourceInfos infos = 4;
+inline int ValidateActionRqst::_internal_infos_size() const {
+  return infos_.size();
+}
+inline int ValidateActionRqst::infos_size() const {
+  return _internal_infos_size();
+}
+inline void ValidateActionRqst::clear_infos() {
+  infos_.Clear();
+}
+inline ::resource::ResourceInfos* ValidateActionRqst::mutable_infos(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.ValidateActionRqst.infos)
+  return infos_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >*
+ValidateActionRqst::mutable_infos() {
+  // @@protoc_insertion_point(field_mutable_list:resource.ValidateActionRqst.infos)
+  return &infos_;
+}
+inline const ::resource::ResourceInfos& ValidateActionRqst::_internal_infos(int index) const {
+  return infos_.Get(index);
+}
+inline const ::resource::ResourceInfos& ValidateActionRqst::infos(int index) const {
+  // @@protoc_insertion_point(field_get:resource.ValidateActionRqst.infos)
+  return _internal_infos(index);
+}
+inline ::resource::ResourceInfos* ValidateActionRqst::_internal_add_infos() {
+  return infos_.Add();
+}
+inline ::resource::ResourceInfos* ValidateActionRqst::add_infos() {
+  // @@protoc_insertion_point(field_add:resource.ValidateActionRqst.infos)
+  return _internal_add_infos();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::ResourceInfos >&
+ValidateActionRqst::infos() const {
+  // @@protoc_insertion_point(field_list:resource.ValidateActionRqst.infos)
+  return infos_;
+}
+
+// -------------------------------------------------------------------
+
+// ValidateActionRsp
+
+// bool result = 1;
+inline void ValidateActionRsp::clear_result() {
+  result_ = false;
+}
+inline bool ValidateActionRsp::_internal_result() const {
+  return result_;
+}
+inline bool ValidateActionRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.ValidateActionRsp.result)
+  return _internal_result();
+}
+inline void ValidateActionRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void ValidateActionRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.ValidateActionRsp.result)
+}
+
+// -------------------------------------------------------------------
+
 // LogInfo
 
 // int64 date = 1;
@@ -29980,6 +31262,16 @@ inline void ClearAllLogRsp::set_result(bool value) {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

@@ -4,12 +4,17 @@ import (
 	//"encoding/json"
 	"log"
 	"testing"
+
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 )
 
 var (
 	// Connect to the plc client.
-	client, _ = NewResourceService_Client("localhost", "resource.ResourceService")
-	token     string
+	client, _       = NewResourceService_Client("localhost", "resource.ResourceService")
+	rbac_client_, _ = rbac_client.NewRbacService_Client("localhost", "resource.RbacService")
+
+	token string
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -87,7 +92,17 @@ func TestGetGroups(t *testing.T) {
 
 func TestCreateRole(t *testing.T) {
 	log.Println("---> create role ")
-	err := client.CreateRole("db_user", "db_user", []string{"/persistence.PersistenceService/InsertOne", "/persistence.PersistenceService/InsertMany", "/persistence.PersistenceService/Find", "/persistence.PersistenceService/FindOne", "/persistence.PersistenceService/ReplaceOne", "/persistence.PersistenceService/DeleteOne", "/persistence.PersistenceService/Delete", "/persistence.PersistenceService/Count", "/persistence.PersistenceService/Update", "/persistence.PersistenceService/UpdateOne"})
+	err := client.CreateRole("db_user", "db_user", []string{
+		"/persistence.PersistenceService/InsertOne",
+		"/persistence.PersistenceService/InsertMany",
+		"/persistence.PersistenceService/Find",
+		"/persistence.PersistenceService/FindOne",
+		"/persistence.PersistenceService/ReplaceOne",
+		"/persistence.PersistenceService/DeleteOne",
+		"/persistence.PersistenceService/Delete",
+		"/persistence.PersistenceService/Count",
+		"/persistence.PersistenceService/Update",
+		"/persistence.PersistenceService/UpdateOne"})
 	if err != nil {
 		log.Println("---> ", err)
 	}
@@ -113,15 +128,7 @@ func TestDeleteGroup(t *testing.T) {
 
 func TestAddRoleAction(t *testing.T) {
 	log.Println("---> Add Role action ")
-	err := client.AddRoleAction("db_user", "/toto")
-	if err != nil {
-		log.Println("---> ", err)
-	}
-}
-
-func TestRemoveRoleAction(t *testing.T) {
-	log.Println("---> Remove Role action ")
-	err := client.RemoveRoleAction("db_user", "/toto")
+	err := client.AddRoleAction("db_user", "/file.FileService/ReadDir")
 	if err != nil {
 		log.Println("---> ", err)
 	}
@@ -135,9 +142,58 @@ func TestAddAccountRole(t *testing.T) {
 	}
 }
 
+func TestValidateAction(t *testing.T) {
+	infos, err := client.GetActionResourceInfos("/file.FileService/ReadDir")
+	if err != nil {
+		log.Println("---> ", err)
+		return
+	}
+
+	// Set the path to read...
+	path := "/tmp/test.txt"
+	infos[0].Path = path
+
+	// Give permission.
+	permissions := &resourcepb.Permissions{
+		Allowed: []*resourcepb.Permission{
+			&resourcepb.Permission{
+				Name:          "read",
+				Applications:  []string{},
+				Accounts:      []string{"dave"},
+				Groups:        []string{},
+				Peers:         []string{},
+				Organizations: []string{},
+			},
+		},
+		Denied: []*resourcepb.Permission{},
+		Owners: &resourcepb.Permission{},
+	}
+
+	rbac_client_.SetResourcePermissions(path, permissions)
+
+	hasAccess, err := client.ValidateAction("/file.FileService/ReadDir", "dave", resourcepb.SubjectType_ACCOUNT, infos)
+	if err != nil {
+		log.Println(err)
+	}
+
+	if hasAccess {
+		log.Println("----------> dave has access to read file " + path)
+	} else {
+		log.Println("----------> dave has not access to read file " + path)
+	}
+}
+
 func TestRemoveAccountRole(t *testing.T) {
 	log.Println("---> Remove account Role ")
 	err := client.RemoveAccountRole("dave", "db_user")
+	if err != nil {
+		log.Println("---> ", err)
+	}
+}
+
+func TestRemoveRoleAction(t *testing.T) {
+	log.Println("---> Remove Role action ")
+	err := client.RemoveRoleAction("db_user", "/file.FileService/ReadDir")
 	if err != nil {
 		log.Println("---> ", err)
 	}

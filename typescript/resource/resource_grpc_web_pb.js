@@ -3096,6 +3096,166 @@ proto.resource.ResourceServicePromiseClient.prototype.removePeerAction =
 
 
 /**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetActionResourceInfosRqst,
+ *   !proto.resource.GetActionResourceInfosRsp>}
+ */
+const methodDescriptor_ResourceService_GetActionResourceInfos = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetActionResourceInfos',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetActionResourceInfosRqst,
+  proto.resource.GetActionResourceInfosRsp,
+  /**
+   * @param {!proto.resource.GetActionResourceInfosRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetActionResourceInfosRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.GetActionResourceInfosRqst,
+ *   !proto.resource.GetActionResourceInfosRsp>}
+ */
+const methodInfo_ResourceService_GetActionResourceInfos = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.GetActionResourceInfosRsp,
+  /**
+   * @param {!proto.resource.GetActionResourceInfosRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetActionResourceInfosRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetActionResourceInfosRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.GetActionResourceInfosRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetActionResourceInfosRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getActionResourceInfos =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetActionResourceInfos',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetActionResourceInfos,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetActionResourceInfosRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetActionResourceInfosRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getActionResourceInfos =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetActionResourceInfos',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetActionResourceInfos);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.ValidateActionRqst,
+ *   !proto.resource.ValidateActionRsp>}
+ */
+const methodDescriptor_ResourceService_ValidateAction = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/ValidateAction',
+  grpc.web.MethodType.UNARY,
+  proto.resource.ValidateActionRqst,
+  proto.resource.ValidateActionRsp,
+  /**
+   * @param {!proto.resource.ValidateActionRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.ValidateActionRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.ValidateActionRqst,
+ *   !proto.resource.ValidateActionRsp>}
+ */
+const methodInfo_ResourceService_ValidateAction = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.ValidateActionRsp,
+  /**
+   * @param {!proto.resource.ValidateActionRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.ValidateActionRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.ValidateActionRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.ValidateActionRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.ValidateActionRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.validateAction =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/ValidateAction',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_ValidateAction,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.ValidateActionRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.ValidateActionRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.validateAction =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/ValidateAction',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_ValidateAction);
+};
+
+
+/**
  * @param {string} hostname
  * @param {?Object} credentials
  * @param {?Object} options

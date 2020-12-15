@@ -60,6 +60,8 @@ static const char* ResourceService_method_names[] = {
   "/resource.ResourceService/DeletePeer",
   "/resource.ResourceService/AddPeerAction",
   "/resource.ResourceService/RemovePeerAction",
+  "/resource.ResourceService/GetActionResourceInfos",
+  "/resource.ResourceService/ValidateAction",
 };
 
 std::unique_ptr< ResourceService::Stub> ResourceService::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -107,6 +109,8 @@ ResourceService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& ch
   , rpcmethod_DeletePeer_(ResourceService_method_names[35], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_AddPeerAction_(ResourceService_method_names[36], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_RemovePeerAction_(ResourceService_method_names[37], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetActionResourceInfos_(ResourceService_method_names[38], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ValidateAction_(ResourceService_method_names[39], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status ResourceService::Stub::GetAllActions(::grpc::ClientContext* context, const ::resource::GetAllActionsRqst& request, ::resource::GetAllActionsRsp* response) {
@@ -962,6 +966,52 @@ void ResourceService::Stub::experimental_async::RemovePeerAction(::grpc::ClientC
   return result;
 }
 
+::grpc::Status ResourceService::Stub::GetActionResourceInfos(::grpc::ClientContext* context, const ::resource::GetActionResourceInfosRqst& request, ::resource::GetActionResourceInfosRsp* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::resource::GetActionResourceInfosRqst, ::resource::GetActionResourceInfosRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_GetActionResourceInfos_, context, request, response);
+}
+
+void ResourceService::Stub::experimental_async::GetActionResourceInfos(::grpc::ClientContext* context, const ::resource::GetActionResourceInfosRqst* request, ::resource::GetActionResourceInfosRsp* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::resource::GetActionResourceInfosRqst, ::resource::GetActionResourceInfosRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_GetActionResourceInfos_, context, request, response, std::move(f));
+}
+
+void ResourceService::Stub::experimental_async::GetActionResourceInfos(::grpc::ClientContext* context, const ::resource::GetActionResourceInfosRqst* request, ::resource::GetActionResourceInfosRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_GetActionResourceInfos_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::GetActionResourceInfosRsp>* ResourceService::Stub::PrepareAsyncGetActionResourceInfosRaw(::grpc::ClientContext* context, const ::resource::GetActionResourceInfosRqst& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::resource::GetActionResourceInfosRsp, ::resource::GetActionResourceInfosRqst, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_GetActionResourceInfos_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::GetActionResourceInfosRsp>* ResourceService::Stub::AsyncGetActionResourceInfosRaw(::grpc::ClientContext* context, const ::resource::GetActionResourceInfosRqst& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncGetActionResourceInfosRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status ResourceService::Stub::ValidateAction(::grpc::ClientContext* context, const ::resource::ValidateActionRqst& request, ::resource::ValidateActionRsp* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::resource::ValidateActionRqst, ::resource::ValidateActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_ValidateAction_, context, request, response);
+}
+
+void ResourceService::Stub::experimental_async::ValidateAction(::grpc::ClientContext* context, const ::resource::ValidateActionRqst* request, ::resource::ValidateActionRsp* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::resource::ValidateActionRqst, ::resource::ValidateActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_ValidateAction_, context, request, response, std::move(f));
+}
+
+void ResourceService::Stub::experimental_async::ValidateAction(::grpc::ClientContext* context, const ::resource::ValidateActionRqst* request, ::resource::ValidateActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_ValidateAction_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::ValidateActionRsp>* ResourceService::Stub::PrepareAsyncValidateActionRaw(::grpc::ClientContext* context, const ::resource::ValidateActionRqst& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::resource::ValidateActionRsp, ::resource::ValidateActionRqst, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_ValidateAction_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::ValidateActionRsp>* ResourceService::Stub::AsyncValidateActionRaw(::grpc::ClientContext* context, const ::resource::ValidateActionRqst& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncValidateActionRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 ResourceService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       ResourceService_method_names[0],
@@ -1343,6 +1393,26 @@ ResourceService::Service::Service() {
              ::resource::RemovePeerActionRsp* resp) {
                return service->RemovePeerAction(ctx, req, resp);
              }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ResourceService_method_names[38],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetActionResourceInfosRqst, ::resource::GetActionResourceInfosRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ResourceService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::resource::GetActionResourceInfosRqst* req,
+             ::resource::GetActionResourceInfosRsp* resp) {
+               return service->GetActionResourceInfos(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ResourceService_method_names[39],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::ValidateActionRqst, ::resource::ValidateActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ResourceService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::resource::ValidateActionRqst* req,
+             ::resource::ValidateActionRsp* resp) {
+               return service->ValidateAction(ctx, req, resp);
+             }, this)));
 }
 
 ResourceService::Service::~Service() {
@@ -1608,6 +1678,20 @@ ResourceService::Service::~Service() {
 }
 
 ::grpc::Status ResourceService::Service::RemovePeerAction(::grpc::ServerContext* context, const ::resource::RemovePeerActionRqst* request, ::resource::RemovePeerActionRsp* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ResourceService::Service::GetActionResourceInfos(::grpc::ServerContext* context, const ::resource::GetActionResourceInfosRqst* request, ::resource::GetActionResourceInfosRsp* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ResourceService::Service::ValidateAction(::grpc::ServerContext* context, const ::resource::ValidateActionRqst* request, ::resource::ValidateActionRsp* response) {
   (void) context;
   (void) request;
   (void) response;

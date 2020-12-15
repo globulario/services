@@ -23,6 +23,7 @@ extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::intern
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_Peer_resource_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_Permission_resource_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_Permissions_resource_2eproto;
+extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_ResourceInfos_resource_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_Role_resource_2eproto;
 extern PROTOBUF_INTERNAL_EXPORT_resource_2eproto ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_UserSyncInfos_resource_2eproto;
 namespace resource {
@@ -462,6 +463,26 @@ class ValidateAccessRspDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<ValidateAccessRsp> _instance;
 } _ValidateAccessRsp_default_instance_;
+class GetActionResourceInfosRqstDefaultTypeInternal {
+ public:
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<GetActionResourceInfosRqst> _instance;
+} _GetActionResourceInfosRqst_default_instance_;
+class ResourceInfosDefaultTypeInternal {
+ public:
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<ResourceInfos> _instance;
+} _ResourceInfos_default_instance_;
+class GetActionResourceInfosRspDefaultTypeInternal {
+ public:
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<GetActionResourceInfosRsp> _instance;
+} _GetActionResourceInfosRsp_default_instance_;
+class ValidateActionRqstDefaultTypeInternal {
+ public:
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<ValidateActionRqst> _instance;
+} _ValidateActionRqst_default_instance_;
+class ValidateActionRspDefaultTypeInternal {
+ public:
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<ValidateActionRsp> _instance;
+} _ValidateActionRsp_default_instance_;
 class LogInfoDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<LogInfo> _instance;
@@ -1285,6 +1306,35 @@ static void InitDefaultsscc_info_DeleteRoleRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_DeleteRoleRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_DeleteRoleRsp_resource_2eproto}, {}};
 
+static void InitDefaultsscc_info_GetActionResourceInfosRqst_resource_2eproto() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::resource::_GetActionResourceInfosRqst_default_instance_;
+    new (ptr) ::resource::GetActionResourceInfosRqst();
+    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::resource::GetActionResourceInfosRqst::InitAsDefaultInstance();
+}
+
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_GetActionResourceInfosRqst_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_GetActionResourceInfosRqst_resource_2eproto}, {}};
+
+static void InitDefaultsscc_info_GetActionResourceInfosRsp_resource_2eproto() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::resource::_GetActionResourceInfosRsp_default_instance_;
+    new (ptr) ::resource::GetActionResourceInfosRsp();
+    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::resource::GetActionResourceInfosRsp::InitAsDefaultInstance();
+}
+
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_GetActionResourceInfosRsp_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_GetActionResourceInfosRsp_resource_2eproto}, {
+      &scc_info_ResourceInfos_resource_2eproto.base,}};
+
 static void InitDefaultsscc_info_GetAllActionsRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -2081,6 +2131,20 @@ static void InitDefaultsscc_info_ResetLogMethodRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_ResetLogMethodRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_ResetLogMethodRsp_resource_2eproto}, {}};
 
+static void InitDefaultsscc_info_ResourceInfos_resource_2eproto() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::resource::_ResourceInfos_default_instance_;
+    new (ptr) ::resource::ResourceInfos();
+    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::resource::ResourceInfos::InitAsDefaultInstance();
+}
+
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_ResourceInfos_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_ResourceInfos_resource_2eproto}, {}};
+
 static void InitDefaultsscc_info_Role_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -2252,6 +2316,35 @@ static void InitDefaultsscc_info_ValidateAccessRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_ValidateAccessRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_ValidateAccessRsp_resource_2eproto}, {}};
 
+static void InitDefaultsscc_info_ValidateActionRqst_resource_2eproto() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::resource::_ValidateActionRqst_default_instance_;
+    new (ptr) ::resource::ValidateActionRqst();
+    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::resource::ValidateActionRqst::InitAsDefaultInstance();
+}
+
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_ValidateActionRqst_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_ValidateActionRqst_resource_2eproto}, {
+      &scc_info_ResourceInfos_resource_2eproto.base,}};
+
+static void InitDefaultsscc_info_ValidateActionRsp_resource_2eproto() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::resource::_ValidateActionRsp_default_instance_;
+    new (ptr) ::resource::ValidateActionRsp();
+    ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::resource::ValidateActionRsp::InitAsDefaultInstance();
+}
+
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_ValidateActionRsp_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_ValidateActionRsp_resource_2eproto}, {}};
+
 static void InitDefaultsscc_info_ValidateTokenRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
@@ -2280,7 +2373,7 @@ static void InitDefaultsscc_info_ValidateTokenRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_ValidateTokenRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_ValidateTokenRsp_resource_2eproto}, {}};
 
-static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_resource_2eproto[124];
+static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_resource_2eproto[129];
 static const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor* file_level_enum_descriptors_resource_2eproto[3];
 static constexpr ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor const** file_level_service_descriptors_resource_2eproto = nullptr;
 
@@ -2999,6 +3092,41 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::resource::ValidateAccessRsp, result_),
   ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourceInfosRqst, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourceInfosRqst, action_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::resource::ResourceInfos, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  PROTOBUF_FIELD_OFFSET(::resource::ResourceInfos, index_),
+  PROTOBUF_FIELD_OFFSET(::resource::ResourceInfos, permission_),
+  PROTOBUF_FIELD_OFFSET(::resource::ResourceInfos, path_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourceInfosRsp, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  PROTOBUF_FIELD_OFFSET(::resource::GetActionResourceInfosRsp, infos_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::resource::ValidateActionRqst, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  PROTOBUF_FIELD_OFFSET(::resource::ValidateActionRqst, subject_),
+  PROTOBUF_FIELD_OFFSET(::resource::ValidateActionRqst, type_),
+  PROTOBUF_FIELD_OFFSET(::resource::ValidateActionRqst, action_),
+  PROTOBUF_FIELD_OFFSET(::resource::ValidateActionRqst, infos_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::resource::ValidateActionRsp, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  PROTOBUF_FIELD_OFFSET(::resource::ValidateActionRsp, result_),
+  ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::LogInfo, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
@@ -3204,21 +3332,26 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 693, -1, sizeof(::resource::DeleteAllAccessRsp)},
   { 698, -1, sizeof(::resource::ValidateAccessRqst)},
   { 707, -1, sizeof(::resource::ValidateAccessRsp)},
-  { 713, -1, sizeof(::resource::LogInfo)},
-  { 725, -1, sizeof(::resource::LogRqst)},
-  { 731, -1, sizeof(::resource::LogRsp)},
-  { 737, -1, sizeof(::resource::DeleteLogRqst)},
-  { 743, -1, sizeof(::resource::DeleteLogRsp)},
-  { 749, -1, sizeof(::resource::SetLogMethodRqst)},
-  { 755, -1, sizeof(::resource::SetLogMethodRsp)},
-  { 761, -1, sizeof(::resource::ResetLogMethodRqst)},
-  { 767, -1, sizeof(::resource::ResetLogMethodRsp)},
-  { 773, -1, sizeof(::resource::GetLogMethodsRqst)},
-  { 778, -1, sizeof(::resource::GetLogMethodsRsp)},
-  { 784, -1, sizeof(::resource::GetLogRqst)},
-  { 790, -1, sizeof(::resource::GetLogRsp)},
-  { 796, -1, sizeof(::resource::ClearAllLogRqst)},
-  { 802, -1, sizeof(::resource::ClearAllLogRsp)},
+  { 713, -1, sizeof(::resource::GetActionResourceInfosRqst)},
+  { 719, -1, sizeof(::resource::ResourceInfos)},
+  { 727, -1, sizeof(::resource::GetActionResourceInfosRsp)},
+  { 733, -1, sizeof(::resource::ValidateActionRqst)},
+  { 742, -1, sizeof(::resource::ValidateActionRsp)},
+  { 748, -1, sizeof(::resource::LogInfo)},
+  { 760, -1, sizeof(::resource::LogRqst)},
+  { 766, -1, sizeof(::resource::LogRsp)},
+  { 772, -1, sizeof(::resource::DeleteLogRqst)},
+  { 778, -1, sizeof(::resource::DeleteLogRsp)},
+  { 784, -1, sizeof(::resource::SetLogMethodRqst)},
+  { 790, -1, sizeof(::resource::SetLogMethodRsp)},
+  { 796, -1, sizeof(::resource::ResetLogMethodRqst)},
+  { 802, -1, sizeof(::resource::ResetLogMethodRsp)},
+  { 808, -1, sizeof(::resource::GetLogMethodsRqst)},
+  { 813, -1, sizeof(::resource::GetLogMethodsRsp)},
+  { 819, -1, sizeof(::resource::GetLogRqst)},
+  { 825, -1, sizeof(::resource::GetLogRsp)},
+  { 831, -1, sizeof(::resource::ClearAllLogRqst)},
+  { 837, -1, sizeof(::resource::ClearAllLogRsp)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -3331,6 +3464,11 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_DeleteAllAccessRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_ValidateAccessRqst_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_ValidateAccessRsp_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_GetActionResourceInfosRqst_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_ResourceInfos_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_GetActionResourceInfosRsp_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_ValidateActionRqst_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_ValidateActionRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_LogInfo_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_LogRqst_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_LogRsp_default_instance_),
@@ -3499,144 +3637,158 @@ const char descriptor_table_protodef_resource_2eproto[] PROTOBUF_SECTION_VARIABL
   "ccessRsp\"l\n\022ValidateAccessRqst\022\017\n\007subjec"
   "t\030\001 \001(\t\022#\n\004type\030\002 \001(\0162\025.resource.Subject"
   "Type\022\014\n\004path\030\003 \001(\t\022\022\n\npermission\030\004 \001(\t\"#"
-  "\n\021ValidateAccessRsp\022\016\n\006result\030\001 \001(\010\"\220\001\n\007"
-  "LogInfo\022\014\n\004date\030\001 \001(\003\022\037\n\004type\030\002 \001(\0162\021.re"
-  "source.LogType\022\023\n\013application\030\003 \001(\t\022\016\n\006u"
-  "serId\030\004 \001(\t\022\020\n\010userName\030\005 \001(\t\022\016\n\006method\030"
-  "\006 \001(\t\022\017\n\007message\030\007 \001(\t\"*\n\007LogRqst\022\037\n\004inf"
-  "o\030\001 \001(\0132\021.resource.LogInfo\"\030\n\006LogRsp\022\016\n\006"
-  "result\030\001 \001(\010\"/\n\rDeleteLogRqst\022\036\n\003log\030\001 \001"
-  "(\0132\021.resource.LogInfo\"\036\n\014DeleteLogRsp\022\016\n"
-  "\006result\030\001 \001(\010\"\"\n\020SetLogMethodRqst\022\016\n\006met"
-  "hod\030\001 \001(\t\"!\n\017SetLogMethodRsp\022\016\n\006result\030\001"
-  " \001(\010\"$\n\022ResetLogMethodRqst\022\016\n\006method\030\001 \001"
-  "(\t\"#\n\021ResetLogMethodRsp\022\016\n\006result\030\001 \001(\010\""
-  "\023\n\021GetLogMethodsRqst\"#\n\020GetLogMethodsRsp"
-  "\022\017\n\007methods\030\001 \003(\t\"\033\n\nGetLogRqst\022\r\n\005query"
-  "\030\001 \001(\t\",\n\tGetLogRsp\022\037\n\004info\030\001 \003(\0132\021.reso"
-  "urce.LogInfo\"2\n\017ClearAllLogRqst\022\037\n\004type\030"
-  "\001 \001(\0162\021.resource.LogType\" \n\016ClearAllLogR"
-  "sp\022\016\n\006result\030\001 \001(\010*)\n\016PermissionType\022\n\n\006"
-  "DENIED\020\000\022\013\n\007ALLOWED\020\001*R\n\013SubjectType\022\013\n\007"
-  "ACCOUNT\020\000\022\010\n\004PEER\020\001\022\t\n\005GROUP\020\002\022\020\n\014ORGANI"
-  "ZATION\020\003\022\017\n\013APPLICATION\020\004*.\n\007LogType\022\020\n\014"
-  "INFO_MESSAGE\020\000\022\021\n\rERROR_MESSAGE\020\0012\245\031\n\017Re"
-  "sourceService\022H\n\rGetAllActions\022\033.resourc"
-  "e.GetAllActionsRqst\032\032.resource.GetAllAct"
-  "ionsRsp\022H\n\rValidateToken\022\033.resource.Vali"
-  "dateTokenRqst\032\032.resource.ValidateTokenRs"
-  "p\022E\n\014RefreshToken\022\032.resource.RefreshToke"
-  "nRqst\032\031.resource.RefreshTokenRsp\022E\n\014Auth"
-  "enticate\022\032.resource.AuthenticateRqst\032\031.r"
-  "esource.AuthenticateRsp\022N\n\017SynchronizeLd"
-  "ap\022\035.resource.SynchronizeLdapRqst\032\034.reso"
-  "urce.SynchronizeLdapRsp\022W\n\022CreateOrganiz"
-  "ation\022 .resource.CreateOrganizationRqst\032"
-  "\037.resource.CreateOrganizationRsp\022S\n\020GetO"
-  "rganizations\022\036.resource.GetOrganizations"
-  "Rqst\032\035.resource.GetOrganizationsRsp0\001\022W\n"
-  "\022DeleteOrganization\022 .resource.DeleteOrg"
-  "anizationRqst\032\037.resource.DeleteOrganizat"
-  "ionRsp\022c\n\026AddOrganizationAccount\022$.resou"
-  "rce.AddOrganizationAccountRqst\032#.resourc"
-  "e.AddOrganizationAccountRsp\022]\n\024AddOrgani"
-  "zationGroup\022\".resource.AddOrganizationGr"
-  "oupRqst\032!.resource.AddOrganizationGroupR"
-  "sp\022Z\n\023AddOrganizationRole\022!.resource.Add"
-  "OrganizationRoleRqst\032 .resource.AddOrgan"
-  "izationRoleRsp\022o\n\032AddOrganizationApplica"
-  "tion\022(.resource.AddOrganizationApplicati"
-  "onRqst\032\'.resource.AddOrganizationApplica"
-  "tionRsp\022l\n\031RemoveOrganizationAccount\022\'.r"
-  "esource.RemoveOrganizationAccountRqst\032&."
-  "resource.RemoveOrganizationAccountRsp\022f\n"
-  "\027RemoveOrganizationGroup\022%.resource.Remo"
-  "veOrganizationGroupRqst\032$.resource.Remov"
-  "eOrganizationGroupRsp\022c\n\026RemoveOrganizat"
-  "ionRole\022$.resource.RemoveOrganizationRol"
-  "eRqst\032#.resource.RemoveOrganizationRoleR"
-  "sp\022x\n\035RemoveOrganizationApplication\022+.re"
-  "source.RemoveOrganizationApplicationRqst"
-  "\032*.resource.RemoveOrganizationApplicatio"
-  "nRsp\022B\n\013CreateGroup\022\031.resource.CreateGro"
-  "upRqst\032\030.resource.CreateGroupRsp\022>\n\tGetG"
-  "roups\022\027.resource.GetGroupsRqst\032\026.resourc"
-  "e.GetGroupsRsp0\001\022B\n\013DeleteGroup\022\031.resour"
-  "ce.DeleteGroupRqst\032\030.resource.DeleteGrou"
-  "pRsp\022`\n\025AddGroupMemberAccount\022#.resource"
-  ".AddGroupMemberAccountRqst\032\".resource.Ad"
-  "dGroupMemberAccountRsp\022i\n\030RemoveGroupMem"
-  "berAccount\022&.resource.RemoveGroupMemberA"
-  "ccountRqst\032%.resource.RemoveGroupMemberA"
-  "ccountRsp\022N\n\017RegisterAccount\022\035.resource."
-  "RegisterAccountRqst\032\034.resource.RegisterA"
-  "ccountRsp\022H\n\rDeleteAccount\022\033.resource.De"
-  "leteAccountRqst\032\032.resource.DeleteAccount"
-  "Rsp\022K\n\016AddAccountRole\022\034.resource.AddAcco"
-  "untRoleRqst\032\033.resource.AddAccountRoleRsp"
-  "\022T\n\021RemoveAccountRole\022\037.resource.RemoveA"
-  "ccountRoleRqst\032\036.resource.RemoveAccountR"
-  "oleRsp\022\?\n\nCreateRole\022\030.resource.CreateRo"
-  "leRqst\032\027.resource.CreateRoleRsp\022\?\n\nDelet"
-  "eRole\022\030.resource.DeleteRoleRqst\032\027.resour"
-  "ce.DeleteRoleRsp\022H\n\rAddRoleAction\022\033.reso"
-  "urce.AddRoleActionRqst\032\032.resource.AddRol"
-  "eActionRsp\022Q\n\020RemoveRoleAction\022\036.resourc"
-  "e.RemoveRoleActionRqst\032\035.resource.Remove"
-  "RoleActionRsp\022c\n\026GetAllApplicationsInfo\022"
-  "$.resource.GetAllApplicationsInfoRqst\032#."
-  "resource.GetAllApplicationsInfoRsp\022T\n\021De"
-  "leteApplication\022\037.resource.DeleteApplica"
-  "tionRqst\032\036.resource.DeleteApplicationRsp"
-  "\022]\n\024AddApplicationAction\022\".resource.AddA"
-  "pplicationActionRqst\032!.resource.AddAppli"
-  "cationActionRsp\022f\n\027RemoveApplicationActi"
-  "on\022%.resource.RemoveApplicationActionRqs"
-  "t\032$.resource.RemoveApplicationActionRsp\022"
-  "E\n\014RegisterPeer\022\032.resource.RegisterPeerR"
-  "qst\032\031.resource.RegisterPeerRsp\022;\n\010GetPee"
-  "rs\022\026.resource.GetPeersRqst\032\025.resource.Ge"
-  "tPeersRsp0\001\022\?\n\nDeletePeer\022\030.resource.Del"
-  "etePeerRqst\032\027.resource.DeletePeerRsp\022H\n\r"
-  "AddPeerAction\022\033.resource.AddPeerActionRq"
-  "st\032\032.resource.AddPeerActionRsp\022Q\n\020Remove"
-  "PeerAction\022\036.resource.RemovePeerActionRq"
-  "st\032\035.resource.RemovePeerActionRsp2\303\007\n\013Rb"
-  "acService\022d\n\026SetResourcePermissions\022$.re"
-  "source.SetResourcePermissionsRqst\032$.reso"
-  "urce.SetResourcePermissionsRqst\022m\n\031Delet"
-  "eResourcePermissions\022\'.resource.DeleteRe"
-  "sourcePermissionsRqst\032\'.resource.DeleteR"
-  "esourcePermissionsRqst\022j\n\030DeleteResource"
-  "Permission\022&.resource.DeleteResourcePerm"
-  "issionRqst\032&.resource.DeleteResourcePerm"
-  "issionRqst\022`\n\025GetResourcePermission\022#.re"
-  "source.GetResourcePermissionRqst\032\".resou"
-  "rce.GetResourcePermissionRsp\022`\n\025SetResou"
-  "rcePermission\022#.resource.SetResourcePerm"
-  "issionRqst\032\".resource.SetResourcePermiss"
-  "ionRsp\022c\n\026GetResourcePermissions\022$.resou"
-  "rce.GetResourcePermissionsRqst\032#.resourc"
-  "e.GetResourcePermissionsRsp\022Q\n\020AddResour"
-  "ceOwner\022\036.resource.AddResourceOwnerRqst\032"
-  "\035.resource.AddResourceOwnerRsp\022Z\n\023Remove"
-  "ResourceOwner\022!.resource.RemoveResourceO"
-  "wnerRqst\032 .resource.RemoveResourceOwnerR"
-  "sp\022N\n\017DeleteAllAccess\022\035.resource.DeleteA"
-  "llAccessRqst\032\034.resource.DeleteAllAccessR"
-  "sp\022K\n\016ValidateAccess\022\034.resource.Validate"
-  "AccessRqst\032\033.resource.ValidateAccessRsp2"
-  "\361\001\n\nLogService\022*\n\003Log\022\021.resource.LogRqst"
-  "\032\020.resource.LogRsp\0225\n\006GetLog\022\024.resource."
-  "GetLogRqst\032\023.resource.GetLogRsp0\001\022<\n\tDel"
-  "eteLog\022\027.resource.DeleteLogRqst\032\026.resour"
-  "ce.DeleteLogRsp\022B\n\013ClearAllLog\022\031.resourc"
-  "e.ClearAllLogRqst\032\030.resource.ClearAllLog"
-  "RspB\025Z\023resource/resourcepbb\006proto3"
+  "\n\021ValidateAccessRsp\022\016\n\006result\030\001 \001(\010\",\n\032G"
+  "etActionResourceInfosRqst\022\016\n\006action\030\001 \001("
+  "\t\"@\n\rResourceInfos\022\r\n\005index\030\001 \001(\005\022\022\n\nper"
+  "mission\030\002 \001(\t\022\014\n\004path\030\003 \001(\t\"C\n\031GetAction"
+  "ResourceInfosRsp\022&\n\005infos\030\001 \003(\0132\027.resour"
+  "ce.ResourceInfos\"\202\001\n\022ValidateActionRqst\022"
+  "\017\n\007subject\030\001 \001(\t\022#\n\004type\030\002 \001(\0162\025.resourc"
+  "e.SubjectType\022\016\n\006action\030\003 \001(\t\022&\n\005infos\030\004"
+  " \003(\0132\027.resource.ResourceInfos\"#\n\021Validat"
+  "eActionRsp\022\016\n\006result\030\001 \001(\010\"\220\001\n\007LogInfo\022\014"
+  "\n\004date\030\001 \001(\003\022\037\n\004type\030\002 \001(\0162\021.resource.Lo"
+  "gType\022\023\n\013application\030\003 \001(\t\022\016\n\006userId\030\004 \001"
+  "(\t\022\020\n\010userName\030\005 \001(\t\022\016\n\006method\030\006 \001(\t\022\017\n\007"
+  "message\030\007 \001(\t\"*\n\007LogRqst\022\037\n\004info\030\001 \001(\0132\021"
+  ".resource.LogInfo\"\030\n\006LogRsp\022\016\n\006result\030\001 "
+  "\001(\010\"/\n\rDeleteLogRqst\022\036\n\003log\030\001 \001(\0132\021.reso"
+  "urce.LogInfo\"\036\n\014DeleteLogRsp\022\016\n\006result\030\001"
+  " \001(\010\"\"\n\020SetLogMethodRqst\022\016\n\006method\030\001 \001(\t"
+  "\"!\n\017SetLogMethodRsp\022\016\n\006result\030\001 \001(\010\"$\n\022R"
+  "esetLogMethodRqst\022\016\n\006method\030\001 \001(\t\"#\n\021Res"
+  "etLogMethodRsp\022\016\n\006result\030\001 \001(\010\"\023\n\021GetLog"
+  "MethodsRqst\"#\n\020GetLogMethodsRsp\022\017\n\007metho"
+  "ds\030\001 \003(\t\"\033\n\nGetLogRqst\022\r\n\005query\030\001 \001(\t\",\n"
+  "\tGetLogRsp\022\037\n\004info\030\001 \003(\0132\021.resource.LogI"
+  "nfo\"2\n\017ClearAllLogRqst\022\037\n\004type\030\001 \001(\0162\021.r"
+  "esource.LogType\" \n\016ClearAllLogRsp\022\016\n\006res"
+  "ult\030\001 \001(\010*)\n\016PermissionType\022\n\n\006DENIED\020\000\022"
+  "\013\n\007ALLOWED\020\001*\\\n\013SubjectType\022\013\n\007ACCOUNT\020\000"
+  "\022\010\n\004PEER\020\001\022\t\n\005GROUP\020\002\022\020\n\014ORGANIZATION\020\003\022"
+  "\017\n\013APPLICATION\020\004\022\010\n\004ROLE\020\005*.\n\007LogType\022\020\n"
+  "\014INFO_MESSAGE\020\000\022\021\n\rERROR_MESSAGE\020\0012\327\032\n\017R"
+  "esourceService\022H\n\rGetAllActions\022\033.resour"
+  "ce.GetAllActionsRqst\032\032.resource.GetAllAc"
+  "tionsRsp\022H\n\rValidateToken\022\033.resource.Val"
+  "idateTokenRqst\032\032.resource.ValidateTokenR"
+  "sp\022E\n\014RefreshToken\022\032.resource.RefreshTok"
+  "enRqst\032\031.resource.RefreshTokenRsp\022E\n\014Aut"
+  "henticate\022\032.resource.AuthenticateRqst\032\031."
+  "resource.AuthenticateRsp\022N\n\017SynchronizeL"
+  "dap\022\035.resource.SynchronizeLdapRqst\032\034.res"
+  "ource.SynchronizeLdapRsp\022W\n\022CreateOrgani"
+  "zation\022 .resource.CreateOrganizationRqst"
+  "\032\037.resource.CreateOrganizationRsp\022S\n\020Get"
+  "Organizations\022\036.resource.GetOrganization"
+  "sRqst\032\035.resource.GetOrganizationsRsp0\001\022W"
+  "\n\022DeleteOrganization\022 .resource.DeleteOr"
+  "ganizationRqst\032\037.resource.DeleteOrganiza"
+  "tionRsp\022c\n\026AddOrganizationAccount\022$.reso"
+  "urce.AddOrganizationAccountRqst\032#.resour"
+  "ce.AddOrganizationAccountRsp\022]\n\024AddOrgan"
+  "izationGroup\022\".resource.AddOrganizationG"
+  "roupRqst\032!.resource.AddOrganizationGroup"
+  "Rsp\022Z\n\023AddOrganizationRole\022!.resource.Ad"
+  "dOrganizationRoleRqst\032 .resource.AddOrga"
+  "nizationRoleRsp\022o\n\032AddOrganizationApplic"
+  "ation\022(.resource.AddOrganizationApplicat"
+  "ionRqst\032\'.resource.AddOrganizationApplic"
+  "ationRsp\022l\n\031RemoveOrganizationAccount\022\'."
+  "resource.RemoveOrganizationAccountRqst\032&"
+  ".resource.RemoveOrganizationAccountRsp\022f"
+  "\n\027RemoveOrganizationGroup\022%.resource.Rem"
+  "oveOrganizationGroupRqst\032$.resource.Remo"
+  "veOrganizationGroupRsp\022c\n\026RemoveOrganiza"
+  "tionRole\022$.resource.RemoveOrganizationRo"
+  "leRqst\032#.resource.RemoveOrganizationRole"
+  "Rsp\022x\n\035RemoveOrganizationApplication\022+.r"
+  "esource.RemoveOrganizationApplicationRqs"
+  "t\032*.resource.RemoveOrganizationApplicati"
+  "onRsp\022B\n\013CreateGroup\022\031.resource.CreateGr"
+  "oupRqst\032\030.resource.CreateGroupRsp\022>\n\tGet"
+  "Groups\022\027.resource.GetGroupsRqst\032\026.resour"
+  "ce.GetGroupsRsp0\001\022B\n\013DeleteGroup\022\031.resou"
+  "rce.DeleteGroupRqst\032\030.resource.DeleteGro"
+  "upRsp\022`\n\025AddGroupMemberAccount\022#.resourc"
+  "e.AddGroupMemberAccountRqst\032\".resource.A"
+  "ddGroupMemberAccountRsp\022i\n\030RemoveGroupMe"
+  "mberAccount\022&.resource.RemoveGroupMember"
+  "AccountRqst\032%.resource.RemoveGroupMember"
+  "AccountRsp\022N\n\017RegisterAccount\022\035.resource"
+  ".RegisterAccountRqst\032\034.resource.Register"
+  "AccountRsp\022H\n\rDeleteAccount\022\033.resource.D"
+  "eleteAccountRqst\032\032.resource.DeleteAccoun"
+  "tRsp\022K\n\016AddAccountRole\022\034.resource.AddAcc"
+  "ountRoleRqst\032\033.resource.AddAccountRoleRs"
+  "p\022T\n\021RemoveAccountRole\022\037.resource.Remove"
+  "AccountRoleRqst\032\036.resource.RemoveAccount"
+  "RoleRsp\022\?\n\nCreateRole\022\030.resource.CreateR"
+  "oleRqst\032\027.resource.CreateRoleRsp\022\?\n\nDele"
+  "teRole\022\030.resource.DeleteRoleRqst\032\027.resou"
+  "rce.DeleteRoleRsp\022H\n\rAddRoleAction\022\033.res"
+  "ource.AddRoleActionRqst\032\032.resource.AddRo"
+  "leActionRsp\022Q\n\020RemoveRoleAction\022\036.resour"
+  "ce.RemoveRoleActionRqst\032\035.resource.Remov"
+  "eRoleActionRsp\022c\n\026GetAllApplicationsInfo"
+  "\022$.resource.GetAllApplicationsInfoRqst\032#"
+  ".resource.GetAllApplicationsInfoRsp\022T\n\021D"
+  "eleteApplication\022\037.resource.DeleteApplic"
+  "ationRqst\032\036.resource.DeleteApplicationRs"
+  "p\022]\n\024AddApplicationAction\022\".resource.Add"
+  "ApplicationActionRqst\032!.resource.AddAppl"
+  "icationActionRsp\022f\n\027RemoveApplicationAct"
+  "ion\022%.resource.RemoveApplicationActionRq"
+  "st\032$.resource.RemoveApplicationActionRsp"
+  "\022E\n\014RegisterPeer\022\032.resource.RegisterPeer"
+  "Rqst\032\031.resource.RegisterPeerRsp\022;\n\010GetPe"
+  "ers\022\026.resource.GetPeersRqst\032\025.resource.G"
+  "etPeersRsp0\001\022\?\n\nDeletePeer\022\030.resource.De"
+  "letePeerRqst\032\027.resource.DeletePeerRsp\022H\n"
+  "\rAddPeerAction\022\033.resource.AddPeerActionR"
+  "qst\032\032.resource.AddPeerActionRsp\022Q\n\020Remov"
+  "ePeerAction\022\036.resource.RemovePeerActionR"
+  "qst\032\035.resource.RemovePeerActionRsp\022c\n\026Ge"
+  "tActionResourceInfos\022$.resource.GetActio"
+  "nResourceInfosRqst\032#.resource.GetActionR"
+  "esourceInfosRsp\022K\n\016ValidateAction\022\034.reso"
+  "urce.ValidateActionRqst\032\033.resource.Valid"
+  "ateActionRsp2\303\007\n\013RbacService\022d\n\026SetResou"
+  "rcePermissions\022$.resource.SetResourcePer"
+  "missionsRqst\032$.resource.SetResourcePermi"
+  "ssionsRqst\022m\n\031DeleteResourcePermissions\022"
+  "\'.resource.DeleteResourcePermissionsRqst"
+  "\032\'.resource.DeleteResourcePermissionsRqs"
+  "t\022j\n\030DeleteResourcePermission\022&.resource"
+  ".DeleteResourcePermissionRqst\032&.resource"
+  ".DeleteResourcePermissionRqst\022`\n\025GetReso"
+  "urcePermission\022#.resource.GetResourcePer"
+  "missionRqst\032\".resource.GetResourcePermis"
+  "sionRsp\022`\n\025SetResourcePermission\022#.resou"
+  "rce.SetResourcePermissionRqst\032\".resource"
+  ".SetResourcePermissionRsp\022c\n\026GetResource"
+  "Permissions\022$.resource.GetResourcePermis"
+  "sionsRqst\032#.resource.GetResourcePermissi"
+  "onsRsp\022Q\n\020AddResourceOwner\022\036.resource.Ad"
+  "dResourceOwnerRqst\032\035.resource.AddResourc"
+  "eOwnerRsp\022Z\n\023RemoveResourceOwner\022!.resou"
+  "rce.RemoveResourceOwnerRqst\032 .resource.R"
+  "emoveResourceOwnerRsp\022N\n\017DeleteAllAccess"
+  "\022\035.resource.DeleteAllAccessRqst\032\034.resour"
+  "ce.DeleteAllAccessRsp\022K\n\016ValidateAccess\022"
+  "\034.resource.ValidateAccessRqst\032\033.resource"
+  ".ValidateAccessRsp2\361\001\n\nLogService\022*\n\003Log"
+  "\022\021.resource.LogRqst\032\020.resource.LogRsp\0225\n"
+  "\006GetLog\022\024.resource.GetLogRqst\032\023.resource"
+  ".GetLogRsp0\001\022<\n\tDeleteLog\022\027.resource.Del"
+  "eteLogRqst\032\026.resource.DeleteLogRsp\022B\n\013Cl"
+  "earAllLog\022\031.resource.ClearAllLogRqst\032\030.r"
+  "esource.ClearAllLogRspB\025Z\023resource/resou"
+  "rcepbb\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_resource_2eproto_deps[1] = {
 };
-static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_resource_2eproto_sccs[124] = {
+static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_resource_2eproto_sccs[129] = {
   &scc_info_Account_resource_2eproto.base,
   &scc_info_AccountExistRqst_resource_2eproto.base,
   &scc_info_AccountExistRsp_resource_2eproto.base,
@@ -3691,6 +3843,8 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
   &scc_info_DeleteResourcePermissionsRsp_resource_2eproto.base,
   &scc_info_DeleteRoleRqst_resource_2eproto.base,
   &scc_info_DeleteRoleRsp_resource_2eproto.base,
+  &scc_info_GetActionResourceInfosRqst_resource_2eproto.base,
+  &scc_info_GetActionResourceInfosRsp_resource_2eproto.base,
   &scc_info_GetAllActionsRqst_resource_2eproto.base,
   &scc_info_GetAllActionsRsp_resource_2eproto.base,
   &scc_info_GetAllApplicationsInfoRqst_resource_2eproto.base,
@@ -3747,6 +3901,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
   &scc_info_RemoveRoleActionRsp_resource_2eproto.base,
   &scc_info_ResetLogMethodRqst_resource_2eproto.base,
   &scc_info_ResetLogMethodRsp_resource_2eproto.base,
+  &scc_info_ResourceInfos_resource_2eproto.base,
   &scc_info_Role_resource_2eproto.base,
   &scc_info_SetLogMethodRqst_resource_2eproto.base,
   &scc_info_SetLogMethodRsp_resource_2eproto.base,
@@ -3759,15 +3914,17 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
   &scc_info_UserSyncInfos_resource_2eproto.base,
   &scc_info_ValidateAccessRqst_resource_2eproto.base,
   &scc_info_ValidateAccessRsp_resource_2eproto.base,
+  &scc_info_ValidateActionRqst_resource_2eproto.base,
+  &scc_info_ValidateActionRsp_resource_2eproto.base,
   &scc_info_ValidateTokenRqst_resource_2eproto.base,
   &scc_info_ValidateTokenRsp_resource_2eproto.base,
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_resource_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_resource_2eproto = {
-  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 11354,
-  &descriptor_table_resource_2eproto_once, descriptor_table_resource_2eproto_sccs, descriptor_table_resource_2eproto_deps, 124, 0,
+  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 11893,
+  &descriptor_table_resource_2eproto_once, descriptor_table_resource_2eproto_sccs, descriptor_table_resource_2eproto_deps, 129, 0,
   schemas, file_default_instances, TableStruct_resource_2eproto::offsets,
-  file_level_metadata_resource_2eproto, 124, file_level_enum_descriptors_resource_2eproto, file_level_service_descriptors_resource_2eproto,
+  file_level_metadata_resource_2eproto, 129, file_level_enum_descriptors_resource_2eproto, file_level_service_descriptors_resource_2eproto,
 };
 
 // Force running AddDescriptors() at dynamic initialization time.
@@ -3798,6 +3955,7 @@ bool SubjectType_IsValid(int value) {
     case 2:
     case 3:
     case 4:
+    case 5:
       return true;
     default:
       return false;
@@ -28328,6 +28486,1194 @@ void ValidateAccessRsp::InternalSwap(ValidateAccessRsp* other) {
 
 // ===================================================================
 
+void GetActionResourceInfosRqst::InitAsDefaultInstance() {
+}
+class GetActionResourceInfosRqst::_Internal {
+ public:
+};
+
+GetActionResourceInfosRqst::GetActionResourceInfosRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor();
+  RegisterArenaDtor(arena);
+  // @@protoc_insertion_point(arena_constructor:resource.GetActionResourceInfosRqst)
+}
+GetActionResourceInfosRqst::GetActionResourceInfosRqst(const GetActionResourceInfosRqst& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_action().empty()) {
+    action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_action(),
+      GetArena());
+  }
+  // @@protoc_insertion_point(copy_constructor:resource.GetActionResourceInfosRqst)
+}
+
+void GetActionResourceInfosRqst::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_GetActionResourceInfosRqst_resource_2eproto.base);
+  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+}
+
+GetActionResourceInfosRqst::~GetActionResourceInfosRqst() {
+  // @@protoc_insertion_point(destructor:resource.GetActionResourceInfosRqst)
+  SharedDtor();
+  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+void GetActionResourceInfosRqst::SharedDtor() {
+  GOOGLE_DCHECK(GetArena() == nullptr);
+  action_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+}
+
+void GetActionResourceInfosRqst::ArenaDtor(void* object) {
+  GetActionResourceInfosRqst* _this = reinterpret_cast< GetActionResourceInfosRqst* >(object);
+  (void)_this;
+}
+void GetActionResourceInfosRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+}
+void GetActionResourceInfosRqst::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const GetActionResourceInfosRqst& GetActionResourceInfosRqst::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_GetActionResourceInfosRqst_resource_2eproto.base);
+  return *internal_default_instance();
+}
+
+
+void GetActionResourceInfosRqst::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.GetActionResourceInfosRqst)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* GetActionResourceInfosRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
+  while (!ctx->Done(&ptr)) {
+    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
+    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
+    CHK_(ptr);
+    switch (tag >> 3) {
+      // string action = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
+          auto str = _internal_mutable_action();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.GetActionResourceInfosRqst.action"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      default: {
+      handle_unusual:
+        if ((tag & 7) == 4 || tag == 0) {
+          ctx->SetLastTag(tag);
+          goto success;
+        }
+        ptr = UnknownFieldParse(tag,
+            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+            ptr, ctx);
+        CHK_(ptr != nullptr);
+        continue;
+      }
+    }  // switch
+  }  // while
+success:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto success;
+#undef CHK_
+}
+
+::PROTOBUF_NAMESPACE_ID::uint8* GetActionResourceInfosRqst::_InternalSerialize(
+    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:resource.GetActionResourceInfosRqst)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string action = 1;
+  if (this->action().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_action().data(), static_cast<int>(this->_internal_action().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.GetActionResourceInfosRqst.action");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_action(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:resource.GetActionResourceInfosRqst)
+  return target;
+}
+
+size_t GetActionResourceInfosRqst::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.GetActionResourceInfosRqst)
+  size_t total_size = 0;
+
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // string action = 1;
+  if (this->action().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_action());
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
+        _internal_metadata_, total_size, &_cached_size_);
+  }
+  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void GetActionResourceInfosRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.GetActionResourceInfosRqst)
+  GOOGLE_DCHECK_NE(&from, this);
+  const GetActionResourceInfosRqst* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetActionResourceInfosRqst>(
+          &from);
+  if (source == nullptr) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.GetActionResourceInfosRqst)
+    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.GetActionResourceInfosRqst)
+    MergeFrom(*source);
+  }
+}
+
+void GetActionResourceInfosRqst::MergeFrom(const GetActionResourceInfosRqst& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.GetActionResourceInfosRqst)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (from.action().size() > 0) {
+    _internal_set_action(from._internal_action());
+  }
+}
+
+void GetActionResourceInfosRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.GetActionResourceInfosRqst)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void GetActionResourceInfosRqst::CopyFrom(const GetActionResourceInfosRqst& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.GetActionResourceInfosRqst)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool GetActionResourceInfosRqst::IsInitialized() const {
+  return true;
+}
+
+void GetActionResourceInfosRqst::InternalSwap(GetActionResourceInfosRqst* other) {
+  using std::swap;
+  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  action_.Swap(&other->action_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata GetActionResourceInfosRqst::GetMetadata() const {
+  return GetMetadataStatic();
+}
+
+
+// ===================================================================
+
+void ResourceInfos::InitAsDefaultInstance() {
+}
+class ResourceInfos::_Internal {
+ public:
+};
+
+ResourceInfos::ResourceInfos(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor();
+  RegisterArenaDtor(arena);
+  // @@protoc_insertion_point(arena_constructor:resource.ResourceInfos)
+}
+ResourceInfos::ResourceInfos(const ResourceInfos& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  permission_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_permission().empty()) {
+    permission_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_permission(),
+      GetArena());
+  }
+  path_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_path().empty()) {
+    path_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_path(),
+      GetArena());
+  }
+  index_ = from.index_;
+  // @@protoc_insertion_point(copy_constructor:resource.ResourceInfos)
+}
+
+void ResourceInfos::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_ResourceInfos_resource_2eproto.base);
+  permission_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  path_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  index_ = 0;
+}
+
+ResourceInfos::~ResourceInfos() {
+  // @@protoc_insertion_point(destructor:resource.ResourceInfos)
+  SharedDtor();
+  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+void ResourceInfos::SharedDtor() {
+  GOOGLE_DCHECK(GetArena() == nullptr);
+  permission_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  path_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+}
+
+void ResourceInfos::ArenaDtor(void* object) {
+  ResourceInfos* _this = reinterpret_cast< ResourceInfos* >(object);
+  (void)_this;
+}
+void ResourceInfos::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+}
+void ResourceInfos::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const ResourceInfos& ResourceInfos::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_ResourceInfos_resource_2eproto.base);
+  return *internal_default_instance();
+}
+
+
+void ResourceInfos::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.ResourceInfos)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  permission_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  path_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  index_ = 0;
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ResourceInfos::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
+  while (!ctx->Done(&ptr)) {
+    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
+    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
+    CHK_(ptr);
+    switch (tag >> 3) {
+      // int32 index = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
+          index_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // string permission = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
+          auto str = _internal_mutable_permission();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.ResourceInfos.permission"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // string path = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
+          auto str = _internal_mutable_path();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.ResourceInfos.path"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      default: {
+      handle_unusual:
+        if ((tag & 7) == 4 || tag == 0) {
+          ctx->SetLastTag(tag);
+          goto success;
+        }
+        ptr = UnknownFieldParse(tag,
+            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+            ptr, ctx);
+        CHK_(ptr != nullptr);
+        continue;
+      }
+    }  // switch
+  }  // while
+success:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto success;
+#undef CHK_
+}
+
+::PROTOBUF_NAMESPACE_ID::uint8* ResourceInfos::_InternalSerialize(
+    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:resource.ResourceInfos)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // int32 index = 1;
+  if (this->index() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteInt32ToArray(1, this->_internal_index(), target);
+  }
+
+  // string permission = 2;
+  if (this->permission().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_permission().data(), static_cast<int>(this->_internal_permission().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.ResourceInfos.permission");
+    target = stream->WriteStringMaybeAliased(
+        2, this->_internal_permission(), target);
+  }
+
+  // string path = 3;
+  if (this->path().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_path().data(), static_cast<int>(this->_internal_path().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.ResourceInfos.path");
+    target = stream->WriteStringMaybeAliased(
+        3, this->_internal_path(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:resource.ResourceInfos)
+  return target;
+}
+
+size_t ResourceInfos::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.ResourceInfos)
+  size_t total_size = 0;
+
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // string permission = 2;
+  if (this->permission().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_permission());
+  }
+
+  // string path = 3;
+  if (this->path().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_path());
+  }
+
+  // int32 index = 1;
+  if (this->index() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::Int32Size(
+        this->_internal_index());
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
+        _internal_metadata_, total_size, &_cached_size_);
+  }
+  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void ResourceInfos::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.ResourceInfos)
+  GOOGLE_DCHECK_NE(&from, this);
+  const ResourceInfos* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<ResourceInfos>(
+          &from);
+  if (source == nullptr) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.ResourceInfos)
+    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.ResourceInfos)
+    MergeFrom(*source);
+  }
+}
+
+void ResourceInfos::MergeFrom(const ResourceInfos& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.ResourceInfos)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (from.permission().size() > 0) {
+    _internal_set_permission(from._internal_permission());
+  }
+  if (from.path().size() > 0) {
+    _internal_set_path(from._internal_path());
+  }
+  if (from.index() != 0) {
+    _internal_set_index(from._internal_index());
+  }
+}
+
+void ResourceInfos::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.ResourceInfos)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void ResourceInfos::CopyFrom(const ResourceInfos& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.ResourceInfos)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ResourceInfos::IsInitialized() const {
+  return true;
+}
+
+void ResourceInfos::InternalSwap(ResourceInfos* other) {
+  using std::swap;
+  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  permission_.Swap(&other->permission_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  path_.Swap(&other->path_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  swap(index_, other->index_);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ResourceInfos::GetMetadata() const {
+  return GetMetadataStatic();
+}
+
+
+// ===================================================================
+
+void GetActionResourceInfosRsp::InitAsDefaultInstance() {
+}
+class GetActionResourceInfosRsp::_Internal {
+ public:
+};
+
+GetActionResourceInfosRsp::GetActionResourceInfosRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
+  infos_(arena) {
+  SharedCtor();
+  RegisterArenaDtor(arena);
+  // @@protoc_insertion_point(arena_constructor:resource.GetActionResourceInfosRsp)
+}
+GetActionResourceInfosRsp::GetActionResourceInfosRsp(const GetActionResourceInfosRsp& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message(),
+      infos_(from.infos_) {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  // @@protoc_insertion_point(copy_constructor:resource.GetActionResourceInfosRsp)
+}
+
+void GetActionResourceInfosRsp::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_GetActionResourceInfosRsp_resource_2eproto.base);
+}
+
+GetActionResourceInfosRsp::~GetActionResourceInfosRsp() {
+  // @@protoc_insertion_point(destructor:resource.GetActionResourceInfosRsp)
+  SharedDtor();
+  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+void GetActionResourceInfosRsp::SharedDtor() {
+  GOOGLE_DCHECK(GetArena() == nullptr);
+}
+
+void GetActionResourceInfosRsp::ArenaDtor(void* object) {
+  GetActionResourceInfosRsp* _this = reinterpret_cast< GetActionResourceInfosRsp* >(object);
+  (void)_this;
+}
+void GetActionResourceInfosRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+}
+void GetActionResourceInfosRsp::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const GetActionResourceInfosRsp& GetActionResourceInfosRsp::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_GetActionResourceInfosRsp_resource_2eproto.base);
+  return *internal_default_instance();
+}
+
+
+void GetActionResourceInfosRsp::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.GetActionResourceInfosRsp)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  infos_.Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* GetActionResourceInfosRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
+  while (!ctx->Done(&ptr)) {
+    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
+    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
+    CHK_(ptr);
+    switch (tag >> 3) {
+      // repeated .resource.ResourceInfos infos = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_infos(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<10>(ptr));
+        } else goto handle_unusual;
+        continue;
+      default: {
+      handle_unusual:
+        if ((tag & 7) == 4 || tag == 0) {
+          ctx->SetLastTag(tag);
+          goto success;
+        }
+        ptr = UnknownFieldParse(tag,
+            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+            ptr, ctx);
+        CHK_(ptr != nullptr);
+        continue;
+      }
+    }  // switch
+  }  // while
+success:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto success;
+#undef CHK_
+}
+
+::PROTOBUF_NAMESPACE_ID::uint8* GetActionResourceInfosRsp::_InternalSerialize(
+    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:resource.GetActionResourceInfosRsp)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // repeated .resource.ResourceInfos infos = 1;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->_internal_infos_size()); i < n; i++) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(1, this->_internal_infos(i), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:resource.GetActionResourceInfosRsp)
+  return target;
+}
+
+size_t GetActionResourceInfosRsp::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.GetActionResourceInfosRsp)
+  size_t total_size = 0;
+
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // repeated .resource.ResourceInfos infos = 1;
+  total_size += 1UL * this->_internal_infos_size();
+  for (const auto& msg : this->infos_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
+        _internal_metadata_, total_size, &_cached_size_);
+  }
+  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void GetActionResourceInfosRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.GetActionResourceInfosRsp)
+  GOOGLE_DCHECK_NE(&from, this);
+  const GetActionResourceInfosRsp* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetActionResourceInfosRsp>(
+          &from);
+  if (source == nullptr) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.GetActionResourceInfosRsp)
+    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.GetActionResourceInfosRsp)
+    MergeFrom(*source);
+  }
+}
+
+void GetActionResourceInfosRsp::MergeFrom(const GetActionResourceInfosRsp& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.GetActionResourceInfosRsp)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  infos_.MergeFrom(from.infos_);
+}
+
+void GetActionResourceInfosRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.GetActionResourceInfosRsp)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void GetActionResourceInfosRsp::CopyFrom(const GetActionResourceInfosRsp& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.GetActionResourceInfosRsp)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool GetActionResourceInfosRsp::IsInitialized() const {
+  return true;
+}
+
+void GetActionResourceInfosRsp::InternalSwap(GetActionResourceInfosRsp* other) {
+  using std::swap;
+  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  infos_.InternalSwap(&other->infos_);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata GetActionResourceInfosRsp::GetMetadata() const {
+  return GetMetadataStatic();
+}
+
+
+// ===================================================================
+
+void ValidateActionRqst::InitAsDefaultInstance() {
+}
+class ValidateActionRqst::_Internal {
+ public:
+};
+
+ValidateActionRqst::ValidateActionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
+  infos_(arena) {
+  SharedCtor();
+  RegisterArenaDtor(arena);
+  // @@protoc_insertion_point(arena_constructor:resource.ValidateActionRqst)
+}
+ValidateActionRqst::ValidateActionRqst(const ValidateActionRqst& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message(),
+      infos_(from.infos_) {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  subject_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_subject().empty()) {
+    subject_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_subject(),
+      GetArena());
+  }
+  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_action().empty()) {
+    action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_action(),
+      GetArena());
+  }
+  type_ = from.type_;
+  // @@protoc_insertion_point(copy_constructor:resource.ValidateActionRqst)
+}
+
+void ValidateActionRqst::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_ValidateActionRqst_resource_2eproto.base);
+  subject_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  type_ = 0;
+}
+
+ValidateActionRqst::~ValidateActionRqst() {
+  // @@protoc_insertion_point(destructor:resource.ValidateActionRqst)
+  SharedDtor();
+  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+void ValidateActionRqst::SharedDtor() {
+  GOOGLE_DCHECK(GetArena() == nullptr);
+  subject_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  action_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+}
+
+void ValidateActionRqst::ArenaDtor(void* object) {
+  ValidateActionRqst* _this = reinterpret_cast< ValidateActionRqst* >(object);
+  (void)_this;
+}
+void ValidateActionRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+}
+void ValidateActionRqst::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const ValidateActionRqst& ValidateActionRqst::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_ValidateActionRqst_resource_2eproto.base);
+  return *internal_default_instance();
+}
+
+
+void ValidateActionRqst::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.ValidateActionRqst)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  infos_.Clear();
+  subject_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  type_ = 0;
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ValidateActionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
+  while (!ctx->Done(&ptr)) {
+    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
+    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
+    CHK_(ptr);
+    switch (tag >> 3) {
+      // string subject = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
+          auto str = _internal_mutable_subject();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.ValidateActionRqst.subject"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // .resource.SubjectType type = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 16)) {
+          ::PROTOBUF_NAMESPACE_ID::uint64 val = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+          _internal_set_type(static_cast<::resource::SubjectType>(val));
+        } else goto handle_unusual;
+        continue;
+      // string action = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
+          auto str = _internal_mutable_action();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.ValidateActionRqst.action"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // repeated .resource.ResourceInfos infos = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 34)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_infos(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<34>(ptr));
+        } else goto handle_unusual;
+        continue;
+      default: {
+      handle_unusual:
+        if ((tag & 7) == 4 || tag == 0) {
+          ctx->SetLastTag(tag);
+          goto success;
+        }
+        ptr = UnknownFieldParse(tag,
+            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+            ptr, ctx);
+        CHK_(ptr != nullptr);
+        continue;
+      }
+    }  // switch
+  }  // while
+success:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto success;
+#undef CHK_
+}
+
+::PROTOBUF_NAMESPACE_ID::uint8* ValidateActionRqst::_InternalSerialize(
+    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:resource.ValidateActionRqst)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string subject = 1;
+  if (this->subject().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_subject().data(), static_cast<int>(this->_internal_subject().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.ValidateActionRqst.subject");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_subject(), target);
+  }
+
+  // .resource.SubjectType type = 2;
+  if (this->type() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteEnumToArray(
+      2, this->_internal_type(), target);
+  }
+
+  // string action = 3;
+  if (this->action().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_action().data(), static_cast<int>(this->_internal_action().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.ValidateActionRqst.action");
+    target = stream->WriteStringMaybeAliased(
+        3, this->_internal_action(), target);
+  }
+
+  // repeated .resource.ResourceInfos infos = 4;
+  for (unsigned int i = 0,
+      n = static_cast<unsigned int>(this->_internal_infos_size()); i < n; i++) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(4, this->_internal_infos(i), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:resource.ValidateActionRqst)
+  return target;
+}
+
+size_t ValidateActionRqst::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.ValidateActionRqst)
+  size_t total_size = 0;
+
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // repeated .resource.ResourceInfos infos = 4;
+  total_size += 1UL * this->_internal_infos_size();
+  for (const auto& msg : this->infos_) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
+  // string subject = 1;
+  if (this->subject().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_subject());
+  }
+
+  // string action = 3;
+  if (this->action().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_action());
+  }
+
+  // .resource.SubjectType type = 2;
+  if (this->type() != 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::EnumSize(this->_internal_type());
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
+        _internal_metadata_, total_size, &_cached_size_);
+  }
+  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void ValidateActionRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.ValidateActionRqst)
+  GOOGLE_DCHECK_NE(&from, this);
+  const ValidateActionRqst* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<ValidateActionRqst>(
+          &from);
+  if (source == nullptr) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.ValidateActionRqst)
+    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.ValidateActionRqst)
+    MergeFrom(*source);
+  }
+}
+
+void ValidateActionRqst::MergeFrom(const ValidateActionRqst& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.ValidateActionRqst)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  infos_.MergeFrom(from.infos_);
+  if (from.subject().size() > 0) {
+    _internal_set_subject(from._internal_subject());
+  }
+  if (from.action().size() > 0) {
+    _internal_set_action(from._internal_action());
+  }
+  if (from.type() != 0) {
+    _internal_set_type(from._internal_type());
+  }
+}
+
+void ValidateActionRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.ValidateActionRqst)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void ValidateActionRqst::CopyFrom(const ValidateActionRqst& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.ValidateActionRqst)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ValidateActionRqst::IsInitialized() const {
+  return true;
+}
+
+void ValidateActionRqst::InternalSwap(ValidateActionRqst* other) {
+  using std::swap;
+  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  infos_.InternalSwap(&other->infos_);
+  subject_.Swap(&other->subject_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  action_.Swap(&other->action_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  swap(type_, other->type_);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ValidateActionRqst::GetMetadata() const {
+  return GetMetadataStatic();
+}
+
+
+// ===================================================================
+
+void ValidateActionRsp::InitAsDefaultInstance() {
+}
+class ValidateActionRsp::_Internal {
+ public:
+};
+
+ValidateActionRsp::ValidateActionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor();
+  RegisterArenaDtor(arena);
+  // @@protoc_insertion_point(arena_constructor:resource.ValidateActionRsp)
+}
+ValidateActionRsp::ValidateActionRsp(const ValidateActionRsp& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  result_ = from.result_;
+  // @@protoc_insertion_point(copy_constructor:resource.ValidateActionRsp)
+}
+
+void ValidateActionRsp::SharedCtor() {
+  result_ = false;
+}
+
+ValidateActionRsp::~ValidateActionRsp() {
+  // @@protoc_insertion_point(destructor:resource.ValidateActionRsp)
+  SharedDtor();
+  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+void ValidateActionRsp::SharedDtor() {
+  GOOGLE_DCHECK(GetArena() == nullptr);
+}
+
+void ValidateActionRsp::ArenaDtor(void* object) {
+  ValidateActionRsp* _this = reinterpret_cast< ValidateActionRsp* >(object);
+  (void)_this;
+}
+void ValidateActionRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+}
+void ValidateActionRsp::SetCachedSize(int size) const {
+  _cached_size_.Set(size);
+}
+const ValidateActionRsp& ValidateActionRsp::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_ValidateActionRsp_resource_2eproto.base);
+  return *internal_default_instance();
+}
+
+
+void ValidateActionRsp::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.ValidateActionRsp)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  result_ = false;
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ValidateActionRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
+  while (!ctx->Done(&ptr)) {
+    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
+    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
+    CHK_(ptr);
+    switch (tag >> 3) {
+      // bool result = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
+          result_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      default: {
+      handle_unusual:
+        if ((tag & 7) == 4 || tag == 0) {
+          ctx->SetLastTag(tag);
+          goto success;
+        }
+        ptr = UnknownFieldParse(tag,
+            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+            ptr, ctx);
+        CHK_(ptr != nullptr);
+        continue;
+      }
+    }  // switch
+  }  // while
+success:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto success;
+#undef CHK_
+}
+
+::PROTOBUF_NAMESPACE_ID::uint8* ValidateActionRsp::_InternalSerialize(
+    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:resource.ValidateActionRsp)
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // bool result = 1;
+  if (this->result() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteBoolToArray(1, this->_internal_result(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:resource.ValidateActionRsp)
+  return target;
+}
+
+size_t ValidateActionRsp::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.ValidateActionRsp)
+  size_t total_size = 0;
+
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // bool result = 1;
+  if (this->result() != 0) {
+    total_size += 1 + 1;
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
+        _internal_metadata_, total_size, &_cached_size_);
+  }
+  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  SetCachedSize(cached_size);
+  return total_size;
+}
+
+void ValidateActionRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.ValidateActionRsp)
+  GOOGLE_DCHECK_NE(&from, this);
+  const ValidateActionRsp* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<ValidateActionRsp>(
+          &from);
+  if (source == nullptr) {
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.ValidateActionRsp)
+    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+  } else {
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.ValidateActionRsp)
+    MergeFrom(*source);
+  }
+}
+
+void ValidateActionRsp::MergeFrom(const ValidateActionRsp& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.ValidateActionRsp)
+  GOOGLE_DCHECK_NE(&from, this);
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (from.result() != 0) {
+    _internal_set_result(from._internal_result());
+  }
+}
+
+void ValidateActionRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.ValidateActionRsp)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+void ValidateActionRsp::CopyFrom(const ValidateActionRsp& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.ValidateActionRsp)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ValidateActionRsp::IsInitialized() const {
+  return true;
+}
+
+void ValidateActionRsp::InternalSwap(ValidateActionRsp* other) {
+  using std::swap;
+  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  swap(result_, other->result_);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ValidateActionRsp::GetMetadata() const {
+  return GetMetadataStatic();
+}
+
+
+// ===================================================================
+
 void LogInfo::InitAsDefaultInstance() {
 }
 class LogInfo::_Internal {
@@ -31884,6 +33230,21 @@ template<> PROTOBUF_NOINLINE ::resource::ValidateAccessRqst* Arena::CreateMaybeM
 }
 template<> PROTOBUF_NOINLINE ::resource::ValidateAccessRsp* Arena::CreateMaybeMessage< ::resource::ValidateAccessRsp >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::ValidateAccessRsp >(arena);
+}
+template<> PROTOBUF_NOINLINE ::resource::GetActionResourceInfosRqst* Arena::CreateMaybeMessage< ::resource::GetActionResourceInfosRqst >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::GetActionResourceInfosRqst >(arena);
+}
+template<> PROTOBUF_NOINLINE ::resource::ResourceInfos* Arena::CreateMaybeMessage< ::resource::ResourceInfos >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::ResourceInfos >(arena);
+}
+template<> PROTOBUF_NOINLINE ::resource::GetActionResourceInfosRsp* Arena::CreateMaybeMessage< ::resource::GetActionResourceInfosRsp >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::GetActionResourceInfosRsp >(arena);
+}
+template<> PROTOBUF_NOINLINE ::resource::ValidateActionRqst* Arena::CreateMaybeMessage< ::resource::ValidateActionRqst >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::ValidateActionRqst >(arena);
+}
+template<> PROTOBUF_NOINLINE ::resource::ValidateActionRsp* Arena::CreateMaybeMessage< ::resource::ValidateActionRsp >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::ValidateActionRsp >(arena);
 }
 template<> PROTOBUF_NOINLINE ::resource::LogInfo* Arena::CreateMaybeMessage< ::resource::LogInfo >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::LogInfo >(arena);
