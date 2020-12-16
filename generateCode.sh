@@ -25,6 +25,7 @@ protoc proto/plc.proto --go-grpc_out=require_unimplemented_servers=false:./golan
 protoc proto/spc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/catalog.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/plc_link.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/postprocessor.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 
 # TypeScript grpc files generation.

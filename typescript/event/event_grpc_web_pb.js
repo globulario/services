@@ -138,7 +138,7 @@ proto.event.EventServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.event.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.event.EventServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -293,7 +293,7 @@ proto.event.EventServiceClient.prototype.quit =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.event.QuitResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.event.EventServicePromiseClient.prototype.quit =
     function(request, metadata) {
@@ -373,7 +373,7 @@ proto.event.EventServiceClient.prototype.subscribe =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.event.SubscribeResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.event.EventServicePromiseClient.prototype.subscribe =
     function(request, metadata) {
@@ -453,7 +453,7 @@ proto.event.EventServiceClient.prototype.unSubscribe =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.event.UnSubscribeResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.event.EventServicePromiseClient.prototype.unSubscribe =
     function(request, metadata) {
@@ -533,7 +533,7 @@ proto.event.EventServiceClient.prototype.publish =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.event.PublishResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.event.EventServicePromiseClient.prototype.publish =
     function(request, metadata) {

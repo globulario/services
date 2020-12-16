@@ -1,0 +1,25 @@
+/**
+ * You can use echo as starter project.
+ */
+syntax = "proto3";
+package echo;
+
+option go_package="postprocessor/postprocessorpb";
+
+message StopRequest {
+	
+}
+
+message StopResponse {
+	
+}
+
+service postprocessorService {
+	
+  // Stop the server.
+  rpc Stop(StopRequest) returns (StopResponse);
+	
+  // One request followed by one response
+  // The server returns the client message as-is.
+
+}
