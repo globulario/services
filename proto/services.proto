@@ -20,11 +20,12 @@ message PackageDescriptor {
 	string name = 2;
 	PackageType type = 3;
 	string publisherId = 4; // Cam be Organization or Account.
-	string version = 5;
-	string description = 6;
-	repeated string repositories = 7; // The list of repositories that has the services
-	repeated string discoveries = 8; // The list of dicoveries that has the services
-	repeated string keywords = 9;
+	string organization = 5;
+	string version = 6;
+	string description = 7;
+	repeated string repositories = 8; // The list of repositories that has the services
+	repeated string discoveries = 9; // The list of dicoveries that has the services
+	repeated string keywords = 10;
 }
 
 

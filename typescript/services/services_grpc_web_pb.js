@@ -26,7 +26,7 @@ proto.services = require('./services_pb.js');
  * @struct
  * @final
  */
-proto.services.ServiceDiscoveryClient =
+proto.services.PackageDiscoveryClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
   options['format'] = 'text';
@@ -52,7 +52,7 @@ proto.services.ServiceDiscoveryClient =
  * @struct
  * @final
  */
-proto.services.ServiceDiscoveryPromiseClient =
+proto.services.PackageDiscoveryPromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
   options['format'] = 'text';
@@ -76,8 +76,8 @@ proto.services.ServiceDiscoveryPromiseClient =
  *   !proto.services.FindPackagesDescriptorRequest,
  *   !proto.services.FindPackagesDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_FindPackages = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/FindPackages',
+const methodDescriptor_PackageDiscovery_FindPackages = new grpc.web.MethodDescriptor(
+  '/services.PackageDiscovery/FindPackages',
   grpc.web.MethodType.UNARY,
   proto.services.FindPackagesDescriptorRequest,
   proto.services.FindPackagesDescriptorResponse,
@@ -98,7 +98,7 @@ const methodDescriptor_ServiceDiscovery_FindPackages = new grpc.web.MethodDescri
  *   !proto.services.FindPackagesDescriptorRequest,
  *   !proto.services.FindPackagesDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_FindPackages = new grpc.web.AbstractClientBase.MethodInfo(
+const methodInfo_PackageDiscovery_FindPackages = new grpc.web.AbstractClientBase.MethodInfo(
   proto.services.FindPackagesDescriptorResponse,
   /**
    * @param {!proto.services.FindPackagesDescriptorRequest} request
@@ -121,13 +121,13 @@ const methodInfo_ServiceDiscovery_FindPackages = new grpc.web.AbstractClientBase
  * @return {!grpc.web.ClientReadableStream<!proto.services.FindPackagesDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.findPackages =
+proto.services.PackageDiscoveryClient.prototype.findPackages =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/FindPackages',
+      '/services.PackageDiscovery/FindPackages',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_FindPackages,
+      methodDescriptor_PackageDiscovery_FindPackages,
       callback);
 };
 
@@ -138,15 +138,15 @@ proto.services.ServiceDiscoveryClient.prototype.findPackages =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.FindPackagesDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.findPackages =
+proto.services.PackageDiscoveryPromiseClient.prototype.findPackages =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/FindPackages',
+      '/services.PackageDiscovery/FindPackages',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_FindPackages);
+      methodDescriptor_PackageDiscovery_FindPackages);
 };
 
 
@@ -156,8 +156,8 @@ proto.services.ServiceDiscoveryPromiseClient.prototype.findPackages =
  *   !proto.services.GetPackageDescriptorRequest,
  *   !proto.services.GetPackageDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_GetPackageDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/GetPackageDescriptor',
+const methodDescriptor_PackageDiscovery_GetPackageDescriptor = new grpc.web.MethodDescriptor(
+  '/services.PackageDiscovery/GetPackageDescriptor',
   grpc.web.MethodType.UNARY,
   proto.services.GetPackageDescriptorRequest,
   proto.services.GetPackageDescriptorResponse,
@@ -178,7 +178,7 @@ const methodDescriptor_ServiceDiscovery_GetPackageDescriptor = new grpc.web.Meth
  *   !proto.services.GetPackageDescriptorRequest,
  *   !proto.services.GetPackageDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_GetPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+const methodInfo_PackageDiscovery_GetPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
   proto.services.GetPackageDescriptorResponse,
   /**
    * @param {!proto.services.GetPackageDescriptorRequest} request
@@ -201,13 +201,13 @@ const methodInfo_ServiceDiscovery_GetPackageDescriptor = new grpc.web.AbstractCl
  * @return {!grpc.web.ClientReadableStream<!proto.services.GetPackageDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.getPackageDescriptor =
+proto.services.PackageDiscoveryClient.prototype.getPackageDescriptor =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/GetPackageDescriptor',
+      '/services.PackageDiscovery/GetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetPackageDescriptor,
+      methodDescriptor_PackageDiscovery_GetPackageDescriptor,
       callback);
 };
 
@@ -218,15 +218,15 @@ proto.services.ServiceDiscoveryClient.prototype.getPackageDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.GetPackageDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.getPackageDescriptor =
+proto.services.PackageDiscoveryPromiseClient.prototype.getPackageDescriptor =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/GetPackageDescriptor',
+      '/services.PackageDiscovery/GetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetPackageDescriptor);
+      methodDescriptor_PackageDiscovery_GetPackageDescriptor);
 };
 
 
@@ -236,8 +236,8 @@ proto.services.ServiceDiscoveryPromiseClient.prototype.getPackageDescriptor =
  *   !proto.services.GetPackagesDescriptorRequest,
  *   !proto.services.GetPackagesDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_GetPackagesDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/GetPackagesDescriptor',
+const methodDescriptor_PackageDiscovery_GetPackagesDescriptor = new grpc.web.MethodDescriptor(
+  '/services.PackageDiscovery/GetPackagesDescriptor',
   grpc.web.MethodType.SERVER_STREAMING,
   proto.services.GetPackagesDescriptorRequest,
   proto.services.GetPackagesDescriptorResponse,
@@ -258,7 +258,7 @@ const methodDescriptor_ServiceDiscovery_GetPackagesDescriptor = new grpc.web.Met
  *   !proto.services.GetPackagesDescriptorRequest,
  *   !proto.services.GetPackagesDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_GetPackagesDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+const methodInfo_PackageDiscovery_GetPackagesDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
   proto.services.GetPackagesDescriptorResponse,
   /**
    * @param {!proto.services.GetPackagesDescriptorRequest} request
@@ -278,13 +278,13 @@ const methodInfo_ServiceDiscovery_GetPackagesDescriptor = new grpc.web.AbstractC
  * @return {!grpc.web.ClientReadableStream<!proto.services.GetPackagesDescriptorResponse>}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.getPackagesDescriptor =
+proto.services.PackageDiscoveryClient.prototype.getPackagesDescriptor =
     function(request, metadata) {
   return this.client_.serverStreaming(this.hostname_ +
-      '/services.ServiceDiscovery/GetPackagesDescriptor',
+      '/services.PackageDiscovery/GetPackagesDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetPackagesDescriptor);
+      methodDescriptor_PackageDiscovery_GetPackagesDescriptor);
 };
 
 
@@ -295,13 +295,13 @@ proto.services.ServiceDiscoveryClient.prototype.getPackagesDescriptor =
  * @return {!grpc.web.ClientReadableStream<!proto.services.GetPackagesDescriptorResponse>}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.getPackagesDescriptor =
+proto.services.PackageDiscoveryPromiseClient.prototype.getPackagesDescriptor =
     function(request, metadata) {
   return this.client_.serverStreaming(this.hostname_ +
-      '/services.ServiceDiscovery/GetPackagesDescriptor',
+      '/services.PackageDiscovery/GetPackagesDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_GetPackagesDescriptor);
+      methodDescriptor_PackageDiscovery_GetPackagesDescriptor);
 };
 
 
@@ -311,8 +311,8 @@ proto.services.ServiceDiscoveryPromiseClient.prototype.getPackagesDescriptor =
  *   !proto.services.SetPackageDescriptorRequest,
  *   !proto.services.SetPackageDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_SetPackageDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/SetPackageDescriptor',
+const methodDescriptor_PackageDiscovery_SetPackageDescriptor = new grpc.web.MethodDescriptor(
+  '/services.PackageDiscovery/SetPackageDescriptor',
   grpc.web.MethodType.UNARY,
   proto.services.SetPackageDescriptorRequest,
   proto.services.SetPackageDescriptorResponse,
@@ -333,7 +333,7 @@ const methodDescriptor_ServiceDiscovery_SetPackageDescriptor = new grpc.web.Meth
  *   !proto.services.SetPackageDescriptorRequest,
  *   !proto.services.SetPackageDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_SetPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+const methodInfo_PackageDiscovery_SetPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
   proto.services.SetPackageDescriptorResponse,
   /**
    * @param {!proto.services.SetPackageDescriptorRequest} request
@@ -356,13 +356,13 @@ const methodInfo_ServiceDiscovery_SetPackageDescriptor = new grpc.web.AbstractCl
  * @return {!grpc.web.ClientReadableStream<!proto.services.SetPackageDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.setPackageDescriptor =
+proto.services.PackageDiscoveryClient.prototype.setPackageDescriptor =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/SetPackageDescriptor',
+      '/services.PackageDiscovery/SetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_SetPackageDescriptor,
+      methodDescriptor_PackageDiscovery_SetPackageDescriptor,
       callback);
 };
 
@@ -373,15 +373,15 @@ proto.services.ServiceDiscoveryClient.prototype.setPackageDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.SetPackageDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.setPackageDescriptor =
+proto.services.PackageDiscoveryPromiseClient.prototype.setPackageDescriptor =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/SetPackageDescriptor',
+      '/services.PackageDiscovery/SetPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_SetPackageDescriptor);
+      methodDescriptor_PackageDiscovery_SetPackageDescriptor);
 };
 
 
@@ -391,8 +391,8 @@ proto.services.ServiceDiscoveryPromiseClient.prototype.setPackageDescriptor =
  *   !proto.services.PublishPackageDescriptorRequest,
  *   !proto.services.PublishPackageDescriptorResponse>}
  */
-const methodDescriptor_ServiceDiscovery_PublishPackageDescriptor = new grpc.web.MethodDescriptor(
-  '/services.ServiceDiscovery/PublishPackageDescriptor',
+const methodDescriptor_PackageDiscovery_PublishPackageDescriptor = new grpc.web.MethodDescriptor(
+  '/services.PackageDiscovery/PublishPackageDescriptor',
   grpc.web.MethodType.UNARY,
   proto.services.PublishPackageDescriptorRequest,
   proto.services.PublishPackageDescriptorResponse,
@@ -413,7 +413,7 @@ const methodDescriptor_ServiceDiscovery_PublishPackageDescriptor = new grpc.web.
  *   !proto.services.PublishPackageDescriptorRequest,
  *   !proto.services.PublishPackageDescriptorResponse>}
  */
-const methodInfo_ServiceDiscovery_PublishPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
+const methodInfo_PackageDiscovery_PublishPackageDescriptor = new grpc.web.AbstractClientBase.MethodInfo(
   proto.services.PublishPackageDescriptorResponse,
   /**
    * @param {!proto.services.PublishPackageDescriptorRequest} request
@@ -436,13 +436,13 @@ const methodInfo_ServiceDiscovery_PublishPackageDescriptor = new grpc.web.Abstra
  * @return {!grpc.web.ClientReadableStream<!proto.services.PublishPackageDescriptorResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceDiscoveryClient.prototype.publishPackageDescriptor =
+proto.services.PackageDiscoveryClient.prototype.publishPackageDescriptor =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/services.ServiceDiscovery/PublishPackageDescriptor',
+      '/services.PackageDiscovery/PublishPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_PublishPackageDescriptor,
+      methodDescriptor_PackageDiscovery_PublishPackageDescriptor,
       callback);
 };
 
@@ -453,15 +453,15 @@ proto.services.ServiceDiscoveryClient.prototype.publishPackageDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.PublishPackageDescriptorResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
-proto.services.ServiceDiscoveryPromiseClient.prototype.publishPackageDescriptor =
+proto.services.PackageDiscoveryPromiseClient.prototype.publishPackageDescriptor =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/services.ServiceDiscovery/PublishPackageDescriptor',
+      '/services.PackageDiscovery/PublishPackageDescriptor',
       request,
       metadata || {},
-      methodDescriptor_ServiceDiscovery_PublishPackageDescriptor);
+      methodDescriptor_PackageDiscovery_PublishPackageDescriptor);
 };
 
 
@@ -473,7 +473,7 @@ proto.services.ServiceDiscoveryPromiseClient.prototype.publishPackageDescriptor 
  * @struct
  * @final
  */
-proto.services.ServiceRepositoryClient =
+proto.services.PackageRepositoryClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
   options['format'] = 'text';
@@ -499,7 +499,7 @@ proto.services.ServiceRepositoryClient =
  * @struct
  * @final
  */
-proto.services.ServiceRepositoryPromiseClient =
+proto.services.PackageRepositoryPromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
   options['format'] = 'text';
@@ -523,8 +523,8 @@ proto.services.ServiceRepositoryPromiseClient =
  *   !proto.services.DownloadBundleRequest,
  *   !proto.services.DownloadBundleResponse>}
  */
-const methodDescriptor_ServiceRepository_DownloadBundle = new grpc.web.MethodDescriptor(
-  '/services.ServiceRepository/DownloadBundle',
+const methodDescriptor_PackageRepository_DownloadBundle = new grpc.web.MethodDescriptor(
+  '/services.PackageRepository/DownloadBundle',
   grpc.web.MethodType.SERVER_STREAMING,
   proto.services.DownloadBundleRequest,
   proto.services.DownloadBundleResponse,
@@ -545,7 +545,7 @@ const methodDescriptor_ServiceRepository_DownloadBundle = new grpc.web.MethodDes
  *   !proto.services.DownloadBundleRequest,
  *   !proto.services.DownloadBundleResponse>}
  */
-const methodInfo_ServiceRepository_DownloadBundle = new grpc.web.AbstractClientBase.MethodInfo(
+const methodInfo_PackageRepository_DownloadBundle = new grpc.web.AbstractClientBase.MethodInfo(
   proto.services.DownloadBundleResponse,
   /**
    * @param {!proto.services.DownloadBundleRequest} request
@@ -565,13 +565,13 @@ const methodInfo_ServiceRepository_DownloadBundle = new grpc.web.AbstractClientB
  * @return {!grpc.web.ClientReadableStream<!proto.services.DownloadBundleResponse>}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceRepositoryClient.prototype.downloadBundle =
+proto.services.PackageRepositoryClient.prototype.downloadBundle =
     function(request, metadata) {
   return this.client_.serverStreaming(this.hostname_ +
-      '/services.ServiceRepository/DownloadBundle',
+      '/services.PackageRepository/DownloadBundle',
       request,
       metadata || {},
-      methodDescriptor_ServiceRepository_DownloadBundle);
+      methodDescriptor_PackageRepository_DownloadBundle);
 };
 
 
@@ -582,13 +582,13 @@ proto.services.ServiceRepositoryClient.prototype.downloadBundle =
  * @return {!grpc.web.ClientReadableStream<!proto.services.DownloadBundleResponse>}
  *     The XHR Node Readable Stream
  */
-proto.services.ServiceRepositoryPromiseClient.prototype.downloadBundle =
+proto.services.PackageRepositoryPromiseClient.prototype.downloadBundle =
     function(request, metadata) {
   return this.client_.serverStreaming(this.hostname_ +
-      '/services.ServiceRepository/DownloadBundle',
+      '/services.PackageRepository/DownloadBundle',
       request,
       metadata || {},
-      methodDescriptor_ServiceRepository_DownloadBundle);
+      methodDescriptor_PackageRepository_DownloadBundle);
 };
 
 

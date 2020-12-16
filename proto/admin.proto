@@ -109,13 +109,14 @@ message PublishServiceRequest{
 	string serviceId = 1;
 	string serviceName = 2;
 	string publisherId = 3;
-	string path = 4;
-	string dicorveryId = 5;
-	string repositoryId = 6;
-	string description = 7;
-	repeated string keywords = 8;
-	string version = 9;
-	string platform = 10;
+	string organization = 4;
+	string path = 5;
+	string dicorveryId = 6;
+	string repositoryId = 7;
+	string description = 8;
+	repeated string keywords = 9;
+	string version = 10;
+	string platform = 11;
 }
 
 message UploadServicePackageRequest{

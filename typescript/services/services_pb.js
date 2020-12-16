@@ -371,7 +371,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.services.PackageDescriptor.repeatedFields_ = [7,8,9];
+proto.services.PackageDescriptor.repeatedFields_ = [8,9,10];
 
 
 
@@ -408,11 +408,12 @@ proto.services.PackageDescriptor.toObject = function(includeInstance, msg) {
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
     type: jspb.Message.getFieldWithDefault(msg, 3, 0),
     publisherid: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    repositoriesList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    discoveriesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f
+    organization: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    version: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    repositoriesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+    discoveriesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+    keywordsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -467,21 +468,25 @@ proto.services.PackageDescriptor.deserializeBinaryFromReader = function(msg, rea
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setVersion(value);
+      msg.setOrganization(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.setVersion(value);
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.addRepositories(value);
+      msg.setDescription(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
-      msg.addDiscoveries(value);
+      msg.addRepositories(value);
       break;
     case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addDiscoveries(value);
+      break;
+    case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.addKeywords(value);
       break;
@@ -542,38 +547,45 @@ proto.services.PackageDescriptor.serializeBinaryToWriter = function(message, wri
       f
     );
   }
-  f = message.getVersion();
+  f = message.getOrganization();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
-  f = message.getDescription();
+  f = message.getVersion();
   if (f.length > 0) {
     writer.writeString(
       6,
       f
     );
   }
-  f = message.getRepositoriesList();
+  f = message.getDescription();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       7,
       f
     );
   }
-  f = message.getDiscoveriesList();
+  f = message.getRepositoriesList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       8,
       f
     );
   }
-  f = message.getKeywordsList();
+  f = message.getDiscoveriesList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       9,
+      f
+    );
+  }
+  f = message.getKeywordsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      10,
       f
     );
   }
@@ -653,10 +665,10 @@ proto.services.PackageDescriptor.prototype.setPublisherid = function(value) {
 
 
 /**
- * optional string version = 5;
+ * optional string organization = 5;
  * @return {string}
  */
-proto.services.PackageDescriptor.prototype.getVersion = function() {
+proto.services.PackageDescriptor.prototype.getOrganization = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -665,16 +677,16 @@ proto.services.PackageDescriptor.prototype.getVersion = function() {
  * @param {string} value
  * @return {!proto.services.PackageDescriptor} returns this
  */
-proto.services.PackageDescriptor.prototype.setVersion = function(value) {
+proto.services.PackageDescriptor.prototype.setOrganization = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * optional string description = 6;
+ * optional string version = 6;
  * @return {string}
  */
-proto.services.PackageDescriptor.prototype.getDescription = function() {
+proto.services.PackageDescriptor.prototype.getVersion = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
@@ -683,17 +695,35 @@ proto.services.PackageDescriptor.prototype.getDescription = function() {
  * @param {string} value
  * @return {!proto.services.PackageDescriptor} returns this
  */
-proto.services.PackageDescriptor.prototype.setDescription = function(value) {
+proto.services.PackageDescriptor.prototype.setVersion = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
 /**
- * repeated string repositories = 7;
+ * optional string description = 7;
+ * @return {string}
+ */
+proto.services.PackageDescriptor.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.services.PackageDescriptor} returns this
+ */
+proto.services.PackageDescriptor.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * repeated string repositories = 8;
  * @return {!Array<string>}
  */
 proto.services.PackageDescriptor.prototype.getRepositoriesList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
 };
 
 
@@ -702,7 +732,7 @@ proto.services.PackageDescriptor.prototype.getRepositoriesList = function() {
  * @return {!proto.services.PackageDescriptor} returns this
  */
 proto.services.PackageDescriptor.prototype.setRepositoriesList = function(value) {
-  return jspb.Message.setField(this, 7, value || []);
+  return jspb.Message.setField(this, 8, value || []);
 };
 
 
@@ -712,7 +742,7 @@ proto.services.PackageDescriptor.prototype.setRepositoriesList = function(value)
  * @return {!proto.services.PackageDescriptor} returns this
  */
 proto.services.PackageDescriptor.prototype.addRepositories = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
 };
 
 
@@ -726,11 +756,11 @@ proto.services.PackageDescriptor.prototype.clearRepositoriesList = function() {
 
 
 /**
- * repeated string discoveries = 8;
+ * repeated string discoveries = 9;
  * @return {!Array<string>}
  */
 proto.services.PackageDescriptor.prototype.getDiscoveriesList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
 };
 
 
@@ -739,7 +769,7 @@ proto.services.PackageDescriptor.prototype.getDiscoveriesList = function() {
  * @return {!proto.services.PackageDescriptor} returns this
  */
 proto.services.PackageDescriptor.prototype.setDiscoveriesList = function(value) {
-  return jspb.Message.setField(this, 8, value || []);
+  return jspb.Message.setField(this, 9, value || []);
 };
 
 
@@ -749,7 +779,7 @@ proto.services.PackageDescriptor.prototype.setDiscoveriesList = function(value) 
  * @return {!proto.services.PackageDescriptor} returns this
  */
 proto.services.PackageDescriptor.prototype.addDiscoveries = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
 };
 
 
@@ -763,11 +793,11 @@ proto.services.PackageDescriptor.prototype.clearDiscoveriesList = function() {
 
 
 /**
- * repeated string keywords = 9;
+ * repeated string keywords = 10;
  * @return {!Array<string>}
  */
 proto.services.PackageDescriptor.prototype.getKeywordsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
 };
 
 
@@ -776,7 +806,7 @@ proto.services.PackageDescriptor.prototype.getKeywordsList = function() {
  * @return {!proto.services.PackageDescriptor} returns this
  */
 proto.services.PackageDescriptor.prototype.setKeywordsList = function(value) {
-  return jspb.Message.setField(this, 9, value || []);
+  return jspb.Message.setField(this, 10, value || []);
 };
 
 
@@ -786,7 +816,7 @@ proto.services.PackageDescriptor.prototype.setKeywordsList = function(value) {
  * @return {!proto.services.PackageDescriptor} returns this
  */
 proto.services.PackageDescriptor.prototype.addKeywords = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
 };
 
 
