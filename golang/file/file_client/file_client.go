@@ -2,6 +2,7 @@ package file_client
 
 import (
 	"io"
+	"log"
 	"os"
 	"strconv"
 
@@ -177,6 +178,7 @@ func (self *File_Client) ReadDir(path interface{}, recursive interface{}, thumbn
 
 	stream, err := self.c.ReadDir(globular.GetClientContext(self), rqst)
 	if err != nil {
+		log.Println("---> 181 ", err)
 		return "", err
 	}
 
@@ -187,12 +189,12 @@ func (self *File_Client) ReadDir(path interface{}, recursive interface{}, thumbn
 		if err == io.EOF {
 			// end of stream...
 			break
+		} else if err != nil {
+			return "", err
 		}
 
 		data = append(data, msg.Data...)
-		if err != nil {
-			return "", err
-		}
+
 	}
 
 	return string(data), nil
@@ -237,12 +239,12 @@ func (self *File_Client) ReadFile(path interface{}) ([]byte, error) {
 		if err == io.EOF {
 			// end of stream...
 			break
+		} else if err != nil {
+			return nil, err
 		}
 
 		data = append(data, msg.Data...)
-		if err != nil {
-			return nil, err
-		}
+
 	}
 
 	return data, err
@@ -394,6 +396,8 @@ func (self *File_Client) GetThumbnails(path interface{}, recursive interface{}, 
 		if err == io.EOF {
 			// end of stream...
 			break
+		} else if err != nil {
+			return "", err
 		}
 
 		data = append(data, msg.Data...)
@@ -403,4 +407,16 @@ func (self *File_Client) GetThumbnails(path interface{}, recursive interface{}, 
 	}
 
 	return string(data), nil
+}
+
+func (self *File_Client) HtmlToPdf(html string) ([]byte, error) {
+	rqst := &filepb.HtmlToPdfRqst{
+		Html: html,
+	}
+
+	rsp, err := self.c.HtmlToPdf(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.Pdf, nil
 }

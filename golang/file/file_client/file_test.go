@@ -2,75 +2,26 @@ package file_client
 
 import (
 	//"bytes"
-	"context"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
-	"os"
-
-	"github.com/globulario/Globular/file/filepb"
-	"google.golang.org/grpc"
-
 	"testing"
 )
 
 // Set the correct addresse here as needed.
 var (
-	addresse = "localhost:10011"
+	client, _ = NewFileService_Client("localhost", "file.FileService")
 )
-
-/**
- * Get the client connection.
- */
-func getClientConnection() *grpc.ClientConn {
-	// So here I will read the server configuration to see if the connection
-	// is secure...
-	cc, err := grpc.Dial(addresse, grpc.WithInsecure())
-	if err != nil {
-		log.Fatalf("could not connect: %v", err)
-	}
-
-	return cc
-}
 
 // First test create a fresh new connection...
 func _TestReadDir(t *testing.T) {
 	fmt.Println("Read dir test")
 
-	cc := getClientConnection()
-
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.ReadDirRequest{
-		Path:           "C:\\Temp\\Cargo\\WebApp\\Cargo\\Apps\\BrisOutil",
-		Recursive:      true,
-		ThumnailHeight: 256,
-		ThumnailWidth:  256,
-	}
-
-	stream, err := c.ReadDir(api.GetClientContext(self), rqst)
+	_, err := client.ReadDir("c:/temp", true, 256, 256)
 	if err != nil {
-		log.Fatalf("Query error %v", err)
-	}
-
-	// Here I will create the final array
-	data := make([]byte, 0)
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			// end of stream...
-			log.Println("----> ", string(data))
-			break
-		}
-
-		data = append(data, msg.Data...)
-		if err != nil {
-			log.Fatalf("error while TestReadDir: %v", err)
-		}
+		log.Println(err)
+		t.Fail()
+		return
 	}
 
 	log.Println("TestReadDir successed!")
@@ -79,39 +30,11 @@ func _TestReadDir(t *testing.T) {
 func TestGetThumbnails(t *testing.T) {
 	fmt.Println("Get Thumbnails")
 
-	cc := getClientConnection()
-
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.GetThumbnailsRequest{
-		Path:           "/test/filePane", //"C:\\Temp\\Cargo\\WebApp\\Cargo\\Apps\\BrisOutil",
-		Recursive:      true,
-		ThumnailHeight: 256,
-		ThumnailWidth:  256,
-	}
-
-	stream, err := c.GetThumbnails(api.GetClientContext(self), rqst)
+	_, err := client.GetThumbnails("C:/temp", true, 256, 256)
 	if err != nil {
-		log.Fatalf("Query error %v", err)
-	}
-
-	// Here I will create the final array
-	data := make([]byte, 0)
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			// end of stream...
-			break
-		}
-
-		data = append(data, msg.Data...)
-		if err != nil {
-			log.Fatalf("error while TestReadDir: %v", err)
-		}
+		log.Println(err)
+		t.Fail()
+		return
 	}
 
 	log.Println("TestReadDir successed!")
@@ -122,25 +45,15 @@ func TestGetThumbnails(t *testing.T) {
  */
 func TestCreateDir(t *testing.T) {
 	fmt.Println("Create dir test")
-	cc := getClientConnection()
 
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.CreateDirRequest{
-		Path: "C:\\Temp",
-		Name: "TestDir",
-	}
-
-	rsp, err := c.CreateDir(api.GetClientContext(self), rqst)
+	err := client.CreateDir("C:/temp", "testDir")
 	if err != nil {
-		log.Fatalf("error while TestCreateDir: %v", err)
+		log.Println(err)
+		t.Fail()
+		return
 	}
 
-	log.Println("Response from TestCreateDir:", rsp.Result)
+	log.Println("success TestCreateDir")
 }
 
 /**
@@ -148,26 +61,16 @@ func TestCreateDir(t *testing.T) {
  */
 func TestRenameDir(t *testing.T) {
 	fmt.Println("Rename dir test")
-	cc := getClientConnection()
-
-	// when done the connection will be close.
-	defer cc.Close()
 
 	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.RenameRequest{
-		Path:    "C:\\Temp",
-		OldName: "TestDir",
-		NewName: "TestTestTestDir",
-	}
-
-	rsp, err := c.Rename(api.GetClientContext(self), rqst)
+	err := client.RenameDir("C:/temp", "TestTestTestDir", "")
 	if err != nil {
-		log.Fatalf("error while TestRenameDir: %v", err)
+		log.Println(err)
+		t.Fail()
+		return
 	}
 
-	log.Println("Response from TestRenameDir:", rsp.Result)
+	log.Println("succed TestRenameDir")
 }
 
 /**
@@ -175,176 +78,61 @@ func TestRenameDir(t *testing.T) {
  */
 func TestDeleteDir(t *testing.T) {
 	fmt.Println("Delete dir test")
-	cc := getClientConnection()
 
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.DeleteDirRequest{
-		Path: "C:\\Temp\\TestTestTestDir",
-	}
-
-	rsp, err := c.DeleteDir(api.GetClientContext(self), rqst)
+	err := client.DeleteDir("C:\\Temp\\TestTestTestDir")
 	if err != nil {
-		log.Fatalf("error while TestDeleteDir: %v", err)
+		log.Println(err)
+		t.Fail()
+		return
 	}
 
-	log.Println("Response from TestDeleteDir:", rsp.Result)
+	log.Println("succed TestDeleteDir")
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // File test
 ////////////////////////////////////////////////////////////////////////////////
-func TestGetFileInof(t *testing.T) {
+func TestGetFileInfo(t *testing.T) {
 	fmt.Println("Get File info test")
-	cc := getClientConnection()
 
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.GetFileInfoRequest{
-		Path:           "C:\\Temp\\Cargo\\WebApp\\Cargo\\Apps\\BrisOutil\\Upload\\515\\NGEN3603.JPG",
-		ThumnailHeight: 256,
-		ThumnailWidth:  256,
-	}
-
-	rsp, err := c.GetFileInfo(api.GetClientContext(self), rqst)
+	_, err := client.GetFileInfo("C:/Users/mm006819/Pictures/bob.jpg", false, 56, 56)
 	if err != nil {
-		log.Fatalf("error while testing get file info: %v", err)
+		log.Println(err)
+		t.Fail()
+		return
 	}
 
-	log.Println("Response form Get file info response :", string(rsp.Data))
+	log.Println("succed TestGetFileInfo")
 }
 
 // Read file test.
 func TestReadFile(t *testing.T) {
 	fmt.Println("Read file test")
 
-	cc := getClientConnection()
-
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.ReadFileRequest{
-		Path: "C:\\Temp\\Cargo\\WebApp\\Cargo\\Apps\\BrisOutil\\Upload\\515\\NGEN3603.JPG",
-	}
-
-	stream, err := c.ReadFile(api.GetClientContext(self), rqst)
-	if err != nil {
-		log.Fatalf("ReadFile error %v", err)
-	}
-
-	// Here I will create the final array
-	data := make([]byte, 0)
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			// end of stream...
-			log.Println("Read file ----> ", len(data))
-			break
-		}
-
-		data = append(data, msg.Data...)
-		if err != nil {
-			log.Fatalf("error while read File: %v", err)
-		}
-	}
-
-}
-
-/**
- * Test send email whit attachements.
- */
-func TestSaveFile(t *testing.T) {
-	cc := getClientConnection()
-
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	// Open the stream...
-	stream, err := c.SaveFile(api.GetClientContext(self))
-	if err != nil {
-		log.Fatalf("error while TestSendEmailWithAttachements: %v", err)
-	}
-
-	err = stream.Send(&filepb.SaveFileRequest{
-		File: &filepb.SaveFileRequest_Path{
-			Path: "C:\\Temp\\toto.bmp", // Where the file will be save...
-		},
-	})
-	if err != nil {
-		log.Println("--> error: ")
-	}
-
-	// Where the file is read from.
-	path := "C:\\Temp\\Cargo\\WebApp\\Cargo\\Apps\\BrisOutil\\Upload\\515\\NGEN3603.JPG"
-	file, err := os.Open(path)
-	if err != nil {
-		log.Fatalf("Fail to open file "+path+" with error: %v", err)
-	}
-
-	// close the file when done.
-	defer file.Close()
-
-	const BufferSize = 1024 * 5 // the chunck size.
-	buffer := make([]byte, BufferSize)
-	for {
-		bytesread, err := file.Read(buffer)
-		if bytesread > 0 {
-			rqst := &filepb.SaveFileRequest{
-				File: &filepb.SaveFileRequest_Data{
-					Data: buffer[:bytesread],
-				},
-			}
-			err = stream.Send(rqst)
-		}
-
-		if err != nil {
-			if err != io.EOF {
-				fmt.Println(err)
-			}
-			break
-		}
-	}
-	rsp, err := stream.CloseAndRecv()
+	_, err := client.ReadFile("C:/Users/mm006819/Pictures/bob.jpg")
 	if err != nil {
 		log.Println(err)
+		t.Fail()
+		return
 	}
 
-	log.Println("save file succeed ", rsp.Result)
+	log.Println("succed TestReadFile")
+
 }
 
-// Test delete file on the server
-func TestDeleteFile(t *testing.T) {
-	fmt.Println("Get File info test")
-	cc := getClientConnection()
+// Test delete file on the server and HtmlToPdf
+func TestHtmToPdfFile(t *testing.T) {
+	htmlStr := `<html><body><img src="file:///C:/Users/mm006819/Pictures/images.jpg"></img><h1 style="color:red;">This is an html from pdf to test color</h1></body></html>`
 
-	// when done the connection will be close.
-	defer cc.Close()
-
-	// Create a new client service...
-	c := filepb.NewFileServiceClient(cc)
-
-	rqst := &filepb.DeleteFileRequest{
-		Path: "C:\\Temp\\toto.bmp",
-	}
-
-	rsp, err := c.DeleteFile(api.GetClientContext(self), rqst)
+	data, err := client.HtmlToPdf(htmlStr)
 	if err != nil {
-		log.Fatalf("error while testing get file info: %v", err)
+		log.Println(err)
+		t.Fail()
+		return
 	}
 
-	log.Println("Delete file succeed:", rsp.Result)
+	ioutil.WriteFile("C:/temp/pdfTest.pdf", data, 0644)
+
+	log.Println("succed TestHtmToPdfFile")
 }

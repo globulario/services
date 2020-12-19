@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/file/file_client"
@@ -894,6 +895,49 @@ func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReque
 		Result: true,
 	}, nil
 
+}
+
+// Convert html to pdf.
+func (self *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*filepb.HtmlToPdfResponse, error) {
+	pdfg, err := wkhtml.NewPDFGenerator()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	pdfg.AddPage(wkhtml.NewPageReader(strings.NewReader(rqst.Html)))
+
+	// Create PDF document in internal buffer
+	err = pdfg.Create()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	//Your Pdf Name
+	path := os.TempDir() + "/" + Utility.RandomUUID()
+	defer os.Remove(path)
+
+	err = pdfg.WriteFile(path)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Return utf8 file data.
+	return &filepb.HtmlToPdfResponse{
+		Pdf: data,
+	}, nil
 }
 
 // That service is use to give access to SQL.

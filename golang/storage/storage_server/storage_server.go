@@ -293,6 +293,7 @@ func (self *server) SetPermissions(permissions []interface{}) {
 func (self *server) Init() error {
 
 	self.stores = make(map[string]storage_store.Store)
+	self.Connections = make(map[string]connection)
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewStorageService_Client", storage_client.NewStorageService_Client)
@@ -343,8 +344,18 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *storagepb.Create
 		return nil, errors.New("The request dosent contain connection object!")
 	}
 
-	if _, ok := self.Connections[rsqt.Connection.Id]; ok {
-		self.stores[rsqt.Connection.Id].Close() // close the previous connection.
+	if self.stores == nil {
+		self.stores = make(map[string]storage_store.Store)
+	}
+
+	if self.Connections == nil {
+		self.Connections = make(map[string]connection)
+	} else {
+		if _, ok := self.Connections[rsqt.Connection.Id]; ok {
+			if self.stores[rsqt.Connection.Id] != nil {
+				self.stores[rsqt.Connection.Id].Close() // close the previous connection.
+			}
+		}
 	}
 
 	fmt.Println("Try to create a new connection with id: ", rsqt.Connection.Id)

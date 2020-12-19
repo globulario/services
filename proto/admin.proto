@@ -175,14 +175,57 @@ message UninstallApplicationResponse{
 	bool result = 1;
 }
 
+// Contain the information about serivces requiered by application.
+message MicroService {
+	string repositoryId = 1; // Where to search
+	string organization = 2; // The organization who share that dependency
+	string id = 3; // The id of the dependency
+	string version = 4; // The version of the dependency
+	string platform = 5; // The platform
+	repeated string Actions = 6; // That need to be use by the application...
+}
+
 message DeployApplicationRequest{
 	string name = 1;
 	string domain = 2;
 	bytes data = 3;
+	string organization = 4;
+	string version = 5;
+	repeated string keywords = 6;
+	string description = 7;
+	repeated MicroService microServices = 8;	
 }
 
 message DeployApplicationResponse{
 	bool result = 1;
+}
+
+message Arg{
+	string name = 1;
+	oneof value {
+		string str = 2;
+		int64 number=3;
+		double real=4;
+	}
+}
+
+////////////////////////// External command runing //////////////////////////
+
+message Result{
+	oneof value {
+		string outpout = 1; // contain a string with the stdout values.
+		string error=2; // contain the error massage if there is error
+	}
+}
+
+message RunRequest{
+	string cmd = 1;
+	repeated Arg args = 2;
+	bool wait = 3; // wait util the command return, or return immediatly.
+}
+
+message RunResponse{
+	Result result = 1;
 }
 
 service AdminService {
@@ -244,5 +287,8 @@ service AdminService {
 
   // Test if a process of given name is running...
   rpc HasRunningProcess(HasRunningProcessRequest) returns(HasRunningProcessResponse);
+
+  // Run an external command.
+  rpc RunCmd(RunRequest) returns(RunResponse);
 
 }

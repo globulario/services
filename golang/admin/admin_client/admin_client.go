@@ -9,6 +9,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"path/filepath"
+	"strings"
 
 	//	"log"
 	"os"
@@ -469,18 +471,46 @@ func (self *Admin_Client) UninstallService(publisherId string, serviceId string,
 /**
  * Deploy the content of an application with a given name to the server.
  */
-func (self *Admin_Client) DeployApplication(user string, name string, path string, token string, domain string) (int, error) {
+func (self *Admin_Client) DeployApplication(user string, name string, organisation string, path string, token string, domain string) (int, error) {
 
 	rqst := new(adminpb.DeployApplicationRequest)
 	rqst.Name = name
 	rqst.Domain = domain
+	rqst.Organization = organisation
 
 	Utility.CreateDirIfNotExist(Utility.GenerateUUID(name))
 	Utility.CopyDirContent(path, Utility.GenerateUUID(name))
 
+	// From the path I will get try to find the package.json file and get information from it...
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return -1, err
+	}
+
+	log.Println("-----------> ", absolutePath)
+	absolutePath = strings.ReplaceAll(absolutePath, "\\", "/")
+
+	if Utility.Exists(absolutePath + "/package.json") {
+		absolutePath += "/package.json"
+	} else if Utility.Exists(absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json") {
+		absolutePath = absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
+	} else {
+		err = errors.New("no package.config file was found!")
+		return -1, err
+	}
+
+	packageConfig := make(map[string]interface{})
+	data, _ := ioutil.ReadFile(absolutePath)
+	err = json.Unmarshal(data, &packageConfig)
+	if err != nil {
+		return -1, err
+	}
+
+	log.Println(packageConfig)
+
 	// Now I will open the data and create a archive from it.
 	var buffer bytes.Buffer
-	err := Utility.CompressDir("", Utility.GenerateUUID(name), &buffer)
+	err = Utility.CompressDir("", Utility.GenerateUUID(name), &buffer)
 	if err != nil {
 		return -1, err
 	}

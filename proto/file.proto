@@ -119,6 +119,14 @@ message WriteExcelFileResponse{
 	bool result = 1; // return true by default.
 }
 
+message HtmlToPdfRqst{
+	string html = 1; // The html values.
+}
+
+message HtmlToPdfResponse{
+	bytes pdf = 2; //The pdf data file.
+}
+
 message StopRequest {
 	
 }
@@ -165,4 +173,7 @@ service FileService {
 	
 	// Excel files...
 	rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse){};
+	
+	// Convert html to pdf.
+	rpc HtmlToPdf(HtmlToPdfRqst) returns(HtmlToPdfResponse){};
 }

@@ -15,7 +15,7 @@ var (
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
 	var err error
-	client, err = NewSmtp_Client("omniscient.app", "smtp.SmtpService")
+	client, err = NewSmtp_Client("mon-iis-01", "smtp.SmtpService")
 	if err != nil {
 		log.Panicln(err)
 	}

@@ -1,29 +1,18 @@
 package storage_client
 
 import (
-	"fmt"
+	//	"fmt"
 	"log"
 
 	"testing"
-
-	"github.com/globulario/Globular/storage/storage_client"
 )
 
 // Set the correct addresse here as needed.
 var (
-	// Test with a secure connection.
-	// Those files must be accessible to the client to be able to call
-	// gRpc function on the server.
-	crt = "E:/Project/src/github.com/globulario/Globular/config/tls/client.crt"
-	key = "E:/Project/src/github.com/globulario/Globular/config/tls/client.pem"
-	ca  = "E:/Project/src/github.com/globulario/Globular/config/tls/ca.crt"
-
-	// The token is print in the sever console. It can be taken from the local temp file if the client service run on the same machine.
-	// It will be regenerate each time the server is started and valid until the token expire.
-	token  = ""
-	client = storage_client.NewStorage_Client("localhost", "127.0.0.1:10013", false, key, crt, ca, token)
+	client, _ = NewStorageService_Client("localhost", "storage.StorageService")
 )
 
+/*
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
 	fmt.Println("Connection creation test.")
@@ -40,7 +29,7 @@ func TestOpenConnection(t *testing.T) {
 	}
 	log.Println("Open connection success!")
 }
-
+*/
 // Test set item.
 func TestSetItem(t *testing.T) {
 	err := client.SetItem("test_storage", "1", []byte(`{"prop_1":"This is a test!", "prop_2":1212}`))
@@ -83,6 +72,7 @@ func TestDrop(t *testing.T) {
 	log.Println("Drop store success!")
 }
 
+/*
 func TestCloseConnection(t *testing.T) {
 
 	err := client.CloseConnection("test_storage")
@@ -100,3 +90,4 @@ func TestDeleteConnection(t *testing.T) {
 	}
 	log.Println("Delete connection success!")
 }
+*/

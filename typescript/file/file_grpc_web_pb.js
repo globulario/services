@@ -935,5 +935,85 @@ proto.file.FileServicePromiseClient.prototype.writeExcelFile =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.HtmlToPdfRqst,
+ *   !proto.file.HtmlToPdfResponse>}
+ */
+const methodDescriptor_FileService_HtmlToPdf = new grpc.web.MethodDescriptor(
+  '/file.FileService/HtmlToPdf',
+  grpc.web.MethodType.UNARY,
+  proto.file.HtmlToPdfRqst,
+  proto.file.HtmlToPdfResponse,
+  /**
+   * @param {!proto.file.HtmlToPdfRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.HtmlToPdfResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.file.HtmlToPdfRqst,
+ *   !proto.file.HtmlToPdfResponse>}
+ */
+const methodInfo_FileService_HtmlToPdf = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.file.HtmlToPdfResponse,
+  /**
+   * @param {!proto.file.HtmlToPdfRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.HtmlToPdfResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.HtmlToPdfRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.file.HtmlToPdfResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.HtmlToPdfResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.htmlToPdf =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/HtmlToPdf',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_HtmlToPdf,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.HtmlToPdfRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.HtmlToPdfResponse>}
+ *     A native promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.htmlToPdf =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/HtmlToPdf',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_HtmlToPdf);
+};
+
+
 module.exports = proto.file;
 
