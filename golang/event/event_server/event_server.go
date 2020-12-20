@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -115,10 +114,6 @@ func (self *server) Dist(path string) error {
 
 func (self *server) GetPlatform() string {
 	return globular.GetPlatform()
-}
-
-func (self *server) PublishService(address string, user string, password string) error {
-	return globular.PublishService(address, user, password, self)
 }
 
 // The path of the executable.
@@ -535,64 +530,19 @@ func main() {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
-	if len(os.Args) > 2 {
-		publishCommand := flag.NewFlagSet("publish", flag.ExitOnError)
-		publishCommand_domain := publishCommand.String("a", "", "The address(domain ex. my.domain.com:8080) of your backend (Required)")
-		publishCommand_organization := publishCommand.String("o", "", "The organization (Required)")
-		publishCommand_user := publishCommand.String("u", "", "The user (Required)")
-		publishCommand_password := publishCommand.String("p", "", "The password (Required)")
+	// Register the echo services
+	eventpb.RegisterEventServiceServer(s_impl.grpcServer, s_impl)
+	reflection.Register(s_impl.grpcServer)
 
-		switch os.Args[1] {
-		case "publish":
-			publishCommand.Parse(os.Args[2:])
-		default:
-			flag.PrintDefaults()
-			os.Exit(1)
-		}
+	// Here I will make a signal hook to interrupt to exit cleanly.
+	go s_impl.run()
 
-		if publishCommand.Parsed() {
-			// Required Flags
-			if *publishCommand_domain == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
+	// Start the service.
+	err = s_impl.StartService()
 
-			if *publishCommand_user == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			if *publishCommand_password == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			if *publishCommand_organization == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			err := s_impl.PublishService(*publishCommand_domain, *publishCommand_user, *publishCommand_password)
-			if err != nil {
-				fmt.Println(err.Error())
-			} else {
-				fmt.Println("Your service was publish successfuly!")
-			}
-		}
-	} else {
-		// Register the echo services
-		eventpb.RegisterEventServiceServer(s_impl.grpcServer, s_impl)
-		reflection.Register(s_impl.grpcServer)
-
-		// Here I will make a signal hook to interrupt to exit cleanly.
-		go s_impl.run()
-
-		// Start the service.
-		err = s_impl.StartService()
-
-		if err != nil {
-			fmt.Println("Fail to start service %s: %s", s_impl.Name, s_impl.Id, err)
-			return
-		}
+	if err != nil {
+		fmt.Println("Fail to start service %s: %s", s_impl.Name, s_impl.Id, err)
+		return
 	}
+
 }

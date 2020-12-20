@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -13,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -141,10 +140,6 @@ func (self *server) Dist(path string) error {
 
 func (self *server) GetPlatform() string {
 	return globular.GetPlatform()
-}
-
-func (self *server) PublishService(address string, user string, password string) error {
-	return globular.PublishService(address, user, password, self)
 }
 
 func (self *server) GetRepositories() []string {
@@ -1742,46 +1737,11 @@ func main() {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
-	if len(os.Args) > 2 {
-		publishCommand := flag.NewFlagSet("publish", flag.ExitOnError)
-		publishCommand_domain := publishCommand.String("a", "", "The address(domain ex. my.domain.com:8080) of your backend (Required)")
-		publishCommand_user := publishCommand.String("u", "", "The user (Required)")
-		publishCommand_password := publishCommand.String("p", "", "The password (Required)")
+	// Register the echo services
+	dnspb.RegisterDnsServiceServer(s_impl.grpcServer, s_impl)
+	reflection.Register(s_impl.grpcServer)
 
-		switch os.Args[1] {
-		case "publish":
-			publishCommand.Parse(os.Args[2:])
-		default:
-			flag.PrintDefaults()
-			os.Exit(1)
-		}
-
-		if publishCommand.Parsed() {
-			// Required Flags
-			if *publishCommand_domain == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			if *publishCommand_user == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			if *publishCommand_password == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			s_impl.PublishService(*publishCommand_domain, *publishCommand_user, *publishCommand_password)
-		}
-	} else {
-		// Register the echo services
-		dnspb.RegisterDnsServiceServer(s_impl.grpcServer, s_impl)
-		reflection.Register(s_impl.grpcServer)
-
-		// Start the service.
-		s_impl.StartService()
-	}
+	// Start the service.
+	s_impl.StartService()
 
 }

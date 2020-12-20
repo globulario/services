@@ -80,7 +80,11 @@ message SearchResult {
 	int32 rank = 1;
 	string docId = 2;
 	string data = 3;
-	repeated string snippets = 4;
+    string snippet = 4;
+}
+
+message SearchResults {
+	repeated SearchResult results=1;
 }
 
 message SearchDocumentsRequest{
@@ -94,7 +98,7 @@ message SearchDocumentsRequest{
 }
 
 message SearchDocumentsResponse{
-	repeated SearchResult results=1;
+	SearchResults results=1;
 }
 
 message StopRequest {

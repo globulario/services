@@ -8,8 +8,8 @@ import (
 
 var (
 	client    *Search_Client
-	tmpDir    = "C:/temp" // "/media/dave/DCB5-6ABA/tmp"
-	ebookPath = "K:/Ebook/Oracle"
+	tmpDir    = "/tmp"
+	ebookPath = "/home/dave/Documents/ebook"
 )
 
 func getClient() *Search_Client {
@@ -127,12 +127,12 @@ func TestIndexDir(t *testing.T) {
 
 func TestSearchTextFiles(t *testing.T) {
 	paths := []string{tmpDir + "/dir_db"}
-	query := `Oracle`
+	query := `test`
 	language := "english"
 	fields := []string{}
 	offset := int32(0)
-	pageSize := int32(10)
-	snippetLength := int32(70)
+	pageSize := int32(100)
+	snippetLength := int32(500)
 
 	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
 	if err != nil {
@@ -142,10 +142,7 @@ func TestSearchTextFiles(t *testing.T) {
 
 	for i := 0; i < len(results); i++ {
 		result := results[i]
-		log.Println("---> ", result.Data)
-		for j := 0; j < len(result.Snippets); j++ {
-			log.Println("---------> ", j+1, result.Snippets[j])
-		}
+		log.Println(result)
 	}
 }
 

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -145,10 +144,6 @@ func (self *server) Dist(path string) error {
 
 func (self *server) GetPlatform() string {
 	return globular.GetPlatform()
-}
-
-func (self *server) PublishService(address string, user string, password string) error {
-	return globular.PublishService(address, user, password, self)
 }
 
 // The path of the executable.
@@ -652,95 +647,55 @@ func main() {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
 	}
 
-	if len(os.Args) > 2 {
-		publishCommand := flag.NewFlagSet("publish", flag.ExitOnError)
-		publishCommand_domain := publishCommand.String("a", "", "The address(domain ex. my.domain.com:8080) of your backend (Required)")
-		publishCommand_user := publishCommand.String("u", "", "The user (Required)")
-		publishCommand_password := publishCommand.String("p", "", "The password (Required)")
+	// Register the echo services
+	mailpb.RegisterMailServiceServer(s_impl.grpcServer, s_impl)
+	reflection.Register(s_impl.grpcServer)
 
-		switch os.Args[1] {
-		case "publish":
-			publishCommand.Parse(os.Args[2:])
-		default:
-			flag.PrintDefaults()
-			os.Exit(1)
+	// Here I will start the local smtp server.
+	go func() {
+		certFile := s_impl.CertFile
+
+		// Here in case of tls connection I will use the domain certificate instead of the server certificate.
+		if s_impl.TLS == true {
+			certFile = certFile[0:strings.Index(certFile, "server.crt")] + s_impl.Domain + ".crt"
 		}
 
-		if publishCommand.Parsed() {
-			// Required Flags
-			if *publishCommand_domain == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
+		address := string(strings.Split(s_impl.DbIpV4, ":")[0])
+		port := Utility.ToInt(strings.Split(s_impl.DbIpV4, ":")[1])
 
-			if *publishCommand_user == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			if *publishCommand_password == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			err := s_impl.PublishService(*publishCommand_domain, *publishCommand_user, *publishCommand_password)
-			if err != nil {
-				fmt.Println(err.Error())
-			} else {
-				fmt.Println("Your service was publish successfuly!")
-			}
+		// The backend connection.
+		store, err := persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
+		if err != nil {
+			log.Println(err)
+			return
 		}
-	} else {
 
-		// Register the echo services
-		mailpb.RegisterMailServiceServer(s_impl.grpcServer, s_impl)
-		reflection.Register(s_impl.grpcServer)
+		// set variable for imap and smtp
+		imap.Backend_address = address
+		smtp.Backend_address = address
+		imap.Backend_port = port
+		smtp.Backend_port = port
+		imap.Backend_password = s_impl.Password
+		imap.Store = store
+		smtp.Store = store
 
-		// Here I will start the local smtp server.
-		go func() {
-			certFile := s_impl.CertFile
+		// Open the backend main connection
+		err = store.CreateConnection("local_ressource", "local_ressource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		log.Println("start imap")
+		// start imap server.
+		imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
 
-			// Here in case of tls connection I will use the domain certificate instead of the server certificate.
-			if s_impl.TLS == true {
-				certFile = certFile[0:strings.Index(certFile, "server.crt")] + s_impl.Domain + ".crt"
-			}
+		log.Println("start smtp")
+		// start smtp server
+		smtp.StartSmtp(store, address, port, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
 
-			address := string(strings.Split(s_impl.DbIpV4, ":")[0])
-			port := Utility.ToInt(strings.Split(s_impl.DbIpV4, ":")[1])
+	}()
+	log.Println("start grpc mail service")
+	// Start the service.
+	s_impl.StartService()
 
-			// The backend connection.
-			store, err := persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			// set variable for imap and smtp
-			imap.Backend_address = address
-			smtp.Backend_address = address
-			imap.Backend_port = port
-			smtp.Backend_port = port
-			imap.Backend_password = s_impl.Password
-			imap.Store = store
-			smtp.Store = store
-
-			// Open the backend main connection
-			err = store.CreateConnection("local_ressource", "local_ressource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			log.Println("start imap")
-			// start imap server.
-			imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
-
-			log.Println("start smtp")
-			// start smtp server
-			smtp.StartSmtp(store, address, port, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
-
-		}()
-		log.Println("start grpc mail service")
-		// Start the service.
-		s_impl.StartService()
-	}
 }

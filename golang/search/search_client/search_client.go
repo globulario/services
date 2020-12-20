@@ -264,6 +264,7 @@ func (self *Search_Client) SearchDocuments(paths []string, query string, languag
 	}
 
 	results := make([]*searchpb.SearchResult, 0)
+
 	for {
 		rsp, err := stream.Recv()
 		if err == io.EOF {
@@ -273,7 +274,7 @@ func (self *Search_Client) SearchDocuments(paths []string, query string, languag
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, rsp.Results...)
+		results = append(results, rsp.Results.GetResults()...)
 	}
 
 	return results, nil

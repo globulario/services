@@ -3,13 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -17,6 +15,9 @@ import (
 	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/search/searchpb"
+	"github.com/globulario/services/golang/storage/storage_store"
+
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 
 	//	"google.golang.org/grpc/codes"
@@ -82,6 +83,9 @@ type server struct {
 
 	// Specific to file server.
 	Root string
+
+	// The cache will contain the result of query.
+	cache *storage_store.BigCache_store
 }
 
 // Globular services implementation...
@@ -139,10 +143,6 @@ func (self *server) Dist(path string) error {
 
 func (self *server) GetPlatform() string {
 	return globular.GetPlatform()
-}
-
-func (self *server) PublishService(address string, user string, password string) error {
-	return globular.PublishService(address, user, password, self)
 }
 
 // The path of the executable.
@@ -552,9 +552,9 @@ func (self *server) searchDocuments(paths []string, language string, fields []st
 	results := make([]*searchpb.SearchResult, 0)
 
 	// Here I will
-	for i := 0; i < mset.Size(); i++ {
+	for i := uint(0); i < mset.Size(); i++ {
 
-		docId := mset.Get_docid(uint(i))
+		docId := mset.Get_docid(i)
 		result := new(searchpb.SearchResult)
 		result.DocId = Utility.ToString(int(docId))
 		doc := mset.Get_document(uint(i))
@@ -564,22 +564,19 @@ func (self *server) searchDocuments(paths []string, language string, fields []st
 
 		it := enquire.Get_matching_terms_begin(mset.Get_hit(uint(i)))
 
-		terms := make([]string, 0)
-		for !it.Equals(enquire.Get_matching_terms_end(mset.Get_hit(uint(i)))) {
-			term := it.Get_term()
-			terms = append(terms, term)
-			it.Next()
-		}
+		if !it.Equals(enquire.Get_matching_terms_end(mset.Get_hit(uint(i)))) {
 
-		infos := make(map[string]interface{}, 0)
-		err := json.Unmarshal([]byte(doc.Get_data()), &infos)
-		if err != nil {
-			return nil, err
-		}
-		if infos["type"].(string) == "file" {
-			result.Snippets, err = self.snippets(terms, infos["path"].(string), infos["mime"].(string), int(snippetLength))
+			infos := make(map[string]interface{}, 0)
+			err := json.Unmarshal([]byte(doc.Get_data()), &infos)
 			if err != nil {
 				return nil, err
+			}
+			if infos["type"].(string) == "file" {
+				snippet, err := self.snippets(mset, infos["path"].(string), infos["mime"].(string), int64(snippetLength))
+				if err != nil {
+					return nil, err
+				}
+				result.Snippet = snippet
 			}
 		}
 
@@ -593,21 +590,51 @@ func (self *server) searchDocuments(paths []string, language string, fields []st
 
 // Search documents
 func (self *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream searchpb.SearchService_SearchDocumentsServer) error {
-	var results []*searchpb.SearchResult
+	results := new(searchpb.SearchResults)
+
 	var err error
 
-	results, err = self.searchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
-	if err != nil {
-		return err
+	resultKey := ""
+	// Set the list of path
+	for i := 0; i < len(rqst.Paths); i++ {
+		resultKey += rqst.Paths[i]
 	}
 
-	// Here i will send document separately...
-	for i := 0; i < len(results); i++ {
-
-		stream.Send(&searchpb.SearchDocumentsResponse{
-			Results: []*searchpb.SearchResult{results[i]},
-		})
+	// Set the list fields.
+	for i := 0; i < len(rqst.Fields); i++ {
+		resultKey += rqst.Fields[i]
 	}
+	resultKey += Utility.ToString(rqst.Query)
+	resultKey += Utility.ToString(rqst.Offset)
+	resultKey += Utility.ToString(rqst.PageSize)
+
+	// Set as Hash key
+	resultKey = Utility.GenerateUUID(resultKey)
+
+	data, err := self.cache.GetItem(resultKey)
+	if err == nil {
+		results = new(searchpb.SearchResults)
+		err = jsonpb.UnmarshalString(string(data), results)
+	} else {
+
+		results.Results, err = self.searchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
+		if err != nil {
+			return err
+		}
+
+		// Keep the result in the cache.
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(results)
+		if err != nil {
+			return err
+		}
+
+		self.cache.SetItem(resultKey, []byte(jsonStr))
+	}
+
+	stream.Send(&searchpb.SearchDocumentsResponse{
+		Results: results,
+	})
 
 	return nil
 
@@ -809,83 +836,27 @@ func (self *server) pdfToText(path string) (string, error) {
 }
 
 // That function is use to generate a snippet from a text file.
-func (self *server) snippets(terms []string, path string, mime string, length int) ([]string, error) {
-
-	length += 15
+func (self *server) snippets(mset xapian.MSet, path string, mime string, length int64) (string, error) {
 
 	// Here I will read the file and try to generate a snippet for it.
 	var text string
-	snippets := make([]string, 0)
 	var err error
+
+	// TODO append other file parser here as needed.
 	if mime == "application/pdf" {
 		text, err = self.pdfToText(path)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 	} else if strings.HasPrefix(mime, "text/") {
 		_text, err := ioutil.ReadFile(path)
 		text = string(_text)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 	}
 
-	for i := 0; i < len(terms); i++ {
-		index := 0
-		_text := strings.ToLower(text)
-		for index != -1 {
-			_text = _text[index:]
-			index = strings.Index(_text, terms[i])
-			if index == -1 {
-				break
-			}
-			var snippet string
-			if index < length/2 {
-				if index+length < len(text) {
-					snippet = _text[index : index+length]
-				} else {
-					snippet = _text[index:]
-				}
-
-			} else {
-				if index+(length/2) < len(text) {
-					snippet = _text[index-(length/2) : index+length]
-				} else {
-					snippet = _text[index-(length/2):]
-				}
-
-			}
-			re := regexp.MustCompile("[[:^ascii:]]")
-			snippet = re.ReplaceAllLiteralString(snippet, "")
-			re = regexp.MustCompile(`\r?\n`)
-			snippet = re.ReplaceAllString(snippet, " ")
-
-			// Now I will remove the first and last word as needed.
-			words := strings.Split(snippet, " ")
-			if len(words) > 0 {
-				if words[0] != terms[i] {
-					words = words[1:]
-				}
-				if len(words) > 2 {
-					if words[len(words)-1] != terms[i] {
-						words = words[0 : len(words)-2]
-					}
-				}
-			}
-
-			snippet = strings.Join(words, " ")
-
-			// Now I will set html balise.
-			snippet = "<div class='snippet'>" + strings.ReplaceAll(snippet, terms[i], "<div class='founded-term'>"+terms[i]+"</div>") + " ... </div>"
-
-			snippets = append(snippets, snippet)
-
-			index += len(terms[i])
-
-		}
-	}
-
-	return snippets, nil
+	return mset.Snippet(text, length), nil
 }
 
 // Indexation of pdf file.
@@ -1004,6 +975,12 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 
+	// Create the new big cache.
+	s_impl.cache = storage_store.NewBigCache_store()
+	err := s_impl.cache.Open("")
+	if err != nil {
+		fmt.Println(err)
+	}
 	// set the logger.
 
 	// Set the root path if is pass as argument.
@@ -1012,7 +989,7 @@ func main() {
 	}
 
 	// Here I will retreive the list of connections from file if there are some...
-	err := s_impl.Init()
+	err = s_impl.Init()
 	if err != nil {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
 	}
@@ -1020,45 +997,11 @@ func main() {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
-	if len(os.Args) > 2 {
-		publishCommand := flag.NewFlagSet("publish", flag.ExitOnError)
-		publishCommand_domain := publishCommand.String("a", "", "The address(domain ex. my.domain.com:8080) of your backend (Required)")
-		publishCommand_user := publishCommand.String("u", "", "The user (Required)")
-		publishCommand_password := publishCommand.String("p", "", "The password (Required)")
+	// Register the search services
+	searchpb.RegisterSearchServiceServer(s_impl.grpcServer, s_impl)
+	reflection.Register(s_impl.grpcServer)
 
-		switch os.Args[1] {
-		case "publish":
-			publishCommand.Parse(os.Args[2:])
-		default:
-			flag.PrintDefaults()
-			os.Exit(1)
-		}
+	// Start the service.
+	s_impl.StartService()
 
-		if publishCommand.Parsed() {
-			// Required Flags
-			if *publishCommand_domain == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			if *publishCommand_user == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			if *publishCommand_password == "" {
-				publishCommand.PrintDefaults()
-				os.Exit(1)
-			}
-
-			s_impl.PublishService(*publishCommand_domain, *publishCommand_user, *publishCommand_password)
-		}
-	} else {
-		// Register the search services
-		searchpb.RegisterSearchServiceServer(s_impl.grpcServer, s_impl)
-		reflection.Register(s_impl.grpcServer)
-
-		// Start the service.
-		s_impl.StartService()
-	}
 }

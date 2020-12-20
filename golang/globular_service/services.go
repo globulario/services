@@ -20,7 +20,6 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
-	"github.com/globulario/services/golang/resource/resource_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -144,11 +143,6 @@ type Service interface {
 		(path)/
 	 **/
 	Dist(path string) error
-
-	/** Publish the service. That function made use of globular (services.proto)
-	To publish itself on it sever.
-	**/
-	PublishService(address string, user string, password string) error
 }
 
 /**
@@ -177,70 +171,6 @@ func InitService(path string, s Service) error {
 		// save the service configuation.
 		return SaveService(path, s)
 	}
-}
-
-/**
- * Publish a service on a repository.
- **/
-func PublishService(address string, user string, pwd string, s Service) error {
-
-	log.Println("publish service...", s.GetId(), "at address", address)
-	if s.GetPublisherId() == "localhost" {
-		return errors.New("Please set the service PublisherId with your PublisherId before publishing it!")
-	}
-
-	if len(s.GetDiscoveries()) == 0 {
-		return errors.New("No Discoveries address was given in service configuration")
-	}
-
-	if len(s.GetRepositories()) == 0 {
-		return errors.New("No Repository address was given in service configuration")
-	}
-
-	path := os.TempDir() + "/" + Utility.RandomUUID()
-	defer os.RemoveAll(path)
-
-	// Generate package content from the service.
-	err := s.Dist(path)
-	if err != nil {
-		return err
-	}
-
-	// Authenticate the user in order to get the token
-	resource_client_, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
-	if err != nil {
-		log.Panicln(err)
-		return err
-	}
-
-	token, err := resource_client_.Authenticate(user, pwd)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	// first of all I need to get all credential informations...
-	// The certificates will be taken from the address
-	admin_client_, err := admin_client.NewAdminService_Client(address, "admin.AdminService")
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	// first of all I will create and upload the package on the discovery...
-	path_, _, err := admin_client_.UploadServicePackage(path, s.GetPublisherId(), s.GetName(), s.GetId(), s.GetVersion(), token, address, GetPlatform())
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	err = admin_client_.PublishService(user, path_, s.GetId(), s.GetName(), s.GetPublisherId(), s.GetDiscoveries()[0], s.GetRepositories()[0], s.GetDescription(), s.GetVersion(), GetPlatform(), s.GetKeywords(), token, address)
-	if err != nil {
-		return err
-	}
-
-	log.Println("Service", s.GetPublisherId(), "was pulbish successfully!")
-	return nil
 }
 
 /**
