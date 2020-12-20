@@ -3903,7 +3903,6 @@ proto.resource.RegisterAccountRqst.prototype.toObject = function(opt_includeInst
 proto.resource.RegisterAccountRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
     account: (f = msg.getAccount()) && proto.resource.Account.toObject(includeInstance, f),
-    password: jspb.Message.getFieldWithDefault(msg, 2, ""),
     confirmPassword: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
@@ -3946,10 +3945,6 @@ proto.resource.RegisterAccountRqst.deserializeBinaryFromReader = function(msg, r
       reader.readMessage(value,proto.resource.Account.deserializeBinaryFromReader);
       msg.setAccount(value);
       break;
-    case 2:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setPassword(value);
-      break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setConfirmPassword(value);
@@ -3989,13 +3984,6 @@ proto.resource.RegisterAccountRqst.serializeBinaryToWriter = function(message, w
       1,
       f,
       proto.resource.Account.serializeBinaryToWriter
-    );
-  }
-  f = message.getPassword();
-  if (f.length > 0) {
-    writer.writeString(
-      2,
-      f
     );
   }
   f = message.getConfirmPassword();
@@ -4042,24 +4030,6 @@ proto.resource.RegisterAccountRqst.prototype.clearAccount = function() {
  */
 proto.resource.RegisterAccountRqst.prototype.hasAccount = function() {
   return jspb.Message.getField(this, 1) != null;
-};
-
-
-/**
- * optional string password = 2;
- * @return {string}
- */
-proto.resource.RegisterAccountRqst.prototype.getPassword = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.resource.RegisterAccountRqst} returns this
- */
-proto.resource.RegisterAccountRqst.prototype.setPassword = function(value) {
-  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 

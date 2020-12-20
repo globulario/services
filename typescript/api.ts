@@ -208,7 +208,7 @@ export function hasRuningProcess(
  */
 export function readFullConfig(
   globular: Globular,
-  callback: (config: IConfig) => void,
+  callback: (config: any) => void,
   errorCallback: (err: any) => void
 ) {
   const rqst = new GetConfigRequest();
@@ -220,7 +220,7 @@ export function readFullConfig(
         domain: domain,
       })
       .then((rsp) => {
-        let config = JSON.parse(rsp.getResult()); // set the globular config with the full config.
+        let config = rsp.getResult(); // set the globular config with the full config.
         callback(config);
       })
       .catch((err) => {
@@ -908,10 +908,10 @@ export function registerAccount(
 ) {
   const request = new RegisterAccountRqst();
   const account = new Account();
+  account.setPassword(password);
   account.setName(userName);
   account.setEmail(email);
   request.setAccount(account);
-  request.setPassword(password);
   request.setConfirmPassword(confirmPassword);
 
   // Create the user account.
@@ -2053,7 +2053,7 @@ export function getReferencedValue(
       domain: domain,
     })
     .then((rsp: FindOneResp) => {
-      callback(JSON.parse(rsp.getJsonstr()));
+      callback( rsp.getResult());
     })
     .catch((err: any) => {
       errorCallback(err);
@@ -2470,7 +2470,7 @@ export function searchDocuments(
 
   // Get the stream and set event on it...
   stream.on("data", (rsp: SearchDocumentsResponse) => {
-    results = results.concat(rsp.getResultsList())
+    results = results.concat(rsp.getResults().getResultsList())
   });
 
   stream.on("status", (status) => {

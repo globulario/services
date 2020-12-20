@@ -12,6 +12,8 @@ var jspb = require('google-protobuf');
 var goog = jspb;
 var global = Function('return this')();
 
+var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js');
+goog.object.extend(proto, google_protobuf_struct_pb);
 goog.exportSymbol('proto.admin.DeployApplicationRequest', null, global);
 goog.exportSymbol('proto.admin.DeployApplicationResponse', null, global);
 goog.exportSymbol('proto.admin.GetConfigRequest', null, global);
@@ -1091,7 +1093,7 @@ proto.admin.GetConfigResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.admin.GetConfigResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, "")
+    result: (f = msg.getResult()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1129,7 +1131,8 @@ proto.admin.GetConfigResponse.deserializeBinaryFromReader = function(msg, reader
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {string} */ (reader.readString());
+      var value = new google_protobuf_struct_pb.Struct;
+      reader.readMessage(value,google_protobuf_struct_pb.Struct.deserializeBinaryFromReader);
       msg.setResult(value);
       break;
     default:
@@ -1162,30 +1165,50 @@ proto.admin.GetConfigResponse.prototype.serializeBinary = function() {
 proto.admin.GetConfigResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getResult();
-  if (f.length > 0) {
-    writer.writeString(
+  if (f != null) {
+    writer.writeMessage(
       1,
-      f
+      f,
+      google_protobuf_struct_pb.Struct.serializeBinaryToWriter
     );
   }
 };
 
 
 /**
- * optional string result = 1;
- * @return {string}
+ * optional google.protobuf.Struct result = 1;
+ * @return {?proto.google.protobuf.Struct}
  */
 proto.admin.GetConfigResponse.prototype.getResult = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+  return /** @type{?proto.google.protobuf.Struct} */ (
+    jspb.Message.getWrapperField(this, google_protobuf_struct_pb.Struct, 1));
 };
 
 
 /**
- * @param {string} value
+ * @param {?proto.google.protobuf.Struct|undefined} value
+ * @return {!proto.admin.GetConfigResponse} returns this
+*/
+proto.admin.GetConfigResponse.prototype.setResult = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
  * @return {!proto.admin.GetConfigResponse} returns this
  */
-proto.admin.GetConfigResponse.prototype.setResult = function(value) {
-  return jspb.Message.setProto3StringField(this, 1, value);
+proto.admin.GetConfigResponse.prototype.clearResult = function() {
+  return this.setResult(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.admin.GetConfigResponse.prototype.hasResult = function() {
+  return jspb.Message.getField(this, 1) != null;
 };
 
 
