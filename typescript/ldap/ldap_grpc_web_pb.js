@@ -138,7 +138,7 @@ proto.ldap.LdapServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.StopResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.ldap.LdapServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.ldap.LdapServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.CreateConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.ldap.LdapServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.ldap.LdapServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.DeleteConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.ldap.LdapServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.ldap.LdapServiceClient.prototype.close =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.CloseRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.ldap.LdapServicePromiseClient.prototype.close =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.ldap.LdapServiceClient.prototype.search =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.SearchResp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.ldap.LdapServicePromiseClient.prototype.search =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.ldap.LdapServiceClient.prototype.authenticate =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.AuthenticateRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.ldap.LdapServicePromiseClient.prototype.authenticate =
     function(request, metadata) {

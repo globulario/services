@@ -226,7 +226,7 @@ func (self *Persistence_Client) Ping(connectionId string) error {
 	return err
 }
 
-func (self *Persistence_Client) FindOne(connectionId string, database string, collection string, jsonStr string, options string) (string, error) {
+func (self *Persistence_Client) FindOne(connectionId string, database string, collection string, jsonStr string, options string) (map[string]interface{}, error) {
 
 	// Retreive a single value...
 	rqst := &persistencepb.FindOneRqst{
@@ -238,12 +238,16 @@ func (self *Persistence_Client) FindOne(connectionId string, database string, co
 	}
 
 	rsp, err := self.c.FindOne(globular.GetClientContext(self), rqst)
-
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return rsp.GetJsonStr(), err
+	obj, err := Utility.ToMap(rsp.GetResult())
+	if err != nil {
+		return nil, err
+	}
+
+	return obj, err
 }
 
 func (self *Persistence_Client) Find(connectionId string, database string, collection string, query string, options string) ([]interface{}, error) {

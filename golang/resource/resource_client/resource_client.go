@@ -358,9 +358,8 @@ func (self *Resource_Client) RegisterAccount(name string, email string, password
 		Account: &resourcepb.Account{
 			Name:     name,
 			Email:    email,
-			Password: "",
+			Password: password,
 		},
-		Password:        password,
 		ConfirmPassword: confirmation_password,
 	}
 
@@ -596,40 +595,4 @@ func (self *Resource_Client) RemoveApplicationAction(applicationId string, actio
 	_, err := self.c.RemoveApplicationAction(globular.GetClientContext(self), rqst)
 
 	return err
-}
-
-/**
- * Validata action...
- */
-func (self *Resource_Client) ValidateAction(action string, subject string, subjectType resourcepb.SubjectType, resources []*resourcepb.ResourceInfos) (bool, error) {
-	rqst := &resourcepb.ValidateActionRqst{
-		Action:  action,
-		Subject: subject,
-		Type:    subjectType,
-		Infos:   resources,
-	}
-
-	rsp, err := self.c.ValidateAction(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.Result, nil
-
-}
-
-/**
- * Get action ressource paramater infos...
- */
-func (self *Resource_Client) GetActionResourceInfos(action string) ([]*resourcepb.ResourceInfos, error) {
-	rqst := &resourcepb.GetActionResourceInfosRqst{
-		Action: action,
-	}
-
-	rsp, err := self.c.GetActionResourceInfos(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return nil, err
-	}
-
-	return rsp.Infos, err
 }

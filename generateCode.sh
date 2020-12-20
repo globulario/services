@@ -7,6 +7,8 @@
 # GO grpc file generation
 protoc proto/admin.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/resource.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/rbac.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/log.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/ca.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/lb.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/services.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
@@ -86,6 +88,10 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/cata
 mkdir typescript/log
 protoc --js_out=import_style=commonjs:typescript/log  -I ./proto/ log.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/log -I ./proto/ log.proto
+mkdir typescript/rbac
+protoc --js_out=import_style=commonjs:typescript/rbac  -I ./proto/ rbac.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/rbac -I ./proto/ rbac.proto
+
 
 # CSharp grpc files generation
 mkdir csharp/event/eventpb

@@ -171,7 +171,7 @@ func (self *Admin_Client) SetCaFile(caFile string) {
 /////////////////////// API /////////////////////
 
 // Get server configuration.
-func (self *Admin_Client) GetConfig() (string, error) {
+func (self *Admin_Client) GetConfig() (interface{}, error) {
 	rqst := new(adminpb.GetConfigRequest)
 	rsp, err := self.c.GetConfig(globular.GetClientContext(self), rqst)
 	if err != nil {
@@ -182,7 +182,7 @@ func (self *Admin_Client) GetConfig() (string, error) {
 }
 
 // Get the server configuration with all detail must be secured.
-func (self *Admin_Client) GetFullConfig() (string, error) {
+func (self *Admin_Client) GetFullConfig() (interface{}, error) {
 
 	rqst := new(adminpb.GetConfigRequest)
 

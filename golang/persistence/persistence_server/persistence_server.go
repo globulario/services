@@ -23,6 +23,7 @@ import (
 	"github.com/globulario/services/golang/persistence/persistencepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
@@ -827,7 +828,14 @@ func (self *server) FindOne(ctx context.Context, rqst *persistencepb.FindOneRqst
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	jsonStr, err := json.Marshal(result)
+	obj_, err := Utility.ToMap(result)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	obj, err := structpb.NewStruct(obj_)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -835,7 +843,7 @@ func (self *server) FindOne(ctx context.Context, rqst *persistencepb.FindOneRqst
 	}
 
 	return &persistencepb.FindOneResp{
-		JsonStr: string(jsonStr),
+		Result: obj,
 	}, nil
 }
 

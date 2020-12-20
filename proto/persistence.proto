@@ -6,6 +6,8 @@ syntax = "proto3";
 package persistence;
 
 option go_package="persistence/persistencepb";
+import "google/protobuf/struct.proto";
+
 
 enum StoreType{
 	MONGO = 0;
@@ -96,7 +98,7 @@ message FindOneRqst {
 }
 
 message FindOneResp {
-	string jsonStr = 1; // Json string
+	google.protobuf.Struct result = 1;
 }
 
 message AggregateRqst {

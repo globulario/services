@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package log;
+
+option go_package="log/logpb";
+
+////////////////////////////////////////////////////////////////////////////////
+// Log service
+////////////////////////////////////////////////////////////////////////////////
+
+enum LogType{
+	INFO_MESSAGE=0;
+	ERROR_MESSAGE=1;
+}
+
+message LogInfo{
+	int64 date = 1;
+	LogType type = 2;
+	string application = 3;
+	string userId = 4;
+	string userName = 5;
+	string method = 6;
+	string message = 7;
+}
+
+message LogRqst{
+	LogInfo info = 1;
+}
+
+message LogRsp{
+	bool result=1;
+}
+
+message DeleteLogRqst{
+	LogInfo log = 1;
+}
+
+message DeleteLogRsp{
+	bool result=1;
+}
+
+message SetLogMethodRqst{
+	string method = 1;
+}
+
+message SetLogMethodRsp{
+	bool result=1;
+}
+
+message ResetLogMethodRqst{
+	string method = 1;
+}
+
+message ResetLogMethodRsp{
+	bool result=1;
+}
+
+message GetLogMethodsRqst{
+}
+
+message GetLogMethodsRsp{
+	repeated string methods = 1;
+}
+
+message GetLogRqst{
+	string query = 1;
+}
+
+message GetLogRsp{
+	repeated LogInfo info = 1;
+}
+
+message ClearAllLogRqst{
+	LogType type = 1;
+}
+
+message ClearAllLogRsp{
+	bool result=1;
+}
+
+service LogService {
+	/** Set a method into the log... **/
+	rpc Log(LogRqst) returns(LogRsp);
+	
+	/** Get the list of logs **/
+	rpc GetLog(GetLogRqst) returns(stream GetLogRsp);
+
+	/** Delete a single log entry **/
+	rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
+	
+	/** Delete all log **/
+	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
+}

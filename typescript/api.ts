@@ -50,11 +50,6 @@ import {
   SynchronizeLdapRsp,
   UserSyncInfos,
   GroupSyncInfos,
-  GetLogRqst,
-  LogInfo,
-  ClearAllLogRqst,
-  LogType,
-  DeleteLogRqst,
   GetPeersRqst,
   GetPeersRsp,
   Peer,
@@ -64,6 +59,14 @@ import {
   DeletePeerRqst,
   RegisterPeerRqst,
 } from "./resource/resource_pb";
+
+import {
+  GetLogRqst,
+  LogInfo,
+  ClearAllLogRqst,
+  LogType,
+  DeleteLogRqst
+} from "./log/log_pb"
 
 import * as jwt from "jwt-decode";
 import {
@@ -80,14 +83,14 @@ import {
 } from "./persistence/persistence_pb";
 
 import {
-  FindServicesDescriptorRequest,
-  FindServicesDescriptorResponse,
-  ServiceDescriptor,
-  GetServiceDescriptorRequest,
-  GetServiceDescriptorResponse,
-  GetServicesDescriptorRequest,
-  GetServicesDescriptorResponse,
-  SetServiceDescriptorRequest,
+  FindPackagesDescriptorRequest,
+  FindPackagesDescriptorResponse,
+  PackageDescriptor,
+  GetPackageDescriptorRequest,
+  GetPackageDescriptorResponse,
+  GetPackagesDescriptorRequest,
+  GetPackagesDescriptorResponse,
+  SetPackageDescriptorRequest,
 } from "./services/services_pb";
 
 import {
@@ -1693,24 +1696,24 @@ export function saveApplication(
  * @param callback
  * @param errorCallback
  */
-export function getServiceDescriptor(
+export function getPackageDescriptor(
   globular: Globular,
   serviceId: string,
   publisherId: string,
-  callback: (descriptors: ServiceDescriptor[]) => void,
+  callback: (descriptors: PackageDescriptor[]) => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new GetServiceDescriptorRequest();
+  const rqst = new GetPackageDescriptorRequest();
   rqst.setServiceid(serviceId);
   rqst.setPublisherid(publisherId);
 
-  globular.servicesDicovery
-    .getServiceDescriptor(rqst, {
+  globular.packagesDicovery
+    .getPackageDescriptor(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
     })
-    .then((rsp: GetServiceDescriptorResponse) => {
+    .then((rsp: GetPackageDescriptorResponse) => {
       callback(rsp.getResultsList());
     })
     .catch((err: any) => {
@@ -1726,21 +1729,21 @@ export function getServiceDescriptor(
  * @param callback
  * @param errorCallback
  */
-export function getServicesDescriptor(
+export function GetPackagesDescriptor(
   globular: Globular,
-  callback: (descriptors: ServiceDescriptor[]) => void,
+  callback: (descriptors: PackageDescriptor[]) => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new GetServicesDescriptorRequest();
+  const rqst = new GetPackagesDescriptorRequest();
 
-  const stream = globular.servicesDicovery.getServicesDescriptor(rqst, {
+  const stream = globular.packagesDicovery.getPackagesDescriptor(rqst, {
     application: application,
     domain: domain,
   });
 
-  let descriptors = new Array<ServiceDescriptor>();
+  let descriptors = new Array<PackageDescriptor>();
 
-  stream.on("data", (rsp: GetServicesDescriptorResponse) => {
+  stream.on("data", (rsp: GetPackagesDescriptorResponse) => {
     descriptors = descriptors.concat(rsp.getResultsList());
   });
 
@@ -1764,15 +1767,15 @@ export function getServicesDescriptor(
  */
 export function setServicesDescriptor(
   globular: Globular,
-  descriptor: ServiceDescriptor,
+  descriptor: PackageDescriptor,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new SetServiceDescriptorRequest();
+  const rqst = new SetPackageDescriptorRequest();
   rqst.setDescriptor(descriptor);
 
-  globular.servicesDicovery
-    .setServiceDescriptor(rqst, {
+  globular.packagesDicovery
+    .setPackageDescriptor(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
@@ -1788,19 +1791,19 @@ export function setServicesDescriptor(
  * @param query
  * @param callback
  */
-export function findServices(
+export function FindPackages(
   globular: Globular,
   keywords: string[],
-  callback: (results: ServiceDescriptor[]) => void,
+  callback: (results: PackageDescriptor[]) => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new FindServicesDescriptorRequest();
+  const rqst = new FindPackagesDescriptorRequest();
   rqst.setKeywordsList(keywords);
 
   // Find services by keywords.
-  globular.servicesDicovery
-    .findServices(rqst, { application: application, domain: domain })
-    .then((rsp: FindServicesDescriptorResponse) => {
+  globular.packagesDicovery
+    .findPackages(rqst, { application: application, domain: domain })
+    .then((rsp: FindPackagesDescriptorResponse) => {
       callback(rsp.getResultsList());
     })
     .catch((err: any) => {

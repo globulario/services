@@ -138,7 +138,7 @@ proto.admin.AdminServiceClient.prototype.setRootPassword =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetRootPasswordResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setRootPassword =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.admin.AdminServiceClient.prototype.setRootEmail =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetRootEmailResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setRootEmail =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.admin.AdminServiceClient.prototype.setPassword =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetPasswordResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setPassword =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.admin.AdminServiceClient.prototype.setEmail =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetEmailResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setEmail =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.admin.AdminServiceClient.prototype.getConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.getConfig =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.admin.AdminServiceClient.prototype.getFullConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.getFullConfig =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.admin.AdminServiceClient.prototype.saveConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SaveConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.saveConfig =
     function(request, metadata) {
@@ -698,7 +698,7 @@ proto.admin.AdminServiceClient.prototype.stopService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.StopServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.stopService =
     function(request, metadata) {
@@ -778,7 +778,7 @@ proto.admin.AdminServiceClient.prototype.startService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.StartServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.startService =
     function(request, metadata) {
@@ -858,7 +858,7 @@ proto.admin.AdminServiceClient.prototype.restartServices =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.RestartServicesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.restartServices =
     function(request, metadata) {
@@ -938,7 +938,7 @@ proto.admin.AdminServiceClient.prototype.publishService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.PublishServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.publishService =
     function(request, metadata) {
@@ -1018,7 +1018,7 @@ proto.admin.AdminServiceClient.prototype.installService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.InstallServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.installService =
     function(request, metadata) {
@@ -1098,7 +1098,7 @@ proto.admin.AdminServiceClient.prototype.uninstallService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.UninstallServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.uninstallService =
     function(request, metadata) {
@@ -1178,7 +1178,7 @@ proto.admin.AdminServiceClient.prototype.registerExternalApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.RegisterExternalApplicationResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.registerExternalApplication =
     function(request, metadata) {
@@ -1258,7 +1258,7 @@ proto.admin.AdminServiceClient.prototype.installApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.InstallApplicationResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.installApplication =
     function(request, metadata) {
@@ -1338,7 +1338,7 @@ proto.admin.AdminServiceClient.prototype.uninstallApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.UninstallApplicationResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.uninstallApplication =
     function(request, metadata) {
@@ -1418,7 +1418,7 @@ proto.admin.AdminServiceClient.prototype.hasRunningProcess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.HasRunningProcessResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.hasRunningProcess =
     function(request, metadata) {
@@ -1427,6 +1427,246 @@ proto.admin.AdminServicePromiseClient.prototype.hasRunningProcess =
       request,
       metadata || {},
       methodDescriptor_AdminService_HasRunningProcess);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.RunCmdRequest,
+ *   !proto.admin.RunCmdResponse>}
+ */
+const methodDescriptor_AdminService_RunCmd = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/RunCmd',
+  grpc.web.MethodType.UNARY,
+  proto.admin.RunCmdRequest,
+  proto.admin.RunCmdResponse,
+  /**
+   * @param {!proto.admin.RunCmdRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.RunCmdResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.RunCmdRequest,
+ *   !proto.admin.RunCmdResponse>}
+ */
+const methodInfo_AdminService_RunCmd = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.RunCmdResponse,
+  /**
+   * @param {!proto.admin.RunCmdRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.RunCmdResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.RunCmdRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.RunCmdResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.RunCmdResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.runCmd =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/RunCmd',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_RunCmd,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.RunCmdRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.RunCmdResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.runCmd =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/RunCmd',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_RunCmd);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.SetEnvironmentVariableRequest,
+ *   !proto.admin.SetEnvironmentVariableResponse>}
+ */
+const methodDescriptor_AdminService_SetEnvironmentVariable = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/SetEnvironmentVariable',
+  grpc.web.MethodType.UNARY,
+  proto.admin.SetEnvironmentVariableRequest,
+  proto.admin.SetEnvironmentVariableResponse,
+  /**
+   * @param {!proto.admin.SetEnvironmentVariableRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.SetEnvironmentVariableResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.SetEnvironmentVariableRequest,
+ *   !proto.admin.SetEnvironmentVariableResponse>}
+ */
+const methodInfo_AdminService_SetEnvironmentVariable = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.SetEnvironmentVariableResponse,
+  /**
+   * @param {!proto.admin.SetEnvironmentVariableRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.SetEnvironmentVariableResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.SetEnvironmentVariableRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.SetEnvironmentVariableResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.SetEnvironmentVariableResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.setEnvironmentVariable =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/SetEnvironmentVariable',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_SetEnvironmentVariable,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.SetEnvironmentVariableRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.SetEnvironmentVariableResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.setEnvironmentVariable =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/SetEnvironmentVariable',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_SetEnvironmentVariable);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.UnsetEnvironmentVariableRequest,
+ *   !proto.admin.UnsetEnvironmentVariableResponse>}
+ */
+const methodDescriptor_AdminService_UnsetEnvironmentVariable = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/UnsetEnvironmentVariable',
+  grpc.web.MethodType.UNARY,
+  proto.admin.UnsetEnvironmentVariableRequest,
+  proto.admin.UnsetEnvironmentVariableResponse,
+  /**
+   * @param {!proto.admin.UnsetEnvironmentVariableRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.UnsetEnvironmentVariableResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.UnsetEnvironmentVariableRequest,
+ *   !proto.admin.UnsetEnvironmentVariableResponse>}
+ */
+const methodInfo_AdminService_UnsetEnvironmentVariable = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.UnsetEnvironmentVariableResponse,
+  /**
+   * @param {!proto.admin.UnsetEnvironmentVariableRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.UnsetEnvironmentVariableResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.UnsetEnvironmentVariableRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.UnsetEnvironmentVariableResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.UnsetEnvironmentVariableResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.unsetEnvironmentVariable =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/UnsetEnvironmentVariable',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_UnsetEnvironmentVariable,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.UnsetEnvironmentVariableRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.UnsetEnvironmentVariableResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.unsetEnvironmentVariable =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/UnsetEnvironmentVariable',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_UnsetEnvironmentVariable);
 };
 
 

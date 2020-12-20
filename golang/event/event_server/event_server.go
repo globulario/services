@@ -530,6 +530,7 @@ func main() {
 		fmt.Println("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
 		return
 	}
+
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
@@ -537,6 +538,7 @@ func main() {
 	if len(os.Args) > 2 {
 		publishCommand := flag.NewFlagSet("publish", flag.ExitOnError)
 		publishCommand_domain := publishCommand.String("a", "", "The address(domain ex. my.domain.com:8080) of your backend (Required)")
+		publishCommand_organization := publishCommand.String("o", "", "The organization (Required)")
 		publishCommand_user := publishCommand.String("u", "", "The user (Required)")
 		publishCommand_password := publishCommand.String("p", "", "The password (Required)")
 
@@ -561,6 +563,11 @@ func main() {
 			}
 
 			if *publishCommand_password == "" {
+				publishCommand.PrintDefaults()
+				os.Exit(1)
+			}
+
+			if *publishCommand_organization == "" {
 				publishCommand.PrintDefaults()
 				os.Exit(1)
 			}

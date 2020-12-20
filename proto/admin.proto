@@ -6,12 +6,14 @@ package admin;
 
 option go_package="admin/adminpb";
 
+import "google/protobuf/struct.proto";
+
 // Return the configuration of the whole server.
 message GetConfigRequest {
 }
 
 message GetConfigResponse {
-  string result = 1;
+  google.protobuf.Struct result = 1;
 }
 
 message SaveConfigRequest {
@@ -200,32 +202,30 @@ message DeployApplicationResponse{
 	bool result = 1;
 }
 
-message Arg{
-	string name = 1;
-	oneof value {
-		string str = 2;
-		int64 number=3;
-		double real=4;
-	}
-}
-
-////////////////////////// External command runing //////////////////////////
-
-message Result{
-	oneof value {
-		string outpout = 1; // contain a string with the stdout values.
-		string error=2; // contain the error massage if there is error
-	}
-}
-
-message RunRequest{
+message RunCmdRequest{
 	string cmd = 1;
-	repeated Arg args = 2;
-	bool wait = 3; // wait util the command return, or return immediatly.
+	repeated string args = 2;
 }
 
-message RunResponse{
-	Result result = 1;
+message RunCmdResponse{
+	string result = 1; // The content of the result ass a string.
+}
+
+message SetEnvironmentVariableRequest {
+	string name = 1;
+	string value = 2;
+}
+
+message SetEnvironmentVariableResponse {
+	/** Nothing here **/
+}
+
+message UnsetEnvironmentVariableRequest {
+	string name = 1;
+}
+
+message UnsetEnvironmentVariableResponse {
+	/** Nothing here **/
 }
 
 service AdminService {
@@ -289,6 +289,12 @@ service AdminService {
   rpc HasRunningProcess(HasRunningProcessRequest) returns(HasRunningProcessResponse);
 
   // Run an external command.
-  rpc RunCmd(RunRequest) returns(RunResponse);
+  rpc RunCmd(RunCmdRequest) returns(RunCmdResponse);
+
+  // Set environement variable.
+  rpc SetEnvironmentVariable(SetEnvironmentVariableRequest) returns(SetEnvironmentVariableResponse);
+
+  // Unset environement variable.
+  rpc UnsetEnvironmentVariable(UnsetEnvironmentVariableRequest) returns(UnsetEnvironmentVariableResponse);
 
 }

@@ -1076,7 +1076,12 @@ func (self *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItem
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.ItemInstanceId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemInstance", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemInstance", query, `[{"Projection":{"_id":0}}]`)
+	if err != nil {
+		return nil, err
+	}
+	jsonStr, _ := Utility.ToJson(obj)
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1187,7 +1192,13 @@ func (self *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetIt
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.ItemDefinitionId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "ItemDefinition", query, `[{"Projection":{"_id":0}}]`)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr, _ := Utility.ToJson(obj)
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1369,7 +1380,12 @@ func (self *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplier
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.SupplierId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Supplier", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Supplier", query, `[{"Projection":{"_id":0}}]`)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr, _ := Utility.ToJson(obj)
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1504,7 +1520,15 @@ func (self *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.Get
 	packagesSupplier := make([]*catalogpb.PackageSupplier, 0)
 
 	for i := 0; i < len(results); i++ {
-		jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+results[i]["_id"].(string)+`"}`, `[{"Projection":{"_id":0}}]`)
+		obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "PackageSupplier", `{"_id":"`+results[i]["_id"].(string)+`"}`, `[{"Projection":{"_id":0}}]`)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		jsonStr, _ := Utility.ToJson(obj)
+
 		// replace the reference.
 		jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 		jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1552,7 +1576,14 @@ func (self *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageRe
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.PackageId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
+	jsonStr, err := Utility.ToJson(obj)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1657,7 +1688,13 @@ func (self *server) getLocalisation(localisationId string, connectionId string) 
 		query = `{"_id":"` + Utility.GenerateUUID(localisationId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Localisation", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Localisation", query, `[{"Projection":{"_id":0}}]`)
+	jsonStr, err := Utility.ToJson(obj)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1780,7 +1817,13 @@ func (self *server) getCategory(categoryId string, connectionId string) (*catalo
 		query = `{"_id":"` + Utility.GenerateUUID(categoryId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Category", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Category", query, `[{"Projection":{"_id":0}}]`)
+	jsonStr, err := Utility.ToJson(obj)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -1901,7 +1944,13 @@ func (self *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManu
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.ManufacturerId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "Package", query, `[{"Projection":{"_id":0}}]`)
+	jsonStr, err := Utility.ToJson(obj)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)
@@ -2108,7 +2157,14 @@ func (self *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUni
 		query = `{"_id":"` + Utility.GenerateUUID(rqst.UnitOfMeasureId) + `"}`
 	}
 
-	jsonStr, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", query, `[{"Projection":{"_id":0}}]`)
+	obj, err := self.persistenceClient.FindOne(connection["Id"].(string), connection["Name"].(string), "UnitOfMeasure", query, `[{"Projection":{"_id":0}}]`)
+	jsonStr, err := Utility.ToJson(obj)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// replace the reference.
 	jsonStr = strings.Replace(jsonStr, "$id", "refObjId", -1)
 	jsonStr = strings.Replace(jsonStr, "$ref", "refColId", -1)

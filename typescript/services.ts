@@ -14,8 +14,10 @@ import { MonitoringServicePromiseClient } from './monitoring/monitoring_grpc_web
 import { SearchServicePromiseClient } from './search/search_grpc_web_pb';
 import { PlcServicePromiseClient } from './plc/plc_grpc_web_pb';
 import { AdminServicePromiseClient } from './admin/admin_grpc_web_pb';
-import { ResourceServicePromiseClient, LogServicePromiseClient } from './resource/resource_grpc_web_pb';
-import { ServiceDiscoveryPromiseClient, ServiceRepositoryPromiseClient } from './services/services_grpc_web_pb';
+import { ResourceServicePromiseClient } from './resource/resource_grpc_web_pb';
+import { LogServicePromiseClient } from './log/log_grpc_web_pb';
+
+import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from './services/services_grpc_web_pb';
 import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
 
@@ -66,10 +68,10 @@ export interface IConfig {
   AdminEmail: string;
   ResourcePort: number;
   ResourceProxy: number;
-  ServicesDiscoveryPort: number;
-  ServicesDiscoveryProxy: number;
-  ServicesRepositoryPort: number;
-  ServicesRepositoryProxy: number;
+  PackagesDiscoveryPort: number;
+  PackagesDiscoveryProxy: number;
+  PackagesRepositoryPort: number;
+  PackagesRepositoryProxy: number;
   CertificateAuthorityPort: number;
   CertificateAuthorityProxy: number;
   LoadBalancingServiceProxy: number;
@@ -371,25 +373,25 @@ export class Globular {
     return this._logService;
   }
 
-  private _servicesDicovery: ServiceDiscoveryPromiseClient
-  public get servicesDicovery(): ServiceDiscoveryPromiseClient | undefined {
+  private _packagesDicovery: PackageDiscoveryPromiseClient
+  public get packagesDicovery(): PackageDiscoveryPromiseClient | undefined {
     // refresh the config.
-    if (this._servicesDicovery == null) {
-      this._servicesDicovery = new ServiceDiscoveryPromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.ServicesDiscoveryProxy,
+    if (this._packagesDicovery == null) {
+      this._packagesDicovery = new PackageDiscoveryPromiseClient(
+        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.PackagesDiscoveryProxy,
         null,
         null,
       );
     }
-    return this._servicesDicovery;
+    return this._packagesDicovery;
   }
 
-  private _servicesRepository: ServiceRepositoryPromiseClient
-  public get servicesRepository(): ServiceRepositoryPromiseClient | undefined {
+  private _servicesRepository: PackageRepositoryPromiseClient
+  public get servicesRepository(): PackageRepositoryPromiseClient | undefined {
     // refresh the config.
     if (this._servicesRepository == null) {
-      this._servicesRepository = new ServiceRepositoryPromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.ServicesRepositoryProxy,
+      this._servicesRepository = new PackageRepositoryPromiseClient(
+        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.PackagesRepositoryProxy,
         null,
         null,
       );

@@ -6,7 +6,7 @@ import (
 
 	// "github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc"
 )
 
@@ -16,7 +16,7 @@ import (
 
 type Rbac_Client struct {
 	cc *grpc.ClientConn
-	c  resourcepb.RbacServiceClient
+	c  rbacpb.RbacServiceClient
 
 	// The id of the service
 	id string
@@ -54,7 +54,7 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.c = resourcepb.NewRbacServiceClient(client.cc)
+	client.c = rbacpb.NewRbacServiceClient(client.cc)
 
 	return client, nil
 }
@@ -156,8 +156,8 @@ func (self *Rbac_Client) SetCaFile(caFile string) {
 ////////////////////////////////////  Api  /////////////////////////////////////
 
 /** Set resource permissions this method will replace existing permission at once **/
-func (self *Rbac_Client) SetResourcePermissions(path string, permissions *resourcepb.Permissions) error {
-	rqst := &resourcepb.SetResourcePermissionsRqst{
+func (self *Rbac_Client) SetResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+	rqst := &rbacpb.SetResourcePermissionsRqst{
 		Path:        path,
 		Permissions: permissions,
 	}
@@ -168,8 +168,8 @@ func (self *Rbac_Client) SetResourcePermissions(path string, permissions *resour
 }
 
 /** Get resource permissions **/
-func (self *Rbac_Client) GetResourcePermission(path string, permissionName string, permissionType resourcepb.PermissionType) (*resourcepb.Permission, error) {
-	rqst := &resourcepb.GetResourcePermissionRqst{
+func (self *Rbac_Client) GetResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) (*rbacpb.Permission, error) {
+	rqst := &rbacpb.GetResourcePermissionRqst{
 		Name: permissionName,
 		Type: permissionType,
 		Path: path,
@@ -183,8 +183,8 @@ func (self *Rbac_Client) GetResourcePermission(path string, permissionName strin
 }
 
 /** Get resource permissions for a given path**/
-func (self *Rbac_Client) GetResourcePermissions(path string) (*resourcepb.Permissions, error) {
-	rqst := &resourcepb.GetResourcePermissionsRqst{
+func (self *Rbac_Client) GetResourcePermissions(path string) (*rbacpb.Permissions, error) {
+	rqst := &rbacpb.GetResourcePermissionsRqst{
 		Path: path,
 	}
 
@@ -197,7 +197,7 @@ func (self *Rbac_Client) GetResourcePermissions(path string) (*resourcepb.Permis
 
 /** Delete a resource permissions (when a resource is deleted) **/
 func (self *Rbac_Client) DeleteResourcePermissions(path string) error {
-	rqst := &resourcepb.DeleteResourcePermissionsRqst{
+	rqst := &rbacpb.DeleteResourcePermissionsRqst{
 		Path: path,
 	}
 
@@ -206,8 +206,8 @@ func (self *Rbac_Client) DeleteResourcePermissions(path string) error {
 }
 
 /** Delete a specific resource permission **/
-func (self *Rbac_Client) DeleteResourcePermission(path string, permissionName string, permissionType resourcepb.PermissionType) error {
-	rqst := &resourcepb.DeleteResourcePermissionRqst{
+func (self *Rbac_Client) DeleteResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) error {
+	rqst := &rbacpb.DeleteResourcePermissionRqst{
 		Name: permissionName,
 		Type: permissionType,
 		Path: path,
@@ -218,8 +218,8 @@ func (self *Rbac_Client) DeleteResourcePermission(path string, permissionName st
 }
 
 /** Set specific resource permission  ex. read permission... **/
-func (self *Rbac_Client) SetResourcePermission(path string, permission *resourcepb.Permission, permissionType resourcepb.PermissionType) error {
-	rqst := &resourcepb.SetResourcePermissionRqst{
+func (self *Rbac_Client) SetResourcePermission(path string, permission *rbacpb.Permission, permissionType rbacpb.PermissionType) error {
+	rqst := &rbacpb.SetResourcePermissionRqst{
 		Permission: permission,
 		Type:       permissionType,
 		Path:       path,
@@ -230,8 +230,8 @@ func (self *Rbac_Client) SetResourcePermission(path string, permission *resource
 }
 
 /** Add resource owner do nothing if it already exist */
-func (self *Rbac_Client) AddResourceOwner(path string, owner string, subjectType resourcepb.SubjectType) error {
-	rqst := &resourcepb.AddResourceOwnerRqst{
+func (self *Rbac_Client) AddResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
+	rqst := &rbacpb.AddResourceOwnerRqst{
 		Type:    subjectType,
 		Subject: owner,
 		Path:    path,
@@ -243,8 +243,8 @@ func (self *Rbac_Client) AddResourceOwner(path string, owner string, subjectType
 }
 
 /** Remove resource owner */
-func (self *Rbac_Client) RemoveResourceOwner(path string, owner string, subjectType resourcepb.SubjectType) error {
-	rqst := &resourcepb.RemoveResourceOwnerRqst{
+func (self *Rbac_Client) RemoveResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
+	rqst := &rbacpb.RemoveResourceOwnerRqst{
 		Subject: owner,
 		Path:    path,
 		Type:    subjectType,
@@ -255,8 +255,8 @@ func (self *Rbac_Client) RemoveResourceOwner(path string, owner string, subjectT
 }
 
 /** That function must be call when a subject is removed to clean up permissions. */
-func (self *Rbac_Client) DeleteAllAccess(subject string, subjectType resourcepb.SubjectType) error {
-	rqst := &resourcepb.DeleteAllAccessRqst{
+func (self *Rbac_Client) DeleteAllAccess(subject string, subjectType rbacpb.SubjectType) error {
+	rqst := &rbacpb.DeleteAllAccessRqst{
 		Subject: subject,
 		Type:    subjectType,
 	}
@@ -267,9 +267,9 @@ func (self *Rbac_Client) DeleteAllAccess(subject string, subjectType resourcepb.
 }
 
 /** Validate if a user can get access to a given Resource for a given operation (read, write...) **/
-func (self *Rbac_Client) ValidateAccess(subject string, subjectType resourcepb.SubjectType, permission string, path string) (bool, error) {
+func (self *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.SubjectType, permission string, path string) (bool, error) {
 
-	rqst := &resourcepb.ValidateAccessRqst{
+	rqst := &rbacpb.ValidateAccessRqst{
 		Subject:    subject,
 		Type:       subjectType,
 		Path:       path,
@@ -282,4 +282,40 @@ func (self *Rbac_Client) ValidateAccess(subject string, subjectType resourcepb.S
 	}
 
 	return rsp.GetResult(), nil
+}
+
+/**
+ * Validata action...
+ */
+func (self *Rbac_Client) ValidateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
+	rqst := &rbacpb.ValidateActionRqst{
+		Action:  action,
+		Subject: subject,
+		Type:    subjectType,
+		Infos:   resources,
+	}
+
+	rsp, err := self.c.ValidateAction(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return false, err
+	}
+
+	return rsp.Result, nil
+
+}
+
+/**
+ * Get action ressource paramater infos...
+ */
+func (self *Rbac_Client) GetActionResourceInfos(action string) ([]*rbacpb.ResourceInfos, error) {
+	rqst := &rbacpb.GetActionResourceInfosRqst{
+		Action: action,
+	}
+
+	rsp, err := self.c.GetActionResourceInfos(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Infos, err
 }
