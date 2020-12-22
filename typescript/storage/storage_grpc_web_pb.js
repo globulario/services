@@ -138,7 +138,7 @@ proto.storage.StorageServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.storage.StorageServiceClient.prototype.open =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.OpenRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.open =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.storage.StorageServiceClient.prototype.close =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.CloseRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.close =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.storage.StorageServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.CreateConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.storage.StorageServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.DeleteConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.storage.StorageServiceClient.prototype.setItem =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.SetItemResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.setItem =
     function(request, metadata) {
@@ -693,7 +693,7 @@ proto.storage.StorageServiceClient.prototype.removeItem =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.RemoveItemResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.removeItem =
     function(request, metadata) {
@@ -773,7 +773,7 @@ proto.storage.StorageServiceClient.prototype.clear =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.ClearResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.clear =
     function(request, metadata) {
@@ -853,7 +853,7 @@ proto.storage.StorageServiceClient.prototype.drop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.storage.DropResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.storage.StorageServicePromiseClient.prototype.drop =
     function(request, metadata) {
