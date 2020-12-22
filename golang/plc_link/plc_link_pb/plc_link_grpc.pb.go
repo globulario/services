@@ -126,7 +126,7 @@ type UnsafePlcLinkServiceServer interface {
 }
 
 func RegisterPlcLinkServiceServer(s grpc.ServiceRegistrar, srv PlcLinkServiceServer) {
-	s.RegisterService(&_PlcLinkService_serviceDesc, srv)
+	s.RegisterService(&PlcLinkService_ServiceDesc, srv)
 }
 
 func _PlcLinkService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -219,7 +219,10 @@ func _PlcLinkService_Resume_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
-var _PlcLinkService_serviceDesc = grpc.ServiceDesc{
+// PlcLinkService_ServiceDesc is the grpc.ServiceDesc for PlcLinkService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var PlcLinkService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "plc_link.PlcLinkService",
 	HandlerType: (*PlcLinkServiceServer)(nil),
 	Methods: []grpc.MethodDesc{

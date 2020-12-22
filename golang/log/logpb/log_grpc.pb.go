@@ -45,7 +45,7 @@ func (c *logServiceClient) Log(ctx context.Context, in *LogRqst, opts ...grpc.Ca
 }
 
 func (c *logServiceClient) GetLog(ctx context.Context, in *GetLogRqst, opts ...grpc.CallOption) (LogService_GetLogClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_LogService_serviceDesc.Streams[0], "/log.LogService/GetLog", opts...)
+	stream, err := c.cc.NewStream(ctx, &LogService_ServiceDesc.Streams[0], "/log.LogService/GetLog", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ type UnsafeLogServiceServer interface {
 }
 
 func RegisterLogServiceServer(s grpc.ServiceRegistrar, srv LogServiceServer) {
-	s.RegisterService(&_LogService_serviceDesc, srv)
+	s.RegisterService(&LogService_ServiceDesc, srv)
 }
 
 func _LogService_Log_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -211,7 +211,10 @@ func _LogService_ClearAllLog_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-var _LogService_serviceDesc = grpc.ServiceDesc{
+// LogService_ServiceDesc is the grpc.ServiceDesc for LogService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var LogService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "log.LogService",
 	HandlerType: (*LogServiceServer)(nil),
 	Methods: []grpc.MethodDesc{

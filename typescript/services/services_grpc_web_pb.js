@@ -138,7 +138,7 @@ proto.services.PackageDiscoveryClient.prototype.findPackages =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.FindPackagesDescriptorResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.services.PackageDiscoveryPromiseClient.prototype.findPackages =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.services.PackageDiscoveryClient.prototype.getPackageDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.GetPackageDescriptorResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.services.PackageDiscoveryPromiseClient.prototype.getPackageDescriptor =
     function(request, metadata) {
@@ -373,7 +373,7 @@ proto.services.PackageDiscoveryClient.prototype.setPackageDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.SetPackageDescriptorResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.services.PackageDiscoveryPromiseClient.prototype.setPackageDescriptor =
     function(request, metadata) {
@@ -453,7 +453,7 @@ proto.services.PackageDiscoveryClient.prototype.publishPackageDescriptor =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services.PublishPackageDescriptorResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.services.PackageDiscoveryPromiseClient.prototype.publishPackageDescriptor =
     function(request, metadata) {
