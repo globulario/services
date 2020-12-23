@@ -517,12 +517,12 @@ func (self *Resource_Client) DeleteRole(name string) error {
 /**
  * Add a action to a given role.
  */
-func (self *Resource_Client) AddRoleAction(roleId string, action string) error {
-	rqst := &resourcepb.AddRoleActionRqst{
-		RoleId: roleId,
-		Action: action,
+func (self *Resource_Client) AddRoleActions(roleId string, actions []string) error {
+	rqst := &resourcepb.AddRoleActionsRqst{
+		RoleId:  roleId,
+		Actions: actions,
 	}
-	_, err := self.c.AddRoleAction(globular.GetClientContext(self), rqst)
+	_, err := self.c.AddRoleActions(globular.GetClientContext(self), rqst)
 
 	return err
 }
@@ -568,18 +568,44 @@ func (self *Resource_Client) DeletePeer(domain string) error {
 	return err
 }
 
+/**
+ * Add a action to a given peer.
+ */
+func (self *Resource_Client) AddPeerActions(domain string, actions []string) error {
+	rqst := &resourcepb.AddPeerActionsRqst{
+		Domain:  domain,
+		Actions: actions,
+	}
+	_, err := self.c.AddPeerActions(globular.GetClientContext(self), rqst)
+
+	return err
+}
+
+/**
+ * Remove action from a given peer.
+ */
+func (self *Resource_Client) RemovePeerAction(domain string, action string) error {
+	rqst := &resourcepb.RemovePeerActionRqst{
+		Domain: domain,
+		Action: action,
+	}
+	_, err := self.c.RemovePeerAction(globular.GetClientContext(self), rqst)
+
+	return err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Application
 ////////////////////////////////////////////////////////////////////////////////
 /**
  * Add a action to a given application.
  */
-func (self *Resource_Client) AddApplicationAction(applicationId string, action string) error {
-	rqst := &resourcepb.AddApplicationActionRqst{
+func (self *Resource_Client) AddApplicationActions(applicationId string, actions []string) error {
+	rqst := &resourcepb.AddApplicationActionsRqst{
 		ApplicationId: applicationId,
-		Action:        action,
+		Actions:       actions,
 	}
-	_, err := self.c.AddApplicationAction(globular.GetClientContext(self), rqst)
+	_, err := self.c.AddApplicationActions(globular.GetClientContext(self), rqst)
 
 	return err
 }

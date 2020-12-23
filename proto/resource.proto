@@ -4,6 +4,8 @@
 syntax = "proto3";
 package resource;
 
+import "google/protobuf/struct.proto";
+
 option go_package = "resource/resourcepb";
 
 message UserSyncInfos{
@@ -61,6 +63,12 @@ message Account {
 	string name=2;
 	string email =3;
 	string password =4;
+	
+	// References.
+	repeated string contacts=5;
+	repeated string organizations=6;
+	repeated string groups=7;
+	repeated string roles=8;
 }
 
 /** A role is simply a list of actions that an account can call **/
@@ -68,6 +76,10 @@ message Role {
 	string id=1;
 	string name=2;
 	repeated string  actions=3; // must be a registered action from grpc.
+	
+	// References.
+	repeated string members=4;
+	repeated string organizations=5;
 }
 
 message RegisterAccountRqst{
@@ -124,12 +136,41 @@ message RemoveAccountRoleRsp{
 	bool result = 1;
 }
 
+message AddAccountContactRqst{
+	string accountId = 1;
+	string contactId = 2;
+}
+
+message AddAccountContactRsp{
+	bool result = 1;
+}
+
+message RemoveAccountContactRqst{
+	string accountId = 1;
+	string contactId = 2;
+}
+
+message RemoveAccountContactRsp{
+	bool result = 1;
+}
+
 message CreateRoleRqst{
 	Role role = 1;
 }
 
 message CreateRoleRsp{
 	bool result = 1;
+}
+
+/**
+ * Return the list of role's.
+ */
+message GetRolesRqst{
+	string query = 1;
+}
+
+message GetRolesRsp{
+	repeated Role roles = 1;
 }
 
 message DeleteRoleRqst{
@@ -154,7 +195,7 @@ message GetAllApplicationsInfoRqst{
 }
 
 message GetAllApplicationsInfoRsp{
-	string result = 1;
+	repeated google.protobuf.Struct applications = 1;
 }
 
 
@@ -164,6 +205,18 @@ message AccountExistRqst{
 
 message AccountExistRsp{
 	bool result=1;
+}
+
+
+/**
+ * Return the list of accounts (query is use to get specific account's).
+ */
+message GetAccountsRqst{
+	string query = 1;
+}
+
+message GetAccountsRsp{
+	repeated Account accounts = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,12 +375,12 @@ message DeletePeerRsp{
 }
 
 
-message AddRoleActionRqst{
+message AddRoleActionsRqst{
 	string roleId = 1;
-	string action = 2;
+	repeated string actions = 2;
 }
 
-message AddRoleActionRsp{
+message AddRoleActionsRsp{
 	bool result = 1;
 }
 
@@ -340,12 +393,12 @@ message RemoveRoleActionRsp{
 	bool result = 1;
 }
 
-message AddApplicationActionRqst{
+message AddApplicationActionsRqst{
 	string applicationId = 1;
-	string action = 2;
+	repeated string actions = 2;
 }
 
-message AddApplicationActionRsp{
+message AddApplicationActionsRsp{
 	bool result = 1;
 }
 
@@ -358,12 +411,12 @@ message RemoveApplicationActionRsp{
 	bool result = 1;
 }
 
-message AddPeerActionRqst{
+message AddPeerActionsRqst{
 	string domain = 1;
-	string action = 2;
+	repeated string actions = 2;
 }
 
-message AddPeerActionRsp{
+message AddPeerActionsRsp{
 	bool result = 1;
 }
 
@@ -547,16 +600,26 @@ service ResourceService {
 	/** Delete an account **/
 	rpc DeleteAccount(DeleteAccountRqst) returns(DeleteAccountRsp);
 	
+	/** Return the list of accounts **/
+	rpc GetAccounts(GetAccountsRqst) returns(stream GetAccountsRsp);
+
 	/** Add role to a given account **/
 	rpc AddAccountRole(AddAccountRoleRqst) returns(AddAccountRoleRsp);
 
 	/** Remove a role from a given account **/
 	rpc RemoveAccountRole(RemoveAccountRoleRqst) returns(RemoveAccountRoleRsp);
 	
+	/** Add contact to a given account **/
+	rpc AddAccountContact(AddAccountContactRqst) returns(AddAccountContactRsp);
+
+	/** Remove a contact from a given account **/
+	rpc RemoveAccountContact(RemoveAccountContactRqst) returns(RemoveAccountContactRsp);
+	
 	////////////////////////////////////////////////////////////////////////////
 	// Action's control objects (Role Base'd)
 	////////////////////////////////////////////////////////////////////////////
 	
+
 	////////////////////////////////////////////////////////////////////////////
 	// Role's
 	////////////////////////////////////////////////////////////////////////////
@@ -564,11 +627,14 @@ service ResourceService {
 	/** Create a role with given action list **/
 	rpc CreateRole(CreateRoleRqst) returns(CreateRoleRsp);
 	
+	/** Return the list of roles **/
+	rpc GetRoles(GetRolesRqst) returns(stream GetRolesRsp);
+	
 	/** Delete a role with a given id **/
 	rpc DeleteRole(DeleteRoleRqst) returns(DeleteRoleRsp);
 	
-	/** Append an action to existing role. **/
-	rpc AddRoleAction(AddRoleActionRqst) returns(AddRoleActionRsp);
+	/** Append action's to existing role. **/
+	rpc AddRoleActions(AddRoleActionsRqst) returns(AddRoleActionsRsp);
 	
 	/** Remove an action to existing role. **/
 	rpc RemoveRoleAction(RemoveRoleActionRqst) returns(RemoveRoleActionRsp);
@@ -584,8 +650,8 @@ service ResourceService {
 	/** Delete an application from the server. **/
 	rpc DeleteApplication(DeleteApplicationRqst) returns(DeleteApplicationRsp);
 	
-	/** Append an action to existing applications. **/
-	rpc AddApplicationAction(AddApplicationActionRqst) returns(AddApplicationActionRsp);
+	/** Append actions to existing applications. **/
+	rpc AddApplicationActions(AddApplicationActionsRqst) returns(AddApplicationActionsRsp);
 	
 	/** Remove an action to existing applications. **/
 	rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns(RemoveApplicationActionRsp);
@@ -603,8 +669,8 @@ service ResourceService {
 	/** Remove a peer from the network **/
 	rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
 
-	/** Add peer action permission **/
-	rpc AddPeerAction(AddPeerActionRqst) returns(AddPeerActionRsp);
+	/** Add peer actions **/
+	rpc AddPeerActions(AddPeerActionsRqst) returns(AddPeerActionsRsp);
 	
 	/** Remove peer action permission **/
 	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);

@@ -255,14 +255,14 @@ class DeletePeerRspDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<DeletePeerRsp> _instance;
 } _DeletePeerRsp_default_instance_;
-class AddRoleActionRqstDefaultTypeInternal {
+class AddRoleActionsRqstDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddRoleActionRqst> _instance;
-} _AddRoleActionRqst_default_instance_;
-class AddRoleActionRspDefaultTypeInternal {
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddRoleActionsRqst> _instance;
+} _AddRoleActionsRqst_default_instance_;
+class AddRoleActionsRspDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddRoleActionRsp> _instance;
-} _AddRoleActionRsp_default_instance_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddRoleActionsRsp> _instance;
+} _AddRoleActionsRsp_default_instance_;
 class RemoveRoleActionRqstDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<RemoveRoleActionRqst> _instance;
@@ -271,14 +271,14 @@ class RemoveRoleActionRspDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<RemoveRoleActionRsp> _instance;
 } _RemoveRoleActionRsp_default_instance_;
-class AddApplicationActionRqstDefaultTypeInternal {
+class AddApplicationActionsRqstDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddApplicationActionRqst> _instance;
-} _AddApplicationActionRqst_default_instance_;
-class AddApplicationActionRspDefaultTypeInternal {
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddApplicationActionsRqst> _instance;
+} _AddApplicationActionsRqst_default_instance_;
+class AddApplicationActionsRspDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddApplicationActionRsp> _instance;
-} _AddApplicationActionRsp_default_instance_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddApplicationActionsRsp> _instance;
+} _AddApplicationActionsRsp_default_instance_;
 class RemoveApplicationActionRqstDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<RemoveApplicationActionRqst> _instance;
@@ -287,14 +287,14 @@ class RemoveApplicationActionRspDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<RemoveApplicationActionRsp> _instance;
 } _RemoveApplicationActionRsp_default_instance_;
-class AddPeerActionRqstDefaultTypeInternal {
+class AddPeerActionsRqstDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddPeerActionRqst> _instance;
-} _AddPeerActionRqst_default_instance_;
-class AddPeerActionRspDefaultTypeInternal {
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddPeerActionsRqst> _instance;
+} _AddPeerActionsRqst_default_instance_;
+class AddPeerActionsRspDefaultTypeInternal {
  public:
-  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddPeerActionRsp> _instance;
-} _AddPeerActionRsp_default_instance_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<AddPeerActionsRsp> _instance;
+} _AddPeerActionsRsp_default_instance_;
 class RemovePeerActionRqstDefaultTypeInternal {
  public:
   ::PROTOBUF_NAMESPACE_ID::internal::ExplicitlyConstructed<RemovePeerActionRqst> _instance;
@@ -438,33 +438,33 @@ static void InitDefaultsscc_info_AddAccountRoleRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddAccountRoleRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddAccountRoleRsp_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_AddApplicationActionRqst_resource_2eproto() {
+static void InitDefaultsscc_info_AddApplicationActionsRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::resource::_AddApplicationActionRqst_default_instance_;
-    new (ptr) ::resource::AddApplicationActionRqst();
+    void* ptr = &::resource::_AddApplicationActionsRqst_default_instance_;
+    new (ptr) ::resource::AddApplicationActionsRqst();
     ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::resource::AddApplicationActionRqst::InitAsDefaultInstance();
+  ::resource::AddApplicationActionsRqst::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddApplicationActionRqst_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddApplicationActionRqst_resource_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddApplicationActionsRqst_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddApplicationActionsRqst_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_AddApplicationActionRsp_resource_2eproto() {
+static void InitDefaultsscc_info_AddApplicationActionsRsp_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::resource::_AddApplicationActionRsp_default_instance_;
-    new (ptr) ::resource::AddApplicationActionRsp();
+    void* ptr = &::resource::_AddApplicationActionsRsp_default_instance_;
+    new (ptr) ::resource::AddApplicationActionsRsp();
     ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::resource::AddApplicationActionRsp::InitAsDefaultInstance();
+  ::resource::AddApplicationActionsRsp::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddApplicationActionRsp_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddApplicationActionRsp_resource_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddApplicationActionsRsp_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddApplicationActionsRsp_resource_2eproto}, {}};
 
 static void InitDefaultsscc_info_AddGroupMemberAccountRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -606,61 +606,61 @@ static void InitDefaultsscc_info_AddOrganizationRoleRsp_resource_2eproto() {
 ::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddOrganizationRoleRsp_resource_2eproto =
     {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddOrganizationRoleRsp_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_AddPeerActionRqst_resource_2eproto() {
+static void InitDefaultsscc_info_AddPeerActionsRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::resource::_AddPeerActionRqst_default_instance_;
-    new (ptr) ::resource::AddPeerActionRqst();
+    void* ptr = &::resource::_AddPeerActionsRqst_default_instance_;
+    new (ptr) ::resource::AddPeerActionsRqst();
     ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::resource::AddPeerActionRqst::InitAsDefaultInstance();
+  ::resource::AddPeerActionsRqst::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddPeerActionRqst_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddPeerActionRqst_resource_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddPeerActionsRqst_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddPeerActionsRqst_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_AddPeerActionRsp_resource_2eproto() {
+static void InitDefaultsscc_info_AddPeerActionsRsp_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::resource::_AddPeerActionRsp_default_instance_;
-    new (ptr) ::resource::AddPeerActionRsp();
+    void* ptr = &::resource::_AddPeerActionsRsp_default_instance_;
+    new (ptr) ::resource::AddPeerActionsRsp();
     ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::resource::AddPeerActionRsp::InitAsDefaultInstance();
+  ::resource::AddPeerActionsRsp::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddPeerActionRsp_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddPeerActionRsp_resource_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddPeerActionsRsp_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddPeerActionsRsp_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_AddRoleActionRqst_resource_2eproto() {
+static void InitDefaultsscc_info_AddRoleActionsRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::resource::_AddRoleActionRqst_default_instance_;
-    new (ptr) ::resource::AddRoleActionRqst();
+    void* ptr = &::resource::_AddRoleActionsRqst_default_instance_;
+    new (ptr) ::resource::AddRoleActionsRqst();
     ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::resource::AddRoleActionRqst::InitAsDefaultInstance();
+  ::resource::AddRoleActionsRqst::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddRoleActionRqst_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddRoleActionRqst_resource_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddRoleActionsRqst_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddRoleActionsRqst_resource_2eproto}, {}};
 
-static void InitDefaultsscc_info_AddRoleActionRsp_resource_2eproto() {
+static void InitDefaultsscc_info_AddRoleActionsRsp_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   {
-    void* ptr = &::resource::_AddRoleActionRsp_default_instance_;
-    new (ptr) ::resource::AddRoleActionRsp();
+    void* ptr = &::resource::_AddRoleActionsRsp_default_instance_;
+    new (ptr) ::resource::AddRoleActionsRsp();
     ::PROTOBUF_NAMESPACE_ID::internal::OnShutdownDestroyMessage(ptr);
   }
-  ::resource::AddRoleActionRsp::InitAsDefaultInstance();
+  ::resource::AddRoleActionsRsp::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddRoleActionRsp_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddRoleActionRsp_resource_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_AddRoleActionsRsp_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_AddRoleActionsRsp_resource_2eproto}, {}};
 
 static void InitDefaultsscc_info_AuthenticateRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -1965,18 +1965,18 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::resource::DeletePeerRsp, result_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionRqst, _internal_metadata_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionsRqst, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionRqst, roleid_),
-  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionRqst, action_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionsRqst, roleid_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionsRqst, actions_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionRsp, _internal_metadata_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionsRsp, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionRsp, result_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddRoleActionsRsp, result_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::RemoveRoleActionRqst, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -1991,18 +1991,18 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::resource::RemoveRoleActionRsp, result_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionRqst, _internal_metadata_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionsRqst, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionRqst, applicationid_),
-  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionRqst, action_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionsRqst, applicationid_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionsRqst, actions_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionRsp, _internal_metadata_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionsRsp, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionRsp, result_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddApplicationActionsRsp, result_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::RemoveApplicationActionRqst, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -2017,18 +2017,18 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::resource::RemoveApplicationActionRsp, result_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionRqst, _internal_metadata_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionsRqst, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionRqst, domain_),
-  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionRqst, action_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionsRqst, domain_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionsRqst, actions_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionRsp, _internal_metadata_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionsRsp, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionRsp, result_),
+  PROTOBUF_FIELD_OFFSET(::resource::AddPeerActionsRsp, result_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::RemovePeerActionRqst, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -2206,16 +2206,16 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 357, -1, sizeof(::resource::GetPeersRsp)},
   { 363, -1, sizeof(::resource::DeletePeerRqst)},
   { 369, -1, sizeof(::resource::DeletePeerRsp)},
-  { 375, -1, sizeof(::resource::AddRoleActionRqst)},
-  { 382, -1, sizeof(::resource::AddRoleActionRsp)},
+  { 375, -1, sizeof(::resource::AddRoleActionsRqst)},
+  { 382, -1, sizeof(::resource::AddRoleActionsRsp)},
   { 388, -1, sizeof(::resource::RemoveRoleActionRqst)},
   { 395, -1, sizeof(::resource::RemoveRoleActionRsp)},
-  { 401, -1, sizeof(::resource::AddApplicationActionRqst)},
-  { 408, -1, sizeof(::resource::AddApplicationActionRsp)},
+  { 401, -1, sizeof(::resource::AddApplicationActionsRqst)},
+  { 408, -1, sizeof(::resource::AddApplicationActionsRsp)},
   { 414, -1, sizeof(::resource::RemoveApplicationActionRqst)},
   { 421, -1, sizeof(::resource::RemoveApplicationActionRsp)},
-  { 427, -1, sizeof(::resource::AddPeerActionRqst)},
-  { 434, -1, sizeof(::resource::AddPeerActionRsp)},
+  { 427, -1, sizeof(::resource::AddPeerActionsRqst)},
+  { 434, -1, sizeof(::resource::AddPeerActionsRsp)},
   { 440, -1, sizeof(::resource::RemovePeerActionRqst)},
   { 447, -1, sizeof(::resource::RemovePeerActionRsp)},
   { 453, -1, sizeof(::resource::AddOrganizationAccountRqst)},
@@ -2295,16 +2295,16 @@ static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] =
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_GetPeersRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_DeletePeerRqst_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_DeletePeerRsp_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddRoleActionRqst_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddRoleActionRsp_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddRoleActionsRqst_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddRoleActionsRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_RemoveRoleActionRqst_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_RemoveRoleActionRsp_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddApplicationActionRqst_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddApplicationActionRsp_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddApplicationActionsRqst_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddApplicationActionsRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_RemoveApplicationActionRqst_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_RemoveApplicationActionRsp_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddPeerActionRqst_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddPeerActionRsp_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddPeerActionsRqst_default_instance_),
+  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddPeerActionsRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_RemovePeerActionRqst_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_RemovePeerActionRsp_default_instance_),
   reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::resource::_AddOrganizationAccountRqst_default_instance_),
@@ -2397,127 +2397,128 @@ const char descriptor_table_protodef_resource_2eproto[] PROTOBUF_SECTION_VARIABL
   ",\n\013GetPeersRsp\022\035\n\005peers\030\001 \003(\0132\016.resource"
   ".Peer\".\n\016DeletePeerRqst\022\034\n\004peer\030\001 \001(\0132\016."
   "resource.Peer\"\037\n\rDeletePeerRsp\022\016\n\006result"
-  "\030\001 \001(\010\"3\n\021AddRoleActionRqst\022\016\n\006roleId\030\001 "
-  "\001(\t\022\016\n\006action\030\002 \001(\t\"\"\n\020AddRoleActionRsp\022"
-  "\016\n\006result\030\001 \001(\010\"6\n\024RemoveRoleActionRqst\022"
-  "\016\n\006roleId\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"%\n\023Remov"
-  "eRoleActionRsp\022\016\n\006result\030\001 \001(\010\"A\n\030AddApp"
-  "licationActionRqst\022\025\n\rapplicationId\030\001 \001("
-  "\t\022\016\n\006action\030\002 \001(\t\")\n\027AddApplicationActio"
-  "nRsp\022\016\n\006result\030\001 \001(\010\"D\n\033RemoveApplicatio"
-  "nActionRqst\022\025\n\rapplicationId\030\001 \001(\t\022\016\n\006ac"
-  "tion\030\002 \001(\t\",\n\032RemoveApplicationActionRsp"
-  "\022\016\n\006result\030\001 \001(\010\"3\n\021AddPeerActionRqst\022\016\n"
-  "\006domain\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"\"\n\020AddPeer"
-  "ActionRsp\022\016\n\006result\030\001 \001(\010\"6\n\024RemovePeerA"
-  "ctionRqst\022\016\n\006domain\030\001 \001(\t\022\016\n\006action\030\002 \001("
-  "\t\"%\n\023RemovePeerActionRsp\022\016\n\006result\030\001 \001(\010"
-  "\"G\n\032AddOrganizationAccountRqst\022\026\n\016organi"
-  "zationId\030\001 \001(\t\022\021\n\taccountId\030\002 \001(\t\"+\n\031Add"
-  "OrganizationAccountRsp\022\016\n\006result\030\001 \001(\010\"C"
-  "\n\030AddOrganizationGroupRqst\022\026\n\016organizati"
-  "onId\030\001 \001(\t\022\017\n\007groupId\030\002 \001(\t\")\n\027AddOrgani"
-  "zationGroupRsp\022\016\n\006result\030\001 \001(\010\"A\n\027AddOrg"
-  "anizationRoleRqst\022\026\n\016organizationId\030\001 \001("
-  "\t\022\016\n\006roleId\030\002 \001(\t\"(\n\026AddOrganizationRole"
-  "Rsp\022\016\n\006result\030\001 \001(\010\"O\n\036AddOrganizationAp"
-  "plicationRqst\022\026\n\016organizationId\030\001 \001(\t\022\025\n"
-  "\rapplicationId\030\002 \001(\t\"/\n\035AddOrganizationA"
-  "pplicationRsp\022\016\n\006result\030\001 \001(\010\"F\n\033RemoveO"
-  "rganizationGroupRqst\022\026\n\016organizationId\030\001"
-  " \001(\t\022\017\n\007groupId\030\002 \001(\t\",\n\032RemoveOrganizat"
-  "ionGroupRsp\022\016\n\006result\030\001 \001(\010\"D\n\032RemoveOrg"
-  "anizationRoleRqst\022\026\n\016organizationId\030\001 \001("
-  "\t\022\016\n\006roleId\030\002 \001(\t\"+\n\031RemoveOrganizationR"
-  "oleRsp\022\016\n\006result\030\001 \001(\010\"R\n!RemoveOrganiza"
-  "tionApplicationRqst\022\026\n\016organizationId\030\001 "
-  "\001(\t\022\025\n\rapplicationId\030\002 \001(\t\"2\n RemoveOrga"
-  "nizationApplicationRsp\022\016\n\006result\030\001 \001(\010\"J"
-  "\n\035RemoveOrganizationAccountRqst\022\026\n\016organ"
-  "izationId\030\001 \001(\t\022\021\n\taccountId\030\002 \001(\t\".\n\034Re"
-  "moveOrganizationAccountRsp\022\016\n\006result\030\001 \001"
-  "(\0102\245\031\n\017ResourceService\022H\n\rGetAllActions\022"
-  "\033.resource.GetAllActionsRqst\032\032.resource."
-  "GetAllActionsRsp\022H\n\rValidateToken\022\033.reso"
-  "urce.ValidateTokenRqst\032\032.resource.Valida"
-  "teTokenRsp\022E\n\014RefreshToken\022\032.resource.Re"
-  "freshTokenRqst\032\031.resource.RefreshTokenRs"
-  "p\022E\n\014Authenticate\022\032.resource.Authenticat"
-  "eRqst\032\031.resource.AuthenticateRsp\022N\n\017Sync"
-  "hronizeLdap\022\035.resource.SynchronizeLdapRq"
-  "st\032\034.resource.SynchronizeLdapRsp\022W\n\022Crea"
-  "teOrganization\022 .resource.CreateOrganiza"
-  "tionRqst\032\037.resource.CreateOrganizationRs"
-  "p\022S\n\020GetOrganizations\022\036.resource.GetOrga"
-  "nizationsRqst\032\035.resource.GetOrganization"
-  "sRsp0\001\022W\n\022DeleteOrganization\022 .resource."
-  "DeleteOrganizationRqst\032\037.resource.Delete"
-  "OrganizationRsp\022c\n\026AddOrganizationAccoun"
-  "t\022$.resource.AddOrganizationAccountRqst\032"
-  "#.resource.AddOrganizationAccountRsp\022]\n\024"
-  "AddOrganizationGroup\022\".resource.AddOrgan"
-  "izationGroupRqst\032!.resource.AddOrganizat"
-  "ionGroupRsp\022Z\n\023AddOrganizationRole\022!.res"
-  "ource.AddOrganizationRoleRqst\032 .resource"
-  ".AddOrganizationRoleRsp\022o\n\032AddOrganizati"
-  "onApplication\022(.resource.AddOrganization"
-  "ApplicationRqst\032\'.resource.AddOrganizati"
-  "onApplicationRsp\022l\n\031RemoveOrganizationAc"
-  "count\022\'.resource.RemoveOrganizationAccou"
-  "ntRqst\032&.resource.RemoveOrganizationAcco"
-  "untRsp\022f\n\027RemoveOrganizationGroup\022%.reso"
-  "urce.RemoveOrganizationGroupRqst\032$.resou"
-  "rce.RemoveOrganizationGroupRsp\022c\n\026Remove"
-  "OrganizationRole\022$.resource.RemoveOrgani"
-  "zationRoleRqst\032#.resource.RemoveOrganiza"
-  "tionRoleRsp\022x\n\035RemoveOrganizationApplica"
-  "tion\022+.resource.RemoveOrganizationApplic"
-  "ationRqst\032*.resource.RemoveOrganizationA"
-  "pplicationRsp\022B\n\013CreateGroup\022\031.resource."
-  "CreateGroupRqst\032\030.resource.CreateGroupRs"
-  "p\022>\n\tGetGroups\022\027.resource.GetGroupsRqst\032"
-  "\026.resource.GetGroupsRsp0\001\022B\n\013DeleteGroup"
-  "\022\031.resource.DeleteGroupRqst\032\030.resource.D"
-  "eleteGroupRsp\022`\n\025AddGroupMemberAccount\022#"
-  ".resource.AddGroupMemberAccountRqst\032\".re"
-  "source.AddGroupMemberAccountRsp\022i\n\030Remov"
-  "eGroupMemberAccount\022&.resource.RemoveGro"
-  "upMemberAccountRqst\032%.resource.RemoveGro"
-  "upMemberAccountRsp\022N\n\017RegisterAccount\022\035."
-  "resource.RegisterAccountRqst\032\034.resource."
-  "RegisterAccountRsp\022H\n\rDeleteAccount\022\033.re"
-  "source.DeleteAccountRqst\032\032.resource.Dele"
-  "teAccountRsp\022K\n\016AddAccountRole\022\034.resourc"
-  "e.AddAccountRoleRqst\032\033.resource.AddAccou"
-  "ntRoleRsp\022T\n\021RemoveAccountRole\022\037.resourc"
-  "e.RemoveAccountRoleRqst\032\036.resource.Remov"
-  "eAccountRoleRsp\022\?\n\nCreateRole\022\030.resource"
-  ".CreateRoleRqst\032\027.resource.CreateRoleRsp"
-  "\022\?\n\nDeleteRole\022\030.resource.DeleteRoleRqst"
-  "\032\027.resource.DeleteRoleRsp\022H\n\rAddRoleActi"
-  "on\022\033.resource.AddRoleActionRqst\032\032.resour"
-  "ce.AddRoleActionRsp\022Q\n\020RemoveRoleAction\022"
-  "\036.resource.RemoveRoleActionRqst\032\035.resour"
-  "ce.RemoveRoleActionRsp\022c\n\026GetAllApplicat"
-  "ionsInfo\022$.resource.GetAllApplicationsIn"
-  "foRqst\032#.resource.GetAllApplicationsInfo"
-  "Rsp\022T\n\021DeleteApplication\022\037.resource.Dele"
-  "teApplicationRqst\032\036.resource.DeleteAppli"
-  "cationRsp\022]\n\024AddApplicationAction\022\".reso"
-  "urce.AddApplicationActionRqst\032!.resource"
-  ".AddApplicationActionRsp\022f\n\027RemoveApplic"
-  "ationAction\022%.resource.RemoveApplication"
-  "ActionRqst\032$.resource.RemoveApplicationA"
-  "ctionRsp\022E\n\014RegisterPeer\022\032.resource.Regi"
-  "sterPeerRqst\032\031.resource.RegisterPeerRsp\022"
-  ";\n\010GetPeers\022\026.resource.GetPeersRqst\032\025.re"
-  "source.GetPeersRsp0\001\022\?\n\nDeletePeer\022\030.res"
-  "ource.DeletePeerRqst\032\027.resource.DeletePe"
-  "erRsp\022H\n\rAddPeerAction\022\033.resource.AddPee"
-  "rActionRqst\032\032.resource.AddPeerActionRsp\022"
-  "Q\n\020RemovePeerAction\022\036.resource.RemovePee"
-  "rActionRqst\032\035.resource.RemovePeerActionR"
-  "spB\025Z\023resource/resourcepbb\006proto3"
+  "\030\001 \001(\010\"5\n\022AddRoleActionsRqst\022\016\n\006roleId\030\001"
+  " \001(\t\022\017\n\007actions\030\002 \003(\t\"#\n\021AddRoleActionsR"
+  "sp\022\016\n\006result\030\001 \001(\010\"6\n\024RemoveRoleActionRq"
+  "st\022\016\n\006roleId\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"%\n\023Re"
+  "moveRoleActionRsp\022\016\n\006result\030\001 \001(\010\"C\n\031Add"
+  "ApplicationActionsRqst\022\025\n\rapplicationId\030"
+  "\001 \001(\t\022\017\n\007actions\030\002 \003(\t\"*\n\030AddApplication"
+  "ActionsRsp\022\016\n\006result\030\001 \001(\010\"D\n\033RemoveAppl"
+  "icationActionRqst\022\025\n\rapplicationId\030\001 \001(\t"
+  "\022\016\n\006action\030\002 \001(\t\",\n\032RemoveApplicationAct"
+  "ionRsp\022\016\n\006result\030\001 \001(\010\"5\n\022AddPeerActions"
+  "Rqst\022\016\n\006domain\030\001 \001(\t\022\017\n\007actions\030\002 \003(\t\"#\n"
+  "\021AddPeerActionsRsp\022\016\n\006result\030\001 \001(\010\"6\n\024Re"
+  "movePeerActionRqst\022\016\n\006domain\030\001 \001(\t\022\016\n\006ac"
+  "tion\030\002 \001(\t\"%\n\023RemovePeerActionRsp\022\016\n\006res"
+  "ult\030\001 \001(\010\"G\n\032AddOrganizationAccountRqst\022"
+  "\026\n\016organizationId\030\001 \001(\t\022\021\n\taccountId\030\002 \001"
+  "(\t\"+\n\031AddOrganizationAccountRsp\022\016\n\006resul"
+  "t\030\001 \001(\010\"C\n\030AddOrganizationGroupRqst\022\026\n\016o"
+  "rganizationId\030\001 \001(\t\022\017\n\007groupId\030\002 \001(\t\")\n\027"
+  "AddOrganizationGroupRsp\022\016\n\006result\030\001 \001(\010\""
+  "A\n\027AddOrganizationRoleRqst\022\026\n\016organizati"
+  "onId\030\001 \001(\t\022\016\n\006roleId\030\002 \001(\t\"(\n\026AddOrganiz"
+  "ationRoleRsp\022\016\n\006result\030\001 \001(\010\"O\n\036AddOrgan"
+  "izationApplicationRqst\022\026\n\016organizationId"
+  "\030\001 \001(\t\022\025\n\rapplicationId\030\002 \001(\t\"/\n\035AddOrga"
+  "nizationApplicationRsp\022\016\n\006result\030\001 \001(\010\"F"
+  "\n\033RemoveOrganizationGroupRqst\022\026\n\016organiz"
+  "ationId\030\001 \001(\t\022\017\n\007groupId\030\002 \001(\t\",\n\032Remove"
+  "OrganizationGroupRsp\022\016\n\006result\030\001 \001(\010\"D\n\032"
+  "RemoveOrganizationRoleRqst\022\026\n\016organizati"
+  "onId\030\001 \001(\t\022\016\n\006roleId\030\002 \001(\t\"+\n\031RemoveOrga"
+  "nizationRoleRsp\022\016\n\006result\030\001 \001(\010\"R\n!Remov"
+  "eOrganizationApplicationRqst\022\026\n\016organiza"
+  "tionId\030\001 \001(\t\022\025\n\rapplicationId\030\002 \001(\t\"2\n R"
+  "emoveOrganizationApplicationRsp\022\016\n\006resul"
+  "t\030\001 \001(\010\"J\n\035RemoveOrganizationAccountRqst"
+  "\022\026\n\016organizationId\030\001 \001(\t\022\021\n\taccountId\030\002 "
+  "\001(\t\".\n\034RemoveOrganizationAccountRsp\022\016\n\006r"
+  "esult\030\001 \001(\0102\256\031\n\017ResourceService\022H\n\rGetAl"
+  "lActions\022\033.resource.GetAllActionsRqst\032\032."
+  "resource.GetAllActionsRsp\022H\n\rValidateTok"
+  "en\022\033.resource.ValidateTokenRqst\032\032.resour"
+  "ce.ValidateTokenRsp\022E\n\014RefreshToken\022\032.re"
+  "source.RefreshTokenRqst\032\031.resource.Refre"
+  "shTokenRsp\022E\n\014Authenticate\022\032.resource.Au"
+  "thenticateRqst\032\031.resource.AuthenticateRs"
+  "p\022N\n\017SynchronizeLdap\022\035.resource.Synchron"
+  "izeLdapRqst\032\034.resource.SynchronizeLdapRs"
+  "p\022W\n\022CreateOrganization\022 .resource.Creat"
+  "eOrganizationRqst\032\037.resource.CreateOrgan"
+  "izationRsp\022S\n\020GetOrganizations\022\036.resourc"
+  "e.GetOrganizationsRqst\032\035.resource.GetOrg"
+  "anizationsRsp0\001\022W\n\022DeleteOrganization\022 ."
+  "resource.DeleteOrganizationRqst\032\037.resour"
+  "ce.DeleteOrganizationRsp\022c\n\026AddOrganizat"
+  "ionAccount\022$.resource.AddOrganizationAcc"
+  "ountRqst\032#.resource.AddOrganizationAccou"
+  "ntRsp\022]\n\024AddOrganizationGroup\022\".resource"
+  ".AddOrganizationGroupRqst\032!.resource.Add"
+  "OrganizationGroupRsp\022Z\n\023AddOrganizationR"
+  "ole\022!.resource.AddOrganizationRoleRqst\032 "
+  ".resource.AddOrganizationRoleRsp\022o\n\032AddO"
+  "rganizationApplication\022(.resource.AddOrg"
+  "anizationApplicationRqst\032\'.resource.AddO"
+  "rganizationApplicationRsp\022l\n\031RemoveOrgan"
+  "izationAccount\022\'.resource.RemoveOrganiza"
+  "tionAccountRqst\032&.resource.RemoveOrganiz"
+  "ationAccountRsp\022f\n\027RemoveOrganizationGro"
+  "up\022%.resource.RemoveOrganizationGroupRqs"
+  "t\032$.resource.RemoveOrganizationGroupRsp\022"
+  "c\n\026RemoveOrganizationRole\022$.resource.Rem"
+  "oveOrganizationRoleRqst\032#.resource.Remov"
+  "eOrganizationRoleRsp\022x\n\035RemoveOrganizati"
+  "onApplication\022+.resource.RemoveOrganizat"
+  "ionApplicationRqst\032*.resource.RemoveOrga"
+  "nizationApplicationRsp\022B\n\013CreateGroup\022\031."
+  "resource.CreateGroupRqst\032\030.resource.Crea"
+  "teGroupRsp\022>\n\tGetGroups\022\027.resource.GetGr"
+  "oupsRqst\032\026.resource.GetGroupsRsp0\001\022B\n\013De"
+  "leteGroup\022\031.resource.DeleteGroupRqst\032\030.r"
+  "esource.DeleteGroupRsp\022`\n\025AddGroupMember"
+  "Account\022#.resource.AddGroupMemberAccount"
+  "Rqst\032\".resource.AddGroupMemberAccountRsp"
+  "\022i\n\030RemoveGroupMemberAccount\022&.resource."
+  "RemoveGroupMemberAccountRqst\032%.resource."
+  "RemoveGroupMemberAccountRsp\022N\n\017RegisterA"
+  "ccount\022\035.resource.RegisterAccountRqst\032\034."
+  "resource.RegisterAccountRsp\022H\n\rDeleteAcc"
+  "ount\022\033.resource.DeleteAccountRqst\032\032.reso"
+  "urce.DeleteAccountRsp\022K\n\016AddAccountRole\022"
+  "\034.resource.AddAccountRoleRqst\032\033.resource"
+  ".AddAccountRoleRsp\022T\n\021RemoveAccountRole\022"
+  "\037.resource.RemoveAccountRoleRqst\032\036.resou"
+  "rce.RemoveAccountRoleRsp\022\?\n\nCreateRole\022\030"
+  ".resource.CreateRoleRqst\032\027.resource.Crea"
+  "teRoleRsp\022\?\n\nDeleteRole\022\030.resource.Delet"
+  "eRoleRqst\032\027.resource.DeleteRoleRsp\022K\n\016Ad"
+  "dRoleActions\022\034.resource.AddRoleActionsRq"
+  "st\032\033.resource.AddRoleActionsRsp\022Q\n\020Remov"
+  "eRoleAction\022\036.resource.RemoveRoleActionR"
+  "qst\032\035.resource.RemoveRoleActionRsp\022c\n\026Ge"
+  "tAllApplicationsInfo\022$.resource.GetAllAp"
+  "plicationsInfoRqst\032#.resource.GetAllAppl"
+  "icationsInfoRsp\022T\n\021DeleteApplication\022\037.r"
+  "esource.DeleteApplicationRqst\032\036.resource"
+  ".DeleteApplicationRsp\022`\n\025AddApplicationA"
+  "ctions\022#.resource.AddApplicationActionsR"
+  "qst\032\".resource.AddApplicationActionsRsp\022"
+  "f\n\027RemoveApplicationAction\022%.resource.Re"
+  "moveApplicationActionRqst\032$.resource.Rem"
+  "oveApplicationActionRsp\022E\n\014RegisterPeer\022"
+  "\032.resource.RegisterPeerRqst\032\031.resource.R"
+  "egisterPeerRsp\022;\n\010GetPeers\022\026.resource.Ge"
+  "tPeersRqst\032\025.resource.GetPeersRsp0\001\022\?\n\nD"
+  "eletePeer\022\030.resource.DeletePeerRqst\032\027.re"
+  "source.DeletePeerRsp\022K\n\016AddPeerActions\022\034"
+  ".resource.AddPeerActionsRqst\032\033.resource."
+  "AddPeerActionsRsp\022Q\n\020RemovePeerAction\022\036."
+  "resource.RemovePeerActionRqst\032\035.resource"
+  ".RemovePeerActionRspB\025Z\023resource/resourc"
+  "epbb\006proto3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_resource_2eproto_deps[1] = {
 };
@@ -2527,8 +2528,8 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
   &scc_info_AccountExistRsp_resource_2eproto.base,
   &scc_info_AddAccountRoleRqst_resource_2eproto.base,
   &scc_info_AddAccountRoleRsp_resource_2eproto.base,
-  &scc_info_AddApplicationActionRqst_resource_2eproto.base,
-  &scc_info_AddApplicationActionRsp_resource_2eproto.base,
+  &scc_info_AddApplicationActionsRqst_resource_2eproto.base,
+  &scc_info_AddApplicationActionsRsp_resource_2eproto.base,
   &scc_info_AddGroupMemberAccountRqst_resource_2eproto.base,
   &scc_info_AddGroupMemberAccountRsp_resource_2eproto.base,
   &scc_info_AddOrganizationAccountRqst_resource_2eproto.base,
@@ -2539,10 +2540,10 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
   &scc_info_AddOrganizationGroupRsp_resource_2eproto.base,
   &scc_info_AddOrganizationRoleRqst_resource_2eproto.base,
   &scc_info_AddOrganizationRoleRsp_resource_2eproto.base,
-  &scc_info_AddPeerActionRqst_resource_2eproto.base,
-  &scc_info_AddPeerActionRsp_resource_2eproto.base,
-  &scc_info_AddRoleActionRqst_resource_2eproto.base,
-  &scc_info_AddRoleActionRsp_resource_2eproto.base,
+  &scc_info_AddPeerActionsRqst_resource_2eproto.base,
+  &scc_info_AddPeerActionsRsp_resource_2eproto.base,
+  &scc_info_AddRoleActionsRqst_resource_2eproto.base,
+  &scc_info_AddRoleActionsRsp_resource_2eproto.base,
   &scc_info_AuthenticateRqst_resource_2eproto.base,
   &scc_info_AuthenticateRsp_resource_2eproto.base,
   &scc_info_CreateGroupRqst_resource_2eproto.base,
@@ -2611,7 +2612,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_resource_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_resource_2eproto = {
-  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 7673,
+  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 7691,
   &descriptor_table_resource_2eproto_once, descriptor_table_resource_2eproto_sccs, descriptor_table_resource_2eproto_deps, 86, 0,
   schemas, file_default_instances, TableStruct_resource_2eproto::offsets,
   file_level_metadata_resource_2eproto, 86, file_level_enum_descriptors_resource_2eproto, file_level_service_descriptors_resource_2eproto,
@@ -15558,79 +15559,74 @@ void DeletePeerRsp::InternalSwap(DeletePeerRsp* other) {
 
 // ===================================================================
 
-void AddRoleActionRqst::InitAsDefaultInstance() {
+void AddRoleActionsRqst::InitAsDefaultInstance() {
 }
-class AddRoleActionRqst::_Internal {
+class AddRoleActionsRqst::_Internal {
  public:
 };
 
-AddRoleActionRqst::AddRoleActionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+AddRoleActionsRqst::AddRoleActionsRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
+  actions_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.AddRoleActionRqst)
+  // @@protoc_insertion_point(arena_constructor:resource.AddRoleActionsRqst)
 }
-AddRoleActionRqst::AddRoleActionRqst(const AddRoleActionRqst& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
+AddRoleActionsRqst::AddRoleActionsRqst(const AddRoleActionsRqst& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message(),
+      actions_(from.actions_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   roleid_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_roleid().empty()) {
     roleid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_roleid(),
       GetArena());
   }
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_action().empty()) {
-    action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_action(),
-      GetArena());
-  }
-  // @@protoc_insertion_point(copy_constructor:resource.AddRoleActionRqst)
+  // @@protoc_insertion_point(copy_constructor:resource.AddRoleActionsRqst)
 }
 
-void AddRoleActionRqst::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_AddRoleActionRqst_resource_2eproto.base);
+void AddRoleActionsRqst::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_AddRoleActionsRqst_resource_2eproto.base);
   roleid_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-AddRoleActionRqst::~AddRoleActionRqst() {
-  // @@protoc_insertion_point(destructor:resource.AddRoleActionRqst)
+AddRoleActionsRqst::~AddRoleActionsRqst() {
+  // @@protoc_insertion_point(destructor:resource.AddRoleActionsRqst)
   SharedDtor();
   _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-void AddRoleActionRqst::SharedDtor() {
+void AddRoleActionsRqst::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
   roleid_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  action_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-void AddRoleActionRqst::ArenaDtor(void* object) {
-  AddRoleActionRqst* _this = reinterpret_cast< AddRoleActionRqst* >(object);
+void AddRoleActionsRqst::ArenaDtor(void* object) {
+  AddRoleActionsRqst* _this = reinterpret_cast< AddRoleActionsRqst* >(object);
   (void)_this;
 }
-void AddRoleActionRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+void AddRoleActionsRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
 }
-void AddRoleActionRqst::SetCachedSize(int size) const {
+void AddRoleActionsRqst::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
-const AddRoleActionRqst& AddRoleActionRqst::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddRoleActionRqst_resource_2eproto.base);
+const AddRoleActionsRqst& AddRoleActionsRqst::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddRoleActionsRqst_resource_2eproto.base);
   return *internal_default_instance();
 }
 
 
-void AddRoleActionRqst::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.AddRoleActionRqst)
+void AddRoleActionsRqst::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.AddRoleActionsRqst)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  actions_.Clear();
   roleid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-const char* AddRoleActionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+const char* AddRoleActionsRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
   while (!ctx->Done(&ptr)) {
@@ -15643,17 +15639,22 @@ const char* AddRoleActionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
           auto str = _internal_mutable_roleid();
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddRoleActionRqst.roleId"));
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddRoleActionsRqst.roleId"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // string action = 2;
+      // repeated string actions = 2;
       case 2:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
-          auto str = _internal_mutable_action();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddRoleActionRqst.action"));
-          CHK_(ptr);
+          ptr -= 1;
+          do {
+            ptr += 1;
+            auto str = _internal_add_actions();
+            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddRoleActionsRqst.actions"));
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<18>(ptr));
         } else goto handle_unusual;
         continue;
       default: {
@@ -15678,9 +15679,9 @@ failure:
 #undef CHK_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* AddRoleActionRqst::_InternalSerialize(
+::PROTOBUF_NAMESPACE_ID::uint8* AddRoleActionsRqst::_InternalSerialize(
     ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.AddRoleActionRqst)
+  // @@protoc_insertion_point(serialize_to_array_start:resource.AddRoleActionsRqst)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
@@ -15689,49 +15690,50 @@ failure:
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       this->_internal_roleid().data(), static_cast<int>(this->_internal_roleid().length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.AddRoleActionRqst.roleId");
+      "resource.AddRoleActionsRqst.roleId");
     target = stream->WriteStringMaybeAliased(
         1, this->_internal_roleid(), target);
   }
 
-  // string action = 2;
-  if (this->action().size() > 0) {
+  // repeated string actions = 2;
+  for (int i = 0, n = this->_internal_actions_size(); i < n; i++) {
+    const auto& s = this->_internal_actions(i);
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_action().data(), static_cast<int>(this->_internal_action().length()),
+      s.data(), static_cast<int>(s.length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.AddRoleActionRqst.action");
-    target = stream->WriteStringMaybeAliased(
-        2, this->_internal_action(), target);
+      "resource.AddRoleActionsRqst.actions");
+    target = stream->WriteString(2, s, target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
   }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.AddRoleActionRqst)
+  // @@protoc_insertion_point(serialize_to_array_end:resource.AddRoleActionsRqst)
   return target;
 }
 
-size_t AddRoleActionRqst::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.AddRoleActionRqst)
+size_t AddRoleActionsRqst::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.AddRoleActionsRqst)
   size_t total_size = 0;
 
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  // repeated string actions = 2;
+  total_size += 1 *
+      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(actions_.size());
+  for (int i = 0, n = actions_.size(); i < n; i++) {
+    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+      actions_.Get(i));
+  }
+
   // string roleId = 1;
   if (this->roleid().size() > 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_roleid());
-  }
-
-  // string action = 2;
-  if (this->action().size() > 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_action());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -15743,118 +15745,116 @@ size_t AddRoleActionRqst::ByteSizeLong() const {
   return total_size;
 }
 
-void AddRoleActionRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.AddRoleActionRqst)
+void AddRoleActionsRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.AddRoleActionsRqst)
   GOOGLE_DCHECK_NE(&from, this);
-  const AddRoleActionRqst* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddRoleActionRqst>(
+  const AddRoleActionsRqst* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddRoleActionsRqst>(
           &from);
   if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddRoleActionRqst)
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddRoleActionsRqst)
     ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
   } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddRoleActionRqst)
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddRoleActionsRqst)
     MergeFrom(*source);
   }
 }
 
-void AddRoleActionRqst::MergeFrom(const AddRoleActionRqst& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddRoleActionRqst)
+void AddRoleActionsRqst::MergeFrom(const AddRoleActionsRqst& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddRoleActionsRqst)
   GOOGLE_DCHECK_NE(&from, this);
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  actions_.MergeFrom(from.actions_);
   if (from.roleid().size() > 0) {
     _internal_set_roleid(from._internal_roleid());
   }
-  if (from.action().size() > 0) {
-    _internal_set_action(from._internal_action());
-  }
 }
 
-void AddRoleActionRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.AddRoleActionRqst)
+void AddRoleActionsRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.AddRoleActionsRqst)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-void AddRoleActionRqst::CopyFrom(const AddRoleActionRqst& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddRoleActionRqst)
+void AddRoleActionsRqst::CopyFrom(const AddRoleActionsRqst& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddRoleActionsRqst)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-bool AddRoleActionRqst::IsInitialized() const {
+bool AddRoleActionsRqst::IsInitialized() const {
   return true;
 }
 
-void AddRoleActionRqst::InternalSwap(AddRoleActionRqst* other) {
+void AddRoleActionsRqst::InternalSwap(AddRoleActionsRqst* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  actions_.InternalSwap(&other->actions_);
   roleid_.Swap(&other->roleid_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  action_.Swap(&other->action_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata AddRoleActionRqst::GetMetadata() const {
+::PROTOBUF_NAMESPACE_ID::Metadata AddRoleActionsRqst::GetMetadata() const {
   return GetMetadataStatic();
 }
 
 
 // ===================================================================
 
-void AddRoleActionRsp::InitAsDefaultInstance() {
+void AddRoleActionsRsp::InitAsDefaultInstance() {
 }
-class AddRoleActionRsp::_Internal {
+class AddRoleActionsRsp::_Internal {
  public:
 };
 
-AddRoleActionRsp::AddRoleActionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+AddRoleActionsRsp::AddRoleActionsRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.AddRoleActionRsp)
+  // @@protoc_insertion_point(arena_constructor:resource.AddRoleActionsRsp)
 }
-AddRoleActionRsp::AddRoleActionRsp(const AddRoleActionRsp& from)
+AddRoleActionsRsp::AddRoleActionsRsp(const AddRoleActionsRsp& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   result_ = from.result_;
-  // @@protoc_insertion_point(copy_constructor:resource.AddRoleActionRsp)
+  // @@protoc_insertion_point(copy_constructor:resource.AddRoleActionsRsp)
 }
 
-void AddRoleActionRsp::SharedCtor() {
+void AddRoleActionsRsp::SharedCtor() {
   result_ = false;
 }
 
-AddRoleActionRsp::~AddRoleActionRsp() {
-  // @@protoc_insertion_point(destructor:resource.AddRoleActionRsp)
+AddRoleActionsRsp::~AddRoleActionsRsp() {
+  // @@protoc_insertion_point(destructor:resource.AddRoleActionsRsp)
   SharedDtor();
   _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-void AddRoleActionRsp::SharedDtor() {
+void AddRoleActionsRsp::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void AddRoleActionRsp::ArenaDtor(void* object) {
-  AddRoleActionRsp* _this = reinterpret_cast< AddRoleActionRsp* >(object);
+void AddRoleActionsRsp::ArenaDtor(void* object) {
+  AddRoleActionsRsp* _this = reinterpret_cast< AddRoleActionsRsp* >(object);
   (void)_this;
 }
-void AddRoleActionRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+void AddRoleActionsRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
 }
-void AddRoleActionRsp::SetCachedSize(int size) const {
+void AddRoleActionsRsp::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
-const AddRoleActionRsp& AddRoleActionRsp::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddRoleActionRsp_resource_2eproto.base);
+const AddRoleActionsRsp& AddRoleActionsRsp::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddRoleActionsRsp_resource_2eproto.base);
   return *internal_default_instance();
 }
 
 
-void AddRoleActionRsp::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.AddRoleActionRsp)
+void AddRoleActionsRsp::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.AddRoleActionsRsp)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
@@ -15863,7 +15863,7 @@ void AddRoleActionRsp::Clear() {
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-const char* AddRoleActionRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+const char* AddRoleActionsRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
   while (!ctx->Done(&ptr)) {
@@ -15900,9 +15900,9 @@ failure:
 #undef CHK_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* AddRoleActionRsp::_InternalSerialize(
+::PROTOBUF_NAMESPACE_ID::uint8* AddRoleActionsRsp::_InternalSerialize(
     ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.AddRoleActionRsp)
+  // @@protoc_insertion_point(serialize_to_array_start:resource.AddRoleActionsRsp)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
@@ -15916,12 +15916,12 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
   }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.AddRoleActionRsp)
+  // @@protoc_insertion_point(serialize_to_array_end:resource.AddRoleActionsRsp)
   return target;
 }
 
-size_t AddRoleActionRsp::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.AddRoleActionRsp)
+size_t AddRoleActionsRsp::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.AddRoleActionsRsp)
   size_t total_size = 0;
 
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
@@ -15942,23 +15942,23 @@ size_t AddRoleActionRsp::ByteSizeLong() const {
   return total_size;
 }
 
-void AddRoleActionRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.AddRoleActionRsp)
+void AddRoleActionsRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.AddRoleActionsRsp)
   GOOGLE_DCHECK_NE(&from, this);
-  const AddRoleActionRsp* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddRoleActionRsp>(
+  const AddRoleActionsRsp* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddRoleActionsRsp>(
           &from);
   if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddRoleActionRsp)
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddRoleActionsRsp)
     ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
   } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddRoleActionRsp)
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddRoleActionsRsp)
     MergeFrom(*source);
   }
 }
 
-void AddRoleActionRsp::MergeFrom(const AddRoleActionRsp& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddRoleActionRsp)
+void AddRoleActionsRsp::MergeFrom(const AddRoleActionsRsp& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddRoleActionsRsp)
   GOOGLE_DCHECK_NE(&from, this);
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
@@ -15969,31 +15969,31 @@ void AddRoleActionRsp::MergeFrom(const AddRoleActionRsp& from) {
   }
 }
 
-void AddRoleActionRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.AddRoleActionRsp)
+void AddRoleActionsRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.AddRoleActionsRsp)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-void AddRoleActionRsp::CopyFrom(const AddRoleActionRsp& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddRoleActionRsp)
+void AddRoleActionsRsp::CopyFrom(const AddRoleActionsRsp& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddRoleActionsRsp)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-bool AddRoleActionRsp::IsInitialized() const {
+bool AddRoleActionsRsp::IsInitialized() const {
   return true;
 }
 
-void AddRoleActionRsp::InternalSwap(AddRoleActionRsp* other) {
+void AddRoleActionsRsp::InternalSwap(AddRoleActionsRsp* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   swap(result_, other->result_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata AddRoleActionRsp::GetMetadata() const {
+::PROTOBUF_NAMESPACE_ID::Metadata AddRoleActionsRsp::GetMetadata() const {
   return GetMetadataStatic();
 }
 
@@ -16442,79 +16442,74 @@ void RemoveRoleActionRsp::InternalSwap(RemoveRoleActionRsp* other) {
 
 // ===================================================================
 
-void AddApplicationActionRqst::InitAsDefaultInstance() {
+void AddApplicationActionsRqst::InitAsDefaultInstance() {
 }
-class AddApplicationActionRqst::_Internal {
+class AddApplicationActionsRqst::_Internal {
  public:
 };
 
-AddApplicationActionRqst::AddApplicationActionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+AddApplicationActionsRqst::AddApplicationActionsRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
+  actions_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.AddApplicationActionRqst)
+  // @@protoc_insertion_point(arena_constructor:resource.AddApplicationActionsRqst)
 }
-AddApplicationActionRqst::AddApplicationActionRqst(const AddApplicationActionRqst& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
+AddApplicationActionsRqst::AddApplicationActionsRqst(const AddApplicationActionsRqst& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message(),
+      actions_(from.actions_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   applicationid_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_applicationid().empty()) {
     applicationid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_applicationid(),
       GetArena());
   }
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_action().empty()) {
-    action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_action(),
-      GetArena());
-  }
-  // @@protoc_insertion_point(copy_constructor:resource.AddApplicationActionRqst)
+  // @@protoc_insertion_point(copy_constructor:resource.AddApplicationActionsRqst)
 }
 
-void AddApplicationActionRqst::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_AddApplicationActionRqst_resource_2eproto.base);
+void AddApplicationActionsRqst::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_AddApplicationActionsRqst_resource_2eproto.base);
   applicationid_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-AddApplicationActionRqst::~AddApplicationActionRqst() {
-  // @@protoc_insertion_point(destructor:resource.AddApplicationActionRqst)
+AddApplicationActionsRqst::~AddApplicationActionsRqst() {
+  // @@protoc_insertion_point(destructor:resource.AddApplicationActionsRqst)
   SharedDtor();
   _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-void AddApplicationActionRqst::SharedDtor() {
+void AddApplicationActionsRqst::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
   applicationid_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  action_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-void AddApplicationActionRqst::ArenaDtor(void* object) {
-  AddApplicationActionRqst* _this = reinterpret_cast< AddApplicationActionRqst* >(object);
+void AddApplicationActionsRqst::ArenaDtor(void* object) {
+  AddApplicationActionsRqst* _this = reinterpret_cast< AddApplicationActionsRqst* >(object);
   (void)_this;
 }
-void AddApplicationActionRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+void AddApplicationActionsRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
 }
-void AddApplicationActionRqst::SetCachedSize(int size) const {
+void AddApplicationActionsRqst::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
-const AddApplicationActionRqst& AddApplicationActionRqst::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddApplicationActionRqst_resource_2eproto.base);
+const AddApplicationActionsRqst& AddApplicationActionsRqst::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddApplicationActionsRqst_resource_2eproto.base);
   return *internal_default_instance();
 }
 
 
-void AddApplicationActionRqst::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.AddApplicationActionRqst)
+void AddApplicationActionsRqst::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.AddApplicationActionsRqst)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  actions_.Clear();
   applicationid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-const char* AddApplicationActionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+const char* AddApplicationActionsRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
   while (!ctx->Done(&ptr)) {
@@ -16527,17 +16522,22 @@ const char* AddApplicationActionRqst::_InternalParse(const char* ptr, ::PROTOBUF
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
           auto str = _internal_mutable_applicationid();
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddApplicationActionRqst.applicationId"));
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddApplicationActionsRqst.applicationId"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // string action = 2;
+      // repeated string actions = 2;
       case 2:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
-          auto str = _internal_mutable_action();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddApplicationActionRqst.action"));
-          CHK_(ptr);
+          ptr -= 1;
+          do {
+            ptr += 1;
+            auto str = _internal_add_actions();
+            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddApplicationActionsRqst.actions"));
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<18>(ptr));
         } else goto handle_unusual;
         continue;
       default: {
@@ -16562,9 +16562,9 @@ failure:
 #undef CHK_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* AddApplicationActionRqst::_InternalSerialize(
+::PROTOBUF_NAMESPACE_ID::uint8* AddApplicationActionsRqst::_InternalSerialize(
     ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.AddApplicationActionRqst)
+  // @@protoc_insertion_point(serialize_to_array_start:resource.AddApplicationActionsRqst)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
@@ -16573,49 +16573,50 @@ failure:
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       this->_internal_applicationid().data(), static_cast<int>(this->_internal_applicationid().length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.AddApplicationActionRqst.applicationId");
+      "resource.AddApplicationActionsRqst.applicationId");
     target = stream->WriteStringMaybeAliased(
         1, this->_internal_applicationid(), target);
   }
 
-  // string action = 2;
-  if (this->action().size() > 0) {
+  // repeated string actions = 2;
+  for (int i = 0, n = this->_internal_actions_size(); i < n; i++) {
+    const auto& s = this->_internal_actions(i);
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_action().data(), static_cast<int>(this->_internal_action().length()),
+      s.data(), static_cast<int>(s.length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.AddApplicationActionRqst.action");
-    target = stream->WriteStringMaybeAliased(
-        2, this->_internal_action(), target);
+      "resource.AddApplicationActionsRqst.actions");
+    target = stream->WriteString(2, s, target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
   }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.AddApplicationActionRqst)
+  // @@protoc_insertion_point(serialize_to_array_end:resource.AddApplicationActionsRqst)
   return target;
 }
 
-size_t AddApplicationActionRqst::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.AddApplicationActionRqst)
+size_t AddApplicationActionsRqst::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.AddApplicationActionsRqst)
   size_t total_size = 0;
 
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  // repeated string actions = 2;
+  total_size += 1 *
+      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(actions_.size());
+  for (int i = 0, n = actions_.size(); i < n; i++) {
+    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+      actions_.Get(i));
+  }
+
   // string applicationId = 1;
   if (this->applicationid().size() > 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_applicationid());
-  }
-
-  // string action = 2;
-  if (this->action().size() > 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_action());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -16627,118 +16628,116 @@ size_t AddApplicationActionRqst::ByteSizeLong() const {
   return total_size;
 }
 
-void AddApplicationActionRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.AddApplicationActionRqst)
+void AddApplicationActionsRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.AddApplicationActionsRqst)
   GOOGLE_DCHECK_NE(&from, this);
-  const AddApplicationActionRqst* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddApplicationActionRqst>(
+  const AddApplicationActionsRqst* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddApplicationActionsRqst>(
           &from);
   if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddApplicationActionRqst)
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddApplicationActionsRqst)
     ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
   } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddApplicationActionRqst)
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddApplicationActionsRqst)
     MergeFrom(*source);
   }
 }
 
-void AddApplicationActionRqst::MergeFrom(const AddApplicationActionRqst& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddApplicationActionRqst)
+void AddApplicationActionsRqst::MergeFrom(const AddApplicationActionsRqst& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddApplicationActionsRqst)
   GOOGLE_DCHECK_NE(&from, this);
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  actions_.MergeFrom(from.actions_);
   if (from.applicationid().size() > 0) {
     _internal_set_applicationid(from._internal_applicationid());
   }
-  if (from.action().size() > 0) {
-    _internal_set_action(from._internal_action());
-  }
 }
 
-void AddApplicationActionRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.AddApplicationActionRqst)
+void AddApplicationActionsRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.AddApplicationActionsRqst)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-void AddApplicationActionRqst::CopyFrom(const AddApplicationActionRqst& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddApplicationActionRqst)
+void AddApplicationActionsRqst::CopyFrom(const AddApplicationActionsRqst& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddApplicationActionsRqst)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-bool AddApplicationActionRqst::IsInitialized() const {
+bool AddApplicationActionsRqst::IsInitialized() const {
   return true;
 }
 
-void AddApplicationActionRqst::InternalSwap(AddApplicationActionRqst* other) {
+void AddApplicationActionsRqst::InternalSwap(AddApplicationActionsRqst* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  actions_.InternalSwap(&other->actions_);
   applicationid_.Swap(&other->applicationid_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  action_.Swap(&other->action_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata AddApplicationActionRqst::GetMetadata() const {
+::PROTOBUF_NAMESPACE_ID::Metadata AddApplicationActionsRqst::GetMetadata() const {
   return GetMetadataStatic();
 }
 
 
 // ===================================================================
 
-void AddApplicationActionRsp::InitAsDefaultInstance() {
+void AddApplicationActionsRsp::InitAsDefaultInstance() {
 }
-class AddApplicationActionRsp::_Internal {
+class AddApplicationActionsRsp::_Internal {
  public:
 };
 
-AddApplicationActionRsp::AddApplicationActionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+AddApplicationActionsRsp::AddApplicationActionsRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.AddApplicationActionRsp)
+  // @@protoc_insertion_point(arena_constructor:resource.AddApplicationActionsRsp)
 }
-AddApplicationActionRsp::AddApplicationActionRsp(const AddApplicationActionRsp& from)
+AddApplicationActionsRsp::AddApplicationActionsRsp(const AddApplicationActionsRsp& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   result_ = from.result_;
-  // @@protoc_insertion_point(copy_constructor:resource.AddApplicationActionRsp)
+  // @@protoc_insertion_point(copy_constructor:resource.AddApplicationActionsRsp)
 }
 
-void AddApplicationActionRsp::SharedCtor() {
+void AddApplicationActionsRsp::SharedCtor() {
   result_ = false;
 }
 
-AddApplicationActionRsp::~AddApplicationActionRsp() {
-  // @@protoc_insertion_point(destructor:resource.AddApplicationActionRsp)
+AddApplicationActionsRsp::~AddApplicationActionsRsp() {
+  // @@protoc_insertion_point(destructor:resource.AddApplicationActionsRsp)
   SharedDtor();
   _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-void AddApplicationActionRsp::SharedDtor() {
+void AddApplicationActionsRsp::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void AddApplicationActionRsp::ArenaDtor(void* object) {
-  AddApplicationActionRsp* _this = reinterpret_cast< AddApplicationActionRsp* >(object);
+void AddApplicationActionsRsp::ArenaDtor(void* object) {
+  AddApplicationActionsRsp* _this = reinterpret_cast< AddApplicationActionsRsp* >(object);
   (void)_this;
 }
-void AddApplicationActionRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+void AddApplicationActionsRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
 }
-void AddApplicationActionRsp::SetCachedSize(int size) const {
+void AddApplicationActionsRsp::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
-const AddApplicationActionRsp& AddApplicationActionRsp::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddApplicationActionRsp_resource_2eproto.base);
+const AddApplicationActionsRsp& AddApplicationActionsRsp::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddApplicationActionsRsp_resource_2eproto.base);
   return *internal_default_instance();
 }
 
 
-void AddApplicationActionRsp::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.AddApplicationActionRsp)
+void AddApplicationActionsRsp::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.AddApplicationActionsRsp)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
@@ -16747,7 +16746,7 @@ void AddApplicationActionRsp::Clear() {
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-const char* AddApplicationActionRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+const char* AddApplicationActionsRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
   while (!ctx->Done(&ptr)) {
@@ -16784,9 +16783,9 @@ failure:
 #undef CHK_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* AddApplicationActionRsp::_InternalSerialize(
+::PROTOBUF_NAMESPACE_ID::uint8* AddApplicationActionsRsp::_InternalSerialize(
     ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.AddApplicationActionRsp)
+  // @@protoc_insertion_point(serialize_to_array_start:resource.AddApplicationActionsRsp)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
@@ -16800,12 +16799,12 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
   }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.AddApplicationActionRsp)
+  // @@protoc_insertion_point(serialize_to_array_end:resource.AddApplicationActionsRsp)
   return target;
 }
 
-size_t AddApplicationActionRsp::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.AddApplicationActionRsp)
+size_t AddApplicationActionsRsp::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.AddApplicationActionsRsp)
   size_t total_size = 0;
 
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
@@ -16826,23 +16825,23 @@ size_t AddApplicationActionRsp::ByteSizeLong() const {
   return total_size;
 }
 
-void AddApplicationActionRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.AddApplicationActionRsp)
+void AddApplicationActionsRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.AddApplicationActionsRsp)
   GOOGLE_DCHECK_NE(&from, this);
-  const AddApplicationActionRsp* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddApplicationActionRsp>(
+  const AddApplicationActionsRsp* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddApplicationActionsRsp>(
           &from);
   if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddApplicationActionRsp)
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddApplicationActionsRsp)
     ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
   } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddApplicationActionRsp)
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddApplicationActionsRsp)
     MergeFrom(*source);
   }
 }
 
-void AddApplicationActionRsp::MergeFrom(const AddApplicationActionRsp& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddApplicationActionRsp)
+void AddApplicationActionsRsp::MergeFrom(const AddApplicationActionsRsp& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddApplicationActionsRsp)
   GOOGLE_DCHECK_NE(&from, this);
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
@@ -16853,31 +16852,31 @@ void AddApplicationActionRsp::MergeFrom(const AddApplicationActionRsp& from) {
   }
 }
 
-void AddApplicationActionRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.AddApplicationActionRsp)
+void AddApplicationActionsRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.AddApplicationActionsRsp)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-void AddApplicationActionRsp::CopyFrom(const AddApplicationActionRsp& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddApplicationActionRsp)
+void AddApplicationActionsRsp::CopyFrom(const AddApplicationActionsRsp& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddApplicationActionsRsp)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-bool AddApplicationActionRsp::IsInitialized() const {
+bool AddApplicationActionsRsp::IsInitialized() const {
   return true;
 }
 
-void AddApplicationActionRsp::InternalSwap(AddApplicationActionRsp* other) {
+void AddApplicationActionsRsp::InternalSwap(AddApplicationActionsRsp* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   swap(result_, other->result_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata AddApplicationActionRsp::GetMetadata() const {
+::PROTOBUF_NAMESPACE_ID::Metadata AddApplicationActionsRsp::GetMetadata() const {
   return GetMetadataStatic();
 }
 
@@ -17326,79 +17325,74 @@ void RemoveApplicationActionRsp::InternalSwap(RemoveApplicationActionRsp* other)
 
 // ===================================================================
 
-void AddPeerActionRqst::InitAsDefaultInstance() {
+void AddPeerActionsRqst::InitAsDefaultInstance() {
 }
-class AddPeerActionRqst::_Internal {
+class AddPeerActionsRqst::_Internal {
  public:
 };
 
-AddPeerActionRqst::AddPeerActionRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+AddPeerActionsRqst::AddPeerActionsRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
+  actions_(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.AddPeerActionRqst)
+  // @@protoc_insertion_point(arena_constructor:resource.AddPeerActionsRqst)
 }
-AddPeerActionRqst::AddPeerActionRqst(const AddPeerActionRqst& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
+AddPeerActionsRqst::AddPeerActionsRqst(const AddPeerActionsRqst& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message(),
+      actions_(from.actions_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   domain_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_domain().empty()) {
     domain_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_domain(),
       GetArena());
   }
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_action().empty()) {
-    action_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_action(),
-      GetArena());
-  }
-  // @@protoc_insertion_point(copy_constructor:resource.AddPeerActionRqst)
+  // @@protoc_insertion_point(copy_constructor:resource.AddPeerActionsRqst)
 }
 
-void AddPeerActionRqst::SharedCtor() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_AddPeerActionRqst_resource_2eproto.base);
+void AddPeerActionsRqst::SharedCtor() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_AddPeerActionsRqst_resource_2eproto.base);
   domain_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  action_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-AddPeerActionRqst::~AddPeerActionRqst() {
-  // @@protoc_insertion_point(destructor:resource.AddPeerActionRqst)
+AddPeerActionsRqst::~AddPeerActionsRqst() {
+  // @@protoc_insertion_point(destructor:resource.AddPeerActionsRqst)
   SharedDtor();
   _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-void AddPeerActionRqst::SharedDtor() {
+void AddPeerActionsRqst::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
   domain_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  action_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
 }
 
-void AddPeerActionRqst::ArenaDtor(void* object) {
-  AddPeerActionRqst* _this = reinterpret_cast< AddPeerActionRqst* >(object);
+void AddPeerActionsRqst::ArenaDtor(void* object) {
+  AddPeerActionsRqst* _this = reinterpret_cast< AddPeerActionsRqst* >(object);
   (void)_this;
 }
-void AddPeerActionRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+void AddPeerActionsRqst::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
 }
-void AddPeerActionRqst::SetCachedSize(int size) const {
+void AddPeerActionsRqst::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
-const AddPeerActionRqst& AddPeerActionRqst::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddPeerActionRqst_resource_2eproto.base);
+const AddPeerActionsRqst& AddPeerActionsRqst::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddPeerActionsRqst_resource_2eproto.base);
   return *internal_default_instance();
 }
 
 
-void AddPeerActionRqst::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.AddPeerActionRqst)
+void AddPeerActionsRqst::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.AddPeerActionsRqst)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  actions_.Clear();
   domain_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  action_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-const char* AddPeerActionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+const char* AddPeerActionsRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
   while (!ctx->Done(&ptr)) {
@@ -17411,17 +17405,22 @@ const char* AddPeerActionRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESP
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
           auto str = _internal_mutable_domain();
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddPeerActionRqst.domain"));
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddPeerActionsRqst.domain"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // string action = 2;
+      // repeated string actions = 2;
       case 2:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
-          auto str = _internal_mutable_action();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddPeerActionRqst.action"));
-          CHK_(ptr);
+          ptr -= 1;
+          do {
+            ptr += 1;
+            auto str = _internal_add_actions();
+            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.AddPeerActionsRqst.actions"));
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<18>(ptr));
         } else goto handle_unusual;
         continue;
       default: {
@@ -17446,9 +17445,9 @@ failure:
 #undef CHK_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* AddPeerActionRqst::_InternalSerialize(
+::PROTOBUF_NAMESPACE_ID::uint8* AddPeerActionsRqst::_InternalSerialize(
     ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.AddPeerActionRqst)
+  // @@protoc_insertion_point(serialize_to_array_start:resource.AddPeerActionsRqst)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
@@ -17457,49 +17456,50 @@ failure:
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       this->_internal_domain().data(), static_cast<int>(this->_internal_domain().length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.AddPeerActionRqst.domain");
+      "resource.AddPeerActionsRqst.domain");
     target = stream->WriteStringMaybeAliased(
         1, this->_internal_domain(), target);
   }
 
-  // string action = 2;
-  if (this->action().size() > 0) {
+  // repeated string actions = 2;
+  for (int i = 0, n = this->_internal_actions_size(); i < n; i++) {
+    const auto& s = this->_internal_actions(i);
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_action().data(), static_cast<int>(this->_internal_action().length()),
+      s.data(), static_cast<int>(s.length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.AddPeerActionRqst.action");
-    target = stream->WriteStringMaybeAliased(
-        2, this->_internal_action(), target);
+      "resource.AddPeerActionsRqst.actions");
+    target = stream->WriteString(2, s, target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
   }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.AddPeerActionRqst)
+  // @@protoc_insertion_point(serialize_to_array_end:resource.AddPeerActionsRqst)
   return target;
 }
 
-size_t AddPeerActionRqst::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.AddPeerActionRqst)
+size_t AddPeerActionsRqst::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.AddPeerActionsRqst)
   size_t total_size = 0;
 
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  // repeated string actions = 2;
+  total_size += 1 *
+      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(actions_.size());
+  for (int i = 0, n = actions_.size(); i < n; i++) {
+    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+      actions_.Get(i));
+  }
+
   // string domain = 1;
   if (this->domain().size() > 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_domain());
-  }
-
-  // string action = 2;
-  if (this->action().size() > 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_action());
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -17511,118 +17511,116 @@ size_t AddPeerActionRqst::ByteSizeLong() const {
   return total_size;
 }
 
-void AddPeerActionRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.AddPeerActionRqst)
+void AddPeerActionsRqst::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.AddPeerActionsRqst)
   GOOGLE_DCHECK_NE(&from, this);
-  const AddPeerActionRqst* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddPeerActionRqst>(
+  const AddPeerActionsRqst* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddPeerActionsRqst>(
           &from);
   if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddPeerActionRqst)
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddPeerActionsRqst)
     ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
   } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddPeerActionRqst)
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddPeerActionsRqst)
     MergeFrom(*source);
   }
 }
 
-void AddPeerActionRqst::MergeFrom(const AddPeerActionRqst& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddPeerActionRqst)
+void AddPeerActionsRqst::MergeFrom(const AddPeerActionsRqst& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddPeerActionsRqst)
   GOOGLE_DCHECK_NE(&from, this);
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  actions_.MergeFrom(from.actions_);
   if (from.domain().size() > 0) {
     _internal_set_domain(from._internal_domain());
   }
-  if (from.action().size() > 0) {
-    _internal_set_action(from._internal_action());
-  }
 }
 
-void AddPeerActionRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.AddPeerActionRqst)
+void AddPeerActionsRqst::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.AddPeerActionsRqst)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-void AddPeerActionRqst::CopyFrom(const AddPeerActionRqst& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddPeerActionRqst)
+void AddPeerActionsRqst::CopyFrom(const AddPeerActionsRqst& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddPeerActionsRqst)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-bool AddPeerActionRqst::IsInitialized() const {
+bool AddPeerActionsRqst::IsInitialized() const {
   return true;
 }
 
-void AddPeerActionRqst::InternalSwap(AddPeerActionRqst* other) {
+void AddPeerActionsRqst::InternalSwap(AddPeerActionsRqst* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  actions_.InternalSwap(&other->actions_);
   domain_.Swap(&other->domain_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-  action_.Swap(&other->action_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata AddPeerActionRqst::GetMetadata() const {
+::PROTOBUF_NAMESPACE_ID::Metadata AddPeerActionsRqst::GetMetadata() const {
   return GetMetadataStatic();
 }
 
 
 // ===================================================================
 
-void AddPeerActionRsp::InitAsDefaultInstance() {
+void AddPeerActionsRsp::InitAsDefaultInstance() {
 }
-class AddPeerActionRsp::_Internal {
+class AddPeerActionsRsp::_Internal {
  public:
 };
 
-AddPeerActionRsp::AddPeerActionRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+AddPeerActionsRsp::AddPeerActionsRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
   SharedCtor();
   RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:resource.AddPeerActionRsp)
+  // @@protoc_insertion_point(arena_constructor:resource.AddPeerActionsRsp)
 }
-AddPeerActionRsp::AddPeerActionRsp(const AddPeerActionRsp& from)
+AddPeerActionsRsp::AddPeerActionsRsp(const AddPeerActionsRsp& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   result_ = from.result_;
-  // @@protoc_insertion_point(copy_constructor:resource.AddPeerActionRsp)
+  // @@protoc_insertion_point(copy_constructor:resource.AddPeerActionsRsp)
 }
 
-void AddPeerActionRsp::SharedCtor() {
+void AddPeerActionsRsp::SharedCtor() {
   result_ = false;
 }
 
-AddPeerActionRsp::~AddPeerActionRsp() {
-  // @@protoc_insertion_point(destructor:resource.AddPeerActionRsp)
+AddPeerActionsRsp::~AddPeerActionsRsp() {
+  // @@protoc_insertion_point(destructor:resource.AddPeerActionsRsp)
   SharedDtor();
   _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-void AddPeerActionRsp::SharedDtor() {
+void AddPeerActionsRsp::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void AddPeerActionRsp::ArenaDtor(void* object) {
-  AddPeerActionRsp* _this = reinterpret_cast< AddPeerActionRsp* >(object);
+void AddPeerActionsRsp::ArenaDtor(void* object) {
+  AddPeerActionsRsp* _this = reinterpret_cast< AddPeerActionsRsp* >(object);
   (void)_this;
 }
-void AddPeerActionRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
+void AddPeerActionsRsp::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
 }
-void AddPeerActionRsp::SetCachedSize(int size) const {
+void AddPeerActionsRsp::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
-const AddPeerActionRsp& AddPeerActionRsp::default_instance() {
-  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddPeerActionRsp_resource_2eproto.base);
+const AddPeerActionsRsp& AddPeerActionsRsp::default_instance() {
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&::scc_info_AddPeerActionsRsp_resource_2eproto.base);
   return *internal_default_instance();
 }
 
 
-void AddPeerActionRsp::Clear() {
-// @@protoc_insertion_point(message_clear_start:resource.AddPeerActionRsp)
+void AddPeerActionsRsp::Clear() {
+// @@protoc_insertion_point(message_clear_start:resource.AddPeerActionsRsp)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
@@ -17631,7 +17629,7 @@ void AddPeerActionRsp::Clear() {
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
-const char* AddPeerActionRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
+const char* AddPeerActionsRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
 #define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
   ::PROTOBUF_NAMESPACE_ID::Arena* arena = GetArena(); (void)arena;
   while (!ctx->Done(&ptr)) {
@@ -17668,9 +17666,9 @@ failure:
 #undef CHK_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* AddPeerActionRsp::_InternalSerialize(
+::PROTOBUF_NAMESPACE_ID::uint8* AddPeerActionsRsp::_InternalSerialize(
     ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:resource.AddPeerActionRsp)
+  // @@protoc_insertion_point(serialize_to_array_start:resource.AddPeerActionsRsp)
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
@@ -17684,12 +17682,12 @@ failure:
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
   }
-  // @@protoc_insertion_point(serialize_to_array_end:resource.AddPeerActionRsp)
+  // @@protoc_insertion_point(serialize_to_array_end:resource.AddPeerActionsRsp)
   return target;
 }
 
-size_t AddPeerActionRsp::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:resource.AddPeerActionRsp)
+size_t AddPeerActionsRsp::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:resource.AddPeerActionsRsp)
   size_t total_size = 0;
 
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
@@ -17710,23 +17708,23 @@ size_t AddPeerActionRsp::ByteSizeLong() const {
   return total_size;
 }
 
-void AddPeerActionRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:resource.AddPeerActionRsp)
+void AddPeerActionsRsp::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_merge_from_start:resource.AddPeerActionsRsp)
   GOOGLE_DCHECK_NE(&from, this);
-  const AddPeerActionRsp* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddPeerActionRsp>(
+  const AddPeerActionsRsp* source =
+      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<AddPeerActionsRsp>(
           &from);
   if (source == nullptr) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddPeerActionRsp)
+  // @@protoc_insertion_point(generalized_merge_from_cast_fail:resource.AddPeerActionsRsp)
     ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
   } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddPeerActionRsp)
+  // @@protoc_insertion_point(generalized_merge_from_cast_success:resource.AddPeerActionsRsp)
     MergeFrom(*source);
   }
 }
 
-void AddPeerActionRsp::MergeFrom(const AddPeerActionRsp& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddPeerActionRsp)
+void AddPeerActionsRsp::MergeFrom(const AddPeerActionsRsp& from) {
+// @@protoc_insertion_point(class_specific_merge_from_start:resource.AddPeerActionsRsp)
   GOOGLE_DCHECK_NE(&from, this);
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
@@ -17737,31 +17735,31 @@ void AddPeerActionRsp::MergeFrom(const AddPeerActionRsp& from) {
   }
 }
 
-void AddPeerActionRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:resource.AddPeerActionRsp)
+void AddPeerActionsRsp::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+// @@protoc_insertion_point(generalized_copy_from_start:resource.AddPeerActionsRsp)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-void AddPeerActionRsp::CopyFrom(const AddPeerActionRsp& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddPeerActionRsp)
+void AddPeerActionsRsp::CopyFrom(const AddPeerActionsRsp& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:resource.AddPeerActionsRsp)
   if (&from == this) return;
   Clear();
   MergeFrom(from);
 }
 
-bool AddPeerActionRsp::IsInitialized() const {
+bool AddPeerActionsRsp::IsInitialized() const {
   return true;
 }
 
-void AddPeerActionRsp::InternalSwap(AddPeerActionRsp* other) {
+void AddPeerActionsRsp::InternalSwap(AddPeerActionsRsp* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   swap(result_, other->result_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata AddPeerActionRsp::GetMetadata() const {
+::PROTOBUF_NAMESPACE_ID::Metadata AddPeerActionsRsp::GetMetadata() const {
   return GetMetadataStatic();
 }
 
@@ -21921,11 +21919,11 @@ template<> PROTOBUF_NOINLINE ::resource::DeletePeerRqst* Arena::CreateMaybeMessa
 template<> PROTOBUF_NOINLINE ::resource::DeletePeerRsp* Arena::CreateMaybeMessage< ::resource::DeletePeerRsp >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::DeletePeerRsp >(arena);
 }
-template<> PROTOBUF_NOINLINE ::resource::AddRoleActionRqst* Arena::CreateMaybeMessage< ::resource::AddRoleActionRqst >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::AddRoleActionRqst >(arena);
+template<> PROTOBUF_NOINLINE ::resource::AddRoleActionsRqst* Arena::CreateMaybeMessage< ::resource::AddRoleActionsRqst >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::AddRoleActionsRqst >(arena);
 }
-template<> PROTOBUF_NOINLINE ::resource::AddRoleActionRsp* Arena::CreateMaybeMessage< ::resource::AddRoleActionRsp >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::AddRoleActionRsp >(arena);
+template<> PROTOBUF_NOINLINE ::resource::AddRoleActionsRsp* Arena::CreateMaybeMessage< ::resource::AddRoleActionsRsp >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::AddRoleActionsRsp >(arena);
 }
 template<> PROTOBUF_NOINLINE ::resource::RemoveRoleActionRqst* Arena::CreateMaybeMessage< ::resource::RemoveRoleActionRqst >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::RemoveRoleActionRqst >(arena);
@@ -21933,11 +21931,11 @@ template<> PROTOBUF_NOINLINE ::resource::RemoveRoleActionRqst* Arena::CreateMayb
 template<> PROTOBUF_NOINLINE ::resource::RemoveRoleActionRsp* Arena::CreateMaybeMessage< ::resource::RemoveRoleActionRsp >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::RemoveRoleActionRsp >(arena);
 }
-template<> PROTOBUF_NOINLINE ::resource::AddApplicationActionRqst* Arena::CreateMaybeMessage< ::resource::AddApplicationActionRqst >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::AddApplicationActionRqst >(arena);
+template<> PROTOBUF_NOINLINE ::resource::AddApplicationActionsRqst* Arena::CreateMaybeMessage< ::resource::AddApplicationActionsRqst >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::AddApplicationActionsRqst >(arena);
 }
-template<> PROTOBUF_NOINLINE ::resource::AddApplicationActionRsp* Arena::CreateMaybeMessage< ::resource::AddApplicationActionRsp >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::AddApplicationActionRsp >(arena);
+template<> PROTOBUF_NOINLINE ::resource::AddApplicationActionsRsp* Arena::CreateMaybeMessage< ::resource::AddApplicationActionsRsp >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::AddApplicationActionsRsp >(arena);
 }
 template<> PROTOBUF_NOINLINE ::resource::RemoveApplicationActionRqst* Arena::CreateMaybeMessage< ::resource::RemoveApplicationActionRqst >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::RemoveApplicationActionRqst >(arena);
@@ -21945,11 +21943,11 @@ template<> PROTOBUF_NOINLINE ::resource::RemoveApplicationActionRqst* Arena::Cre
 template<> PROTOBUF_NOINLINE ::resource::RemoveApplicationActionRsp* Arena::CreateMaybeMessage< ::resource::RemoveApplicationActionRsp >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::RemoveApplicationActionRsp >(arena);
 }
-template<> PROTOBUF_NOINLINE ::resource::AddPeerActionRqst* Arena::CreateMaybeMessage< ::resource::AddPeerActionRqst >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::AddPeerActionRqst >(arena);
+template<> PROTOBUF_NOINLINE ::resource::AddPeerActionsRqst* Arena::CreateMaybeMessage< ::resource::AddPeerActionsRqst >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::AddPeerActionsRqst >(arena);
 }
-template<> PROTOBUF_NOINLINE ::resource::AddPeerActionRsp* Arena::CreateMaybeMessage< ::resource::AddPeerActionRsp >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::resource::AddPeerActionRsp >(arena);
+template<> PROTOBUF_NOINLINE ::resource::AddPeerActionsRsp* Arena::CreateMaybeMessage< ::resource::AddPeerActionsRsp >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::resource::AddPeerActionsRsp >(arena);
 }
 template<> PROTOBUF_NOINLINE ::resource::RemovePeerActionRqst* Arena::CreateMaybeMessage< ::resource::RemovePeerActionRqst >(Arena* arena) {
   return Arena::CreateMessageInternal< ::resource::RemovePeerActionRqst >(arena);
