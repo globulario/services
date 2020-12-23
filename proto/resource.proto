@@ -674,6 +674,4 @@ service ResourceService {
 	
 	/** Remove peer action permission **/
 	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
-	
-
 }

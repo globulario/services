@@ -469,14 +469,36 @@ func (self *Admin_Client) UninstallService(publisherId string, serviceId string,
 }
 
 /**
+ * Generate the certificates for a given domain. The port is the http port use
+ * to get the configuration (80 by default). The path is where the file will be
+ * written. The return values are the path to tree certicate path.
+ */
+func (self *Admin_Client) InstallCertificates(domain string, port int, path string) (string, string, string, error) {
+
+	rqst := &adminpb.InstallCertificatesRequest{
+		Domain: domain,
+		Path:   path,
+		Port:   int32(port),
+	}
+
+	rsp, err := self.c.InstallCertificates(globular.GetClientContext(self), rqst)
+
+	if err != nil {
+		return "", "", "", err
+	}
+
+	return rsp.Certkey, rsp.Cert, rsp.Cacert, nil
+}
+
+/**
  * Deploy the content of an application with a given name to the server.
  */
-func (self *Admin_Client) DeployApplication(user string, name string, organisation string, path string, token string, domain string) (int, error) {
+func (self *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
 
 	rqst := new(adminpb.DeployApplicationRequest)
 	rqst.Name = name
 	rqst.Domain = domain
-	rqst.Organization = organisation
+	rqst.Organization = organization
 
 	Utility.CreateDirIfNotExist(Utility.GenerateUUID(name))
 	Utility.CopyDirContent(path, Utility.GenerateUUID(name))
@@ -487,7 +509,6 @@ func (self *Admin_Client) DeployApplication(user string, name string, organisati
 		return -1, err
 	}
 
-	log.Println("-----------> ", absolutePath)
 	absolutePath = strings.ReplaceAll(absolutePath, "\\", "/")
 
 	if Utility.Exists(absolutePath + "/package.json") {

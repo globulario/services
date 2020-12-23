@@ -15,6 +15,8 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
+var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js')
 const proto = {};
 proto.resource = require('./resource_pb.js');
 
@@ -1903,6 +1905,81 @@ proto.resource.ResourceServicePromiseClient.prototype.deleteAccount =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetAccountsRqst,
+ *   !proto.resource.GetAccountsRsp>}
+ */
+const methodDescriptor_ResourceService_GetAccounts = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetAccounts',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.resource.GetAccountsRqst,
+  proto.resource.GetAccountsRsp,
+  /**
+   * @param {!proto.resource.GetAccountsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetAccountsRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.GetAccountsRqst,
+ *   !proto.resource.GetAccountsRsp>}
+ */
+const methodInfo_ResourceService_GetAccounts = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.GetAccountsRsp,
+  /**
+   * @param {!proto.resource.GetAccountsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetAccountsRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetAccountsRqst} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetAccountsRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getAccounts =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/resource.ResourceService/GetAccounts',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetAccounts);
+};
+
+
+/**
+ * @param {!proto.resource.GetAccountsRqst} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetAccountsRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getAccounts =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/resource.ResourceService/GetAccounts',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetAccounts);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.AddAccountRoleRqst,
  *   !proto.resource.AddAccountRoleRsp>}
  */
@@ -2063,6 +2140,166 @@ proto.resource.ResourceServicePromiseClient.prototype.removeAccountRole =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.AddAccountContactRqst,
+ *   !proto.resource.AddAccountContactRsp>}
+ */
+const methodDescriptor_ResourceService_AddAccountContact = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/AddAccountContact',
+  grpc.web.MethodType.UNARY,
+  proto.resource.AddAccountContactRqst,
+  proto.resource.AddAccountContactRsp,
+  /**
+   * @param {!proto.resource.AddAccountContactRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddAccountContactRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.AddAccountContactRqst,
+ *   !proto.resource.AddAccountContactRsp>}
+ */
+const methodInfo_ResourceService_AddAccountContact = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.AddAccountContactRsp,
+  /**
+   * @param {!proto.resource.AddAccountContactRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AddAccountContactRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.AddAccountContactRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.AddAccountContactRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.AddAccountContactRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.addAccountContact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/AddAccountContact',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddAccountContact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.AddAccountContactRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.AddAccountContactRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.addAccountContact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/AddAccountContact',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AddAccountContact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.RemoveAccountContactRqst,
+ *   !proto.resource.RemoveAccountContactRsp>}
+ */
+const methodDescriptor_ResourceService_RemoveAccountContact = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/RemoveAccountContact',
+  grpc.web.MethodType.UNARY,
+  proto.resource.RemoveAccountContactRqst,
+  proto.resource.RemoveAccountContactRsp,
+  /**
+   * @param {!proto.resource.RemoveAccountContactRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveAccountContactRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.RemoveAccountContactRqst,
+ *   !proto.resource.RemoveAccountContactRsp>}
+ */
+const methodInfo_ResourceService_RemoveAccountContact = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.RemoveAccountContactRsp,
+  /**
+   * @param {!proto.resource.RemoveAccountContactRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RemoveAccountContactRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.RemoveAccountContactRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.RemoveAccountContactRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.RemoveAccountContactRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.removeAccountContact =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/RemoveAccountContact',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveAccountContact,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.RemoveAccountContactRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.RemoveAccountContactRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.removeAccountContact =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/RemoveAccountContact',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RemoveAccountContact);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.CreateRoleRqst,
  *   !proto.resource.CreateRoleRsp>}
  */
@@ -2137,6 +2374,81 @@ proto.resource.ResourceServicePromiseClient.prototype.createRole =
       request,
       metadata || {},
       methodDescriptor_ResourceService_CreateRole);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetRolesRqst,
+ *   !proto.resource.GetRolesRsp>}
+ */
+const methodDescriptor_ResourceService_GetRoles = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetRoles',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.resource.GetRolesRqst,
+  proto.resource.GetRolesRsp,
+  /**
+   * @param {!proto.resource.GetRolesRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetRolesRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.GetRolesRqst,
+ *   !proto.resource.GetRolesRsp>}
+ */
+const methodInfo_ResourceService_GetRoles = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.GetRolesRsp,
+  /**
+   * @param {!proto.resource.GetRolesRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetRolesRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetRolesRqst} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetRolesRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getRoles =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/resource.ResourceService/GetRoles',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetRoles);
+};
+
+
+/**
+ * @param {!proto.resource.GetRolesRqst} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetRolesRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getRoles =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/resource.ResourceService/GetRoles',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetRoles);
 };
 
 

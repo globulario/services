@@ -228,7 +228,23 @@ message UnsetEnvironmentVariableResponse {
 	/** Nothing here **/
 }
 
+
+message InstallCertificatesRequest {
+   string domain = 1;
+   int32 port = 2; // 80 by default
+   string path = 3; // tmp by default
+}
+
+message InstallCertificatesResponse {
+   string cacert = 1;
+   string cert = 2;
+   string certkey = 3;
+}
+
 service AdminService {
+
+  // Install certificates from a given server at a given path.
+  rpc InstallCertificates(InstallCertificatesRequest) returns(InstallCertificatesResponse);
 		
   //Set the root password
   rpc SetRootPassword(SetRootPasswordRequest) returns(SetRootPasswordResponse);

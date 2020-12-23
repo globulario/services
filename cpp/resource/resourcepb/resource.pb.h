@@ -32,6 +32,7 @@
 #include <google/protobuf/repeated_field.h>  // IWYU pragma: export
 #include <google/protobuf/extension_set.h>  // IWYU pragma: export
 #include <google/protobuf/unknown_field_set.h>
+#include <google/protobuf/struct.pb.h>
 // @@protoc_insertion_point(includes)
 #include <google/protobuf/port_def.inc>
 #define PROTOBUF_INTERNAL_EXPORT_resource_2eproto
@@ -47,7 +48,7 @@ struct TableStruct_resource_2eproto {
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::AuxiliaryParseTableField aux[]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
-  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[86]
+  static const ::PROTOBUF_NAMESPACE_ID::internal::ParseTable schema[94]
     PROTOBUF_SECTION_VARIABLE(protodesc_cold);
   static const ::PROTOBUF_NAMESPACE_ID::internal::FieldMetadata field_metadata[];
   static const ::PROTOBUF_NAMESPACE_ID::internal::SerializationTable serialization_table[];
@@ -64,6 +65,12 @@ extern AccountExistRqstDefaultTypeInternal _AccountExistRqst_default_instance_;
 class AccountExistRsp;
 class AccountExistRspDefaultTypeInternal;
 extern AccountExistRspDefaultTypeInternal _AccountExistRsp_default_instance_;
+class AddAccountContactRqst;
+class AddAccountContactRqstDefaultTypeInternal;
+extern AddAccountContactRqstDefaultTypeInternal _AddAccountContactRqst_default_instance_;
+class AddAccountContactRsp;
+class AddAccountContactRspDefaultTypeInternal;
+extern AddAccountContactRspDefaultTypeInternal _AddAccountContactRsp_default_instance_;
 class AddAccountRoleRqst;
 class AddAccountRoleRqstDefaultTypeInternal;
 extern AddAccountRoleRqstDefaultTypeInternal _AddAccountRoleRqst_default_instance_;
@@ -178,6 +185,12 @@ extern DeleteRoleRqstDefaultTypeInternal _DeleteRoleRqst_default_instance_;
 class DeleteRoleRsp;
 class DeleteRoleRspDefaultTypeInternal;
 extern DeleteRoleRspDefaultTypeInternal _DeleteRoleRsp_default_instance_;
+class GetAccountsRqst;
+class GetAccountsRqstDefaultTypeInternal;
+extern GetAccountsRqstDefaultTypeInternal _GetAccountsRqst_default_instance_;
+class GetAccountsRsp;
+class GetAccountsRspDefaultTypeInternal;
+extern GetAccountsRspDefaultTypeInternal _GetAccountsRsp_default_instance_;
 class GetAllActionsRqst;
 class GetAllActionsRqstDefaultTypeInternal;
 extern GetAllActionsRqstDefaultTypeInternal _GetAllActionsRqst_default_instance_;
@@ -208,6 +221,12 @@ extern GetPeersRqstDefaultTypeInternal _GetPeersRqst_default_instance_;
 class GetPeersRsp;
 class GetPeersRspDefaultTypeInternal;
 extern GetPeersRspDefaultTypeInternal _GetPeersRsp_default_instance_;
+class GetRolesRqst;
+class GetRolesRqstDefaultTypeInternal;
+extern GetRolesRqstDefaultTypeInternal _GetRolesRqst_default_instance_;
+class GetRolesRsp;
+class GetRolesRspDefaultTypeInternal;
+extern GetRolesRspDefaultTypeInternal _GetRolesRsp_default_instance_;
 class Group;
 class GroupDefaultTypeInternal;
 extern GroupDefaultTypeInternal _Group_default_instance_;
@@ -241,6 +260,12 @@ extern RegisterPeerRqstDefaultTypeInternal _RegisterPeerRqst_default_instance_;
 class RegisterPeerRsp;
 class RegisterPeerRspDefaultTypeInternal;
 extern RegisterPeerRspDefaultTypeInternal _RegisterPeerRsp_default_instance_;
+class RemoveAccountContactRqst;
+class RemoveAccountContactRqstDefaultTypeInternal;
+extern RemoveAccountContactRqstDefaultTypeInternal _RemoveAccountContactRqst_default_instance_;
+class RemoveAccountContactRsp;
+class RemoveAccountContactRspDefaultTypeInternal;
+extern RemoveAccountContactRspDefaultTypeInternal _RemoveAccountContactRsp_default_instance_;
 class RemoveAccountRoleRqst;
 class RemoveAccountRoleRqstDefaultTypeInternal;
 extern RemoveAccountRoleRqstDefaultTypeInternal _RemoveAccountRoleRqst_default_instance_;
@@ -318,6 +343,8 @@ PROTOBUF_NAMESPACE_OPEN
 template<> ::resource::Account* Arena::CreateMaybeMessage<::resource::Account>(Arena*);
 template<> ::resource::AccountExistRqst* Arena::CreateMaybeMessage<::resource::AccountExistRqst>(Arena*);
 template<> ::resource::AccountExistRsp* Arena::CreateMaybeMessage<::resource::AccountExistRsp>(Arena*);
+template<> ::resource::AddAccountContactRqst* Arena::CreateMaybeMessage<::resource::AddAccountContactRqst>(Arena*);
+template<> ::resource::AddAccountContactRsp* Arena::CreateMaybeMessage<::resource::AddAccountContactRsp>(Arena*);
 template<> ::resource::AddAccountRoleRqst* Arena::CreateMaybeMessage<::resource::AddAccountRoleRqst>(Arena*);
 template<> ::resource::AddAccountRoleRsp* Arena::CreateMaybeMessage<::resource::AddAccountRoleRsp>(Arena*);
 template<> ::resource::AddApplicationActionsRqst* Arena::CreateMaybeMessage<::resource::AddApplicationActionsRqst>(Arena*);
@@ -356,6 +383,8 @@ template<> ::resource::DeletePeerRqst* Arena::CreateMaybeMessage<::resource::Del
 template<> ::resource::DeletePeerRsp* Arena::CreateMaybeMessage<::resource::DeletePeerRsp>(Arena*);
 template<> ::resource::DeleteRoleRqst* Arena::CreateMaybeMessage<::resource::DeleteRoleRqst>(Arena*);
 template<> ::resource::DeleteRoleRsp* Arena::CreateMaybeMessage<::resource::DeleteRoleRsp>(Arena*);
+template<> ::resource::GetAccountsRqst* Arena::CreateMaybeMessage<::resource::GetAccountsRqst>(Arena*);
+template<> ::resource::GetAccountsRsp* Arena::CreateMaybeMessage<::resource::GetAccountsRsp>(Arena*);
 template<> ::resource::GetAllActionsRqst* Arena::CreateMaybeMessage<::resource::GetAllActionsRqst>(Arena*);
 template<> ::resource::GetAllActionsRsp* Arena::CreateMaybeMessage<::resource::GetAllActionsRsp>(Arena*);
 template<> ::resource::GetAllApplicationsInfoRqst* Arena::CreateMaybeMessage<::resource::GetAllApplicationsInfoRqst>(Arena*);
@@ -366,6 +395,8 @@ template<> ::resource::GetOrganizationsRqst* Arena::CreateMaybeMessage<::resourc
 template<> ::resource::GetOrganizationsRsp* Arena::CreateMaybeMessage<::resource::GetOrganizationsRsp>(Arena*);
 template<> ::resource::GetPeersRqst* Arena::CreateMaybeMessage<::resource::GetPeersRqst>(Arena*);
 template<> ::resource::GetPeersRsp* Arena::CreateMaybeMessage<::resource::GetPeersRsp>(Arena*);
+template<> ::resource::GetRolesRqst* Arena::CreateMaybeMessage<::resource::GetRolesRqst>(Arena*);
+template<> ::resource::GetRolesRsp* Arena::CreateMaybeMessage<::resource::GetRolesRsp>(Arena*);
 template<> ::resource::Group* Arena::CreateMaybeMessage<::resource::Group>(Arena*);
 template<> ::resource::GroupSyncInfos* Arena::CreateMaybeMessage<::resource::GroupSyncInfos>(Arena*);
 template<> ::resource::LdapSyncInfos* Arena::CreateMaybeMessage<::resource::LdapSyncInfos>(Arena*);
@@ -377,6 +408,8 @@ template<> ::resource::RegisterAccountRqst* Arena::CreateMaybeMessage<::resource
 template<> ::resource::RegisterAccountRsp* Arena::CreateMaybeMessage<::resource::RegisterAccountRsp>(Arena*);
 template<> ::resource::RegisterPeerRqst* Arena::CreateMaybeMessage<::resource::RegisterPeerRqst>(Arena*);
 template<> ::resource::RegisterPeerRsp* Arena::CreateMaybeMessage<::resource::RegisterPeerRsp>(Arena*);
+template<> ::resource::RemoveAccountContactRqst* Arena::CreateMaybeMessage<::resource::RemoveAccountContactRqst>(Arena*);
+template<> ::resource::RemoveAccountContactRsp* Arena::CreateMaybeMessage<::resource::RemoveAccountContactRsp>(Arena*);
 template<> ::resource::RemoveAccountRoleRqst* Arena::CreateMaybeMessage<::resource::RemoveAccountRoleRqst>(Arena*);
 template<> ::resource::RemoveAccountRoleRsp* Arena::CreateMaybeMessage<::resource::RemoveAccountRoleRsp>(Arena*);
 template<> ::resource::RemoveApplicationActionRqst* Arena::CreateMaybeMessage<::resource::RemoveApplicationActionRqst>(Arena*);
@@ -1968,11 +2001,111 @@ class Account PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
+    kContactsFieldNumber = 5,
+    kOrganizationsFieldNumber = 6,
+    kGroupsFieldNumber = 7,
+    kRolesFieldNumber = 8,
     kIdFieldNumber = 1,
     kNameFieldNumber = 2,
     kEmailFieldNumber = 3,
     kPasswordFieldNumber = 4,
   };
+  // repeated string contacts = 5;
+  int contacts_size() const;
+  private:
+  int _internal_contacts_size() const;
+  public:
+  void clear_contacts();
+  const std::string& contacts(int index) const;
+  std::string* mutable_contacts(int index);
+  void set_contacts(int index, const std::string& value);
+  void set_contacts(int index, std::string&& value);
+  void set_contacts(int index, const char* value);
+  void set_contacts(int index, const char* value, size_t size);
+  std::string* add_contacts();
+  void add_contacts(const std::string& value);
+  void add_contacts(std::string&& value);
+  void add_contacts(const char* value);
+  void add_contacts(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& contacts() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_contacts();
+  private:
+  const std::string& _internal_contacts(int index) const;
+  std::string* _internal_add_contacts();
+  public:
+
+  // repeated string organizations = 6;
+  int organizations_size() const;
+  private:
+  int _internal_organizations_size() const;
+  public:
+  void clear_organizations();
+  const std::string& organizations(int index) const;
+  std::string* mutable_organizations(int index);
+  void set_organizations(int index, const std::string& value);
+  void set_organizations(int index, std::string&& value);
+  void set_organizations(int index, const char* value);
+  void set_organizations(int index, const char* value, size_t size);
+  std::string* add_organizations();
+  void add_organizations(const std::string& value);
+  void add_organizations(std::string&& value);
+  void add_organizations(const char* value);
+  void add_organizations(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& organizations() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_organizations();
+  private:
+  const std::string& _internal_organizations(int index) const;
+  std::string* _internal_add_organizations();
+  public:
+
+  // repeated string groups = 7;
+  int groups_size() const;
+  private:
+  int _internal_groups_size() const;
+  public:
+  void clear_groups();
+  const std::string& groups(int index) const;
+  std::string* mutable_groups(int index);
+  void set_groups(int index, const std::string& value);
+  void set_groups(int index, std::string&& value);
+  void set_groups(int index, const char* value);
+  void set_groups(int index, const char* value, size_t size);
+  std::string* add_groups();
+  void add_groups(const std::string& value);
+  void add_groups(std::string&& value);
+  void add_groups(const char* value);
+  void add_groups(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& groups() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_groups();
+  private:
+  const std::string& _internal_groups(int index) const;
+  std::string* _internal_add_groups();
+  public:
+
+  // repeated string roles = 8;
+  int roles_size() const;
+  private:
+  int _internal_roles_size() const;
+  public:
+  void clear_roles();
+  const std::string& roles(int index) const;
+  std::string* mutable_roles(int index);
+  void set_roles(int index, const std::string& value);
+  void set_roles(int index, std::string&& value);
+  void set_roles(int index, const char* value);
+  void set_roles(int index, const char* value, size_t size);
+  std::string* add_roles();
+  void add_roles(const std::string& value);
+  void add_roles(std::string&& value);
+  void add_roles(const char* value);
+  void add_roles(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& roles() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_roles();
+  private:
+  const std::string& _internal_roles(int index) const;
+  std::string* _internal_add_roles();
+  public:
+
   // string id = 1;
   void clear_id();
   const std::string& id() const;
@@ -2044,6 +2177,10 @@ class Account PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> contacts_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> organizations_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> groups_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> roles_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr id_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr email_;
@@ -2167,6 +2304,8 @@ class Role PROTOBUF_FINAL :
 
   enum : int {
     kActionsFieldNumber = 3,
+    kMembersFieldNumber = 4,
+    kOrganizationsFieldNumber = 5,
     kIdFieldNumber = 1,
     kNameFieldNumber = 2,
   };
@@ -2192,6 +2331,54 @@ class Role PROTOBUF_FINAL :
   private:
   const std::string& _internal_actions(int index) const;
   std::string* _internal_add_actions();
+  public:
+
+  // repeated string members = 4;
+  int members_size() const;
+  private:
+  int _internal_members_size() const;
+  public:
+  void clear_members();
+  const std::string& members(int index) const;
+  std::string* mutable_members(int index);
+  void set_members(int index, const std::string& value);
+  void set_members(int index, std::string&& value);
+  void set_members(int index, const char* value);
+  void set_members(int index, const char* value, size_t size);
+  std::string* add_members();
+  void add_members(const std::string& value);
+  void add_members(std::string&& value);
+  void add_members(const char* value);
+  void add_members(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& members() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_members();
+  private:
+  const std::string& _internal_members(int index) const;
+  std::string* _internal_add_members();
+  public:
+
+  // repeated string organizations = 5;
+  int organizations_size() const;
+  private:
+  int _internal_organizations_size() const;
+  public:
+  void clear_organizations();
+  const std::string& organizations(int index) const;
+  std::string* mutable_organizations(int index);
+  void set_organizations(int index, const std::string& value);
+  void set_organizations(int index, std::string&& value);
+  void set_organizations(int index, const char* value);
+  void set_organizations(int index, const char* value, size_t size);
+  std::string* add_organizations();
+  void add_organizations(const std::string& value);
+  void add_organizations(std::string&& value);
+  void add_organizations(const char* value);
+  void add_organizations(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& organizations() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_organizations();
+  private:
+  const std::string& _internal_organizations(int index) const;
+  std::string* _internal_add_organizations();
   public:
 
   // string id = 1;
@@ -2234,6 +2421,8 @@ class Role PROTOBUF_FINAL :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> actions_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> members_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> organizations_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr id_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
@@ -4029,6 +4218,604 @@ class RemoveAccountRoleRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
+class AddAccountContactRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddAccountContactRqst) */ {
+ public:
+  inline AddAccountContactRqst() : AddAccountContactRqst(nullptr) {}
+  virtual ~AddAccountContactRqst();
+
+  AddAccountContactRqst(const AddAccountContactRqst& from);
+  AddAccountContactRqst(AddAccountContactRqst&& from) noexcept
+    : AddAccountContactRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline AddAccountContactRqst& operator=(const AddAccountContactRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddAccountContactRqst& operator=(AddAccountContactRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddAccountContactRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddAccountContactRqst* internal_default_instance() {
+    return reinterpret_cast<const AddAccountContactRqst*>(
+               &_AddAccountContactRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    23;
+
+  friend void swap(AddAccountContactRqst& a, AddAccountContactRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddAccountContactRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddAccountContactRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddAccountContactRqst* New() const final {
+    return CreateMaybeMessage<AddAccountContactRqst>(nullptr);
+  }
+
+  AddAccountContactRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddAccountContactRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddAccountContactRqst& from);
+  void MergeFrom(const AddAccountContactRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddAccountContactRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddAccountContactRqst";
+  }
+  protected:
+  explicit AddAccountContactRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kAccountIdFieldNumber = 1,
+    kContactIdFieldNumber = 2,
+  };
+  // string accountId = 1;
+  void clear_accountid();
+  const std::string& accountid() const;
+  void set_accountid(const std::string& value);
+  void set_accountid(std::string&& value);
+  void set_accountid(const char* value);
+  void set_accountid(const char* value, size_t size);
+  std::string* mutable_accountid();
+  std::string* release_accountid();
+  void set_allocated_accountid(std::string* accountid);
+  private:
+  const std::string& _internal_accountid() const;
+  void _internal_set_accountid(const std::string& value);
+  std::string* _internal_mutable_accountid();
+  public:
+
+  // string contactId = 2;
+  void clear_contactid();
+  const std::string& contactid() const;
+  void set_contactid(const std::string& value);
+  void set_contactid(std::string&& value);
+  void set_contactid(const char* value);
+  void set_contactid(const char* value, size_t size);
+  std::string* mutable_contactid();
+  std::string* release_contactid();
+  void set_allocated_contactid(std::string* contactid);
+  private:
+  const std::string& _internal_contactid() const;
+  void _internal_set_contactid(const std::string& value);
+  std::string* _internal_mutable_contactid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddAccountContactRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr accountid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr contactid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class AddAccountContactRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.AddAccountContactRsp) */ {
+ public:
+  inline AddAccountContactRsp() : AddAccountContactRsp(nullptr) {}
+  virtual ~AddAccountContactRsp();
+
+  AddAccountContactRsp(const AddAccountContactRsp& from);
+  AddAccountContactRsp(AddAccountContactRsp&& from) noexcept
+    : AddAccountContactRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline AddAccountContactRsp& operator=(const AddAccountContactRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline AddAccountContactRsp& operator=(AddAccountContactRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const AddAccountContactRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const AddAccountContactRsp* internal_default_instance() {
+    return reinterpret_cast<const AddAccountContactRsp*>(
+               &_AddAccountContactRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    24;
+
+  friend void swap(AddAccountContactRsp& a, AddAccountContactRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(AddAccountContactRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(AddAccountContactRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline AddAccountContactRsp* New() const final {
+    return CreateMaybeMessage<AddAccountContactRsp>(nullptr);
+  }
+
+  AddAccountContactRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<AddAccountContactRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const AddAccountContactRsp& from);
+  void MergeFrom(const AddAccountContactRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(AddAccountContactRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.AddAccountContactRsp";
+  }
+  protected:
+  explicit AddAccountContactRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.AddAccountContactRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveAccountContactRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveAccountContactRqst) */ {
+ public:
+  inline RemoveAccountContactRqst() : RemoveAccountContactRqst(nullptr) {}
+  virtual ~RemoveAccountContactRqst();
+
+  RemoveAccountContactRqst(const RemoveAccountContactRqst& from);
+  RemoveAccountContactRqst(RemoveAccountContactRqst&& from) noexcept
+    : RemoveAccountContactRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveAccountContactRqst& operator=(const RemoveAccountContactRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveAccountContactRqst& operator=(RemoveAccountContactRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveAccountContactRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveAccountContactRqst* internal_default_instance() {
+    return reinterpret_cast<const RemoveAccountContactRqst*>(
+               &_RemoveAccountContactRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    25;
+
+  friend void swap(RemoveAccountContactRqst& a, RemoveAccountContactRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveAccountContactRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveAccountContactRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveAccountContactRqst* New() const final {
+    return CreateMaybeMessage<RemoveAccountContactRqst>(nullptr);
+  }
+
+  RemoveAccountContactRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveAccountContactRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveAccountContactRqst& from);
+  void MergeFrom(const RemoveAccountContactRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveAccountContactRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveAccountContactRqst";
+  }
+  protected:
+  explicit RemoveAccountContactRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kAccountIdFieldNumber = 1,
+    kContactIdFieldNumber = 2,
+  };
+  // string accountId = 1;
+  void clear_accountid();
+  const std::string& accountid() const;
+  void set_accountid(const std::string& value);
+  void set_accountid(std::string&& value);
+  void set_accountid(const char* value);
+  void set_accountid(const char* value, size_t size);
+  std::string* mutable_accountid();
+  std::string* release_accountid();
+  void set_allocated_accountid(std::string* accountid);
+  private:
+  const std::string& _internal_accountid() const;
+  void _internal_set_accountid(const std::string& value);
+  std::string* _internal_mutable_accountid();
+  public:
+
+  // string contactId = 2;
+  void clear_contactid();
+  const std::string& contactid() const;
+  void set_contactid(const std::string& value);
+  void set_contactid(std::string&& value);
+  void set_contactid(const char* value);
+  void set_contactid(const char* value, size_t size);
+  std::string* mutable_contactid();
+  std::string* release_contactid();
+  void set_allocated_contactid(std::string* contactid);
+  private:
+  const std::string& _internal_contactid() const;
+  void _internal_set_contactid(const std::string& value);
+  std::string* _internal_mutable_contactid();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveAccountContactRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr accountid_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr contactid_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class RemoveAccountContactRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.RemoveAccountContactRsp) */ {
+ public:
+  inline RemoveAccountContactRsp() : RemoveAccountContactRsp(nullptr) {}
+  virtual ~RemoveAccountContactRsp();
+
+  RemoveAccountContactRsp(const RemoveAccountContactRsp& from);
+  RemoveAccountContactRsp(RemoveAccountContactRsp&& from) noexcept
+    : RemoveAccountContactRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline RemoveAccountContactRsp& operator=(const RemoveAccountContactRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline RemoveAccountContactRsp& operator=(RemoveAccountContactRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const RemoveAccountContactRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const RemoveAccountContactRsp* internal_default_instance() {
+    return reinterpret_cast<const RemoveAccountContactRsp*>(
+               &_RemoveAccountContactRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    26;
+
+  friend void swap(RemoveAccountContactRsp& a, RemoveAccountContactRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(RemoveAccountContactRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(RemoveAccountContactRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline RemoveAccountContactRsp* New() const final {
+    return CreateMaybeMessage<RemoveAccountContactRsp>(nullptr);
+  }
+
+  RemoveAccountContactRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<RemoveAccountContactRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const RemoveAccountContactRsp& from);
+  void MergeFrom(const RemoveAccountContactRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(RemoveAccountContactRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.RemoveAccountContactRsp";
+  }
+  protected:
+  explicit RemoveAccountContactRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kResultFieldNumber = 1,
+  };
+  // bool result = 1;
+  void clear_result();
+  bool result() const;
+  void set_result(bool value);
+  private:
+  bool _internal_result() const;
+  void _internal_set_result(bool value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.RemoveAccountContactRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  bool result_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
 class CreateRoleRqst PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.CreateRoleRqst) */ {
  public:
@@ -4071,7 +4858,7 @@ class CreateRoleRqst PROTOBUF_FINAL :
                &_CreateRoleRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    23;
+    27;
 
   friend void swap(CreateRoleRqst& a, CreateRoleRqst& b) {
     a.Swap(&b);
@@ -4217,7 +5004,7 @@ class CreateRoleRsp PROTOBUF_FINAL :
                &_CreateRoleRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    28;
 
   friend void swap(CreateRoleRsp& a, CreateRoleRsp& b) {
     a.Swap(&b);
@@ -4312,6 +5099,296 @@ class CreateRoleRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
+class GetRolesRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetRolesRqst) */ {
+ public:
+  inline GetRolesRqst() : GetRolesRqst(nullptr) {}
+  virtual ~GetRolesRqst();
+
+  GetRolesRqst(const GetRolesRqst& from);
+  GetRolesRqst(GetRolesRqst&& from) noexcept
+    : GetRolesRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline GetRolesRqst& operator=(const GetRolesRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetRolesRqst& operator=(GetRolesRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetRolesRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetRolesRqst* internal_default_instance() {
+    return reinterpret_cast<const GetRolesRqst*>(
+               &_GetRolesRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    29;
+
+  friend void swap(GetRolesRqst& a, GetRolesRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetRolesRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetRolesRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetRolesRqst* New() const final {
+    return CreateMaybeMessage<GetRolesRqst>(nullptr);
+  }
+
+  GetRolesRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetRolesRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetRolesRqst& from);
+  void MergeFrom(const GetRolesRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetRolesRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetRolesRqst";
+  }
+  protected:
+  explicit GetRolesRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kQueryFieldNumber = 1,
+  };
+  // string query = 1;
+  void clear_query();
+  const std::string& query() const;
+  void set_query(const std::string& value);
+  void set_query(std::string&& value);
+  void set_query(const char* value);
+  void set_query(const char* value, size_t size);
+  std::string* mutable_query();
+  std::string* release_query();
+  void set_allocated_query(std::string* query);
+  private:
+  const std::string& _internal_query() const;
+  void _internal_set_query(const std::string& value);
+  std::string* _internal_mutable_query();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.GetRolesRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr query_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class GetRolesRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetRolesRsp) */ {
+ public:
+  inline GetRolesRsp() : GetRolesRsp(nullptr) {}
+  virtual ~GetRolesRsp();
+
+  GetRolesRsp(const GetRolesRsp& from);
+  GetRolesRsp(GetRolesRsp&& from) noexcept
+    : GetRolesRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline GetRolesRsp& operator=(const GetRolesRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetRolesRsp& operator=(GetRolesRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetRolesRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetRolesRsp* internal_default_instance() {
+    return reinterpret_cast<const GetRolesRsp*>(
+               &_GetRolesRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    30;
+
+  friend void swap(GetRolesRsp& a, GetRolesRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetRolesRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetRolesRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetRolesRsp* New() const final {
+    return CreateMaybeMessage<GetRolesRsp>(nullptr);
+  }
+
+  GetRolesRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetRolesRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetRolesRsp& from);
+  void MergeFrom(const GetRolesRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetRolesRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetRolesRsp";
+  }
+  protected:
+  explicit GetRolesRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kRolesFieldNumber = 1,
+  };
+  // repeated .resource.Role roles = 1;
+  int roles_size() const;
+  private:
+  int _internal_roles_size() const;
+  public:
+  void clear_roles();
+  ::resource::Role* mutable_roles(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Role >*
+      mutable_roles();
+  private:
+  const ::resource::Role& _internal_roles(int index) const;
+  ::resource::Role* _internal_add_roles();
+  public:
+  const ::resource::Role& roles(int index) const;
+  ::resource::Role* add_roles();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Role >&
+      roles() const;
+
+  // @@protoc_insertion_point(class_scope:resource.GetRolesRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Role > roles_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
 class DeleteRoleRqst PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.DeleteRoleRqst) */ {
  public:
@@ -4354,7 +5431,7 @@ class DeleteRoleRqst PROTOBUF_FINAL :
                &_DeleteRoleRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    31;
 
   friend void swap(DeleteRoleRqst& a, DeleteRoleRqst& b) {
     a.Swap(&b);
@@ -4498,7 +5575,7 @@ class DeleteRoleRsp PROTOBUF_FINAL :
                &_DeleteRoleRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    26;
+    32;
 
   friend void swap(DeleteRoleRsp& a, DeleteRoleRsp& b) {
     a.Swap(&b);
@@ -4635,7 +5712,7 @@ class DeleteApplicationRqst PROTOBUF_FINAL :
                &_DeleteApplicationRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    27;
+    33;
 
   friend void swap(DeleteApplicationRqst& a, DeleteApplicationRqst& b) {
     a.Swap(&b);
@@ -4779,7 +5856,7 @@ class DeleteApplicationRsp PROTOBUF_FINAL :
                &_DeleteApplicationRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    28;
+    34;
 
   friend void swap(DeleteApplicationRsp& a, DeleteApplicationRsp& b) {
     a.Swap(&b);
@@ -4916,7 +5993,7 @@ class GetAllApplicationsInfoRqst PROTOBUF_FINAL :
                &_GetAllApplicationsInfoRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    29;
+    35;
 
   friend void swap(GetAllApplicationsInfoRqst& a, GetAllApplicationsInfoRqst& b) {
     a.Swap(&b);
@@ -5040,7 +6117,7 @@ class GetAllApplicationsInfoRsp PROTOBUF_FINAL :
                &_GetAllApplicationsInfoRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    30;
+    36;
 
   friend void swap(GetAllApplicationsInfoRsp& a, GetAllApplicationsInfoRsp& b) {
     a.Swap(&b);
@@ -5111,23 +6188,25 @@ class GetAllApplicationsInfoRsp PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kResultFieldNumber = 1,
+    kApplicationsFieldNumber = 1,
   };
-  // string result = 1;
-  void clear_result();
-  const std::string& result() const;
-  void set_result(const std::string& value);
-  void set_result(std::string&& value);
-  void set_result(const char* value);
-  void set_result(const char* value, size_t size);
-  std::string* mutable_result();
-  std::string* release_result();
-  void set_allocated_result(std::string* result);
+  // repeated .google.protobuf.Struct applications = 1;
+  int applications_size() const;
   private:
-  const std::string& _internal_result() const;
-  void _internal_set_result(const std::string& value);
-  std::string* _internal_mutable_result();
+  int _internal_applications_size() const;
   public:
+  void clear_applications();
+  PROTOBUF_NAMESPACE_ID::Struct* mutable_applications(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >*
+      mutable_applications();
+  private:
+  const PROTOBUF_NAMESPACE_ID::Struct& _internal_applications(int index) const;
+  PROTOBUF_NAMESPACE_ID::Struct* _internal_add_applications();
+  public:
+  const PROTOBUF_NAMESPACE_ID::Struct& applications(int index) const;
+  PROTOBUF_NAMESPACE_ID::Struct* add_applications();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >&
+      applications() const;
 
   // @@protoc_insertion_point(class_scope:resource.GetAllApplicationsInfoRsp)
  private:
@@ -5136,7 +6215,7 @@ class GetAllApplicationsInfoRsp PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr result_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct > applications_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
 };
@@ -5184,7 +6263,7 @@ class AccountExistRqst PROTOBUF_FINAL :
                &_AccountExistRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    31;
+    37;
 
   friend void swap(AccountExistRqst& a, AccountExistRqst& b) {
     a.Swap(&b);
@@ -5328,7 +6407,7 @@ class AccountExistRsp PROTOBUF_FINAL :
                &_AccountExistRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    32;
+    38;
 
   friend void swap(AccountExistRsp& a, AccountExistRsp& b) {
     a.Swap(&b);
@@ -5423,6 +6502,296 @@ class AccountExistRsp PROTOBUF_FINAL :
 };
 // -------------------------------------------------------------------
 
+class GetAccountsRqst PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetAccountsRqst) */ {
+ public:
+  inline GetAccountsRqst() : GetAccountsRqst(nullptr) {}
+  virtual ~GetAccountsRqst();
+
+  GetAccountsRqst(const GetAccountsRqst& from);
+  GetAccountsRqst(GetAccountsRqst&& from) noexcept
+    : GetAccountsRqst() {
+    *this = ::std::move(from);
+  }
+
+  inline GetAccountsRqst& operator=(const GetAccountsRqst& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetAccountsRqst& operator=(GetAccountsRqst&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetAccountsRqst& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetAccountsRqst* internal_default_instance() {
+    return reinterpret_cast<const GetAccountsRqst*>(
+               &_GetAccountsRqst_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    39;
+
+  friend void swap(GetAccountsRqst& a, GetAccountsRqst& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetAccountsRqst* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetAccountsRqst* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetAccountsRqst* New() const final {
+    return CreateMaybeMessage<GetAccountsRqst>(nullptr);
+  }
+
+  GetAccountsRqst* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetAccountsRqst>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetAccountsRqst& from);
+  void MergeFrom(const GetAccountsRqst& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetAccountsRqst* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetAccountsRqst";
+  }
+  protected:
+  explicit GetAccountsRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kQueryFieldNumber = 1,
+  };
+  // string query = 1;
+  void clear_query();
+  const std::string& query() const;
+  void set_query(const std::string& value);
+  void set_query(std::string&& value);
+  void set_query(const char* value);
+  void set_query(const char* value, size_t size);
+  std::string* mutable_query();
+  std::string* release_query();
+  void set_allocated_query(std::string* query);
+  private:
+  const std::string& _internal_query() const;
+  void _internal_set_query(const std::string& value);
+  std::string* _internal_mutable_query();
+  public:
+
+  // @@protoc_insertion_point(class_scope:resource.GetAccountsRqst)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr query_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
+class GetAccountsRsp PROTOBUF_FINAL :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.GetAccountsRsp) */ {
+ public:
+  inline GetAccountsRsp() : GetAccountsRsp(nullptr) {}
+  virtual ~GetAccountsRsp();
+
+  GetAccountsRsp(const GetAccountsRsp& from);
+  GetAccountsRsp(GetAccountsRsp&& from) noexcept
+    : GetAccountsRsp() {
+    *this = ::std::move(from);
+  }
+
+  inline GetAccountsRsp& operator=(const GetAccountsRsp& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline GetAccountsRsp& operator=(GetAccountsRsp&& from) noexcept {
+    if (GetArena() == from.GetArena()) {
+      if (this != &from) InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return GetMetadataStatic().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return GetMetadataStatic().reflection;
+  }
+  static const GetAccountsRsp& default_instance();
+
+  static void InitAsDefaultInstance();  // FOR INTERNAL USE ONLY
+  static inline const GetAccountsRsp* internal_default_instance() {
+    return reinterpret_cast<const GetAccountsRsp*>(
+               &_GetAccountsRsp_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    40;
+
+  friend void swap(GetAccountsRsp& a, GetAccountsRsp& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(GetAccountsRsp* other) {
+    if (other == this) return;
+    if (GetArena() == other->GetArena()) {
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(GetAccountsRsp* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  inline GetAccountsRsp* New() const final {
+    return CreateMaybeMessage<GetAccountsRsp>(nullptr);
+  }
+
+  GetAccountsRsp* New(::PROTOBUF_NAMESPACE_ID::Arena* arena) const final {
+    return CreateMaybeMessage<GetAccountsRsp>(arena);
+  }
+  void CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) final;
+  void CopyFrom(const GetAccountsRsp& from);
+  void MergeFrom(const GetAccountsRsp& from);
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::PROTOBUF_NAMESPACE_ID::uint8* _InternalSerialize(
+      ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _cached_size_.Get(); }
+
+  private:
+  inline void SharedCtor();
+  inline void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(GetAccountsRsp* other);
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "resource.GetAccountsRsp";
+  }
+  protected:
+  explicit GetAccountsRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  private:
+  static void ArenaDtor(void* object);
+  inline void RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  private:
+  static ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadataStatic() {
+    ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(&::descriptor_table_resource_2eproto);
+    return ::descriptor_table_resource_2eproto.file_level_metadata[kIndexInFileMessages];
+  }
+
+  public:
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kAccountsFieldNumber = 1,
+  };
+  // repeated .resource.Account accounts = 1;
+  int accounts_size() const;
+  private:
+  int _internal_accounts_size() const;
+  public:
+  void clear_accounts();
+  ::resource::Account* mutable_accounts(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Account >*
+      mutable_accounts();
+  private:
+  const ::resource::Account& _internal_accounts(int index) const;
+  ::resource::Account* _internal_add_accounts();
+  public:
+  const ::resource::Account& accounts(int index) const;
+  ::resource::Account* add_accounts();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Account >&
+      accounts() const;
+
+  // @@protoc_insertion_point(class_scope:resource.GetAccountsRsp)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Account > accounts_;
+  mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  friend struct ::TableStruct_resource_2eproto;
+};
+// -------------------------------------------------------------------
+
 class Group PROTOBUF_FINAL :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:resource.Group) */ {
  public:
@@ -5465,7 +6834,7 @@ class Group PROTOBUF_FINAL :
                &_Group_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    33;
+    41;
 
   friend void swap(Group& a, Group& b) {
     a.Swap(&b);
@@ -5653,7 +7022,7 @@ class CreateGroupRqst PROTOBUF_FINAL :
                &_CreateGroupRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    34;
+    42;
 
   friend void swap(CreateGroupRqst& a, CreateGroupRqst& b) {
     a.Swap(&b);
@@ -5799,7 +7168,7 @@ class CreateGroupRsp PROTOBUF_FINAL :
                &_CreateGroupRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    35;
+    43;
 
   friend void swap(CreateGroupRsp& a, CreateGroupRsp& b) {
     a.Swap(&b);
@@ -5936,7 +7305,7 @@ class GetGroupsRqst PROTOBUF_FINAL :
                &_GetGroupsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    36;
+    44;
 
   friend void swap(GetGroupsRqst& a, GetGroupsRqst& b) {
     a.Swap(&b);
@@ -6080,7 +7449,7 @@ class GetGroupsRsp PROTOBUF_FINAL :
                &_GetGroupsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    37;
+    45;
 
   friend void swap(GetGroupsRsp& a, GetGroupsRsp& b) {
     a.Swap(&b);
@@ -6226,7 +7595,7 @@ class DeleteGroupRqst PROTOBUF_FINAL :
                &_DeleteGroupRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    38;
+    46;
 
   friend void swap(DeleteGroupRqst& a, DeleteGroupRqst& b) {
     a.Swap(&b);
@@ -6370,7 +7739,7 @@ class DeleteGroupRsp PROTOBUF_FINAL :
                &_DeleteGroupRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    39;
+    47;
 
   friend void swap(DeleteGroupRsp& a, DeleteGroupRsp& b) {
     a.Swap(&b);
@@ -6507,7 +7876,7 @@ class AddGroupMemberAccountRqst PROTOBUF_FINAL :
                &_AddGroupMemberAccountRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    40;
+    48;
 
   friend void swap(AddGroupMemberAccountRqst& a, AddGroupMemberAccountRqst& b) {
     a.Swap(&b);
@@ -6669,7 +8038,7 @@ class AddGroupMemberAccountRsp PROTOBUF_FINAL :
                &_AddGroupMemberAccountRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    41;
+    49;
 
   friend void swap(AddGroupMemberAccountRsp& a, AddGroupMemberAccountRsp& b) {
     a.Swap(&b);
@@ -6806,7 +8175,7 @@ class RemoveGroupMemberAccountRqst PROTOBUF_FINAL :
                &_RemoveGroupMemberAccountRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    42;
+    50;
 
   friend void swap(RemoveGroupMemberAccountRqst& a, RemoveGroupMemberAccountRqst& b) {
     a.Swap(&b);
@@ -6968,7 +8337,7 @@ class RemoveGroupMemberAccountRsp PROTOBUF_FINAL :
                &_RemoveGroupMemberAccountRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    43;
+    51;
 
   friend void swap(RemoveGroupMemberAccountRsp& a, RemoveGroupMemberAccountRsp& b) {
     a.Swap(&b);
@@ -7105,7 +8474,7 @@ class Organization PROTOBUF_FINAL :
                &_Organization_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    44;
+    52;
 
   friend void swap(Organization& a, Organization& b) {
     a.Swap(&b);
@@ -7371,7 +8740,7 @@ class CreateOrganizationRqst PROTOBUF_FINAL :
                &_CreateOrganizationRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    45;
+    53;
 
   friend void swap(CreateOrganizationRqst& a, CreateOrganizationRqst& b) {
     a.Swap(&b);
@@ -7517,7 +8886,7 @@ class CreateOrganizationRsp PROTOBUF_FINAL :
                &_CreateOrganizationRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    46;
+    54;
 
   friend void swap(CreateOrganizationRsp& a, CreateOrganizationRsp& b) {
     a.Swap(&b);
@@ -7654,7 +9023,7 @@ class GetOrganizationsRqst PROTOBUF_FINAL :
                &_GetOrganizationsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    47;
+    55;
 
   friend void swap(GetOrganizationsRqst& a, GetOrganizationsRqst& b) {
     a.Swap(&b);
@@ -7798,7 +9167,7 @@ class GetOrganizationsRsp PROTOBUF_FINAL :
                &_GetOrganizationsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    48;
+    56;
 
   friend void swap(GetOrganizationsRsp& a, GetOrganizationsRsp& b) {
     a.Swap(&b);
@@ -7944,7 +9313,7 @@ class DeleteOrganizationRqst PROTOBUF_FINAL :
                &_DeleteOrganizationRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    49;
+    57;
 
   friend void swap(DeleteOrganizationRqst& a, DeleteOrganizationRqst& b) {
     a.Swap(&b);
@@ -8088,7 +9457,7 @@ class DeleteOrganizationRsp PROTOBUF_FINAL :
                &_DeleteOrganizationRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    50;
+    58;
 
   friend void swap(DeleteOrganizationRsp& a, DeleteOrganizationRsp& b) {
     a.Swap(&b);
@@ -8225,7 +9594,7 @@ class Peer PROTOBUF_FINAL :
                &_Peer_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    51;
+    59;
 
   friend void swap(Peer& a, Peer& b) {
     a.Swap(&b);
@@ -8395,7 +9764,7 @@ class RegisterPeerRqst PROTOBUF_FINAL :
                &_RegisterPeerRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    52;
+    60;
 
   friend void swap(RegisterPeerRqst& a, RegisterPeerRqst& b) {
     a.Swap(&b);
@@ -8541,7 +9910,7 @@ class RegisterPeerRsp PROTOBUF_FINAL :
                &_RegisterPeerRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    53;
+    61;
 
   friend void swap(RegisterPeerRsp& a, RegisterPeerRsp& b) {
     a.Swap(&b);
@@ -8678,7 +10047,7 @@ class GetPeersRqst PROTOBUF_FINAL :
                &_GetPeersRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    54;
+    62;
 
   friend void swap(GetPeersRqst& a, GetPeersRqst& b) {
     a.Swap(&b);
@@ -8822,7 +10191,7 @@ class GetPeersRsp PROTOBUF_FINAL :
                &_GetPeersRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    55;
+    63;
 
   friend void swap(GetPeersRsp& a, GetPeersRsp& b) {
     a.Swap(&b);
@@ -8968,7 +10337,7 @@ class DeletePeerRqst PROTOBUF_FINAL :
                &_DeletePeerRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    56;
+    64;
 
   friend void swap(DeletePeerRqst& a, DeletePeerRqst& b) {
     a.Swap(&b);
@@ -9114,7 +10483,7 @@ class DeletePeerRsp PROTOBUF_FINAL :
                &_DeletePeerRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    57;
+    65;
 
   friend void swap(DeletePeerRsp& a, DeletePeerRsp& b) {
     a.Swap(&b);
@@ -9251,7 +10620,7 @@ class AddRoleActionsRqst PROTOBUF_FINAL :
                &_AddRoleActionsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    58;
+    66;
 
   friend void swap(AddRoleActionsRqst& a, AddRoleActionsRqst& b) {
     a.Swap(&b);
@@ -9421,7 +10790,7 @@ class AddRoleActionsRsp PROTOBUF_FINAL :
                &_AddRoleActionsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    59;
+    67;
 
   friend void swap(AddRoleActionsRsp& a, AddRoleActionsRsp& b) {
     a.Swap(&b);
@@ -9558,7 +10927,7 @@ class RemoveRoleActionRqst PROTOBUF_FINAL :
                &_RemoveRoleActionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    60;
+    68;
 
   friend void swap(RemoveRoleActionRqst& a, RemoveRoleActionRqst& b) {
     a.Swap(&b);
@@ -9720,7 +11089,7 @@ class RemoveRoleActionRsp PROTOBUF_FINAL :
                &_RemoveRoleActionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    61;
+    69;
 
   friend void swap(RemoveRoleActionRsp& a, RemoveRoleActionRsp& b) {
     a.Swap(&b);
@@ -9857,7 +11226,7 @@ class AddApplicationActionsRqst PROTOBUF_FINAL :
                &_AddApplicationActionsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    62;
+    70;
 
   friend void swap(AddApplicationActionsRqst& a, AddApplicationActionsRqst& b) {
     a.Swap(&b);
@@ -10027,7 +11396,7 @@ class AddApplicationActionsRsp PROTOBUF_FINAL :
                &_AddApplicationActionsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    63;
+    71;
 
   friend void swap(AddApplicationActionsRsp& a, AddApplicationActionsRsp& b) {
     a.Swap(&b);
@@ -10164,7 +11533,7 @@ class RemoveApplicationActionRqst PROTOBUF_FINAL :
                &_RemoveApplicationActionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    64;
+    72;
 
   friend void swap(RemoveApplicationActionRqst& a, RemoveApplicationActionRqst& b) {
     a.Swap(&b);
@@ -10326,7 +11695,7 @@ class RemoveApplicationActionRsp PROTOBUF_FINAL :
                &_RemoveApplicationActionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    65;
+    73;
 
   friend void swap(RemoveApplicationActionRsp& a, RemoveApplicationActionRsp& b) {
     a.Swap(&b);
@@ -10463,7 +11832,7 @@ class AddPeerActionsRqst PROTOBUF_FINAL :
                &_AddPeerActionsRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    66;
+    74;
 
   friend void swap(AddPeerActionsRqst& a, AddPeerActionsRqst& b) {
     a.Swap(&b);
@@ -10633,7 +12002,7 @@ class AddPeerActionsRsp PROTOBUF_FINAL :
                &_AddPeerActionsRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    67;
+    75;
 
   friend void swap(AddPeerActionsRsp& a, AddPeerActionsRsp& b) {
     a.Swap(&b);
@@ -10770,7 +12139,7 @@ class RemovePeerActionRqst PROTOBUF_FINAL :
                &_RemovePeerActionRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    68;
+    76;
 
   friend void swap(RemovePeerActionRqst& a, RemovePeerActionRqst& b) {
     a.Swap(&b);
@@ -10932,7 +12301,7 @@ class RemovePeerActionRsp PROTOBUF_FINAL :
                &_RemovePeerActionRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    69;
+    77;
 
   friend void swap(RemovePeerActionRsp& a, RemovePeerActionRsp& b) {
     a.Swap(&b);
@@ -11069,7 +12438,7 @@ class AddOrganizationAccountRqst PROTOBUF_FINAL :
                &_AddOrganizationAccountRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    70;
+    78;
 
   friend void swap(AddOrganizationAccountRqst& a, AddOrganizationAccountRqst& b) {
     a.Swap(&b);
@@ -11231,7 +12600,7 @@ class AddOrganizationAccountRsp PROTOBUF_FINAL :
                &_AddOrganizationAccountRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    71;
+    79;
 
   friend void swap(AddOrganizationAccountRsp& a, AddOrganizationAccountRsp& b) {
     a.Swap(&b);
@@ -11368,7 +12737,7 @@ class AddOrganizationGroupRqst PROTOBUF_FINAL :
                &_AddOrganizationGroupRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    72;
+    80;
 
   friend void swap(AddOrganizationGroupRqst& a, AddOrganizationGroupRqst& b) {
     a.Swap(&b);
@@ -11530,7 +12899,7 @@ class AddOrganizationGroupRsp PROTOBUF_FINAL :
                &_AddOrganizationGroupRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    73;
+    81;
 
   friend void swap(AddOrganizationGroupRsp& a, AddOrganizationGroupRsp& b) {
     a.Swap(&b);
@@ -11667,7 +13036,7 @@ class AddOrganizationRoleRqst PROTOBUF_FINAL :
                &_AddOrganizationRoleRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    74;
+    82;
 
   friend void swap(AddOrganizationRoleRqst& a, AddOrganizationRoleRqst& b) {
     a.Swap(&b);
@@ -11829,7 +13198,7 @@ class AddOrganizationRoleRsp PROTOBUF_FINAL :
                &_AddOrganizationRoleRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    75;
+    83;
 
   friend void swap(AddOrganizationRoleRsp& a, AddOrganizationRoleRsp& b) {
     a.Swap(&b);
@@ -11966,7 +13335,7 @@ class AddOrganizationApplicationRqst PROTOBUF_FINAL :
                &_AddOrganizationApplicationRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    76;
+    84;
 
   friend void swap(AddOrganizationApplicationRqst& a, AddOrganizationApplicationRqst& b) {
     a.Swap(&b);
@@ -12128,7 +13497,7 @@ class AddOrganizationApplicationRsp PROTOBUF_FINAL :
                &_AddOrganizationApplicationRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    77;
+    85;
 
   friend void swap(AddOrganizationApplicationRsp& a, AddOrganizationApplicationRsp& b) {
     a.Swap(&b);
@@ -12265,7 +13634,7 @@ class RemoveOrganizationGroupRqst PROTOBUF_FINAL :
                &_RemoveOrganizationGroupRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    78;
+    86;
 
   friend void swap(RemoveOrganizationGroupRqst& a, RemoveOrganizationGroupRqst& b) {
     a.Swap(&b);
@@ -12427,7 +13796,7 @@ class RemoveOrganizationGroupRsp PROTOBUF_FINAL :
                &_RemoveOrganizationGroupRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    79;
+    87;
 
   friend void swap(RemoveOrganizationGroupRsp& a, RemoveOrganizationGroupRsp& b) {
     a.Swap(&b);
@@ -12564,7 +13933,7 @@ class RemoveOrganizationRoleRqst PROTOBUF_FINAL :
                &_RemoveOrganizationRoleRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    80;
+    88;
 
   friend void swap(RemoveOrganizationRoleRqst& a, RemoveOrganizationRoleRqst& b) {
     a.Swap(&b);
@@ -12726,7 +14095,7 @@ class RemoveOrganizationRoleRsp PROTOBUF_FINAL :
                &_RemoveOrganizationRoleRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    81;
+    89;
 
   friend void swap(RemoveOrganizationRoleRsp& a, RemoveOrganizationRoleRsp& b) {
     a.Swap(&b);
@@ -12863,7 +14232,7 @@ class RemoveOrganizationApplicationRqst PROTOBUF_FINAL :
                &_RemoveOrganizationApplicationRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    82;
+    90;
 
   friend void swap(RemoveOrganizationApplicationRqst& a, RemoveOrganizationApplicationRqst& b) {
     a.Swap(&b);
@@ -13025,7 +14394,7 @@ class RemoveOrganizationApplicationRsp PROTOBUF_FINAL :
                &_RemoveOrganizationApplicationRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    83;
+    91;
 
   friend void swap(RemoveOrganizationApplicationRsp& a, RemoveOrganizationApplicationRsp& b) {
     a.Swap(&b);
@@ -13162,7 +14531,7 @@ class RemoveOrganizationAccountRqst PROTOBUF_FINAL :
                &_RemoveOrganizationAccountRqst_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    84;
+    92;
 
   friend void swap(RemoveOrganizationAccountRqst& a, RemoveOrganizationAccountRqst& b) {
     a.Swap(&b);
@@ -13324,7 +14693,7 @@ class RemoveOrganizationAccountRsp PROTOBUF_FINAL :
                &_RemoveOrganizationAccountRsp_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    85;
+    93;
 
   friend void swap(RemoveOrganizationAccountRsp& a, RemoveOrganizationAccountRsp& b) {
     a.Swap(&b);
@@ -14777,6 +16146,302 @@ inline void Account::set_allocated_password(std::string* password) {
   // @@protoc_insertion_point(field_set_allocated:resource.Account.password)
 }
 
+// repeated string contacts = 5;
+inline int Account::_internal_contacts_size() const {
+  return contacts_.size();
+}
+inline int Account::contacts_size() const {
+  return _internal_contacts_size();
+}
+inline void Account::clear_contacts() {
+  contacts_.Clear();
+}
+inline std::string* Account::add_contacts() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Account.contacts)
+  return _internal_add_contacts();
+}
+inline const std::string& Account::_internal_contacts(int index) const {
+  return contacts_.Get(index);
+}
+inline const std::string& Account::contacts(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Account.contacts)
+  return _internal_contacts(index);
+}
+inline std::string* Account::mutable_contacts(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Account.contacts)
+  return contacts_.Mutable(index);
+}
+inline void Account::set_contacts(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.contacts)
+  contacts_.Mutable(index)->assign(value);
+}
+inline void Account::set_contacts(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.contacts)
+  contacts_.Mutable(index)->assign(std::move(value));
+}
+inline void Account::set_contacts(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  contacts_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Account.contacts)
+}
+inline void Account::set_contacts(int index, const char* value, size_t size) {
+  contacts_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Account.contacts)
+}
+inline std::string* Account::_internal_add_contacts() {
+  return contacts_.Add();
+}
+inline void Account::add_contacts(const std::string& value) {
+  contacts_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Account.contacts)
+}
+inline void Account::add_contacts(std::string&& value) {
+  contacts_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Account.contacts)
+}
+inline void Account::add_contacts(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  contacts_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Account.contacts)
+}
+inline void Account::add_contacts(const char* value, size_t size) {
+  contacts_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Account.contacts)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Account::contacts() const {
+  // @@protoc_insertion_point(field_list:resource.Account.contacts)
+  return contacts_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Account::mutable_contacts() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Account.contacts)
+  return &contacts_;
+}
+
+// repeated string organizations = 6;
+inline int Account::_internal_organizations_size() const {
+  return organizations_.size();
+}
+inline int Account::organizations_size() const {
+  return _internal_organizations_size();
+}
+inline void Account::clear_organizations() {
+  organizations_.Clear();
+}
+inline std::string* Account::add_organizations() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Account.organizations)
+  return _internal_add_organizations();
+}
+inline const std::string& Account::_internal_organizations(int index) const {
+  return organizations_.Get(index);
+}
+inline const std::string& Account::organizations(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Account.organizations)
+  return _internal_organizations(index);
+}
+inline std::string* Account::mutable_organizations(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Account.organizations)
+  return organizations_.Mutable(index);
+}
+inline void Account::set_organizations(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.organizations)
+  organizations_.Mutable(index)->assign(value);
+}
+inline void Account::set_organizations(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.organizations)
+  organizations_.Mutable(index)->assign(std::move(value));
+}
+inline void Account::set_organizations(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  organizations_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Account.organizations)
+}
+inline void Account::set_organizations(int index, const char* value, size_t size) {
+  organizations_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Account.organizations)
+}
+inline std::string* Account::_internal_add_organizations() {
+  return organizations_.Add();
+}
+inline void Account::add_organizations(const std::string& value) {
+  organizations_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Account.organizations)
+}
+inline void Account::add_organizations(std::string&& value) {
+  organizations_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Account.organizations)
+}
+inline void Account::add_organizations(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  organizations_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Account.organizations)
+}
+inline void Account::add_organizations(const char* value, size_t size) {
+  organizations_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Account.organizations)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Account::organizations() const {
+  // @@protoc_insertion_point(field_list:resource.Account.organizations)
+  return organizations_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Account::mutable_organizations() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Account.organizations)
+  return &organizations_;
+}
+
+// repeated string groups = 7;
+inline int Account::_internal_groups_size() const {
+  return groups_.size();
+}
+inline int Account::groups_size() const {
+  return _internal_groups_size();
+}
+inline void Account::clear_groups() {
+  groups_.Clear();
+}
+inline std::string* Account::add_groups() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Account.groups)
+  return _internal_add_groups();
+}
+inline const std::string& Account::_internal_groups(int index) const {
+  return groups_.Get(index);
+}
+inline const std::string& Account::groups(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Account.groups)
+  return _internal_groups(index);
+}
+inline std::string* Account::mutable_groups(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Account.groups)
+  return groups_.Mutable(index);
+}
+inline void Account::set_groups(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.groups)
+  groups_.Mutable(index)->assign(value);
+}
+inline void Account::set_groups(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.groups)
+  groups_.Mutable(index)->assign(std::move(value));
+}
+inline void Account::set_groups(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  groups_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Account.groups)
+}
+inline void Account::set_groups(int index, const char* value, size_t size) {
+  groups_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Account.groups)
+}
+inline std::string* Account::_internal_add_groups() {
+  return groups_.Add();
+}
+inline void Account::add_groups(const std::string& value) {
+  groups_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Account.groups)
+}
+inline void Account::add_groups(std::string&& value) {
+  groups_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Account.groups)
+}
+inline void Account::add_groups(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  groups_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Account.groups)
+}
+inline void Account::add_groups(const char* value, size_t size) {
+  groups_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Account.groups)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Account::groups() const {
+  // @@protoc_insertion_point(field_list:resource.Account.groups)
+  return groups_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Account::mutable_groups() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Account.groups)
+  return &groups_;
+}
+
+// repeated string roles = 8;
+inline int Account::_internal_roles_size() const {
+  return roles_.size();
+}
+inline int Account::roles_size() const {
+  return _internal_roles_size();
+}
+inline void Account::clear_roles() {
+  roles_.Clear();
+}
+inline std::string* Account::add_roles() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Account.roles)
+  return _internal_add_roles();
+}
+inline const std::string& Account::_internal_roles(int index) const {
+  return roles_.Get(index);
+}
+inline const std::string& Account::roles(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Account.roles)
+  return _internal_roles(index);
+}
+inline std::string* Account::mutable_roles(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Account.roles)
+  return roles_.Mutable(index);
+}
+inline void Account::set_roles(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.roles)
+  roles_.Mutable(index)->assign(value);
+}
+inline void Account::set_roles(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Account.roles)
+  roles_.Mutable(index)->assign(std::move(value));
+}
+inline void Account::set_roles(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  roles_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Account.roles)
+}
+inline void Account::set_roles(int index, const char* value, size_t size) {
+  roles_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Account.roles)
+}
+inline std::string* Account::_internal_add_roles() {
+  return roles_.Add();
+}
+inline void Account::add_roles(const std::string& value) {
+  roles_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Account.roles)
+}
+inline void Account::add_roles(std::string&& value) {
+  roles_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Account.roles)
+}
+inline void Account::add_roles(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  roles_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Account.roles)
+}
+inline void Account::add_roles(const char* value, size_t size) {
+  roles_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Account.roles)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Account::roles() const {
+  // @@protoc_insertion_point(field_list:resource.Account.roles)
+  return roles_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Account::mutable_roles() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Account.roles)
+  return &roles_;
+}
+
 // -------------------------------------------------------------------
 
 // Role
@@ -14977,6 +16642,154 @@ inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
 Role::mutable_actions() {
   // @@protoc_insertion_point(field_mutable_list:resource.Role.actions)
   return &actions_;
+}
+
+// repeated string members = 4;
+inline int Role::_internal_members_size() const {
+  return members_.size();
+}
+inline int Role::members_size() const {
+  return _internal_members_size();
+}
+inline void Role::clear_members() {
+  members_.Clear();
+}
+inline std::string* Role::add_members() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Role.members)
+  return _internal_add_members();
+}
+inline const std::string& Role::_internal_members(int index) const {
+  return members_.Get(index);
+}
+inline const std::string& Role::members(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Role.members)
+  return _internal_members(index);
+}
+inline std::string* Role::mutable_members(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Role.members)
+  return members_.Mutable(index);
+}
+inline void Role::set_members(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Role.members)
+  members_.Mutable(index)->assign(value);
+}
+inline void Role::set_members(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Role.members)
+  members_.Mutable(index)->assign(std::move(value));
+}
+inline void Role::set_members(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  members_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Role.members)
+}
+inline void Role::set_members(int index, const char* value, size_t size) {
+  members_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Role.members)
+}
+inline std::string* Role::_internal_add_members() {
+  return members_.Add();
+}
+inline void Role::add_members(const std::string& value) {
+  members_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Role.members)
+}
+inline void Role::add_members(std::string&& value) {
+  members_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Role.members)
+}
+inline void Role::add_members(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  members_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Role.members)
+}
+inline void Role::add_members(const char* value, size_t size) {
+  members_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Role.members)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Role::members() const {
+  // @@protoc_insertion_point(field_list:resource.Role.members)
+  return members_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Role::mutable_members() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Role.members)
+  return &members_;
+}
+
+// repeated string organizations = 5;
+inline int Role::_internal_organizations_size() const {
+  return organizations_.size();
+}
+inline int Role::organizations_size() const {
+  return _internal_organizations_size();
+}
+inline void Role::clear_organizations() {
+  organizations_.Clear();
+}
+inline std::string* Role::add_organizations() {
+  // @@protoc_insertion_point(field_add_mutable:resource.Role.organizations)
+  return _internal_add_organizations();
+}
+inline const std::string& Role::_internal_organizations(int index) const {
+  return organizations_.Get(index);
+}
+inline const std::string& Role::organizations(int index) const {
+  // @@protoc_insertion_point(field_get:resource.Role.organizations)
+  return _internal_organizations(index);
+}
+inline std::string* Role::mutable_organizations(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.Role.organizations)
+  return organizations_.Mutable(index);
+}
+inline void Role::set_organizations(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:resource.Role.organizations)
+  organizations_.Mutable(index)->assign(value);
+}
+inline void Role::set_organizations(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:resource.Role.organizations)
+  organizations_.Mutable(index)->assign(std::move(value));
+}
+inline void Role::set_organizations(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  organizations_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:resource.Role.organizations)
+}
+inline void Role::set_organizations(int index, const char* value, size_t size) {
+  organizations_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:resource.Role.organizations)
+}
+inline std::string* Role::_internal_add_organizations() {
+  return organizations_.Add();
+}
+inline void Role::add_organizations(const std::string& value) {
+  organizations_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add:resource.Role.organizations)
+}
+inline void Role::add_organizations(std::string&& value) {
+  organizations_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:resource.Role.organizations)
+}
+inline void Role::add_organizations(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  organizations_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:resource.Role.organizations)
+}
+inline void Role::add_organizations(const char* value, size_t size) {
+  organizations_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:resource.Role.organizations)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
+Role::organizations() const {
+  // @@protoc_insertion_point(field_list:resource.Role.organizations)
+  return organizations_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+Role::mutable_organizations() {
+  // @@protoc_insertion_point(field_mutable_list:resource.Role.organizations)
+  return &organizations_;
 }
 
 // -------------------------------------------------------------------
@@ -15958,6 +17771,310 @@ inline void RemoveAccountRoleRsp::set_result(bool value) {
 
 // -------------------------------------------------------------------
 
+// AddAccountContactRqst
+
+// string accountId = 1;
+inline void AddAccountContactRqst::clear_accountid() {
+  accountid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddAccountContactRqst::accountid() const {
+  // @@protoc_insertion_point(field_get:resource.AddAccountContactRqst.accountId)
+  return _internal_accountid();
+}
+inline void AddAccountContactRqst::set_accountid(const std::string& value) {
+  _internal_set_accountid(value);
+  // @@protoc_insertion_point(field_set:resource.AddAccountContactRqst.accountId)
+}
+inline std::string* AddAccountContactRqst::mutable_accountid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddAccountContactRqst.accountId)
+  return _internal_mutable_accountid();
+}
+inline const std::string& AddAccountContactRqst::_internal_accountid() const {
+  return accountid_.Get();
+}
+inline void AddAccountContactRqst::_internal_set_accountid(const std::string& value) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddAccountContactRqst::set_accountid(std::string&& value) {
+  
+  accountid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddAccountContactRqst.accountId)
+}
+inline void AddAccountContactRqst::set_accountid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddAccountContactRqst.accountId)
+}
+inline void AddAccountContactRqst::set_accountid(const char* value,
+    size_t size) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddAccountContactRqst.accountId)
+}
+inline std::string* AddAccountContactRqst::_internal_mutable_accountid() {
+  
+  return accountid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddAccountContactRqst::release_accountid() {
+  // @@protoc_insertion_point(field_release:resource.AddAccountContactRqst.accountId)
+  return accountid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddAccountContactRqst::set_allocated_accountid(std::string* accountid) {
+  if (accountid != nullptr) {
+    
+  } else {
+    
+  }
+  accountid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), accountid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddAccountContactRqst.accountId)
+}
+
+// string contactId = 2;
+inline void AddAccountContactRqst::clear_contactid() {
+  contactid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& AddAccountContactRqst::contactid() const {
+  // @@protoc_insertion_point(field_get:resource.AddAccountContactRqst.contactId)
+  return _internal_contactid();
+}
+inline void AddAccountContactRqst::set_contactid(const std::string& value) {
+  _internal_set_contactid(value);
+  // @@protoc_insertion_point(field_set:resource.AddAccountContactRqst.contactId)
+}
+inline std::string* AddAccountContactRqst::mutable_contactid() {
+  // @@protoc_insertion_point(field_mutable:resource.AddAccountContactRqst.contactId)
+  return _internal_mutable_contactid();
+}
+inline const std::string& AddAccountContactRqst::_internal_contactid() const {
+  return contactid_.Get();
+}
+inline void AddAccountContactRqst::_internal_set_contactid(const std::string& value) {
+  
+  contactid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void AddAccountContactRqst::set_contactid(std::string&& value) {
+  
+  contactid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.AddAccountContactRqst.contactId)
+}
+inline void AddAccountContactRqst::set_contactid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  contactid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.AddAccountContactRqst.contactId)
+}
+inline void AddAccountContactRqst::set_contactid(const char* value,
+    size_t size) {
+  
+  contactid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.AddAccountContactRqst.contactId)
+}
+inline std::string* AddAccountContactRqst::_internal_mutable_contactid() {
+  
+  return contactid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* AddAccountContactRqst::release_contactid() {
+  // @@protoc_insertion_point(field_release:resource.AddAccountContactRqst.contactId)
+  return contactid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void AddAccountContactRqst::set_allocated_contactid(std::string* contactid) {
+  if (contactid != nullptr) {
+    
+  } else {
+    
+  }
+  contactid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), contactid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.AddAccountContactRqst.contactId)
+}
+
+// -------------------------------------------------------------------
+
+// AddAccountContactRsp
+
+// bool result = 1;
+inline void AddAccountContactRsp::clear_result() {
+  result_ = false;
+}
+inline bool AddAccountContactRsp::_internal_result() const {
+  return result_;
+}
+inline bool AddAccountContactRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.AddAccountContactRsp.result)
+  return _internal_result();
+}
+inline void AddAccountContactRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void AddAccountContactRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.AddAccountContactRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveAccountContactRqst
+
+// string accountId = 1;
+inline void RemoveAccountContactRqst::clear_accountid() {
+  accountid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveAccountContactRqst::accountid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveAccountContactRqst.accountId)
+  return _internal_accountid();
+}
+inline void RemoveAccountContactRqst::set_accountid(const std::string& value) {
+  _internal_set_accountid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveAccountContactRqst.accountId)
+}
+inline std::string* RemoveAccountContactRqst::mutable_accountid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveAccountContactRqst.accountId)
+  return _internal_mutable_accountid();
+}
+inline const std::string& RemoveAccountContactRqst::_internal_accountid() const {
+  return accountid_.Get();
+}
+inline void RemoveAccountContactRqst::_internal_set_accountid(const std::string& value) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveAccountContactRqst::set_accountid(std::string&& value) {
+  
+  accountid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveAccountContactRqst.accountId)
+}
+inline void RemoveAccountContactRqst::set_accountid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveAccountContactRqst.accountId)
+}
+inline void RemoveAccountContactRqst::set_accountid(const char* value,
+    size_t size) {
+  
+  accountid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveAccountContactRqst.accountId)
+}
+inline std::string* RemoveAccountContactRqst::_internal_mutable_accountid() {
+  
+  return accountid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveAccountContactRqst::release_accountid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveAccountContactRqst.accountId)
+  return accountid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveAccountContactRqst::set_allocated_accountid(std::string* accountid) {
+  if (accountid != nullptr) {
+    
+  } else {
+    
+  }
+  accountid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), accountid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveAccountContactRqst.accountId)
+}
+
+// string contactId = 2;
+inline void RemoveAccountContactRqst::clear_contactid() {
+  contactid_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RemoveAccountContactRqst::contactid() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveAccountContactRqst.contactId)
+  return _internal_contactid();
+}
+inline void RemoveAccountContactRqst::set_contactid(const std::string& value) {
+  _internal_set_contactid(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveAccountContactRqst.contactId)
+}
+inline std::string* RemoveAccountContactRqst::mutable_contactid() {
+  // @@protoc_insertion_point(field_mutable:resource.RemoveAccountContactRqst.contactId)
+  return _internal_mutable_contactid();
+}
+inline const std::string& RemoveAccountContactRqst::_internal_contactid() const {
+  return contactid_.Get();
+}
+inline void RemoveAccountContactRqst::_internal_set_contactid(const std::string& value) {
+  
+  contactid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RemoveAccountContactRqst::set_contactid(std::string&& value) {
+  
+  contactid_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RemoveAccountContactRqst.contactId)
+}
+inline void RemoveAccountContactRqst::set_contactid(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  contactid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RemoveAccountContactRqst.contactId)
+}
+inline void RemoveAccountContactRqst::set_contactid(const char* value,
+    size_t size) {
+  
+  contactid_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RemoveAccountContactRqst.contactId)
+}
+inline std::string* RemoveAccountContactRqst::_internal_mutable_contactid() {
+  
+  return contactid_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RemoveAccountContactRqst::release_contactid() {
+  // @@protoc_insertion_point(field_release:resource.RemoveAccountContactRqst.contactId)
+  return contactid_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RemoveAccountContactRqst::set_allocated_contactid(std::string* contactid) {
+  if (contactid != nullptr) {
+    
+  } else {
+    
+  }
+  contactid_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), contactid,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RemoveAccountContactRqst.contactId)
+}
+
+// -------------------------------------------------------------------
+
+// RemoveAccountContactRsp
+
+// bool result = 1;
+inline void RemoveAccountContactRsp::clear_result() {
+  result_ = false;
+}
+inline bool RemoveAccountContactRsp::_internal_result() const {
+  return result_;
+}
+inline bool RemoveAccountContactRsp::result() const {
+  // @@protoc_insertion_point(field_get:resource.RemoveAccountContactRsp.result)
+  return _internal_result();
+}
+inline void RemoveAccountContactRsp::_internal_set_result(bool value) {
+  
+  result_ = value;
+}
+inline void RemoveAccountContactRsp::set_result(bool value) {
+  _internal_set_result(value);
+  // @@protoc_insertion_point(field_set:resource.RemoveAccountContactRsp.result)
+}
+
+// -------------------------------------------------------------------
+
 // CreateRoleRqst
 
 // .resource.Role role = 1;
@@ -16065,6 +18182,115 @@ inline void CreateRoleRsp::_internal_set_result(bool value) {
 inline void CreateRoleRsp::set_result(bool value) {
   _internal_set_result(value);
   // @@protoc_insertion_point(field_set:resource.CreateRoleRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// GetRolesRqst
+
+// string query = 1;
+inline void GetRolesRqst::clear_query() {
+  query_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& GetRolesRqst::query() const {
+  // @@protoc_insertion_point(field_get:resource.GetRolesRqst.query)
+  return _internal_query();
+}
+inline void GetRolesRqst::set_query(const std::string& value) {
+  _internal_set_query(value);
+  // @@protoc_insertion_point(field_set:resource.GetRolesRqst.query)
+}
+inline std::string* GetRolesRqst::mutable_query() {
+  // @@protoc_insertion_point(field_mutable:resource.GetRolesRqst.query)
+  return _internal_mutable_query();
+}
+inline const std::string& GetRolesRqst::_internal_query() const {
+  return query_.Get();
+}
+inline void GetRolesRqst::_internal_set_query(const std::string& value) {
+  
+  query_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void GetRolesRqst::set_query(std::string&& value) {
+  
+  query_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.GetRolesRqst.query)
+}
+inline void GetRolesRqst::set_query(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  query_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.GetRolesRqst.query)
+}
+inline void GetRolesRqst::set_query(const char* value,
+    size_t size) {
+  
+  query_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.GetRolesRqst.query)
+}
+inline std::string* GetRolesRqst::_internal_mutable_query() {
+  
+  return query_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* GetRolesRqst::release_query() {
+  // @@protoc_insertion_point(field_release:resource.GetRolesRqst.query)
+  return query_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void GetRolesRqst::set_allocated_query(std::string* query) {
+  if (query != nullptr) {
+    
+  } else {
+    
+  }
+  query_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), query,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.GetRolesRqst.query)
+}
+
+// -------------------------------------------------------------------
+
+// GetRolesRsp
+
+// repeated .resource.Role roles = 1;
+inline int GetRolesRsp::_internal_roles_size() const {
+  return roles_.size();
+}
+inline int GetRolesRsp::roles_size() const {
+  return _internal_roles_size();
+}
+inline void GetRolesRsp::clear_roles() {
+  roles_.Clear();
+}
+inline ::resource::Role* GetRolesRsp::mutable_roles(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.GetRolesRsp.roles)
+  return roles_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Role >*
+GetRolesRsp::mutable_roles() {
+  // @@protoc_insertion_point(field_mutable_list:resource.GetRolesRsp.roles)
+  return &roles_;
+}
+inline const ::resource::Role& GetRolesRsp::_internal_roles(int index) const {
+  return roles_.Get(index);
+}
+inline const ::resource::Role& GetRolesRsp::roles(int index) const {
+  // @@protoc_insertion_point(field_get:resource.GetRolesRsp.roles)
+  return _internal_roles(index);
+}
+inline ::resource::Role* GetRolesRsp::_internal_add_roles() {
+  return roles_.Add();
+}
+inline ::resource::Role* GetRolesRsp::add_roles() {
+  // @@protoc_insertion_point(field_add:resource.GetRolesRsp.roles)
+  return _internal_add_roles();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Role >&
+GetRolesRsp::roles() const {
+  // @@protoc_insertion_point(field_list:resource.GetRolesRsp.roles)
+  return roles_;
 }
 
 // -------------------------------------------------------------------
@@ -16255,66 +18481,40 @@ inline void DeleteApplicationRsp::set_result(bool value) {
 
 // GetAllApplicationsInfoRsp
 
-// string result = 1;
-inline void GetAllApplicationsInfoRsp::clear_result() {
-  result_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+// repeated .google.protobuf.Struct applications = 1;
+inline int GetAllApplicationsInfoRsp::_internal_applications_size() const {
+  return applications_.size();
 }
-inline const std::string& GetAllApplicationsInfoRsp::result() const {
-  // @@protoc_insertion_point(field_get:resource.GetAllApplicationsInfoRsp.result)
-  return _internal_result();
+inline int GetAllApplicationsInfoRsp::applications_size() const {
+  return _internal_applications_size();
 }
-inline void GetAllApplicationsInfoRsp::set_result(const std::string& value) {
-  _internal_set_result(value);
-  // @@protoc_insertion_point(field_set:resource.GetAllApplicationsInfoRsp.result)
+inline PROTOBUF_NAMESPACE_ID::Struct* GetAllApplicationsInfoRsp::mutable_applications(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.GetAllApplicationsInfoRsp.applications)
+  return applications_.Mutable(index);
 }
-inline std::string* GetAllApplicationsInfoRsp::mutable_result() {
-  // @@protoc_insertion_point(field_mutable:resource.GetAllApplicationsInfoRsp.result)
-  return _internal_mutable_result();
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >*
+GetAllApplicationsInfoRsp::mutable_applications() {
+  // @@protoc_insertion_point(field_mutable_list:resource.GetAllApplicationsInfoRsp.applications)
+  return &applications_;
 }
-inline const std::string& GetAllApplicationsInfoRsp::_internal_result() const {
-  return result_.Get();
+inline const PROTOBUF_NAMESPACE_ID::Struct& GetAllApplicationsInfoRsp::_internal_applications(int index) const {
+  return applications_.Get(index);
 }
-inline void GetAllApplicationsInfoRsp::_internal_set_result(const std::string& value) {
-  
-  result_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+inline const PROTOBUF_NAMESPACE_ID::Struct& GetAllApplicationsInfoRsp::applications(int index) const {
+  // @@protoc_insertion_point(field_get:resource.GetAllApplicationsInfoRsp.applications)
+  return _internal_applications(index);
 }
-inline void GetAllApplicationsInfoRsp::set_result(std::string&& value) {
-  
-  result_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.GetAllApplicationsInfoRsp.result)
+inline PROTOBUF_NAMESPACE_ID::Struct* GetAllApplicationsInfoRsp::_internal_add_applications() {
+  return applications_.Add();
 }
-inline void GetAllApplicationsInfoRsp::set_result(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  
-  result_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.GetAllApplicationsInfoRsp.result)
+inline PROTOBUF_NAMESPACE_ID::Struct* GetAllApplicationsInfoRsp::add_applications() {
+  // @@protoc_insertion_point(field_add:resource.GetAllApplicationsInfoRsp.applications)
+  return _internal_add_applications();
 }
-inline void GetAllApplicationsInfoRsp::set_result(const char* value,
-    size_t size) {
-  
-  result_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.GetAllApplicationsInfoRsp.result)
-}
-inline std::string* GetAllApplicationsInfoRsp::_internal_mutable_result() {
-  
-  return result_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* GetAllApplicationsInfoRsp::release_result() {
-  // @@protoc_insertion_point(field_release:resource.GetAllApplicationsInfoRsp.result)
-  return result_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void GetAllApplicationsInfoRsp::set_allocated_result(std::string* result) {
-  if (result != nullptr) {
-    
-  } else {
-    
-  }
-  result_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), result,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.GetAllApplicationsInfoRsp.result)
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >&
+GetAllApplicationsInfoRsp::applications() const {
+  // @@protoc_insertion_point(field_list:resource.GetAllApplicationsInfoRsp.applications)
+  return applications_;
 }
 
 // -------------------------------------------------------------------
@@ -16405,6 +18605,115 @@ inline void AccountExistRsp::_internal_set_result(bool value) {
 inline void AccountExistRsp::set_result(bool value) {
   _internal_set_result(value);
   // @@protoc_insertion_point(field_set:resource.AccountExistRsp.result)
+}
+
+// -------------------------------------------------------------------
+
+// GetAccountsRqst
+
+// string query = 1;
+inline void GetAccountsRqst::clear_query() {
+  query_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& GetAccountsRqst::query() const {
+  // @@protoc_insertion_point(field_get:resource.GetAccountsRqst.query)
+  return _internal_query();
+}
+inline void GetAccountsRqst::set_query(const std::string& value) {
+  _internal_set_query(value);
+  // @@protoc_insertion_point(field_set:resource.GetAccountsRqst.query)
+}
+inline std::string* GetAccountsRqst::mutable_query() {
+  // @@protoc_insertion_point(field_mutable:resource.GetAccountsRqst.query)
+  return _internal_mutable_query();
+}
+inline const std::string& GetAccountsRqst::_internal_query() const {
+  return query_.Get();
+}
+inline void GetAccountsRqst::_internal_set_query(const std::string& value) {
+  
+  query_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void GetAccountsRqst::set_query(std::string&& value) {
+  
+  query_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.GetAccountsRqst.query)
+}
+inline void GetAccountsRqst::set_query(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  query_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.GetAccountsRqst.query)
+}
+inline void GetAccountsRqst::set_query(const char* value,
+    size_t size) {
+  
+  query_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.GetAccountsRqst.query)
+}
+inline std::string* GetAccountsRqst::_internal_mutable_query() {
+  
+  return query_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* GetAccountsRqst::release_query() {
+  // @@protoc_insertion_point(field_release:resource.GetAccountsRqst.query)
+  return query_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void GetAccountsRqst::set_allocated_query(std::string* query) {
+  if (query != nullptr) {
+    
+  } else {
+    
+  }
+  query_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), query,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.GetAccountsRqst.query)
+}
+
+// -------------------------------------------------------------------
+
+// GetAccountsRsp
+
+// repeated .resource.Account accounts = 1;
+inline int GetAccountsRsp::_internal_accounts_size() const {
+  return accounts_.size();
+}
+inline int GetAccountsRsp::accounts_size() const {
+  return _internal_accounts_size();
+}
+inline void GetAccountsRsp::clear_accounts() {
+  accounts_.Clear();
+}
+inline ::resource::Account* GetAccountsRsp::mutable_accounts(int index) {
+  // @@protoc_insertion_point(field_mutable:resource.GetAccountsRsp.accounts)
+  return accounts_.Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Account >*
+GetAccountsRsp::mutable_accounts() {
+  // @@protoc_insertion_point(field_mutable_list:resource.GetAccountsRsp.accounts)
+  return &accounts_;
+}
+inline const ::resource::Account& GetAccountsRsp::_internal_accounts(int index) const {
+  return accounts_.Get(index);
+}
+inline const ::resource::Account& GetAccountsRsp::accounts(int index) const {
+  // @@protoc_insertion_point(field_get:resource.GetAccountsRsp.accounts)
+  return _internal_accounts(index);
+}
+inline ::resource::Account* GetAccountsRsp::_internal_add_accounts() {
+  return accounts_.Add();
+}
+inline ::resource::Account* GetAccountsRsp::add_accounts() {
+  // @@protoc_insertion_point(field_add:resource.GetAccountsRsp.accounts)
+  return _internal_add_accounts();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::resource::Account >&
+GetAccountsRsp::accounts() const {
+  // @@protoc_insertion_point(field_list:resource.GetAccountsRsp.accounts)
+  return accounts_;
 }
 
 // -------------------------------------------------------------------
@@ -20595,6 +22904,22 @@ inline void RemoveOrganizationAccountRsp::set_result(bool value) {
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------

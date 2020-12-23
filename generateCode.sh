@@ -10,7 +10,6 @@ protoc proto/resource.proto --go-grpc_out=require_unimplemented_servers=false:./
 protoc proto/rbac.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/log.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/ca.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/lb.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/services.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/dns.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/echo.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
@@ -23,12 +22,10 @@ protoc proto/ldap.proto --go-grpc_out=require_unimplemented_servers=false:./gola
 protoc proto/mail.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/persistence.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/monitoring.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/plc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/spc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/catalog.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/plc_link.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/postprocessor.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-
+protoc proto/plc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 # TypeScript grpc files generation.
 mkdir typescript\admin
