@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+
 	"path/filepath"
 	"strings"
 
@@ -500,8 +501,19 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	rqst.Domain = domain
 	rqst.Organization = organization
 
-	Utility.CreateDirIfNotExist(Utility.GenerateUUID(name))
-	Utility.CopyDirContent(path, Utility.GenerateUUID(name))
+	name_ := Utility.GenerateUUID(name)
+	Utility.CreateDirIfNotExist(name_)
+	Utility.CopyDirContent(path, name_)
+
+	// Now I will open the data and create a archive from it.
+	var buffer bytes.Buffer
+	err := Utility.CompressDir("", name_, &buffer)
+	if err != nil {
+		return -1, err
+	}
+
+	// remove the dir and keep the archive in memory
+	defer os.RemoveAll(name_)
 
 	// From the path I will get try to find the package.json file and get information from it...
 	absolutePath, err := filepath.Abs(path)
@@ -521,26 +533,17 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	}
 
 	packageConfig := make(map[string]interface{})
+
 	data, _ := ioutil.ReadFile(absolutePath)
 	err = json.Unmarshal(data, &packageConfig)
 	if err != nil {
 		return -1, err
 	}
 
-	log.Println(packageConfig)
-
-	// Now I will open the data and create a archive from it.
-	var buffer bytes.Buffer
-	err = Utility.CompressDir("", Utility.GenerateUUID(name), &buffer)
-	if err != nil {
-		return -1, err
-	}
-
-	// remove the dir and keep the archive in memory
-	os.RemoveAll(Utility.GenerateUUID(name))
+	log.Println(packageConfig["description"])
 
 	// Set the token into the context and send the request.
-	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "path": "/applications", "user": user})
+	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "organization": organization, "path": "/applications", "user": user})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	// Open the stream...
@@ -557,9 +560,10 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 		bytesread, err := buffer.Read(data[0:BufferSize])
 		if bytesread > 0 {
 			rqst := &adminpb.DeployApplicationRequest{
-				Data:   data[0:bytesread],
-				Name:   name,
-				Domain: domain,
+				Data:         data[0:bytesread],
+				Name:         name,
+				Domain:       domain,
+				Organization: organization,
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)
@@ -577,11 +581,9 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	}
 
 	_, err = stream.CloseAndRecv()
-	if err != nil {
-		os.RemoveAll(Utility.GenerateUUID(name))
+	if err != nil && err != io.EOF {
 		return -1, err
 	}
 
 	return size, nil
-
 }

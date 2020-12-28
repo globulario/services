@@ -75,6 +75,86 @@ proto.admin.AdminServicePromiseClient =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.InstallCertificatesRequest,
+ *   !proto.admin.InstallCertificatesResponse>}
+ */
+const methodDescriptor_AdminService_InstallCertificates = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/InstallCertificates',
+  grpc.web.MethodType.UNARY,
+  proto.admin.InstallCertificatesRequest,
+  proto.admin.InstallCertificatesResponse,
+  /**
+   * @param {!proto.admin.InstallCertificatesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.InstallCertificatesResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.InstallCertificatesRequest,
+ *   !proto.admin.InstallCertificatesResponse>}
+ */
+const methodInfo_AdminService_InstallCertificates = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.InstallCertificatesResponse,
+  /**
+   * @param {!proto.admin.InstallCertificatesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.InstallCertificatesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.InstallCertificatesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.InstallCertificatesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.InstallCertificatesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.installCertificates =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/InstallCertificates',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_InstallCertificates,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.InstallCertificatesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.InstallCertificatesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.installCertificates =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/InstallCertificates',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_InstallCertificates);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.admin.SetRootPasswordRequest,
  *   !proto.admin.SetRootPasswordResponse>}
  */

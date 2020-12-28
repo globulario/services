@@ -16,6 +16,7 @@ import { PlcServicePromiseClient } from './plc/plc_grpc_web_pb';
 import { AdminServicePromiseClient } from './admin/admin_grpc_web_pb';
 import { ResourceServicePromiseClient } from './resource/resource_grpc_web_pb';
 import { LogServicePromiseClient } from './log/log_grpc_web_pb';
+import { LoadBalancingServiceClient, LoadBalancingServicePromiseClient } from './lb/lb_grpc_web_pb';
 
 import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from './services/services_grpc_web_pb';
 import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
@@ -65,6 +66,8 @@ export interface IConfig {
   AdminPort: number;
   AdminProxy: number;
   LogProxy: number;
+  LoadBalancingPort: number;
+  LoadBalancingProxy: number;
   AdminEmail: string;
   ResourcePort: number;
   ResourceProxy: number;
@@ -371,6 +374,19 @@ export class Globular {
       );
     }
     return this._logService;
+  }
+
+  private _loadBalancingService: LoadBalancingServiceClient
+  public get loadBalancingService(): LoadBalancingServiceClient | undefined {
+    // refresh the config.
+    if (this._logService == null) {
+      this._loadBalancingService = new LoadBalancingServiceClient(
+        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.LoadBalancingProxy,
+        null,
+        null,
+      );
+    }
+    return this._loadBalancingService;
   }
 
   private _packagesDicovery: PackageDiscoveryPromiseClient

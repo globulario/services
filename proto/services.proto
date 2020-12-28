@@ -6,6 +6,7 @@ package services;
 
 option go_package="services/servicespb";
 
+
 enum PackageType {
 	SERVICE = 0;
 	APPLICATION = 1;

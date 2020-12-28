@@ -9,6 +9,7 @@ protoc proto/admin.proto --go-grpc_out=require_unimplemented_servers=false:./gol
 protoc proto/resource.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/rbac.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/log.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/lb.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/ca.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/services.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/dns.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
@@ -28,7 +29,7 @@ protoc proto/plc_link.proto --go-grpc_out=require_unimplemented_servers=false:./
 protoc proto/plc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 # TypeScript grpc files generation.
-mkdir typescript\admin
+mkdir typescript/admin
 protoc --js_out=import_style=commonjs:typescript/admin  -I ./proto/ admin.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/admin -I ./proto/ admin.proto
 mkdir typescript/resource
@@ -40,6 +41,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/ca -
 mkdir typescript/services
 protoc --js_out=import_style=commonjs:typescript/services  -I ./proto/ services.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/services -I ./proto/ services.proto
+mkdir typescript/lb
+protoc --js_out=import_style=commonjs:typescript/lb  -I ./proto/ lb.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/lb -I ./proto/ lb.proto
 mkdir typescript/echo
 protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ echo.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ echo.proto

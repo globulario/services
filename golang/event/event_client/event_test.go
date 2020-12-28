@@ -29,7 +29,7 @@ func subscribeTo(client *Event_Client, subject string) string {
  */
 func TestEventService(t *testing.T) {
 	log.Println("Test event service")
-	domain := "hub.globular.io"
+	domain := "globular.live"
 
 	// The topic.
 	subject := "my topic"

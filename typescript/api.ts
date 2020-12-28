@@ -27,8 +27,8 @@ import {
   Account,
   GetAllActionsRqst,
   GetAllActionsRsp,
-  AddRoleActionRqst,
-  AddRoleActionRsp,
+  AddRoleActionsRqst,
+  AddRoleActionsRsp,
   RemoveRoleActionRqst,
   CreateRoleRqst,
   Role,
@@ -38,8 +38,8 @@ import {
   RefreshTokenRsp,
   GetAllApplicationsInfoRqst,
   GetAllApplicationsInfoRsp,
-  AddApplicationActionRqst,
-  AddApplicationActionRsp,
+  AddApplicationActionsRqst,
+  AddApplicationActionsRsp,
   RemoveApplicationActionRqst,
   DeleteApplicationRqst,
   DeleteAccountRqst,
@@ -53,11 +53,16 @@ import {
   GetPeersRqst,
   GetPeersRsp,
   Peer,
-  AddPeerActionRqst,
-  AddPeerActionRsp,
+  AddPeerActionsRqst,
+  AddPeerActionsRsp,
   RemovePeerActionRqst,
   DeletePeerRqst,
   RegisterPeerRqst,
+  RemoveAccountRoleRsp,
+  RemoveApplicationActionRsp,
+  DeleteApplicationRsp,
+  RemovePeerActionRsp,
+  DeletePeerRsp,
 } from "./resource/resource_pb";
 
 import {
@@ -1396,21 +1401,21 @@ export function getAllRoles(
 export function appendActionToRole(
   globular: Globular,
   role: string,
-  action: string,
+  actions: Array<string>,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new AddRoleActionRqst();
+  const rqst = new AddRoleActionsRqst();
   rqst.setRoleid(role);
-  rqst.setAction(action);
+  rqst.setActionsList(actions);
 
   globular.resourceService
-    .addRoleAction(rqst, {
+    .addRoleActions(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
     })
-    .then((rsp: AddRoleActionRsp) => {
+    .then((rsp: AddRoleActionsRsp) => {
       callback();
     })
     .catch((err: any) => {
@@ -1442,7 +1447,7 @@ export function removeActionFromRole(
       application: application,
       domain: domain,
     })
-    .then((rsp: AddRoleActionRsp) => {
+    .then((rsp: RemoveAccountRoleRsp) => {
       callback();
     })
     .catch((err: any) => {
@@ -1536,7 +1541,7 @@ export function getAllApplicationsInfo(
   globular.resourceService
     .getAllApplicationsInfo(rqst)
     .then((rsp: GetAllApplicationsInfoRsp) => {
-      const infos = JSON.parse(rsp.getResult());
+      const infos =  rsp.getApplicationsList();
       callback(infos);
     })
     .catch((err: any) => {
@@ -1557,20 +1562,20 @@ export function getAllApplicationsInfo(
 export function appendActionToApplication(
   globular: Globular,
   applicationId: string,
-  action: string,
+  actions: Array<string>,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new AddApplicationActionRqst();
+  const rqst = new AddApplicationActionsRqst();
   rqst.setApplicationid(applicationId);
-  rqst.setAction(action);
+  rqst.setActionsList(actions);
   globular.resourceService
-    .addApplicationAction(rqst, {
+    .addApplicationActions(rqst, {
       token: getToken(),
       application: application,
       domain: domain,
     })
-    .then((rsp: AddApplicationActionRsp) => {
+    .then((rsp: AddApplicationActionsRsp) => {
       callback();
     })
     .catch((err: any) => {
@@ -1602,7 +1607,7 @@ export function removeActionFromApplication(
       application: application,
       domain: domain,
     })
-    .then((rsp: AddApplicationActionRsp) => {
+    .then((rsp: RemoveApplicationActionRsp) => {
       callback();
     })
     .catch((err: any) => {
@@ -1633,7 +1638,7 @@ export function deleteApplication(
       application: application,
       domain: domain,
     })
-    .then((rsp: AddApplicationActionRsp) => {
+    .then((rsp: DeleteApplicationRsp) => {
       callback();
     })
     .catch((err: any) => {
@@ -2539,20 +2544,20 @@ export function getAllPeersInfo(
 export function appendActionToPeer(
   globular: Globular,
   domain: string,
-  action: string,
+  actions: Array<string>,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
-  let rqst = new AddPeerActionRqst();
+  let rqst = new AddPeerActionsRqst();
   rqst.setDomain(domain);
-  rqst.setAction(action);
+  rqst.setActionsList(actions);
   globular.resourceService
-    .addPeerAction(rqst, {
+    .addPeerActions(rqst, {
       token: localStorage.getItem("user_token"),
       application: application,
       domain: domain,
     })
-    .then((rsp: AddPeerActionRsp) => {
+    .then((rsp: AddPeerActionsRsp) => {
       callback();
     })
     .catch((err: any) => {
@@ -2577,7 +2582,7 @@ export function removeActionFromPeer(
       application: application,
       domain: domain,
     })
-    .then((rsp: AddApplicationActionRsp) => {
+    .then((rsp: RemovePeerActionRsp) => {
       callback();
     })
     .catch((err: any) => {
@@ -2600,7 +2605,7 @@ export function deletePeer(
       application: application,
       domain: domain,
     })
-    .then((rsp: AddApplicationActionRsp) => {
+    .then((rsp: DeletePeerRsp) => {
       callback();
     })
     .catch((err: any) => {
