@@ -137,7 +137,8 @@ message InstallServiceRequest{
 	string dicorveryId = 1;
 	string serviceId = 2;
 	string publisherId = 3;
-	string version = 4;
+	string organization = 4;
+	string version = 5;
 }
 
 message InstallServiceResponse{
@@ -159,7 +160,8 @@ message InstallApplicationRequest{
 	string dicorveryId = 1;
 	string applicationId = 2;
 	string publisherId = 3;
-	string version = 4;
+	string organization = 4;
+	string version = 5;
 }
 
 message InstallApplicationResponse{
@@ -169,7 +171,8 @@ message InstallApplicationResponse{
 message UninstallApplicationRequest{
 	string applicationId = 1;
 	string publisherId = 2;
-	string version = 3;
+	string organization = 3;
+	string version = 5;
 	bool deletePermissions = 4;
 }
 
@@ -191,11 +194,14 @@ message DeployApplicationRequest{
 	string name = 1;
 	string domain = 2;
 	bytes data = 3;
-	string organization = 4;
-	string version = 5;
-	repeated string keywords = 6;
-	string description = 7;
-	repeated MicroService microServices = 8;	
+	string user = 4;
+	string organization = 5;
+	string version = 6;
+	repeated string keywords = 7;
+	string description = 8;
+	repeated MicroService microServices = 9;
+	string repository = 10;
+	string discovery = 11;
 }
 
 message DeployApplicationResponse{

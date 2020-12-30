@@ -2,14 +2,15 @@ package service_client
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
 	"strconv"
 
-	"context"
-
+	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/services/servicespb"
 	"google.golang.org/grpc"
@@ -179,10 +180,11 @@ func (self *PackagesDiscovery_Client) FindServices(keywords []string) ([]*servic
 /**
  * Get list of service descriptor for one service with  various version.
  */
-func (self *PackagesDiscovery_Client) GetPackageDescriptor(service_id string, publisher_id string) ([]*servicespb.PackageDescriptor, error) {
+func (self *PackagesDiscovery_Client) GetPackageDescriptor(service_id string, publisher_id string, organization string) ([]*servicespb.PackageDescriptor, error) {
 	rqst := &servicespb.GetPackageDescriptorRequest{
-		ServiceId:   service_id,
-		PublisherId: publisher_id,
+		ServiceId:    service_id,
+		PublisherId:  publisher_id,
+		Organization: organization,
 	}
 
 	rsp, err := self.c.GetPackageDescriptor(globular.GetClientContext(self), rqst)
@@ -428,8 +430,8 @@ func (self *ServicesRepository_Client) DownloadBundle(descriptor *servicespb.Pac
 /**
  * Upload a service bundle.
  */
-func (self *ServicesRepository_Client) UploadBundle(discoveryId string, serviceId string, publisherId string, platform string, packagePath string) error {
-
+func (self *ServicesRepository_Client) UploadBundle(discoveryId, serviceId, publisherId, organization, platform, packagePath string) error {
+	log.Println("Upload package ", packagePath)
 	// The service bundle...
 	bundle := new(servicespb.ServiceBundle)
 	bundle.Plaform = platform
@@ -440,12 +442,15 @@ func (self *ServicesRepository_Client) UploadBundle(discoveryId string, serviceI
 		return err
 	}
 
-	descriptors, err := discoveryService.GetPackageDescriptor(serviceId, publisherId)
+	descriptors, err := discoveryService.GetPackageDescriptor(serviceId, publisherId, organization)
 	if err != nil {
 		return err
 	}
 
 	bundle.Descriptor_ = descriptors[0]
+	if !Utility.Exists(packagePath) {
+		return errors.New("No package found at path " + packagePath)
+	}
 
 	/*bundle.Binairies*/
 	data, err := ioutil.ReadFile(packagePath)
@@ -464,7 +469,7 @@ func (self *ServicesRepository_Client) uploadBundle(bundle *servicespb.ServiceBu
 	// Open the stream...
 	stream, err := self.c.UploadBundle(globular.GetClientContext(self))
 	if err != nil {
-		log.Fatalf("error while TestSendEmailWithAttachements: %v", err)
+		return err
 	}
 
 	const BufferSize = 1024 * 5 // the chunck size.
@@ -494,11 +499,7 @@ func (self *ServicesRepository_Client) uploadBundle(bundle *servicespb.ServiceBu
 		}
 	}
 
-	_, err = stream.CloseAndRecv()
-	if err != nil {
-		return err
-	}
-
+	stream.CloseAndRecv()
 	return nil
 
 }

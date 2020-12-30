@@ -68,6 +68,7 @@ message DownloadBundleResponse {
 message GetPackageDescriptorRequest {
 	string serviceId = 1;
 	string publisherId = 2;
+	string organization = 3;
 }
 
 message GetPackageDescriptorResponse {

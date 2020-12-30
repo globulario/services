@@ -6676,7 +6676,7 @@ proto.admin.MicroService.prototype.clearActionsList = function() {
  * @private {!Array<number>}
  * @const
  */
-proto.admin.DeployApplicationRequest.repeatedFields_ = [6,8];
+proto.admin.DeployApplicationRequest.repeatedFields_ = [7,9];
 
 
 
@@ -6712,10 +6712,11 @@ proto.admin.DeployApplicationRequest.toObject = function(includeInstance, msg) {
     name: jspb.Message.getFieldWithDefault(msg, 1, ""),
     domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
     data: msg.getData_asB64(),
-    organization: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    description: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    user: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    organization: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    version: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+    description: jspb.Message.getFieldWithDefault(msg, 8, ""),
     microservicesList: jspb.Message.toObjectList(msg.getMicroservicesList(),
     proto.admin.MicroService.toObject, includeInstance)
   };
@@ -6768,21 +6769,25 @@ proto.admin.DeployApplicationRequest.deserializeBinaryFromReader = function(msg,
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setOrganization(value);
+      msg.setUser(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setVersion(value);
+      msg.setOrganization(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.addKeywords(value);
+      msg.setVersion(value);
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.addKeywords(value);
       break;
     case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDescription(value);
+      break;
+    case 9:
       var value = new proto.admin.MicroService;
       reader.readMessage(value,proto.admin.MicroService.deserializeBinaryFromReader);
       msg.addMicroservices(value);
@@ -6837,38 +6842,45 @@ proto.admin.DeployApplicationRequest.serializeBinaryToWriter = function(message,
       f
     );
   }
-  f = message.getOrganization();
+  f = message.getUser();
   if (f.length > 0) {
     writer.writeString(
       4,
       f
     );
   }
-  f = message.getVersion();
+  f = message.getOrganization();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
+  f = message.getVersion();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
   f = message.getKeywordsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      6,
+      7,
       f
     );
   }
   f = message.getDescription();
   if (f.length > 0) {
     writer.writeString(
-      7,
+      8,
       f
     );
   }
   f = message.getMicroservicesList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      8,
+      9,
       f,
       proto.admin.MicroService.serializeBinaryToWriter
     );
@@ -6955,10 +6967,10 @@ proto.admin.DeployApplicationRequest.prototype.setData = function(value) {
 
 
 /**
- * optional string organization = 4;
+ * optional string user = 4;
  * @return {string}
  */
-proto.admin.DeployApplicationRequest.prototype.getOrganization = function() {
+proto.admin.DeployApplicationRequest.prototype.getUser = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -6967,16 +6979,16 @@ proto.admin.DeployApplicationRequest.prototype.getOrganization = function() {
  * @param {string} value
  * @return {!proto.admin.DeployApplicationRequest} returns this
  */
-proto.admin.DeployApplicationRequest.prototype.setOrganization = function(value) {
+proto.admin.DeployApplicationRequest.prototype.setUser = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
 /**
- * optional string version = 5;
+ * optional string organization = 5;
  * @return {string}
  */
-proto.admin.DeployApplicationRequest.prototype.getVersion = function() {
+proto.admin.DeployApplicationRequest.prototype.getOrganization = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -6985,17 +6997,35 @@ proto.admin.DeployApplicationRequest.prototype.getVersion = function() {
  * @param {string} value
  * @return {!proto.admin.DeployApplicationRequest} returns this
  */
-proto.admin.DeployApplicationRequest.prototype.setVersion = function(value) {
+proto.admin.DeployApplicationRequest.prototype.setOrganization = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * repeated string keywords = 6;
+ * optional string version = 6;
+ * @return {string}
+ */
+proto.admin.DeployApplicationRequest.prototype.getVersion = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.admin.DeployApplicationRequest} returns this
+ */
+proto.admin.DeployApplicationRequest.prototype.setVersion = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * repeated string keywords = 7;
  * @return {!Array<string>}
  */
 proto.admin.DeployApplicationRequest.prototype.getKeywordsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
 };
 
 
@@ -7004,7 +7034,7 @@ proto.admin.DeployApplicationRequest.prototype.getKeywordsList = function() {
  * @return {!proto.admin.DeployApplicationRequest} returns this
  */
 proto.admin.DeployApplicationRequest.prototype.setKeywordsList = function(value) {
-  return jspb.Message.setField(this, 6, value || []);
+  return jspb.Message.setField(this, 7, value || []);
 };
 
 
@@ -7014,7 +7044,7 @@ proto.admin.DeployApplicationRequest.prototype.setKeywordsList = function(value)
  * @return {!proto.admin.DeployApplicationRequest} returns this
  */
 proto.admin.DeployApplicationRequest.prototype.addKeywords = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
 };
 
 
@@ -7028,11 +7058,11 @@ proto.admin.DeployApplicationRequest.prototype.clearKeywordsList = function() {
 
 
 /**
- * optional string description = 7;
+ * optional string description = 8;
  * @return {string}
  */
 proto.admin.DeployApplicationRequest.prototype.getDescription = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
 };
 
 
@@ -7041,17 +7071,17 @@ proto.admin.DeployApplicationRequest.prototype.getDescription = function() {
  * @return {!proto.admin.DeployApplicationRequest} returns this
  */
 proto.admin.DeployApplicationRequest.prototype.setDescription = function(value) {
-  return jspb.Message.setProto3StringField(this, 7, value);
+  return jspb.Message.setProto3StringField(this, 8, value);
 };
 
 
 /**
- * repeated MicroService microServices = 8;
+ * repeated MicroService microServices = 9;
  * @return {!Array<!proto.admin.MicroService>}
  */
 proto.admin.DeployApplicationRequest.prototype.getMicroservicesList = function() {
   return /** @type{!Array<!proto.admin.MicroService>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.admin.MicroService, 8));
+    jspb.Message.getRepeatedWrapperField(this, proto.admin.MicroService, 9));
 };
 
 
@@ -7060,7 +7090,7 @@ proto.admin.DeployApplicationRequest.prototype.getMicroservicesList = function()
  * @return {!proto.admin.DeployApplicationRequest} returns this
 */
 proto.admin.DeployApplicationRequest.prototype.setMicroservicesList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 8, value);
+  return jspb.Message.setRepeatedWrapperField(this, 9, value);
 };
 
 
@@ -7070,7 +7100,7 @@ proto.admin.DeployApplicationRequest.prototype.setMicroservicesList = function(v
  * @return {!proto.admin.MicroService}
  */
 proto.admin.DeployApplicationRequest.prototype.addMicroservices = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.admin.MicroService, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.admin.MicroService, opt_index);
 };
 
 

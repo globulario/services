@@ -496,11 +496,6 @@ func (self *Admin_Client) InstallCertificates(domain string, port int, path stri
  */
 func (self *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
 
-	rqst := new(adminpb.DeployApplicationRequest)
-	rqst.Name = name
-	rqst.Domain = domain
-	rqst.Organization = organization
-
 	name_ := Utility.GenerateUUID(name)
 	Utility.CreateDirIfNotExist(name_)
 	Utility.CopyDirContent(path, name_)
@@ -540,7 +535,17 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 		return -1, err
 	}
 
-	log.Println(packageConfig["description"])
+	description := packageConfig["description"].(string)
+	version := packageConfig["version"].(string)
+
+	// Set keywords.
+	keywords := make([]string, 0)
+	log.Println("-------------> keywords", packageConfig["keywords"])
+	if packageConfig["keywords"] != nil {
+		for i := 0; i < len(packageConfig["keywords"].([]interface{})); i++ {
+			keywords = append(keywords, packageConfig["keywords"].([]interface{})[i].(string))
+		}
+	}
 
 	// Set the token into the context and send the request.
 	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "organization": organization, "path": "/applications", "user": user})
@@ -564,6 +569,10 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 				Name:         name,
 				Domain:       domain,
 				Organization: organization,
+				User:         user,
+				Version:      version,
+				Description:  description,
+				Keywords:     keywords,
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)

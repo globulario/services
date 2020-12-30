@@ -11,10 +11,11 @@ import (
 	"strconv"
 	"strings"
 
+	"bytes"
+	"fmt"
+	"io"
 	"log"
 	"os"
-
-	"fmt"
 	"os/signal"
 	"time"
 
@@ -176,7 +177,7 @@ func InitService(path string, s Service) error {
 /**
  * Generate the dist path with all necessary info in it.
  */
-func Dist(distPath string, s Service) error {
+func Dist(distPath string, s Service) (string, error) {
 
 	// Create the dist diectories...
 	path := distPath + "/" + s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion() + "/" + s.GetId()
@@ -185,31 +186,70 @@ func Dist(distPath string, s Service) error {
 	// copy the proto file.
 	err := Utility.Copy(s.GetProto(), distPath+"/"+s.GetPublisherId()+"/"+s.GetName()+"/"+s.GetVersion()+"/"+s.GetName()+".proto")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// copy the config file.
 	config_path := s.GetPath()[0:strings.LastIndex(s.GetPath(), "/")] + "/config.json"
 	if !Utility.Exists(config_path) {
-		return errors.New("No config.json file was found for your service, run your service once to generate it configuration and try again.")
+		return "", errors.New("No config.json file was found for your service, run your service once to generate it configuration and try again.")
 	}
 
 	err = Utility.Copy(config_path, path+"/config.json")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	exec_name := s.GetPath()[strings.LastIndex(s.GetPath(), "/")+1:]
 	if !Utility.Exists(config_path) {
-		return errors.New("No config.json file was found for your service, run your service once to generate it configuration and try again.")
+		return "", errors.New("No config.json file was found for your service, run your service once to generate it configuration and try again.")
 	}
 
 	err = Utility.Copy(s.GetPath(), path+"/"+exec_name)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return path, err
+}
+
+/** Create a service package **/
+func CreateServicePackage(s Service, distPath string, platform string) (string, error) {
+
+	// Take the information from the configuration...
+	id := s.GetPublisherId() + "%" + s.GetName() + "%" + s.GetVersion() + "%" + s.GetId() + "%" + platform
+
+	// So here I will create a directory and put file in it...
+	path, err := Dist(distPath, s)
+	if err != nil {
+		return "", err
+	}
+
+	// tar + gzip
+	var buf bytes.Buffer
+	Utility.CompressDir("", path, &buf)
+
+	// write the .tar.gzip
+	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
+	if err != nil {
+		panic(err)
+	}
+
+	if _, err := io.Copy(fileToWrite, &buf); err != nil {
+		panic(err)
+	}
+
+	// close the file.
+	fileToWrite.Close()
+
+	// Remove the dir when the archive is created.
+	err = os.RemoveAll(path)
+
+	if err != nil {
+		return "", err
+	}
+
+	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil
 }
 
 /**

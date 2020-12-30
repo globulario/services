@@ -11,19 +11,21 @@ import (
 
 var (
 	// Connect to the services client.
-	discovery_client, _  = NewPackagesDiscoveryService_Client("localhost", "services.PackageDiscovery")
-	repository_client, _ = NewServicesRepositoryService_Client("localhost", "services.PackageRepository")
+	discovery_client, _  = NewPackagesDiscoveryService_Client("globular.live", "services.PackageDiscovery")
+	repository_client, _ = NewServicesRepositoryService_Client("globular.live", "services.PackageRepository")
 )
 
 // Test publish a service.
 func TestPublishPackageDescriptor(t *testing.T) {
 	s := &servicespb.PackageDescriptor{
-		Id:          "echo_server",
-		PublisherId: "globulario",
-		Version:     "1.0.0",
-		Description: "Simple service with one function named Echo. It's mostly a test service.",
-		Type:        servicespb.PackageType_APPLICATION,
-		Keywords:    []string{"Test", "Echo"},
+		Id:           "echo_server",
+		Name:         "echo_server",
+		Organization: "globulario",
+		PublisherId:  "dave",
+		Version:      "1.0.0",
+		Description:  "Simple service with one function named Echo. It's mostly a test service.",
+		Type:         servicespb.PackageType_APPLICATION,
+		Keywords:     []string{"Test", "Echo"},
 	}
 
 	err := discovery_client.PublishPackageDescriptor(s)
@@ -34,6 +36,7 @@ func TestPublishPackageDescriptor(t *testing.T) {
 	log.Print("Service was publish with success!!!")
 }
 
+/*
 func TestGetPackageDescriptor(t *testing.T) {
 
 	values, err := discovery_client.GetPackageDescriptor("echo_server", "globulario")
@@ -44,7 +47,8 @@ func TestGetPackageDescriptor(t *testing.T) {
 
 	log.Print("Service was retreived with success!!!", values)
 }
-
+*/
+/*
 func TestFindPackagesDescriptor(t *testing.T) {
 	values, err := discovery_client.FindServices([]string{"echo_server"})
 	if err != nil {
@@ -52,17 +56,16 @@ func TestFindPackagesDescriptor(t *testing.T) {
 	}
 	log.Print("Services was retreived with success!!!", values)
 }
+*/
 
-/**
 func TestUploadServiceBundle(t *testing.T) {
 
 	// The service bundle...
-	err := repository_client.UploadBundle("localhost", "echo_server", "localhost", "linux_amd64", "C:\\temp\\globular\\echo_server.7z")
+	err := repository_client.UploadBundle("globular.live", "echo_server", "dave", "globulario", "linux_amd64", "/home/dave/echo.EchoService.tar.gz")
 	if err != nil {
 		log.Panicln(err)
 	}
 }
-*/
 
 /*
 func TestDownloadServiceBundle(t *testing.T) {
