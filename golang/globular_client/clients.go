@@ -6,7 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
-	"log"
+
 	"os"
 	"strings"
 
@@ -134,11 +134,10 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 			// Setup the login/pass simple test...
 			if len(client.GetKeyFile()) == 0 {
-				log.Println("no key file is available for client ")
+				return nil, errors.New("no key file is available for client ")
 			}
 
 			if len(client.GetCertFile()) == 0 {
-
 				return nil, errors.New("no certificate file is available for client")
 			}
 

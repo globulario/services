@@ -235,6 +235,7 @@ func (self *Admin_Client) RestartServices() error {
 
 	_, err := self.c.RestartServices(globular.GetClientContext(self), rqst)
 	if err != nil {
+		log.Println("---------> ", 238, err)
 		return err
 	}
 
@@ -275,7 +276,7 @@ func (self *Admin_Client) hasRunningProcess(name string) (bool, error) {
 
 /** Create a service package **/
 func (self *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
-
+	log.Println("Service path is ", servicePath)
 	// Take the information from the configuration...
 	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
 	log.Println(id)
@@ -294,11 +295,13 @@ func (self *Admin_Client) createServicePackage(publisherId string, serviceName s
 	// write the .tar.gzip
 	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
 	if err != nil {
-		panic(err)
+		log.Println(297)
+		return "", err
 	}
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
-		panic(err)
+		log.Println(301)
+		return "", err
 	}
 
 	// close the file.
@@ -308,17 +311,16 @@ func (self *Admin_Client) createServicePackage(publisherId string, serviceName s
 	err = os.RemoveAll(path)
 
 	if err != nil {
+		log.Println(311)
 		return "", err
 	}
-
 	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil
 }
 
 /**
  * Create and Upload the service archive on the server.
  */
-func (self *Admin_Client) UploadServicePackage(path string, publisherId string, serviceName string, serviceId string, version string, token string, domain string, platform string) (string, int, error) {
-	log.Println(publisherId, serviceName)
+func (self *Admin_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) (string, int, error) {
 
 	// Here I will try to read the service configuation from the path.
 	configs, _ := Utility.FindFileByName(path, "config.json")
@@ -327,8 +329,8 @@ func (self *Admin_Client) UploadServicePackage(path string, publisherId string, 
 	}
 
 	// Find proto by name
-	_, err := Utility.FindFileByName(path, ".proto")
-	if err != nil {
+	protos, _ := Utility.FindFileByName(path, ".proto")
+	if len(protos) == 0 {
 		return "", 0, errors.New("No prototype file was found at path '" + path + "'")
 	}
 
@@ -344,10 +346,12 @@ func (self *Admin_Client) UploadServicePackage(path string, publisherId string, 
 	}
 
 	// set the correct information inside the configuration
+	publisherId := user
+	if len(organization) > 0 {
+		publisherId = organization
+	}
+
 	s["PublisherId"] = publisherId
-	s["Version"] = version
-	s["Id"] = serviceId
-	s["Name"] = serviceName
 
 	jsonStr, _ := Utility.ToJson(&s)
 	ioutil.WriteFile(configs[0], []byte(jsonStr), 0644)
@@ -358,7 +362,7 @@ func (self *Admin_Client) UploadServicePackage(path string, publisherId string, 
 	// First of all I will create the archive for the service.
 	// If a path is given I will take it entire content. If not
 	// the proto, the config and the executable only will be taken.
-	packagePath, err := self.createServicePackage(publisherId, serviceName, serviceId, version, platform, path)
+	packagePath, err := self.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, path)
 	if err != nil {
 		return "", 0, err
 	}
@@ -390,24 +394,33 @@ func (self *Admin_Client) UploadServicePackage(path string, publisherId string, 
 		if count, err = reader.Read(part); err != nil {
 			break
 		}
+
 		rqst := &adminpb.UploadServicePackageRequest{
-			Data: part[:count],
+			User:         user,
+			Organization: organization,
+			Data:         part[:count],
 		}
+
 		// send the data to the server.
 		err = stream.Send(rqst)
 		size += count
-	}
-	if err != io.EOF {
-		return "", 0, err
-	} else {
-		err = nil
+
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+			return "", 0, err
+		}
+
 	}
 
 	// get the file path on the server where the package is store before being
 	// publish.
 	rsp, err := stream.CloseAndRecv()
 	if err != nil {
-		return "", 0, err
+		if err != io.EOF {
+			return "", 0, err
+		}
 	}
 
 	return rsp.Path, size, nil
@@ -416,25 +429,60 @@ func (self *Admin_Client) UploadServicePackage(path string, publisherId string, 
 /**
  * Publish a service from a runing globular server.
  */
-func (self *Admin_Client) PublishService(user string, path string, serviceId string, serviceName string, publisherId string, discoveryAddress string, repositoryAddress string, description string, version string, platform string, keywords []string, token string, domain string) error {
+func (self *Admin_Client) PublishService(user, organization, token, domain, path, configPath, platform string) error {
+
+	// Here I will try to read the service configuation from the path.
+	configs, _ := Utility.FindFileByName(configPath, "config.json")
+	if len(configs) == 0 {
+		return errors.New("No configuration file was found")
+	}
+	s := make(map[string]interface{}, 0)
+	data, err := ioutil.ReadFile(configs[0])
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+
+	keywords := make([]string, 0)
+	if s["Keywords"] != nil {
+		for i := 0; i < len(s["Keywords"].([]interface{})); i++ {
+			keywords = append(keywords, s["Keywords"].([]interface{})[i].(string))
+		}
+	}
+
+	repositories := s["Repositories"].([]interface{})
+	if len(repositories) == 0 {
+		return errors.New("No services repositories was found in config.json! Please use the option -repository to specify one.")
+
+	}
+
+	discoveries := s["Discoveries"].([]interface{})
+	if len(repositories) == 0 {
+		return errors.New("No services discoveries was found in config.json! Please use the option -repository to specify one.")
+	}
 
 	rqst := new(adminpb.PublishServiceRequest)
 	rqst.Path = path
-	rqst.PublisherId = publisherId
-	rqst.Description = description
-	rqst.DicorveryId = discoveryAddress
-	rqst.RepositoryId = repositoryAddress
+	rqst.User = user
+	rqst.Organization = organization
+	rqst.Description = s["Description"].(string)
+	rqst.DicorveryId = discoveries[0].(string)
+	rqst.RepositoryId = repositories[0].(string)
 	rqst.Keywords = keywords
-	rqst.Version = version
-	rqst.ServiceId = serviceId
-	rqst.ServiceName = serviceName
+	rqst.Version = s["Version"].(string)
+	rqst.ServiceId = s["Id"].(string)
+	rqst.ServiceName = s["Name"].(string)
 	rqst.Platform = platform
 
 	// Set the token into the context and send the request.
 	md := metadata.New(map[string]string{"token": token, "domain": domain, "user": user})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
-	_, err := self.c.PublishService(ctx, rqst)
+	_, err = self.c.PublishService(ctx, rqst)
 
 	return err
 }
@@ -540,7 +588,6 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 
 	// Set keywords.
 	keywords := make([]string, 0)
-	log.Println("-------------> keywords", packageConfig["keywords"])
 	if packageConfig["keywords"] != nil {
 		for i := 0; i < len(packageConfig["keywords"].([]interface{})); i++ {
 			keywords = append(keywords, packageConfig["keywords"].([]interface{})[i].(string))

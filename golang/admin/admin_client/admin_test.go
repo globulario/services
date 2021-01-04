@@ -14,39 +14,36 @@ var (
 
 // Test various function here.
 func TestGetConfig(t *testing.T) {
-	log.Println("---> test get config.")
-	config, err := client.GetConfig()
+	_, err := client.GetConfig()
 	if err != nil {
-		log.Println("---> ", err)
+		log.Println(err)
+		t.FailNow()
 	}
+	log.Println("Get Config succeed!")
+}
 
-	log.Println("config: ", config)
+func TestGetFullConfig(t *testing.T) {
+	_, err := client.GetFullConfig()
+	if err != nil {
+		log.Println(err)
+		t.FailNow()
+	}
+	log.Println("GetFullConfig succeed!")
 }
 
 /*
-func TestGetFullConfig(t *testing.T) {
-	log.Println("---> test get config.")
-
-	config, err := client.GetFullConfig()
-	if err != nil {
-		log.Println("---> ", err)
-	}
-	log.Println("config: ", config)
-}
-*/
 func TestRestartServices(t *testing.T) {
-	log.Println("---> test get config.")
-	log.Println("---->", client)
 	err := client.RestartServices()
 	if err != nil {
-		log.Println("---> ", err)
+		log.Println(err)
+		t.FailNow()
 	}
-
+	log.Println("RestartServices succeed!")
 }
+*/
 
-/*
 func TestStopService(t *testing.T) {
-	err := client.StopService("file_server")
+	err := client.StopService("file.FileService")
 	if err != nil {
 		log.Println(err)
 		return
@@ -57,14 +54,14 @@ func TestStopService(t *testing.T) {
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
-	service_pid, proxy_pid, err := client.StartService("file_server")
+	service_pid, proxy_pid, err := client.StartService("file.FileService")
 	if err != nil {
 
 		log.Println("---> ", err)
 	}
 	log.Println("service pid:", service_pid, " proxy pid:", proxy_pid)
 
-}*/
+}
 
 // Test modify the config...
 /*func TestSaveConfig(t *testing.T) {
@@ -121,21 +118,22 @@ func TestStartService(t *testing.T) {
 		log.Panicln(err)
 	}
 }
+*/
 
 func TestInstallService(t *testing.T) {
-	err := client.InstallService("localhost:8080", "localhost", "echo_server")
+	err := client.InstallService("globular.live", "globular.live", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b")
 	if err != nil {
 		log.Panicln(err)
 	}
 	time.Sleep(time.Second * 5)
-}*/
-/*
+}
+
 func TestUninstallService(t *testing.T) {
-	err := client.UninstallService("localhost", "echo_server", "0.0.1")
+	err := client.UninstallService("globular.live", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
 	if err != nil {
 		log.Panicln(err)
 	}
-}*/
+}
 
 /*func TestDeployApplication(t *testing.T) {
 	err := client.DeployApplication("testApp", "/home/dave/Documents/chitchat")

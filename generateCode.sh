@@ -11,7 +11,7 @@ protoc proto/rbac.proto --go-grpc_out=require_unimplemented_servers=false:./gola
 protoc proto/log.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/lb.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/ca.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/services.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/packages.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/dns.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/echo.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/search.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
@@ -38,9 +38,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/reso
 mkdir typescript/ca
 protoc --js_out=import_style=commonjs:typescript/ca  -I ./proto/ ca.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/ca -I ./proto/ ca.proto
-mkdir typescript/services
-protoc --js_out=import_style=commonjs:typescript/services  -I ./proto/ services.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/services -I ./proto/ services.proto
+mkdir typescript/packages
+protoc --js_out=import_style=commonjs:typescript/packages  -I ./proto/ packages.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/packages -I ./proto/ packages.proto
 mkdir typescript/lb
 protoc --js_out=import_style=commonjs:typescript/lb  -I ./proto/ lb.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/lb -I ./proto/ lb.proto
@@ -92,7 +92,6 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/log 
 mkdir typescript/rbac
 protoc --js_out=import_style=commonjs:typescript/rbac  -I ./proto/ rbac.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/rbac -I ./proto/ rbac.proto
-
 
 # CSharp grpc files generation
 mkdir csharp/event/eventpb

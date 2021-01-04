@@ -4135,7 +4135,7 @@ proto.admin.PublishServiceRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     serviceid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     servicename: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    publisherid: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    user: jspb.Message.getFieldWithDefault(msg, 3, ""),
     organization: jspb.Message.getFieldWithDefault(msg, 4, ""),
     path: jspb.Message.getFieldWithDefault(msg, 5, ""),
     dicorveryid: jspb.Message.getFieldWithDefault(msg, 6, ""),
@@ -4190,7 +4190,7 @@ proto.admin.PublishServiceRequest.deserializeBinaryFromReader = function(msg, re
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setUser(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
@@ -4267,7 +4267,7 @@ proto.admin.PublishServiceRequest.serializeBinaryToWriter = function(message, wr
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getUser();
   if (f.length > 0) {
     writer.writeString(
       3,
@@ -4370,10 +4370,10 @@ proto.admin.PublishServiceRequest.prototype.setServicename = function(value) {
 
 
 /**
- * optional string publisherId = 3;
+ * optional string user = 3;
  * @return {string}
  */
-proto.admin.PublishServiceRequest.prototype.getPublisherid = function() {
+proto.admin.PublishServiceRequest.prototype.getUser = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -4382,7 +4382,7 @@ proto.admin.PublishServiceRequest.prototype.getPublisherid = function() {
  * @param {string} value
  * @return {!proto.admin.PublishServiceRequest} returns this
  */
-proto.admin.PublishServiceRequest.prototype.setPublisherid = function(value) {
+proto.admin.PublishServiceRequest.prototype.setUser = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -4582,6 +4582,8 @@ proto.admin.UploadServicePackageRequest.prototype.toObject = function(opt_includ
  */
 proto.admin.UploadServicePackageRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
+    user: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    organization: jspb.Message.getFieldWithDefault(msg, 2, ""),
     data: msg.getData_asB64()
   };
 
@@ -4620,6 +4622,14 @@ proto.admin.UploadServicePackageRequest.deserializeBinaryFromReader = function(m
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUser(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOrganization(value);
+      break;
+    case 3:
       var value = /** @type {!Uint8Array} */ (reader.readBytes());
       msg.setData(value);
       break;
@@ -4652,10 +4662,24 @@ proto.admin.UploadServicePackageRequest.prototype.serializeBinary = function() {
  */
 proto.admin.UploadServicePackageRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
+  f = message.getUser();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getOrganization();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
   f = message.getData_asU8();
   if (f.length > 0) {
     writer.writeBytes(
-      1,
+      3,
       f
     );
   }
@@ -4663,16 +4687,52 @@ proto.admin.UploadServicePackageRequest.serializeBinaryToWriter = function(messa
 
 
 /**
- * optional bytes data = 1;
+ * optional string user = 1;
  * @return {string}
  */
-proto.admin.UploadServicePackageRequest.prototype.getData = function() {
+proto.admin.UploadServicePackageRequest.prototype.getUser = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
- * optional bytes data = 1;
+ * @param {string} value
+ * @return {!proto.admin.UploadServicePackageRequest} returns this
+ */
+proto.admin.UploadServicePackageRequest.prototype.setUser = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string organization = 2;
+ * @return {string}
+ */
+proto.admin.UploadServicePackageRequest.prototype.getOrganization = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.admin.UploadServicePackageRequest} returns this
+ */
+proto.admin.UploadServicePackageRequest.prototype.setOrganization = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional bytes data = 3;
+ * @return {string}
+ */
+proto.admin.UploadServicePackageRequest.prototype.getData = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * optional bytes data = 3;
  * This is a type-conversion wrapper around `getData()`
  * @return {string}
  */
@@ -4683,7 +4743,7 @@ proto.admin.UploadServicePackageRequest.prototype.getData_asB64 = function() {
 
 
 /**
- * optional bytes data = 1;
+ * optional bytes data = 3;
  * Note that Uint8Array is not supported on all browsers.
  * @see http://caniuse.com/Uint8Array
  * This is a type-conversion wrapper around `getData()`
@@ -4700,7 +4760,7 @@ proto.admin.UploadServicePackageRequest.prototype.getData_asU8 = function() {
  * @return {!proto.admin.UploadServicePackageRequest} returns this
  */
 proto.admin.UploadServicePackageRequest.prototype.setData = function(value) {
-  return jspb.Message.setProto3BytesField(this, 1, value);
+  return jspb.Message.setProto3BytesField(this, 3, value);
 };
 
 
@@ -6404,7 +6464,7 @@ proto.admin.MicroService.prototype.toObject = function(opt_includeInstance) {
 proto.admin.MicroService.toObject = function(includeInstance, msg) {
   var f, obj = {
     repositoryid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    organization: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    publisherid: jspb.Message.getFieldWithDefault(msg, 2, ""),
     id: jspb.Message.getFieldWithDefault(msg, 3, ""),
     version: jspb.Message.getFieldWithDefault(msg, 4, ""),
     platform: jspb.Message.getFieldWithDefault(msg, 5, ""),
@@ -6451,7 +6511,7 @@ proto.admin.MicroService.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setOrganization(value);
+      msg.setPublisherid(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
@@ -6505,7 +6565,7 @@ proto.admin.MicroService.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getOrganization();
+  f = message.getPublisherid();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -6562,10 +6622,10 @@ proto.admin.MicroService.prototype.setRepositoryid = function(value) {
 
 
 /**
- * optional string organization = 2;
+ * optional string publisherId = 2;
  * @return {string}
  */
-proto.admin.MicroService.prototype.getOrganization = function() {
+proto.admin.MicroService.prototype.getPublisherid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -6574,7 +6634,7 @@ proto.admin.MicroService.prototype.getOrganization = function() {
  * @param {string} value
  * @return {!proto.admin.MicroService} returns this
  */
-proto.admin.MicroService.prototype.setOrganization = function(value) {
+proto.admin.MicroService.prototype.setPublisherid = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -6718,7 +6778,9 @@ proto.admin.DeployApplicationRequest.toObject = function(includeInstance, msg) {
     keywordsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
     description: jspb.Message.getFieldWithDefault(msg, 8, ""),
     microservicesList: jspb.Message.toObjectList(msg.getMicroservicesList(),
-    proto.admin.MicroService.toObject, includeInstance)
+    proto.admin.MicroService.toObject, includeInstance),
+    repository: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    discovery: jspb.Message.getFieldWithDefault(msg, 11, "")
   };
 
   if (includeInstance) {
@@ -6791,6 +6853,14 @@ proto.admin.DeployApplicationRequest.deserializeBinaryFromReader = function(msg,
       var value = new proto.admin.MicroService;
       reader.readMessage(value,proto.admin.MicroService.deserializeBinaryFromReader);
       msg.addMicroservices(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRepository(value);
+      break;
+    case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDiscovery(value);
       break;
     default:
       reader.skipField();
@@ -6883,6 +6953,20 @@ proto.admin.DeployApplicationRequest.serializeBinaryToWriter = function(message,
       9,
       f,
       proto.admin.MicroService.serializeBinaryToWriter
+    );
+  }
+  f = message.getRepository();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
+    );
+  }
+  f = message.getDiscovery();
+  if (f.length > 0) {
+    writer.writeString(
+      11,
+      f
     );
   }
 };
@@ -7110,6 +7194,42 @@ proto.admin.DeployApplicationRequest.prototype.addMicroservices = function(opt_v
  */
 proto.admin.DeployApplicationRequest.prototype.clearMicroservicesList = function() {
   return this.setMicroservicesList([]);
+};
+
+
+/**
+ * optional string repository = 10;
+ * @return {string}
+ */
+proto.admin.DeployApplicationRequest.prototype.getRepository = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.admin.DeployApplicationRequest} returns this
+ */
+proto.admin.DeployApplicationRequest.prototype.setRepository = function(value) {
+  return jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional string discovery = 11;
+ * @return {string}
+ */
+proto.admin.DeployApplicationRequest.prototype.getDiscovery = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.admin.DeployApplicationRequest} returns this
+ */
+proto.admin.DeployApplicationRequest.prototype.setDiscovery = function(value) {
+  return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 

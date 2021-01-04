@@ -133,7 +133,7 @@ func (self *server) SetKeywords(keywords []string) {
 }
 
 // Dist
-func (self *server) Dist(path string) error {
+func (self *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, self)
 }

@@ -1,4 +1,4 @@
-package service_client
+package packages_client
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/services/servicespb"
+	"github.com/globulario/services/golang/packages/packagespb"
 	"google.golang.org/grpc"
 )
 
@@ -21,7 +21,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 type PackagesDiscovery_Client struct {
 	cc *grpc.ClientConn
-	c  servicespb.PackageDiscoveryClient
+	c  packagespb.PackageDiscoveryClient
 
 	// The id of the service
 	id string
@@ -61,7 +61,7 @@ func NewPackagesDiscoveryService_Client(address string, id string) (*PackagesDis
 		return nil, err
 	}
 
-	client.c = servicespb.NewPackageDiscoveryClient(client.cc)
+	client.c = packagespb.NewPackageDiscoveryClient(client.cc)
 
 	return client, nil
 }
@@ -163,10 +163,10 @@ func (self *PackagesDiscovery_Client) SetCaFile(caFile string) {
 ///////////////////////// API /////////////////////////
 
 /**
- * Find a services by keywords.
+ * Find a packages by keywords.
  */
-func (self *PackagesDiscovery_Client) FindServices(keywords []string) ([]*servicespb.PackageDescriptor, error) {
-	rqst := new(servicespb.FindPackagesDescriptorRequest)
+func (self *PackagesDiscovery_Client) FindServices(keywords []string) ([]*packagespb.PackageDescriptor, error) {
+	rqst := new(packagespb.FindPackagesDescriptorRequest)
 	rqst.Keywords = keywords
 
 	rsp, err := self.c.FindPackages(globular.GetClientContext(self), rqst)
@@ -180,11 +180,10 @@ func (self *PackagesDiscovery_Client) FindServices(keywords []string) ([]*servic
 /**
  * Get list of service descriptor for one service with  various version.
  */
-func (self *PackagesDiscovery_Client) GetPackageDescriptor(service_id string, publisher_id string, organization string) ([]*servicespb.PackageDescriptor, error) {
-	rqst := &servicespb.GetPackageDescriptorRequest{
-		ServiceId:    service_id,
-		PublisherId:  publisher_id,
-		Organization: organization,
+func (self *PackagesDiscovery_Client) GetPackageDescriptor(service_id string, publisher_id string) ([]*packagespb.PackageDescriptor, error) {
+	rqst := &packagespb.GetPackageDescriptorRequest{
+		ServiceId:   service_id,
+		PublisherId: publisher_id,
 	}
 
 	rsp, err := self.c.GetPackageDescriptor(globular.GetClientContext(self), rqst)
@@ -196,11 +195,11 @@ func (self *PackagesDiscovery_Client) GetPackageDescriptor(service_id string, pu
 }
 
 /**
- * Get a list of all services descriptor for a given server.
+ * Get a list of all packages descriptor for a given server.
  */
-func (self *PackagesDiscovery_Client) GetPackagesDescriptorDescriptor() ([]*servicespb.PackageDescriptor, error) {
-	descriptors := make([]*servicespb.PackageDescriptor, 0)
-	rqst := &servicespb.GetPackagesDescriptorRequest{}
+func (self *PackagesDiscovery_Client) GetPackagesDescriptorDescriptor() ([]*packagespb.PackageDescriptor, error) {
+	descriptors := make([]*packagespb.PackageDescriptor, 0)
+	rqst := &packagespb.GetPackagesDescriptorRequest{}
 
 	stream, err := self.c.GetPackagesDescriptor(globular.GetClientContext(self), rqst)
 	if err != nil {
@@ -228,8 +227,8 @@ func (self *PackagesDiscovery_Client) GetPackagesDescriptorDescriptor() ([]*serv
 }
 
 /** Publish a service to service discovery **/
-func (self *PackagesDiscovery_Client) PublishPackageDescriptor(descriptor *servicespb.PackageDescriptor) error {
-	rqst := new(servicespb.PublishPackageDescriptorRequest)
+func (self *PackagesDiscovery_Client) PublishPackageDescriptor(descriptor *packagespb.PackageDescriptor) error {
+	rqst := new(packagespb.PublishPackageDescriptorRequest)
 	rqst.Descriptor_ = descriptor
 
 	// publish a service descriptor on the network.
@@ -243,7 +242,7 @@ func (self *PackagesDiscovery_Client) PublishPackageDescriptor(descriptor *servi
 ////////////////////////////////////////////////////////////////////////////////
 type ServicesRepository_Client struct {
 	cc *grpc.ClientConn
-	c  servicespb.PackageRepositoryClient
+	c  packagespb.PackageRepositoryClient
 
 	// The id of the service
 	id string
@@ -283,7 +282,7 @@ func NewServicesRepositoryService_Client(address string, id string) (*ServicesRe
 		return nil, err
 	}
 
-	client.c = servicespb.NewPackageRepositoryClient(client.cc)
+	client.c = packagespb.NewPackageRepositoryClient(client.cc)
 	return client, nil
 }
 
@@ -386,9 +385,9 @@ func (self *ServicesRepository_Client) SetCaFile(caFile string) {
 /**
  * Download bundle from a repository and return it as an object in memory.
  */
-func (self *ServicesRepository_Client) DownloadBundle(descriptor *servicespb.PackageDescriptor, platform string) (*servicespb.ServiceBundle, error) {
+func (self *ServicesRepository_Client) DownloadBundle(descriptor *packagespb.PackageDescriptor, platform string) (*packagespb.PackageBundle, error) {
 
-	rqst := &servicespb.DownloadBundleRequest{
+	rqst := &packagespb.DownloadBundleRequest{
 		Descriptor_: descriptor,
 		Plaform:     platform,
 	}
@@ -418,7 +417,7 @@ func (self *ServicesRepository_Client) DownloadBundle(descriptor *servicespb.Pac
 
 	// The buffer that contain the
 	dec := gob.NewDecoder(&buffer)
-	bundle := new(servicespb.ServiceBundle)
+	bundle := new(packagespb.PackageBundle)
 	err = dec.Decode(bundle)
 	if err != nil {
 		return nil, err
@@ -430,19 +429,19 @@ func (self *ServicesRepository_Client) DownloadBundle(descriptor *servicespb.Pac
 /**
  * Upload a service bundle.
  */
-func (self *ServicesRepository_Client) UploadBundle(discoveryId, serviceId, publisherId, organization, platform, packagePath string) error {
+func (self *ServicesRepository_Client) UploadBundle(discoveryId, serviceId, publisherId, platform, packagePath string) error {
 	log.Println("Upload package ", packagePath)
 	// The service bundle...
-	bundle := new(servicespb.ServiceBundle)
+	bundle := new(packagespb.PackageBundle)
 	bundle.Plaform = platform
 
 	// Here I will find the service descriptor from the given information.
-	discoveryService, err := NewPackagesDiscoveryService_Client(discoveryId, "services.PackageDiscovery")
+	discoveryService, err := NewPackagesDiscoveryService_Client(discoveryId, "packages.PackageDiscovery")
 	if err != nil {
 		return err
 	}
 
-	descriptors, err := discoveryService.GetPackageDescriptor(serviceId, publisherId, organization)
+	descriptors, err := discoveryService.GetPackageDescriptor(serviceId, publisherId)
 	if err != nil {
 		return err
 	}
@@ -464,7 +463,7 @@ func (self *ServicesRepository_Client) UploadBundle(discoveryId, serviceId, publ
 /**
  * Upload a bundle into the service repository.
  */
-func (self *ServicesRepository_Client) uploadBundle(bundle *servicespb.ServiceBundle) error {
+func (self *ServicesRepository_Client) uploadBundle(bundle *packagespb.PackageBundle) error {
 
 	// Open the stream...
 	stream, err := self.c.UploadBundle(globular.GetClientContext(self))
@@ -484,7 +483,7 @@ func (self *ServicesRepository_Client) uploadBundle(bundle *servicespb.ServiceBu
 		var data [BufferSize]byte
 		bytesread, err := buffer.Read(data[0:BufferSize])
 		if bytesread > 0 {
-			rqst := &servicespb.UploadBundleRequest{
+			rqst := &packagespb.UploadBundleRequest{
 				Data: data[0:bytesread],
 			}
 			// send the data to the server.

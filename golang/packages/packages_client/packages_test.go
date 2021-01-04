@@ -1,4 +1,4 @@
-package service_client
+package packages_client
 
 //"encoding/json"
 import (
@@ -6,13 +6,13 @@ import (
 	"log"
 	"testing"
 
-	"github.com/globulario/services/golang/services/servicespb"
+	"github.com/globulario/services/golang/packages/packagespb"
 )
 
 var (
 	// Connect to the services client.
-	discovery_client, _  = NewPackagesDiscoveryService_Client("globular.live", "services.PackageDiscovery")
-	repository_client, _ = NewServicesRepositoryService_Client("globular.live", "services.PackageRepository")
+	discovery_client, _  = NewPackagesDiscoveryService_Client("globular.live", "packages.PackageDiscovery")
+	repository_client, _ = NewServicesRepositoryService_Client("globular.live", "packages.PackageRepository")
 )
 
 // Test publish a service.
@@ -57,8 +57,8 @@ func TestFindPackagesDescriptor(t *testing.T) {
 	log.Print("Services was retreived with success!!!", values)
 }
 */
-
-func TestUploadServiceBundle(t *testing.T) {
+/*
+func TestUploadPackageBundle(t *testing.T) {
 
 	// The service bundle...
 	err := repository_client.UploadBundle("globular.live", "echo_server", "dave", "globulario", "linux_amd64", "/home/dave/echo.EchoService.tar.gz")
@@ -66,9 +66,9 @@ func TestUploadServiceBundle(t *testing.T) {
 		log.Panicln(err)
 	}
 }
-
+*/
 /*
-func TestDownloadServiceBundle(t *testing.T) {
+func TestDownloadPackageBundle(t *testing.T) {
 	bundle, err := repository_client.DownloadBundle("localhost", "echo_server", "localhost", "linux_amd64")
 
 	if err != nil {

@@ -143,7 +143,7 @@ type Service interface {
 		to publish the services. The content of that folder must respect the structure,
 		(path)/
 	 **/
-	Dist(path string) error
+	Dist(path string) (string, error)
 }
 
 /**

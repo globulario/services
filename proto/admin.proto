@@ -110,7 +110,7 @@ message HasRunningProcessResponse {
 message PublishServiceRequest{
 	string serviceId = 1;
 	string serviceName = 2;
-	string publisherId = 3;
+	string user = 3;
 	string organization = 4;
 	string path = 5;
 	string dicorveryId = 6;
@@ -122,7 +122,9 @@ message PublishServiceRequest{
 }
 
 message UploadServicePackageRequest{
-	bytes data = 1;
+	string user = 1;
+	string organization = 2;
+	bytes data = 3;
 }
 
 message UploadServicePackageResponse{
@@ -137,8 +139,7 @@ message InstallServiceRequest{
 	string dicorveryId = 1;
 	string serviceId = 2;
 	string publisherId = 3;
-	string organization = 4;
-	string version = 5;
+	string version = 4;
 }
 
 message InstallServiceResponse{
@@ -160,8 +161,7 @@ message InstallApplicationRequest{
 	string dicorveryId = 1;
 	string applicationId = 2;
 	string publisherId = 3;
-	string organization = 4;
-	string version = 5;
+	string version = 4;
 }
 
 message InstallApplicationResponse{
@@ -171,8 +171,7 @@ message InstallApplicationResponse{
 message UninstallApplicationRequest{
 	string applicationId = 1;
 	string publisherId = 2;
-	string organization = 3;
-	string version = 5;
+	string version = 3;
 	bool deletePermissions = 4;
 }
 
@@ -183,7 +182,7 @@ message UninstallApplicationResponse{
 // Contain the information about serivces requiered by application.
 message MicroService {
 	string repositoryId = 1; // Where to search
-	string organization = 2; // The organization who share that dependency
+	string publisherId = 2; // The organization or user
 	string id = 3; // The id of the dependency
 	string version = 4; // The version of the dependency
 	string platform = 5; // The platform

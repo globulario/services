@@ -131,7 +131,7 @@ func (self *server) SetDiscoveries(discoveries []string) {
 }
 
 // Dist
-func (self *server) Dist(path string) error {
+func (self *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, self)
 }

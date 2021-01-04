@@ -2,14 +2,15 @@
  * Service management functionality.
  */
 syntax = "proto3";
-package services;
+package packages;
 
-option go_package="services/servicespb";
+option go_package="packages/packagespb";
 
 
 enum PackageType {
-	SERVICE = 0;
-	APPLICATION = 1;
+	UNKNOW_TYPE = 0; // not work correctly with ToJson function...
+	SERVICE_TYPE = 1;
+	APPLICATION_TYPE = 2;
 }
 
 /**
@@ -21,17 +22,16 @@ message PackageDescriptor {
 	string name = 2;
 	PackageType type = 3;
 	string publisherId = 4; // Cam be Organization or Account.
-	string organization = 5;
 	string version = 6;
 	string description = 7;
-	repeated string repositories = 8; // The list of repositories that has the services
-	repeated string discoveries = 9; // The list of dicoveries that has the services
+	repeated string repositories = 8; // The list of repositories that has the package
+	repeated string discoveries = 9; // The list of dicoveries that has the package
 	repeated string keywords = 10;
 }
 
 
 /** That message will contain the information to update a service on a node. **/
-message ServiceBundle {
+message PackageBundle {
 	PackageDescriptor descriptor = 1;
 	string buildNumber = 2;
 	string plaform = 3;
@@ -68,7 +68,6 @@ message DownloadBundleResponse {
 message GetPackageDescriptorRequest {
 	string serviceId = 1;
 	string publisherId = 2;
-	string organization = 3;
 }
 
 message GetPackageDescriptorResponse {
@@ -106,10 +105,10 @@ service PackageDiscovery {
 	/** Search service by keywords **/
 	rpc FindPackages(FindPackagesDescriptorRequest) returns (FindPackagesDescriptorResponse);
 	
-	/** Return the list of all services **/
+	/** Return the list of all packages **/
 	rpc GetPackageDescriptor(GetPackageDescriptorRequest) returns ( GetPackageDescriptorResponse);
 	
-	/** Return the list of all services **/
+	/** Return the list of all packages **/
 	rpc GetPackagesDescriptor(GetPackagesDescriptorRequest) returns(stream GetPackagesDescriptorResponse);
 	
 	/** Save a service descriptor **/
