@@ -4,12 +4,12 @@ import (
 	//"encoding/json"
 	"log"
 	"testing"
-	//	"time"
+	"time"
 )
 
 var (
 	// Connect to the admin client.
-	client, _ = NewAdminService_Client("globular.live", "admin.AdminService")
+	client, _ = NewAdminService_Client("localhost", "admin.AdminService")
 )
 
 // Test various function here.
@@ -41,27 +41,6 @@ func TestRestartServices(t *testing.T) {
 	log.Println("RestartServices succeed!")
 }
 */
-
-func TestStopService(t *testing.T) {
-	err := client.StopService("file.FileService")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Println("---> stop service succeeded")
-}
-
-func TestStartService(t *testing.T) {
-	log.Println("---> test get config.")
-
-	service_pid, proxy_pid, err := client.StartService("file.FileService")
-	if err != nil {
-
-		log.Println("---> ", err)
-	}
-	log.Println("service pid:", service_pid, " proxy pid:", proxy_pid)
-
-}
 
 // Test modify the config...
 /*func TestSaveConfig(t *testing.T) {
@@ -121,15 +100,36 @@ func TestStartService(t *testing.T) {
 */
 
 func TestInstallService(t *testing.T) {
-	err := client.InstallService("globular.live", "globular.live", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b")
+	err := client.InstallService("localhost", "globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b")
 	if err != nil {
 		log.Panicln(err)
 	}
 	time.Sleep(time.Second * 5)
 }
 
+func TestStartService(t *testing.T) {
+	log.Println("---> test get config.")
+
+	service_pid, proxy_pid, err := client.StartService("echo.EchoService")
+	if err != nil {
+
+		log.Println("---> ", err)
+	}
+	log.Println("service pid:", service_pid, " proxy pid:", proxy_pid)
+
+}
+
+func TestStopService(t *testing.T) {
+	err := client.StopService("echo.EchoService")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	log.Println("---> stop service succeeded")
+}
+
 func TestUninstallService(t *testing.T) {
-	err := client.UninstallService("globular.live", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
+	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
 	if err != nil {
 		log.Panicln(err)
 	}

@@ -256,9 +256,8 @@ func CreateServicePackage(s Service, distPath string, platform string) (string, 
  * Return the OS and the arch
  */
 func GetPlatform() string {
-	platform := runtime.GOOS
-	platform += runtime.GOARCH
-	return strings.ToUpper(platform)
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	return platform
 }
 
 func GetTLSConfig(key string, cert string, ca string) *tls.Config {
