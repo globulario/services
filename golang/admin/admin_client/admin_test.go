@@ -31,17 +31,6 @@ func TestGetFullConfig(t *testing.T) {
 	log.Println("GetFullConfig succeed!")
 }
 
-/*
-func TestRestartServices(t *testing.T) {
-	err := client.RestartServices()
-	if err != nil {
-		log.Println(err)
-		t.FailNow()
-	}
-	log.Println("RestartServices succeed!")
-}
-*/
-
 // Test modify the config...
 /*func TestSaveConfig(t *testing.T) {
 	log.Println("---> test get config.")
@@ -79,26 +68,6 @@ func TestRestartServices(t *testing.T) {
 	}
 }*/
 
-// Test register/start external service.
-/*func TestRegisterExternalService(t *testing.T) {
-	// Start mongo db
-	pid, err := client.RegisterExternalApplication("mongoDB_srv_win64", "E:\\MongoDB\\bin\\mongod.exe", []string{"--port", "27017", "--dbpath", "E:\\MongoDB\\data\\db"})
-
-	if err == nil {
-		log.Println("---> mongo db start at port: ", pid)
-	} else {
-		log.Println("---> err", err)
-	}
-}*/
-
-/*func TestPublishService(t *testing.T) {
-	err := client.PublishService("echo_server", "localhost:8080", "localhost:8080", "Echo is the simplest serive of all.", []string{"test", "echo"})
-	if err != nil {
-		log.Panicln(err)
-	}
-}
-*/
-
 func TestInstallService(t *testing.T) {
 	err := client.InstallService("localhost", "globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b")
 	if err != nil {
@@ -135,9 +104,40 @@ func TestUninstallService(t *testing.T) {
 	}
 }
 
+/*
+func TestRestartServices(t *testing.T) {
+	err := client.RestartServices()
+	if err != nil {
+		log.Println(err)
+		t.FailNow()
+	}
+	log.Println("RestartServices succeed!")
+}
+*/
+
 /*func TestDeployApplication(t *testing.T) {
 	err := client.DeployApplication("testApp", "/home/dave/Documents/chitchat")
 	if err != nil {
 		log.Panicln(err)
 	}
 }*/
+
+// Test register/start external service.
+/*func TestRegisterExternalService(t *testing.T) {
+	// Start mongo db
+	pid, err := client.RegisterExternalApplication("mongoDB_srv_win64", "E:\\MongoDB\\bin\\mongod.exe", []string{"--port", "27017", "--dbpath", "E:\\MongoDB\\data\\db"})
+
+	if err == nil {
+		log.Println("---> mongo db start at port: ", pid)
+	} else {
+		log.Println("---> err", err)
+	}
+}*/
+
+/*func TestPublishService(t *testing.T) {
+	err := client.PublishService("echo_server", "localhost:8080", "localhost:8080", "Echo is the simplest serive of all.", []string{"test", "echo"})
+	if err != nil {
+		log.Panicln(err)
+	}
+}
+*/
