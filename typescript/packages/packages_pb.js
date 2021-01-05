@@ -3175,8 +3175,9 @@ proto.packages.FindPackagesDescriptorResponse.prototype.clearResultsList = funct
  * @enum {number}
  */
 proto.packages.PackageType = {
-  SERVICE_TYPE: 0,
-  APPLICATION_TYPE: 1
+  UNKNOW_TYPE: 0,
+  SERVICE_TYPE: 1,
+  APPLICATION_TYPE: 2
 };
 
 goog.object.extend(exports, proto.packages);

@@ -2,13 +2,13 @@ TEMPLATE = app
 CONFIG += console c++17
 CONFIG -= app_bundle
 QT       += core
-
+DEFINES += GRPC_CALLBACK_API_NONEXPERIMENTAL
 SOURCES += \
     ../../GlobularClient/globularclient.cpp \
     ../../GlobularServer/globularserver.cpp \
     ../../Resource/GlobularResourceClient/globularResourceclient.cpp \
-    ../../Resource/Resourcepb/Resource.grpc.pb.cc \
-    ../../Resource/Resourcepb/Resource.pb.cc \
+    ../../resource/resourcepb/resource.grpc.pb.cc \
+    ../../resource/resourcepb/resource.pb.cc \
     ../spcpb/spc.grpc.pb.cc \
     ../spcpb/spc.pb.cc \
     AnalyseurCSP.cpp \
@@ -21,8 +21,8 @@ HEADERS += \
     ../../GlobularClient/globularclient.h \
     ../../GlobularServer/globularserver.h \
     ../../Resource/GlobularResourceClient/globularResourceclient.h \
-    ../../Resource/Resourcepb/Resource.grpc.pb.h \
-    ../../Resource/Resourcepb/Resource.pb.h \
+    ../../resource/resourcepb/resource.grpc.pb.h \
+    ../../resource/resourcepb/resource.pb.h \
     ../spcpb/spc.grpc.pb.h \
     ../spcpb/spc.pb.h \
     AnalyseurCSP.h \

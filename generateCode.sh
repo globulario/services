@@ -95,29 +95,25 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/rbac
 
 # CSharp grpc files generation
 mkdir csharp/event/eventpb
-protoc --grpc_out=./csharp/event/eventpb --csharp_out=./csharp/event/eventpb --csharp_opt=file_extension=.g.cs proto/event.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
+protoc --grpc_out=./csharp/event/eventpb --csharp_out=./csharp/event/eventpb --csharp_opt=file_extension=.g.cs proto/event.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
 mkdir csharp/persistence/persistencepb
-protoc --grpc_out=./csharp/persistence/persistencepb --csharp_out=./csharp/persistence/persistencepb --csharp_opt=file_extension=.g.cs proto/persistence.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
+protoc --grpc_out=./csharp/persistence/persistencepb --csharp_out=./csharp/persistence/persistencepb --csharp_opt=file_extension=.g.cs proto/persistence.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
 mkdir csharp/resource/resourcepb
-protoc --grpc_out=./csharp/resource/resourcepb --csharp_out=./csharp/resource/resourcepb --csharp_opt=file_extension=.g.cs proto/resource.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
+protoc --grpc_out=./csharp/resource/resourcepb --csharp_out=./csharp/resource/resourcepb --csharp_opt=file_extension=.g.cs proto/resource.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
 mkdir csharp/echo/echopb
-protoc --grpc_out=./csharp/echo/echopb --csharp_out=./csharp/echo/echopb --csharp_opt=file_extension=.g.cs proto/echo.proto --plugin="protoc-gen-grpc=C:/Users/mm006819/grpc/.build/grpc_csharp_plugin.exe"
+protoc --grpc_out=./csharp/echo/echopb --csharp_out=./csharp/echo/echopb --csharp_opt=file_extension=.g.cs proto/echo.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
 
 # C++ grpc files generation.
 mkdir cpp/resource/resourcepb
-protoc --plugin="protoc-gen-grpc=C://Users//mm006819//grpc//.build//grpc_cpp_plugin.exe" --grpc_out=./cpp/resource/resourcepb -I proto resource.proto
+protoc --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_cpp_plugin.exe" --grpc_out=./cpp/resource/resourcepb -I proto resource.proto
 protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/resource/resourcepb  -I proto resource.proto
 protoc --cpp_out=./cpp/resource/resourcepb -I proto resource.proto
 mkdir cpp/echo/echopb
-protoc --plugin="protoc-gen-grpc=C://Users//mm006819//grpc//.build//grpc_cpp_plugin.exe" --grpc_out=./cpp/echo/echopb -I proto/ echo.proto
+protoc --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_cpp_plugin.exe" --grpc_out=./cpp/echo/echopb -I proto/ echo.proto
 protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/echo/echopb -I proto/ echo.proto
 protoc --cpp_out=./cpp/echo/echopb  -I proto/ echo.proto
-mkdir cpp/plc/plcpb
-protoc --plugin="protoc-gen-grpc=C://Users//mm006819//grpc//.build//grpc_cpp_plugin.exe" --grpc_out=./cpp/plc/plcpb -I proto/ plc.proto
-protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/plc/plcpb -I proto/ plc.proto
-protoc --cpp_out=./cpp/plc/plcpb  -I proto/ plc.proto
 mkdir cpp/spc/spcpb
-protoc --plugin="protoc-gen-grpc=C://Users//mm006819//grpc//.build//grpc_cpp_plugin.exe" --grpc_out=./cpp/spc/spcpb -I proto/ spc.proto
+protoc --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_cpp_plugin.exe" --grpc_out=./cpp/spc/spcpb -I proto/ spc.proto
 protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/spc/spcpb -I proto/ spc.proto
 protoc --cpp_out=./cpp/spc/spcpb  -I proto/ spc.proto
 
