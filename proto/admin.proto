@@ -225,6 +225,16 @@ message SetEnvironmentVariableResponse {
 	/** Nothing here **/
 }
 
+message GetEnvironmentVariableRequest {
+	string name = 1;
+	
+}
+
+message GetEnvironmentVariableResponse {
+	string value = 2;
+}
+
+
 message UnsetEnvironmentVariableRequest {
 	string name = 1;
 }
@@ -314,6 +324,9 @@ service AdminService {
 
   // Set environement variable.
   rpc SetEnvironmentVariable(SetEnvironmentVariableRequest) returns(SetEnvironmentVariableResponse);
+  
+  // Get environement variable.
+  rpc GetEnvironmentVariable(GetEnvironmentVariableRequest) returns(GetEnvironmentVariableResponse);
 
   // Unset environement variable.
   rpc UnsetEnvironmentVariable(UnsetEnvironmentVariableRequest) returns(UnsetEnvironmentVariableResponse);
