@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
+using System;
 
 namespace Globular
 {
@@ -23,8 +23,9 @@ namespace Globular
         public int AdminPort { get; set; }
         public string AdminEmail { get; set; }
         public int ResourcePort { get; set; }
-        public int ServicesDiscoveryPort { get; set; }
-        public int ServicesRepositoryPort { get; set; }
+        public int RbacPort {get; set;}
+        public int PackagesDiscoveryPort { get; set; }
+        public int PackagesRepositoryPort { get; set; }
         public int CertificateAuthorityPort { get; set; }
         public int LoadBalancingServicePort { get; set; }
         public int SessionTimeout { get; set; }
@@ -188,6 +189,23 @@ namespace Globular
             return rsp.Content.ReadAsStringAsync().Result;
         }
 
+
+        private string getSanConfiguration(string domain, int ConfigurationPort)
+        {
+            // Get the configuration from the globular server.
+            var client = new HttpClient();
+            string rqst = "http://" + domain + ":" + ConfigurationPort + "/get_san_conf";
+            var task = Task.Run(() => client.GetAsync(rqst));
+            task.Wait();
+            var rsp = task.Result;
+            if (rsp.IsSuccessStatusCode == false)
+            {
+                throw new System.InvalidOperationException("Fail to get client configuration " + rqst);
+            }
+
+            return rsp.Content.ReadAsStringAsync().Result;
+        }
+
         public static string Base64Encode(string plainText)
         {
             var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(plainText);
@@ -224,7 +242,7 @@ namespace Globular
             }
 
             Process process_0 = new Process();
-            process_0.StartInfo.FileName = "openssl.exe";
+            process_0.StartInfo.FileName = "openssl";
 
             // Set args
             process_0.StartInfo.ArgumentList.Add("genrsa");
@@ -244,7 +262,7 @@ namespace Globular
             process_0.WaitForExit();
 
             Process process_1 = new Process();
-            process_1.StartInfo.FileName = "openssl.exe";
+            process_1.StartInfo.FileName = "openssl";
 
             // Set args
             process_1.StartInfo.ArgumentList.Add("rsa");
@@ -277,7 +295,7 @@ namespace Globular
             }
 
             Process process_0 = new Process();
-            process_0.StartInfo.FileName = "openssl.exe";
+            process_0.StartInfo.FileName = "openssl";
 
             // Set args
             process_0.StartInfo.ArgumentList.Add("req");
@@ -341,7 +359,7 @@ namespace Globular
             }
 
             Process process_0 = new Process();
-            process_0.StartInfo.FileName = "openssl.exe";
+            process_0.StartInfo.FileName = "openssl";
 
             // Set args
             process_0.StartInfo.ArgumentList.Add("pkcs8");
@@ -369,17 +387,25 @@ namespace Globular
             return true;
         }
 
-        private void init(string id, string domain = "localhost", int configurationPort = 10000)
+        private void init(string id, string address = "localhost:80")
         {
             // Get the configuration from the globular server.
             var client = new HttpClient();
-            string rqst = "http://" + domain + ":" + configurationPort + "/config";
+            string rqst = "http://" + address + "/config";
             var task = Task.Run(() => client.GetAsync(rqst));
             task.Wait();
             var rsp = task.Result;
             if (rsp.IsSuccessStatusCode == false)
             {
                 throw new System.InvalidOperationException("Fail to get client configuration " + rqst);
+            }
+
+            // The default configuration port will be 80
+            var configurationPort = 80;
+            this.domain = address;
+            if(address.IndexOf(":") != -1){
+                this.domain = address.Substring(0, address.IndexOf(":"));
+                Int32.TryParse(address.Substring(address.IndexOf(":") + 1), out configurationPort);
             }
 
             // Here I will parse the JSON object and initialyse values from it...
@@ -420,51 +446,75 @@ namespace Globular
             }
             else
             {
+                System.Console.WriteLine("Initialyse TLS configuration!");
+
                 // if the client is not local I will generate TLS certificates.
                 if (File.Exists(Path.GetTempPath() + "/" + this.domain + "_token"))
                 {
+                    System.Console.WriteLine("The client and server are on the same host...");
+
                     // The ca certificate.
                     this.caFile = config.CertAuthorityTrust;
 
                     // get the client certificate and key here.
                     this.certFile = config.CertFile.Replace("server", "client");
                     this.keyFile = config.KeyFile.Replace("server", "client");
+
+                     System.Console.WriteLine("CA certificate found at " + this.caFile);
+                     System.Console.WriteLine("Client certificate found at " + this.certFile);
+                     System.Console.WriteLine("Client private key found at " + this.keyFile );
                 }
                 else
                 {
+                    System.Console.Write("Generation of certificates");
                     // I will need to create certificate and make it sign by the CA.
-                    var path = Path.GetTempPath() + "/config/tls/" + this.domain;
+                    var path = Path.GetTempPath() + "config/tls/" + this.domain;
 
                     if (!Directory.Exists(path))
                     {
                         Directory.CreateDirectory(path);
                     }
 
+                    // First of all I will generate the san configuration file.
+                    System.Console.WriteLine("Get the san configuration from the server "+ this.domain + ":" + configurationPort);
+                    var san_config = this.getSanConfiguration(this.domain, configurationPort);
+                    File.WriteAllText(path + "/san.conf", san_config);
+
                     // Now I will create the certificates.
                     var ca_crt = getCaCertificate(this.domain, configurationPort);
                     File.WriteAllText(path + "/ca.crt", ca_crt);
+                    System.Console.WriteLine("Get the CA certificate to be able to generate csr... "+ this.domain + ":" + configurationPort);
+     
 
                     var pwd = "1111"; // Set in the configuration...
 
                     // Now I will generate the certificate for the client...
                     // Step 1: Generate client private key.
+                    System.Console.WriteLine("Step 1: Generate client private key.");
                     this.generateClientPrivateKey(path, pwd);
 
                     // Step 2: Generate the client signing request.
+                    System.Console.WriteLine("Step 2: Generate the client signing request.");
                     this.generateClientCertificateSigningRequest(path, this.domain);
 
                     // Step 3: Generate client signed certificate.
+                    System.Console.WriteLine("Step 3: Generate client signed certificate.");
                     var client_csr = File.ReadAllText(path + "/client.csr");
                     var client_crt = this.signCaCertificate(this.domain, configurationPort, client_csr);
                     File.WriteAllText(path + "/client.crt", client_crt);
 
                     // Step 4: Convert client.key to pem file.
+                    System.Console.WriteLine("Step 4: Convert client.key to pem file.");
                     this.keyToPem("client", path, pwd);
 
                     // Set path in the config.
                     this.keyFile = path + "/client.key";
                     this.caFile = path + "/ca.crt";
                     this.certFile = path + "/client.crt";
+
+                    System.Console.WriteLine("CA certificate found at " + this.caFile);
+                    System.Console.WriteLine("Client certificate found at " + this.certFile);
+                    System.Console.WriteLine("Client private key found at " + this.keyFile );
                 }
 
                 var cacert = File.ReadAllText(this.caFile);
@@ -521,13 +571,12 @@ namespace Globular
             return metadata;
         }
 
-        public Client(string id, string domain, int configurationPort)
+        public Client(string id, string address)
         {
             this.id = id;
-            this.domain = domain;
-
+     
             // Now I will get the client configuration.
-            this.init(id, domain, configurationPort);
+            this.init(id, address);
         }
     }
 }

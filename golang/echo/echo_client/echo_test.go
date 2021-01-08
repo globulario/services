@@ -31,7 +31,7 @@ func TestEcho(t *testing.T) {
 
 	val, err = client.Echo("Ceci est un test")
 	if err != nil {
-		log.Println("34 ---> ", err)
+		log.Println("34 ---> 400zm89a", err)
 	} else {
 		log.Println("36 ---> ", val)
 	}

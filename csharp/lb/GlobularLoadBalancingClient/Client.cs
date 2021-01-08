@@ -8,7 +8,7 @@ namespace Globular
     {
         private Lb.LoadBalancingService.LoadBalancingServiceClient client;
 
-        public LoadBalancingClient( string id, string domain, int configurationPort) : base(id, domain, configurationPort){
+        public LoadBalancingClient( string id, string address) : base(id, address){
             this.client = new Lb.LoadBalancingService.LoadBalancingServiceClient(this.channel);
         }
 

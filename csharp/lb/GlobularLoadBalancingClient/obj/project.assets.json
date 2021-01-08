@@ -93,7 +93,7 @@
       },
       "GlobularClient/1.0.2": {
         "type": "project",
-        "framework": ".NETCoreApp,Version=v3.1",
+        "framework": ".NETCoreApp,Version=v5.0",
         "dependencies": {
           "Grpc": "2.32.0",
           "Grpc.Core": "2.32.0",

@@ -14,7 +14,7 @@ namespace Globular
         /// <param name="domain"></param> The domain of the services
         /// <param name="configurationPort"></param> The domain of the services
         /// <returns></returns>
-        public ResourceClient( string id, string domain, int configurationPort) : base(id, domain, configurationPort)
+        public ResourceClient( string id, string address) : base(id, address)
         {
             // Here I will create grpc connection with the service...
             this.client = new Resource.ResourceService.ResourceServiceClient(this.channel);

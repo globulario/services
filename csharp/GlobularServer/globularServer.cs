@@ -19,7 +19,7 @@ namespace Globular
     /// </summary>
     public class GlobularService
     {
-    	public string Id { get; set; }
+        public string Id { get; set; }
         public string Name { get; set; }
         public string Path { get; set; }
         public string Proto { get; set; }
@@ -35,8 +35,8 @@ namespace Globular
         public bool TLS { get; set; }
         public string Version { get; set; }
         public string PublisherId { get; set; }
-        public string Description { get;set;}
-        public string[] Keywords{get; set;}
+        public string Description { get; set; }
+        public string[] Keywords { get; set; }
         public bool KeepUpToDate { get; set; }
         public bool KeepAlive { get; set; }
 
@@ -71,8 +71,8 @@ namespace Globular
             this.AllowAllOrigins = true;
             this.AllowedOrigins = "";
             this.Description = "";
-            this.Keywords  = new string[] {"Globular", "microservice", "csharp"};
-                        
+            this.Keywords = new string[] { "Globular", "microservice", "csharp" };
+
             // Create the interceptor.
             System.Console.WriteLine("create new ServerUnaryInterceptor");
             this.interceptor = new Globular.ServerUnaryInterceptor(this);
@@ -80,55 +80,54 @@ namespace Globular
             // Get the local globular server infomation.
             System.Console.WriteLine("Try to read GLOBULAR_ROOT file from " + System.IO.Path.GetTempPath());
 
-            string path = System.IO.Path.GetTempPath() +  "GLOBULAR_ROOT";
-            string text = System.IO.File.ReadAllText(  path );
+            string path = System.IO.Path.GetTempPath() + "GLOBULAR_ROOT";
+            string text = System.IO.File.ReadAllText(path);
             this.Root = text.Substring(0, text.LastIndexOf(":")).Replace("\\", "/");
-            
-            this.ConfigurationPort = Int32.Parse( text.Substring(text.LastIndexOf(":") + 1));
+
+            this.ConfigurationPort = Int32.Parse(text.Substring(text.LastIndexOf(":") + 1));
             System.Console.WriteLine("The service configuration port is " + this.ConfigurationPort);
         }
 
-        private ResourceClient getResourceClient(string domain)
+        private ResourceClient getResourceClient(string address)
         {
             if (this.resourceClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
                 // TODO set the configuration port in a configuration file.
-                this.resourceClient = new ResourceClient("resource.ResourceService", domain, this.ConfigurationPort );
+                this.resourceClient = new ResourceClient("resource.ResourceService", address);
             }
             return this.resourceClient;
         }
 
 
-        private RbacClient getRbacClient(string domain)
+        private RbacClient getRbacClient(string address)
         {
             if (this.rbacClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
-                // TODO set the configuration port in a configuration file.
-                this.rbacClient  = new RbacClient("rbac.RbacService", domain, this.ConfigurationPort );
+                System.Console.WriteLine("---> init the RBAC client at domain " + address);
+                this.rbacClient = new RbacClient("rbac.RbacService", address);
             }
             return this.rbacClient;
         }
 
-        private LoadBalancingClient getLoadBalancingClient(string domain)
+        private LoadBalancingClient getLoadBalancingClient(string address)
         {
             if (this.loadBalancingClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
-                // TODO set the configuration port in a configuration file.
-                this.loadBalancingClient  = new LoadBalancingClient("lb.LoadBalancingService", domain, this.ConfigurationPort );
+                this.loadBalancingClient = new LoadBalancingClient("lb.LoadBalancingService", address);
             }
             return this.loadBalancingClient;
         }
 
-        private LogClient getLogClient(string domain)
+        private LogClient getLogClient(string address)
         {
             if (this.logClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
                 // TODO set the configuration port in a configuration file.
-                this.logClient  = new LogClient("log.LogService", domain, this.ConfigurationPort );
+                this.logClient = new LogClient("log.LogService", address);
             }
 
             return this.logClient;
@@ -138,21 +137,29 @@ namespace Globular
             return Directory.GetCurrentDirectory();
         }
 
-        private bool validateAction(string domain, string method, string subject, Rbac.SubjectType subjectType, Rbac.ResourceInfos[] infos){
-            
+        private bool validateAction(string domain, string method, string subject, Rbac.SubjectType subjectType, Rbac.ResourceInfos[] infos)
+        {
+            System.Console.WriteLine("Valdated access for Domain: " + domain + " Subject: " + subject + " Method: " + method);
+
+
             return true;
         }
 
-        public bool validateActionRequest(Object rqst, string domain, string method, string subject, Rbac.SubjectType subjectType){
-            
+        public bool validateActionRequest(Object rqst, string domain, string method, string subject, Rbac.SubjectType subjectType)
+        {
+            // Here I need to ge the ResourceInfos...
+            var client = this.getRbacClient(domain);
+
             return true;
         }
 
-        public bool validateToken(string token){
+        public bool validateToken(string token)
+        {
             return true;
         }
 
-        public string getUserIdFromToken(string token){
+        public string getUserIdFromToken(string token)
+        {
             return "";
         }
 
@@ -162,7 +169,7 @@ namespace Globular
         public object init(object server)
         {
             var configPath = this.getPath() + "/config.json";
-            this.Path =System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+            this.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
             this.Path = this.Path.Replace("\\", "/");
             // Here I will read the file that contain the object.
             if (File.Exists(configPath))
@@ -170,7 +177,9 @@ namespace Globular
                 var jsonStr = File.ReadAllText(configPath);
                 var s = JsonSerializer.Deserialize(jsonStr, server.GetType());
                 return s;
-            }else{
+            }
+            else
+            {
 
                 // Here I will complete the filepath with the Root value of the server.
                 this.Proto = this.Root + "/" + this.Proto;
@@ -184,7 +193,7 @@ namespace Globular
         /// </summary>
         public void save(object server)
         {
-            var configPath = getPath()  + "/config.json";
+            var configPath = getPath() + "/config.json";
             string jsonStr;
             jsonStr = JsonSerializer.Serialize(server);
             File.WriteAllText(configPath, jsonStr);
@@ -212,7 +221,7 @@ namespace Globular
             string clientId = "";
             string method = context.Method;
             bool hasAccess = false;
-            
+
             // Get the metadata from the header.
             for (var i = 0; i < metadatas.Count; i++)
             {
@@ -235,6 +244,7 @@ namespace Globular
                 }
             }
 
+   
             // A domain must be given to get access to the resource manager.
             if (domain.Length == 0)
             {
@@ -248,10 +258,14 @@ namespace Globular
 
             if (!hasAccess)
             {
-                if(this.service.validateToken(token)){
-                    clientId = this.service.getUserIdFromToken(token);
+                if (token.Length > 0)
+                {
+                    if (this.service.validateToken(token))
+                    {
+                        clientId = this.service.getUserIdFromToken(token);
+                    }
+                    hasAccess = this.service.validateActionRequest(request, domain, method, clientId, Rbac.SubjectType.Account);
                 }
-                hasAccess = this.service.validateActionRequest(request, domain, method, clientId, Rbac.SubjectType.Account);
             }
 
             if (!hasAccess)

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "Va3NH7uaLjvZ6Lu6yhlAZQ0EzCHFN78tavIDIXv4SPehBBCAP0CjECHZEIjM3vDIJCY8TBpu1kQC4VM05s2XSg==",
+  "dgSpecHash": "FNcVJi2I8cNEN4JR5+4itTgxsVpIxOPEkLRyT2sI+ljgyS1vNqaEOiVlGsBC6BCkFdVsfUkHIyyfuJI6YNTBaQ==",
   "success": true,
   "projectFilePath": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj",
   "expectedPackageFiles": [

@@ -8,7 +8,7 @@ namespace Globular
     {
         private Log.LogService.LogServiceClient client;
 
-        public LogClient( string id, string domain, int configurationPort) : base(id, domain, configurationPort){
+        public LogClient( string id, string address) : base(id, address){
             this.client = new Log.LogService.LogServiceClient(this.channel);
         }
 
