@@ -210,10 +210,12 @@ message DeployApplicationResponse{
 message RunCmdRequest{
 	string cmd = 1;
 	repeated string args = 2;
+	bool blocking=3;
 }
 
 message RunCmdResponse{
 	string result = 1; // The content of the result ass a string.
+	int32 pid=4;
 }
 
 message SetEnvironmentVariableRequest {
@@ -244,6 +246,30 @@ message InstallCertificatesResponse {
    string cacert = 1;
    string cert = 2;
    string certkey = 3;
+}
+
+message KillProcessRequest{
+	int64 pid = 1;
+}
+
+message KillProcessResponse{
+
+}
+
+message KillProcessesRequest {
+	string name = 1;
+}
+
+message KillProcessesResponse {
+	
+}
+
+message GetPidsRequest {
+	string name = 1;
+}
+
+message GetPidsResponse {
+	repeated int32 pids = 1;
 }
 
 service AdminService {
@@ -318,4 +344,12 @@ service AdminService {
   // Unset environement variable.
   rpc UnsetEnvironmentVariable(UnsetEnvironmentVariableRequest) returns(UnsetEnvironmentVariableResponse);
 
+  // Kill process by id
+  rpc KillProcess(KillProcessRequest) returns(KillProcessResponse);
+
+  // Kill process by name
+  rpc KillProcesses(KillProcessesRequest) returns(KillProcessesResponse);
+
+  // Return the list of process id with a given name.
+  rpc GetPids(GetPidsRequest) returns(GetPidsResponse);
 }

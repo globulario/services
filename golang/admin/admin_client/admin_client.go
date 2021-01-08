@@ -643,3 +643,106 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 
 	return size, nil
 }
+
+/**
+ * Set environement variable.
+ */
+func (self *Admin_Client) SetEnvironmentVariable(token, name, value string) error {
+	rqst := &adminpb.SetEnvironmentVariableRequest{
+		Name:  name,
+		Value: value,
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md := metadata.New(map[string]string{"token": string(token)})
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.SetEnvironmentVariable(ctx, rqst)
+	return err
+
+}
+
+// UnsetEnvironement variable.
+func (self *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
+	rqst := &adminpb.UnsetEnvironmentVariableRequest{
+		Name: name,
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md := metadata.New(map[string]string{"token": string(token)})
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	_, err := self.c.UnsetEnvironmentVariable(ctx, rqst)
+	return err
+}
+
+// Run a command.
+func (self *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool) (string, error) {
+	rqst := &adminpb.RunCmdRequest{
+		Cmd:      cmd,
+		Args:     args,
+		Blocking: blocking,
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md := metadata.New(map[string]string{"token": string(token)})
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	rsp, err := self.c.RunCmd(ctx, rqst)
+	if err != nil {
+		return "", err
+	}
+	return rsp.Result, nil
+}
+
+func (self *Admin_Client) KillProcess(token string, pid int) error {
+	rqst := &adminpb.KillProcessRequest{
+		Pid: int64(pid),
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md := metadata.New(map[string]string{"token": string(token)})
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.KillProcess(ctx, rqst)
+	return err
+}
+
+func (self *Admin_Client) KillProcesses(token string, name string) error {
+	rqst := &adminpb.KillProcessesRequest{
+		Name: name,
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md := metadata.New(map[string]string{"token": string(token)})
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.KillProcesses(ctx, rqst)
+	return err
+}
+
+func (self *Admin_Client) GetPids(token string, name string) ([]int32, error) {
+	rqst := &adminpb.GetPidsRequest{
+		Name: name,
+	}
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md := metadata.New(map[string]string{"token": string(token)})
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	rsp, err := self.c.GetPids(ctx, rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.Pids, err
+}

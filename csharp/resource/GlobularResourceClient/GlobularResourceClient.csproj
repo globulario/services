@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>netcoreapp5.0</TargetFramework>
     <PackageId>GlobularResourceClient</PackageId>
     <Title>Globular Resource Client</Title>
     <Language>CSharp</Language>
@@ -19,6 +19,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.13.0" />
-    <PackageReference Include="Grpc" Version="2.32.0" />
+    <PackageReference Include="Grpc" Version="2.34.0" />
   </ItemGroup>
 </Project>

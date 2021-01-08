@@ -234,6 +234,8 @@ func (self *PackagesDiscovery_Client) PublishPackageDescriptor(descriptor *packa
 	// publish a service descriptor on the network.
 	_, err := self.c.PublishPackageDescriptor(globular.GetClientContext(self), rqst)
 
+	log.Println("--------------> ", err)
+
 	return err
 }
 

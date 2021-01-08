@@ -4,15 +4,19 @@ import (
 	//"encoding/json"
 	"log"
 	"testing"
-	"time"
+
+	//"time"
+	"github.com/globulario/services/golang/resource/resource_client"
 )
 
 var (
 	// Connect to the admin client.
-	client, _ = NewAdminService_Client("localhost", "admin.AdminService")
+	client, _ = NewAdminService_Client("mon-iis-01:10001", "admin.AdminService")
 )
 
 // Test various function here.
+
+/*
 func TestGetConfig(t *testing.T) {
 	_, err := client.GetConfig()
 	if err != nil {
@@ -21,7 +25,9 @@ func TestGetConfig(t *testing.T) {
 	}
 	log.Println("Get Config succeed!")
 }
+*/
 
+/*
 func TestGetFullConfig(t *testing.T) {
 	_, err := client.GetFullConfig()
 	if err != nil {
@@ -30,7 +36,7 @@ func TestGetFullConfig(t *testing.T) {
 	}
 	log.Println("GetFullConfig succeed!")
 }
-
+*/
 // Test modify the config...
 /*func TestSaveConfig(t *testing.T) {
 	log.Println("---> test get config.")
@@ -67,7 +73,7 @@ func TestGetFullConfig(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }*/
-
+/*
 func TestInstallService(t *testing.T) {
 	err := client.InstallService("localhost", "globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b")
 	if err != nil {
@@ -75,7 +81,8 @@ func TestInstallService(t *testing.T) {
 	}
 	time.Sleep(time.Second * 5)
 }
-
+*/
+/*
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
@@ -87,7 +94,8 @@ func TestStartService(t *testing.T) {
 	log.Println("service pid:", service_pid, " proxy pid:", proxy_pid)
 
 }
-
+*/
+/*
 func TestStopService(t *testing.T) {
 	err := client.StopService("echo.EchoService")
 	if err != nil {
@@ -96,13 +104,16 @@ func TestStopService(t *testing.T) {
 	}
 	log.Println("---> stop service succeeded")
 }
+*/
 
+/*
 func TestUninstallService(t *testing.T) {
 	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
 	if err != nil {
 		log.Panicln(err)
 	}
 }
+*/
 
 /*
 func TestRestartServices(t *testing.T) {
@@ -141,3 +152,50 @@ func TestRestartServices(t *testing.T) {
 	}
 }
 */
+/*
+func TestRunCmd(t *testing.T) {
+	var err error
+	client_, err := resource_client.NewResourceService_Client("mon-iis-01:10003", "resource.ResourceService")
+	if err != nil {
+		log.Println("----> fail to connect with error ", err)
+		return
+	}
+	token, err := client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println("---> ", err)
+	} else {
+		log.Println("---> ", token)
+	}
+
+	results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"})
+	if err != nil {
+		log.Println(err)
+		t.FailNow()
+	}
+
+	log.Println(results)
+}
+*/
+
+func TestGeneratePost(t *testing.T) {
+	var err error
+	client_, err := resource_client.NewResourceService_Client("mon-iis-01:10003", "resource.ResourceService")
+	if err != nil {
+		log.Println("----> fail to connect with error ", err)
+		return
+	}
+	token, err := client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println("---> ", err)
+	} else {
+		log.Println("---> ", token)
+	}
+
+	results, err := client.RunCmd(token, `\\mon-filer-01\Manufacturing\Transfert\_00mr\post\dave\____POST_2701.cmd`, []string{})
+	if err != nil {
+		log.Println(err)
+		t.FailNow()
+	}
+
+	log.Println(results)
+}
