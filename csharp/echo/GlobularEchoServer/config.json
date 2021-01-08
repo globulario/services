@@ -1,0 +1,31 @@
+{
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "/home/dave/go/src/github.com/globulario/Globular/config/tls/ca.crt",
+  "CertFile": "/home/dave/go/src/github.com/globulario/Globular/config/tls/server.crt",
+  "Description": "Test service that can be use to learning how to use globular.",
+  "Domain": "globular.live",
+  "Id": "0f80ed1a-5d3a-46f1-a3f6-c091ac259665",
+  "KeepAlive": false,
+  "KeepUpToDate": false,
+  "KeyFile": "/home/dave/go/src/github.com/globulario/Globular/config/tls/server.pem",
+  "Keywords": [
+    "Globular",
+    "microservice",
+    "csharp"
+  ],
+  "Name": "echo.EchoService",
+  "Path": "/home/dave/go/src/github.com/globulario/services/csharp/echo/GlobularEchoServer/bin/Debug/netcoreapp5.0/GlobularEchoServer",
+  "Port": 10051,
+  "Process": 823688,
+  "Proto": "/home/dave/go/src/github.com/globulario/Globular/proto/echo.proto",
+  "Protocol": "grpc",
+  "Proxy": 10052,
+  "ProxyProcess": 823771,
+  "PublisherId": "globulario",
+  "State": "running",
+  "TLS": true,
+  "Value": "echo value!",
+  "Version": "0.0.1",
+  "configPath": "/home/dave/go/src/github.com/globulario/services/csharp/echo/GlobularEchoServer/config.json"
+}

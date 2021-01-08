@@ -12,6 +12,8 @@ namespace Globular
             this.client = new Rbac.RbacService.RbacServiceClient(this.channel);
         }
 
+        
+
     }
 
 }

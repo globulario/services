@@ -1,6 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Security.Principal;
-using System.Text.RegularExpressions;
 using System;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
@@ -19,24 +17,30 @@ namespace Echo
         {
             Task.Factory.StartNew(() =>
             {
+                System.Console.WriteLine("try to start echo server...");
+
                 // Create a new echo server instance.
                 var echoServer = new EchoServiceImpl();
+
                 // init values from the configuration file.
+                System.Console.WriteLine("init service configuration.");
                 echoServer = echoServer.init();
+                System.Console.WriteLine("the server is now initialysed!");
+                
                 if (echoServer.TLS == true)
                 {
                     // Read ssl certificate and initialyse credential with it.
-                    var cacert = File.ReadAllText(echoServer.CertAuthorityTrust);
-                    var servercert = File.ReadAllText(echoServer.CertFile);
-                    var serverkey = File.ReadAllText(echoServer.KeyFile);
-                    var keypair = new KeyCertificatePair(servercert, serverkey);
+                    List<KeyCertificatePair> certificates = new List<KeyCertificatePair>();
+                    certificates.Add(new KeyCertificatePair(File.ReadAllText(echoServer.CertFile), File.ReadAllText(echoServer.KeyFile)));
+ 
                     // secure connection parameters.
-                    var ssl = new SslServerCredentials(new List<KeyCertificatePair>() { keypair }, cacert, false);
+                    var ssl = new SslServerCredentials(certificates, File.ReadAllText(echoServer.CertAuthorityTrust), false);
+
                     // create the server.
                     server = new Server
                     {
                         Services = { EchoService.BindService(echoServer).Intercept(echoServer.interceptor) },
-                        Ports = { new ServerPort(echoServer.Domain, echoServer.Port, ssl) }
+                        Ports = { new ServerPort( "0.0.0.0", echoServer.Port, ssl) }
                     };
                 }
                 else
@@ -45,7 +49,7 @@ namespace Echo
                     server = new Server
                     {
                         Services = { EchoService.BindService(echoServer).Intercept(echoServer.interceptor) },
-                        Ports = { new ServerPort(echoServer.Domain, echoServer.Port, ServerCredentials.Insecure) }
+                        Ports = { new ServerPort("0.0.0.0", echoServer.Port, ServerCredentials.Insecure) }
                     };
                 }
 

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"io/ioutil"
 
-	"log"
+	//	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -84,7 +84,6 @@ type Client interface {
  * Initialyse the client security and set it port to
  */
 func InitClient(client Client, address string, id string) error {
-	log.Println(address, id)
 
 	// Set the domain and the name from the incomming...
 
@@ -124,10 +123,15 @@ func InitClient(client Client, address string, id string) error {
 
 	// Set security values.
 	if config["TLS"] != nil {
-		client.SetKeyFile(config["KeyFile"].(string))
-		client.SetCertFile(config["CertFile"].(string))
+		// Change server cert to client cert and do the same for key
+		certificateFile := strings.Replace(config["CertFile"].(string), "server", "client", -1)
+		keyFile := strings.Replace(config["KeyFile"].(string), "server", "client", -1)
+
+		client.SetKeyFile(keyFile)
+		client.SetCertFile(certificateFile)
 		client.SetCaFile(config["CertAuthorityTrust"].(string))
 		client.SetTLS(config["TLS"].(bool))
+
 	} else {
 		client.SetTLS(false)
 	}
@@ -176,7 +180,9 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			creds := credentials.NewTLS(&tls.Config{
 				ServerName:   client.GetDomain(), // NOTE: this is required!
 				Certificates: []tls.Certificate{certificate},
-				RootCAs:      certPool,
+				ClientAuth:   tls.RequireAndVerifyClientCert,
+				//ClientCAs:    certPool,
+				RootCAs: certPool,
 			})
 
 			// Create a connection with the TLS credentials

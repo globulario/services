@@ -20,6 +20,7 @@ namespace Globular
             this.client = new Resource.ResourceService.ResourceServiceClient(this.channel);
         }
 
+        
         public string Authenticate(string user, string password){
             Resource.AuthenticateRqst rqst = new Resource.AuthenticateRqst();
             rqst.Name = user;

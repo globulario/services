@@ -35,6 +35,8 @@ namespace Globular
         public bool TLS { get; set; }
         public string Version { get; set; }
         public string PublisherId { get; set; }
+        public string Description { get;set;}
+        public string[] Keywords{get; set;}
         public bool KeepUpToDate { get; set; }
         public bool KeepAlive { get; set; }
 
@@ -42,8 +44,14 @@ namespace Globular
         public int ConfigurationPort; // The configuration port of globular.
         public string Root; // The globular root.
 
-		
         private ResourceClient resourceClient;
+
+        private RbacClient rbacClient;
+
+        private LoadBalancingClient loadBalancingClient;
+
+        private LogClient logClient;
+
         public ServerUnaryInterceptor interceptor;
 
         /// <summary>
@@ -51,6 +59,7 @@ namespace Globular
         /// </summary>
         public GlobularService(string domain = "localhost")
         {
+            System.Console.WriteLine("Create a new service with domain " + domain);
             // set default values.
             this.Domain = domain;
             this.Protocol = "grpc";
@@ -61,15 +70,22 @@ namespace Globular
             this.CertAuthorityTrust = "";
             this.AllowAllOrigins = true;
             this.AllowedOrigins = "";
+            this.Description = "";
+            this.Keywords  = new string[] {"Globular", "microservice", "csharp"};
                         
             // Create the interceptor.
+            System.Console.WriteLine("create new ServerUnaryInterceptor");
             this.interceptor = new Globular.ServerUnaryInterceptor(this);
 
             // Get the local globular server infomation.
+            System.Console.WriteLine("Try to read GLOBULAR_ROOT file from " + System.IO.Path.GetTempPath());
+
             string path = System.IO.Path.GetTempPath() +  "GLOBULAR_ROOT";
             string text = System.IO.File.ReadAllText(  path );
             this.Root = text.Substring(0, text.LastIndexOf(":")).Replace("\\", "/");
+            
             this.ConfigurationPort = Int32.Parse( text.Substring(text.LastIndexOf(":") + 1));
+            System.Console.WriteLine("The service configuration port is " + this.ConfigurationPort);
         }
 
         private ResourceClient getResourceClient(string domain)
@@ -78,14 +94,66 @@ namespace Globular
             {
                 // there must be a globular server runing in order to validate resources.
                 // TODO set the configuration port in a configuration file.
-                resourceClient = new ResourceClient("resource.ResourceService", domain, this.ConfigurationPort );
+                this.resourceClient = new ResourceClient("resource.ResourceService", domain, this.ConfigurationPort );
             }
             return this.resourceClient;
         }
 
+
+        private RbacClient getRbacClient(string domain)
+        {
+            if (this.rbacClient == null)
+            {
+                // there must be a globular server runing in order to validate resources.
+                // TODO set the configuration port in a configuration file.
+                this.rbacClient  = new RbacClient("rbac.RbacService", domain, this.ConfigurationPort );
+            }
+            return this.rbacClient;
+        }
+
+        private LoadBalancingClient getLoadBalancingClient(string domain)
+        {
+            if (this.loadBalancingClient == null)
+            {
+                // there must be a globular server runing in order to validate resources.
+                // TODO set the configuration port in a configuration file.
+                this.loadBalancingClient  = new LoadBalancingClient("lb.LoadBalancingService", domain, this.ConfigurationPort );
+            }
+            return this.loadBalancingClient;
+        }
+
+        private LogClient getLogClient(string domain)
+        {
+            if (this.logClient == null)
+            {
+                // there must be a globular server runing in order to validate resources.
+                // TODO set the configuration port in a configuration file.
+                this.logClient  = new LogClient("log.LogService", domain, this.ConfigurationPort );
+            }
+
+            return this.logClient;
+        }
         private string getPath()
         {
             return Directory.GetCurrentDirectory();
+        }
+
+        private bool validateAction(string domain, string method, string subject, Rbac.SubjectType subjectType, Rbac.ResourceInfos[] infos){
+            
+            return true;
+        }
+
+        public bool validateActionRequest(Object rqst, string domain, string method, string subject, Rbac.SubjectType subjectType){
+            
+            return true;
+        }
+
+        public bool validateToken(string token){
+            return true;
+        }
+
+        public string getUserIdFromToken(string token){
+            return "";
         }
 
         /// <summary>
@@ -141,6 +209,7 @@ namespace Globular
             string token = "";
             string path = "";
             string domain = "";
+            string clientId = "";
             string method = context.Method;
             bool hasAccess = false;
             
@@ -174,14 +243,21 @@ namespace Globular
 
             if (application.Length > 0)
             {
-                hasAccess = this.service.validateApplicationAccess(domain, application, method);
+                hasAccess = this.service.validateActionRequest(request, domain, method, application, Rbac.SubjectType.Application);
             }
 
             if (!hasAccess)
             {
-                hasAccess = this.service.validateUserAccess(domain, token, method);
+                if(this.service.validateToken(token)){
+                    clientId = this.service.getUserIdFromToken(token);
+                }
+                hasAccess = this.service.validateActionRequest(request, domain, method, clientId, Rbac.SubjectType.Account);
             }
 
+            if (!hasAccess)
+            {
+                hasAccess = this.service.validateActionRequest(request, domain, method, domain, Rbac.SubjectType.Peer);
+            }
 
             // Here I will validate the user for action.
             if (!hasAccess)
@@ -189,25 +265,6 @@ namespace Globular
                 // here I the user and the application has no access to the method 
                 // I will throw an exception.
                 throw new RpcException(new Status(StatusCode.PermissionDenied, "Permission denied"), metadatas);
-            }
-
-            // Now if the action has resource access permission defines...
-            var permission = this.service.getActionPermission(domain, method);
-            if (permission != -1)
-            {
-                // Now I will try to validate resource if there is none...
-                if (path.Length > 0)
-                {
-                    var hasResourcePermission = this.service.validateUserResourceAccess(domain, token, path, method, permission);
-                    if (!hasResourcePermission)
-                    {
-                        this.service.validateApplicationResourceAccess(domain, application, path, method, permission);
-                    }
-                    if (!hasResourcePermission)
-                    {
-                        throw new RpcException(new Status(StatusCode.PermissionDenied, "Permission denied"), metadatas);
-                    }
-                }
             }
 
             // this.service.
