@@ -679,6 +679,24 @@ func (self *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
 	return err
 }
 
+func (self *Admin_Client) GetEnvironmentVariable(token, name string) (string, error) {
+	rqst := &adminpb.GetEnvironmentVariableRequest{
+		Name: name,
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md := metadata.New(map[string]string{"token": string(token)})
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	rsp, err := self.c.GetEnvironmentVariable(ctx, rqst)
+	if err != nil {
+
+		return "", err
+	}
+	return rsp.Value, nil
+}
+
 // Run a command.
 func (self *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool) (string, error) {
 	rqst := &adminpb.RunCmdRequest{

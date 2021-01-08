@@ -1,36 +1,111 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj": {}
+    "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj": {}
   },
   "projects": {
-    "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj": {
+    "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj": {
+      "version": "1.0.2",
+      "restore": {
+        "projectUniqueName": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj",
+        "projectName": "GlobularClient",
+        "projectPath": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj",
+        "packagesPath": "/home/dave/.nuget/packages/",
+        "outputPath": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/home/dave/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "netcoreapp3.1"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "netcoreapp3.1": {
+            "targetAlias": "netcoreapp3.1",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "netcoreapp3.1": {
+          "targetAlias": "netcoreapp3.1",
+          "dependencies": {
+            "Grpc": {
+              "target": "Package",
+              "version": "[2.32.0, )"
+            },
+            "Grpc.Core": {
+              "target": "Package",
+              "version": "[2.32.0, )"
+            },
+            "System.Text.Json": {
+              "target": "Package",
+              "version": "[4.7.1, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[3.1.8, 3.1.8]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[3.1.0, 3.1.0]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/5.0.100/RuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj",
+        "projectUniqueName": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj",
         "projectName": "GlobularLoadBalancingClient",
-        "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj",
-        "packagesPath": "C:\\Users\\mm006819\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\obj\\",
+        "projectPath": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj",
+        "packagesPath": "/home/dave/.nuget/packages/",
+        "outputPath": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/obj/",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
-        ],
         "configFilePaths": [
-          "C:\\Users\\mm006819\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/home/dave/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net5.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net5.0": {
             "targetAlias": "net5.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj": {
+                "projectPath": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -42,6 +117,16 @@
       "frameworks": {
         "net5.0": {
           "targetAlias": "net5.0",
+          "dependencies": {
+            "Google.Protobuf": {
+              "target": "Package",
+              "version": "[3.14.0, )"
+            },
+            "Grpc": {
+              "target": "Package",
+              "version": "[2.34.0, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -57,7 +142,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.100\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/5.0.100/RuntimeIdentifierGraph.json"
         }
       }
     }

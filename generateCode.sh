@@ -94,13 +94,15 @@ protoc --js_out=import_style=commonjs:typescript/rbac  -I ./proto/ rbac.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/rbac -I ./proto/ rbac.proto
 
 # CSharp grpc files generation
-protoc --grpc_out=./csharp/event/GlobularEventClient --csharp_out=./csharp/event/GlobularEventClient --csharp_opt=file_extension=.g.cs proto/event.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
-protoc --grpc_out=./csharp/persistence/GlobularPersistenceClient --csharp_out=./csharp/persistence/GlobularPersistenceClient --csharp_opt=file_extension=.g.cs proto/persistence.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
-protoc --grpc_out=./csharp/resource/GlobularResourceClient --csharp_out=./csharp/resource/GlobularResourceClient --csharp_opt=file_extension=.g.cs proto/resource.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
-protoc --grpc_out=./csharp/echo/GlobularEchoServer --csharp_out=./csharp/echo/GlobularEchoServer --csharp_opt=file_extension=.g.cs proto/echo.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
-protoc --grpc_out=./csharp/lb/GlobularLoadBalancingClient --csharp_out=./csharp/lb/GlobularLoadBalancingClient --csharp_opt=file_extension=.g.cs proto/lb.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
-protoc --grpc_out=./csharp/log/GlobularLogClient --csharp_out=./csharp/log/GlobularLogClient --csharp_opt=file_extension=.g.cs proto/log.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
-protoc --grpc_out=./csharp/rbac/GlobularRbacClient --csharp_out=./csharp/rbac/GlobularRbacClient --csharp_opt=file_extension=.g.cs proto/rbac.proto --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_csharp_plugin.exe"
+# on window use C:\msys64\mingw64\bin\grpc_csharp_plugin.exe
+# on linux use /usr/local/bin/grpc_csharp_plugin
+protoc --grpc_out=./csharp/event/GlobularEventClient --csharp_out=./csharp/event/GlobularEventClient --csharp_opt=file_extension=.g.cs proto/event.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
+protoc --grpc_out=./csharp/persistence/GlobularPersistenceClient --csharp_out=./csharp/persistence/GlobularPersistenceClient --csharp_opt=file_extension=.g.cs proto/persistence.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
+protoc --grpc_out=./csharp/resource/GlobularResourceClient --csharp_out=./csharp/resource/GlobularResourceClient --csharp_opt=file_extension=.g.cs proto/resource.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
+protoc --grpc_out=./csharp/echo/GlobularEchoServer --csharp_out=./csharp/echo/GlobularEchoServer --csharp_opt=file_extension=.g.cs proto/echo.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
+protoc --grpc_out=./csharp/lb/GlobularLoadBalancingClient --csharp_out=./csharp/lb/GlobularLoadBalancingClient --csharp_opt=file_extension=.g.cs proto/lb.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
+protoc --grpc_out=./csharp/log/GlobularLogClient --csharp_out=./csharp/log/GlobularLogClient --csharp_opt=file_extension=.g.cs proto/log.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
+protoc --grpc_out=./csharp/rbac/GlobularRbacClient --csharp_out=./csharp/rbac/GlobularRbacClient --csharp_opt=file_extension=.g.cs proto/rbac.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
 
 
 # C++ grpc files generation.

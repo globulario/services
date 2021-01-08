@@ -1,8 +1,16 @@
 {
   "version": 2,
-  "dgSpecHash": "PwK9xfpbfO5g3/UF0TRv4tAHnm1YMPtxTNiprrXQ9zQH8n7aaAJmTKl0afbFf8u4qIcKoGVG+/7c24gKFRAN6w==",
+  "dgSpecHash": "Va3NH7uaLjvZ6Lu6yhlAZQ0EzCHFN78tavIDIXv4SPehBBCAP0CjECHZEIjM3vDIJCY8TBpu1kQC4VM05s2XSg==",
   "success": true,
-  "projectFilePath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj",
-  "expectedPackageFiles": [],
+  "projectFilePath": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj",
+  "expectedPackageFiles": [
+    "/home/dave/.nuget/packages/google.protobuf/3.14.0/google.protobuf.3.14.0.nupkg.sha512",
+    "/home/dave/.nuget/packages/grpc/2.34.0/grpc.2.34.0.nupkg.sha512",
+    "/home/dave/.nuget/packages/grpc.core/2.34.0/grpc.core.2.34.0.nupkg.sha512",
+    "/home/dave/.nuget/packages/grpc.core.api/2.34.0/grpc.core.api.2.34.0.nupkg.sha512",
+    "/home/dave/.nuget/packages/system.memory/4.5.3/system.memory.4.5.3.nupkg.sha512",
+    "/home/dave/.nuget/packages/system.runtime.compilerservices.unsafe/4.5.2/system.runtime.compilerservices.unsafe.4.5.2.nupkg.sha512",
+    "/home/dave/.nuget/packages/system.text.json/4.7.1/system.text.json.4.7.1.nupkg.sha512"
+  ],
   "logs": []
 }
