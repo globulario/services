@@ -138,7 +138,7 @@ proto.rbac.RbacServiceClient.prototype.setResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.SetResourcePermissionsRqst>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.setResourcePermissions =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.rbac.RbacServiceClient.prototype.deleteResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteResourcePermissionsRqst>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.deleteResourcePermissions =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.rbac.RbacServiceClient.prototype.deleteResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteResourcePermissionRqst>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.deleteResourcePermission =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.rbac.RbacServiceClient.prototype.getResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetResourcePermissionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.getResourcePermission =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.rbac.RbacServiceClient.prototype.setResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.SetResourcePermissionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.setResourcePermission =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.rbac.RbacServiceClient.prototype.getResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetResourcePermissionsRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.getResourcePermissions =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.rbac.RbacServiceClient.prototype.addResourceOwner =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.AddResourceOwnerRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.addResourceOwner =
     function(request, metadata) {
@@ -698,7 +698,7 @@ proto.rbac.RbacServiceClient.prototype.removeResourceOwner =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.RemoveResourceOwnerRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.removeResourceOwner =
     function(request, metadata) {
@@ -778,7 +778,7 @@ proto.rbac.RbacServiceClient.prototype.deleteAllAccess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteAllAccessRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.deleteAllAccess =
     function(request, metadata) {
@@ -858,7 +858,7 @@ proto.rbac.RbacServiceClient.prototype.validateAccess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.ValidateAccessRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.validateAccess =
     function(request, metadata) {
@@ -938,7 +938,7 @@ proto.rbac.RbacServiceClient.prototype.getActionResourceInfos =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetActionResourceInfosRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.getActionResourceInfos =
     function(request, metadata) {
@@ -1018,7 +1018,7 @@ proto.rbac.RbacServiceClient.prototype.validateAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.ValidateActionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.validateAction =
     function(request, metadata) {

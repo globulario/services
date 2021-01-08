@@ -1,8 +1,8 @@
 debug/globularclient.o
 debug/globularserver.o
 debug/globularResourceclient.o
-debug/Resource.grpc.pb.o
-debug/Resource.pb.o
+debug/resource.grpc.pb.o
+debug/resource.pb.o
 debug/spc.grpc.pb.o
 debug/spc.pb.o
 debug/AnalyseurCSP.o

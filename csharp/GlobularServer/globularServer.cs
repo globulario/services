@@ -121,54 +121,6 @@ namespace Globular
             jsonStr = JsonSerializer.Serialize(server);
             File.WriteAllText(configPath, jsonStr);
         }
-
-        /// <summary>
-        /// Set a resource on the globular resource manager.
-        /// </summary>
-        /// <param name="path">The path must begin by /. Like a unix file path</param>
-        /// <param name="name">The name of the resource must be unique in it contex (path + '/' + name)</param>
-        /// <param name="modified">The last time the resource was access</param>
-        /// <param name="size">The size of the resource (optional)</param>
-        public void setResource(string domain, string path, string name, int modified, int size)
-        {
-            this.getResourceClient(domain).SetResource(path, name, modified, size);
-        }
-
-        /// <summary>
-        /// Validate if a given user has write to use a given method
-        /// </summary>
-        /// <param name="token">Bearer Token</param>
-        /// <param name="method"></param>
-        /// <returns></returns>
-        public bool validateUserAccess(string domain, string token, string method)
-        {
-            return this.getResourceClient(domain).ValidateUserAccess(token, method);
-        }
-
-        public bool validateApplicationAccess(string domain, string application, string method)
-        {
-            return this.getResourceClient(domain).ValidateApplicationAccess(application, method);
-        }
-
-        public bool validateUserResourceAccess(string domain, string token, string path, string method, int permission)
-        {
-            return this.getResourceClient(domain).ValidateUserResourceAccess(token, path, method, permission);
-        }
-
-        public bool validateApplicationResourceAccess(string domain, string application, string path, string method, int permission)
-        {
-            return this.getResourceClient(domain).ValidateApplicationResourceAccess(application, path, method, permission);
-        }
-
-        public int getActionPermission(string domain, string action)
-        {
-            return this.getResourceClient(domain).GetActionPermission(action);
-        }
-
-        public void logInfo(string domain, string application, string token, string method, string message, int logType)
-        {
-            this.getResourceClient(domain).Log(application, token, method, message, logType);
-        }
     }
 
     public class ServerUnaryInterceptor : Interceptor

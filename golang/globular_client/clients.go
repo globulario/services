@@ -7,10 +7,10 @@ import (
 	"errors"
 	"io/ioutil"
 
+	"log"
 	"os"
-	"strings"
-
 	"reflect"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/security"
@@ -84,9 +84,10 @@ type Client interface {
  * Initialyse the client security and set it port to
  */
 func InitClient(client Client, address string, id string) error {
+	log.Println(address, id)
 
 	// Set the domain and the name from the incomming...
-	client.SetDomain(address)
+
 	address_ := strings.Split(address, ":")
 
 	port := 80 // the default http port...
@@ -95,28 +96,41 @@ func InitClient(client Client, address string, id string) error {
 		port = Utility.ToInt(address_[1])
 	}
 
+	client.SetDomain(address)
+
 	// Here I will initialyse the client
 	config, err := security.GetClientConfig(address, id, port, os.TempDir())
-	if err != nil {
-		return err
+	if err == nil {
+		port = int(config["Port"].(float64))
 	}
 
 	// Set client attributes.
 	if config["Id"] != nil {
 		client.SetId(config["Id"].(string))
-	} else {
+	} else if config["Name"] != nil {
 		client.SetId(config["Name"].(string))
+	} else {
+		client.SetId(id)
 	}
 
-	client.SetName(config["Name"].(string))
-	client.SetPort(int(config["Port"].(float64)))
-	client.SetDomain(config["Domain"].(string))
+	if config["Name"] != nil {
+		client.SetName(config["Name"].(string))
+	}
+	client.SetPort(port)
+
+	if config["Domain"] != nil {
+		client.SetDomain(config["Domain"].(string))
+	}
 
 	// Set security values.
-	client.SetKeyFile(config["KeyFile"].(string))
-	client.SetCertFile(config["CertFile"].(string))
-	client.SetCaFile(config["CertAuthorityTrust"].(string))
-	client.SetTLS(config["TLS"].(bool))
+	if config["TLS"] != nil {
+		client.SetKeyFile(config["KeyFile"].(string))
+		client.SetCertFile(config["CertFile"].(string))
+		client.SetCaFile(config["CertAuthorityTrust"].(string))
+		client.SetTLS(config["TLS"].(bool))
+	} else {
+		client.SetTLS(false)
+	}
 
 	return nil
 }
@@ -200,7 +214,6 @@ func GetClientContext(client Client) context.Context {
 	path := os.TempDir() + string(os.PathSeparator) + client.GetDomain() + "_token"
 	token, err := ioutil.ReadFile(path)
 	if err == nil {
-		// log.Println("----------> read token ", string(token))
 		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
 		ctx := metadata.NewOutgoingContext(context.Background(), md)
 		return ctx

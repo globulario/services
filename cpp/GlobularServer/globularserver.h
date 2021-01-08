@@ -219,6 +219,7 @@ public:
             if(!application.empty()){
                 // TODO validate application access here.
                 // hasAccess = resourceClient->validateApplicationAccess(application, method);
+
             }
 
             if(!hasAccess){
