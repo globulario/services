@@ -15,8 +15,38 @@ namespace Globular
             this.client = new Rbac.RbacService.RbacServiceClient(this.channel);
         }
 
-        
+        public bool ValidateAccess(string subject, Rbac.SubjectType subjectType, string permission, string path){
+            var rqst = new Rbac.ValidateAccessRqst();
+            rqst.Subject = subject;
+            rqst.Type = subjectType;
+            rqst.Permission = permission;
+            rqst.Path = path;
 
+            var rsp = this.client.ValidateAccess(rqst, this.GetClientContext());
+
+            return rsp.Result;
+        }
+
+        public bool ValidateAction(string subject, Rbac.SubjectType subjectType, Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> infos){
+            var rqst = new Rbac.ValidateActionRqst();
+            rqst.Subject = subject;
+            rqst.Type = subjectType;
+            rqst.Infos.Add(infos);
+
+            var rsp = this.client.ValidateAction(rqst, this.GetClientContext());
+
+            return rsp.Result;
+        }
+
+        public Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> GetActionResourceInfos(string action ){
+
+            var rqst = new Rbac.GetActionResourceInfosRqst();
+            rqst.Action = action;
+
+            var rsp = this.client.GetActionResourceInfos(rqst, this.GetClientContext());
+            
+            return rsp.Infos;
+        }
     }
 
 }

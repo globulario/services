@@ -51,7 +51,7 @@ namespace Globular
         private LoadBalancingClient loadBalancingClient;
 
         private LogClient logClient;
-        
+
         private EventClient eventClient;
 
         public ServerUnaryInterceptor interceptor;
@@ -150,29 +150,48 @@ namespace Globular
             return Directory.GetCurrentDirectory();
         }
 
-        private bool validateAction(string domain, string method, string subject, Rbac.SubjectType subjectType, Rbac.ResourceInfos[] infos)
+        private bool validateAction(string domain, string method, string subject, Rbac.SubjectType subjectType, Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> infos)
         {
             System.Console.WriteLine("Valdated access for Domain: " + domain + " Subject: " + subject + " Method: " + method);
+            // Here I need to ge the ResourceInfos...
+            var client = this.getRbacClient(domain);
 
-
-            return true;
+            return  client.ValidateAction(subject, subjectType, infos);
         }
 
-        public bool validateActionRequest(Object rqst, string domain, string method, string subject, Rbac.SubjectType subjectType)
+        public bool validateActionRequest(Google.Protobuf.IMessage rqst, string domain, string method, string subject, Rbac.SubjectType subjectType)
         {
             // Here I need to ge the ResourceInfos...
             var client = this.getRbacClient(domain);
+
+            // The first thing I will do it's to get the list of actions parameters...
+            var infos = client.GetActionResourceInfos(method);
+
+            // Get the list of fied's by order
+            var fields = rqst.Descriptor.Fields.InFieldNumberOrder();
+  
+            for (var i = 0; i < infos.Count; i++)
+            {
+                // Here I will set the path value for resource to be able to validate it 
+                // access
+                infos[i].Path = fields[infos[i].Index].Accessor.GetValue(rqst).ToString();
+            }
+
+            System.Console.WriteLine("There is " + infos.Count + " actions infos...");
+            validateAction(domain, method, subject, subjectType, infos);
 
             return true;
         }
 
         public bool validateToken(string token)
         {
+            
             return true;
         }
 
         public string getUserIdFromToken(string token)
         {
+
             return "";
         }
 
@@ -257,7 +276,8 @@ namespace Globular
                 }
             }
 
-   
+            var rqst = (Google.Protobuf.IMessage)request;
+
             // A domain must be given to get access to the resource manager.
             if (domain.Length == 0)
             {
@@ -266,7 +286,7 @@ namespace Globular
 
             if (application.Length > 0)
             {
-                hasAccess = this.service.validateActionRequest(request, domain, method, application, Rbac.SubjectType.Application);
+                hasAccess = this.service.validateActionRequest(rqst, domain, method, application, Rbac.SubjectType.Application);
             }
 
             if (!hasAccess)
@@ -277,13 +297,13 @@ namespace Globular
                     {
                         clientId = this.service.getUserIdFromToken(token);
                     }
-                    hasAccess = this.service.validateActionRequest(request, domain, method, clientId, Rbac.SubjectType.Account);
+                    hasAccess = this.service.validateActionRequest(rqst, domain, method, clientId, Rbac.SubjectType.Account);
                 }
             }
 
             if (!hasAccess)
             {
-                hasAccess = this.service.validateActionRequest(request, domain, method, domain, Rbac.SubjectType.Peer);
+                hasAccess = this.service.validateActionRequest(rqst, domain, method, domain, Rbac.SubjectType.Peer);
             }
 
             // Here I will validate the user for action.

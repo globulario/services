@@ -5,7 +5,7 @@
   },
   "projects": {
     "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj": {
-      "version": "1.0.2",
+      "version": "1.0.3",
       "restore": {
         "projectUniqueName": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj",
         "projectName": "GlobularClient",
@@ -40,15 +40,15 @@
           "dependencies": {
             "Grpc": {
               "target": "Package",
-              "version": "[2.32.0, )"
+              "version": "[2.34.0, )"
             },
             "Grpc.Core": {
               "target": "Package",
-              "version": "[2.32.0, )"
+              "version": "[2.34.0, )"
             },
             "System.Text.Json": {
               "target": "Package",
-              "version": "[4.7.1, )"
+              "version": "[5.0.0, )"
             }
           },
           "imports": [

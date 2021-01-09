@@ -7,7 +7,7 @@
     <Description>.Net gRPC base client code for globular clients</Description>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <projectUrl>https://www.globular.io</projectUrl>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Authors>Dave Courtois</Authors>
     <Company>Globular</Company>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -16,8 +16,8 @@
     <None Include="licenses\LICENSE.txt" Pack="true" PackagePath="" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Grpc" Version="2.32.0" />
-    <PackageReference Include="Grpc.Core" Version="2.32.0" />
-    <PackageReference Include="System.Text.Json" Version="4.7.1" />
+    <PackageReference Include="Grpc" Version="2.34.0" />
+    <PackageReference Include="Grpc.Core" Version="2.34.0" />
+    <PackageReference Include="System.Text.Json" Version="5.0.0" />
   </ItemGroup>
 </Project>

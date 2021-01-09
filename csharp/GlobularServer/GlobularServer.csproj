@@ -2,8 +2,19 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp5.0</TargetFramework>
+    <Title></Title>
+    <Language>CSharp</Language>
+    <Description>.Net gRPC base server base code for create a microservice manageable with Globular.</Description>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <projectUrl>https://www.globular.io</projectUrl>
+    <Version>1.0.0</Version>
+    <Authors>Dave Courtois</Authors>
+    <Company>Globular</Company>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
   </PropertyGroup>
-
+  <ItemGroup>
+    <None Include="licenses\LICENSE.txt" Pack="true" PackagePath="" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.14.0" />
     <PackageReference Include="Grpc" Version="2.34.0" />

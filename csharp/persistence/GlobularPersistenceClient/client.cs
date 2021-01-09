@@ -3,6 +3,9 @@ using System;
 using System.Threading.Tasks;
 using System.Collections;
 using System.Text.Json;
+using Google.Protobuf.WellKnownTypes;
+
+// TODO fix Find, Aggregate and InsertMany
 
 namespace Globular
 {
@@ -14,10 +17,9 @@ namespace Globular
         /// gRPC client for persistence service.
         /// </summary>
         /// <param name="id"></param> The name or the id of the services.
-        /// <param name="domain"></param> The domain of the services
-        /// <param name="configurationPort"></param> The domain of the services
+        /// <param name="address"></param> ex.<!-- localhost:80 or globular.<inheritdoc />-->
         /// <returns>Return the instance of the client with it connection ready to be use.</returns>
-        public PersistenceClient( string id, string domain, int configurationPort) : base(id, domain, configurationPort)
+        public PersistenceClient( string id, string address) : base(id, address)
         {
             // Here I will create grpc connection with the service...
             this.client = new Persistence.PersistenceService.PersistenceServiceClient(this.channel);
@@ -99,7 +101,7 @@ namespace Globular
         /// <param name="query">The filter</param>
         /// <param name="options">a list of option, must be a json array</param>
         /// <returns></returns>
-        public string FindOne(string connectionId, string database, string collection, string query, string options, string token="", string application="")
+        public Struct FindOne(string connectionId, string database, string collection, string query, string options, string token="", string application="")
         {
             var rqst = new Persistence.FindOneRqst();
             rqst.Id = connectionId;
@@ -109,7 +111,7 @@ namespace Globular
             rqst.Options = options;
 
             var rsp = this.client.FindOne(rqst, this.GetClientContext(token, application));
-            return rsp.JsonStr;
+            return rsp.Result;
         }
 
         /// <summary>
@@ -121,7 +123,7 @@ namespace Globular
         /// <param name="query">The query</param>
         /// <param name="options">a list of option, must be a json array</param>
         /// <returns></returns>
-        public string Find(string connectionId, string database, string collection, string query, string options, string token="", string application="")
+        public byte[] Find(string connectionId, string database, string collection, string query, string options, string token="", string application="")
         {
             var rqst = new Persistence.FindRqst();
             rqst.Id = connectionId;
@@ -133,7 +135,7 @@ namespace Globular
             var call = this.client.Find(rqst, this.GetClientContext(token, application));
 
             // Make the function synchrone...
-            string jsonStr = "[";
+            byte[] data = new byte[0];
             bool hasNext = true;
 
             // read until no more values found...
@@ -144,19 +146,15 @@ namespace Globular
                 hasNext = task.Result;
                 if (hasNext)
                 {
-                    string str = call.ResponseStream.Current.JsonStr;
-                    if (jsonStr.Length > 1)
-                    {
-                        jsonStr += ",";
-                    }
-                    jsonStr += str.Substring(1, str.Length - 1);
+                    // string str = call.ResponseStream.Current.Data;
+                    
                 }
             }
 
-            return jsonStr + "]";
+            return data;
         }
 
-        public string Aggregate(string connectionId, string database, string collection, string pipeline, string options, string token="", string application="")
+        public byte[] Aggregate(string connectionId, string database, string collection, string pipeline, string options, string token="", string application="")
         {
             var rqst = new Persistence.AggregateRqst();
             rqst.Id = connectionId;
@@ -168,7 +166,7 @@ namespace Globular
             var call = this.client.Aggregate(rqst, this.GetClientContext(token, application));
 
             // Make the function synchrone...
-            string jsonStr = "[";
+            byte[] data = new byte[0];
             bool hasNext = true;
 
             // read until no more values found...
@@ -179,16 +177,11 @@ namespace Globular
                 hasNext = task.Result;
                 if (hasNext)
                 {
-                    string str = call.ResponseStream.Current.JsonStr;
-                    if (jsonStr.Length > 1)
-                    {
-                        jsonStr += ",";
-                    }
-                    jsonStr += str.Substring(1, str.Length - 1);
+
                 }
             }
 
-            return jsonStr + "]";
+            return data;
         }
 
         /// <summary>
@@ -228,7 +221,7 @@ namespace Globular
             rqst.Id = connectionId;
             rqst.Database = database;
             rqst.Collection = collection;
-            rqst.JsonStr = jsonStr;
+            rqst.Data = jsonStr;
             rqst.Options = options;
 
             var rsp = this.client.InsertOne(rqst, this.GetClientContext(token, application));
@@ -299,7 +292,7 @@ namespace Globular
             this.client.Delete(rqst, this.GetClientContext(token, application));
         }
 
-        public string InsertMany(string connectionId, string database, string collection, ArrayList objects, string jsonStr, string options, string token="", string application="")
+        public void InsertMany(string connectionId, string database, string collection, ArrayList objects, string options, string token="", string application="")
         {
 
             // Open a stream with the server.
@@ -314,6 +307,7 @@ namespace Globular
                 rqst.Database = database;
                 rqst.Collection = collection;
 
+/*
                 if (i + chunkSize < objects.Count)
                 {
                     rqst.JsonStr = "[" + JsonSerializer.Serialize(objects.GetRange(i, chunkSize)) + "]";
@@ -322,7 +316,7 @@ namespace Globular
                 {
                     rqst.JsonStr = "[" + JsonSerializer.Serialize(objects.GetRange(i, objects.Count - i)) + "]";
                 }
-
+*/
                 var task = Task.Run(() => call.RequestStream.WriteAsync(rqst));
                 task.Wait(); // wait until the message was sent...
             }
@@ -332,7 +326,7 @@ namespace Globular
             var rsp = Task.Run(() => call.ResponseAsync);
             rsp.Wait();
 
-            return rsp.Result.Ids;
+            return;
         }
 
         public void DeleteCollection(string connectionId, string database, string collection, string token="", string application="")
