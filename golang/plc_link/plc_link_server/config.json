@@ -1,15 +1,15 @@
 {
   "AllowAllOrigins": true,
   "AllowedOrigins": "",
-  "CertAuthorityTrust": "/home/dave/go/src/github.com/globulario/Globular/config/tls/ca.crt",
-  "CertFile": "/home/dave/go/src/github.com/globulario/Globular/config/tls/server.crt",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
   "Description": "",
   "Discoveries": [],
-  "Domain": "globular.live",
+  "Domain": "localhost",
   "Id": "4bf334ff-0cb7-4fbe-9473-c5684e1ea842",
   "KeepAlive": false,
   "KeepUpToDate": false,
-  "KeyFile": "/home/dave/go/src/github.com/globulario/Globular/config/tls/server.pem",
+  "KeyFile": "",
   "Keywords": [],
   "Links": {},
   "Name": "plc_link.PlcLinkService",
@@ -24,7 +24,7 @@
   "PublisherId": "globulario",
   "Repositories": [],
   "State": "stopped",
-  "TLS": true,
+  "TLS": false,
   "Version": "0.0.1",
   "configPath": "/home/dave/go/src/github.com/globulario/services/golang/plc_link/plc_link_server/config.json"
 }

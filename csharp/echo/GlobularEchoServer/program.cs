@@ -35,7 +35,7 @@ namespace Echo
  
                     // secure connection parameters.
                     var ssl = new SslServerCredentials(certificates, File.ReadAllText(echoServer.CertAuthorityTrust), false);
-
+                   
                     // create the server.
                     server = new Server
                     {
