@@ -529,6 +529,8 @@ namespace Globular
 
         protected Metadata GetClientContext(string token = "", string application = "", string domain = "", string path = "")
         {
+            System.Console.WriteLine("GetClientContext");
+            
             // Set the token in the metadata.
             var metadata = new Metadata();
 
@@ -544,21 +546,25 @@ namespace Globular
             }
             else
             {
+                System.Console.WriteLine("Token: " +  token);
                 metadata.Add("token", token);
             }
 
             // set the local domain.
             if (domain.Length == 0)
             {
+                System.Console.WriteLine("Domain: " + this.domain);
                 metadata.Add("domain", this.domain);
             }
             else
             {
+                System.Console.WriteLine("Domain: " +  domain);
                 metadata.Add("domain", domain);
             }
 
             if (application.Length > 0)
             {
+                System.Console.WriteLine("Application: " + application);
                 metadata.Add("application", application);
             }
 

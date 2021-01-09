@@ -5,10 +5,11 @@ import (
 
 	"context"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,12 +161,19 @@ func (self *Echo_Client) StopService() {
 	self.c.Stop(globular.GetClientContext(self), &echopb.StopRequest{})
 }
 
-func (self *Echo_Client) Echo(msg interface{}) (string, error) {
+func (self *Echo_Client) Echo(token string, msg interface{}) (string, error) {
 
 	rqst := &echopb.EchoRequest{
 		Message: Utility.ToString(msg),
 	}
+
 	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		md.Append("token", string(token))
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
 	rsp, err := self.c.Echo(ctx, rqst)
 	if err != nil {
 		return "", err

@@ -6,8 +6,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
-
-	//	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -209,8 +207,8 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 func GetClientContext(client Client) context.Context {
 
 	// if the address is local.
-
 	address := client.GetDomain()
+
 	if Utility.Exists(os.TempDir() + string(os.PathSeparator) + "GLOBULAR_ROOT") {
 		root, _ := ioutil.ReadFile(os.TempDir() + string(os.PathSeparator) + "GLOBULAR_ROOT")
 		port := Utility.ToInt(string(root)[strings.LastIndex(string(root), ":")+1:])
@@ -227,6 +225,7 @@ func GetClientContext(client Client) context.Context {
 
 	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
 	return ctx
 
 }

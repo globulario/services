@@ -185,7 +185,7 @@ namespace Globular
 
         public bool validateToken(string token)
         {
-            
+
             return true;
         }
 
@@ -244,6 +244,8 @@ namespace Globular
 
         public override async Task<TResponse> UnaryServerHandler<TRequest, TResponse>(TRequest request, ServerCallContext context, UnaryServerMethod<TRequest, TResponse> continuation)
         {
+            System.Console.WriteLine("Validate request...");
+
             // Do method validations here.
             Metadata metadatas = context.RequestHeaders;
             string application = "";
