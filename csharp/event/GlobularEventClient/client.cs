@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices.WindowsRuntime;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Threading.Channels;
@@ -20,7 +19,7 @@ namespace Globular
         public Action<Event.Event> Fct;
     }
 
-    public class GlobularEventClient : Client
+    public class EventClient : Client
     {
         private Event.EventService.EventServiceClient client;
         private string uuid;
@@ -35,7 +34,7 @@ namespace Globular
         /// <param name="domain"></param> The domain of the services
         /// <param name="configurationPort"></param> The domain of the services
         /// <returns>Return the instance of the client with it connection ready to be use.</returns>
-        public GlobularEventClient( string id, string domain, int configurationPort) : base(id, domain, configurationPort)
+        public EventClient( string id, string address) : base(id, address)
         {
             // Here I will create grpc connection with the service...
             this.client = new Event.EventService.EventServiceClient(this.channel);

@@ -51,6 +51,8 @@ namespace Globular
         private LoadBalancingClient loadBalancingClient;
 
         private LogClient logClient;
+        
+        private EventClient eventClient;
 
         public ServerUnaryInterceptor interceptor;
 
@@ -109,6 +111,17 @@ namespace Globular
                 this.rbacClient = new RbacClient("rbac.RbacService", address);
             }
             return this.rbacClient;
+        }
+
+        private EventClient getEventClient(string address)
+        {
+            if (this.eventClient == null)
+            {
+                // there must be a globular server runing in order to validate resources.
+                System.Console.WriteLine("---> init the event client at domain " + address);
+                this.eventClient = new EventClient("event.EventService", address);
+            }
+            return this.eventClient;
         }
 
         private LoadBalancingClient getLoadBalancingClient(string address)

@@ -3,9 +3,6 @@ using System;
 using Globular;
 using grpc = global::Grpc.Core;
 using System.Threading.Tasks;
-using System.Text.Json;
-using System.IO;
-using Grpc.Core;
 
 // The first thing to do is derived the service base class with GlobularService class.
 namespace Echo
