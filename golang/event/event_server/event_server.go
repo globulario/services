@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 
-	//	"github.com/globulario/Globular/Interceptors"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
@@ -343,25 +343,25 @@ func (self *server) run() {
 				streams[a["uuid"].(string)] = a["stream"].(eventpb.EventService_OnEventServer)
 				quits[a["uuid"].(string)] = a["quit"].(chan bool)
 			} else if action == "subscribe" {
-				log.Println("subcribtion receive for event", a["name"].(string), a["uuid"].(string))
+				//				log.Println("subcribtion receive for event", a["name"].(string), a["uuid"].(string))
 				if channels[a["name"].(string)] == nil {
-					log.Println("create channel", a["name"].(string))
+					//					log.Println("create channel", a["name"].(string))
 					channels[a["name"].(string)] = make([]string, 0)
 				}
 				if !Utility.Contains(channels[a["name"].(string)], a["uuid"].(string)) {
-					log.Println("register", a["uuid"].(string), "on channel", a["name"].(string))
+					//					log.Println("register", a["uuid"].(string), "on channel", a["name"].(string))
 					channels[a["name"].(string)] = append(channels[a["name"].(string)], a["uuid"].(string))
 				}
 			} else if action == "publish" {
 
 				if channels[a["name"].(string)] != nil {
-					log.Println("---> publish event ", a["name"].(string))
+					//					log.Println("---> publish event ", a["name"].(string))
 					toDelete := make([]string, 0)
 					for i := 0; i < len(channels[a["name"].(string)]); i++ {
 						uuid := channels[a["name"].(string)][i]
 						stream := streams[uuid]
 						if stream != nil {
-							log.Println("try to send event", a["name"].(string), "to", uuid)
+							//							log.Println("try to send event", a["name"].(string), "to", uuid)
 							// Here I will send data to stream.
 							err := stream.Send(&eventpb.OnEventResponse{
 								Evt: &eventpb.Event{
@@ -373,7 +373,7 @@ func (self *server) run() {
 							// In case of error I will remove the subscriber
 							// from the list.
 							if err != nil {
-								log.Println("fail to send event", a["name"].(string), "to", uuid)
+								//								log.Println("fail to send event", a["name"].(string), "to", uuid)
 								// append to channle list to be close.
 								toDelete = append(toDelete, uuid)
 							}
@@ -407,7 +407,7 @@ func (self *server) run() {
 				uuids := make([]string, 0)
 				for i := 0; i < len(channels[a["name"].(string)]); i++ {
 					if a["uuid"].(string) != channels[a["name"].(string)][i] {
-						log.Println("unsubscribe ", a["uuid"].(string))
+						//						log.Println("unsubscribe ", a["uuid"].(string))
 						uuids = append(uuids, channels[a["name"].(string)][i])
 					}
 				}
@@ -455,14 +455,10 @@ func (self *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventSe
 	onevent["uuid"] = rqst.Uuid
 	onevent["quit"] = make(chan bool)
 
-	log.Println("----> OnEvent called for ", rqst.Uuid)
-
 	self.actions <- onevent
 
 	// wait util unsbscribe or connection is close.
-	log.Println("wait util ", rqst.Uuid, "quit channel received message...")
 	<-onevent["quit"].(chan bool)
-	log.Println(rqst.Uuid, "quit...")
 	return nil
 }
 

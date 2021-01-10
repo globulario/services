@@ -419,7 +419,7 @@ func StartService(s Service, server *grpc.Server) error {
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 	fmt.Println(s.GetId() + " is now stopped!")
-	server.GracefulStop()
+	server.Stop() // I kill it but not softly...
 	return nil
 }
 
