@@ -15,7 +15,7 @@
     "csharp"
   ],
   "Name": "echo.EchoService",
-  "Path": "/home/dave/go/src/github.com/globulario/services/csharp/echo/GlobularEchoServer/bin/Debug/netcoreapp5.0/GlobularEchoServer",
+  "Path": "/home/dave/go/src/github.com/globulario/Globular/services/globulario/echo.EchoService/0.0.1/0f80ed1a-5d3a-46f1-a3f6-c091ac259665/GlobularEchoServer",
   "Port": 10018,
   "Process": -1,
   "Proto": "/home/dave/go/src/github.com/globulario/Globular/proto/echo.proto",

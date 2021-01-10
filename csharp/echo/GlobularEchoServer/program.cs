@@ -13,6 +13,12 @@ namespace Echo
         private static readonly AutoResetEvent _closing = new AutoResetEvent(false);
         private static Server server;
 
+
+        // Event callback test...
+        public static void onEchoEvent(Event.Event evt){
+            System.Console.WriteLine("event received with string value " + evt.Data.ToStringUtf8());
+        }
+
         public static void Main(string[] args)
         {
             Task.Factory.StartNew(() =>
@@ -25,8 +31,16 @@ namespace Echo
                 // init values from the configuration file.
                 System.Console.WriteLine("init service configuration.");
                 echoServer = echoServer.init();
+
+                // Here is an exemple how to set log message information.
                 echoServer.logMessage("Main", "The C# echo server was started!", Log.LogLevel.InfoMessage);
+
                 System.Console.WriteLine("the server is now initialysed!");
+
+                // Now here I will try to connect the server to an event channel...
+                var uuid = System.Guid.NewGuid();
+                echoServer.subscribe("on_echo_event", uuid.ToString(), new Action<Event.Event>(onEchoEvent));
+                
                 
                 if (echoServer.TLS == true)
                 {

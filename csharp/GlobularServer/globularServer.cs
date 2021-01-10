@@ -102,13 +102,11 @@ namespace Globular
             return this.resourceClient;
         }
 
-
         protected RbacClient getRbacClient(string address)
         {
             if (this.rbacClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
-                System.Console.WriteLine("---> init the RBAC client at domain " + address);
                 this.rbacClient = new RbacClient("rbac.RbacService", address);
             }
             return this.rbacClient;
@@ -119,7 +117,6 @@ namespace Globular
             if (this.eventClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
-                System.Console.WriteLine("---> init the event client at domain " + address);
                 this.eventClient = new EventClient("event.EventService", address);
             }
             return this.eventClient;
@@ -223,7 +220,33 @@ namespace Globular
             var client = this.getLogClient(this.Domain + ":" + this.ConfigurationPort);
             client.LogMessage(this.Name, this.Id, method, level, message);
         }
-        
+
+        /// <summary>
+        /// Subscribe to an event.
+        /// Uuid must be unique.
+        /// </summary>
+        public void subscribe(string name, string uuid, Action<Event.Event> fct){
+            var client = this.getEventClient(this.Domain + ":" + this.ConfigurationPort);
+            client.Subscribe(name, uuid, fct);
+        }
+
+        /// <summary>
+        /// unsubscribe to an event.
+        /// Uuid must be unique.
+        /// </summary>
+        public void unsubscribe(string name, string uuid){
+            var client = this.getEventClient(this.Domain + ":" + this.ConfigurationPort);
+            client.UnSubscribe(name, uuid);
+        }
+
+        /// <summary>
+        /// Publish an event with data on the network.
+        /// </summary>
+        public void publish(string name, byte[]data){
+            var client = this.getEventClient(this.Domain + ":" + this.ConfigurationPort);
+            client.Publish(name, data);
+        }
+
         /// <summary>
         /// Initialyse from json object from a file.
         /// </summary>
@@ -241,7 +264,6 @@ namespace Globular
             }
             else
             {
-
                 // Here I will complete the filepath with the Root value of the server.
                 this.Proto = this.Root + "/" + this.Proto;
             }

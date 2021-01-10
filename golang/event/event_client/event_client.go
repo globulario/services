@@ -5,7 +5,7 @@ import (
 	"io"
 	"strconv"
 
-	"log"
+	//	"log"
 	"time"
 
 	"context"
@@ -66,7 +66,6 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		log.Panicln("-----> 69 ", err)
 		return nil, err
 	}
 

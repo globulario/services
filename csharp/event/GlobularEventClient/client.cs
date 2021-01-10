@@ -50,6 +50,8 @@ namespace Globular
 
         private void run()
         {
+            System.Console.WriteLine("start event processing...");
+
             // Here I will start on event processing.
             var data_channel = Channel.CreateUnbounded<Event.Event>();
 
@@ -155,7 +157,7 @@ namespace Globular
         {
             var rqst = new Event.SubscribeRequest();
             rqst.Name = name;
-            rqst.Uuid = uuid;
+            rqst.Uuid = this.uuid;
 
             // Subscribe to a given event.
             this.client.Subscribe(rqst, this.GetClientContext());
@@ -173,7 +175,7 @@ namespace Globular
         {
             var rqst = new Event.UnSubscribeRequest();
             rqst.Name = name;
-            rqst.Uuid = uuid;
+            rqst.Uuid = this.uuid;
 
             // Subscribe to a given event.
             this.client.UnSubscribe(rqst, this.GetClientContext());

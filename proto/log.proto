@@ -69,6 +69,6 @@ service LogService {
 	/** Delete a single log entry **/
 	rpc DeleteLog(DeleteLogRqst) returns(DeleteLogRsp);
 	
-	/** Delete all log **/
+	/** Delete all log or logs that match the key pattern... **/
 	rpc ClearAllLog(ClearAllLogRqst) returns(ClearAllLogRsp);
 }

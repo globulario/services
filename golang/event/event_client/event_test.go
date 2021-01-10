@@ -4,7 +4,6 @@ import (
 	"log"
 	"strconv"
 	"testing"
-
 	"time"
 
 	"github.com/davecourtois/Utility"
@@ -27,7 +26,8 @@ func subscribeTo(client *Event_Client, subject string) string {
 /**
  * Test event
  */
-func TestEventService(t *testing.T) {
+
+func _TestEventService(t *testing.T) {
 	log.Println("Test event service")
 	domain := "globular.live"
 
@@ -58,4 +58,16 @@ func TestEventService(t *testing.T) {
 		clients[i].UnSubscribe(subject, uuids[i])
 	}
 
+}
+
+func TestPublishEvent(t *testing.T) {
+	log.Println("test event service.")
+	c, err := NewEventService_Client("localhost", "event.EventService")
+	if err != nil {
+		log.Println("fail to connect to event service ", err)
+	}
+
+	// Here I will publish a simple string...
+
+	c.Publish("on_echo_event", []byte("This is a simple test!"))
 }
