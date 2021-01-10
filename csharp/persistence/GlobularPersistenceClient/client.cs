@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Collections;
 using System.Text.Json;
 using Google.Protobuf.WellKnownTypes;
+using Google.Protobuf;
 
 // TODO fix Find, Aggregate and InsertMany
 
@@ -11,6 +12,14 @@ namespace Globular
 {
     public class PersistenceClient : Client
     {
+        // combine tow array of bytes.
+        private static byte[] Combine(byte[] first, byte[] second)
+        {
+            byte[] ret = new byte[first.Length + second.Length];
+            Buffer.BlockCopy(first, 0, ret, 0, first.Length);
+            Buffer.BlockCopy(second, 0, ret, first.Length, second.Length);
+            return ret;
+        }
         private Persistence.PersistenceService.PersistenceServiceClient client;
 
         /// <summary>
@@ -19,7 +28,7 @@ namespace Globular
         /// <param name="id"></param> The name or the id of the services.
         /// <param name="address"></param> ex.<!-- localhost:80 or globular.<inheritdoc />-->
         /// <returns>Return the instance of the client with it connection ready to be use.</returns>
-        public PersistenceClient( string id, string address) : base(id, address)
+        public PersistenceClient(string id, string address) : base(id, address)
         {
             // Here I will create grpc connection with the service...
             this.client = new Persistence.PersistenceService.PersistenceServiceClient(this.channel);
@@ -30,7 +39,7 @@ namespace Globular
         /// </summary>
         /// <param name="connection">The connection information</param>
         /// <param name="save">If true the connection will be save in the configuation file.</param>
-        public void CreateConnection(Persistence.Connection connection, bool save, string token="", string application="")
+        public void CreateConnection(Persistence.Connection connection, bool save, string token = "", string application = "")
         {
             // Here I will create the new connection.
             Persistence.CreateConnectionRqst rqst = new Persistence.CreateConnectionRqst();
@@ -45,7 +54,7 @@ namespace Globular
         /// Delete a connection with a given id.
         /// </summary>
         /// <param name="connectionId">The connection to delete</param>
-        public void DeleteConnection(string connectionId, string token="", string application="")
+        public void DeleteConnection(string connectionId, string token = "", string application = "")
         {
             var rqst = new Persistence.DeleteConnectionRqst();
             rqst.Id = connectionId;
@@ -56,7 +65,7 @@ namespace Globular
         /// Open a connection with the datastore.
         /// </summary>
         /// <param name="connectionId"></param>
-        public void Connect(string connectionId, string token="", string application="")
+        public void Connect(string connectionId, string token = "", string application = "")
         {
             var rqst = new Persistence.ConnectRqst();
             rqst.ConnectionId = connectionId;
@@ -67,7 +76,7 @@ namespace Globular
         /// Disconnect from the  server.
         /// </summary>
         /// <param name="connectionId">The connection id</param>
-        public void Disconnect(string connectionId, string token="", string application="")
+        public void Disconnect(string connectionId, string token = "", string application = "")
         {
             var rqst = new Persistence.DisconnectRqst();
             rqst.ConnectionId = connectionId;
@@ -79,7 +88,7 @@ namespace Globular
         /// </summary>
         /// <param name="connectionId">The connection id, not it name.</param>
         /// <returns>Must return 'pong'</returns>
-        public string Ping(string connectionId, string token="", string application="")
+        public string Ping(string connectionId, string token = "", string application = "")
         {
             // Here I will create the new connection.
             Persistence.PingConnectionRqst rqst = new Persistence.PingConnectionRqst();
@@ -101,7 +110,7 @@ namespace Globular
         /// <param name="query">The filter</param>
         /// <param name="options">a list of option, must be a json array</param>
         /// <returns></returns>
-        public Struct FindOne(string connectionId, string database, string collection, string query, string options, string token="", string application="")
+        public Struct FindOne(string connectionId, string database, string collection, string query, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.FindOneRqst();
             rqst.Id = connectionId;
@@ -123,7 +132,7 @@ namespace Globular
         /// <param name="query">The query</param>
         /// <param name="options">a list of option, must be a json array</param>
         /// <returns></returns>
-        public byte[] Find(string connectionId, string database, string collection, string query, string options, string token="", string application="")
+        public byte[] Find(string connectionId, string database, string collection, string query, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.FindRqst();
             rqst.Id = connectionId;
@@ -147,14 +156,14 @@ namespace Globular
                 if (hasNext)
                 {
                     // string str = call.ResponseStream.Current.Data;
-                    
+                    data = Combine(data, call.ResponseStream.Current.Data.ToByteArray());
                 }
             }
 
             return data;
         }
 
-        public byte[] Aggregate(string connectionId, string database, string collection, string pipeline, string options, string token="", string application="")
+        public byte[] Aggregate(string connectionId, string database, string collection, string pipeline, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.AggregateRqst();
             rqst.Id = connectionId;
@@ -177,7 +186,8 @@ namespace Globular
                 hasNext = task.Result;
                 if (hasNext)
                 {
-
+                    // string str = call.ResponseStream.Current.Data;
+                    data = Combine(data, call.ResponseStream.Current.Data.ToByteArray());
                 }
             }
 
@@ -193,7 +203,7 @@ namespace Globular
         /// <param name="query">The query</param>
         /// <param name="options">A list of options in form of json string</param>
         /// <returns></returns>
-        public long Count(string connectionId, string database, string collection, string query, string options, string token="", string application="")
+        public long Count(string connectionId, string database, string collection, string query, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.CountRqst();
             rqst.Id = connectionId;
@@ -215,7 +225,7 @@ namespace Globular
         /// <param name="jsonStr">The oject stringnify value</param>
         /// <param name="options">The options</param>
         /// <returns></returns>
-        public string InsertOne(string connectionId, string database, string collection, string jsonStr, string options, string token="", string application="")
+        public string InsertOne(string connectionId, string database, string collection, string jsonStr, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.InsertOneRqst();
             rqst.Id = connectionId;
@@ -228,7 +238,7 @@ namespace Globular
             return rsp.Id;
         }
 
-        public void ReplaceOne(string connectionId, string database, string collection, string query, string value, string options, string token="", string application="")
+        public void ReplaceOne(string connectionId, string database, string collection, string query, string value, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.ReplaceOneRqst();
             rqst.Id = connectionId;
@@ -241,7 +251,7 @@ namespace Globular
             this.client.ReplaceOne(rqst, this.GetClientContext(token, application));
         }
 
-        public void UpdateOne(string connectionId, string database, string collection, string query, string value, string options, string token="", string application="")
+        public void UpdateOne(string connectionId, string database, string collection, string query, string value, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.UpdateOneRqst();
             rqst.Id = connectionId;
@@ -255,7 +265,7 @@ namespace Globular
         }
 
 
-        public void Update(string connectionId, string database, string collection, string query, string value, string options, string token="", string application="")
+        public void Update(string connectionId, string database, string collection, string query, string value, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.UpdateRqst();
             rqst.Id = connectionId;
@@ -268,7 +278,7 @@ namespace Globular
             this.client.Update(rqst, this.GetClientContext(token, application));
         }
 
-        public void DeleteOne(string connectionId, string database, string collection, string query, string options, string token="", string application="")
+        public void DeleteOne(string connectionId, string database, string collection, string query, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.DeleteOneRqst();
             rqst.Id = connectionId;
@@ -280,7 +290,7 @@ namespace Globular
             this.client.DeleteOne(rqst, this.GetClientContext(token, application));
         }
 
-        public void Delete(string connectionId, string database, string collection, string query, string options, string token="", string application="")
+        public void Delete(string connectionId, string database, string collection, string query, string options, string token = "", string application = "")
         {
             var rqst = new Persistence.DeleteRqst();
             rqst.Id = connectionId;
@@ -292,7 +302,7 @@ namespace Globular
             this.client.Delete(rqst, this.GetClientContext(token, application));
         }
 
-        public void InsertMany(string connectionId, string database, string collection, ArrayList objects, string options, string token="", string application="")
+        public void InsertMany(string connectionId, string database, string collection, ArrayList objects, string options, string token = "", string application = "")
         {
 
             // Open a stream with the server.
@@ -307,16 +317,18 @@ namespace Globular
                 rqst.Database = database;
                 rqst.Collection = collection;
 
-/*
+                string jsonStr;
                 if (i + chunkSize < objects.Count)
                 {
-                    rqst.JsonStr = "[" + JsonSerializer.Serialize(objects.GetRange(i, chunkSize)) + "]";
+                    jsonStr = "[" + JsonSerializer.Serialize(objects.GetRange(i, chunkSize)) + "]";
+                    
                 }
                 else
                 {
-                    rqst.JsonStr = "[" + JsonSerializer.Serialize(objects.GetRange(i, objects.Count - i)) + "]";
+                    jsonStr = "[" + JsonSerializer.Serialize(objects.GetRange(i, objects.Count - i)) + "]";
                 }
-*/
+
+                rqst.Data = ByteString.CopyFrom(System.Text.Encoding.UTF8.GetBytes(jsonStr));
                 var task = Task.Run(() => call.RequestStream.WriteAsync(rqst));
                 task.Wait(); // wait until the message was sent...
             }
@@ -329,7 +341,7 @@ namespace Globular
             return;
         }
 
-        public void DeleteCollection(string connectionId, string database, string collection, string token="", string application="")
+        public void DeleteCollection(string connectionId, string database, string collection, string token = "", string application = "")
         {
             var rqst = new Persistence.DeleteCollectionRqst();
             rqst.Id = connectionId;
@@ -339,7 +351,7 @@ namespace Globular
             this.client.DeleteCollection(rqst, this.GetClientContext(token, application));
         }
 
-        public void DeleteDatabase(string connectionId, string database, string token="", string application="")
+        public void DeleteDatabase(string connectionId, string database, string token = "", string application = "")
         {
             var rqst = new Persistence.DeleteDatabaseRqst();
             rqst.Id = connectionId;
@@ -348,7 +360,7 @@ namespace Globular
             this.client.DeleteDatabase(rqst, this.GetClientContext(token, application));
         }
 
-        public void RunAdminCmd(string connectionId, string user, string pwd, string script, string token="", string application="")
+        public void RunAdminCmd(string connectionId, string user, string pwd, string script, string token = "", string application = "")
         {
             var rqst = new Persistence.RunAdminCmdRqst();
             rqst.ConnectionId = connectionId;
@@ -358,7 +370,7 @@ namespace Globular
 
             this.client.RunAdminCmd(rqst, this.GetClientContext(token, application));
         }
-        
+
     }
 
 }
