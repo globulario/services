@@ -140,7 +140,7 @@ proto.admin.AdminServiceClient.prototype.installCertificates =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.InstallCertificatesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.installCertificates =
     function(request, metadata) {
@@ -220,7 +220,7 @@ proto.admin.AdminServiceClient.prototype.setRootPassword =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetRootPasswordResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setRootPassword =
     function(request, metadata) {
@@ -300,7 +300,7 @@ proto.admin.AdminServiceClient.prototype.setRootEmail =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetRootEmailResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setRootEmail =
     function(request, metadata) {
@@ -380,7 +380,7 @@ proto.admin.AdminServiceClient.prototype.setPassword =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetPasswordResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setPassword =
     function(request, metadata) {
@@ -460,7 +460,7 @@ proto.admin.AdminServiceClient.prototype.setEmail =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetEmailResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setEmail =
     function(request, metadata) {
@@ -540,7 +540,7 @@ proto.admin.AdminServiceClient.prototype.getConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.getConfig =
     function(request, metadata) {
@@ -620,7 +620,7 @@ proto.admin.AdminServiceClient.prototype.getFullConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.getFullConfig =
     function(request, metadata) {
@@ -700,7 +700,7 @@ proto.admin.AdminServiceClient.prototype.saveConfig =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SaveConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.saveConfig =
     function(request, metadata) {
@@ -780,7 +780,7 @@ proto.admin.AdminServiceClient.prototype.stopService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.StopServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.stopService =
     function(request, metadata) {
@@ -860,7 +860,7 @@ proto.admin.AdminServiceClient.prototype.startService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.StartServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.startService =
     function(request, metadata) {
@@ -940,7 +940,7 @@ proto.admin.AdminServiceClient.prototype.restartServices =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.RestartServicesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.restartServices =
     function(request, metadata) {
@@ -1020,7 +1020,7 @@ proto.admin.AdminServiceClient.prototype.publishService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.PublishServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.publishService =
     function(request, metadata) {
@@ -1100,7 +1100,7 @@ proto.admin.AdminServiceClient.prototype.installService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.InstallServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.installService =
     function(request, metadata) {
@@ -1180,7 +1180,7 @@ proto.admin.AdminServiceClient.prototype.uninstallService =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.UninstallServiceResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.uninstallService =
     function(request, metadata) {
@@ -1260,7 +1260,7 @@ proto.admin.AdminServiceClient.prototype.registerExternalApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.RegisterExternalApplicationResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.registerExternalApplication =
     function(request, metadata) {
@@ -1340,7 +1340,7 @@ proto.admin.AdminServiceClient.prototype.installApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.InstallApplicationResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.installApplication =
     function(request, metadata) {
@@ -1420,7 +1420,7 @@ proto.admin.AdminServiceClient.prototype.uninstallApplication =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.UninstallApplicationResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.uninstallApplication =
     function(request, metadata) {
@@ -1500,7 +1500,7 @@ proto.admin.AdminServiceClient.prototype.hasRunningProcess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.HasRunningProcessResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.hasRunningProcess =
     function(request, metadata) {
@@ -1580,7 +1580,7 @@ proto.admin.AdminServiceClient.prototype.runCmd =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.RunCmdResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.runCmd =
     function(request, metadata) {
@@ -1660,7 +1660,7 @@ proto.admin.AdminServiceClient.prototype.setEnvironmentVariable =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetEnvironmentVariableResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.setEnvironmentVariable =
     function(request, metadata) {
@@ -1669,6 +1669,86 @@ proto.admin.AdminServicePromiseClient.prototype.setEnvironmentVariable =
       request,
       metadata || {},
       methodDescriptor_AdminService_SetEnvironmentVariable);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.GetEnvironmentVariableRequest,
+ *   !proto.admin.GetEnvironmentVariableResponse>}
+ */
+const methodDescriptor_AdminService_GetEnvironmentVariable = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/GetEnvironmentVariable',
+  grpc.web.MethodType.UNARY,
+  proto.admin.GetEnvironmentVariableRequest,
+  proto.admin.GetEnvironmentVariableResponse,
+  /**
+   * @param {!proto.admin.GetEnvironmentVariableRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.GetEnvironmentVariableResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.GetEnvironmentVariableRequest,
+ *   !proto.admin.GetEnvironmentVariableResponse>}
+ */
+const methodInfo_AdminService_GetEnvironmentVariable = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.GetEnvironmentVariableResponse,
+  /**
+   * @param {!proto.admin.GetEnvironmentVariableRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.GetEnvironmentVariableResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.GetEnvironmentVariableRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.GetEnvironmentVariableResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.GetEnvironmentVariableResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.getEnvironmentVariable =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/GetEnvironmentVariable',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetEnvironmentVariable,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.GetEnvironmentVariableRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.GetEnvironmentVariableResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.getEnvironmentVariable =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/GetEnvironmentVariable',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetEnvironmentVariable);
 };
 
 
@@ -1740,7 +1820,7 @@ proto.admin.AdminServiceClient.prototype.unsetEnvironmentVariable =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.UnsetEnvironmentVariableResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.admin.AdminServicePromiseClient.prototype.unsetEnvironmentVariable =
     function(request, metadata) {
@@ -1749,6 +1829,246 @@ proto.admin.AdminServicePromiseClient.prototype.unsetEnvironmentVariable =
       request,
       metadata || {},
       methodDescriptor_AdminService_UnsetEnvironmentVariable);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.KillProcessRequest,
+ *   !proto.admin.KillProcessResponse>}
+ */
+const methodDescriptor_AdminService_KillProcess = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/KillProcess',
+  grpc.web.MethodType.UNARY,
+  proto.admin.KillProcessRequest,
+  proto.admin.KillProcessResponse,
+  /**
+   * @param {!proto.admin.KillProcessRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.KillProcessResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.KillProcessRequest,
+ *   !proto.admin.KillProcessResponse>}
+ */
+const methodInfo_AdminService_KillProcess = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.KillProcessResponse,
+  /**
+   * @param {!proto.admin.KillProcessRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.KillProcessResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.KillProcessRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.KillProcessResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.KillProcessResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.killProcess =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/KillProcess',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_KillProcess,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.KillProcessRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.KillProcessResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.killProcess =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/KillProcess',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_KillProcess);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.KillProcessesRequest,
+ *   !proto.admin.KillProcessesResponse>}
+ */
+const methodDescriptor_AdminService_KillProcesses = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/KillProcesses',
+  grpc.web.MethodType.UNARY,
+  proto.admin.KillProcessesRequest,
+  proto.admin.KillProcessesResponse,
+  /**
+   * @param {!proto.admin.KillProcessesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.KillProcessesResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.KillProcessesRequest,
+ *   !proto.admin.KillProcessesResponse>}
+ */
+const methodInfo_AdminService_KillProcesses = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.KillProcessesResponse,
+  /**
+   * @param {!proto.admin.KillProcessesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.KillProcessesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.KillProcessesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.KillProcessesResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.KillProcessesResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.killProcesses =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/KillProcesses',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_KillProcesses,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.KillProcessesRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.KillProcessesResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.killProcesses =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/KillProcesses',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_KillProcesses);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.GetPidsRequest,
+ *   !proto.admin.GetPidsResponse>}
+ */
+const methodDescriptor_AdminService_GetPids = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/GetPids',
+  grpc.web.MethodType.UNARY,
+  proto.admin.GetPidsRequest,
+  proto.admin.GetPidsResponse,
+  /**
+   * @param {!proto.admin.GetPidsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.GetPidsResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.GetPidsRequest,
+ *   !proto.admin.GetPidsResponse>}
+ */
+const methodInfo_AdminService_GetPids = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.GetPidsResponse,
+  /**
+   * @param {!proto.admin.GetPidsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.GetPidsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.GetPidsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.GetPidsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.GetPidsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.getPids =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/GetPids',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetPids,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.GetPidsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.GetPidsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.getPids =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/GetPids',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetPids);
 };
 
 

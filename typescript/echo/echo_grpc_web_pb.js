@@ -138,7 +138,7 @@ proto.echo.EchoServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.StopResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.echo.EchoServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.echo.EchoServiceClient.prototype.echo =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.EchoResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.echo.EchoServicePromiseClient.prototype.echo =
     function(request, metadata) {

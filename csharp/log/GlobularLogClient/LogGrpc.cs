@@ -124,7 +124,7 @@ namespace Log {
       }
 
       /// <summary>
-      ///* Delete all log *
+      ///* Delete all log or logs that match the key pattern... *
       /// </summary>
       /// <param name="request">The request received from the client.</param>
       /// <param name="context">The context of the server-side call handler being invoked.</param>
@@ -270,7 +270,7 @@ namespace Log {
         return CallInvoker.AsyncUnaryCall(__Method_DeleteLog, null, options, request);
       }
       /// <summary>
-      ///* Delete all log *
+      ///* Delete all log or logs that match the key pattern... *
       /// </summary>
       /// <param name="request">The request to send to the server.</param>
       /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
@@ -282,7 +282,7 @@ namespace Log {
         return ClearAllLog(request, new grpc::CallOptions(headers, deadline, cancellationToken));
       }
       /// <summary>
-      ///* Delete all log *
+      ///* Delete all log or logs that match the key pattern... *
       /// </summary>
       /// <param name="request">The request to send to the server.</param>
       /// <param name="options">The options for the call.</param>
@@ -292,7 +292,7 @@ namespace Log {
         return CallInvoker.BlockingUnaryCall(__Method_ClearAllLog, null, options, request);
       }
       /// <summary>
-      ///* Delete all log *
+      ///* Delete all log or logs that match the key pattern... *
       /// </summary>
       /// <param name="request">The request to send to the server.</param>
       /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
@@ -304,7 +304,7 @@ namespace Log {
         return ClearAllLogAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
       }
       /// <summary>
-      ///* Delete all log *
+      ///* Delete all log or logs that match the key pattern... *
       /// </summary>
       /// <param name="request">The request to send to the server.</param>
       /// <param name="options">The options for the call.</param>

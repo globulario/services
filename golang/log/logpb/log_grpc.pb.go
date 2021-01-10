@@ -23,7 +23,7 @@ type LogServiceClient interface {
 	GetLog(ctx context.Context, in *GetLogRqst, opts ...grpc.CallOption) (LogService_GetLogClient, error)
 	//* Delete a single log entry *
 	DeleteLog(ctx context.Context, in *DeleteLogRqst, opts ...grpc.CallOption) (*DeleteLogRsp, error)
-	//* Delete all log *
+	//* Delete all log or logs that match the key pattern... *
 	ClearAllLog(ctx context.Context, in *ClearAllLogRqst, opts ...grpc.CallOption) (*ClearAllLogRsp, error)
 }
 
@@ -104,7 +104,7 @@ type LogServiceServer interface {
 	GetLog(*GetLogRqst, LogService_GetLogServer) error
 	//* Delete a single log entry *
 	DeleteLog(context.Context, *DeleteLogRqst) (*DeleteLogRsp, error)
-	//* Delete all log *
+	//* Delete all log or logs that match the key pattern... *
 	ClearAllLog(context.Context, *ClearAllLogRqst) (*ClearAllLogRsp, error)
 }
 
