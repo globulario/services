@@ -37,7 +37,7 @@ namespace Echo
 
                 System.Console.WriteLine("the server is now initialysed!");
 
-                // Now here I will try to connect the server to an event channel...
+                // Now here I will try to connect the server to an event channel...(this is for test...)
                 var uuid = System.Guid.NewGuid();
                 echoServer.subscribe("on_echo_event", uuid.ToString(), new Action<Event.Event>(onEchoEvent));
                 
