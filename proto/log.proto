@@ -8,14 +8,18 @@ option go_package="log/logpb";
 // Log service
 ////////////////////////////////////////////////////////////////////////////////
 
-enum LogType{
-	INFO_MESSAGE=0;
+enum LogLevel{
+	FATAL_MESSAGE=0;
 	ERROR_MESSAGE=1;
+	WARN_MESSAGE=2;
+	INFO_MESSAGE=3;
+	DEBUG_MESSAGE=4;
+	TRACE_MESSAGE=5;
 }
 
 message LogInfo{
 	int64 date = 1;
-	LogType type = 2;
+	LogLevel level = 2;
 	string application = 3;
 	string userId = 4;
 	string userName = 5;
@@ -39,39 +43,16 @@ message DeleteLogRsp{
 	bool result=1;
 }
 
-message SetLogMethodRqst{
-	string method = 1;
-}
-
-message SetLogMethodRsp{
-	bool result=1;
-}
-
-message ResetLogMethodRqst{
-	string method = 1;
-}
-
-message ResetLogMethodRsp{
-	bool result=1;
-}
-
-message GetLogMethodsRqst{
-}
-
-message GetLogMethodsRsp{
-	repeated string methods = 1;
-}
-
 message GetLogRqst{
 	string query = 1;
 }
 
 message GetLogRsp{
-	repeated LogInfo info = 1;
+	repeated LogInfo infos = 1;
 }
 
 message ClearAllLogRqst{
-	LogType type = 1;
+	string query = 1;
 }
 
 message ClearAllLogRsp{

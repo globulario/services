@@ -24,44 +24,35 @@ namespace Log {
     static LogReflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
-            "Cg9wcm90by9sb2cucHJvdG8SA2xvZyKLAQoHTG9nSW5mbxIMCgRkYXRlGAEg",
-            "ASgDEhoKBHR5cGUYAiABKA4yDC5sb2cuTG9nVHlwZRITCgthcHBsaWNhdGlv",
-            "bhgDIAEoCRIOCgZ1c2VySWQYBCABKAkSEAoIdXNlck5hbWUYBSABKAkSDgoG",
-            "bWV0aG9kGAYgASgJEg8KB21lc3NhZ2UYByABKAkiJQoHTG9nUnFzdBIaCgRp",
-            "bmZvGAEgASgLMgwubG9nLkxvZ0luZm8iGAoGTG9nUnNwEg4KBnJlc3VsdBgB",
-            "IAEoCCIqCg1EZWxldGVMb2dScXN0EhkKA2xvZxgBIAEoCzIMLmxvZy5Mb2dJ",
-            "bmZvIh4KDERlbGV0ZUxvZ1JzcBIOCgZyZXN1bHQYASABKAgiIgoQU2V0TG9n",
-            "TWV0aG9kUnFzdBIOCgZtZXRob2QYASABKAkiIQoPU2V0TG9nTWV0aG9kUnNw",
-            "Eg4KBnJlc3VsdBgBIAEoCCIkChJSZXNldExvZ01ldGhvZFJxc3QSDgoGbWV0",
-            "aG9kGAEgASgJIiMKEVJlc2V0TG9nTWV0aG9kUnNwEg4KBnJlc3VsdBgBIAEo",
-            "CCITChFHZXRMb2dNZXRob2RzUnFzdCIjChBHZXRMb2dNZXRob2RzUnNwEg8K",
-            "B21ldGhvZHMYASADKAkiGwoKR2V0TG9nUnFzdBINCgVxdWVyeRgBIAEoCSIn",
-            "CglHZXRMb2dSc3ASGgoEaW5mbxgBIAMoCzIMLmxvZy5Mb2dJbmZvIi0KD0Ns",
-            "ZWFyQWxsTG9nUnFzdBIaCgR0eXBlGAEgASgOMgwubG9nLkxvZ1R5cGUiIAoO",
-            "Q2xlYXJBbGxMb2dSc3ASDgoGcmVzdWx0GAEgASgIKi4KB0xvZ1R5cGUSEAoM",
-            "SU5GT19NRVNTQUdFEAASEQoNRVJST1JfTUVTU0FHRRABMskBCgpMb2dTZXJ2",
-            "aWNlEiAKA0xvZxIMLmxvZy5Mb2dScXN0GgsubG9nLkxvZ1JzcBIrCgZHZXRM",
-            "b2cSDy5sb2cuR2V0TG9nUnFzdBoOLmxvZy5HZXRMb2dSc3AwARIyCglEZWxl",
-            "dGVMb2cSEi5sb2cuRGVsZXRlTG9nUnFzdBoRLmxvZy5EZWxldGVMb2dSc3AS",
-            "OAoLQ2xlYXJBbGxMb2cSFC5sb2cuQ2xlYXJBbGxMb2dScXN0GhMubG9nLkNs",
-            "ZWFyQWxsTG9nUnNwQgtaCWxvZy9sb2dwYmIGcHJvdG8z"));
+            "Cg9wcm90by9sb2cucHJvdG8SA2xvZyKNAQoHTG9nSW5mbxIMCgRkYXRlGAEg",
+            "ASgDEhwKBWxldmVsGAIgASgOMg0ubG9nLkxvZ0xldmVsEhMKC2FwcGxpY2F0",
+            "aW9uGAMgASgJEg4KBnVzZXJJZBgEIAEoCRIQCgh1c2VyTmFtZRgFIAEoCRIO",
+            "CgZtZXRob2QYBiABKAkSDwoHbWVzc2FnZRgHIAEoCSIlCgdMb2dScXN0EhoK",
+            "BGluZm8YASABKAsyDC5sb2cuTG9nSW5mbyIYCgZMb2dSc3ASDgoGcmVzdWx0",
+            "GAEgASgIIioKDURlbGV0ZUxvZ1Jxc3QSGQoDbG9nGAEgASgLMgwubG9nLkxv",
+            "Z0luZm8iHgoMRGVsZXRlTG9nUnNwEg4KBnJlc3VsdBgBIAEoCCIbCgpHZXRM",
+            "b2dScXN0Eg0KBXF1ZXJ5GAEgASgJIigKCUdldExvZ1JzcBIbCgVpbmZvcxgB",
+            "IAMoCzIMLmxvZy5Mb2dJbmZvIiAKD0NsZWFyQWxsTG9nUnFzdBINCgVxdWVy",
+            "eRgBIAEoCSIgCg5DbGVhckFsbExvZ1JzcBIOCgZyZXN1bHQYASABKAgqegoI",
+            "TG9nTGV2ZWwSEQoNRkFUQUxfTUVTU0FHRRAAEhEKDUVSUk9SX01FU1NBR0UQ",
+            "ARIQCgxXQVJOX01FU1NBR0UQAhIQCgxJTkZPX01FU1NBR0UQAxIRCg1ERUJV",
+            "R19NRVNTQUdFEAQSEQoNVFJBQ0VfTUVTU0FHRRAFMskBCgpMb2dTZXJ2aWNl",
+            "EiAKA0xvZxIMLmxvZy5Mb2dScXN0GgsubG9nLkxvZ1JzcBIrCgZHZXRMb2cS",
+            "Dy5sb2cuR2V0TG9nUnFzdBoOLmxvZy5HZXRMb2dSc3AwARIyCglEZWxldGVM",
+            "b2cSEi5sb2cuRGVsZXRlTG9nUnFzdBoRLmxvZy5EZWxldGVMb2dSc3ASOAoL",
+            "Q2xlYXJBbGxMb2cSFC5sb2cuQ2xlYXJBbGxMb2dScXN0GhMubG9nLkNsZWFy",
+            "QWxsTG9nUnNwQgtaCWxvZy9sb2dwYmIGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
-          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Log.LogType), }, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogInfo), global::Log.LogInfo.Parser, new[]{ "Date", "Type", "Application", "UserId", "UserName", "Method", "Message" }, null, null, null, null),
+          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Log.LogLevel), }, null, new pbr::GeneratedClrTypeInfo[] {
+            new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogInfo), global::Log.LogInfo.Parser, new[]{ "Date", "Level", "Application", "UserId", "UserName", "Method", "Message" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogRqst), global::Log.LogRqst.Parser, new[]{ "Info" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogRsp), global::Log.LogRsp.Parser, new[]{ "Result" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.DeleteLogRqst), global::Log.DeleteLogRqst.Parser, new[]{ "Log" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.DeleteLogRsp), global::Log.DeleteLogRsp.Parser, new[]{ "Result" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.SetLogMethodRqst), global::Log.SetLogMethodRqst.Parser, new[]{ "Method" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.SetLogMethodRsp), global::Log.SetLogMethodRsp.Parser, new[]{ "Result" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.ResetLogMethodRqst), global::Log.ResetLogMethodRqst.Parser, new[]{ "Method" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.ResetLogMethodRsp), global::Log.ResetLogMethodRsp.Parser, new[]{ "Result" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.GetLogMethodsRqst), global::Log.GetLogMethodsRqst.Parser, null, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.GetLogMethodsRsp), global::Log.GetLogMethodsRsp.Parser, new[]{ "Methods" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.GetLogRqst), global::Log.GetLogRqst.Parser, new[]{ "Query" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.GetLogRsp), global::Log.GetLogRsp.Parser, new[]{ "Info" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.ClearAllLogRqst), global::Log.ClearAllLogRqst.Parser, new[]{ "Type" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Log.GetLogRsp), global::Log.GetLogRsp.Parser, new[]{ "Infos" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Log.ClearAllLogRqst), global::Log.ClearAllLogRqst.Parser, new[]{ "Query" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.ClearAllLogRsp), global::Log.ClearAllLogRsp.Parser, new[]{ "Result" }, null, null, null, null)
           }));
     }
@@ -69,9 +60,13 @@ namespace Log {
 
   }
   #region Enums
-  public enum LogType {
-    [pbr::OriginalName("INFO_MESSAGE")] InfoMessage = 0,
+  public enum LogLevel {
+    [pbr::OriginalName("FATAL_MESSAGE")] FatalMessage = 0,
     [pbr::OriginalName("ERROR_MESSAGE")] ErrorMessage = 1,
+    [pbr::OriginalName("WARN_MESSAGE")] WarnMessage = 2,
+    [pbr::OriginalName("INFO_MESSAGE")] InfoMessage = 3,
+    [pbr::OriginalName("DEBUG_MESSAGE")] DebugMessage = 4,
+    [pbr::OriginalName("TRACE_MESSAGE")] TraceMessage = 5,
   }
 
   #endregion
@@ -107,7 +102,7 @@ namespace Log {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public LogInfo(LogInfo other) : this() {
       date_ = other.date_;
-      type_ = other.type_;
+      level_ = other.level_;
       application_ = other.application_;
       userId_ = other.userId_;
       userName_ = other.userName_;
@@ -132,14 +127,14 @@ namespace Log {
       }
     }
 
-    /// <summary>Field number for the "type" field.</summary>
-    public const int TypeFieldNumber = 2;
-    private global::Log.LogType type_ = global::Log.LogType.InfoMessage;
+    /// <summary>Field number for the "level" field.</summary>
+    public const int LevelFieldNumber = 2;
+    private global::Log.LogLevel level_ = global::Log.LogLevel.FatalMessage;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public global::Log.LogType Type {
-      get { return type_; }
+    public global::Log.LogLevel Level {
+      get { return level_; }
       set {
-        type_ = value;
+        level_ = value;
       }
     }
 
@@ -212,7 +207,7 @@ namespace Log {
         return true;
       }
       if (Date != other.Date) return false;
-      if (Type != other.Type) return false;
+      if (Level != other.Level) return false;
       if (Application != other.Application) return false;
       if (UserId != other.UserId) return false;
       if (UserName != other.UserName) return false;
@@ -225,7 +220,7 @@ namespace Log {
     public override int GetHashCode() {
       int hash = 1;
       if (Date != 0L) hash ^= Date.GetHashCode();
-      if (Type != global::Log.LogType.InfoMessage) hash ^= Type.GetHashCode();
+      if (Level != global::Log.LogLevel.FatalMessage) hash ^= Level.GetHashCode();
       if (Application.Length != 0) hash ^= Application.GetHashCode();
       if (UserId.Length != 0) hash ^= UserId.GetHashCode();
       if (UserName.Length != 0) hash ^= UserName.GetHashCode();
@@ -251,9 +246,9 @@ namespace Log {
         output.WriteRawTag(8);
         output.WriteInt64(Date);
       }
-      if (Type != global::Log.LogType.InfoMessage) {
+      if (Level != global::Log.LogLevel.FatalMessage) {
         output.WriteRawTag(16);
-        output.WriteEnum((int) Type);
+        output.WriteEnum((int) Level);
       }
       if (Application.Length != 0) {
         output.WriteRawTag(26);
@@ -288,9 +283,9 @@ namespace Log {
         output.WriteRawTag(8);
         output.WriteInt64(Date);
       }
-      if (Type != global::Log.LogType.InfoMessage) {
+      if (Level != global::Log.LogLevel.FatalMessage) {
         output.WriteRawTag(16);
-        output.WriteEnum((int) Type);
+        output.WriteEnum((int) Level);
       }
       if (Application.Length != 0) {
         output.WriteRawTag(26);
@@ -324,8 +319,8 @@ namespace Log {
       if (Date != 0L) {
         size += 1 + pb::CodedOutputStream.ComputeInt64Size(Date);
       }
-      if (Type != global::Log.LogType.InfoMessage) {
-        size += 1 + pb::CodedOutputStream.ComputeEnumSize((int) Type);
+      if (Level != global::Log.LogLevel.FatalMessage) {
+        size += 1 + pb::CodedOutputStream.ComputeEnumSize((int) Level);
       }
       if (Application.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Application);
@@ -356,8 +351,8 @@ namespace Log {
       if (other.Date != 0L) {
         Date = other.Date;
       }
-      if (other.Type != global::Log.LogType.InfoMessage) {
-        Type = other.Type;
+      if (other.Level != global::Log.LogLevel.FatalMessage) {
+        Level = other.Level;
       }
       if (other.Application.Length != 0) {
         Application = other.Application;
@@ -393,7 +388,7 @@ namespace Log {
             break;
           }
           case 16: {
-            Type = (global::Log.LogType) input.ReadEnum();
+            Level = (global::Log.LogLevel) input.ReadEnum();
             break;
           }
           case 26: {
@@ -435,7 +430,7 @@ namespace Log {
             break;
           }
           case 16: {
-            Type = (global::Log.LogType) input.ReadEnum();
+            Level = (global::Log.LogLevel) input.ReadEnum();
             break;
           }
           case 26: {
@@ -1171,991 +1166,6 @@ namespace Log {
 
   }
 
-  public sealed partial class SetLogMethodRqst : pb::IMessage<SetLogMethodRqst>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<SetLogMethodRqst> _parser = new pb::MessageParser<SetLogMethodRqst>(() => new SetLogMethodRqst());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pb::MessageParser<SetLogMethodRqst> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[5]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public SetLogMethodRqst() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public SetLogMethodRqst(SetLogMethodRqst other) : this() {
-      method_ = other.method_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public SetLogMethodRqst Clone() {
-      return new SetLogMethodRqst(this);
-    }
-
-    /// <summary>Field number for the "method" field.</summary>
-    public const int MethodFieldNumber = 1;
-    private string method_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public string Method {
-      get { return method_; }
-      set {
-        method_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override bool Equals(object other) {
-      return Equals(other as SetLogMethodRqst);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Equals(SetLogMethodRqst other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Method != other.Method) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Method.Length != 0) hash ^= Method.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Method.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Method);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Method.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Method);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public int CalculateSize() {
-      int size = 0;
-      if (Method.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Method);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(SetLogMethodRqst other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Method.Length != 0) {
-        Method = other.Method;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            Method = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            Method = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  public sealed partial class SetLogMethodRsp : pb::IMessage<SetLogMethodRsp>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<SetLogMethodRsp> _parser = new pb::MessageParser<SetLogMethodRsp>(() => new SetLogMethodRsp());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pb::MessageParser<SetLogMethodRsp> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[6]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public SetLogMethodRsp() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public SetLogMethodRsp(SetLogMethodRsp other) : this() {
-      result_ = other.result_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public SetLogMethodRsp Clone() {
-      return new SetLogMethodRsp(this);
-    }
-
-    /// <summary>Field number for the "result" field.</summary>
-    public const int ResultFieldNumber = 1;
-    private bool result_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Result {
-      get { return result_; }
-      set {
-        result_ = value;
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override bool Equals(object other) {
-      return Equals(other as SetLogMethodRsp);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Equals(SetLogMethodRsp other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Result != other.Result) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Result != false) hash ^= Result.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Result != false) {
-        output.WriteRawTag(8);
-        output.WriteBool(Result);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Result != false) {
-        output.WriteRawTag(8);
-        output.WriteBool(Result);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public int CalculateSize() {
-      int size = 0;
-      if (Result != false) {
-        size += 1 + 1;
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(SetLogMethodRsp other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Result != false) {
-        Result = other.Result;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 8: {
-            Result = input.ReadBool();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 8: {
-            Result = input.ReadBool();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  public sealed partial class ResetLogMethodRqst : pb::IMessage<ResetLogMethodRqst>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<ResetLogMethodRqst> _parser = new pb::MessageParser<ResetLogMethodRqst>(() => new ResetLogMethodRqst());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pb::MessageParser<ResetLogMethodRqst> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[7]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public ResetLogMethodRqst() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public ResetLogMethodRqst(ResetLogMethodRqst other) : this() {
-      method_ = other.method_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public ResetLogMethodRqst Clone() {
-      return new ResetLogMethodRqst(this);
-    }
-
-    /// <summary>Field number for the "method" field.</summary>
-    public const int MethodFieldNumber = 1;
-    private string method_ = "";
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public string Method {
-      get { return method_; }
-      set {
-        method_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override bool Equals(object other) {
-      return Equals(other as ResetLogMethodRqst);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Equals(ResetLogMethodRqst other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Method != other.Method) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Method.Length != 0) hash ^= Method.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Method.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Method);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Method.Length != 0) {
-        output.WriteRawTag(10);
-        output.WriteString(Method);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public int CalculateSize() {
-      int size = 0;
-      if (Method.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeStringSize(Method);
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(ResetLogMethodRqst other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Method.Length != 0) {
-        Method = other.Method;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            Method = input.ReadString();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            Method = input.ReadString();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  public sealed partial class ResetLogMethodRsp : pb::IMessage<ResetLogMethodRsp>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<ResetLogMethodRsp> _parser = new pb::MessageParser<ResetLogMethodRsp>(() => new ResetLogMethodRsp());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pb::MessageParser<ResetLogMethodRsp> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[8]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public ResetLogMethodRsp() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public ResetLogMethodRsp(ResetLogMethodRsp other) : this() {
-      result_ = other.result_;
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public ResetLogMethodRsp Clone() {
-      return new ResetLogMethodRsp(this);
-    }
-
-    /// <summary>Field number for the "result" field.</summary>
-    public const int ResultFieldNumber = 1;
-    private bool result_;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Result {
-      get { return result_; }
-      set {
-        result_ = value;
-      }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override bool Equals(object other) {
-      return Equals(other as ResetLogMethodRsp);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Equals(ResetLogMethodRsp other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if (Result != other.Result) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (Result != false) hash ^= Result.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (Result != false) {
-        output.WriteRawTag(8);
-        output.WriteBool(Result);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Result != false) {
-        output.WriteRawTag(8);
-        output.WriteBool(Result);
-      }
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public int CalculateSize() {
-      int size = 0;
-      if (Result != false) {
-        size += 1 + 1;
-      }
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(ResetLogMethodRsp other) {
-      if (other == null) {
-        return;
-      }
-      if (other.Result != false) {
-        Result = other.Result;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 8: {
-            Result = input.ReadBool();
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 8: {
-            Result = input.ReadBool();
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
-  public sealed partial class GetLogMethodsRqst : pb::IMessage<GetLogMethodsRqst>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<GetLogMethodsRqst> _parser = new pb::MessageParser<GetLogMethodsRqst>(() => new GetLogMethodsRqst());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pb::MessageParser<GetLogMethodsRqst> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[9]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public GetLogMethodsRqst() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public GetLogMethodsRqst(GetLogMethodsRqst other) : this() {
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public GetLogMethodsRqst Clone() {
-      return new GetLogMethodsRqst(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override bool Equals(object other) {
-      return Equals(other as GetLogMethodsRqst);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Equals(GetLogMethodsRqst other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override int GetHashCode() {
-      int hash = 1;
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public int CalculateSize() {
-      int size = 0;
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(GetLogMethodsRqst other) {
-      if (other == null) {
-        return;
-      }
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-        }
-      }
-    }
-    #endif
-
-  }
-
-  public sealed partial class GetLogMethodsRsp : pb::IMessage<GetLogMethodsRsp>
-  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      , pb::IBufferMessage
-  #endif
-  {
-    private static readonly pb::MessageParser<GetLogMethodsRsp> _parser = new pb::MessageParser<GetLogMethodsRsp>(() => new GetLogMethodsRsp());
-    private pb::UnknownFieldSet _unknownFields;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pb::MessageParser<GetLogMethodsRsp> Parser { get { return _parser; } }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[10]; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    pbr::MessageDescriptor pb::IMessage.Descriptor {
-      get { return Descriptor; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public GetLogMethodsRsp() {
-      OnConstruction();
-    }
-
-    partial void OnConstruction();
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public GetLogMethodsRsp(GetLogMethodsRsp other) : this() {
-      methods_ = other.methods_.Clone();
-      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public GetLogMethodsRsp Clone() {
-      return new GetLogMethodsRsp(this);
-    }
-
-    /// <summary>Field number for the "methods" field.</summary>
-    public const int MethodsFieldNumber = 1;
-    private static readonly pb::FieldCodec<string> _repeated_methods_codec
-        = pb::FieldCodec.ForString(10);
-    private readonly pbc::RepeatedField<string> methods_ = new pbc::RepeatedField<string>();
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public pbc::RepeatedField<string> Methods {
-      get { return methods_; }
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override bool Equals(object other) {
-      return Equals(other as GetLogMethodsRsp);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public bool Equals(GetLogMethodsRsp other) {
-      if (ReferenceEquals(other, null)) {
-        return false;
-      }
-      if (ReferenceEquals(other, this)) {
-        return true;
-      }
-      if(!methods_.Equals(other.methods_)) return false;
-      return Equals(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override int GetHashCode() {
-      int hash = 1;
-      hash ^= methods_.GetHashCode();
-      if (_unknownFields != null) {
-        hash ^= _unknownFields.GetHashCode();
-      }
-      return hash;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public override string ToString() {
-      return pb::JsonFormatter.ToDiagnosticString(this);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void WriteTo(pb::CodedOutputStream output) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      output.WriteRawMessage(this);
-    #else
-      methods_.WriteTo(output, _repeated_methods_codec);
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(output);
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      methods_.WriteTo(ref output, _repeated_methods_codec);
-      if (_unknownFields != null) {
-        _unknownFields.WriteTo(ref output);
-      }
-    }
-    #endif
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public int CalculateSize() {
-      int size = 0;
-      size += methods_.CalculateSize(_repeated_methods_codec);
-      if (_unknownFields != null) {
-        size += _unknownFields.CalculateSize();
-      }
-      return size;
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(GetLogMethodsRsp other) {
-      if (other == null) {
-        return;
-      }
-      methods_.Add(other.methods_);
-      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
-    }
-
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public void MergeFrom(pb::CodedInputStream input) {
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-      input.ReadRawMessage(this);
-    #else
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
-            break;
-          case 10: {
-            methods_.AddEntriesFrom(input, _repeated_methods_codec);
-            break;
-          }
-        }
-      }
-    #endif
-    }
-
-    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
-      uint tag;
-      while ((tag = input.ReadTag()) != 0) {
-        switch(tag) {
-          default:
-            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
-            break;
-          case 10: {
-            methods_.AddEntriesFrom(ref input, _repeated_methods_codec);
-            break;
-          }
-        }
-      }
-    }
-    #endif
-
-  }
-
   public sealed partial class GetLogRqst : pb::IMessage<GetLogRqst>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
@@ -2168,7 +1178,7 @@ namespace Log {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[11]; }
+      get { return global::Log.LogReflection.Descriptor.MessageTypes[5]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -2340,7 +1350,7 @@ namespace Log {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[12]; }
+      get { return global::Log.LogReflection.Descriptor.MessageTypes[6]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -2357,7 +1367,7 @@ namespace Log {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public GetLogRsp(GetLogRsp other) : this() {
-      info_ = other.info_.Clone();
+      infos_ = other.infos_.Clone();
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -2366,14 +1376,14 @@ namespace Log {
       return new GetLogRsp(this);
     }
 
-    /// <summary>Field number for the "info" field.</summary>
-    public const int InfoFieldNumber = 1;
-    private static readonly pb::FieldCodec<global::Log.LogInfo> _repeated_info_codec
+    /// <summary>Field number for the "infos" field.</summary>
+    public const int InfosFieldNumber = 1;
+    private static readonly pb::FieldCodec<global::Log.LogInfo> _repeated_infos_codec
         = pb::FieldCodec.ForMessage(10, global::Log.LogInfo.Parser);
-    private readonly pbc::RepeatedField<global::Log.LogInfo> info_ = new pbc::RepeatedField<global::Log.LogInfo>();
+    private readonly pbc::RepeatedField<global::Log.LogInfo> infos_ = new pbc::RepeatedField<global::Log.LogInfo>();
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public pbc::RepeatedField<global::Log.LogInfo> Info {
-      get { return info_; }
+    public pbc::RepeatedField<global::Log.LogInfo> Infos {
+      get { return infos_; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -2389,14 +1399,14 @@ namespace Log {
       if (ReferenceEquals(other, this)) {
         return true;
       }
-      if(!info_.Equals(other.info_)) return false;
+      if(!infos_.Equals(other.infos_)) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public override int GetHashCode() {
       int hash = 1;
-      hash ^= info_.GetHashCode();
+      hash ^= infos_.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -2413,7 +1423,7 @@ namespace Log {
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      info_.WriteTo(output, _repeated_info_codec);
+      infos_.WriteTo(output, _repeated_infos_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -2423,7 +1433,7 @@ namespace Log {
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      info_.WriteTo(ref output, _repeated_info_codec);
+      infos_.WriteTo(ref output, _repeated_infos_codec);
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -2433,7 +1443,7 @@ namespace Log {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public int CalculateSize() {
       int size = 0;
-      size += info_.CalculateSize(_repeated_info_codec);
+      size += infos_.CalculateSize(_repeated_infos_codec);
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -2445,7 +1455,7 @@ namespace Log {
       if (other == null) {
         return;
       }
-      info_.Add(other.info_);
+      infos_.Add(other.infos_);
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
 
@@ -2461,7 +1471,7 @@ namespace Log {
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
           case 10: {
-            info_.AddEntriesFrom(input, _repeated_info_codec);
+            infos_.AddEntriesFrom(input, _repeated_infos_codec);
             break;
           }
         }
@@ -2479,7 +1489,7 @@ namespace Log {
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
           case 10: {
-            info_.AddEntriesFrom(ref input, _repeated_info_codec);
+            infos_.AddEntriesFrom(ref input, _repeated_infos_codec);
             break;
           }
         }
@@ -2501,7 +1511,7 @@ namespace Log {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[13]; }
+      get { return global::Log.LogReflection.Descriptor.MessageTypes[7]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -2518,7 +1528,7 @@ namespace Log {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public ClearAllLogRqst(ClearAllLogRqst other) : this() {
-      type_ = other.type_;
+      query_ = other.query_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -2527,14 +1537,14 @@ namespace Log {
       return new ClearAllLogRqst(this);
     }
 
-    /// <summary>Field number for the "type" field.</summary>
-    public const int TypeFieldNumber = 1;
-    private global::Log.LogType type_ = global::Log.LogType.InfoMessage;
+    /// <summary>Field number for the "query" field.</summary>
+    public const int QueryFieldNumber = 1;
+    private string query_ = "";
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    public global::Log.LogType Type {
-      get { return type_; }
+    public string Query {
+      get { return query_; }
       set {
-        type_ = value;
+        query_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
       }
     }
 
@@ -2551,14 +1561,14 @@ namespace Log {
       if (ReferenceEquals(other, this)) {
         return true;
       }
-      if (Type != other.Type) return false;
+      if (Query != other.Query) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public override int GetHashCode() {
       int hash = 1;
-      if (Type != global::Log.LogType.InfoMessage) hash ^= Type.GetHashCode();
+      if (Query.Length != 0) hash ^= Query.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -2575,9 +1585,9 @@ namespace Log {
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       output.WriteRawMessage(this);
     #else
-      if (Type != global::Log.LogType.InfoMessage) {
-        output.WriteRawTag(8);
-        output.WriteEnum((int) Type);
+      if (Query.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(Query);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
@@ -2588,9 +1598,9 @@ namespace Log {
     #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
-      if (Type != global::Log.LogType.InfoMessage) {
-        output.WriteRawTag(8);
-        output.WriteEnum((int) Type);
+      if (Query.Length != 0) {
+        output.WriteRawTag(10);
+        output.WriteString(Query);
       }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
@@ -2601,8 +1611,8 @@ namespace Log {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public int CalculateSize() {
       int size = 0;
-      if (Type != global::Log.LogType.InfoMessage) {
-        size += 1 + pb::CodedOutputStream.ComputeEnumSize((int) Type);
+      if (Query.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Query);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -2615,8 +1625,8 @@ namespace Log {
       if (other == null) {
         return;
       }
-      if (other.Type != global::Log.LogType.InfoMessage) {
-        Type = other.Type;
+      if (other.Query.Length != 0) {
+        Query = other.Query;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -2632,8 +1642,8 @@ namespace Log {
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
             break;
-          case 8: {
-            Type = (global::Log.LogType) input.ReadEnum();
+          case 10: {
+            Query = input.ReadString();
             break;
           }
         }
@@ -2650,8 +1660,8 @@ namespace Log {
           default:
             _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
             break;
-          case 8: {
-            Type = (global::Log.LogType) input.ReadEnum();
+          case 10: {
+            Query = input.ReadString();
             break;
           }
         }
@@ -2673,7 +1683,7 @@ namespace Log {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Log.LogReflection.Descriptor.MessageTypes[14]; }
+      get { return global::Log.LogReflection.Descriptor.MessageTypes[8]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]

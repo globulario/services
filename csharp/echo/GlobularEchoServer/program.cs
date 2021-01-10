@@ -25,6 +25,7 @@ namespace Echo
                 // init values from the configuration file.
                 System.Console.WriteLine("init service configuration.");
                 echoServer = echoServer.init();
+                echoServer.logMessage("Main", "The C# echo server was started!", Log.LogLevel.InfoMessage);
                 System.Console.WriteLine("the server is now initialysed!");
                 
                 if (echoServer.TLS == true)

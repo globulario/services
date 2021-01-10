@@ -16,7 +16,7 @@ namespace Globular
         }
 
         public bool ValidateAccess(string subject, Rbac.SubjectType subjectType, string permission, string path){
-            System.Console.WriteLine("ValidateAccess");
+
             var rqst = new Rbac.ValidateAccessRqst();
             rqst.Subject = subject;
             rqst.Type = subjectType;
@@ -29,7 +29,7 @@ namespace Globular
         }
 
         public bool ValidateAction(string subject, Rbac.SubjectType subjectType, Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> infos){
-             System.Console.WriteLine("ValidateAction");
+
             var rqst = new Rbac.ValidateActionRqst();
             rqst.Subject = subject;
             rqst.Type = subjectType;
@@ -41,7 +41,7 @@ namespace Globular
         }
 
         public Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> GetActionResourceInfos(string action ){
-            System.Console.WriteLine("GetActionResourceInfos");
+
             var rqst = new Rbac.GetActionResourceInfosRqst();
             rqst.Action = action;
 

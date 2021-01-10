@@ -430,42 +430,24 @@ class ResourceService final {
       virtual ~experimental_async_interface() {}
       // * Return the list of all grpc methods *
       virtual void GetAllActions(::grpc::ClientContext* context, const ::resource::GetAllActionsRqst* request, ::resource::GetAllActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void GetAllActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void GetAllActions(::grpc::ClientContext* context, const ::resource::GetAllActionsRqst* request, ::resource::GetAllActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void GetAllActions(::grpc::ClientContext* context, const ::resource::GetAllActionsRqst* request, ::resource::GetAllActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void GetAllActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void GetAllActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Validate a token *
       virtual void ValidateToken(::grpc::ClientContext* context, const ::resource::ValidateTokenRqst* request, ::resource::ValidateTokenRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void ValidateToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::ValidateTokenRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void ValidateToken(::grpc::ClientContext* context, const ::resource::ValidateTokenRqst* request, ::resource::ValidateTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void ValidateToken(::grpc::ClientContext* context, const ::resource::ValidateTokenRqst* request, ::resource::ValidateTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void ValidateToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::ValidateTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void ValidateToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::ValidateTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Refresh token get a new token *
       virtual void RefreshToken(::grpc::ClientContext* context, const ::resource::RefreshTokenRqst* request, ::resource::RefreshTokenRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RefreshToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RefreshTokenRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RefreshToken(::grpc::ClientContext* context, const ::resource::RefreshTokenRqst* request, ::resource::RefreshTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RefreshToken(::grpc::ClientContext* context, const ::resource::RefreshTokenRqst* request, ::resource::RefreshTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RefreshToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RefreshTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RefreshToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RefreshTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Authentication
@@ -473,29 +455,17 @@ class ResourceService final {
       //
       // * Authenticate a user *
       virtual void Authenticate(::grpc::ClientContext* context, const ::resource::AuthenticateRqst* request, ::resource::AuthenticateRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void Authenticate(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AuthenticateRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void Authenticate(::grpc::ClientContext* context, const ::resource::AuthenticateRqst* request, ::resource::AuthenticateRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void Authenticate(::grpc::ClientContext* context, const ::resource::AuthenticateRqst* request, ::resource::AuthenticateRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void Authenticate(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AuthenticateRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void Authenticate(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AuthenticateRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Synchronize Resource with LDAP if connection exist *
       virtual void SynchronizeLdap(::grpc::ClientContext* context, const ::resource::SynchronizeLdapRqst* request, ::resource::SynchronizeLdapRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void SynchronizeLdap(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::SynchronizeLdapRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void SynchronizeLdap(::grpc::ClientContext* context, const ::resource::SynchronizeLdapRqst* request, ::resource::SynchronizeLdapRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void SynchronizeLdap(::grpc::ClientContext* context, const ::resource::SynchronizeLdapRqst* request, ::resource::SynchronizeLdapRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void SynchronizeLdap(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::SynchronizeLdapRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void SynchronizeLdap(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::SynchronizeLdapRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Resource's control objects
@@ -507,16 +477,10 @@ class ResourceService final {
       //
       // * Register a new organization 
       virtual void CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst* request, ::resource::CreateOrganizationRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void CreateOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateOrganizationRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst* request, ::resource::CreateOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst* request, ::resource::CreateOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void CreateOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void CreateOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Return the list of organizations 
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -526,120 +490,66 @@ class ResourceService final {
       #endif
       // * Delete Organization 
       virtual void DeleteOrganization(::grpc::ClientContext* context, const ::resource::DeleteOrganizationRqst* request, ::resource::DeleteOrganizationRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void DeleteOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteOrganizationRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void DeleteOrganization(::grpc::ClientContext* context, const ::resource::DeleteOrganizationRqst* request, ::resource::DeleteOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void DeleteOrganization(::grpc::ClientContext* context, const ::resource::DeleteOrganizationRqst* request, ::resource::DeleteOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void DeleteOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void DeleteOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Add Account *
       virtual void AddOrganizationAccount(::grpc::ClientContext* context, const ::resource::AddOrganizationAccountRqst* request, ::resource::AddOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddOrganizationAccount(::grpc::ClientContext* context, const ::resource::AddOrganizationAccountRqst* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddOrganizationAccount(::grpc::ClientContext* context, const ::resource::AddOrganizationAccountRqst* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Add Group *
       virtual void AddOrganizationGroup(::grpc::ClientContext* context, const ::resource::AddOrganizationGroupRqst* request, ::resource::AddOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddOrganizationGroup(::grpc::ClientContext* context, const ::resource::AddOrganizationGroupRqst* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddOrganizationGroup(::grpc::ClientContext* context, const ::resource::AddOrganizationGroupRqst* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Add Role *
       virtual void AddOrganizationRole(::grpc::ClientContext* context, const ::resource::AddOrganizationRoleRqst* request, ::resource::AddOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddOrganizationRole(::grpc::ClientContext* context, const ::resource::AddOrganizationRoleRqst* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddOrganizationRole(::grpc::ClientContext* context, const ::resource::AddOrganizationRoleRqst* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Add Application *
       virtual void AddOrganizationApplication(::grpc::ClientContext* context, const ::resource::AddOrganizationApplicationRqst* request, ::resource::AddOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddOrganizationApplication(::grpc::ClientContext* context, const ::resource::AddOrganizationApplicationRqst* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddOrganizationApplication(::grpc::ClientContext* context, const ::resource::AddOrganizationApplicationRqst* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove Account *
       virtual void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::resource::RemoveOrganizationAccountRqst* request, ::resource::RemoveOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::resource::RemoveOrganizationAccountRqst* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::resource::RemoveOrganizationAccountRqst* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove Group *
       virtual void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::resource::RemoveOrganizationGroupRqst* request, ::resource::RemoveOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::resource::RemoveOrganizationGroupRqst* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::resource::RemoveOrganizationGroupRqst* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove Role *
       virtual void RemoveOrganizationRole(::grpc::ClientContext* context, const ::resource::RemoveOrganizationRoleRqst* request, ::resource::RemoveOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveOrganizationRole(::grpc::ClientContext* context, const ::resource::RemoveOrganizationRoleRqst* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveOrganizationRole(::grpc::ClientContext* context, const ::resource::RemoveOrganizationRoleRqst* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove Application *
       virtual void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::resource::RemoveOrganizationApplicationRqst* request, ::resource::RemoveOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::resource::RemoveOrganizationApplicationRqst* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::resource::RemoveOrganizationApplicationRqst* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Group's
@@ -647,16 +557,10 @@ class ResourceService final {
       //
       // * Register a new group 
       virtual void CreateGroup(::grpc::ClientContext* context, const ::resource::CreateGroupRqst* request, ::resource::CreateGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void CreateGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void CreateGroup(::grpc::ClientContext* context, const ::resource::CreateGroupRqst* request, ::resource::CreateGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void CreateGroup(::grpc::ClientContext* context, const ::resource::CreateGroupRqst* request, ::resource::CreateGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void CreateGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void CreateGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Return the list of groups 
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -666,42 +570,24 @@ class ResourceService final {
       #endif
       // * Delete group 
       virtual void DeleteGroup(::grpc::ClientContext* context, const ::resource::DeleteGroupRqst* request, ::resource::DeleteGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void DeleteGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteGroupRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void DeleteGroup(::grpc::ClientContext* context, const ::resource::DeleteGroupRqst* request, ::resource::DeleteGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void DeleteGroup(::grpc::ClientContext* context, const ::resource::DeleteGroupRqst* request, ::resource::DeleteGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void DeleteGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void DeleteGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Add a member account to the group *
       virtual void AddGroupMemberAccount(::grpc::ClientContext* context, const ::resource::AddGroupMemberAccountRqst* request, ::resource::AddGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddGroupMemberAccount(::grpc::ClientContext* context, const ::resource::AddGroupMemberAccountRqst* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddGroupMemberAccount(::grpc::ClientContext* context, const ::resource::AddGroupMemberAccountRqst* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove member account from the group *
       virtual void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::resource::RemoveGroupMemberAccountRqst* request, ::resource::RemoveGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::resource::RemoveGroupMemberAccountRqst* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::resource::RemoveGroupMemberAccountRqst* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Account's
@@ -709,29 +595,17 @@ class ResourceService final {
       //
       // * Register a new Account *
       virtual void RegisterAccount(::grpc::ClientContext* context, const ::resource::RegisterAccountRqst* request, ::resource::RegisterAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RegisterAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RegisterAccount(::grpc::ClientContext* context, const ::resource::RegisterAccountRqst* request, ::resource::RegisterAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RegisterAccount(::grpc::ClientContext* context, const ::resource::RegisterAccountRqst* request, ::resource::RegisterAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RegisterAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RegisterAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Delete an account *
       virtual void DeleteAccount(::grpc::ClientContext* context, const ::resource::DeleteAccountRqst* request, ::resource::DeleteAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void DeleteAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteAccountRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void DeleteAccount(::grpc::ClientContext* context, const ::resource::DeleteAccountRqst* request, ::resource::DeleteAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void DeleteAccount(::grpc::ClientContext* context, const ::resource::DeleteAccountRqst* request, ::resource::DeleteAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void DeleteAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void DeleteAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Return the list of accounts *
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -741,55 +615,31 @@ class ResourceService final {
       #endif
       // * Add role to a given account *
       virtual void AddAccountRole(::grpc::ClientContext* context, const ::resource::AddAccountRoleRqst* request, ::resource::AddAccountRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddAccountRole(::grpc::ClientContext* context, const ::resource::AddAccountRoleRqst* request, ::resource::AddAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddAccountRole(::grpc::ClientContext* context, const ::resource::AddAccountRoleRqst* request, ::resource::AddAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove a role from a given account *
       virtual void RemoveAccountRole(::grpc::ClientContext* context, const ::resource::RemoveAccountRoleRqst* request, ::resource::RemoveAccountRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveAccountRole(::grpc::ClientContext* context, const ::resource::RemoveAccountRoleRqst* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveAccountRole(::grpc::ClientContext* context, const ::resource::RemoveAccountRoleRqst* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Add contact to a given account *
       virtual void AddAccountContact(::grpc::ClientContext* context, const ::resource::AddAccountContactRqst* request, ::resource::AddAccountContactRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountContactRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddAccountContact(::grpc::ClientContext* context, const ::resource::AddAccountContactRqst* request, ::resource::AddAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddAccountContact(::grpc::ClientContext* context, const ::resource::AddAccountContactRqst* request, ::resource::AddAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove a contact from a given account *
       virtual void RemoveAccountContact(::grpc::ClientContext* context, const ::resource::RemoveAccountContactRqst* request, ::resource::RemoveAccountContactRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountContactRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveAccountContact(::grpc::ClientContext* context, const ::resource::RemoveAccountContactRqst* request, ::resource::RemoveAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveAccountContact(::grpc::ClientContext* context, const ::resource::RemoveAccountContactRqst* request, ::resource::RemoveAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Action's control objects (Role Base'd)
@@ -801,16 +651,10 @@ class ResourceService final {
       //
       // * Create a role with given action list *
       virtual void CreateRole(::grpc::ClientContext* context, const ::resource::CreateRoleRqst* request, ::resource::CreateRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void CreateRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void CreateRole(::grpc::ClientContext* context, const ::resource::CreateRoleRqst* request, ::resource::CreateRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void CreateRole(::grpc::ClientContext* context, const ::resource::CreateRoleRqst* request, ::resource::CreateRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void CreateRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void CreateRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Return the list of roles *
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -820,42 +664,24 @@ class ResourceService final {
       #endif
       // * Delete a role with a given id *
       virtual void DeleteRole(::grpc::ClientContext* context, const ::resource::DeleteRoleRqst* request, ::resource::DeleteRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void DeleteRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteRoleRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void DeleteRole(::grpc::ClientContext* context, const ::resource::DeleteRoleRqst* request, ::resource::DeleteRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void DeleteRole(::grpc::ClientContext* context, const ::resource::DeleteRoleRqst* request, ::resource::DeleteRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void DeleteRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void DeleteRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Append action's to existing role. *
       virtual void AddRoleActions(::grpc::ClientContext* context, const ::resource::AddRoleActionsRqst* request, ::resource::AddRoleActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddRoleActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddRoleActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddRoleActions(::grpc::ClientContext* context, const ::resource::AddRoleActionsRqst* request, ::resource::AddRoleActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddRoleActions(::grpc::ClientContext* context, const ::resource::AddRoleActionsRqst* request, ::resource::AddRoleActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddRoleActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddRoleActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddRoleActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddRoleActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove an action to existing role. *
       virtual void RemoveRoleAction(::grpc::ClientContext* context, const ::resource::RemoveRoleActionRqst* request, ::resource::RemoveRoleActionRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveRoleAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveRoleActionRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveRoleAction(::grpc::ClientContext* context, const ::resource::RemoveRoleActionRqst* request, ::resource::RemoveRoleActionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveRoleAction(::grpc::ClientContext* context, const ::resource::RemoveRoleActionRqst* request, ::resource::RemoveRoleActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveRoleAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveRoleActionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveRoleAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveRoleActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Application's
@@ -863,55 +689,31 @@ class ResourceService final {
       //
       // * Return a json string with all applications informations *
       virtual void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::resource::GetAllApplicationsInfoRqst* request, ::resource::GetAllApplicationsInfoRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllApplicationsInfoRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::resource::GetAllApplicationsInfoRqst* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::resource::GetAllApplicationsInfoRqst* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Delete an application from the server. *
       virtual void DeleteApplication(::grpc::ClientContext* context, const ::resource::DeleteApplicationRqst* request, ::resource::DeleteApplicationRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void DeleteApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteApplicationRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void DeleteApplication(::grpc::ClientContext* context, const ::resource::DeleteApplicationRqst* request, ::resource::DeleteApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void DeleteApplication(::grpc::ClientContext* context, const ::resource::DeleteApplicationRqst* request, ::resource::DeleteApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void DeleteApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void DeleteApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Append actions to existing applications. *
       virtual void AddApplicationActions(::grpc::ClientContext* context, const ::resource::AddApplicationActionsRqst* request, ::resource::AddApplicationActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddApplicationActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddApplicationActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddApplicationActions(::grpc::ClientContext* context, const ::resource::AddApplicationActionsRqst* request, ::resource::AddApplicationActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddApplicationActions(::grpc::ClientContext* context, const ::resource::AddApplicationActionsRqst* request, ::resource::AddApplicationActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddApplicationActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddApplicationActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddApplicationActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddApplicationActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove an action to existing applications. *
       virtual void RemoveApplicationAction(::grpc::ClientContext* context, const ::resource::RemoveApplicationActionRqst* request, ::resource::RemoveApplicationActionRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemoveApplicationAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveApplicationActionRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemoveApplicationAction(::grpc::ClientContext* context, const ::resource::RemoveApplicationActionRqst* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemoveApplicationAction(::grpc::ClientContext* context, const ::resource::RemoveApplicationActionRqst* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemoveApplicationAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemoveApplicationAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Peer's
@@ -919,16 +721,10 @@ class ResourceService final {
       //
       // * Register a peer on the network *
       virtual void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterPeerRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterPeerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Return the list of peers *
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -938,42 +734,24 @@ class ResourceService final {
       #endif
       // * Remove a peer from the network *
       virtual void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeletePeerRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeletePeerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeletePeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Add peer actions *
       virtual void AddPeerActions(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst* request, ::resource::AddPeerActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void AddPeerActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddPeerActionsRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void AddPeerActions(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst* request, ::resource::AddPeerActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void AddPeerActions(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst* request, ::resource::AddPeerActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void AddPeerActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddPeerActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void AddPeerActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddPeerActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
       // * Remove peer action permission *
       virtual void RemovePeerAction(::grpc::ClientContext* context, const ::resource::RemovePeerActionRqst* request, ::resource::RemovePeerActionRsp* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemovePeerActionRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RemovePeerAction(::grpc::ClientContext* context, const ::resource::RemovePeerActionRqst* request, ::resource::RemovePeerActionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RemovePeerAction(::grpc::ClientContext* context, const ::resource::RemovePeerActionRqst* request, ::resource::RemovePeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      virtual void RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemovePeerActionRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      #else
-      virtual void RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemovePeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
     };
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -1385,76 +1163,40 @@ class ResourceService final {
       public StubInterface::experimental_async_interface {
      public:
       void GetAllActions(::grpc::ClientContext* context, const ::resource::GetAllActionsRqst* request, ::resource::GetAllActionsRsp* response, std::function<void(::grpc::Status)>) override;
-      void GetAllActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllActionsRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetAllActions(::grpc::ClientContext* context, const ::resource::GetAllActionsRqst* request, ::resource::GetAllActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void GetAllActions(::grpc::ClientContext* context, const ::resource::GetAllActionsRqst* request, ::resource::GetAllActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void GetAllActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void GetAllActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void ValidateToken(::grpc::ClientContext* context, const ::resource::ValidateTokenRqst* request, ::resource::ValidateTokenRsp* response, std::function<void(::grpc::Status)>) override;
-      void ValidateToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::ValidateTokenRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void ValidateToken(::grpc::ClientContext* context, const ::resource::ValidateTokenRqst* request, ::resource::ValidateTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void ValidateToken(::grpc::ClientContext* context, const ::resource::ValidateTokenRqst* request, ::resource::ValidateTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void ValidateToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::ValidateTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void ValidateToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::ValidateTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RefreshToken(::grpc::ClientContext* context, const ::resource::RefreshTokenRqst* request, ::resource::RefreshTokenRsp* response, std::function<void(::grpc::Status)>) override;
-      void RefreshToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RefreshTokenRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RefreshToken(::grpc::ClientContext* context, const ::resource::RefreshTokenRqst* request, ::resource::RefreshTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RefreshToken(::grpc::ClientContext* context, const ::resource::RefreshTokenRqst* request, ::resource::RefreshTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RefreshToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RefreshTokenRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RefreshToken(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RefreshTokenRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void Authenticate(::grpc::ClientContext* context, const ::resource::AuthenticateRqst* request, ::resource::AuthenticateRsp* response, std::function<void(::grpc::Status)>) override;
-      void Authenticate(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AuthenticateRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void Authenticate(::grpc::ClientContext* context, const ::resource::AuthenticateRqst* request, ::resource::AuthenticateRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void Authenticate(::grpc::ClientContext* context, const ::resource::AuthenticateRqst* request, ::resource::AuthenticateRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void Authenticate(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AuthenticateRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void Authenticate(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AuthenticateRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void SynchronizeLdap(::grpc::ClientContext* context, const ::resource::SynchronizeLdapRqst* request, ::resource::SynchronizeLdapRsp* response, std::function<void(::grpc::Status)>) override;
-      void SynchronizeLdap(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::SynchronizeLdapRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void SynchronizeLdap(::grpc::ClientContext* context, const ::resource::SynchronizeLdapRqst* request, ::resource::SynchronizeLdapRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void SynchronizeLdap(::grpc::ClientContext* context, const ::resource::SynchronizeLdapRqst* request, ::resource::SynchronizeLdapRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void SynchronizeLdap(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::SynchronizeLdapRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void SynchronizeLdap(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::SynchronizeLdapRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst* request, ::resource::CreateOrganizationRsp* response, std::function<void(::grpc::Status)>) override;
-      void CreateOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateOrganizationRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst* request, ::resource::CreateOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst* request, ::resource::CreateOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void CreateOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void CreateOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetOrganizations(::grpc::ClientContext* context, ::resource::GetOrganizationsRqst* request, ::grpc::ClientReadReactor< ::resource::GetOrganizationsRsp>* reactor) override;
@@ -1462,124 +1204,64 @@ class ResourceService final {
       void GetOrganizations(::grpc::ClientContext* context, ::resource::GetOrganizationsRqst* request, ::grpc::experimental::ClientReadReactor< ::resource::GetOrganizationsRsp>* reactor) override;
       #endif
       void DeleteOrganization(::grpc::ClientContext* context, const ::resource::DeleteOrganizationRqst* request, ::resource::DeleteOrganizationRsp* response, std::function<void(::grpc::Status)>) override;
-      void DeleteOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteOrganizationRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void DeleteOrganization(::grpc::ClientContext* context, const ::resource::DeleteOrganizationRqst* request, ::resource::DeleteOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void DeleteOrganization(::grpc::ClientContext* context, const ::resource::DeleteOrganizationRqst* request, ::resource::DeleteOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void DeleteOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteOrganizationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void DeleteOrganization(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddOrganizationAccount(::grpc::ClientContext* context, const ::resource::AddOrganizationAccountRqst* request, ::resource::AddOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddOrganizationAccount(::grpc::ClientContext* context, const ::resource::AddOrganizationAccountRqst* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddOrganizationAccount(::grpc::ClientContext* context, const ::resource::AddOrganizationAccountRqst* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddOrganizationGroup(::grpc::ClientContext* context, const ::resource::AddOrganizationGroupRqst* request, ::resource::AddOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddOrganizationGroup(::grpc::ClientContext* context, const ::resource::AddOrganizationGroupRqst* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddOrganizationGroup(::grpc::ClientContext* context, const ::resource::AddOrganizationGroupRqst* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddOrganizationRole(::grpc::ClientContext* context, const ::resource::AddOrganizationRoleRqst* request, ::resource::AddOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddOrganizationRole(::grpc::ClientContext* context, const ::resource::AddOrganizationRoleRqst* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddOrganizationRole(::grpc::ClientContext* context, const ::resource::AddOrganizationRoleRqst* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddOrganizationApplication(::grpc::ClientContext* context, const ::resource::AddOrganizationApplicationRqst* request, ::resource::AddOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddOrganizationApplication(::grpc::ClientContext* context, const ::resource::AddOrganizationApplicationRqst* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddOrganizationApplication(::grpc::ClientContext* context, const ::resource::AddOrganizationApplicationRqst* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::resource::RemoveOrganizationAccountRqst* request, ::resource::RemoveOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationAccountRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::resource::RemoveOrganizationAccountRqst* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::resource::RemoveOrganizationAccountRqst* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveOrganizationAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::resource::RemoveOrganizationGroupRqst* request, ::resource::RemoveOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationGroupRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::resource::RemoveOrganizationGroupRqst* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::resource::RemoveOrganizationGroupRqst* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveOrganizationGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveOrganizationRole(::grpc::ClientContext* context, const ::resource::RemoveOrganizationRoleRqst* request, ::resource::RemoveOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationRoleRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveOrganizationRole(::grpc::ClientContext* context, const ::resource::RemoveOrganizationRoleRqst* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveOrganizationRole(::grpc::ClientContext* context, const ::resource::RemoveOrganizationRoleRqst* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveOrganizationRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::resource::RemoveOrganizationApplicationRqst* request, ::resource::RemoveOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationApplicationRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::resource::RemoveOrganizationApplicationRqst* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::resource::RemoveOrganizationApplicationRqst* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveOrganizationApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveOrganizationApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void CreateGroup(::grpc::ClientContext* context, const ::resource::CreateGroupRqst* request, ::resource::CreateGroupRsp* response, std::function<void(::grpc::Status)>) override;
-      void CreateGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateGroupRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void CreateGroup(::grpc::ClientContext* context, const ::resource::CreateGroupRqst* request, ::resource::CreateGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void CreateGroup(::grpc::ClientContext* context, const ::resource::CreateGroupRqst* request, ::resource::CreateGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void CreateGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void CreateGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetGroups(::grpc::ClientContext* context, ::resource::GetGroupsRqst* request, ::grpc::ClientReadReactor< ::resource::GetGroupsRsp>* reactor) override;
@@ -1587,64 +1269,34 @@ class ResourceService final {
       void GetGroups(::grpc::ClientContext* context, ::resource::GetGroupsRqst* request, ::grpc::experimental::ClientReadReactor< ::resource::GetGroupsRsp>* reactor) override;
       #endif
       void DeleteGroup(::grpc::ClientContext* context, const ::resource::DeleteGroupRqst* request, ::resource::DeleteGroupRsp* response, std::function<void(::grpc::Status)>) override;
-      void DeleteGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteGroupRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void DeleteGroup(::grpc::ClientContext* context, const ::resource::DeleteGroupRqst* request, ::resource::DeleteGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void DeleteGroup(::grpc::ClientContext* context, const ::resource::DeleteGroupRqst* request, ::resource::DeleteGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void DeleteGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteGroupRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void DeleteGroup(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteGroupRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddGroupMemberAccount(::grpc::ClientContext* context, const ::resource::AddGroupMemberAccountRqst* request, ::resource::AddGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddGroupMemberAccount(::grpc::ClientContext* context, const ::resource::AddGroupMemberAccountRqst* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddGroupMemberAccount(::grpc::ClientContext* context, const ::resource::AddGroupMemberAccountRqst* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::resource::RemoveGroupMemberAccountRqst* request, ::resource::RemoveGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveGroupMemberAccountRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::resource::RemoveGroupMemberAccountRqst* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::resource::RemoveGroupMemberAccountRqst* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveGroupMemberAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveGroupMemberAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RegisterAccount(::grpc::ClientContext* context, const ::resource::RegisterAccountRqst* request, ::resource::RegisterAccountRsp* response, std::function<void(::grpc::Status)>) override;
-      void RegisterAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterAccountRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RegisterAccount(::grpc::ClientContext* context, const ::resource::RegisterAccountRqst* request, ::resource::RegisterAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RegisterAccount(::grpc::ClientContext* context, const ::resource::RegisterAccountRqst* request, ::resource::RegisterAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RegisterAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RegisterAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void DeleteAccount(::grpc::ClientContext* context, const ::resource::DeleteAccountRqst* request, ::resource::DeleteAccountRsp* response, std::function<void(::grpc::Status)>) override;
-      void DeleteAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteAccountRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void DeleteAccount(::grpc::ClientContext* context, const ::resource::DeleteAccountRqst* request, ::resource::DeleteAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void DeleteAccount(::grpc::ClientContext* context, const ::resource::DeleteAccountRqst* request, ::resource::DeleteAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void DeleteAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteAccountRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void DeleteAccount(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteAccountRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetAccounts(::grpc::ClientContext* context, ::resource::GetAccountsRqst* request, ::grpc::ClientReadReactor< ::resource::GetAccountsRsp>* reactor) override;
@@ -1652,64 +1304,34 @@ class ResourceService final {
       void GetAccounts(::grpc::ClientContext* context, ::resource::GetAccountsRqst* request, ::grpc::experimental::ClientReadReactor< ::resource::GetAccountsRsp>* reactor) override;
       #endif
       void AddAccountRole(::grpc::ClientContext* context, const ::resource::AddAccountRoleRqst* request, ::resource::AddAccountRoleRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountRoleRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddAccountRole(::grpc::ClientContext* context, const ::resource::AddAccountRoleRqst* request, ::resource::AddAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddAccountRole(::grpc::ClientContext* context, const ::resource::AddAccountRoleRqst* request, ::resource::AddAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveAccountRole(::grpc::ClientContext* context, const ::resource::RemoveAccountRoleRqst* request, ::resource::RemoveAccountRoleRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountRoleRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveAccountRole(::grpc::ClientContext* context, const ::resource::RemoveAccountRoleRqst* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveAccountRole(::grpc::ClientContext* context, const ::resource::RemoveAccountRoleRqst* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveAccountRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddAccountContact(::grpc::ClientContext* context, const ::resource::AddAccountContactRqst* request, ::resource::AddAccountContactRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountContactRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddAccountContact(::grpc::ClientContext* context, const ::resource::AddAccountContactRqst* request, ::resource::AddAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddAccountContact(::grpc::ClientContext* context, const ::resource::AddAccountContactRqst* request, ::resource::AddAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveAccountContact(::grpc::ClientContext* context, const ::resource::RemoveAccountContactRqst* request, ::resource::RemoveAccountContactRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountContactRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveAccountContact(::grpc::ClientContext* context, const ::resource::RemoveAccountContactRqst* request, ::resource::RemoveAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveAccountContact(::grpc::ClientContext* context, const ::resource::RemoveAccountContactRqst* request, ::resource::RemoveAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountContactRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveAccountContact(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveAccountContactRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void CreateRole(::grpc::ClientContext* context, const ::resource::CreateRoleRqst* request, ::resource::CreateRoleRsp* response, std::function<void(::grpc::Status)>) override;
-      void CreateRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateRoleRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void CreateRole(::grpc::ClientContext* context, const ::resource::CreateRoleRqst* request, ::resource::CreateRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void CreateRole(::grpc::ClientContext* context, const ::resource::CreateRoleRqst* request, ::resource::CreateRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void CreateRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void CreateRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::CreateRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetRoles(::grpc::ClientContext* context, ::resource::GetRolesRqst* request, ::grpc::ClientReadReactor< ::resource::GetRolesRsp>* reactor) override;
@@ -1717,100 +1339,52 @@ class ResourceService final {
       void GetRoles(::grpc::ClientContext* context, ::resource::GetRolesRqst* request, ::grpc::experimental::ClientReadReactor< ::resource::GetRolesRsp>* reactor) override;
       #endif
       void DeleteRole(::grpc::ClientContext* context, const ::resource::DeleteRoleRqst* request, ::resource::DeleteRoleRsp* response, std::function<void(::grpc::Status)>) override;
-      void DeleteRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteRoleRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void DeleteRole(::grpc::ClientContext* context, const ::resource::DeleteRoleRqst* request, ::resource::DeleteRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void DeleteRole(::grpc::ClientContext* context, const ::resource::DeleteRoleRqst* request, ::resource::DeleteRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void DeleteRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteRoleRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void DeleteRole(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteRoleRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddRoleActions(::grpc::ClientContext* context, const ::resource::AddRoleActionsRqst* request, ::resource::AddRoleActionsRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddRoleActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddRoleActionsRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddRoleActions(::grpc::ClientContext* context, const ::resource::AddRoleActionsRqst* request, ::resource::AddRoleActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddRoleActions(::grpc::ClientContext* context, const ::resource::AddRoleActionsRqst* request, ::resource::AddRoleActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddRoleActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddRoleActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddRoleActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddRoleActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveRoleAction(::grpc::ClientContext* context, const ::resource::RemoveRoleActionRqst* request, ::resource::RemoveRoleActionRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveRoleAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveRoleActionRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveRoleAction(::grpc::ClientContext* context, const ::resource::RemoveRoleActionRqst* request, ::resource::RemoveRoleActionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveRoleAction(::grpc::ClientContext* context, const ::resource::RemoveRoleActionRqst* request, ::resource::RemoveRoleActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveRoleAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveRoleActionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveRoleAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveRoleActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::resource::GetAllApplicationsInfoRqst* request, ::resource::GetAllApplicationsInfoRsp* response, std::function<void(::grpc::Status)>) override;
-      void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllApplicationsInfoRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::resource::GetAllApplicationsInfoRqst* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::resource::GetAllApplicationsInfoRqst* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void GetAllApplicationsInfo(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::GetAllApplicationsInfoRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void DeleteApplication(::grpc::ClientContext* context, const ::resource::DeleteApplicationRqst* request, ::resource::DeleteApplicationRsp* response, std::function<void(::grpc::Status)>) override;
-      void DeleteApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteApplicationRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void DeleteApplication(::grpc::ClientContext* context, const ::resource::DeleteApplicationRqst* request, ::resource::DeleteApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void DeleteApplication(::grpc::ClientContext* context, const ::resource::DeleteApplicationRqst* request, ::resource::DeleteApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void DeleteApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteApplicationRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void DeleteApplication(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeleteApplicationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddApplicationActions(::grpc::ClientContext* context, const ::resource::AddApplicationActionsRqst* request, ::resource::AddApplicationActionsRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddApplicationActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddApplicationActionsRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddApplicationActions(::grpc::ClientContext* context, const ::resource::AddApplicationActionsRqst* request, ::resource::AddApplicationActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddApplicationActions(::grpc::ClientContext* context, const ::resource::AddApplicationActionsRqst* request, ::resource::AddApplicationActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddApplicationActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddApplicationActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddApplicationActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddApplicationActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemoveApplicationAction(::grpc::ClientContext* context, const ::resource::RemoveApplicationActionRqst* request, ::resource::RemoveApplicationActionRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemoveApplicationAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveApplicationActionRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemoveApplicationAction(::grpc::ClientContext* context, const ::resource::RemoveApplicationActionRqst* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemoveApplicationAction(::grpc::ClientContext* context, const ::resource::RemoveApplicationActionRqst* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemoveApplicationAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemoveApplicationAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemoveApplicationActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, std::function<void(::grpc::Status)>) override;
-      void RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterPeerRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterPeerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RegisterPeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RegisterPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void GetPeers(::grpc::ClientContext* context, ::resource::GetPeersRqst* request, ::grpc::ClientReadReactor< ::resource::GetPeersRsp>* reactor) override;
@@ -1818,40 +1392,22 @@ class ResourceService final {
       void GetPeers(::grpc::ClientContext* context, ::resource::GetPeersRqst* request, ::grpc::experimental::ClientReadReactor< ::resource::GetPeersRsp>* reactor) override;
       #endif
       void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, std::function<void(::grpc::Status)>) override;
-      void DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeletePeerRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeletePeerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void DeletePeer(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::DeletePeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void AddPeerActions(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst* request, ::resource::AddPeerActionsRsp* response, std::function<void(::grpc::Status)>) override;
-      void AddPeerActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddPeerActionsRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void AddPeerActions(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst* request, ::resource::AddPeerActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void AddPeerActions(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst* request, ::resource::AddPeerActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void AddPeerActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddPeerActionsRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void AddPeerActions(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::AddPeerActionsRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
       void RemovePeerAction(::grpc::ClientContext* context, const ::resource::RemovePeerActionRqst* request, ::resource::RemovePeerActionRsp* response, std::function<void(::grpc::Status)>) override;
-      void RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemovePeerActionRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void RemovePeerAction(::grpc::ClientContext* context, const ::resource::RemovePeerActionRqst* request, ::resource::RemovePeerActionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RemovePeerAction(::grpc::ClientContext* context, const ::resource::RemovePeerActionRqst* request, ::resource::RemovePeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
-      #endif
-      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      void RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemovePeerActionRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
-      #else
-      void RemovePeerAction(::grpc::ClientContext* context, const ::grpc::ByteBuffer* request, ::resource::RemovePeerActionRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
      private:
       friend class Stub;
@@ -2976,7 +2532,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(0,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::GetAllActionsRqst, ::resource::GetAllActionsRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::GetAllActionsRqst, ::resource::GetAllActionsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -2991,7 +2547,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(0);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::GetAllActionsRqst, ::resource::GetAllActionsRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetAllActionsRqst, ::resource::GetAllActionsRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_GetAllActions() override {
@@ -3023,7 +2579,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(1,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::ValidateTokenRqst, ::resource::ValidateTokenRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::ValidateTokenRqst, ::resource::ValidateTokenRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3038,7 +2594,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(1);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::ValidateTokenRqst, ::resource::ValidateTokenRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::ValidateTokenRqst, ::resource::ValidateTokenRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_ValidateToken() override {
@@ -3070,7 +2626,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(2,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RefreshTokenRqst, ::resource::RefreshTokenRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RefreshTokenRqst, ::resource::RefreshTokenRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3085,7 +2641,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(2);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RefreshTokenRqst, ::resource::RefreshTokenRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RefreshTokenRqst, ::resource::RefreshTokenRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RefreshToken() override {
@@ -3117,7 +2673,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(3,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AuthenticateRqst, ::resource::AuthenticateRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AuthenticateRqst, ::resource::AuthenticateRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3132,7 +2688,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(3);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AuthenticateRqst, ::resource::AuthenticateRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AuthenticateRqst, ::resource::AuthenticateRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_Authenticate() override {
@@ -3164,7 +2720,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(4,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::SynchronizeLdapRqst, ::resource::SynchronizeLdapRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::SynchronizeLdapRqst, ::resource::SynchronizeLdapRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3179,7 +2735,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(4);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::SynchronizeLdapRqst, ::resource::SynchronizeLdapRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::SynchronizeLdapRqst, ::resource::SynchronizeLdapRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_SynchronizeLdap() override {
@@ -3211,7 +2767,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(5,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::CreateOrganizationRqst, ::resource::CreateOrganizationRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::CreateOrganizationRqst, ::resource::CreateOrganizationRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3226,7 +2782,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(5);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::CreateOrganizationRqst, ::resource::CreateOrganizationRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::CreateOrganizationRqst, ::resource::CreateOrganizationRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_CreateOrganization() override {
@@ -3258,7 +2814,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(6,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::resource::GetOrganizationsRqst, ::resource::GetOrganizationsRsp>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::resource::GetOrganizationsRqst, ::resource::GetOrganizationsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3296,7 +2852,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(7,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteOrganizationRqst, ::resource::DeleteOrganizationRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::DeleteOrganizationRqst, ::resource::DeleteOrganizationRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3311,7 +2867,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(7);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteOrganizationRqst, ::resource::DeleteOrganizationRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeleteOrganizationRqst, ::resource::DeleteOrganizationRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_DeleteOrganization() override {
@@ -3343,7 +2899,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(8,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationAccountRqst, ::resource::AddOrganizationAccountRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationAccountRqst, ::resource::AddOrganizationAccountRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3358,7 +2914,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(8);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationAccountRqst, ::resource::AddOrganizationAccountRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationAccountRqst, ::resource::AddOrganizationAccountRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddOrganizationAccount() override {
@@ -3390,7 +2946,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(9,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationGroupRqst, ::resource::AddOrganizationGroupRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationGroupRqst, ::resource::AddOrganizationGroupRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3405,7 +2961,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(9);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationGroupRqst, ::resource::AddOrganizationGroupRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationGroupRqst, ::resource::AddOrganizationGroupRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddOrganizationGroup() override {
@@ -3437,7 +2993,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(10,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationRoleRqst, ::resource::AddOrganizationRoleRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationRoleRqst, ::resource::AddOrganizationRoleRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3452,7 +3008,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(10);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationRoleRqst, ::resource::AddOrganizationRoleRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationRoleRqst, ::resource::AddOrganizationRoleRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddOrganizationRole() override {
@@ -3484,7 +3040,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(11,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationApplicationRqst, ::resource::AddOrganizationApplicationRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationApplicationRqst, ::resource::AddOrganizationApplicationRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3499,7 +3055,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(11);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddOrganizationApplicationRqst, ::resource::AddOrganizationApplicationRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddOrganizationApplicationRqst, ::resource::AddOrganizationApplicationRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddOrganizationApplication() override {
@@ -3531,7 +3087,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(12,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationAccountRqst, ::resource::RemoveOrganizationAccountRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationAccountRqst, ::resource::RemoveOrganizationAccountRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3546,7 +3102,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(12);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationAccountRqst, ::resource::RemoveOrganizationAccountRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationAccountRqst, ::resource::RemoveOrganizationAccountRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveOrganizationAccount() override {
@@ -3578,7 +3134,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(13,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationGroupRqst, ::resource::RemoveOrganizationGroupRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationGroupRqst, ::resource::RemoveOrganizationGroupRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3593,7 +3149,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(13);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationGroupRqst, ::resource::RemoveOrganizationGroupRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationGroupRqst, ::resource::RemoveOrganizationGroupRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveOrganizationGroup() override {
@@ -3625,7 +3181,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(14,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationRoleRqst, ::resource::RemoveOrganizationRoleRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationRoleRqst, ::resource::RemoveOrganizationRoleRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3640,7 +3196,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(14);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationRoleRqst, ::resource::RemoveOrganizationRoleRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationRoleRqst, ::resource::RemoveOrganizationRoleRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveOrganizationRole() override {
@@ -3672,7 +3228,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(15,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationApplicationRqst, ::resource::RemoveOrganizationApplicationRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationApplicationRqst, ::resource::RemoveOrganizationApplicationRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3687,7 +3243,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(15);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationApplicationRqst, ::resource::RemoveOrganizationApplicationRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveOrganizationApplicationRqst, ::resource::RemoveOrganizationApplicationRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveOrganizationApplication() override {
@@ -3719,7 +3275,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(16,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::CreateGroupRqst, ::resource::CreateGroupRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::CreateGroupRqst, ::resource::CreateGroupRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3734,7 +3290,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(16);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::CreateGroupRqst, ::resource::CreateGroupRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::CreateGroupRqst, ::resource::CreateGroupRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_CreateGroup() override {
@@ -3766,7 +3322,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(17,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::resource::GetGroupsRqst, ::resource::GetGroupsRsp>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::resource::GetGroupsRqst, ::resource::GetGroupsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3804,7 +3360,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(18,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteGroupRqst, ::resource::DeleteGroupRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::DeleteGroupRqst, ::resource::DeleteGroupRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3819,7 +3375,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(18);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteGroupRqst, ::resource::DeleteGroupRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeleteGroupRqst, ::resource::DeleteGroupRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_DeleteGroup() override {
@@ -3851,7 +3407,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(19,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddGroupMemberAccountRqst, ::resource::AddGroupMemberAccountRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddGroupMemberAccountRqst, ::resource::AddGroupMemberAccountRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3866,7 +3422,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(19);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddGroupMemberAccountRqst, ::resource::AddGroupMemberAccountRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddGroupMemberAccountRqst, ::resource::AddGroupMemberAccountRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddGroupMemberAccount() override {
@@ -3898,7 +3454,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(20,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveGroupMemberAccountRqst, ::resource::RemoveGroupMemberAccountRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveGroupMemberAccountRqst, ::resource::RemoveGroupMemberAccountRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3913,7 +3469,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(20);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveGroupMemberAccountRqst, ::resource::RemoveGroupMemberAccountRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveGroupMemberAccountRqst, ::resource::RemoveGroupMemberAccountRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveGroupMemberAccount() override {
@@ -3945,7 +3501,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(21,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RegisterAccountRqst, ::resource::RegisterAccountRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RegisterAccountRqst, ::resource::RegisterAccountRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -3960,7 +3516,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(21);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RegisterAccountRqst, ::resource::RegisterAccountRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RegisterAccountRqst, ::resource::RegisterAccountRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RegisterAccount() override {
@@ -3992,7 +3548,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(22,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteAccountRqst, ::resource::DeleteAccountRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::DeleteAccountRqst, ::resource::DeleteAccountRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4007,7 +3563,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(22);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteAccountRqst, ::resource::DeleteAccountRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeleteAccountRqst, ::resource::DeleteAccountRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_DeleteAccount() override {
@@ -4039,7 +3595,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(23,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::resource::GetAccountsRqst, ::resource::GetAccountsRsp>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::resource::GetAccountsRqst, ::resource::GetAccountsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4077,7 +3633,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(24,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddAccountRoleRqst, ::resource::AddAccountRoleRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddAccountRoleRqst, ::resource::AddAccountRoleRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4092,7 +3648,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(24);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddAccountRoleRqst, ::resource::AddAccountRoleRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddAccountRoleRqst, ::resource::AddAccountRoleRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddAccountRole() override {
@@ -4124,7 +3680,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(25,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveAccountRoleRqst, ::resource::RemoveAccountRoleRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveAccountRoleRqst, ::resource::RemoveAccountRoleRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4139,7 +3695,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(25);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveAccountRoleRqst, ::resource::RemoveAccountRoleRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveAccountRoleRqst, ::resource::RemoveAccountRoleRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveAccountRole() override {
@@ -4171,7 +3727,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(26,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddAccountContactRqst, ::resource::AddAccountContactRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddAccountContactRqst, ::resource::AddAccountContactRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4186,7 +3742,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(26);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddAccountContactRqst, ::resource::AddAccountContactRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddAccountContactRqst, ::resource::AddAccountContactRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddAccountContact() override {
@@ -4218,7 +3774,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(27,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveAccountContactRqst, ::resource::RemoveAccountContactRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveAccountContactRqst, ::resource::RemoveAccountContactRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4233,7 +3789,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(27);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveAccountContactRqst, ::resource::RemoveAccountContactRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveAccountContactRqst, ::resource::RemoveAccountContactRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveAccountContact() override {
@@ -4265,7 +3821,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(28,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::CreateRoleRqst, ::resource::CreateRoleRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::CreateRoleRqst, ::resource::CreateRoleRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4280,7 +3836,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(28);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::CreateRoleRqst, ::resource::CreateRoleRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::CreateRoleRqst, ::resource::CreateRoleRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_CreateRole() override {
@@ -4312,7 +3868,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(29,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::resource::GetRolesRqst, ::resource::GetRolesRsp>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::resource::GetRolesRqst, ::resource::GetRolesRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4350,7 +3906,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(30,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteRoleRqst, ::resource::DeleteRoleRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::DeleteRoleRqst, ::resource::DeleteRoleRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4365,7 +3921,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(30);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteRoleRqst, ::resource::DeleteRoleRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeleteRoleRqst, ::resource::DeleteRoleRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_DeleteRole() override {
@@ -4397,7 +3953,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(31,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddRoleActionsRqst, ::resource::AddRoleActionsRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddRoleActionsRqst, ::resource::AddRoleActionsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4412,7 +3968,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(31);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddRoleActionsRqst, ::resource::AddRoleActionsRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddRoleActionsRqst, ::resource::AddRoleActionsRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddRoleActions() override {
@@ -4444,7 +4000,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(32,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveRoleActionRqst, ::resource::RemoveRoleActionRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveRoleActionRqst, ::resource::RemoveRoleActionRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4459,7 +4015,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(32);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveRoleActionRqst, ::resource::RemoveRoleActionRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveRoleActionRqst, ::resource::RemoveRoleActionRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveRoleAction() override {
@@ -4491,7 +4047,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(33,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::GetAllApplicationsInfoRqst, ::resource::GetAllApplicationsInfoRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::GetAllApplicationsInfoRqst, ::resource::GetAllApplicationsInfoRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4506,7 +4062,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(33);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::GetAllApplicationsInfoRqst, ::resource::GetAllApplicationsInfoRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetAllApplicationsInfoRqst, ::resource::GetAllApplicationsInfoRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_GetAllApplicationsInfo() override {
@@ -4538,7 +4094,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(34,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteApplicationRqst, ::resource::DeleteApplicationRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::DeleteApplicationRqst, ::resource::DeleteApplicationRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4553,7 +4109,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(34);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeleteApplicationRqst, ::resource::DeleteApplicationRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeleteApplicationRqst, ::resource::DeleteApplicationRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_DeleteApplication() override {
@@ -4585,7 +4141,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(35,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddApplicationActionsRqst, ::resource::AddApplicationActionsRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddApplicationActionsRqst, ::resource::AddApplicationActionsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4600,7 +4156,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(35);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddApplicationActionsRqst, ::resource::AddApplicationActionsRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddApplicationActionsRqst, ::resource::AddApplicationActionsRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddApplicationActions() override {
@@ -4632,7 +4188,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(36,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveApplicationActionRqst, ::resource::RemoveApplicationActionRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveApplicationActionRqst, ::resource::RemoveApplicationActionRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4647,7 +4203,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(36);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemoveApplicationActionRqst, ::resource::RemoveApplicationActionRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveApplicationActionRqst, ::resource::RemoveApplicationActionRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemoveApplicationAction() override {
@@ -4679,7 +4235,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(37,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RegisterPeerRqst, ::resource::RegisterPeerRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RegisterPeerRqst, ::resource::RegisterPeerRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4694,7 +4250,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(37);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RegisterPeerRqst, ::resource::RegisterPeerRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RegisterPeerRqst, ::resource::RegisterPeerRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RegisterPeer() override {
@@ -4726,7 +4282,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(38,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::resource::GetPeersRqst, ::resource::GetPeersRsp>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::resource::GetPeersRqst, ::resource::GetPeersRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4764,7 +4320,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(39,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4779,7 +4335,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(39);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_DeletePeer() override {
@@ -4811,7 +4367,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(40,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4826,7 +4382,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(40);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_AddPeerActions() override {
@@ -4858,7 +4414,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodCallback(41,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>(
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -4873,7 +4429,7 @@ class ResourceService final {
     #else
       ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(41);
     #endif
-      static_cast<::grpc_impl::internal::CallbackUnaryHandler< ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>*>(handler)
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>*>(handler)
               ->SetMessageAllocator(allocator);
     }
     ~ExperimentalWithCallbackMethod_RemovePeerAction() override {
@@ -6464,7 +6020,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(0,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6502,7 +6058,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(1,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6540,7 +6096,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(2,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6578,7 +6134,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(3,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6616,7 +6172,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(4,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6654,7 +6210,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(5,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6692,7 +6248,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(6,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6730,7 +6286,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(7,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6768,7 +6324,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(8,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6806,7 +6362,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(9,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6844,7 +6400,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(10,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6882,7 +6438,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(11,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6920,7 +6476,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(12,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6958,7 +6514,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(13,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -6996,7 +6552,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(14,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7034,7 +6590,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(15,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7072,7 +6628,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(16,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7110,7 +6666,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(17,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7148,7 +6704,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(18,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7186,7 +6742,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(19,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7224,7 +6780,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(20,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7262,7 +6818,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(21,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7300,7 +6856,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(22,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7338,7 +6894,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(23,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7376,7 +6932,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(24,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7414,7 +6970,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(25,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7452,7 +7008,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(26,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7490,7 +7046,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(27,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7528,7 +7084,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(28,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7566,7 +7122,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(29,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7604,7 +7160,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(30,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7642,7 +7198,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(31,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7680,7 +7236,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(32,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7718,7 +7274,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(33,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7756,7 +7312,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(34,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7794,7 +7350,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(35,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7832,7 +7388,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(36,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7870,7 +7426,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(37,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7908,7 +7464,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(38,
-          new ::grpc_impl::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7946,7 +7502,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(39,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -7984,7 +7540,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(40,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -8022,7 +7578,7 @@ class ResourceService final {
       ::grpc::Service::experimental().
     #endif
         MarkMethodRawCallback(41,
-          new ::grpc_impl::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
                    ::grpc::CallbackServerContext*
@@ -8058,7 +7614,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::GetAllActionsRqst, ::resource::GetAllActionsRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::GetAllActionsRqst, ::resource::GetAllActionsRsp>* streamer) {
                        return this->StreamedGetAllActions(context,
                          streamer);
@@ -8085,7 +7641,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::ValidateTokenRqst, ::resource::ValidateTokenRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::ValidateTokenRqst, ::resource::ValidateTokenRsp>* streamer) {
                        return this->StreamedValidateToken(context,
                          streamer);
@@ -8112,7 +7668,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RefreshTokenRqst, ::resource::RefreshTokenRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RefreshTokenRqst, ::resource::RefreshTokenRsp>* streamer) {
                        return this->StreamedRefreshToken(context,
                          streamer);
@@ -8139,7 +7695,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AuthenticateRqst, ::resource::AuthenticateRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AuthenticateRqst, ::resource::AuthenticateRsp>* streamer) {
                        return this->StreamedAuthenticate(context,
                          streamer);
@@ -8166,7 +7722,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::SynchronizeLdapRqst, ::resource::SynchronizeLdapRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::SynchronizeLdapRqst, ::resource::SynchronizeLdapRsp>* streamer) {
                        return this->StreamedSynchronizeLdap(context,
                          streamer);
@@ -8193,7 +7749,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::CreateOrganizationRqst, ::resource::CreateOrganizationRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::CreateOrganizationRqst, ::resource::CreateOrganizationRsp>* streamer) {
                        return this->StreamedCreateOrganization(context,
                          streamer);
@@ -8220,7 +7776,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeleteOrganizationRqst, ::resource::DeleteOrganizationRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::DeleteOrganizationRqst, ::resource::DeleteOrganizationRsp>* streamer) {
                        return this->StreamedDeleteOrganization(context,
                          streamer);
@@ -8247,7 +7803,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddOrganizationAccountRqst, ::resource::AddOrganizationAccountRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddOrganizationAccountRqst, ::resource::AddOrganizationAccountRsp>* streamer) {
                        return this->StreamedAddOrganizationAccount(context,
                          streamer);
@@ -8274,7 +7830,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddOrganizationGroupRqst, ::resource::AddOrganizationGroupRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddOrganizationGroupRqst, ::resource::AddOrganizationGroupRsp>* streamer) {
                        return this->StreamedAddOrganizationGroup(context,
                          streamer);
@@ -8301,7 +7857,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddOrganizationRoleRqst, ::resource::AddOrganizationRoleRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddOrganizationRoleRqst, ::resource::AddOrganizationRoleRsp>* streamer) {
                        return this->StreamedAddOrganizationRole(context,
                          streamer);
@@ -8328,7 +7884,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddOrganizationApplicationRqst, ::resource::AddOrganizationApplicationRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddOrganizationApplicationRqst, ::resource::AddOrganizationApplicationRsp>* streamer) {
                        return this->StreamedAddOrganizationApplication(context,
                          streamer);
@@ -8355,7 +7911,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveOrganizationAccountRqst, ::resource::RemoveOrganizationAccountRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveOrganizationAccountRqst, ::resource::RemoveOrganizationAccountRsp>* streamer) {
                        return this->StreamedRemoveOrganizationAccount(context,
                          streamer);
@@ -8382,7 +7938,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveOrganizationGroupRqst, ::resource::RemoveOrganizationGroupRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveOrganizationGroupRqst, ::resource::RemoveOrganizationGroupRsp>* streamer) {
                        return this->StreamedRemoveOrganizationGroup(context,
                          streamer);
@@ -8409,7 +7965,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveOrganizationRoleRqst, ::resource::RemoveOrganizationRoleRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveOrganizationRoleRqst, ::resource::RemoveOrganizationRoleRsp>* streamer) {
                        return this->StreamedRemoveOrganizationRole(context,
                          streamer);
@@ -8436,7 +7992,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveOrganizationApplicationRqst, ::resource::RemoveOrganizationApplicationRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveOrganizationApplicationRqst, ::resource::RemoveOrganizationApplicationRsp>* streamer) {
                        return this->StreamedRemoveOrganizationApplication(context,
                          streamer);
@@ -8463,7 +8019,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::CreateGroupRqst, ::resource::CreateGroupRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::CreateGroupRqst, ::resource::CreateGroupRsp>* streamer) {
                        return this->StreamedCreateGroup(context,
                          streamer);
@@ -8490,7 +8046,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeleteGroupRqst, ::resource::DeleteGroupRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::DeleteGroupRqst, ::resource::DeleteGroupRsp>* streamer) {
                        return this->StreamedDeleteGroup(context,
                          streamer);
@@ -8517,7 +8073,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddGroupMemberAccountRqst, ::resource::AddGroupMemberAccountRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddGroupMemberAccountRqst, ::resource::AddGroupMemberAccountRsp>* streamer) {
                        return this->StreamedAddGroupMemberAccount(context,
                          streamer);
@@ -8544,7 +8100,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveGroupMemberAccountRqst, ::resource::RemoveGroupMemberAccountRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveGroupMemberAccountRqst, ::resource::RemoveGroupMemberAccountRsp>* streamer) {
                        return this->StreamedRemoveGroupMemberAccount(context,
                          streamer);
@@ -8571,7 +8127,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RegisterAccountRqst, ::resource::RegisterAccountRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RegisterAccountRqst, ::resource::RegisterAccountRsp>* streamer) {
                        return this->StreamedRegisterAccount(context,
                          streamer);
@@ -8598,7 +8154,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeleteAccountRqst, ::resource::DeleteAccountRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::DeleteAccountRqst, ::resource::DeleteAccountRsp>* streamer) {
                        return this->StreamedDeleteAccount(context,
                          streamer);
@@ -8625,7 +8181,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddAccountRoleRqst, ::resource::AddAccountRoleRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddAccountRoleRqst, ::resource::AddAccountRoleRsp>* streamer) {
                        return this->StreamedAddAccountRole(context,
                          streamer);
@@ -8652,7 +8208,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveAccountRoleRqst, ::resource::RemoveAccountRoleRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveAccountRoleRqst, ::resource::RemoveAccountRoleRsp>* streamer) {
                        return this->StreamedRemoveAccountRole(context,
                          streamer);
@@ -8679,7 +8235,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddAccountContactRqst, ::resource::AddAccountContactRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddAccountContactRqst, ::resource::AddAccountContactRsp>* streamer) {
                        return this->StreamedAddAccountContact(context,
                          streamer);
@@ -8706,7 +8262,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveAccountContactRqst, ::resource::RemoveAccountContactRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveAccountContactRqst, ::resource::RemoveAccountContactRsp>* streamer) {
                        return this->StreamedRemoveAccountContact(context,
                          streamer);
@@ -8733,7 +8289,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::CreateRoleRqst, ::resource::CreateRoleRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::CreateRoleRqst, ::resource::CreateRoleRsp>* streamer) {
                        return this->StreamedCreateRole(context,
                          streamer);
@@ -8760,7 +8316,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeleteRoleRqst, ::resource::DeleteRoleRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::DeleteRoleRqst, ::resource::DeleteRoleRsp>* streamer) {
                        return this->StreamedDeleteRole(context,
                          streamer);
@@ -8787,7 +8343,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddRoleActionsRqst, ::resource::AddRoleActionsRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddRoleActionsRqst, ::resource::AddRoleActionsRsp>* streamer) {
                        return this->StreamedAddRoleActions(context,
                          streamer);
@@ -8814,7 +8370,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveRoleActionRqst, ::resource::RemoveRoleActionRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveRoleActionRqst, ::resource::RemoveRoleActionRsp>* streamer) {
                        return this->StreamedRemoveRoleAction(context,
                          streamer);
@@ -8841,7 +8397,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::GetAllApplicationsInfoRqst, ::resource::GetAllApplicationsInfoRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::GetAllApplicationsInfoRqst, ::resource::GetAllApplicationsInfoRsp>* streamer) {
                        return this->StreamedGetAllApplicationsInfo(context,
                          streamer);
@@ -8868,7 +8424,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeleteApplicationRqst, ::resource::DeleteApplicationRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::DeleteApplicationRqst, ::resource::DeleteApplicationRsp>* streamer) {
                        return this->StreamedDeleteApplication(context,
                          streamer);
@@ -8895,7 +8451,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddApplicationActionsRqst, ::resource::AddApplicationActionsRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddApplicationActionsRqst, ::resource::AddApplicationActionsRsp>* streamer) {
                        return this->StreamedAddApplicationActions(context,
                          streamer);
@@ -8922,7 +8478,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveApplicationActionRqst, ::resource::RemoveApplicationActionRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemoveApplicationActionRqst, ::resource::RemoveApplicationActionRsp>* streamer) {
                        return this->StreamedRemoveApplicationAction(context,
                          streamer);
@@ -8949,7 +8505,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RegisterPeerRqst, ::resource::RegisterPeerRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RegisterPeerRqst, ::resource::RegisterPeerRsp>* streamer) {
                        return this->StreamedRegisterPeer(context,
                          streamer);
@@ -8976,7 +8532,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>* streamer) {
                        return this->StreamedDeletePeer(context,
                          streamer);
@@ -9003,7 +8559,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>* streamer) {
                        return this->StreamedAddPeerActions(context,
                          streamer);
@@ -9030,7 +8586,7 @@ class ResourceService final {
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerUnaryStreamer<
+                   ::grpc::ServerUnaryStreamer<
                      ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>* streamer) {
                        return this->StreamedRemovePeerAction(context,
                          streamer);
@@ -9058,7 +8614,7 @@ class ResourceService final {
         new ::grpc::internal::SplitServerStreamingHandler<
           ::resource::GetOrganizationsRqst, ::resource::GetOrganizationsRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerSplitStreamer<
+                   ::grpc::ServerSplitStreamer<
                      ::resource::GetOrganizationsRqst, ::resource::GetOrganizationsRsp>* streamer) {
                        return this->StreamedGetOrganizations(context,
                          streamer);
@@ -9085,7 +8641,7 @@ class ResourceService final {
         new ::grpc::internal::SplitServerStreamingHandler<
           ::resource::GetGroupsRqst, ::resource::GetGroupsRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerSplitStreamer<
+                   ::grpc::ServerSplitStreamer<
                      ::resource::GetGroupsRqst, ::resource::GetGroupsRsp>* streamer) {
                        return this->StreamedGetGroups(context,
                          streamer);
@@ -9112,7 +8668,7 @@ class ResourceService final {
         new ::grpc::internal::SplitServerStreamingHandler<
           ::resource::GetAccountsRqst, ::resource::GetAccountsRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerSplitStreamer<
+                   ::grpc::ServerSplitStreamer<
                      ::resource::GetAccountsRqst, ::resource::GetAccountsRsp>* streamer) {
                        return this->StreamedGetAccounts(context,
                          streamer);
@@ -9139,7 +8695,7 @@ class ResourceService final {
         new ::grpc::internal::SplitServerStreamingHandler<
           ::resource::GetRolesRqst, ::resource::GetRolesRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerSplitStreamer<
+                   ::grpc::ServerSplitStreamer<
                      ::resource::GetRolesRqst, ::resource::GetRolesRsp>* streamer) {
                        return this->StreamedGetRoles(context,
                          streamer);
@@ -9166,7 +8722,7 @@ class ResourceService final {
         new ::grpc::internal::SplitServerStreamingHandler<
           ::resource::GetPeersRqst, ::resource::GetPeersRsp>(
             [this](::grpc::ServerContext* context,
-                   ::grpc_impl::ServerSplitStreamer<
+                   ::grpc::ServerSplitStreamer<
                      ::resource::GetPeersRqst, ::resource::GetPeersRsp>* streamer) {
                        return this->StreamedGetPeers(context,
                          streamer);

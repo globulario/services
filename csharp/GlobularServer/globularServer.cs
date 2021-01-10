@@ -4,6 +4,7 @@ using System.Text.Json;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using System.Threading.Tasks;
+using System.IdentityModel.Tokens.Jwt;
 
 
 // TODO for the validation, use a map to store valid method/token/resource/access
@@ -90,7 +91,7 @@ namespace Globular
             System.Console.WriteLine("The service configuration port is " + this.ConfigurationPort);
         }
 
-        private ResourceClient getResourceClient(string address)
+        protected ResourceClient getResourceClient(string address)
         {
             if (this.resourceClient == null)
             {
@@ -102,7 +103,7 @@ namespace Globular
         }
 
 
-        private RbacClient getRbacClient(string address)
+        protected RbacClient getRbacClient(string address)
         {
             if (this.rbacClient == null)
             {
@@ -113,7 +114,7 @@ namespace Globular
             return this.rbacClient;
         }
 
-        private EventClient getEventClient(string address)
+        protected EventClient getEventClient(string address)
         {
             if (this.eventClient == null)
             {
@@ -124,7 +125,7 @@ namespace Globular
             return this.eventClient;
         }
 
-        private LoadBalancingClient getLoadBalancingClient(string address)
+        protected LoadBalancingClient getLoadBalancingClient(string address)
         {
             if (this.loadBalancingClient == null)
             {
@@ -134,7 +135,7 @@ namespace Globular
             return this.loadBalancingClient;
         }
 
-        private LogClient getLogClient(string address)
+        protected LogClient getLogClient(string address)
         {
             if (this.logClient == null)
             {
@@ -156,7 +157,7 @@ namespace Globular
             // Here I need to ge the ResourceInfos...
             var client = this.getRbacClient(domain);
 
-            return  client.ValidateAction(subject, subjectType, infos);
+            return client.ValidateAction(subject, subjectType, infos);
         }
 
         public bool validateActionRequest(Google.Protobuf.IMessage rqst, string domain, string method, string subject, Rbac.SubjectType subjectType)
@@ -169,7 +170,7 @@ namespace Globular
 
             // Get the list of fied's by order
             var fields = rqst.Descriptor.Fields.InFieldNumberOrder();
-  
+
             for (var i = 0; i < infos.Count; i++)
             {
                 // Here I will set the path value for resource to be able to validate it 
@@ -185,16 +186,44 @@ namespace Globular
 
         public bool validateToken(string token)
         {
+            // Here I will get the expiration time and test of it's valid.
+            var exp = this.getClaim(token, "exp");
 
-            return true;
+            long epochTicks = new DateTime(1970, 1, 1).Ticks;
+            long now = ((DateTime.UtcNow.Ticks - epochTicks) / TimeSpan.TicksPerSecond);
+            return now < Convert.ToInt64(exp) ;
+
         }
-
-        public string getUserIdFromToken(string token)
+        private string getClaim(string token, string claimType)
         {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var securityToken = tokenHandler.ReadToken(token) as JwtSecurityToken;
+            var iter = securityToken.Claims.GetEnumerator();
+            while (iter.MoveNext())
+            {
+                var claim = iter.Current;
+                if (claim.Type == claimType)
+                {
+                    return claim.Value;
+                }
+            }
 
             return "";
         }
 
+        public string getUserIdFromToken(string token)
+        {
+            return this.getClaim(token, "username");
+        }
+
+        /// <summary>
+        /// Log information message to the 
+        /// </summary>
+        public void logMessage(string method, string message, Log.LogLevel level){
+            var client = this.getLogClient(this.Domain + ":" + this.ConfigurationPort);
+            client.LogMessage(this.Name, this.Id, method, level, message);
+        }
+        
         /// <summary>
         /// Initialyse from json object from a file.
         /// </summary>
@@ -244,7 +273,6 @@ namespace Globular
 
         public override async Task<TResponse> UnaryServerHandler<TRequest, TResponse>(TRequest request, ServerCallContext context, UnaryServerMethod<TRequest, TResponse> continuation)
         {
-            System.Console.WriteLine("Validate request...");
 
             // Do method validations here.
             Metadata metadatas = context.RequestHeaders;

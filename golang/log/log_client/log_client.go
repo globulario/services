@@ -4,16 +4,18 @@ import (
 	//	"time"
 
 	"context"
+	"io"
 	"strconv"
+	"time"
 
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 )
 
 type Log_Client struct {
 	cc *grpc.ClientConn
-	c  resourcepb.LogServiceClient
+	c  logpb.LogServiceClient
 
 	// The id of the service
 	id string
@@ -41,7 +43,7 @@ type Log_Client struct {
 }
 
 // Create a connection to the service.
-func NewResourceService_Client(address string, id string) (*Log_Client, error) {
+func NewLogService_Client(address string, id string) (*Log_Client, error) {
 
 	client := new(Log_Client)
 	err := globular.InitClient(client, address, id)
@@ -56,7 +58,7 @@ func NewResourceService_Client(address string, id string) (*Log_Client, error) {
 		return nil, err
 	}
 
-	client.c = resourcepb.NewLogServiceClient(client.cc)
+	client.c = logpb.NewLogServiceClient(client.cc)
 
 	return client, nil
 }
@@ -159,26 +161,82 @@ func (self *Log_Client) SetCaFile(caFile string) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Append a new log information.
-/*
-func (self *Log_Client) Log(application string, user string, method string, err_ error) error {
+func (self *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string) error {
 
 	// Here I set a log information.
-	rqst := new(resourcepb.LogRqst)
-	info := new(resourcepb.LogInfo)
+	rqst := new(logpb.LogRqst)
+	info := new(logpb.LogInfo)
+
 	info.Application = application
 	info.UserName = user
 	info.Method = method
+
 	info.Date = time.Now().Unix()
-	if err_ != nil {
-		info.Message = err_.Error()
-		info.Type = resourcepb.LogType_ERROR_MESSAGE
-	} else {
-		info.Type = resourcepb.LogType_INFO_MESSAGE
-	}
+	info.Level = level
+	info.Message = message
+
 	rqst.Info = info
 
 	_, err := self.c.Log(globular.GetClientContext(self), rqst)
 
 	return err
 }
-*/
+
+/**
+ * Return an array of log infos.
+ */
+func (self *Log_Client) GetLog(query string) ([]*logpb.LogInfo, error) {
+	rqst := &logpb.GetLogRqst{
+		Query: query,
+	}
+
+	stream, err := self.c.GetLog(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make([]*logpb.LogInfo, 0)
+	// Here I will create the final array
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		infos = append(infos, msg.Infos...)
+	}
+
+	// The buffer that contain the
+	return infos, nil
+}
+
+/**
+ * Delete a given log.
+ */
+func (self *Log_Client) DeleteLog(info *logpb.LogInfo) error {
+	rqst := &logpb.DeleteLogRqst{
+		Log: info,
+	}
+
+	_, err := self.c.DeleteLog(globular.GetClientContext(self), rqst)
+
+	return err
+}
+
+/**
+ * Clear all method
+ */
+func (self *Log_Client) ClearLog(query string) error {
+	rqst := &logpb.ClearAllLogRqst{
+		Query: query,
+	}
+
+	_, err := self.c.ClearAllLog(globular.GetClientContext(self), rqst)
+
+	return err
+}

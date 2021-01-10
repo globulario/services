@@ -25,8 +25,6 @@ protoc proto/persistence.proto --go-grpc_out=require_unimplemented_servers=false
 protoc proto/monitoring.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/spc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/catalog.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/plc_link.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/plc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 # TypeScript grpc files generation.
 mkdir typescript/admin
@@ -77,12 +75,6 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/spc 
 mkdir typescript/monitoring
 protoc --js_out=import_style=commonjs:typescript/monitoring  -I ./proto/ monitoring.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/monitoring -I ./proto/ monitoring.proto
-mkdir typescript/plc
-protoc --js_out=import_style=commonjs:typescript/plc  -I ./proto/ plc.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/plc -I ./proto/ plc.proto
-mkdir typescript/plc_link
-protoc --js_out=import_style=commonjs:typescript/plc_link  -I ./proto/ plc_link.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/plc_link -I ./proto/ plc_link.proto
 mkdir typescript/catalog
 protoc --js_out=import_style=commonjs:typescript/catalog  -I ./proto/ catalog.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/catalog -I ./proto/ catalog.proto
