@@ -1,25 +1,30 @@
 {
   "format": 1,
   "restore": {
-    "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj": {}
+    "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj": {}
   },
   "projects": {
-    "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj": {
+    "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\GlobularClient.csproj": {
       "version": "1.0.3",
       "restore": {
-        "projectUniqueName": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj",
+        "projectUniqueName": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\GlobularClient.csproj",
         "projectName": "GlobularClient",
-        "projectPath": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj",
-        "packagesPath": "/home/dave/.nuget/packages/",
-        "outputPath": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/obj/",
+        "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\GlobularClient.csproj",
+        "packagesPath": "C:\\Users\\mm006819\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+        ],
         "configFilePaths": [
-          "/home/dave/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\mm006819\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "netcoreapp5.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -66,34 +71,39 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/5.0.100/RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.100\\RuntimeIdentifierGraph.json"
         }
       }
     },
-    "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj": {
+    "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj",
+        "projectUniqueName": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj",
         "projectName": "GlobularLoadBalancingClient",
-        "projectPath": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/GlobularLoadBalancingClient.csproj",
-        "packagesPath": "/home/dave/.nuget/packages/",
-        "outputPath": "/home/dave/go/src/github.com/globulario/services/csharp/lb/GlobularLoadBalancingClient/obj/",
+        "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj",
+        "packagesPath": "C:\\Users\\mm006819\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
+        ],
         "configFilePaths": [
-          "/home/dave/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\mm006819\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net5.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net5.0": {
             "targetAlias": "net5.0",
             "projectReferences": {
-              "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj": {
-                "projectPath": "/home/dave/go/src/github.com/globulario/services/csharp/GlobularClient/GlobularClient.csproj"
+              "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\GlobularClient.csproj": {
+                "projectPath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\GlobularClient\\GlobularClient.csproj"
               }
             }
           }
@@ -132,7 +142,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/5.0.100/RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.100\\RuntimeIdentifierGraph.json"
         }
       }
     }
