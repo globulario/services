@@ -138,7 +138,7 @@ proto.lb.LoadBalancingServiceClient.prototype.getCanditates =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.lb.GetCanditatesResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.lb.LoadBalancingServicePromiseClient.prototype.getCanditates =
     function(request, metadata) {

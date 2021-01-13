@@ -138,7 +138,7 @@ proto.mail.MailServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.mail.MailServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.mail.MailServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.CreateConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.mail.MailServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.mail.MailServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.DeleteConnectionRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.mail.MailServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.mail.MailServiceClient.prototype.sendEmail =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.SendEmailRsp>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.mail.MailServicePromiseClient.prototype.sendEmail =
     function(request, metadata) {
