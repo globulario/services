@@ -11,7 +11,7 @@ import (
 
 var (
 	// Connect to the admin client.
-	client, _ = NewAdminService_Client("mon-iis-01:10001", "admin.AdminService")
+	client, _ = NewAdminService_Client("mon-iis-01:8080", "admin.AdminService")
 )
 
 // Test various function here.
@@ -152,10 +152,10 @@ func TestRestartServices(t *testing.T) {
 	}
 }
 */
-/*
+
 func TestRunCmd(t *testing.T) {
 	var err error
-	client_, err := resource_client.NewResourceService_Client("mon-iis-01:10003", "resource.ResourceService")
+	client_, err := resource_client.NewResourceService_Client("mon-iis-01:8080", "resource.ResourceService")
 	if err != nil {
 		log.Println("----> fail to connect with error ", err)
 		return
@@ -167,7 +167,7 @@ func TestRunCmd(t *testing.T) {
 		log.Println("---> ", token)
 	}
 
-	results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"})
+	results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"}, true)
 	if err != nil {
 		log.Println(err)
 		t.FailNow()
@@ -175,8 +175,13 @@ func TestRunCmd(t *testing.T) {
 
 	log.Println(results)
 }
+<<<<<<< HEAD
 */
 /*
+=======
+
+/**
+>>>>>>> a9fa3f7513dd45fb35b2e51dce189e8260fc8ef7
 func TestGeneratePost(t *testing.T) {
 	var err error
 	client_, err := resource_client.NewResourceService_Client("mon-iis-01:10003", "resource.ResourceService")

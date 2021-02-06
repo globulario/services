@@ -656,7 +656,10 @@ func (self *Admin_Client) SetEnvironmentVariable(token, name, value string) erro
 	ctx := globular.GetClientContext(self)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
@@ -674,7 +677,10 @@ func (self *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
 	ctx := globular.GetClientContext(self)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	_, err := self.c.UnsetEnvironmentVariable(ctx, rqst)
@@ -689,7 +695,10 @@ func (self *Admin_Client) GetEnvironmentVariable(token, name string) (string, er
 	ctx := globular.GetClientContext(self)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	rsp, err := self.c.GetEnvironmentVariable(ctx, rqst)
@@ -711,7 +720,10 @@ func (self *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool
 	ctx := globular.GetClientContext(self)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
@@ -730,7 +742,10 @@ func (self *Admin_Client) KillProcess(token string, pid int) error {
 	ctx := globular.GetClientContext(self)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
@@ -746,7 +761,10 @@ func (self *Admin_Client) KillProcesses(token string, name string) error {
 	ctx := globular.GetClientContext(self)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
@@ -761,7 +779,10 @@ func (self *Admin_Client) GetPids(token string, name string) ([]int32, error) {
 	ctx := globular.GetClientContext(self)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-		md.Append("token", string(token))
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
