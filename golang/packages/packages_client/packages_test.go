@@ -36,7 +36,6 @@ func TestPublishPackageDescriptor(t *testing.T) {
 	log.Print("Service was publish with success!!!")
 }
 
-/*
 func TestGetPackageDescriptor(t *testing.T) {
 
 	values, err := discovery_client.GetPackageDescriptor("echo_server", "globulario")
@@ -47,7 +46,7 @@ func TestGetPackageDescriptor(t *testing.T) {
 
 	log.Print("Service was retreived with success!!!", values)
 }
-*/
+
 /*
 func TestFindPackagesDescriptor(t *testing.T) {
 	values, err := discovery_client.FindServices([]string{"echo_server"})

@@ -176,7 +176,7 @@ func TestRunCmd(t *testing.T) {
 	log.Println(results)
 }
 */
-
+/*
 func TestGeneratePost(t *testing.T) {
 	var err error
 	client_, err := resource_client.NewResourceService_Client("mon-iis-01:10003", "resource.ResourceService")
@@ -199,3 +199,4 @@ func TestGeneratePost(t *testing.T) {
 
 	log.Println(results)
 }
+*/

@@ -5,20 +5,18 @@ import { CatalogServicePromiseClient } from './catalog/catalog_grpc_web_pb';
 import { FileServicePromiseClient } from './file/file_grpc_web_pb';
 import { LdapServicePromiseClient } from './ldap/ldap_grpc_web_pb';
 import { PersistenceServicePromiseClient } from './persistence/persistence_grpc_web_pb';
-import { PlcLinkServicePromiseClient } from './plc_link/plc_link_grpc_web_pb';
 import { MailServicePromiseClient } from './mail/mail_grpc_web_pb';
 import { SpcServicePromiseClient } from './spc/spc_grpc_web_pb';
 import { SqlServicePromiseClient } from './sql/sql_grpc_web_pb';
 import { StorageServicePromiseClient } from './storage/storage_grpc_web_pb';
 import { MonitoringServicePromiseClient } from './monitoring/monitoring_grpc_web_pb';
 import { SearchServicePromiseClient } from './search/search_grpc_web_pb';
-import { PlcServicePromiseClient } from './plc/plc_grpc_web_pb';
 import { AdminServicePromiseClient } from './admin/admin_grpc_web_pb';
 import { ResourceServicePromiseClient } from './resource/resource_grpc_web_pb';
+import { RbacServicePromiseClient} from './rbac/rbac_grpc_web_pb'
 import { LogServicePromiseClient } from './log/log_grpc_web_pb';
-import { LoadBalancingServiceClient, LoadBalancingServicePromiseClient } from './lb/lb_grpc_web_pb';
-
-import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from './services/services_grpc_web_pb';
+import { LoadBalancingServicePromiseClient } from './lb/lb_grpc_web_pb';
+import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from './packages/packages_grpc_web_pb';
 import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
 
@@ -63,21 +61,7 @@ export interface IConfig {
   Domain: string;
   PortHttp: number;
   PortHttps: number;
-  AdminPort: number;
-  AdminProxy: number;
-  LogProxy: number;
-  LoadBalancingPort: number;
-  LoadBalancingProxy: number;
   AdminEmail: string;
-  ResourcePort: number;
-  ResourceProxy: number;
-  PackagesDiscoveryPort: number;
-  PackagesDiscoveryProxy: number;
-  PackagesRepositoryPort: number;
-  PackagesRepositoryProxy: number;
-  CertificateAuthorityPort: number;
-  CertificateAuthorityProxy: number;
-  LoadBalancingServiceProxy: number;
   SessionTimeout: number;
   Protocol: string;
   Discoveries: string[];
@@ -281,7 +265,7 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
     if (this.readyState == 4 && this.status == 201) {
       var obj = JSON.parse(this.responseText);
       callback(obj);
-    }else if (this.readyState == 4){
+    } else if (this.readyState == 4) {
       errorcallback("fail to get the configuration file at url " + url + " status " + this.status)
     }
   };
@@ -305,8 +289,8 @@ export class Globular {
   /** The configuation. */
   constructor(url: string, callback: () => void, errorcallback: (err: any) => void) {
     // Keep the config...
-    getFileConfig(url, (config:any)=>{
-     
+    getFileConfig(url, (config: any) => {
+
       this.config = config;
 
       // force event hub initialysation...
@@ -316,10 +300,10 @@ export class Globular {
       this._eventHub = new EventHub(this.eventService);
 
       // I will subscribe on services configuration update.
-      this._eventHub.subscribe("update_globular_service_configuration_evt", ()=>{}, (evt: any)=>{
+      this._eventHub.subscribe("update_globular_service_configuration_evt", () => { }, (evt: any) => {
         let config = JSON.parse(evt);
         this._services[config.Id] = null
-        this.config.Services[config.Id]=config;
+        this.config.Services[config.Id] = config;
         // console.log("service has change !", config)
 
       }, false)
@@ -341,11 +325,20 @@ export class Globular {
   public get adminService(): AdminServicePromiseClient | undefined {
     // refresh the config.
     if (this._adminService == null) {
-      this._adminService = new AdminServicePromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.AdminProxy,
-        null,
-        null,
-      )
+      let config = this.getFirstConfigByName('admin.AdminService')
+      if (config != undefined) {
+        this._adminService = new AdminServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._adminService
+        return this._adminService;
+      }
     }
     return this._adminService;
   }
@@ -354,11 +347,20 @@ export class Globular {
   public get resourceService(): ResourceServicePromiseClient | undefined {
     // refresh the config.
     if (this._resourceService == null) {
-      this._resourceService = new ResourceServicePromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.ResourceProxy,
-        null,
-        null,
-      );
+      let config = this.getFirstConfigByName('resource.ResourceService')
+      if (config != undefined) {
+        this._resourceService = new ResourceServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._resourceService
+        return this._resourceService;
+      }
     }
     return this._resourceService;
   }
@@ -367,24 +369,64 @@ export class Globular {
   public get logService(): LogServicePromiseClient | undefined {
     // refresh the config.
     if (this._logService == null) {
-      this._logService = new LogServicePromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.LogProxy,
-        null,
-        null,
-      );
+      let config = this.getFirstConfigByName('log.LogService')
+      if (config != undefined) {
+        this._logService = new LogServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._logService
+        return this._logService;
+      }
     }
     return this._logService;
   }
 
-  private _loadBalancingService: LoadBalancingServiceClient
-  public get loadBalancingService(): LoadBalancingServiceClient | undefined {
+  private _rbacService: RbacServicePromiseClient
+  public get rbacService(): RbacServicePromiseClient | undefined {
     // refresh the config.
-    if (this._logService == null) {
-      this._loadBalancingService = new LoadBalancingServiceClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.LoadBalancingProxy,
-        null,
-        null,
-      );
+    if (this._loadBalancingService == null) {
+      let config = this.getFirstConfigByName('rbac.RbacService')
+      if (config != undefined) {
+        this._rbacService = new RbacServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._rbacService
+        return this._rbacService;
+      }
+    }
+    return this._rbacService;
+  }
+
+  private _loadBalancingService: LoadBalancingServicePromiseClient
+  public get loadBalancingService(): LoadBalancingServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._loadBalancingService == null) {
+      let config = this.getFirstConfigByName('lb.LoadBalancingService')
+      if (config != undefined) {
+        this._loadBalancingService = new LoadBalancingServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._loadBalancingService
+        return this._loadBalancingService;
+      }
     }
     return this._loadBalancingService;
   }
@@ -393,11 +435,20 @@ export class Globular {
   public get packagesDicovery(): PackageDiscoveryPromiseClient | undefined {
     // refresh the config.
     if (this._packagesDicovery == null) {
-      this._packagesDicovery = new PackageDiscoveryPromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.PackagesDiscoveryProxy,
-        null,
-        null,
-      );
+      let config = this.getFirstConfigByName('packages.PackageDiscovery')
+      if (config != undefined) {
+        this._packagesDicovery = new PackageDiscoveryPromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._packagesDicovery
+        return this._packagesDicovery;
+      }
     }
     return this._packagesDicovery;
   }
@@ -406,11 +457,20 @@ export class Globular {
   public get servicesRepository(): PackageRepositoryPromiseClient | undefined {
     // refresh the config.
     if (this._servicesRepository == null) {
-      this._servicesRepository = new PackageRepositoryPromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.PackagesRepositoryProxy,
-        null,
-        null,
-      );
+      let config = this.getFirstConfigByName('packages.PackageRepository')
+      if (config != undefined) {
+        this._servicesRepository = new PackageRepositoryPromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._servicesRepository
+        return this._servicesRepository;
+      }
     }
 
     return this._servicesRepository;
@@ -420,11 +480,21 @@ export class Globular {
   public get certificateAuthority(): CertificateAuthorityPromiseClient | undefined {
     // refresh the config.
     if (this._certificateAuthority == null) {
-      this._certificateAuthority = new CertificateAuthorityPromiseClient(
-        this.config.Protocol + '://' + this.config.Domain + ':' + this.config.CertificateAuthorityProxy,
-        null,
-        null,
-      );
+      let config = this.getFirstConfigByName('ca.CertificateAuthority')
+      if (config != undefined) {
+        this._certificateAuthority = new CertificateAuthorityPromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._certificateAuthority
+
+        return this._certificateAuthority;
+      }
     }
     return this._certificateAuthority;
   }
@@ -714,70 +784,6 @@ export class Globular {
         this._services[config.Id] = this._searchService
       }
       return this._searchService;
-    }
-    return undefined;
-  }
-
-  // Non open source services.
-  private _plcService_ab: PlcServicePromiseClient
-  public get plcService_ab(): PlcServicePromiseClient | undefined {
-    let config = this.getFirstConfigByName('plc.PlcService')
-    if (config != undefined) {
-      if (this._plcService_ab == null) {
-        this._plcService_ab = new PlcServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._plcService_ab
-      }
-      return this._plcService_ab;
-    }
-    return undefined;
-  }
-
-  private _plcService_siemens: PlcServicePromiseClient
-  public get plcService_siemens(): PlcServicePromiseClient | undefined {
-    let config = this.getFirstConfigByName('plc.PlcService')
-    if (config != undefined) {
-      if (this._plcService_siemens == null) {
-        this._plcService_siemens = new PlcServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._plcService_siemens
-      }
-      return this._plcService_siemens;
-    }
-    return undefined;
-  }
-
-  private _plcLinkService: PlcLinkServicePromiseClient
-  public get plcLinkService(): PlcLinkServicePromiseClient | undefined {
-    let config = this.getFirstConfigByName('plc_link.PlcLinkService')
-    if (config != undefined) {
-      if (this._plcLinkService == null) {
-        this._plcLinkService = new PlcLinkServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._plcLinkService
-      }
-      return this._plcLinkService;
     }
     return undefined;
   }

@@ -69,7 +69,7 @@ import {
   GetLogRqst,
   LogInfo,
   ClearAllLogRqst,
-  LogType,
+  LogLevel,
   DeleteLogRqst
 } from "./log/log_pb"
 
@@ -96,7 +96,7 @@ import {
   GetPackagesDescriptorRequest,
   GetPackagesDescriptorResponse,
   SetPackageDescriptorRequest,
-} from "./services/services_pb";
+} from "./packages/packages_pb";
 
 import {
   RenameRequest,
@@ -109,7 +109,6 @@ import {
   ReadDirRequest,
 } from "./file/file_pb";
 
-import { TagType, ReadTagRqst } from "./plc/plc_pb";
 import { Globular, EventHub } from "./services";
 import { IConfig, IServiceConfig } from "./services";
 import {
@@ -2142,7 +2141,7 @@ export function readLogs(
 
   // Get the stream and set event on it...
   stream.on("data", (rsp) => {
-    results = results.concat(rsp.getInfoList());
+    results = results.concat(rsp.getInfosList());
   });
 
   stream.on("status", (status) => {
@@ -2177,12 +2176,12 @@ export function readLogs(
  */
 export function clearAllLog(
   globular: Globular,
-  logType: LogType,
+  query: string,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
   const rqst = new ClearAllLogRqst();
-  rqst.setType(logType);
+  rqst.setQuery(query);
   globular.logService
     .clearAllLog(rqst, {
       token: getToken(),
@@ -2268,81 +2267,6 @@ export function getNumbeOfLogsByMethod(
       errorCallback({ message: status.details });
     }
   });
-}
-
-//////////////////////////// PLC Operations ///////////////////////////////////
-export enum PLC_TYPE {
-  ALEN_BRADLEY = 1,
-  SIEMENS = 2,
-  MODBUS = 3,
-}
-
-/**
- * Read a plc tag.
- * @param globular
- * @param application
- * @param domain
- * @param plcType
- * @param connectionId
- * @param name
- * @param type
- * @param offset
- */
-export async function readPlcTag(
-  globular: Globular,
-  plcType: PLC_TYPE,
-  connectionId: string,
-  name: string,
-  type: TagType,
-  offset: number
-) {
-  const rqst = new ReadTagRqst();
-  rqst.setName(name);
-  rqst.setType(type);
-  rqst.setOffset(offset);
-  rqst.setConnectionId(connectionId);
-  let result: any;
-
-  // Try to get the value from the server.
-  try {
-    if (plcType === PLC_TYPE.ALEN_BRADLEY) {
-      if (globular.plcService_ab !== undefined) {
-        const rsp = await globular.plcService_ab.readTag(rqst, {
-          token: getToken(),
-          application: application,
-          domain: domain,
-        });
-        result = rsp.getValues();
-      } else {
-        return "No Alen Bradlay PLC server configured!";
-      }
-    } else if (plcType === PLC_TYPE.SIEMENS) {
-      if (globular.plcService_siemens !== undefined) {
-        const rsp = await globular.plcService_siemens.readTag(rqst, {
-          token: getToken(),
-          application: application,
-          domain: domain,
-        });
-        result = rsp.getValues();
-      } else {
-        return "No Siemens PLC server configured!";
-      }
-    } else {
-      return "No PLC server configured!";
-    }
-  } catch (err) {
-    return err;
-  }
-
-  // Here I got the value in a string I will convert it into it type.
-  if (type === TagType.BOOL) {
-    return result === "true" ? true : false;
-  } else if (type === TagType.REAL) {
-    return parseFloat(result);
-  } else {
-    // Must be cinsidere a integer.
-    return parseInt(result, 10);
-  }
 }
 
 ///////////////////////////////////// LDAP operations /////////////////////////////////
