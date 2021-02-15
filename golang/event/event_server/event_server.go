@@ -353,9 +353,10 @@ func (self *server) run() {
 					channels[a["name"].(string)] = append(channels[a["name"].(string)], a["uuid"].(string))
 				}
 			} else if action == "publish" {
-
+				// Publish event only if the channel exist. The channel will be created when
+				// the first subcriber is register and delete when the last subscriber unsubscribe.
+				// log.Println("---> publish event ", a["name"].(string))
 				if channels[a["name"].(string)] != nil {
-					//					log.Println("---> publish event ", a["name"].(string))
 					toDelete := make([]string, 0)
 					for i := 0; i < len(channels[a["name"].(string)]); i++ {
 						uuid := channels[a["name"].(string)][i]
@@ -400,8 +401,6 @@ func (self *server) run() {
 						// remove the channel from the map.
 						delete(quits, uuid)
 					}
-				} else {
-					log.Println("Event channel", a["name"].(string), " dosent exist")
 				}
 			} else if action == "unsubscribe" {
 				uuids := make([]string, 0)

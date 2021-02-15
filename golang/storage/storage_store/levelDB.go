@@ -55,9 +55,9 @@ func (self *LevelDB_store) run() {
 func NewLevelDB_store() *LevelDB_store {
 	s := new(LevelDB_store)
 	s.actions = make(chan map[string]interface{}, 0)
-	go func() {
-		s.run()
-	}()
+	go func(store *LevelDB_store) {
+		store.run()
+	}(s)
 	return s
 }
 
