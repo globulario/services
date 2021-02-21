@@ -4,15 +4,45 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+
+	//"os"
 	"testing"
 
-	"github.com/globulario/Globular/sql/sql_client"
+	"github.com/globulario/services/golang/resource/resource_client"
 )
 
 // Set the correct addresse here as needed.
 var (
-	client = sql_client.NewSql_Client("localhost", "sql_server") // connect with the local service.
+	client, _ = NewSqlService_Client("localhost:10000", "475f1bbb-42ca-44a8-9bfd-b6db1fadf2d9") // connect with the local service.
 )
+
+/*
+func TestCreateConnection(t *testing.T) {
+	resource, err := resource_client.NewResourceService_Client("mon-intranet:10009", "resource.ResourceService")
+	if err != nil {
+		log.Println("Fail to connect to " + "mon-intranet:10009 " + err.Error())
+		log.Println(err.Error())
+		os.Exit(-1)
+	}
+
+	token, err := resource.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println("Fail to authenticate to mon-intranet:10009")
+		log.Println(err.Error())
+		os.Exit(-1)
+	}
+
+	// The test will be made with the sqlite for simplicity.
+	fmt.Println("Connection creation test.")
+	err = client.CreateConnection("quality_dashboard", "Operation", "odbc", "QaDashboardUser", "9ueNXRkQ5GXTSFMK", "mon-sql-v02", 1433, "utf8")
+	if err != nil {
+		log.Println("Fail to run CreateConnection ", err)
+		return
+	}
+
+	log.Println("Succed to create sql connection")
+}
+*/
 
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {

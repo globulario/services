@@ -11,11 +11,11 @@ import (
 
 var (
 	// Connect to the admin client.
-	client, _ = NewAdminService_Client("mon-iis-01:8080", "admin.AdminService")
+	client, _   = NewAdminService_Client("mon-intranet:10098", "admin.AdminService")
+	resource, _ = resource_client.NewResourceService_Client("mon-intranet:10009", "resource.ResourceService")
 )
 
 // Test various function here.
-
 /*
 func TestGetConfig(t *testing.T) {
 	_, err := client.GetConfig()
@@ -27,16 +27,23 @@ func TestGetConfig(t *testing.T) {
 }
 */
 
-/*
 func TestGetFullConfig(t *testing.T) {
-	_, err := client.GetFullConfig()
+	token, err := resource.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println("Fail to authenticate to mon-intranet:10009")
+		log.Println(err.Error())
+		return
+	}
+	log.Println(token)
+	config, err := client.GetFullConfig()
 	if err != nil {
 		log.Println(err)
 		t.FailNow()
 	}
+	log.Println(config)
 	log.Println("GetFullConfig succeed!")
 }
-*/
+
 // Test modify the config...
 /*func TestSaveConfig(t *testing.T) {
 	log.Println("---> test get config.")
@@ -82,11 +89,11 @@ func TestInstallService(t *testing.T) {
 	time.Sleep(time.Second * 5)
 }
 */
-/*
+
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
-	service_pid, proxy_pid, err := client.StartService("echo.EchoService")
+	service_pid, proxy_pid, err := client.StartService("475f1bbb-42ca-44a8-9bfd-b6db1fadf2d9")
 	if err != nil {
 
 		log.Println("---> ", err)
@@ -94,10 +101,10 @@ func TestStartService(t *testing.T) {
 	log.Println("service pid:", service_pid, " proxy pid:", proxy_pid)
 
 }
-*/
+
 /*
 func TestStopService(t *testing.T) {
-	err := client.StopService("echo.EchoService")
+	err := client.StopService("475f1bbb-42ca-44a8-9bfd-b6db1fadf2d9")
 	if err != nil {
 		log.Println(err)
 		return
@@ -105,7 +112,6 @@ func TestStopService(t *testing.T) {
 	log.Println("---> stop service succeeded")
 }
 */
-
 /*
 func TestUninstallService(t *testing.T) {
 	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
@@ -152,7 +158,7 @@ func TestRestartServices(t *testing.T) {
 	}
 }
 */
-
+/*
 func TestRunCmd(t *testing.T) {
 	var err error
 	client_, err := resource_client.NewResourceService_Client("mon-iis-01:8080", "resource.ResourceService")
@@ -175,13 +181,7 @@ func TestRunCmd(t *testing.T) {
 
 	log.Println(results)
 }
-<<<<<<< HEAD
-*/
-/*
-=======
 
-/**
->>>>>>> a9fa3f7513dd45fb35b2e51dce189e8260fc8ef7
 func TestGeneratePost(t *testing.T) {
 	var err error
 	client_, err := resource_client.NewResourceService_Client("mon-iis-01:10003", "resource.ResourceService")
