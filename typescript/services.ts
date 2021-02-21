@@ -13,7 +13,7 @@ import { MonitoringServicePromiseClient } from './monitoring/monitoring_grpc_web
 import { SearchServicePromiseClient } from './search/search_grpc_web_pb';
 import { AdminServicePromiseClient } from './admin/admin_grpc_web_pb';
 import { ResourceServicePromiseClient } from './resource/resource_grpc_web_pb';
-import { RbacServicePromiseClient} from './rbac/rbac_grpc_web_pb'
+import { RbacServicePromiseClient } from './rbac/rbac_grpc_web_pb'
 import { LogServicePromiseClient } from './log/log_grpc_web_pb';
 import { LoadBalancingServicePromiseClient } from './lb/lb_grpc_web_pb';
 import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from './packages/packages_grpc_web_pb';
@@ -93,6 +93,15 @@ function randomUUID(): string {
   return s.join('');
 }
 
+
+window.onbeforeunload = function (e: any) {
+
+  console.log("cleanup network ressources...");
+  EventHub.cleanup();
+
+  return undefined;
+};
+
 /**
  * That local and distant event hub.
  */
@@ -102,10 +111,21 @@ export class EventHub {
   private subscriptions: any;
   private uuid: string;
 
+  // need by clean function
+  static remoteSucribers: any;
+  static services: Array<any>;
+
   /**
    * @param {*} service If undefined only local event will be allow.
    */
   constructor(service: any) {
+
+    // needed by clean.
+    if (EventHub.services == undefined) {
+      EventHub.services = new Array<any>();
+    }
+    EventHub.services.push(service);
+
     // The network event bus.
     this.service = service
     // Subscriber function map.
@@ -162,6 +182,19 @@ export class EventHub {
           this.subscribers[name] = {}
         }
         this.subscribers[name][uuid] = onevent
+
+        // Needed by cleanup function...
+        if (EventHub.remoteSucribers == undefined) {
+          EventHub.remoteSucribers = {};
+        }
+        if (EventHub.remoteSucribers[name] == undefined) {
+          EventHub.remoteSucribers[name] = [];
+        }
+
+        if (EventHub.remoteSucribers[name].indexOf(this.uuid) == -1) {
+          EventHub.remoteSucribers[name].push(this.uuid)
+        }
+
         onsubscribe(uuid)
       })
     } else {
@@ -203,6 +236,19 @@ export class EventHub {
         this.service.unSubscribe(rqst)
           .then((resp: any) => {
             /** Nothing to do here */
+            if (EventHub.remoteSucribers == undefined) {
+              return;
+            }
+
+            if (EventHub.remoteSucribers[name] == undefined) {
+              return
+            }
+
+            if (EventHub.remoteSucribers[name].indexOf(this.uuid) != -1) {
+              // remove it from the event hub...
+              EventHub.remoteSucribers[name].splice(EventHub.remoteSucribers[name].indexOf(this.uuid), 1)
+            }
+
           })
           .catch((error: any) => {
             console.log(error)
@@ -251,6 +297,43 @@ export class EventHub {
           if (this.subscribers[name][uuid] !== undefined) {
             this.subscribers[name][uuid](data);
           }
+        }
+      }
+    }
+  }
+
+  /** Clean up all connections... */
+  static cleanup() {
+    for (var name in EventHub.remoteSucribers) {
+      for (var i = 0; i < EventHub.remoteSucribers[name]; i++) {
+        const rqst = new UnSubscribeRequest();
+        let uuid = EventHub.remoteSucribers[name][i];
+        rqst.setName(name);
+        rqst.setUuid(uuid)
+
+        // Now I will test with promise
+        for (var j = 0; j < EventHub.services.length; j++) {
+          let service = EventHub.services[j]
+          service.unSubscribe(rqst)
+            .then((resp: any) => {
+              /** Nothing to do here */
+              if (EventHub.remoteSucribers == undefined) {
+                return;
+              }
+
+              if (EventHub.remoteSucribers[name] == undefined) {
+                return
+              }
+
+              if (EventHub.remoteSucribers[name].indexOf(uuid) != -1) {
+                // remove it from the event hub...
+                EventHub.remoteSucribers[name].splice(EventHub.remoteSucribers[name].indexOf(uuid), 1)
+              }
+
+            })
+            .catch((error: any) => {
+              console.log(error)
+            })
         }
       }
     }
