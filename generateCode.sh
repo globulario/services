@@ -25,6 +25,7 @@ protoc proto/persistence.proto --go-grpc_out=require_unimplemented_servers=false
 protoc proto/monitoring.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/spc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/catalog.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/conversation.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 # TypeScript grpc files generation.
 mkdir typescript/admin
@@ -45,6 +46,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/lb -
 mkdir typescript/echo
 protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ echo.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ echo.proto
+mkdir typescript/conversation
+protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ conversation.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ conversation.proto
 mkdir typescript/search
 protoc --js_out=import_style=commonjs:typescript/search  -I ./proto/ search.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/search -I ./proto/ search.proto

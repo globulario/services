@@ -1,0 +1,200 @@
+/**
+ * You can use conversation as starter project.
+ */
+syntax = "proto3";
+package conversation;
+
+option go_package="conversation/conversationpb";
+
+/** The conversation state. **/
+enum ConversationState{
+	ACTIVE = 0;
+	SUSPENDED = 1;
+}
+
+message Message {
+	string uuid = 1;
+	
+	/** The conversation uuid **/
+	string conversation = 2;
+	
+	/** Response to that message **/
+	repeated  string answers = 3;
+}
+
+message Conversation {
+	string uuid = 1;
+	
+	/** Not need to be unique.. */
+	string name = 2;
+	
+	/** Array of message uuid */
+	repeated  string messages = 3;
+	
+	/** Keywords **/
+	repeated  string keywords = 4;
+	
+	int64 creation_time = 5;
+	
+	/** Keep track of when a conversation was suspend or activated **/
+	int64 state_time = 6;
+	
+	ConversationState state = 7;
+}
+
+/** Create a new conversation **/
+message CreateConversationRequest {
+	
+	/** The name of the conversation to be created **/
+	string name = 1;
+	
+	/** Keywords **/
+	repeated  string keywords = 2;
+}
+
+message CreateConversationResponse{
+	Conversation conversation = 1;
+}
+
+message SuspendConversationRequest{
+	string conversation_uuid = 1;
+}
+
+message SuspendConversationResponse{
+	
+}
+
+message ResumeConversationRequest{
+	string conversation_uuid = 1;
+}
+
+message ResumeConversationResponse{
+	
+}
+
+message DeleteConversationRequest{
+	string conversation_uuid = 1;
+}
+
+message DeleteConversationResponse{
+	
+}
+
+message FindConversationRequest{
+	repeated string keywords = 1;
+}
+
+message FindConversationResponse{
+	repeated Conversation conversations = 1;
+}
+
+message JoinConversationRequest{
+	/** The conversation uuid */
+	string conversation = 1;
+	
+	/** The paticipant token */
+	string token = 2;
+}
+
+message JoinConversationResponse{
+	
+}
+
+message LeaveConversationRequest{
+	/** The conversation uuid */
+	string conversation = 1;
+	
+	/** The paticipant token */
+	string token = 2;
+}
+
+message LeaveConversationResponse{
+	
+}
+
+message SendMessageRequest {
+	/** The conversation uuid */
+	string conversation = 1;
+	
+	/** The paticipant token */
+	string token = 2;
+	
+	/** The message text **/
+	string text = 3;
+}
+
+message SendMessageResponse {
+
+}
+
+
+message RevokeMessageRequest{
+	/** The conversation uuid */
+	string conversation = 1;
+	
+	/** The paticipant token */
+	string token = 2;
+}
+
+message RevokeMessageResponse{
+
+}
+
+message FindMessageRequest{
+	repeated string keywords = 1;
+}
+
+message FindMessageResponse{
+	repeated Message messages = 1;
+}
+
+message StopRequest {
+	
+}
+
+message StopResponse {
+	
+}
+
+service ConversationService {
+	
+  // Stop the server.
+  rpc Stop(StopRequest) returns (StopResponse);
+
+  //////////////////////////////// Conversation ////////////////////////////////
+
+  // Create a new conversation with a given name. The creator will became the 
+  // owner of that conversation and he will be able to set permissions to
+  // determine who can participate to the conversation.
+  rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse);
+
+  // Stop new message to be insert...
+  rpc SuspendConversation(SuspendConversationRequest) returns (SuspendConversationResponse);
+
+  // Resume the conversation
+  rpc ResumeConversation(ResumeConversationRequest) returns (ResumeConversationResponse);
+
+  // Delete the conversation
+  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+
+  // Retreive a conversation by keywords or name...
+  rpc FindConversation(FindConversationRequest) returns (FindConversationResponse);
+
+  // Join a conversation.
+  rpc JoinConversation(JoinConversationRequest) returns (JoinConversationResponse);
+
+  // Leave a given conversation.
+  rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse);
+
+  ////////////////////////////////// Message ///////////////////////////////////
+
+  // Send a message
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+  // Revoke a message from the list.
+  rpc RevokeMessage(RevokeMessageRequest) returns (RevokeMessageResponse);
+
+  // Retreive a conversation by keywords or name...
+  rpc FindMessage(FindMessageRequest) returns (FindMessageResponse);
+
+}
