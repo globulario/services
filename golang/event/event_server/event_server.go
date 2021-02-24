@@ -343,9 +343,7 @@ func (self *server) run() {
 				streams[a["uuid"].(string)] = a["stream"].(eventpb.EventService_OnEventServer)
 				quits[a["uuid"].(string)] = a["quit"].(chan bool)
 			} else if action == "subscribe" {
-				//				log.Println("subcribtion receive for event", a["name"].(string), a["uuid"].(string))
 				if channels[a["name"].(string)] == nil {
-					//					log.Println("create channel", a["name"].(string))
 					channels[a["name"].(string)] = make([]string, 0)
 				}
 				if !Utility.Contains(channels[a["name"].(string)], a["uuid"].(string)) {
@@ -355,7 +353,6 @@ func (self *server) run() {
 			} else if action == "publish" {
 				// Publish event only if the channel exist. The channel will be created when
 				// the first subcriber is register and delete when the last subscriber unsubscribe.
-				// log.Println("---> publish event ", a["name"].(string))
 				if channels[a["name"].(string)] != nil {
 					toDelete := make([]string, 0)
 					for i := 0; i < len(channels[a["name"].(string)]); i++ {
