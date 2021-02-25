@@ -1,4 +1,4 @@
-package echo_client
+package conversation_client
 
 import (
 	//"encoding/json"
@@ -8,15 +8,26 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 )
 
-// Test various function here.
-func TestConverstion(t *testing.T) {
+var (
+	client, _ = NewConversationService_Client("hub.globular.io", "4e0408f4-9d2a-4c25-95ed-e5bdf2444eb3")
+)
 
-	// Here I Will authenticate the user before validation...
-	resource_client_, err := resource_client.NewResourceService_Client("localhost", "resource.ResourceService")
+// Test various function here.
+/*
+func TestConverstion(t *testing.T) {
+	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
+
+	_, err := resource_client_.Authenticate("sa", "adminadmin")
+
 	if err != nil {
 		log.Println(err)
 		return
 	}
+}
+*/
+
+func TestCreateConverstion(t *testing.T) {
+	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
 
 	token, err := resource_client_.Authenticate("sa", "adminadmin")
 	if err != nil {
@@ -24,23 +35,28 @@ func TestConverstion(t *testing.T) {
 		return
 	}
 
-	// Connect to the plc client.
-	// "0f80ed1a-5d3a-46f1-a3f6-c091ac259665",  "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b"
-	/*client, err := NewEchoService_Client("localhost", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b")
+	conversation, err := client.createConversation(token, "mystic.courtois", []string{"test", "converstion", "nothing"})
 	if err != nil {
-		log.Println("17 ---> ", err)
+		log.Println(err)
 		return
 	}
-	val, err := client.Echo(token, "Ceci est un test")
-	if err != nil {
-		log.Println("20 ---> ", err)
-	} else {
-		log.Println("23 ---> ", val)
-	}*/
 
-	client, err := NewConversationService_Client("localhost", "0f80ed1a-5d3a-46f1-a3f6-c091ac259665")
+	log.Println("conversation was created with success!", conversation)
+}
+
+func TestGetCreatedConversation(t *testing.T) {
+	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
+	token, err := resource_client_.Authenticate("sa", "adminadmin")
 	if err != nil {
-		log.Println("28 ---> ", err)
+		log.Println(err)
 		return
 	}
+
+	conversations, err := client.getOwnedConversations(token, "sa")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	log.Println("conversation retreived!", conversations)
 }

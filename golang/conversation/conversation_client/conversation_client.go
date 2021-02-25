@@ -1,22 +1,22 @@
-package echo_client
+package conversation_client
 
 import (
 	"strconv"
 
 	"context"
 
-	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/echo/echopb"
+	//"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/conversation/conversationpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// echo Client Service
+// conversation Client Service
 ////////////////////////////////////////////////////////////////////////////////
 
-type Echo_Client struct {
+type Conversation_Client struct {
 	cc *grpc.ClientConn
 	c  conversationpb.ConversationServiceClient
 
@@ -46,8 +46,8 @@ type Echo_Client struct {
 }
 
 // Create a connection to the service.
-func NewConversationService_Client(address string, id string) (*Echo_Client, error) {
-	client := new(Echo_Client)
+func NewConversationService_Client(address string, id string) (*Conversation_Client, error) {
+	client := new(Conversation_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
 		return nil, err
@@ -164,3 +164,56 @@ func (self *Conversation_Client) StopService() {
 ////////////////////////////////////////////////////////////////////////////////
 // Conversation specific function here.
 ////////////////////////////////////////////////////////////////////////////////
+
+// Create a new conversation with a given name and a list of keywords for retreive it latter.
+func (self *Conversation_Client) createConversation(token string, name string, keywords []string) (*conversationpb.Conversation, error) {
+
+	rqst := &conversationpb.CreateConversationRequest{
+		Name:     name,
+		Keywords: keywords,
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	/** Create the conversation on the server side and get it uuid as response. */
+	rsp, err := self.c.CreateConversation(ctx, rqst)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Conversation, nil
+}
+
+// Return the list of owned conversations.
+func (self *Conversation_Client) getOwnedConversations(token string, creator string) (*conversationpb.Conversations, error) {
+	rqst := &conversationpb.GetCreatedConversationsRequest{
+		Creator: creator,
+	}
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	rsp, err := self.c.GetCreatedConversations(ctx, rqst)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.GetConversations(), nil
+}

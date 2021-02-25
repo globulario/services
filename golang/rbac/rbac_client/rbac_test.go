@@ -110,9 +110,9 @@ func TestSetResourcePermissions(t *testing.T) {
 	// A fictive file path...
 	filePath := "C:/temp/toto.txt"
 
-	permissions := &resourcepb.Permissions{
-		Allowed: []*resourcepb.Permission{
-			&resourcepb.Permission{
+	permissions := &rbacpb.Permissions{
+		Allowed: []*rbacpb.Permission{
+			&rbacpb.Permission{
 				Name:          "read",
 				Applications:  []string{},
 				Accounts:      []string{"account_0", "account_1"},
@@ -120,7 +120,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{"p0.test.com", "p1.test.com"},
 				Organizations: []string{"organization_0", "organization_1"},
 			},
-			&resourcepb.Permission{
+			&rbacpb.Permission{
 				Name:          "write",
 				Applications:  []string{},
 				Accounts:      []string{"account_0"},
@@ -128,7 +128,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
-			&resourcepb.Permission{
+			&rbacpb.Permission{
 				Name:          "execute",
 				Applications:  []string{},
 				Accounts:      []string{"account_1"},
@@ -136,7 +136,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
-			&resourcepb.Permission{
+			&rbacpb.Permission{
 				Name:          "delete",
 				Applications:  []string{},
 				Accounts:      []string{"account_0", "account_1"}, // must not work because of organization_0 is in the list of denied...
@@ -145,8 +145,8 @@ func TestSetResourcePermissions(t *testing.T) {
 				Organizations: []string{},
 			},
 		},
-		Denied: []*resourcepb.Permission{
-			&resourcepb.Permission{
+		Denied: []*rbacpb.Permission{
+			&rbacpb.Permission{
 				Name:          "read",
 				Applications:  []string{},
 				Accounts:      []string{"account_2"},
@@ -154,7 +154,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Peers:         []string{},
 				Organizations: []string{},
 			},
-			&resourcepb.Permission{
+			&rbacpb.Permission{
 				Name:          "delete",
 				Applications:  []string{},
 				Accounts:      []string{},
@@ -163,7 +163,7 @@ func TestSetResourcePermissions(t *testing.T) {
 				Organizations: []string{"organization_1"},
 			},
 		},
-		Owners: &resourcepb.Permission{
+		Owners: &rbacpb.Permission{
 			Name:          "owner", // The name is informative in that particular case.
 			Applications:  []string{},
 			Accounts:      []string{"account_0"},
@@ -184,7 +184,7 @@ func TestSetResourcePermissions(t *testing.T) {
 func TestGetResourcePermission(t *testing.T) {
 
 	filePath := "C:/temp/toto.txt"
-	_, err := rbac_client_.GetResourcePermission(filePath, "read", resourcepb.PermissionType_ALLOWED)
+	_, err := rbac_client_.GetResourcePermission(filePath, "read", rbacpb.PermissionType_ALLOWED)
 	if err != nil {
 		log.Println(err)
 	}
@@ -193,7 +193,7 @@ func TestGetResourcePermission(t *testing.T) {
 
 func TestSetResourcePermission(t *testing.T) {
 	filePath := "C:/temp/toto.txt"
-	err := rbac_client_.DeleteResourcePermission(filePath, "execute", resourcepb.PermissionType_ALLOWED)
+	err := rbac_client_.DeleteResourcePermission(filePath, "execute", rbacpb.PermissionType_ALLOWED)
 	if err != nil {
 		log.Println(err)
 	}
@@ -324,7 +324,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Now I will try to delete one permission...
-	err = rbac_client_.DeleteResourcePermission(filePath, "execute", resourcepb.PermissionType_ALLOWED)
+	err = rbac_client_.DeleteResourcePermission(filePath, "execute", rbacpb.PermissionType_ALLOWED)
 	if err != nil {
 		log.Println(err)
 	}

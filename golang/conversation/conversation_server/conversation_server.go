@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	//	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,15 +10,29 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/Interceptors"
-	"github.com/globulario/services/golang/echo/echo_client"
-	"github.com/globulario/services/golang/echo/echopb"
+	"github.com/globulario/services/golang/conversation/conversation_client"
+	"github.com/globulario/services/golang/conversation/conversationpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
+
 	"google.golang.org/grpc/codes"
 
 	//"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
+
+	"errors"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/golang/protobuf/jsonpb"
+
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/search/search_engine"
+	"github.com/globulario/services/golang/storage/storage_store"
 )
 
 // The default values.
@@ -57,6 +71,9 @@ type server struct {
 	Repositories    []string
 	Discoveries     []string
 
+	// Specific configuration.
+	Root string // Where to look for conversation data, file.. etc.
+
 	TLS bool
 
 	// self-signed X.509 public keys for distribution
@@ -72,6 +89,18 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+
+	// The search engine..
+	search_engine *search_engine.XapianEngine
+
+	// Store global conversation information like conversation owner's participant...
+	store *storage_store.LevelDB_store
+
+	// keep in map active conversation db connections.
+	conversations *sync.Map
+
+	// The rbac client
+	rbac_client_ *rbac_client.Rbac_Client
 }
 
 // Globular services implementation...
@@ -288,6 +317,12 @@ func (self *server) Init() error {
 		return err
 	}
 
+	// Initialyse the search engine.
+	self.search_engine = new(search_engine.XapianEngine)
+
+	// Create a new local store.
+	self.store = storage_store.NewLevelDB_store()
+
 	return nil
 
 }
@@ -307,14 +342,229 @@ func (self *server) StopService() error {
 	return globular.StopService(self, self.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *Conversationpb.StopRequest) (*Conversationpb.StopResponse, error) {
-	return &Conversationpb.StopResponse{}, self.StopService()
+func (self *server) Stop(context.Context, *conversationpb.StopRequest) (*conversationpb.StopResponse, error) {
+	return &conversationpb.StopResponse{}, self.StopService()
 }
 
-//Stop(context.Context, *StopRequest) (*StopResponse, error)
 /////////////////////// Conversation specific function /////////////////////////////////
 
-// Implementation of the Conversation method.
+/**
+ * Databases will be created in the 'conversations' directory inside the Root path
+ * Each conversation will have it own leveldb database
+ */
+func (self *server) getConversationConnection(id string) (*storage_store.LevelDB_store, error) {
+
+	dbPath := self.Root + "/conversations/" + id
+	if !Utility.Exists(dbPath) {
+		log.Println(dbPath)
+	}
+
+	connection, ok := self.conversations.Load(dbPath)
+	if !ok {
+		connection = storage_store.NewLevelDB_store()
+		err := connection.(*storage_store.LevelDB_store).Open(`{"path":"` + dbPath + `", "name":"store_data"}`)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return connection.(*storage_store.LevelDB_store), nil
+}
+
+/////////////////////////// Public interfaces //////////////////////////////////
+
+// Create a new conversation with a given name. The creator will became the
+// owner of that conversation and he will be able to set permissions to
+// determine who can participate to the conversation.
+func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb.CreateConversationRequest) (*conversationpb.CreateConversationResponse, error) {
+	var clientId string
+	var err error
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				log.Println("token validation fail with error: ", err)
+				return nil, err
+			}
+
+		} else {
+			errors.New("No token was given!")
+		}
+	}
+
+	uuid := Utility.RandomUUID()
+
+	conn, err := self.getConversationConnection(uuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(rqst.Language) == 0 {
+		rqst.Language = "en"
+	}
+
+	conversation := &conversationpb.Conversation{
+		Uuid:         uuid,
+		Name:         rqst.Name,
+		Keywords:     rqst.Keywords,
+		CreationTime: time.Now().Unix(),
+		State:        conversationpb.ConversationState_ACTIVE,
+		Language:     rqst.Language,
+	}
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(conversation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = conn.SetItem(uuid, []byte(jsonStr))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will set the search information for conversations...
+	err = self.search_engine.IndexJsonObject(self.Root+"/conversations/search_data", jsonStr, rqst.Language, "uuid", []string{"name", "keywords"}, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// So here I will append the value in the index.
+
+	// Index owned conversation to be retreivable by it creator.
+	owned_conversations_, err := self.store.GetItem(clientId + "_owned")
+	owned_conversations := new(conversationpb.Conversations)
+	if err != nil {
+		owned_conversations.Conversations = make([]*conversationpb.Conversation, 0)
+	} else {
+		err = jsonpb.UnmarshalString(string(owned_conversations_), owned_conversations)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// Now I will append the newly created conversation into conversation owned by
+	// the client id.
+	owned_conversations.Conversations = append(owned_conversations.Conversations, conversation)
+
+	// Now I will save it back in the bd.
+	jsonStr, err = marshaler.MarshalToString(owned_conversations)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = self.store.SetItem(clientId+"_owned", []byte(jsonStr))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will set it in the rbac as ressource owner...
+	permissions := &rbacpb.Permissions{
+		Allowed: []*rbacpb.Permission{},
+		Denied:  []*rbacpb.Permission{},
+		Owners: &rbacpb.Permission{
+			Name:          "owner", // The name is informative in that particular case.
+			Applications:  []string{},
+			Accounts:      []string{clientId},
+			Groups:        []string{},
+			Peers:         []string{},
+			Organizations: []string{},
+		},
+	}
+
+	err = self.rbac_client_.SetResourcePermissions(uuid, permissions)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.CreateConversationResponse{
+		Conversation: conversation,
+	}, nil
+}
+
+// Return the list of conversations created by a given user.
+func (self *server) GetCreatedConversations(ctx context.Context, rqst *conversationpb.GetCreatedConversationsRequest) (*conversationpb.GetCreatedConversationsResponse, error) {
+
+	owned_conversations_, err := self.store.GetItem(rqst.Creator + "_owned")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	owned_conversations := new(conversationpb.Conversations)
+	jsonpb.UnmarshalString(string(owned_conversations_), owned_conversations)
+
+	return &conversationpb.GetCreatedConversationsResponse{
+		Conversations: owned_conversations,
+	}, nil
+}
+
+// Join a conversation.
+func (self *server) JoinConversation(ctx *conversationpb.JoinConversationRequest, stream conversationpb.ConversationService_JoinConversationServer) error {
+	return nil
+}
+
+// Leave a given conversation.
+func (self *server) LeaveConversation(ctx context.Context, rqst *conversationpb.LeaveConversationRequest) (*conversationpb.LeaveConversationResponse, error) {
+	return nil, nil
+}
+
+// Stop new message to be insert...
+func (self *server) SuspendConversation(ctx context.Context, rqst *conversationpb.SuspendConversationRequest) (*conversationpb.SuspendConversationResponse, error) {
+	return nil, nil
+}
+
+// Resume the conversation
+func (self *server) ResumeConversation(ctx context.Context, rqst *conversationpb.ResumeConversationRequest) (*conversationpb.ResumeConversationResponse, error) {
+	return nil, nil
+}
+
+// Delete the conversation
+func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
+	return nil, nil
+}
+
+// Retreive a conversation by keywords or name...
+func (self *server) FindConversation(ctx context.Context, rqst *conversationpb.FindConversationRequest) (*conversationpb.FindConversationResponse, error) {
+	return nil, nil
+}
+
+// Send a message
+func (self *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMessageRequest) (*conversationpb.SendMessageResponse, error) {
+	return nil, nil
+}
+
+// Revoke a message from the list.
+func (self *server) RevokeMessage(ctx context.Context, rqst *conversationpb.RevokeMessageRequest) (*conversationpb.RevokeMessageResponse, error) {
+
+	return nil, nil
+}
+
+// Retreive a conversation by keywords or name...
+func (self *server) FindMessage(ctx context.Context, rqst *conversationpb.FindMessageRequest) (*conversationpb.FindMessageResponse, error) {
+
+	return nil, nil
+}
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -328,8 +578,8 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(Conversationpb.File_proto_Conversation_proto.Services().Get(0).FullName())
-	s_impl.Proto = Conversationpb.File_proto_Conversation_proto.Path()
+	s_impl.Name = string(conversationpb.File_proto_conversation_proto.Services().Get(0).FullName())
+	s_impl.Proto = conversationpb.File_proto_conversation_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
@@ -345,18 +595,37 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 
+	// Set the root path if is pass as argument.
+	if len(s_impl.Root) == 0 {
+		s_impl.Root = os.TempDir()
+	}
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
 	}
+
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
+	// The search engine use to search into message, file and conversation.
+	s_impl.search_engine = new(search_engine.XapianEngine)
+
+	// The map of db connections.
+	s_impl.conversations = new(sync.Map)
+
+	// Open the connetion with the store.
+	Utility.CreateDirIfNotExist(s_impl.Root + "/conversations")
+	s_impl.store.Open(`{"path":"` + s_impl.Root + "/conversations" + `", "name":"index"}`)
+
 	// Register the Conversation services
-	Conversationpb.RegisterConversationServiceServer(s_impl.grpcServer, s_impl)
+	conversationpb.RegisterConversationServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// Init the Role Based Access Control client.
+	s_impl.rbac_client_, _ = rbac_client.NewRbacService_Client(s_impl.Domain, "rbac.RbacService")
 
 	// Start the service.
 	s_impl.StartService()

@@ -23,6 +23,7 @@ message Message {
 }
 
 message Conversation {
+	/** Need to be unique... and trust me it will! */
 	string uuid = 1;
 	
 	/** Not need to be unique.. */
@@ -39,7 +40,16 @@ message Conversation {
 	/** Keep track of when a conversation was suspend or activated **/
 	int64 state_time = 6;
 	
+	/** The conversation state */
 	ConversationState state = 7;
+	
+	/** The language ex. en, es, fr*/
+	string language = 8;
+}
+
+/** List of conversation */
+message Conversations {
+	repeated Conversation conversations=1;
 }
 
 /** Create a new conversation **/
@@ -50,6 +60,9 @@ message CreateConversationRequest {
 	
 	/** Keywords **/
 	repeated  string keywords = 2;
+	
+	/** The conversation language **/
+	string language = 3;
 }
 
 message CreateConversationResponse{
@@ -97,7 +110,15 @@ message JoinConversationRequest{
 }
 
 message JoinConversationResponse{
-	
+	repeated Message messages = 1;
+}
+
+message GetCreatedConversationsRequest{
+	string creator = 1;
+}
+
+message GetCreatedConversationsResponse{
+	Conversations conversations = 1;
 }
 
 message LeaveConversationRequest{
@@ -126,7 +147,6 @@ message SendMessageRequest {
 message SendMessageResponse {
 
 }
-
 
 message RevokeMessageRequest{
 	/** The conversation uuid */
@@ -181,10 +201,13 @@ service ConversationService {
   rpc FindConversation(FindConversationRequest) returns (FindConversationResponse);
 
   // Join a conversation.
-  rpc JoinConversation(JoinConversationRequest) returns (JoinConversationResponse);
+  rpc JoinConversation(JoinConversationRequest) returns (stream JoinConversationResponse);
 
   // Leave a given conversation.
   rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse);
+
+  // Return the list of conversations created by a given user.
+  rpc GetCreatedConversations(GetCreatedConversationsRequest) returns (GetCreatedConversationsResponse);
 
   ////////////////////////////////// Message ///////////////////////////////////
 
