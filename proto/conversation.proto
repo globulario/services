@@ -38,13 +38,11 @@ message Conversation {
 	int64 creation_time = 5;
 	
 	/** Keep track of when a conversation was suspend or activated **/
-	int64 state_time = 6;
+	int64 last_message_time = 6;
 	
-	/** The conversation state */
-	ConversationState state = 7;
 	
 	/** The language ex. en, es, fr*/
-	string language = 8;
+	string language = 7;
 }
 
 /** List of conversation */
@@ -94,7 +92,11 @@ message DeleteConversationResponse{
 }
 
 message FindConversationRequest{
-	repeated string keywords = 1;
+	string query = 1;
+	string language = 2;
+	int32 offset=3;
+	int32 pageSize=4;
+	int32 snippetSize = 5;
 }
 
 message FindConversationResponse{

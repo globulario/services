@@ -371,6 +371,22 @@ func (self *server) getConversationConnection(id string) (*storage_store.LevelDB
 	return connection.(*storage_store.LevelDB_store), nil
 }
 
+func (self *server) closeConversationConnection(id string) {
+
+	dbPath := self.Root + "/conversations/" + id
+	if !Utility.Exists(dbPath) {
+		log.Println(dbPath)
+	}
+
+	connection, ok := self.conversations.Load(dbPath)
+	if !ok {
+		return
+	}
+
+	// Close the connection.
+	connection.(*storage_store.LevelDB_store).Close()
+}
+
 /////////////////////////// Public interfaces //////////////////////////////////
 
 // Create a new conversation with a given name. The creator will became the
@@ -379,6 +395,7 @@ func (self *server) getConversationConnection(id string) (*storage_store.LevelDB
 func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb.CreateConversationRequest) (*conversationpb.CreateConversationResponse, error) {
 	var clientId string
 	var err error
+
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
@@ -397,24 +414,17 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 
 	uuid := Utility.RandomUUID()
 
-	conn, err := self.getConversationConnection(uuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	if len(rqst.Language) == 0 {
 		rqst.Language = "en"
 	}
 
 	conversation := &conversationpb.Conversation{
-		Uuid:         uuid,
-		Name:         rqst.Name,
-		Keywords:     rqst.Keywords,
-		CreationTime: time.Now().Unix(),
-		State:        conversationpb.ConversationState_ACTIVE,
-		Language:     rqst.Language,
+		Uuid:            uuid,
+		Name:            rqst.Name,
+		Keywords:        rqst.Keywords,
+		CreationTime:    time.Now().Unix(),
+		LastMessageTime: 0,
+		Language:        rqst.Language,
 	}
 
 	var marshaler jsonpb.Marshaler
@@ -425,7 +435,7 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = conn.SetItem(uuid, []byte(jsonStr))
+	err = self.store.SetItem(uuid, []byte(jsonStr))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -433,7 +443,7 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 	}
 
 	// Now I will set the search information for conversations...
-	err = self.search_engine.IndexJsonObject(self.Root+"/conversations/search_data", jsonStr, rqst.Language, "uuid", []string{"name", "keywords"}, "")
+	err = self.search_engine.IndexJsonObject(self.Root+"/conversations/search_data", jsonStr, rqst.Language, "uuid", []string{"name", "keywords"}, jsonStr)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -519,6 +529,135 @@ func (self *server) GetCreatedConversations(ctx context.Context, rqst *conversat
 	}, nil
 }
 
+// Delete the conversation
+func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
+	var clientId string
+	var err error
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				log.Println("token validation fail with error: ", err)
+				return nil, err
+			}
+
+		} else {
+			errors.New("No token was given!")
+		}
+	}
+
+	//TODO First of all I will quick out connected pepole...
+
+	// Close leveldb connection
+	self.closeConversationConnection(rqst.ConversationUuid)
+
+	// I will remove the conversation datastore...
+	if Utility.Exists(self.Root + "/conversations/" + rqst.ConversationUuid) {
+		err = os.RemoveAll(self.Root + "/conversations/" + rqst.ConversationUuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will remove the conversation from the db.
+	err = self.rbac_client_.DeleteResourcePermissions(rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will remove indexation.
+
+	// Index owned conversation to be retreivable by it creator.
+	jsonStr, err := self.store.GetItem(clientId + "_owned")
+	owned_conversations := new(conversationpb.Conversations)
+	if err == nil {
+		err = jsonpb.UnmarshalString(string(jsonStr), owned_conversations)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	conversations := make([]*conversationpb.Conversation, 0)
+	for i := 0; i < len(owned_conversations.Conversations); i++ {
+		c := owned_conversations.Conversations[i]
+		if c.Uuid != rqst.ConversationUuid {
+			conversations = append(conversations, c)
+		}
+	}
+
+	owned_conversations.Conversations = conversations
+	var marshaler jsonpb.Marshaler
+	jsonStr_, err := marshaler.MarshalToString(owned_conversations)
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// save it back...
+	err = self.store.SetItem(clientId+"_owned", []byte(jsonStr_))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Remove the connection from the search engine.
+	err = self.search_engine.DeleteDocument(self.Root+"/conversations/search_data", rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Remove it from the store.
+	err = self.store.RemoveItem(rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.DeleteConversationResponse{}, nil
+}
+
+// Retreive a conversation by keywords or name...
+func (self *server) FindConversation(ctx context.Context, rqst *conversationpb.FindConversationRequest) (*conversationpb.FindConversationResponse, error) {
+	paths := []string{self.Root + "/conversations/search_data"}
+
+	results, err := self.search_engine.SearchDocuments(paths, rqst.Language, []string{"name", "keywords"}, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetSize)
+	if err != nil {
+		return nil, err
+	}
+
+	conversations := make([]*conversationpb.Conversation, 0)
+	for i := 0; i < len(results.Results); i++ {
+
+		conversation := new(conversationpb.Conversation)
+		err := jsonpb.UnmarshalString(results.Results[i].Data, conversation)
+		if err == nil {
+			conversations = append(conversations, conversation)
+		} else {
+			log.Println(err)
+		}
+
+	}
+
+	return &conversationpb.FindConversationResponse{
+		Conversations: conversations,
+	}, nil
+}
+
 // Join a conversation.
 func (self *server) JoinConversation(ctx *conversationpb.JoinConversationRequest, stream conversationpb.ConversationService_JoinConversationServer) error {
 	return nil
@@ -536,16 +675,6 @@ func (self *server) SuspendConversation(ctx context.Context, rqst *conversationp
 
 // Resume the conversation
 func (self *server) ResumeConversation(ctx context.Context, rqst *conversationpb.ResumeConversationRequest) (*conversationpb.ResumeConversationResponse, error) {
-	return nil, nil
-}
-
-// Delete the conversation
-func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
-	return nil, nil
-}
-
-// Retreive a conversation by keywords or name...
-func (self *server) FindConversation(ctx context.Context, rqst *conversationpb.FindConversationRequest) (*conversationpb.FindConversationResponse, error) {
 	return nil, nil
 }
 

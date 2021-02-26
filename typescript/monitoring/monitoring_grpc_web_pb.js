@@ -138,7 +138,7 @@ proto.monitoring.MonitoringServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.StopResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -218,7 +218,7 @@ proto.monitoring.MonitoringServiceClient.prototype.createConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.CreateConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.createConnection =
     function(request, metadata) {
@@ -298,7 +298,7 @@ proto.monitoring.MonitoringServiceClient.prototype.deleteConnection =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.DeleteConnectionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.deleteConnection =
     function(request, metadata) {
@@ -378,7 +378,7 @@ proto.monitoring.MonitoringServiceClient.prototype.alerts =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.AlertsResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.alerts =
     function(request, metadata) {
@@ -458,7 +458,7 @@ proto.monitoring.MonitoringServiceClient.prototype.alertManagers =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.AlertManagersResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.alertManagers =
     function(request, metadata) {
@@ -538,7 +538,7 @@ proto.monitoring.MonitoringServiceClient.prototype.cleanTombstones =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.CleanTombstonesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.cleanTombstones =
     function(request, metadata) {
@@ -618,7 +618,7 @@ proto.monitoring.MonitoringServiceClient.prototype.config =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.ConfigResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.config =
     function(request, metadata) {
@@ -698,7 +698,7 @@ proto.monitoring.MonitoringServiceClient.prototype.deleteSeries =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.DeleteSeriesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.deleteSeries =
     function(request, metadata) {
@@ -778,7 +778,7 @@ proto.monitoring.MonitoringServiceClient.prototype.flags =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.FlagsResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.flags =
     function(request, metadata) {
@@ -858,7 +858,7 @@ proto.monitoring.MonitoringServiceClient.prototype.labelNames =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.LabelNamesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.labelNames =
     function(request, metadata) {
@@ -938,7 +938,7 @@ proto.monitoring.MonitoringServiceClient.prototype.labelValues =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.LabelValuesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.labelValues =
     function(request, metadata) {
@@ -1018,7 +1018,7 @@ proto.monitoring.MonitoringServiceClient.prototype.query =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.QueryResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.query =
     function(request, metadata) {
@@ -1173,7 +1173,7 @@ proto.monitoring.MonitoringServiceClient.prototype.series =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.SeriesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.series =
     function(request, metadata) {
@@ -1253,7 +1253,7 @@ proto.monitoring.MonitoringServiceClient.prototype.snapshot =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.SnapshotResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.snapshot =
     function(request, metadata) {
@@ -1333,7 +1333,7 @@ proto.monitoring.MonitoringServiceClient.prototype.rules =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.RulesResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.rules =
     function(request, metadata) {
@@ -1413,7 +1413,7 @@ proto.monitoring.MonitoringServiceClient.prototype.targets =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.TargetsResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.targets =
     function(request, metadata) {
@@ -1493,7 +1493,7 @@ proto.monitoring.MonitoringServiceClient.prototype.targetsMetadata =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.TargetsMetadataResponse>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.monitoring.MonitoringServicePromiseClient.prototype.targetsMetadata =
     function(request, metadata) {

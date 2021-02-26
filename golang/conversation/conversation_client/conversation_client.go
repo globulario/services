@@ -217,3 +217,57 @@ func (self *Conversation_Client) getOwnedConversations(token string, creator str
 
 	return rsp.GetConversations(), nil
 }
+
+// Delete a conversation
+func (self *Conversation_Client) deleteConversation(token string, conversationUuid string) error {
+	rqst := new(conversationpb.DeleteConversationRequest)
+	rqst.ConversationUuid = conversationUuid
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.DeleteConversation(ctx, rqst)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+/**
+ * Find a conversations.
+ */
+func (self *Conversation_Client) findConversations(token string, query string, language string, offset int32, pageSize int32, snippetSize int32) ([]*conversationpb.Conversation, error) {
+	rqst := new(conversationpb.FindConversationRequest)
+	rqst.Query = query
+	rqst.Language = language
+	rqst.Offset = offset
+	rqst.PageSize = pageSize
+	rqst.SnippetSize = snippetSize
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	results, err := self.c.FindConversation(ctx, rqst)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return results.Conversations, nil
+}

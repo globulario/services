@@ -82,9 +82,12 @@ func (self *XapianEngine) addSubDBs(db xapian.Database, path string) []xapian.Da
 
 // Search documents...
 func (self *XapianEngine) searchDocuments(paths []string, language string, fields []string, queryStr string, offset int32, pageSize int32, snippetLength int32) ([]*searchpb.SearchResult, error) {
-
+	log.Println("Search document ", paths, language, fields, queryStr)
 	if len(paths) == 0 {
 		return nil, errors.New("No database was path given!")
+	}
+	if !Utility.Exists(paths[0]) {
+		return nil, errors.New("No database found at path " + paths[0])
 	}
 
 	db := xapian.NewDatabase(paths[0])
@@ -156,7 +159,11 @@ func (self *XapianEngine) searchDocuments(paths []string, language string, field
 			if err != nil {
 				return nil, err
 			}
-			if infos["type"].(string) == "file" {
+			type_ := "object"
+			if infos["__type__"] != nil {
+				type_ = infos["__type__"].(string)
+			}
+			if type_ == "file" {
 				snippet, err := self.snippets(mset, infos["path"].(string), infos["mime"].(string), int64(snippetLength))
 				if err != nil {
 					return nil, err
@@ -194,7 +201,7 @@ func (self *XapianEngine) DeleteDocument(path string, id string) error {
 	// Begin the transaction.
 	db.Begin_transaction(true)
 
-	id_ := "Q" + strings.ToUpper(id[0:1]) + strings.ToLower(id[1:])
+	id_ := "Q" + id // strings.ToUpper(id[0:1]) + strings.ToLower(id[1:])
 
 	// Delete a document from the database.
 	db.Delete_document(id_)
@@ -288,11 +295,11 @@ func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[st
 		json.Unmarshal([]byte(data), &infos)
 	} else {
 		infos = make(map[string]interface{}, 0)
-	}
-
-	if len(id) > 0 {
-		infos["id"] = id
-		infos["type"] = "object"
+		// keep meta data inside the object...
+		if len(id) > 0 {
+			infos["__id__"] = id
+			infos["__type__"] = "object"
+		}
 	}
 
 	jsonStr, _ := Utility.ToJson(infos)
@@ -437,7 +444,7 @@ func (self *XapianEngine) indexDir(dbPath string, dirPath string, language strin
 	infos := make(map[string]interface{}, 0)
 
 	infos["path"] = dirPath
-	infos["type"] = "file"
+	infos["__type__"] = "file"
 
 	infos["mime"] = mime
 
@@ -559,7 +566,7 @@ func (self *XapianEngine) indexFile(db xapian.WritableDatabase, path string, lan
 
 	infos := make(map[string]interface{}, 0)
 	infos["path"] = path
-	infos["type"] = "file"
+	infos["__type__"] = "file"
 	infos["mime"] = mime
 
 	jsonStr, _ := Utility.ToJson(infos)

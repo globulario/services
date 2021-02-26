@@ -19,6 +19,7 @@ import { LoadBalancingServicePromiseClient } from './lb/lb_grpc_web_pb';
 import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from './packages/packages_grpc_web_pb';
 import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
+import { ConversationServicePromiseClient } from './conversation/conversation_grpc_web_pb';
 
 /**
  * The service configuration information.
@@ -470,10 +471,32 @@ export class Globular {
     return this._logService;
   }
 
+  private _conversationService: ConversationServicePromiseClient
+  public get conversationService(): ConversationServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._conversationService == null) {
+      let config = this.getFirstConfigByName('conversation.ConversationService')
+      if (config != undefined) {
+        this._conversationService = new ConversationServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._conversationService
+        return this._conversationService;
+      }
+    }
+    return this._conversationService;
+  }
+
   private _rbacService: RbacServicePromiseClient
   public get rbacService(): RbacServicePromiseClient | undefined {
     // refresh the config.
-    if (this._loadBalancingService == null) {
+    if (this._rbacService == null) {
       let config = this.getFirstConfigByName('rbac.RbacService')
       if (config != undefined) {
         this._rbacService = new RbacServicePromiseClient(

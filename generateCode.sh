@@ -47,8 +47,8 @@ mkdir typescript/echo
 protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ echo.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ echo.proto
 mkdir typescript/conversation
-protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ conversation.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ conversation.proto
+protoc --js_out=import_style=commonjs:typescript/conversation  -I ./proto/ conversation.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/conversation -I ./proto/ conversation.proto
 mkdir typescript/search
 protoc --js_out=import_style=commonjs:typescript/search  -I ./proto/ search.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/search -I ./proto/ search.proto

@@ -60,3 +60,36 @@ func TestGetCreatedConversation(t *testing.T) {
 
 	log.Println("conversation retreived!", conversations)
 }
+
+/*
+func TestDeleteConversation(t *testing.T) {
+	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
+	token, err := resource_client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	err = client.deleteConversation(token, "d80f1176-6719-4f72-aaf6-027bec1be23c")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+}
+*/
+func TestFindConversation(t *testing.T) {
+	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
+	token, err := resource_client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	results, err := client.findConversations(token, "nothing", "en", 0, 100, 500)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	log.Println(results)
+}

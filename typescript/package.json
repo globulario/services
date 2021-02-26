@@ -1,12 +1,12 @@
 {
   "name": "globular-web-client",
-  "version": "1.1.93",
+  "version": "1.1.102",
   "description": "Globular client side",
   "main": "./services.js",
   "types": "./services.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build_": "tsc  &&  cp package.json dist/ &&  cp -r lb dist/ &&  cp -r ca dist/ && cp -r rbac dist/ && cp -r log dist/ && cp -r resource dist/ && cp -r reflection dist/  && cp -r packages dist/  && cp -r admin dist/ && cp -r spc dist/ && cp -r search dist/ && cp  -r catalog dist/ && cp -r echo dist/ && cp -r event dist/ && cp -r file dist/ && cp -r ldap dist/ && cp -r monitoring dist/ && cp -r persistence dist/ && cp -r mail dist/ && cp -r mail dist/ && cp -r sql dist/ && cp -r storage dist/",
+    "build_": "tsc  &&  cp package.json dist/ &&  cp -r lb dist/ &&  cp -r ca dist/ && cp -r conversation dist/ && cp -r rbac dist/ && cp -r log dist/ && cp -r resource dist/  && cp -r packages dist/  && cp -r admin dist/ && cp -r spc dist/ && cp -r search dist/ && cp  -r catalog dist/ && cp -r echo dist/ && cp -r event dist/ && cp -r file dist/ && cp -r ldap dist/ && cp -r monitoring dist/ && cp -r persistence dist/ && cp -r mail dist/ && cp -r mail dist/ && cp -r sql dist/ && cp -r storage dist/",
     "build": "",
     "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
     "lint": "tslint -p tsconfig.json",
@@ -30,4 +30,3 @@
     "jwt-decode": "^2.2.0"
   }
 }
-

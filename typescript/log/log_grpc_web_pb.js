@@ -138,7 +138,7 @@ proto.log.LogServiceClient.prototype.log =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.log.LogRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.log.LogServicePromiseClient.prototype.log =
     function(request, metadata) {
@@ -293,7 +293,7 @@ proto.log.LogServiceClient.prototype.deleteLog =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.log.DeleteLogRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.log.LogServicePromiseClient.prototype.deleteLog =
     function(request, metadata) {
@@ -373,7 +373,7 @@ proto.log.LogServiceClient.prototype.clearAllLog =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.log.ClearAllLogRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.log.LogServicePromiseClient.prototype.clearAllLog =
     function(request, metadata) {
