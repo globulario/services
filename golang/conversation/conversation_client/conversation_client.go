@@ -4,8 +4,12 @@ import (
 	"strconv"
 
 	"context"
+	"fmt"
+	"io"
+	"time"
 
 	//"github.com/davecourtois/Utility"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/conversation/conversationpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"google.golang.org/grpc"
@@ -43,6 +47,12 @@ type Conversation_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The event channel.
+	actions chan map[string]interface{}
+
+	// A unique uuid use for authenticate with the server.
+	uuid string
 }
 
 // Create a connection to the service.
@@ -58,7 +68,80 @@ func NewConversationService_Client(address string, id string) (*Conversation_Cli
 	}
 	client.c = conversationpb.NewConversationServiceClient(client.cc)
 
+	// The channel where data will be exchange.
+	client.actions = make(chan map[string]interface{})
+
+	// Create a random uuid.
+	client.uuid = Utility.RandomUUID()
+
+	// Open a connection with the server. In case the server is not ready
+	// It will wait 5 second and try it again.
+	nb_try_connect := 15
+
+	go func() {
+		for nb_try_connect > 0 {
+			err := client.run()
+			if err != nil && nb_try_connect == 0 {
+				fmt.Println("78 Fail to create event client: ", id, err)
+				break // exit loop.
+			}
+			time.Sleep(5 * time.Second) // wait five seconds.
+			nb_try_connect--
+		}
+	}()
+
 	return client, nil
+}
+
+/**
+ * Process event from the server. Only one stream is needed between the server
+ * and the client. Local handler are kept in a map with a unique uuid, so many
+ * handler can exist for a single event.
+ */
+func (self *Conversation_Client) run() error {
+
+	// Create the channel.
+	data_channel := make(chan *conversationpb.Message, 0)
+
+	// start listenting to events from the server...
+	err := self.connect(self.uuid, data_channel)
+	if err != nil {
+		return err
+	}
+
+	// the map that will contain the event handler.
+	handlers := make(map[string]map[string]func(*conversationpb.Message))
+
+	for {
+		select {
+		case msg := <-data_channel:
+			// So here I received a message, I will dispatch it to it conversation.
+			handlers_ := handlers[msg.Conversation]
+			if handlers_ != nil {
+				for _, fct := range handlers_ {
+					// Call the handler.
+					fct(msg)
+				}
+			}
+		case action := <-self.actions:
+			if action["action"].(string) == "join" {
+				if handlers[action["name"].(string)] == nil {
+					handlers[action["name"].(string)] = make(map[string]func(*conversationpb.Message))
+				}
+				// Set it handler.
+				handlers[action["name"].(string)][action["uuid"].(string)] = action["fct"].(func(*conversationpb.Message))
+			} else if action["action"].(string) == "leave" {
+				// Now I will remove the handler...
+				for _, handler := range handlers {
+					if handler[action["uuid"].(string)] != nil {
+						delete(handler, action["uuid"].(string))
+					}
+				}
+			} else if action["action"].(string) == "stop" {
+				return nil
+			}
+		}
+	}
 }
 
 func (self *Conversation_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -166,7 +249,7 @@ func (self *Conversation_Client) StopService() {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new conversation with a given name and a list of keywords for retreive it latter.
-func (self *Conversation_Client) createConversation(token string, name string, keywords []string) (*conversationpb.Conversation, error) {
+func (self *Conversation_Client) CreateConversation(token string, name string, keywords []string) (*conversationpb.Conversation, error) {
 
 	rqst := &conversationpb.CreateConversationRequest{
 		Name:     name,
@@ -194,7 +277,7 @@ func (self *Conversation_Client) createConversation(token string, name string, k
 }
 
 // Return the list of owned conversations.
-func (self *Conversation_Client) getOwnedConversations(token string, creator string) (*conversationpb.Conversations, error) {
+func (self *Conversation_Client) GetOwnedConversations(token string, creator string) (*conversationpb.Conversations, error) {
 	rqst := &conversationpb.GetCreatedConversationsRequest{
 		Creator: creator,
 	}
@@ -219,7 +302,7 @@ func (self *Conversation_Client) getOwnedConversations(token string, creator str
 }
 
 // Delete a conversation
-func (self *Conversation_Client) deleteConversation(token string, conversationUuid string) error {
+func (self *Conversation_Client) DeleteConversation(token string, conversationUuid string) error {
 	rqst := new(conversationpb.DeleteConversationRequest)
 	rqst.ConversationUuid = conversationUuid
 
@@ -245,7 +328,7 @@ func (self *Conversation_Client) deleteConversation(token string, conversationUu
 /**
  * Find a conversations.
  */
-func (self *Conversation_Client) findConversations(token string, query string, language string, offset int32, pageSize int32, snippetSize int32) ([]*conversationpb.Conversation, error) {
+func (self *Conversation_Client) FindConversations(token string, query string, language string, offset int32, pageSize int32, snippetSize int32) ([]*conversationpb.Conversation, error) {
 	rqst := new(conversationpb.FindConversationRequest)
 	rqst.Query = query
 	rqst.Language = language
@@ -270,4 +353,110 @@ func (self *Conversation_Client) findConversations(token string, query string, l
 	}
 
 	return results.Conversations, nil
+}
+
+/**
+ * Open a new connection with the conversation server.
+ */
+func (self *Conversation_Client) connect(uuid string, data_channel chan *conversationpb.Message) error {
+
+	rqst := &conversationpb.ConnectRequest{
+		Uuid: uuid,
+	}
+
+	stream, err := self.c.Connect(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return err
+	}
+
+	// Run in it own goroutine.
+	go func() {
+		for {
+			msg, err := stream.Recv()
+			if err == io.EOF {
+				// end of stream...
+				break
+			}
+			if err != nil {
+				break
+			}
+
+			// Get the result...
+			data_channel <- msg.Message
+		}
+	}()
+
+	// Wait for subscriber uuid and return it to the function caller.
+	return nil
+}
+
+func (self *Conversation_Client) JoinConversation(conversation_uuid string, listener_uuid string, fct func(msg *conversationpb.Message)) (*conversationpb.Conversations, error) {
+	/** Connect to a given conversation */
+	rqst := &conversationpb.JoinConversationRequest{
+		ConversationUuid: conversation_uuid,
+		ConnectionUuid:   self.uuid,
+	}
+
+	stream, err := self.c.JoinConversation(globular.GetClientContext(self), rqst)
+	if err != nil {
+		fmt.Println("fail to join conversation ", conversation_uuid, err)
+		return nil, err
+	}
+
+	var conversations *conversationpb.Conversations
+	if stream != nil {
+		// TODO get stream and init the conversations object here...
+		fmt.Println("Get existing messages...")
+	}
+
+	action := make(map[string]interface{})
+	action["action"] = "join"
+	action["uuid"] = listener_uuid
+	action["name"] = conversation_uuid
+	action["fct"] = fct
+
+	// set the action.
+	self.actions <- action
+
+	// Return the list of message already in the database...
+
+	return conversations, nil
+}
+
+// Exit event channel.
+func (self *Conversation_Client) Leave(conversation_uuid string, listener_uuid string) error {
+
+	// Unsubscribe from the event channel.
+	rqst := &conversationpb.LeaveConversationRequest{
+		ConversationUuid: conversation_uuid,
+		ConnectionUuid:   self.uuid,
+	}
+
+	_, err := self.c.LeaveConversation(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return err
+	}
+
+	action := make(map[string]interface{})
+	action["action"] = "leave"
+	action["uuid"] = listener_uuid
+	action["name"] = conversation_uuid
+
+	// set the action.
+	self.actions <- action
+	return nil
+}
+
+// Publish and event over the network
+func (self *Conversation_Client) SendMessage(conversation_uuid string, msg *conversationpb.Message) error {
+	rqst := &conversationpb.SendMessageRequest{
+		Msg: msg,
+	}
+
+	_, err := self.c.SendMessage(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

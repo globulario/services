@@ -12,14 +12,28 @@ enum ConversationState{
 	SUSPENDED = 1;
 }
 
+
 message Message {
+	/** The message uuid **/
 	string uuid = 1;
-	
+
 	/** The conversation uuid **/
 	string conversation = 2;
 	
-	/** Response to that message **/
-	repeated  string answers = 3;
+	/** The time will also be use as message id **/
+	int64 creation_time = 3;
+	
+	/** The author of the message **/
+	string author = 4;
+	
+	/** The message body **/
+	string text = 5;
+	
+	/** The uuid of the message that message respond to **/
+	string in_reply_to = 6;
+	
+	/** The message language **/
+	string language = 7;
 }
 
 message Conversation {
@@ -50,6 +64,25 @@ message Conversations {
 	repeated Conversation conversations=1;
 }
 
+/** Connect */
+message ConnectRequest{
+	string uuid = 1; // a connection uuid.
+}
+
+/** The message stream */
+message ConnectResponse{
+	Message message = 1;
+}
+
+message DisconnectRequest{
+	string uuid = 1;
+}
+
+message DisconnectResponse{
+	bool result = 1;
+}
+
+
 /** Create a new conversation **/
 message CreateConversationRequest {
 	
@@ -67,21 +100,6 @@ message CreateConversationResponse{
 	Conversation conversation = 1;
 }
 
-message SuspendConversationRequest{
-	string conversation_uuid = 1;
-}
-
-message SuspendConversationResponse{
-	
-}
-
-message ResumeConversationRequest{
-	string conversation_uuid = 1;
-}
-
-message ResumeConversationResponse{
-	
-}
 
 message DeleteConversationRequest{
 	string conversation_uuid = 1;
@@ -105,14 +123,14 @@ message FindConversationResponse{
 
 message JoinConversationRequest{
 	/** The conversation uuid */
-	string conversation = 1;
+	string conversation_uuid = 1;
 	
 	/** The paticipant token */
-	string token = 2;
+	string connection_uuid = 2;
 }
 
 message JoinConversationResponse{
-	repeated Message messages = 1;
+	Message msg = 1;
 }
 
 message GetCreatedConversationsRequest{
@@ -125,10 +143,10 @@ message GetCreatedConversationsResponse{
 
 message LeaveConversationRequest{
 	/** The conversation uuid */
-	string conversation = 1;
+	string conversation_uuid = 1;
 	
 	/** The paticipant token */
-	string token = 2;
+	string connection_uuid = 2;
 }
 
 message LeaveConversationResponse{
@@ -137,28 +155,10 @@ message LeaveConversationResponse{
 
 message SendMessageRequest {
 	/** The conversation uuid */
-	string conversation = 1;
-	
-	/** The paticipant token */
-	string token = 2;
-	
-	/** The message text **/
-	string text = 3;
+	Message msg = 1;
 }
 
 message SendMessageResponse {
-
-}
-
-message RevokeMessageRequest{
-	/** The conversation uuid */
-	string conversation = 1;
-	
-	/** The paticipant token */
-	string token = 2;
-}
-
-message RevokeMessageResponse{
 
 }
 
@@ -185,16 +185,17 @@ service ConversationService {
 
   //////////////////////////////// Conversation ////////////////////////////////
 
+  // Connect will open a channel between the conversation sever and it client
+  // and that channel will be use to send all conversation message.
+  rpc Connect(ConnectRequest) returns (stream ConnectResponse);
+
+  // Close connection with the conversation server.
+  rpc Disconnect(DisconnectRequest) returns(DisconnectResponse);
+
   // Create a new conversation with a given name. The creator will became the 
   // owner of that conversation and he will be able to set permissions to
   // determine who can participate to the conversation.
   rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse);
-
-  // Stop new message to be insert...
-  rpc SuspendConversation(SuspendConversationRequest) returns (SuspendConversationResponse);
-
-  // Resume the conversation
-  rpc ResumeConversation(ResumeConversationRequest) returns (ResumeConversationResponse);
 
   // Delete the conversation
   rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
@@ -215,9 +216,6 @@ service ConversationService {
 
   // Send a message
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
-
-  // Revoke a message from the list.
-  rpc RevokeMessage(RevokeMessageRequest) returns (RevokeMessageResponse);
 
   // Retreive a conversation by keywords or name...
   rpc FindMessage(FindMessageRequest) returns (FindMessageResponse);

@@ -500,7 +500,6 @@ func (self *server) Publish(ctx context.Context, rqst *eventpb.PublishRequest) (
 		Result: true,
 	}, nil
 
-	return nil, nil
 }
 
 // That service is use to give access to SQL.

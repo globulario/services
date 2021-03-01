@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	//	"fmt"
+	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"errors"
+	//	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +90,12 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+
+	// Use to sync conversations channel manipulation.
+	actions chan map[string]interface{}
+
+	// stop the processing loop.
+	exit chan bool
 
 	// The search engine..
 	search_engine *search_engine.XapianEngine
@@ -355,9 +362,7 @@ func (self *server) Stop(context.Context, *conversationpb.StopRequest) (*convers
 func (self *server) getConversationConnection(id string) (*storage_store.LevelDB_store, error) {
 
 	dbPath := self.Root + "/conversations/" + id
-	if !Utility.Exists(dbPath) {
-		log.Println(dbPath)
-	}
+	Utility.CreateDirIfNotExist(dbPath)
 
 	connection, ok := self.conversations.Load(dbPath)
 	if !ok {
@@ -366,9 +371,12 @@ func (self *server) getConversationConnection(id string) (*storage_store.LevelDB
 		if err != nil {
 			return nil, err
 		}
+		self.conversations.Store(dbPath, connection)
 	}
 
-	return connection.(*storage_store.LevelDB_store), nil
+	connection_ := connection.(*storage_store.LevelDB_store)
+
+	return connection_, nil
 }
 
 func (self *server) closeConversationConnection(id string) {
@@ -385,6 +393,8 @@ func (self *server) closeConversationConnection(id string) {
 
 	// Close the connection.
 	connection.(*storage_store.LevelDB_store).Close()
+
+	defer self.conversations.Delete(dbPath)
 }
 
 /////////////////////////// Public interfaces //////////////////////////////////
@@ -658,41 +668,242 @@ func (self *server) FindConversation(ctx context.Context, rqst *conversationpb.F
 	}, nil
 }
 
-// Join a conversation.
-func (self *server) JoinConversation(ctx *conversationpb.JoinConversationRequest, stream conversationpb.ConversationService_JoinConversationServer) error {
+func (self *server) Connect(rqst *conversationpb.ConnectRequest, stream conversationpb.ConversationService_ConnectServer) error {
+	onmessage := make(map[string]interface{})
+	onmessage["action"] = "connect"
+	onmessage["stream"] = stream
+	onmessage["uuid"] = rqst.Uuid
+	onmessage["quit"] = make(chan bool)
+
+	self.actions <- onmessage
+
+	// wait util unsbscribe or connection is close.
+	<-onmessage["quit"].(chan bool)
 	return nil
+}
+
+// Close connection with the conversation server.
+func (self *server) Disconnect(ctx context.Context, rqst *conversationpb.DisconnectRequest) (*conversationpb.DisconnectResponse, error) {
+	quit := make(map[string]interface{})
+	quit["action"] = "disconnect"
+	quit["uuid"] = rqst.Uuid
+
+	self.actions <- quit
+
+	return &conversationpb.DisconnectResponse{
+		Result: true,
+	}, nil
+}
+
+// Join a conversation.
+func (self *server) JoinConversation(rqst *conversationpb.JoinConversationRequest, stream conversationpb.ConversationService_JoinConversationServer) error {
+
+	join := make(map[string]interface{})
+	join["action"] = "join"
+	join["name"] = rqst.ConversationUuid // Must be the converastion uuid...
+	join["uuid"] = rqst.ConnectionUuid   // Must be the connection uuid...
+	self.actions <- join
+
+	// so here I will get existing convesation messages and return it in the stream.
+	conn, err := self.getConversationConnection(rqst.ConversationUuid)
+	if err != nil {
+		return err
+	}
+
+	// Retreive all message from the conversation...
+	data, err := conn.GetItem(rqst.ConversationUuid + "/*")
+	if err == nil {
+		if data != nil {
+			results := make([]interface{}, 0)
+			err := json.Unmarshal(data, &results)
+			if err != nil {
+				return err
+			}
+			if len(results) == 0 {
+				return errors.New("EOF")
+			}
+
+			for i := 0; i < len(results); i++ {
+
+				msg := results[i].(map[string]interface{})
+
+				if err == nil {
+					stream.Send(&conversationpb.JoinConversationResponse{
+						Msg: &conversationpb.Message{
+							Uuid:         msg["uuid"].(string),
+							CreationTime: int64(Utility.ToInt(msg["creationTime"])),
+							Conversation: msg["conversation"].(string),
+							Author:       msg["author"].(string),
+							Language:     msg["language"].(string),
+							Text:         msg["text"].(string)},
+					})
+				} else {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return err
 }
 
 // Leave a given conversation.
 func (self *server) LeaveConversation(ctx context.Context, rqst *conversationpb.LeaveConversationRequest) (*conversationpb.LeaveConversationResponse, error) {
-	return nil, nil
-}
 
-// Stop new message to be insert...
-func (self *server) SuspendConversation(ctx context.Context, rqst *conversationpb.SuspendConversationRequest) (*conversationpb.SuspendConversationResponse, error) {
-	return nil, nil
-}
+	leave := make(map[string]interface{})
+	leave["action"] = "leave"
+	leave["name"] = rqst.ConversationUuid
+	leave["uuid"] = rqst.ConnectionUuid
 
-// Resume the conversation
-func (self *server) ResumeConversation(ctx context.Context, rqst *conversationpb.ResumeConversationRequest) (*conversationpb.ResumeConversationResponse, error) {
-	return nil, nil
+	self.actions <- leave
+
+	return &conversationpb.LeaveConversationResponse{}, nil
 }
 
 // Send a message
 func (self *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMessageRequest) (*conversationpb.SendMessageResponse, error) {
-	return nil, nil
-}
 
-// Revoke a message from the list.
-func (self *server) RevokeMessage(ctx context.Context, rqst *conversationpb.RevokeMessageRequest) (*conversationpb.RevokeMessageResponse, error) {
+	// Save the message in the database...
+	conn, err := self.getConversationConnection(rqst.Msg.Conversation)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	// Here I will save the message.
+	var marshaler jsonpb.Marshaler
+	jsonStr_, err := marshaler.MarshalToString(rqst.Msg)
+	if err != nil {
+		return nil, err
+	}
+
+	// The key will be composed of the conversation id and message uuid...
+	err = conn.SetItem(rqst.Msg.Conversation+"/"+Utility.ToString(rqst.Msg.CreationTime), []byte(jsonStr_))
+	if err != nil {
+		return nil, err
+	}
+
+	// Now I will index the message in the search engine...
+	Utility.CreateDirIfNotExist(self.Root + "/conversations/" + rqst.Msg.Conversation + "/search_data")
+	self.search_engine.IndexJsonObject(self.Root+"/conversations/"+rqst.Msg.Conversation+"/search_data", jsonStr_, rqst.Msg.Language, "uuid", []string{"text"}, jsonStr_)
+
+	// Send the message on the network...
+	send_message := make(map[string]interface{})
+	send_message["action"] = "send_message"
+	send_message["name"] = rqst.Msg.Conversation
+	send_message["message"] = rqst.Msg
+
+	// publish the data.
+	self.actions <- send_message
+
+	return &conversationpb.SendMessageResponse{}, nil
 }
 
 // Retreive a conversation by keywords or name...
 func (self *server) FindMessage(ctx context.Context, rqst *conversationpb.FindMessageRequest) (*conversationpb.FindMessageResponse, error) {
 
 	return nil, nil
+}
+
+// That function process channel operation and run in it own go routine.
+func (self *server) run() {
+
+	log.Println("start conversation service")
+	channels := make(map[string][]string)
+	streams := make(map[string]conversationpb.ConversationService_ConnectServer)
+	quits := make(map[string]chan bool)
+
+	// Here will create the action channel.
+	self.actions = make(chan map[string]interface{})
+
+	for {
+		select {
+		case <-self.exit:
+			break
+		case a := <-self.actions:
+
+			action := a["action"].(string)
+			if action == "connect" {
+				streams[a["uuid"].(string)] = a["stream"].(conversationpb.ConversationService_ConnectServer)
+				quits[a["uuid"].(string)] = a["quit"].(chan bool)
+			} else if action == "join" {
+				if channels[a["name"].(string)] == nil {
+					channels[a["name"].(string)] = make([]string, 0)
+				}
+				if !Utility.Contains(channels[a["name"].(string)], a["uuid"].(string)) {
+					channels[a["name"].(string)] = append(channels[a["name"].(string)], a["uuid"].(string))
+				}
+			} else if action == "send_message" {
+				//fmt.Println("---> send_message")
+				if channels[a["name"].(string)] != nil {
+					toDelete := make([]string, 0)
+					for i := 0; i < len(channels[a["name"].(string)]); i++ {
+						uuid := channels[a["name"].(string)][i]
+						stream := streams[uuid]
+						msg := a["message"].(*conversationpb.Message)
+						//fmt.Println("---sent message ", msg)
+						if stream != nil {
+							// Here I will send data to stream.
+							err := stream.Send(&conversationpb.ConnectResponse{
+								Message: msg,
+							})
+
+							// In case of error I will remove the subscriber
+							// from the list.
+							if err != nil {
+								// append to channle list to be close.
+								toDelete = append(toDelete, uuid)
+							}
+						} else {
+							log.Println("connection stream with ", uuid, "is nil!")
+						}
+					}
+
+					// remove closed channel
+					for i := 0; i < len(toDelete); i++ {
+						uuid := toDelete[i]
+						// remove uuid from all channels.
+						for name, channel := range channels {
+							uuids := make([]string, 0)
+							for i := 0; i < len(channel); i++ {
+								if uuid != channel[i] {
+									uuids = append(uuids, channel[i])
+								}
+							}
+							channels[name] = uuids
+						}
+						// return from OnEvent
+						quits[uuid] <- true
+						// remove the channel from the map.
+						delete(quits, uuid)
+					}
+				}
+			} else if action == "leave" {
+				uuids := make([]string, 0)
+				for i := 0; i < len(channels[a["name"].(string)]); i++ {
+					if a["uuid"].(string) != channels[a["name"].(string)][i] {
+						uuids = append(uuids, channels[a["name"].(string)][i])
+					}
+				}
+				channels[a["name"].(string)] = uuids
+			} else if action == "disconnect" {
+				// remove uuid from all channels.
+				for name, channel := range channels {
+					uuids := make([]string, 0)
+					for i := 0; i < len(channel); i++ {
+						if a["uuid"].(string) != channel[i] {
+							uuids = append(uuids, channel[i])
+						}
+					}
+					channels[name] = uuids
+				}
+				// return from connect
+				quits[a["uuid"].(string)] <- true
+				// remove the channel from the map.
+				delete(quits, a["uuid"].(string))
+			}
+		}
+	}
 }
 
 // That service is use to give access to SQL.
@@ -755,6 +966,9 @@ func main() {
 
 	// Init the Role Based Access Control client.
 	s_impl.rbac_client_, _ = rbac_client.NewRbacService_Client(s_impl.Domain, "rbac.RbacService")
+
+	// Here I will make a signal hook to interrupt to exit cleanly.
+	go s_impl.run()
 
 	// Start the service.
 	s_impl.StartService()

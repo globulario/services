@@ -153,6 +153,161 @@ proto.conversation.ConversationServicePromiseClient.prototype.stop =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.ConnectRequest,
+ *   !proto.conversation.ConnectResponse>}
+ */
+const methodDescriptor_ConversationService_Connect = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/Connect',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.conversation.ConnectRequest,
+  proto.conversation.ConnectResponse,
+  /**
+   * @param {!proto.conversation.ConnectRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.ConnectResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.ConnectRequest,
+ *   !proto.conversation.ConnectResponse>}
+ */
+const methodInfo_ConversationService_Connect = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.ConnectResponse,
+  /**
+   * @param {!proto.conversation.ConnectRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.ConnectResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.ConnectRequest} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.ConnectResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.connect =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/conversation.ConversationService/Connect',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_Connect);
+};
+
+
+/**
+ * @param {!proto.conversation.ConnectRequest} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.ConnectResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.connect =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/conversation.ConversationService/Connect',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_Connect);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.DisconnectRequest,
+ *   !proto.conversation.DisconnectResponse>}
+ */
+const methodDescriptor_ConversationService_Disconnect = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/Disconnect',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.DisconnectRequest,
+  proto.conversation.DisconnectResponse,
+  /**
+   * @param {!proto.conversation.DisconnectRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.DisconnectResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.DisconnectRequest,
+ *   !proto.conversation.DisconnectResponse>}
+ */
+const methodInfo_ConversationService_Disconnect = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.DisconnectResponse,
+  /**
+   * @param {!proto.conversation.DisconnectRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.DisconnectResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.DisconnectRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.DisconnectResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.DisconnectResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.disconnect =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/Disconnect',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_Disconnect,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.DisconnectRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.DisconnectResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.disconnect =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/Disconnect',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_Disconnect);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.conversation.CreateConversationRequest,
  *   !proto.conversation.CreateConversationResponse>}
  */
@@ -227,166 +382,6 @@ proto.conversation.ConversationServicePromiseClient.prototype.createConversation
       request,
       metadata || {},
       methodDescriptor_ConversationService_CreateConversation);
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.conversation.SuspendConversationRequest,
- *   !proto.conversation.SuspendConversationResponse>}
- */
-const methodDescriptor_ConversationService_SuspendConversation = new grpc.web.MethodDescriptor(
-  '/conversation.ConversationService/SuspendConversation',
-  grpc.web.MethodType.UNARY,
-  proto.conversation.SuspendConversationRequest,
-  proto.conversation.SuspendConversationResponse,
-  /**
-   * @param {!proto.conversation.SuspendConversationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.conversation.SuspendConversationResponse.deserializeBinary
-);
-
-
-/**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.conversation.SuspendConversationRequest,
- *   !proto.conversation.SuspendConversationResponse>}
- */
-const methodInfo_ConversationService_SuspendConversation = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.conversation.SuspendConversationResponse,
-  /**
-   * @param {!proto.conversation.SuspendConversationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.conversation.SuspendConversationResponse.deserializeBinary
-);
-
-
-/**
- * @param {!proto.conversation.SuspendConversationRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.Error, ?proto.conversation.SuspendConversationResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.conversation.SuspendConversationResponse>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.conversation.ConversationServiceClient.prototype.suspendConversation =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/conversation.ConversationService/SuspendConversation',
-      request,
-      metadata || {},
-      methodDescriptor_ConversationService_SuspendConversation,
-      callback);
-};
-
-
-/**
- * @param {!proto.conversation.SuspendConversationRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.conversation.SuspendConversationResponse>}
- *     Promise that resolves to the response
- */
-proto.conversation.ConversationServicePromiseClient.prototype.suspendConversation =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/conversation.ConversationService/SuspendConversation',
-      request,
-      metadata || {},
-      methodDescriptor_ConversationService_SuspendConversation);
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.conversation.ResumeConversationRequest,
- *   !proto.conversation.ResumeConversationResponse>}
- */
-const methodDescriptor_ConversationService_ResumeConversation = new grpc.web.MethodDescriptor(
-  '/conversation.ConversationService/ResumeConversation',
-  grpc.web.MethodType.UNARY,
-  proto.conversation.ResumeConversationRequest,
-  proto.conversation.ResumeConversationResponse,
-  /**
-   * @param {!proto.conversation.ResumeConversationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.conversation.ResumeConversationResponse.deserializeBinary
-);
-
-
-/**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.conversation.ResumeConversationRequest,
- *   !proto.conversation.ResumeConversationResponse>}
- */
-const methodInfo_ConversationService_ResumeConversation = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.conversation.ResumeConversationResponse,
-  /**
-   * @param {!proto.conversation.ResumeConversationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.conversation.ResumeConversationResponse.deserializeBinary
-);
-
-
-/**
- * @param {!proto.conversation.ResumeConversationRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.Error, ?proto.conversation.ResumeConversationResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.conversation.ResumeConversationResponse>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.conversation.ConversationServiceClient.prototype.resumeConversation =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/conversation.ConversationService/ResumeConversation',
-      request,
-      metadata || {},
-      methodDescriptor_ConversationService_ResumeConversation,
-      callback);
-};
-
-
-/**
- * @param {!proto.conversation.ResumeConversationRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.conversation.ResumeConversationResponse>}
- *     Promise that resolves to the response
- */
-proto.conversation.ConversationServicePromiseClient.prototype.resumeConversation =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/conversation.ConversationService/ResumeConversation',
-      request,
-      metadata || {},
-      methodDescriptor_ConversationService_ResumeConversation);
 };
 
 
@@ -862,86 +857,6 @@ proto.conversation.ConversationServicePromiseClient.prototype.sendMessage =
       request,
       metadata || {},
       methodDescriptor_ConversationService_SendMessage);
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.conversation.RevokeMessageRequest,
- *   !proto.conversation.RevokeMessageResponse>}
- */
-const methodDescriptor_ConversationService_RevokeMessage = new grpc.web.MethodDescriptor(
-  '/conversation.ConversationService/RevokeMessage',
-  grpc.web.MethodType.UNARY,
-  proto.conversation.RevokeMessageRequest,
-  proto.conversation.RevokeMessageResponse,
-  /**
-   * @param {!proto.conversation.RevokeMessageRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.conversation.RevokeMessageResponse.deserializeBinary
-);
-
-
-/**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.conversation.RevokeMessageRequest,
- *   !proto.conversation.RevokeMessageResponse>}
- */
-const methodInfo_ConversationService_RevokeMessage = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.conversation.RevokeMessageResponse,
-  /**
-   * @param {!proto.conversation.RevokeMessageRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.conversation.RevokeMessageResponse.deserializeBinary
-);
-
-
-/**
- * @param {!proto.conversation.RevokeMessageRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.Error, ?proto.conversation.RevokeMessageResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.conversation.RevokeMessageResponse>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.conversation.ConversationServiceClient.prototype.revokeMessage =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/conversation.ConversationService/RevokeMessage',
-      request,
-      metadata || {},
-      methodDescriptor_ConversationService_RevokeMessage,
-      callback);
-};
-
-
-/**
- * @param {!proto.conversation.RevokeMessageRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.conversation.RevokeMessageResponse>}
- *     Promise that resolves to the response
- */
-proto.conversation.ConversationServicePromiseClient.prototype.revokeMessage =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/conversation.ConversationService/RevokeMessage',
-      request,
-      metadata || {},
-      methodDescriptor_ConversationService_RevokeMessage);
 };
 
 

@@ -89,13 +89,13 @@ func (self *LevelDB_store) open(optionsStr string) error {
 		self.path = options["path"].(string) + string(os.PathSeparator) + options["name"].(string)
 
 	}
-
+	fmt.Println("open file db at ", self.path)
 	// Open the store.
 	self.db, err = leveldb.OpenFile(self.path, nil)
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("db is now open!")
 	self.isOpen = true
 	return nil
 }
@@ -181,7 +181,8 @@ func (self *LevelDB_store) Open(path string) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 	action := map[string]interface{}{"name": "Open", "result": make(chan error), "path": path}
 	self.actions <- action
-	return <-action["result"].(chan error)
+	err := <-action["result"].(chan error)
+	return err
 }
 
 // Close the store.
