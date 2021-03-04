@@ -186,7 +186,6 @@ message MicroService {
 	string id = 3; // The id of the dependency
 	string version = 4; // The version of the dependency
 	string platform = 5; // The platform
-	repeated string Actions = 6; // That need to be use by the application...
 }
 
 message DeployApplicationRequest{
@@ -199,8 +198,9 @@ message DeployApplicationRequest{
 	repeated string keywords = 7;
 	string description = 8;
 	repeated MicroService microServices = 9;
-	string repository = 10;
-	string discovery = 11;
+	repeated string actions = 10; // That need to be use by the application...
+	string repository = 11;
+	string discovery = 12;
 }
 
 message DeployApplicationResponse{

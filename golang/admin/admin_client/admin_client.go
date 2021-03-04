@@ -594,6 +594,16 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 		}
 	}
 
+	// Now The application is deploy I will set application actions from the
+	// package.json file.
+	actions := make([]string, 0)
+	if packageConfig["actions"] != nil {
+		for i := 0; i < len(packageConfig["actions"].([]interface{})); i++ {
+
+			actions = append(actions, packageConfig["actions"].([]interface{})[i].(string))
+		}
+	}
+
 	// Set the token into the context and send the request.
 	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "organization": organization, "path": "/applications", "user": user})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
@@ -620,6 +630,7 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 				Version:      version,
 				Description:  description,
 				Keywords:     keywords,
+				Actions:      actions,
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)
