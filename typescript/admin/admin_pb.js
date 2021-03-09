@@ -792,7 +792,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.admin.MicroService = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.admin.MicroService.repeatedFields_, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
 goog.inherits(proto.admin.MicroService, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -6601,13 +6601,6 @@ proto.admin.UninstallApplicationResponse.prototype.setResult = function(value) {
 
 
 
-/**
- * List of repeated fields within this message type.
- * @private {!Array<number>}
- * @const
- */
-proto.admin.MicroService.repeatedFields_ = [6];
-
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -6643,8 +6636,7 @@ proto.admin.MicroService.toObject = function(includeInstance, msg) {
     publisherid: jspb.Message.getFieldWithDefault(msg, 2, ""),
     id: jspb.Message.getFieldWithDefault(msg, 3, ""),
     version: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    platform: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
+    platform: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -6700,10 +6692,6 @@ proto.admin.MicroService.deserializeBinaryFromReader = function(msg, reader) {
     case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.setPlatform(value);
-      break;
-    case 6:
-      var value = /** @type {string} */ (reader.readString());
-      msg.addActions(value);
       break;
     default:
       reader.skipField();
@@ -6766,13 +6754,6 @@ proto.admin.MicroService.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       5,
-      f
-    );
-  }
-  f = message.getActionsList();
-  if (f.length > 0) {
-    writer.writeRepeatedString(
-      6,
       f
     );
   }
@@ -6869,50 +6850,13 @@ proto.admin.MicroService.prototype.setPlatform = function(value) {
 };
 
 
-/**
- * repeated string Actions = 6;
- * @return {!Array<string>}
- */
-proto.admin.MicroService.prototype.getActionsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
-};
-
-
-/**
- * @param {!Array<string>} value
- * @return {!proto.admin.MicroService} returns this
- */
-proto.admin.MicroService.prototype.setActionsList = function(value) {
-  return jspb.Message.setField(this, 6, value || []);
-};
-
-
-/**
- * @param {string} value
- * @param {number=} opt_index
- * @return {!proto.admin.MicroService} returns this
- */
-proto.admin.MicroService.prototype.addActions = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
-};
-
-
-/**
- * Clears the list making it empty but non-null.
- * @return {!proto.admin.MicroService} returns this
- */
-proto.admin.MicroService.prototype.clearActionsList = function() {
-  return this.setActionsList([]);
-};
-
-
 
 /**
  * List of repeated fields within this message type.
  * @private {!Array<number>}
  * @const
  */
-proto.admin.DeployApplicationRequest.repeatedFields_ = [7,9];
+proto.admin.DeployApplicationRequest.repeatedFields_ = [7,9,10];
 
 
 
@@ -6955,8 +6899,9 @@ proto.admin.DeployApplicationRequest.toObject = function(includeInstance, msg) {
     description: jspb.Message.getFieldWithDefault(msg, 8, ""),
     microservicesList: jspb.Message.toObjectList(msg.getMicroservicesList(),
     proto.admin.MicroService.toObject, includeInstance),
-    repository: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    discovery: jspb.Message.getFieldWithDefault(msg, 11, "")
+    actionsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f,
+    repository: jspb.Message.getFieldWithDefault(msg, 11, ""),
+    discovery: jspb.Message.getFieldWithDefault(msg, 12, "")
   };
 
   if (includeInstance) {
@@ -7032,9 +6977,13 @@ proto.admin.DeployApplicationRequest.deserializeBinaryFromReader = function(msg,
       break;
     case 10:
       var value = /** @type {string} */ (reader.readString());
-      msg.setRepository(value);
+      msg.addActions(value);
       break;
     case 11:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRepository(value);
+      break;
+    case 12:
       var value = /** @type {string} */ (reader.readString());
       msg.setDiscovery(value);
       break;
@@ -7131,17 +7080,24 @@ proto.admin.DeployApplicationRequest.serializeBinaryToWriter = function(message,
       proto.admin.MicroService.serializeBinaryToWriter
     );
   }
+  f = message.getActionsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      10,
+      f
+    );
+  }
   f = message.getRepository();
   if (f.length > 0) {
     writer.writeString(
-      10,
+      11,
       f
     );
   }
   f = message.getDiscovery();
   if (f.length > 0) {
     writer.writeString(
-      11,
+      12,
       f
     );
   }
@@ -7374,28 +7330,47 @@ proto.admin.DeployApplicationRequest.prototype.clearMicroservicesList = function
 
 
 /**
- * optional string repository = 10;
- * @return {string}
+ * repeated string actions = 10;
+ * @return {!Array<string>}
  */
-proto.admin.DeployApplicationRequest.prototype.getRepository = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+proto.admin.DeployApplicationRequest.prototype.getActionsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.admin.DeployApplicationRequest} returns this
+ */
+proto.admin.DeployApplicationRequest.prototype.setActionsList = function(value) {
+  return jspb.Message.setField(this, 10, value || []);
 };
 
 
 /**
  * @param {string} value
+ * @param {number=} opt_index
  * @return {!proto.admin.DeployApplicationRequest} returns this
  */
-proto.admin.DeployApplicationRequest.prototype.setRepository = function(value) {
-  return jspb.Message.setProto3StringField(this, 10, value);
+proto.admin.DeployApplicationRequest.prototype.addActions = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
 };
 
 
 /**
- * optional string discovery = 11;
+ * Clears the list making it empty but non-null.
+ * @return {!proto.admin.DeployApplicationRequest} returns this
+ */
+proto.admin.DeployApplicationRequest.prototype.clearActionsList = function() {
+  return this.setActionsList([]);
+};
+
+
+/**
+ * optional string repository = 11;
  * @return {string}
  */
-proto.admin.DeployApplicationRequest.prototype.getDiscovery = function() {
+proto.admin.DeployApplicationRequest.prototype.getRepository = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
 };
 
@@ -7404,8 +7379,26 @@ proto.admin.DeployApplicationRequest.prototype.getDiscovery = function() {
  * @param {string} value
  * @return {!proto.admin.DeployApplicationRequest} returns this
  */
-proto.admin.DeployApplicationRequest.prototype.setDiscovery = function(value) {
+proto.admin.DeployApplicationRequest.prototype.setRepository = function(value) {
   return jspb.Message.setProto3StringField(this, 11, value);
+};
+
+
+/**
+ * optional string discovery = 12;
+ * @return {string}
+ */
+proto.admin.DeployApplicationRequest.prototype.getDiscovery = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.admin.DeployApplicationRequest} returns this
+ */
+proto.admin.DeployApplicationRequest.prototype.setDiscovery = function(value) {
+  return jspb.Message.setProto3StringField(this, 12, value);
 };
 
 

@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
+	//"fmt"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -397,6 +399,7 @@ type fileInfo struct {
 }
 
 func getFileInfo(s *server, path string) (*fileInfo, error) {
+
 	fileStat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -481,17 +484,17 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			}
 
 			info_.Mime, err = Utility.GetFileContentType(f_)
-
-			// in case of image...
-			if strings.HasPrefix(info_.Mime, "image/") {
-				if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-					info_.Thumbnail = createThumbnail(f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+			if err == nil {
+				// in case of image...
+				if strings.HasPrefix(info_.Mime, "image/") {
+					if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
+						info_.Thumbnail = createThumbnail(f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+					}
 				}
+			} else {
+				info_.Mime = "unknow"
 			}
 
-			if err != nil {
-				return nil, err
-			}
 			info.Files = append(info.Files, info_)
 		}
 
@@ -504,17 +507,18 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 // Directory operations
 ////////////////////////////////////////////////////////////////////////////////
 func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
+
 	path := rqst.GetPath()
 
 	// set the correct os path separator.
 	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
 
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
+	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
+			if strings.HasPrefix(path, "/") {
 				path = self.Root + path
 			} else {
-				path = self.Root + string(os.PathSeparator) + path
+				path = self.Root + "/" + path
 			}
 		} else {
 			path = self.Root
@@ -528,6 +532,7 @@ func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServi
 
 	// Here I will serialyse the data into JSON.
 	jsonStr, err := json.Marshal(info)
+
 	if err != nil {
 		return err
 	}

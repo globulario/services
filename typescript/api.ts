@@ -119,7 +119,7 @@ import {
 
 // Here I will get the authentication information.
 const domain = window.location.hostname;
-const application = window.location.pathname.split("/")[1];
+const application = window.location.pathname.split("/").join("");
 
 function mergeTypedArrays(a: any, b: any) {
   // Checks for truthy values on both arrays

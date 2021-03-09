@@ -599,7 +599,7 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	actions := make([]string, 0)
 	if packageConfig["actions"] != nil {
 		for i := 0; i < len(packageConfig["actions"].([]interface{})); i++ {
-
+			log.Println("set action permission: ", packageConfig["actions"].([]interface{})[i].(string))
 			actions = append(actions, packageConfig["actions"].([]interface{})[i].(string))
 		}
 	}

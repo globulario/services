@@ -13,14 +13,13 @@ import (
 )
 
 var (
-	client, _ = NewConversationService_Client("hub.globular.io", "4e0408f4-9d2a-4c25-95ed-e5bdf2444eb3")
-	uuid      = ""
+	client, _           = NewConversationService_Client("globular.cloud", "4e0408f4-9d2a-4c25-95ed-e5bdf2444eb3")
+	resource_client_, _ = resource_client.NewResourceService_Client("globular.cloud", "resource.ResourceService")
+	uuid                = ""
 )
 
 // Test various function here.
 func TestCreateConverstion(t *testing.T) {
-	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
-
 	token, err := resource_client_.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println(err)
@@ -38,7 +37,7 @@ func TestCreateConverstion(t *testing.T) {
 }
 
 func TestGetCreatedConversation(t *testing.T) {
-	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
+
 	token, err := resource_client_.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println(err)
@@ -55,7 +54,7 @@ func TestGetCreatedConversation(t *testing.T) {
 }
 
 func TestFindConversation(t *testing.T) {
-	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
+
 	token, err := resource_client_.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println(err)
@@ -85,7 +84,7 @@ func TestJoinConversation(t *testing.T) {
 }
 
 func TestSendConversationMessage(t *testing.T) {
-	err := client.SendMessage(uuid, &conversationpb.Message{CreationTime: time.Now().Unix(), Text: "First Message of all!", Conversation: uuid, InReplyTo: ""})
+	err := client.SendMessage(uuid, &conversationpb.Message{CreationTime: time.Now().Unix(), Uuid: Utility.RandomUUID(), Text: "First Message of all!", Conversation: uuid, InReplyTo: ""})
 	if err != nil {
 		log.Println(err)
 		return
@@ -94,7 +93,7 @@ func TestSendConversationMessage(t *testing.T) {
 }
 
 func TestDeleteConversation(t *testing.T) {
-	resource_client_, _ := resource_client.NewResourceService_Client("hub.globular.io", "resource.ResourceService")
+
 	token, err := resource_client_.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println(err)

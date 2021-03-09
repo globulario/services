@@ -468,80 +468,80 @@ proto.conversation.ConversationServicePromiseClient.prototype.deleteConversation
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.conversation.FindConversationRequest,
- *   !proto.conversation.FindConversationResponse>}
+ *   !proto.conversation.FindConversationsRequest,
+ *   !proto.conversation.FindConversationsResponse>}
  */
-const methodDescriptor_ConversationService_FindConversation = new grpc.web.MethodDescriptor(
-  '/conversation.ConversationService/FindConversation',
+const methodDescriptor_ConversationService_FindConversations = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/FindConversations',
   grpc.web.MethodType.UNARY,
-  proto.conversation.FindConversationRequest,
-  proto.conversation.FindConversationResponse,
+  proto.conversation.FindConversationsRequest,
+  proto.conversation.FindConversationsResponse,
   /**
-   * @param {!proto.conversation.FindConversationRequest} request
+   * @param {!proto.conversation.FindConversationsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.conversation.FindConversationResponse.deserializeBinary
+  proto.conversation.FindConversationsResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.conversation.FindConversationRequest,
- *   !proto.conversation.FindConversationResponse>}
+ *   !proto.conversation.FindConversationsRequest,
+ *   !proto.conversation.FindConversationsResponse>}
  */
-const methodInfo_ConversationService_FindConversation = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.conversation.FindConversationResponse,
+const methodInfo_ConversationService_FindConversations = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.FindConversationsResponse,
   /**
-   * @param {!proto.conversation.FindConversationRequest} request
+   * @param {!proto.conversation.FindConversationsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.conversation.FindConversationResponse.deserializeBinary
+  proto.conversation.FindConversationsResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.conversation.FindConversationRequest} request The
+ * @param {!proto.conversation.FindConversationsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.conversation.FindConversationResponse)}
+ * @param {function(?grpc.web.Error, ?proto.conversation.FindConversationsResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.conversation.FindConversationResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.FindConversationsResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.conversation.ConversationServiceClient.prototype.findConversation =
+proto.conversation.ConversationServiceClient.prototype.findConversations =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/conversation.ConversationService/FindConversation',
+      '/conversation.ConversationService/FindConversations',
       request,
       metadata || {},
-      methodDescriptor_ConversationService_FindConversation,
+      methodDescriptor_ConversationService_FindConversations,
       callback);
 };
 
 
 /**
- * @param {!proto.conversation.FindConversationRequest} request The
+ * @param {!proto.conversation.FindConversationsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.conversation.FindConversationResponse>}
+ * @return {!Promise<!proto.conversation.FindConversationsResponse>}
  *     Promise that resolves to the response
  */
-proto.conversation.ConversationServicePromiseClient.prototype.findConversation =
+proto.conversation.ConversationServicePromiseClient.prototype.findConversations =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/conversation.ConversationService/FindConversation',
+      '/conversation.ConversationService/FindConversations',
       request,
       metadata || {},
-      methodDescriptor_ConversationService_FindConversation);
+      methodDescriptor_ConversationService_FindConversations);
 };
 
 
@@ -703,80 +703,560 @@ proto.conversation.ConversationServicePromiseClient.prototype.leaveConversation 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.conversation.GetCreatedConversationsRequest,
- *   !proto.conversation.GetCreatedConversationsResponse>}
+ *   !proto.conversation.GetConversationsRequest,
+ *   !proto.conversation.GetConversationsResponse>}
  */
-const methodDescriptor_ConversationService_GetCreatedConversations = new grpc.web.MethodDescriptor(
-  '/conversation.ConversationService/GetCreatedConversations',
+const methodDescriptor_ConversationService_GetConversations = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/GetConversations',
   grpc.web.MethodType.UNARY,
-  proto.conversation.GetCreatedConversationsRequest,
-  proto.conversation.GetCreatedConversationsResponse,
+  proto.conversation.GetConversationsRequest,
+  proto.conversation.GetConversationsResponse,
   /**
-   * @param {!proto.conversation.GetCreatedConversationsRequest} request
+   * @param {!proto.conversation.GetConversationsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.conversation.GetCreatedConversationsResponse.deserializeBinary
+  proto.conversation.GetConversationsResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.conversation.GetCreatedConversationsRequest,
- *   !proto.conversation.GetCreatedConversationsResponse>}
+ *   !proto.conversation.GetConversationsRequest,
+ *   !proto.conversation.GetConversationsResponse>}
  */
-const methodInfo_ConversationService_GetCreatedConversations = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.conversation.GetCreatedConversationsResponse,
+const methodInfo_ConversationService_GetConversations = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.GetConversationsResponse,
   /**
-   * @param {!proto.conversation.GetCreatedConversationsRequest} request
+   * @param {!proto.conversation.GetConversationsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.conversation.GetCreatedConversationsResponse.deserializeBinary
+  proto.conversation.GetConversationsResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.conversation.GetCreatedConversationsRequest} request The
+ * @param {!proto.conversation.GetConversationsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.conversation.GetCreatedConversationsResponse)}
+ * @param {function(?grpc.web.Error, ?proto.conversation.GetConversationsResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.conversation.GetCreatedConversationsResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.GetConversationsResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.conversation.ConversationServiceClient.prototype.getCreatedConversations =
+proto.conversation.ConversationServiceClient.prototype.getConversations =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/conversation.ConversationService/GetCreatedConversations',
+      '/conversation.ConversationService/GetConversations',
       request,
       metadata || {},
-      methodDescriptor_ConversationService_GetCreatedConversations,
+      methodDescriptor_ConversationService_GetConversations,
       callback);
 };
 
 
 /**
- * @param {!proto.conversation.GetCreatedConversationsRequest} request The
+ * @param {!proto.conversation.GetConversationsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.conversation.GetCreatedConversationsResponse>}
+ * @return {!Promise<!proto.conversation.GetConversationsResponse>}
  *     Promise that resolves to the response
  */
-proto.conversation.ConversationServicePromiseClient.prototype.getCreatedConversations =
+proto.conversation.ConversationServicePromiseClient.prototype.getConversations =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/conversation.ConversationService/GetCreatedConversations',
+      '/conversation.ConversationService/GetConversations',
       request,
       metadata || {},
-      methodDescriptor_ConversationService_GetCreatedConversations);
+      methodDescriptor_ConversationService_GetConversations);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.SendInvitationRequest,
+ *   !proto.conversation.SendInvitationResponse>}
+ */
+const methodDescriptor_ConversationService_SendInvitation = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/SendInvitation',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.SendInvitationRequest,
+  proto.conversation.SendInvitationResponse,
+  /**
+   * @param {!proto.conversation.SendInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.SendInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.SendInvitationRequest,
+ *   !proto.conversation.SendInvitationResponse>}
+ */
+const methodInfo_ConversationService_SendInvitation = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.SendInvitationResponse,
+  /**
+   * @param {!proto.conversation.SendInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.SendInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.SendInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.SendInvitationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.SendInvitationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.sendInvitation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/SendInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_SendInvitation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.SendInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.SendInvitationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.sendInvitation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/SendInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_SendInvitation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.AcceptInvitationRequest,
+ *   !proto.conversation.AcceptInvitationResponse>}
+ */
+const methodDescriptor_ConversationService_AcceptInvitation = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/AcceptInvitation',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.AcceptInvitationRequest,
+  proto.conversation.AcceptInvitationResponse,
+  /**
+   * @param {!proto.conversation.AcceptInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.AcceptInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.AcceptInvitationRequest,
+ *   !proto.conversation.AcceptInvitationResponse>}
+ */
+const methodInfo_ConversationService_AcceptInvitation = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.AcceptInvitationResponse,
+  /**
+   * @param {!proto.conversation.AcceptInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.AcceptInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.AcceptInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.AcceptInvitationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.AcceptInvitationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.acceptInvitation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/AcceptInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_AcceptInvitation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.AcceptInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.AcceptInvitationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.acceptInvitation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/AcceptInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_AcceptInvitation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.DeclineInvitationRequest,
+ *   !proto.conversation.DeclineInvitationResponse>}
+ */
+const methodDescriptor_ConversationService_DeclineInvitation = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/DeclineInvitation',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.DeclineInvitationRequest,
+  proto.conversation.DeclineInvitationResponse,
+  /**
+   * @param {!proto.conversation.DeclineInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.DeclineInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.DeclineInvitationRequest,
+ *   !proto.conversation.DeclineInvitationResponse>}
+ */
+const methodInfo_ConversationService_DeclineInvitation = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.DeclineInvitationResponse,
+  /**
+   * @param {!proto.conversation.DeclineInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.DeclineInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.DeclineInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.DeclineInvitationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.DeclineInvitationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.declineInvitation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/DeclineInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_DeclineInvitation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.DeclineInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.DeclineInvitationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.declineInvitation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/DeclineInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_DeclineInvitation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.RevokeInvitationRequest,
+ *   !proto.conversation.RevokeInvitationResponse>}
+ */
+const methodDescriptor_ConversationService_RevokeInvitation = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/RevokeInvitation',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.RevokeInvitationRequest,
+  proto.conversation.RevokeInvitationResponse,
+  /**
+   * @param {!proto.conversation.RevokeInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.RevokeInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.RevokeInvitationRequest,
+ *   !proto.conversation.RevokeInvitationResponse>}
+ */
+const methodInfo_ConversationService_RevokeInvitation = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.RevokeInvitationResponse,
+  /**
+   * @param {!proto.conversation.RevokeInvitationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.RevokeInvitationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.RevokeInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.RevokeInvitationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.RevokeInvitationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.revokeInvitation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/RevokeInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_RevokeInvitation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.RevokeInvitationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.RevokeInvitationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.revokeInvitation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/RevokeInvitation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_RevokeInvitation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.GetReceivedInvitationsRequest,
+ *   !proto.conversation.GetReceivedInvitationsResponse>}
+ */
+const methodDescriptor_ConversationService_GetReceivedInvitations = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/GetReceivedInvitations',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.GetReceivedInvitationsRequest,
+  proto.conversation.GetReceivedInvitationsResponse,
+  /**
+   * @param {!proto.conversation.GetReceivedInvitationsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.GetReceivedInvitationsResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.GetReceivedInvitationsRequest,
+ *   !proto.conversation.GetReceivedInvitationsResponse>}
+ */
+const methodInfo_ConversationService_GetReceivedInvitations = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.GetReceivedInvitationsResponse,
+  /**
+   * @param {!proto.conversation.GetReceivedInvitationsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.GetReceivedInvitationsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.GetReceivedInvitationsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.GetReceivedInvitationsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.GetReceivedInvitationsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.getReceivedInvitations =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/GetReceivedInvitations',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_GetReceivedInvitations,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.GetReceivedInvitationsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.GetReceivedInvitationsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.getReceivedInvitations =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/GetReceivedInvitations',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_GetReceivedInvitations);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.GetSentInvitationsRequest,
+ *   !proto.conversation.GetSentInvitationsResponse>}
+ */
+const methodDescriptor_ConversationService_GetSentInvitations = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/GetSentInvitations',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.GetSentInvitationsRequest,
+  proto.conversation.GetSentInvitationsResponse,
+  /**
+   * @param {!proto.conversation.GetSentInvitationsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.GetSentInvitationsResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.GetSentInvitationsRequest,
+ *   !proto.conversation.GetSentInvitationsResponse>}
+ */
+const methodInfo_ConversationService_GetSentInvitations = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.GetSentInvitationsResponse,
+  /**
+   * @param {!proto.conversation.GetSentInvitationsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.GetSentInvitationsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.GetSentInvitationsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.GetSentInvitationsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.GetSentInvitationsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.getSentInvitations =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/GetSentInvitations',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_GetSentInvitations,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.GetSentInvitationsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.GetSentInvitationsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.getSentInvitations =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/GetSentInvitations',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_GetSentInvitations);
 };
 
 
@@ -863,80 +1343,155 @@ proto.conversation.ConversationServicePromiseClient.prototype.sendMessage =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.conversation.FindMessageRequest,
- *   !proto.conversation.FindMessageResponse>}
+ *   !proto.conversation.DeleteMessageRequest,
+ *   !proto.conversation.DeleteMessageResponse>}
  */
-const methodDescriptor_ConversationService_FindMessage = new grpc.web.MethodDescriptor(
-  '/conversation.ConversationService/FindMessage',
+const methodDescriptor_ConversationService_DeleteMessage = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/DeleteMessage',
   grpc.web.MethodType.UNARY,
-  proto.conversation.FindMessageRequest,
-  proto.conversation.FindMessageResponse,
+  proto.conversation.DeleteMessageRequest,
+  proto.conversation.DeleteMessageResponse,
   /**
-   * @param {!proto.conversation.FindMessageRequest} request
+   * @param {!proto.conversation.DeleteMessageRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.conversation.FindMessageResponse.deserializeBinary
+  proto.conversation.DeleteMessageResponse.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.conversation.FindMessageRequest,
- *   !proto.conversation.FindMessageResponse>}
+ *   !proto.conversation.DeleteMessageRequest,
+ *   !proto.conversation.DeleteMessageResponse>}
  */
-const methodInfo_ConversationService_FindMessage = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.conversation.FindMessageResponse,
+const methodInfo_ConversationService_DeleteMessage = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.DeleteMessageResponse,
   /**
-   * @param {!proto.conversation.FindMessageRequest} request
+   * @param {!proto.conversation.DeleteMessageRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.conversation.FindMessageResponse.deserializeBinary
+  proto.conversation.DeleteMessageResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.conversation.FindMessageRequest} request The
+ * @param {!proto.conversation.DeleteMessageRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.conversation.FindMessageResponse)}
+ * @param {function(?grpc.web.Error, ?proto.conversation.DeleteMessageResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.conversation.FindMessageResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.DeleteMessageResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.conversation.ConversationServiceClient.prototype.findMessage =
+proto.conversation.ConversationServiceClient.prototype.deleteMessage =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/conversation.ConversationService/FindMessage',
+      '/conversation.ConversationService/DeleteMessage',
       request,
       metadata || {},
-      methodDescriptor_ConversationService_FindMessage,
+      methodDescriptor_ConversationService_DeleteMessage,
       callback);
 };
 
 
 /**
- * @param {!proto.conversation.FindMessageRequest} request The
+ * @param {!proto.conversation.DeleteMessageRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.conversation.FindMessageResponse>}
+ * @return {!Promise<!proto.conversation.DeleteMessageResponse>}
  *     Promise that resolves to the response
  */
-proto.conversation.ConversationServicePromiseClient.prototype.findMessage =
+proto.conversation.ConversationServicePromiseClient.prototype.deleteMessage =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/conversation.ConversationService/FindMessage',
+      '/conversation.ConversationService/DeleteMessage',
       request,
       metadata || {},
-      methodDescriptor_ConversationService_FindMessage);
+      methodDescriptor_ConversationService_DeleteMessage);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.FindMessagesRequest,
+ *   !proto.conversation.FindMessagesResponse>}
+ */
+const methodDescriptor_ConversationService_FindMessages = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/FindMessages',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.conversation.FindMessagesRequest,
+  proto.conversation.FindMessagesResponse,
+  /**
+   * @param {!proto.conversation.FindMessagesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.FindMessagesResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.FindMessagesRequest,
+ *   !proto.conversation.FindMessagesResponse>}
+ */
+const methodInfo_ConversationService_FindMessages = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.FindMessagesResponse,
+  /**
+   * @param {!proto.conversation.FindMessagesRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.FindMessagesResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.FindMessagesRequest} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.FindMessagesResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.findMessages =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/conversation.ConversationService/FindMessages',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_FindMessages);
+};
+
+
+/**
+ * @param {!proto.conversation.FindMessagesRequest} request The request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.FindMessagesResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.findMessages =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/conversation.ConversationService/FindMessages',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_FindMessages);
 };
 
 

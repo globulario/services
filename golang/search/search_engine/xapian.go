@@ -3,9 +3,9 @@ package search_engine
 import (
 	"strings"
 
-	"reflect"
-
 	"encoding/json"
+	//"fmt"
+	"reflect"
 
 	"log"
 	"os"
@@ -244,6 +244,9 @@ func (self *XapianEngine) indexJsonObjectField(db xapian.WritableDatabase, termg
  * Index a json object.
  */
 func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[string]interface{}, language string, id string, indexs []string, data string) error {
+	if obj[id] == nil {
+		return errors.New("Objet has no field named " + id + " required to index...")
+	}
 
 	doc := xapian.NewDocument()
 	defer xapian.DeleteDocument(doc)

@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"errors"
-	//	"fmt"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -410,13 +410,12 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-
 			clientId, _, _, err = Interceptors.ValidateToken(token)
 			if err != nil {
-				log.Println("token validation fail with error: ", err)
-				return nil, err
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
 		} else {
 			errors.New("No token was given!")
 		}
@@ -435,25 +434,10 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 		CreationTime:    time.Now().Unix(),
 		LastMessageTime: 0,
 		Language:        rqst.Language,
+		Participants:    []string{clientId},
 	}
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(conversation)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	err = self.store.SetItem(uuid, []byte(jsonStr))
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Now I will set the search information for conversations...
-	err = self.search_engine.IndexJsonObject(self.Root+"/conversations/search_data", jsonStr, rqst.Language, "uuid", []string{"name", "keywords"}, jsonStr)
+	err = self.saveConversation(conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -461,34 +445,7 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 	}
 
 	// So here I will append the value in the index.
-
-	// Index owned conversation to be retreivable by it creator.
-	owned_conversations_, err := self.store.GetItem(clientId + "_owned")
-	owned_conversations := new(conversationpb.Conversations)
-	if err != nil {
-		owned_conversations.Conversations = make([]*conversationpb.Conversation, 0)
-	} else {
-		err = jsonpb.UnmarshalString(string(owned_conversations_), owned_conversations)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-
-	// Now I will append the newly created conversation into conversation owned by
-	// the client id.
-	owned_conversations.Conversations = append(owned_conversations.Conversations, conversation)
-
-	// Now I will save it back in the bd.
-	jsonStr, err = marshaler.MarshalToString(owned_conversations)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	err = self.store.SetItem(clientId+"_owned", []byte(jsonStr))
+	err = self.addParticipantConversation(clientId, uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -509,6 +466,7 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 		},
 	}
 
+	// Set the owner of the conversation.
 	err = self.rbac_client_.SetResourcePermissions(uuid, permissions)
 	if err != nil {
 		return nil, status.Errorf(
@@ -522,21 +480,133 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 }
 
 // Return the list of conversations created by a given user.
-func (self *server) GetCreatedConversations(ctx context.Context, rqst *conversationpb.GetCreatedConversationsRequest) (*conversationpb.GetCreatedConversationsResponse, error) {
+func (self *server) GetConversations(ctx context.Context, rqst *conversationpb.GetConversationsRequest) (*conversationpb.GetConversationsResponse, error) {
 
-	owned_conversations_, err := self.store.GetItem(rqst.Creator + "_owned")
+	_conversations_, err := self.store.GetItem(rqst.Creator + "_conversations")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	owned_conversations := new(conversationpb.Conversations)
-	jsonpb.UnmarshalString(string(owned_conversations_), owned_conversations)
+	_conversations := new(conversationpb.Conversations)
+	_conversations.Conversations = make([]*conversationpb.Conversation, 0)
 
-	return &conversationpb.GetCreatedConversationsResponse{
-		Conversations: owned_conversations,
+	uuids := make([]string, 0)
+
+	json.Unmarshal(_conversations_, &uuids)
+	fmt.Println(uuids)
+	for i := 0; i < len(uuids); i++ {
+		conversation, err := self.getConversation(uuids[i])
+		if err == nil {
+			_conversations.Conversations = append(_conversations.Conversations, conversation)
+		}
+	}
+
+	fmt.Println(_conversations.Conversations)
+
+	return &conversationpb.GetConversationsResponse{
+		Conversations: _conversations,
 	}, nil
+}
+
+// The list of participant inside a conversation.
+func (self *server) addConversationParticipant(participant string, conversation string) error {
+	c, err := self.getConversation(conversation)
+	if err != nil {
+		return err
+	}
+
+	if !Utility.Contains(c.Participants, participant) {
+		c.Participants = append(c.Participants, participant)
+		return self.saveConversation(c)
+	}
+
+	return nil
+}
+
+func (self *server) removeConversationParticipant(participant string, conversation string) error {
+	c, err := self.getConversation(conversation)
+	if err != nil {
+		return err
+	}
+
+	if !Utility.Contains(c.Participants, participant) {
+		return nil
+	}
+
+	paticipants := make([]string, 0)
+	for i := 0; i < len(c.Participants); i++ {
+		if c.Participants[i] != participant {
+			paticipants = append(paticipants, participant)
+		}
+	}
+
+	c.Participants = paticipants
+	return self.saveConversation(c)
+}
+
+// The list of conversation of a participant.
+func (self *server) addParticipantConversation(paticipant string, conversation string) error {
+
+	// Index owned conversation to be retreivable by it creator.
+	_conversations_, err := self.store.GetItem(paticipant + "_conversations")
+	_conversations := make([]string, 0)
+	if err == nil {
+		err = json.Unmarshal(_conversations_, &_conversations)
+		if err != nil {
+			return err
+		}
+	}
+
+	if Utility.Contains(_conversations, conversation) {
+		return nil
+	}
+
+	fmt.Println("-----> conversation: ", _conversations)
+
+	// Now I will append the newly created conversation into conversation owned by
+	// the client id.
+	_conversations = append(_conversations, conversation)
+
+	// Now I will save it back in the bd.
+	jsonStr, err := json.Marshal(_conversations)
+	if err != nil {
+		return err
+	}
+
+	return self.store.SetItem(paticipant+"_conversations", jsonStr)
+
+}
+
+// Remove conversation from a given participant
+func (self *server) removeParticipantConversation(paticipant string, conversation string) error {
+	// Index owned conversation to be retreivable by it creator.
+	jsonStr, err := self.store.GetItem(paticipant + "_conversations")
+	_conversations := make([]string, 0)
+	if err == nil {
+		err = json.Unmarshal(jsonStr, &_conversations)
+		if err != nil {
+			return err
+		}
+	}
+
+	_conversations_ := make([]string, 0)
+	for i := 0; i < len(_conversations); i++ {
+		if _conversations[i] != conversation {
+			_conversations_ = append(_conversations_, _conversations[i])
+		}
+	}
+
+	jsonStr_, err := json.Marshal(_conversations_)
+
+	if err != nil {
+		return err
+	}
+
+	// save it back...
+	return self.store.SetItem(paticipant+"_conversations", jsonStr_)
+
 }
 
 // Delete the conversation
@@ -559,7 +629,19 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 		}
 	}
 
-	//TODO First of all I will quick out connected pepole...
+	// Validate the clientId is the owner of the conversation.
+	hasAccess, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+	}
+
+	if !hasAccess {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("You must be the owner of the conversation to invite other user!")))
+	}
 
 	// Close leveldb connection
 	self.closeConversationConnection(rqst.ConversationUuid)
@@ -584,44 +666,6 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 
 	// Now I will remove indexation.
 
-	// Index owned conversation to be retreivable by it creator.
-	jsonStr, err := self.store.GetItem(clientId + "_owned")
-	owned_conversations := new(conversationpb.Conversations)
-	if err == nil {
-		err = jsonpb.UnmarshalString(string(jsonStr), owned_conversations)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-
-	conversations := make([]*conversationpb.Conversation, 0)
-	for i := 0; i < len(owned_conversations.Conversations); i++ {
-		c := owned_conversations.Conversations[i]
-		if c.Uuid != rqst.ConversationUuid {
-			conversations = append(conversations, c)
-		}
-	}
-
-	owned_conversations.Conversations = conversations
-	var marshaler jsonpb.Marshaler
-	jsonStr_, err := marshaler.MarshalToString(owned_conversations)
-
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// save it back...
-	err = self.store.SetItem(clientId+"_owned", []byte(jsonStr_))
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Remove the connection from the search engine.
 	err = self.search_engine.DeleteDocument(self.Root+"/conversations/search_data", rqst.ConversationUuid)
 	if err != nil {
@@ -630,7 +674,26 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Remove it from the store.
+	// Remove the pending invitation.
+	conversation, err := self.getConversation(rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if conversation.Invitations != nil {
+		for i := 0; i < len(conversation.Invitations.Invitations); i++ {
+			self.removeInvitation(conversation.Invitations.Invitations[i])
+		}
+	}
+
+	// Remove conversation from participant conversations.
+	for i := 0; i < len(conversation.Participants); i++ {
+		self.removeParticipantConversation(conversation.Participants[i], conversation.Uuid)
+	}
+
+	// Delete conversation from the store.
 	err = self.store.RemoveItem(rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -642,7 +705,7 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 }
 
 // Retreive a conversation by keywords or name...
-func (self *server) FindConversation(ctx context.Context, rqst *conversationpb.FindConversationRequest) (*conversationpb.FindConversationResponse, error) {
+func (self *server) FindConversations(ctx context.Context, rqst *conversationpb.FindConversationsRequest) (*conversationpb.FindConversationsResponse, error) {
 	paths := []string{self.Root + "/conversations/search_data"}
 
 	results, err := self.search_engine.SearchDocuments(paths, rqst.Language, []string{"name", "keywords"}, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetSize)
@@ -663,31 +726,68 @@ func (self *server) FindConversation(ctx context.Context, rqst *conversationpb.F
 
 	}
 
-	return &conversationpb.FindConversationResponse{
+	return &conversationpb.FindConversationsResponse{
 		Conversations: conversations,
 	}, nil
 }
 
 func (self *server) Connect(rqst *conversationpb.ConnectRequest, stream conversationpb.ConversationService_ConnectServer) error {
-	onmessage := make(map[string]interface{})
-	onmessage["action"] = "connect"
-	onmessage["stream"] = stream
-	onmessage["uuid"] = rqst.Uuid
-	onmessage["quit"] = make(chan bool)
+	var clientId string
+	var err error
 
-	self.actions <- onmessage
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			errors.New("No token was given!")
+		}
+	}
+
+	action := make(map[string]interface{})
+	action["action"] = "connect"
+	action["stream"] = stream
+	action["uuid"] = rqst.Uuid
+	action["clientId"] = clientId
+	action["quit"] = make(chan bool)
+
+	self.actions <- action
 
 	// wait util unsbscribe or connection is close.
-	<-onmessage["quit"].(chan bool)
+	<-action["quit"].(chan bool)
 	return nil
 }
 
 // Close connection with the conversation server.
 func (self *server) Disconnect(ctx context.Context, rqst *conversationpb.DisconnectRequest) (*conversationpb.DisconnectResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			errors.New("No token was given!")
+		}
+	}
+
 	quit := make(map[string]interface{})
 	quit["action"] = "disconnect"
 	quit["uuid"] = rqst.Uuid
-
+	quit["clientId"] = clientId
 	self.actions <- quit
 
 	return &conversationpb.DisconnectResponse{
@@ -697,17 +797,46 @@ func (self *server) Disconnect(ctx context.Context, rqst *conversationpb.Disconn
 
 // Join a conversation.
 func (self *server) JoinConversation(rqst *conversationpb.JoinConversationRequest, stream conversationpb.ConversationService_JoinConversationServer) error {
+	var clientId string
+	var err error
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			errors.New("No token was given!")
+		}
+	}
 
 	join := make(map[string]interface{})
 	join["action"] = "join"
 	join["name"] = rqst.ConversationUuid // Must be the converastion uuid...
 	join["uuid"] = rqst.ConnectionUuid   // Must be the connection uuid...
+	join["clientId"] = clientId
+
 	self.actions <- join
 
 	// so here I will get existing convesation messages and return it in the stream.
 	conn, err := self.getConversationConnection(rqst.ConversationUuid)
 	if err != nil {
-		return err
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = self.addConversationParticipant(clientId, rqst.ConversationUuid)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Retreive all message from the conversation...
@@ -726,6 +855,15 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 			for i := 0; i < len(results); i++ {
 
 				msg := results[i].(map[string]interface{})
+				text := ""
+				if msg["text"] != nil {
+					text = msg["text"].(string)
+				}
+
+				language := "en"
+				if msg["Language"] != nil {
+					language = msg["Language"].(string)
+				}
 
 				if err == nil {
 					stream.Send(&conversationpb.JoinConversationResponse{
@@ -734,8 +872,8 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 							CreationTime: int64(Utility.ToInt(msg["creationTime"])),
 							Conversation: msg["conversation"].(string),
 							Author:       msg["author"].(string),
-							Language:     msg["language"].(string),
-							Text:         msg["text"].(string)},
+							Language:     language,
+							Text:         text},
 					})
 				} else {
 					return err
@@ -750,15 +888,563 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 
 // Leave a given conversation.
 func (self *server) LeaveConversation(ctx context.Context, rqst *conversationpb.LeaveConversationRequest) (*conversationpb.LeaveConversationResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			errors.New("No token was given!")
+		}
+	}
 
 	leave := make(map[string]interface{})
 	leave["action"] = "leave"
 	leave["name"] = rqst.ConversationUuid
 	leave["uuid"] = rqst.ConnectionUuid
+	leave["clientId"] = clientId
 
 	self.actions <- leave
 
+	err = self.removeConversationParticipant(clientId, rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	return &conversationpb.LeaveConversationResponse{}, nil
+}
+
+// Conversation owner can invite a contact into Conversation.
+func (self *server) SendInvitation(ctx context.Context, rqst *conversationpb.SendInvitationRequest) (*conversationpb.SendInvitationResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+
+		}
+	}
+
+	if clientId != rqst.Invitation.From {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Invitation must be sent by the authenticated user. You are not authenticated as "+rqst.Invitation.From)))
+	}
+
+	// Validate the clientId is the owner of the conversation.
+	hasAccess, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+	}
+
+	if !hasAccess {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("You must be the owner of the conversation to invite other user!")))
+	}
+
+	// Append it to the list of conversation invitations.
+	conversation, err := self.getConversation(rqst.Invitation.Conversation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Test if the the invitation was necessary.
+	if Utility.Contains(conversation.Participants, rqst.Invitation.To) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(rqst.Invitation.To+" is already participanting to the conversation named "+rqst.Invitation.Name)))
+	}
+
+	if conversation.Invitations != nil {
+		for i := 0; i < len(conversation.Invitations.Invitations); i++ {
+			if conversation.Invitations.Invitations[i].From == rqst.Invitation.From && conversation.Invitations.Invitations[i].To == rqst.Invitation.To {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(rqst.Invitation.To+" is already invited to join the conversation named "+rqst.Invitation.Name)))
+			}
+		}
+	} else {
+		conversation.Invitations = new(conversationpb.Invitations)
+		conversation.Invitations.Invitations = make([]*conversationpb.Invitation, 0)
+	}
+
+	// set time from now...
+	rqst.Invitation.InvitationDate = time.Now().Unix()
+	// Index sent invitations
+	sent_invitations_, err := self.store.GetItem(clientId + "_sent_invitations")
+	sent_invitations := new(conversationpb.Invitations)
+	if err != nil {
+		sent_invitations.Invitations = make([]*conversationpb.Invitation, 0)
+	} else {
+		err = jsonpb.UnmarshalString(string(sent_invitations_), sent_invitations)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will save the invitation into the clientId invitation.
+	sent_invitations.Invitations = append(sent_invitations.Invitations, rqst.Invitation)
+
+	// Now I will save it back in the bd.
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(sent_invitations)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = self.store.SetItem(clientId+"_sent_invitations", []byte(jsonStr))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Index received invitations.
+	received_invitations_, err := self.store.GetItem(rqst.Invitation.To + "_received_invitations")
+	received_invitations := new(conversationpb.Invitations)
+	if err != nil {
+		received_invitations.Invitations = make([]*conversationpb.Invitation, 0)
+	} else {
+		err = jsonpb.UnmarshalString(string(received_invitations_), received_invitations)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// I will save the invitation into the clientId invitation.
+	received_invitations.Invitations = append(received_invitations.Invitations, rqst.Invitation)
+
+	// Now I will save it back in the bd.
+	jsonStr, err = marshaler.MarshalToString(received_invitations)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = self.store.SetItem(rqst.Invitation.To+"_received_invitations", []byte(jsonStr))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Here I will append the invitations to conversation and save it.
+	conversation.Invitations.Invitations = append(conversation.Invitations.Invitations, rqst.Invitation)
+	err = self.saveConversation(conversation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.SendInvitationResponse{}, nil
+}
+
+/**
+ * Return a conversation with it given uuid
+ */
+func (self *server) getConversation(uuid string) (*conversationpb.Conversation, error) {
+	data, err := self.store.GetItem(uuid)
+	conversation := new(conversationpb.Conversation)
+	if err != nil {
+		return nil, err
+	}
+
+	err = jsonpb.UnmarshalString(string(data), conversation)
+	if err != nil {
+		return nil, err
+	}
+
+	return conversation, nil
+}
+
+/**
+ * Save a conversations.
+ */
+func (self *server) saveConversation(conversation *conversationpb.Conversation) error {
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(conversation)
+	if err != nil {
+		return err
+	}
+
+	// set the new one.
+	err = self.store.SetItem(conversation.Uuid, []byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("conversation ", conversation.Name, conversation.LastMessageTime, " was saved!")
+
+	// Now I will set the search information for conversations...
+	err = self.search_engine.IndexJsonObject(self.Root+"/conversations/search_data", jsonStr, conversation.Language, "uuid", []string{"name", "keywords"}, jsonStr)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("conversation index ", conversation.Name, " was saved!")
+
+	return nil
+}
+
+// Remove invitation.
+func (self *server) removeInvitation(invitation *conversationpb.Invitation) error {
+
+	// Remove from sent invitations...
+	sent_invitations_, err := self.store.GetItem(invitation.From + "_sent_invitations")
+	sent_invitations := new(conversationpb.Invitations)
+	if err != nil {
+		return err
+	}
+
+	err = jsonpb.UnmarshalString(string(sent_invitations_), sent_invitations)
+	if err != nil {
+		return err
+	}
+
+	sent_invitations__ := make([]*conversationpb.Invitation, 0)
+	for i := 0; i < len(sent_invitations.Invitations); i++ {
+		if sent_invitations.Invitations[i].To != invitation.To {
+			sent_invitations__ = append(sent_invitations__, sent_invitations.Invitations[i])
+		}
+	}
+
+	// I will save the invitation into the clientId invitation.
+	sent_invitations.Invitations = sent_invitations__
+
+	// Now I will save it back in the bd.
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(sent_invitations)
+	if err != nil {
+		return err
+	}
+
+	err = self.store.SetItem(invitation.From+"_sent_invitations", []byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	// Remove it from received invitations...
+	received_invitations_, err := self.store.GetItem(invitation.To + "_received_invitations")
+	received_invitations := new(conversationpb.Invitations)
+	if err != nil {
+		return err
+	}
+
+	err = jsonpb.UnmarshalString(string(received_invitations_), received_invitations)
+	if err != nil {
+		return err
+	}
+
+	received_invitations__ := make([]*conversationpb.Invitation, 0)
+	for i := 0; i < len(received_invitations.Invitations); i++ {
+		if received_invitations.Invitations[i].To != invitation.To {
+			received_invitations__ = append(received_invitations__, received_invitations.Invitations[i])
+		}
+	}
+
+	// I will save the invitation into the clientId invitation.
+	received_invitations.Invitations = received_invitations__
+
+	// Now I will save it back in the bd.
+	jsonStr, err = marshaler.MarshalToString(received_invitations)
+	if err != nil {
+		return err
+	}
+
+	err = self.store.SetItem(invitation.To+"_received_invitations", []byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	// Now I will remove invitation from the conversation itself.
+	conversation, err := self.getConversation(invitation.Conversation)
+	if err != nil {
+		return err
+	}
+
+	invitations__ := make([]*conversationpb.Invitation, 0)
+	for i := 0; i < len(conversation.Invitations.Invitations); i++ {
+		if conversation.Invitations.Invitations[i].To != invitation.To && conversation.Invitations.Invitations[i].From != invitation.From {
+			invitations__ = append(invitations__, conversation.Invitations.Invitations[i])
+		}
+	}
+
+	conversation.Invitations.Invitations = invitations__
+
+	return self.saveConversation(conversation)
+
+}
+
+// Accept invitation response.
+func (self *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.AcceptInvitationRequest) (*conversationpb.AcceptInvitationResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+
+		}
+	}
+
+	// Validate the user id.
+	if clientId != rqst.Invitation.To {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Invitation.To)))
+	}
+
+	err = self.removeInvitation(rqst.Invitation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	self.addParticipantConversation(rqst.Invitation.To, rqst.Invitation.Conversation)
+
+	return &conversationpb.AcceptInvitationResponse{}, nil
+}
+
+// Decline invitation response.
+func (self *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.DeclineInvitationRequest) (*conversationpb.DeclineInvitationResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+
+		}
+	}
+
+	// Validate the user id.
+	if clientId != rqst.Invitation.To {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Invitation.To)))
+	}
+
+	err = self.removeInvitation(rqst.Invitation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.DeclineInvitationResponse{}, nil
+}
+
+// Revoke invitation.
+func (self *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.RevokeInvitationRequest) (*conversationpb.RevokeInvitationResponse, error) {
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+
+		}
+	}
+
+	// Validate the user id.
+	if clientId != rqst.Invitation.From {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Invitation.From)))
+	}
+
+	err = self.removeInvitation(rqst.Invitation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.RevokeInvitationResponse{}, nil
+}
+
+// Get the list of received invitations request.
+func (self *server) GetReceivedInvitations(ctx context.Context, rqst *conversationpb.GetReceivedInvitationsRequest) (*conversationpb.GetReceivedInvitationsResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+
+		}
+	}
+
+	// Validate the user id.
+	if clientId != rqst.Account {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Account)))
+	}
+
+	received_invitations_, err := self.store.GetItem(clientId + "_received_invitations")
+	received_invitations := new(conversationpb.Invitations)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	err = jsonpb.UnmarshalString(string(received_invitations_), received_invitations)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Return the retreived invitations.
+	return &conversationpb.GetReceivedInvitationsResponse{Invitations: received_invitations}, nil
+}
+
+// Get the list of sent invitations request.
+func (self *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.GetSentInvitationsRequest) (*conversationpb.GetSentInvitationsResponse, error) {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+
+		}
+	}
+
+	// Validate the user id.
+	if clientId != rqst.Account {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Account)))
+	}
+
+	// Index sent invitations
+	sent_invitations_, err := self.store.GetItem(clientId + "_sent_invitations")
+	sent_invitations := new(conversationpb.Invitations)
+	if err != nil {
+		sent_invitations.Invitations = make([]*conversationpb.Invitation, 0)
+	} else {
+		err = jsonpb.UnmarshalString(string(sent_invitations_), sent_invitations)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// Return the retreived invitations.
+	return &conversationpb.GetSentInvitationsResponse{Invitations: sent_invitations}, nil
 }
 
 // Send a message
@@ -767,25 +1453,48 @@ func (self *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMe
 	// Save the message in the database...
 	conn, err := self.getConversationConnection(rqst.Msg.Conversation)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Here I will save the message.
 	var marshaler jsonpb.Marshaler
 	jsonStr_, err := marshaler.MarshalToString(rqst.Msg)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// The key will be composed of the conversation id and message uuid...
 	err = conn.SetItem(rqst.Msg.Conversation+"/"+Utility.ToString(rqst.Msg.CreationTime), []byte(jsonStr_))
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Now I will index the message in the search engine...
 	Utility.CreateDirIfNotExist(self.Root + "/conversations/" + rqst.Msg.Conversation + "/search_data")
 	self.search_engine.IndexJsonObject(self.Root+"/conversations/"+rqst.Msg.Conversation+"/search_data", jsonStr_, rqst.Msg.Language, "uuid", []string{"text"}, jsonStr_)
+
+	// TODO set the last message date in the conversation **/
+	conversation, err := self.getConversation(rqst.Msg.Conversation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	conversation.LastMessageTime = time.Now().Unix()
+
+	err = self.saveConversation(conversation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// Send the message on the network...
 	send_message := make(map[string]interface{})
@@ -799,10 +1508,15 @@ func (self *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMe
 	return &conversationpb.SendMessageResponse{}, nil
 }
 
-// Retreive a conversation by keywords or name...
-func (self *server) FindMessage(ctx context.Context, rqst *conversationpb.FindMessageRequest) (*conversationpb.FindMessageResponse, error) {
-
+// Delete message.
+func (self *server) DeleteMessage(ctx context.Context, rqst *conversationpb.DeleteMessageRequest) (*conversationpb.DeleteMessageResponse, error) {
 	return nil, nil
+}
+
+// Retreive a conversation by keywords or name...
+func (self *server) FindMessages(rqst *conversationpb.FindMessagesRequest, stream conversationpb.ConversationService_FindMessagesServer) error {
+
+	return nil
 }
 
 // That function process channel operation and run in it own go routine.
@@ -810,6 +1524,7 @@ func (self *server) run() {
 
 	log.Println("start conversation service")
 	channels := make(map[string][]string)
+	clientIds := make(map[string]string)
 	streams := make(map[string]conversationpb.ConversationService_ConnectServer)
 	quits := make(map[string]chan bool)
 
@@ -825,6 +1540,7 @@ func (self *server) run() {
 			action := a["action"].(string)
 			if action == "connect" {
 				streams[a["uuid"].(string)] = a["stream"].(conversationpb.ConversationService_ConnectServer)
+				clientIds[a["uuid"].(string)] = a["clientId"].(string)
 				quits[a["uuid"].(string)] = a["quit"].(chan bool)
 			} else if action == "join" {
 				if channels[a["name"].(string)] == nil {
@@ -862,6 +1578,7 @@ func (self *server) run() {
 					// remove closed channel
 					for i := 0; i < len(toDelete); i++ {
 						uuid := toDelete[i]
+						clientId := clientIds[uuid]
 						// remove uuid from all channels.
 						for name, channel := range channels {
 							uuids := make([]string, 0)
@@ -871,6 +1588,7 @@ func (self *server) run() {
 								}
 							}
 							channels[name] = uuids
+							self.removeConversationParticipant(clientId, uuid)
 						}
 						// return from OnEvent
 						quits[uuid] <- true

@@ -12,6 +12,20 @@ enum ConversationState{
 	SUSPENDED = 1;
 }
 
+/** Invite a user to join a conversation */
+message Invitation {
+	string conversation = 1;
+	string from = 2; // account id.
+	string to = 3; // account id.
+	int64 invitation_date = 4; // The date the invitation was sent.
+	string name = 5; // The conversation name needed to display to list.
+}
+
+/** Invite a user to join a conversation */
+message Invitations {
+	repeated Invitation invitations = 1;
+}
+
 
 message Message {
 	/** The message uuid **/
@@ -57,6 +71,12 @@ message Conversation {
 	
 	/** The language ex. en, es, fr*/
 	string language = 7;
+	
+	/** The list of participant */
+	repeated string participants=8;
+	
+	/** Pending invitations */
+	Invitations invitations = 9;
 }
 
 /** List of conversation */
@@ -109,7 +129,55 @@ message DeleteConversationResponse{
 	
 }
 
-message FindConversationRequest{
+message SendInvitationRequest{
+	Invitation invitation = 1;
+}
+
+message SendInvitationResponse{
+	/** nothing here*/
+}
+
+message AcceptInvitationRequest{
+	Invitation invitation = 1;
+}
+
+message AcceptInvitationResponse{
+	/** nothing here*/
+}
+
+message DeclineInvitationRequest{
+	Invitation invitation = 1;
+}
+
+message DeclineInvitationResponse{
+	/** nothing here*/
+}
+
+message RevokeInvitationRequest{
+	Invitation invitation = 1;
+}
+
+message RevokeInvitationResponse{
+	/** nothing here*/
+}
+
+message GetReceivedInvitationsRequest{
+	string account = 1;
+}
+
+message GetReceivedInvitationsResponse{
+	Invitations invitations = 1;
+}
+
+message GetSentInvitationsRequest{
+	string account = 1;
+}
+
+message GetSentInvitationsResponse{
+	Invitations invitations = 1;
+}
+
+message FindConversationsRequest{
 	string query = 1;
 	string language = 2;
 	int32 offset=3;
@@ -117,7 +185,7 @@ message FindConversationRequest{
 	int32 snippetSize = 5;
 }
 
-message FindConversationResponse{
+message FindConversationsResponse{
 	repeated Conversation conversations = 1;
 }
 
@@ -133,11 +201,11 @@ message JoinConversationResponse{
 	Message msg = 1;
 }
 
-message GetCreatedConversationsRequest{
+message GetConversationsRequest{
 	string creator = 1;
 }
 
-message GetCreatedConversationsResponse{
+message GetConversationsResponse{
 	Conversations conversations = 1;
 }
 
@@ -162,12 +230,22 @@ message SendMessageResponse {
 
 }
 
-message FindMessageRequest{
+message DeleteMessageRequest {
+	/** The message uuid */
+	string uuid = 1;
+}
+
+message DeleteMessageResponse {
+	/* nothing here*/
+}
+
+
+message FindMessagesRequest{
 	repeated string keywords = 1;
 }
 
-message FindMessageResponse{
-	repeated Message messages = 1;
+message FindMessagesResponse{
+	Message message = 1;
 }
 
 message StopRequest {
@@ -201,7 +279,7 @@ service ConversationService {
   rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
 
   // Retreive a conversation by keywords or name...
-  rpc FindConversation(FindConversationRequest) returns (FindConversationResponse);
+  rpc FindConversations(FindConversationsRequest) returns (FindConversationsResponse);
 
   // Join a conversation.
   rpc JoinConversation(JoinConversationRequest) returns (stream JoinConversationResponse);
@@ -210,14 +288,35 @@ service ConversationService {
   rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse);
 
   // Return the list of conversations created by a given user.
-  rpc GetCreatedConversations(GetCreatedConversationsRequest) returns (GetCreatedConversationsResponse);
+  rpc GetConversations(GetConversationsRequest) returns (GetConversationsResponse);
+
+  // Conversation owner can invite a contact into Conversation.
+  rpc SendInvitation(SendInvitationRequest) returns(SendInvitationResponse);
+
+  // Accept invitation response.
+  rpc AcceptInvitation(AcceptInvitationRequest) returns(AcceptInvitationResponse);
+
+  // Decline invitation response.
+  rpc DeclineInvitation(DeclineInvitationRequest) returns(DeclineInvitationResponse);
+
+  // Revoke invitation.
+  rpc RevokeInvitation(RevokeInvitationRequest) returns(RevokeInvitationResponse);
+
+  // Get the list of received invitations request.
+  rpc GetReceivedInvitations(GetReceivedInvitationsRequest) returns(GetReceivedInvitationsResponse);
+
+  // Get the list of sent invitations request.
+  rpc GetSentInvitations(GetSentInvitationsRequest) returns(GetSentInvitationsResponse);
 
   ////////////////////////////////// Message ///////////////////////////////////
 
   // Send a message
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
 
+  // Delete message.
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
+
   // Retreive a conversation by keywords or name...
-  rpc FindMessage(FindMessageRequest) returns (FindMessageResponse);
+  rpc FindMessages(FindMessagesRequest) returns (stream FindMessagesResponse);
 
 }

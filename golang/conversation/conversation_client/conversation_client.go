@@ -278,7 +278,7 @@ func (self *Conversation_Client) CreateConversation(token string, name string, k
 
 // Return the list of owned conversations.
 func (self *Conversation_Client) GetOwnedConversations(token string, creator string) (*conversationpb.Conversations, error) {
-	rqst := &conversationpb.GetCreatedConversationsRequest{
+	rqst := &conversationpb.GetConversationsRequest{
 		Creator: creator,
 	}
 
@@ -292,7 +292,7 @@ func (self *Conversation_Client) GetOwnedConversations(token string, creator str
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := self.c.GetCreatedConversations(ctx, rqst)
+	rsp, err := self.c.GetConversations(ctx, rqst)
 
 	if err != nil {
 		return nil, err
@@ -329,7 +329,7 @@ func (self *Conversation_Client) DeleteConversation(token string, conversationUu
  * Find a conversations.
  */
 func (self *Conversation_Client) FindConversations(token string, query string, language string, offset int32, pageSize int32, snippetSize int32) ([]*conversationpb.Conversation, error) {
-	rqst := new(conversationpb.FindConversationRequest)
+	rqst := new(conversationpb.FindConversationsRequest)
 	rqst.Query = query
 	rqst.Language = language
 	rqst.Offset = offset
@@ -346,7 +346,7 @@ func (self *Conversation_Client) FindConversations(token string, query string, l
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	results, err := self.c.FindConversation(ctx, rqst)
+	results, err := self.c.FindConversations(ctx, rqst)
 
 	if err != nil {
 		return nil, err
