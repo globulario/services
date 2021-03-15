@@ -107,7 +107,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.conversation.Message = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.conversation.Message.repeatedFields_, null);
 };
 goog.inherits(proto.conversation.Message, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -1326,6 +1326,13 @@ proto.conversation.Invitations.prototype.clearInvitationsList = function() {
 
 
 
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.conversation.Message.repeatedFields_ = [8,9,10];
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -1363,7 +1370,10 @@ proto.conversation.Message.toObject = function(includeInstance, msg) {
     author: jspb.Message.getFieldWithDefault(msg, 4, ""),
     text: jspb.Message.getFieldWithDefault(msg, 5, ""),
     inReplyTo: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 7, "")
+    language: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    likesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+    dislikesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+    readersList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -1427,6 +1437,18 @@ proto.conversation.Message.deserializeBinaryFromReader = function(msg, reader) {
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.setLanguage(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addLikes(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addDislikes(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addReaders(value);
       break;
     default:
       reader.skipField();
@@ -1503,6 +1525,27 @@ proto.conversation.Message.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       7,
+      f
+    );
+  }
+  f = message.getLikesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      8,
+      f
+    );
+  }
+  f = message.getDislikesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      9,
+      f
+    );
+  }
+  f = message.getReadersList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      10,
       f
     );
   }
@@ -1632,6 +1675,117 @@ proto.conversation.Message.prototype.getLanguage = function() {
  */
 proto.conversation.Message.prototype.setLanguage = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * repeated string likes = 8;
+ * @return {!Array<string>}
+ */
+proto.conversation.Message.prototype.getLikesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.setLikesList = function(value) {
+  return jspb.Message.setField(this, 8, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.addLikes = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.clearLikesList = function() {
+  return this.setLikesList([]);
+};
+
+
+/**
+ * repeated string dislikes = 9;
+ * @return {!Array<string>}
+ */
+proto.conversation.Message.prototype.getDislikesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.setDislikesList = function(value) {
+  return jspb.Message.setField(this, 9, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.addDislikes = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.clearDislikesList = function() {
+  return this.setDislikesList([]);
+};
+
+
+/**
+ * repeated string readers = 10;
+ * @return {!Array<string>}
+ */
+proto.conversation.Message.prototype.getReadersList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.setReadersList = function(value) {
+  return jspb.Message.setField(this, 10, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.addReaders = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.conversation.Message} returns this
+ */
+proto.conversation.Message.prototype.clearReadersList = function() {
+  return this.setReadersList([]);
 };
 
 

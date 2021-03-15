@@ -530,7 +530,7 @@ func (self *server) removeConversationParticipant(participant string, conversati
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("---> remove participant: ", participant)
 	if !Utility.Contains(c.Participants, participant) {
 		return nil
 	}
@@ -538,11 +538,12 @@ func (self *server) removeConversationParticipant(participant string, conversati
 	paticipants := make([]string, 0)
 	for i := 0; i < len(c.Participants); i++ {
 		if c.Participants[i] != participant {
-			paticipants = append(paticipants, participant)
+			paticipants = append(paticipants, c.Participants[i])
 		}
 	}
 
 	c.Participants = paticipants
+	fmt.Println("-------> active participant are ", c.GetName(), c.GetParticipants())
 	return self.saveConversation(c)
 }
 

@@ -464,7 +464,7 @@ func (self *server) Subscribe(ctx context.Context, rqst *eventpb.SubscribeReques
 	subscribe["name"] = rqst.Name
 	subscribe["uuid"] = rqst.Uuid
 
-	log.Println("Subcribtion receive with uuid ", rqst.Uuid, " and channel named ", rqst.Name)
+	//log.Println("Subcribtion receive with uuid ", rqst.Uuid, " and channel named ", rqst.Name)
 
 	self.actions <- subscribe
 

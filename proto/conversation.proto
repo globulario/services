@@ -48,6 +48,15 @@ message Message {
 	
 	/** The message language **/
 	string language = 7;
+	
+	/** The like list **/
+	repeated string likes = 8;
+	
+	/** The dislike like list */
+	repeated string dislikes = 9;
+	
+	/** The list of participants who has read the message */
+	repeated string readers = 10;
 }
 
 message Conversation {
@@ -289,6 +298,8 @@ service ConversationService {
 
   // Return the list of conversations created by a given user.
   rpc GetConversations(GetConversationsRequest) returns (GetConversationsResponse);
+
+  ////////////////////////////////// Invitation ///////////////////////////////////
 
   // Conversation owner can invite a contact into Conversation.
   rpc SendInvitation(SendInvitationRequest) returns(SendInvitationResponse);
