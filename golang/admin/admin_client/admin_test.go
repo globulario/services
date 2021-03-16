@@ -93,7 +93,7 @@ func TestInstallService(t *testing.T) {
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
-	service_pid, proxy_pid, err := client.StartService("475f1bbb-42ca-44a8-9bfd-b6db1fadf2d9")
+	service_pid, proxy_pid, err := client.StartService("2a862136-0df2-4745-b68a-acbc295f3ae4")
 	if err != nil {
 
 		log.Println("---> ", err)

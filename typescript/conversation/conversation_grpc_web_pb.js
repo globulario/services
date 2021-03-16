@@ -138,7 +138,7 @@ proto.conversation.ConversationServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -293,7 +293,7 @@ proto.conversation.ConversationServiceClient.prototype.disconnect =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.DisconnectResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.disconnect =
     function(request, metadata) {
@@ -373,7 +373,7 @@ proto.conversation.ConversationServiceClient.prototype.createConversation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.CreateConversationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.createConversation =
     function(request, metadata) {
@@ -453,7 +453,7 @@ proto.conversation.ConversationServiceClient.prototype.deleteConversation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.DeleteConversationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.deleteConversation =
     function(request, metadata) {
@@ -533,7 +533,7 @@ proto.conversation.ConversationServiceClient.prototype.findConversations =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.FindConversationsResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.findConversations =
     function(request, metadata) {
@@ -688,7 +688,7 @@ proto.conversation.ConversationServiceClient.prototype.leaveConversation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.LeaveConversationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.leaveConversation =
     function(request, metadata) {
@@ -768,7 +768,7 @@ proto.conversation.ConversationServiceClient.prototype.getConversations =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.GetConversationsResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.getConversations =
     function(request, metadata) {
@@ -848,7 +848,7 @@ proto.conversation.ConversationServiceClient.prototype.sendInvitation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.SendInvitationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.sendInvitation =
     function(request, metadata) {
@@ -928,7 +928,7 @@ proto.conversation.ConversationServiceClient.prototype.acceptInvitation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.AcceptInvitationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.acceptInvitation =
     function(request, metadata) {
@@ -1008,7 +1008,7 @@ proto.conversation.ConversationServiceClient.prototype.declineInvitation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.DeclineInvitationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.declineInvitation =
     function(request, metadata) {
@@ -1088,7 +1088,7 @@ proto.conversation.ConversationServiceClient.prototype.revokeInvitation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.RevokeInvitationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.revokeInvitation =
     function(request, metadata) {
@@ -1168,7 +1168,7 @@ proto.conversation.ConversationServiceClient.prototype.getReceivedInvitations =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.GetReceivedInvitationsResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.getReceivedInvitations =
     function(request, metadata) {
@@ -1248,7 +1248,7 @@ proto.conversation.ConversationServiceClient.prototype.getSentInvitations =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.GetSentInvitationsResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.getSentInvitations =
     function(request, metadata) {
@@ -1328,7 +1328,7 @@ proto.conversation.ConversationServiceClient.prototype.sendMessage =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.SendMessageResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.sendMessage =
     function(request, metadata) {
@@ -1408,7 +1408,7 @@ proto.conversation.ConversationServiceClient.prototype.deleteMessage =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.DeleteMessageResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.deleteMessage =
     function(request, metadata) {

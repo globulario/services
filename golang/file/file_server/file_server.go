@@ -474,6 +474,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				info.Files = append(info.Files, info_)
 			}
 		} else {
+
 			info_, err := getFileInfo(s, path+string(os.PathSeparator)+f.Name())
 
 			f_, err := os.Open(path + string(os.PathSeparator) + f.Name())
@@ -499,7 +500,6 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		}
 
 	}
-
 	return info, err
 }
 
@@ -511,7 +511,7 @@ func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServi
 	path := rqst.GetPath()
 
 	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
+	path = strings.ReplaceAll(path, "\\", "/")
 
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
