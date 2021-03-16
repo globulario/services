@@ -783,6 +783,86 @@ proto.conversation.ConversationServicePromiseClient.prototype.getConversations =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.KickoutFromConversationRequest,
+ *   !proto.conversation.KickoutFromConversationResponse>}
+ */
+const methodDescriptor_ConversationService_KickoutFromConversation = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/KickoutFromConversation',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.KickoutFromConversationRequest,
+  proto.conversation.KickoutFromConversationResponse,
+  /**
+   * @param {!proto.conversation.KickoutFromConversationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.KickoutFromConversationResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.KickoutFromConversationRequest,
+ *   !proto.conversation.KickoutFromConversationResponse>}
+ */
+const methodInfo_ConversationService_KickoutFromConversation = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.KickoutFromConversationResponse,
+  /**
+   * @param {!proto.conversation.KickoutFromConversationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.KickoutFromConversationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.KickoutFromConversationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.KickoutFromConversationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.KickoutFromConversationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.kickoutFromConversation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/KickoutFromConversation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_KickoutFromConversation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.KickoutFromConversationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.KickoutFromConversationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.kickoutFromConversation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/KickoutFromConversation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_KickoutFromConversation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.conversation.SendInvitationRequest,
  *   !proto.conversation.SendInvitationResponse>}
  */
@@ -1492,6 +1572,246 @@ proto.conversation.ConversationServicePromiseClient.prototype.findMessages =
       request,
       metadata || {},
       methodDescriptor_ConversationService_FindMessages);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.LikeMessageRqst,
+ *   !proto.conversation.LikeMessageResponse>}
+ */
+const methodDescriptor_ConversationService_LikeMessage = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/LikeMessage',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.LikeMessageRqst,
+  proto.conversation.LikeMessageResponse,
+  /**
+   * @param {!proto.conversation.LikeMessageRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.LikeMessageResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.LikeMessageRqst,
+ *   !proto.conversation.LikeMessageResponse>}
+ */
+const methodInfo_ConversationService_LikeMessage = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.LikeMessageResponse,
+  /**
+   * @param {!proto.conversation.LikeMessageRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.LikeMessageResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.LikeMessageRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.LikeMessageResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.LikeMessageResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.likeMessage =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/LikeMessage',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_LikeMessage,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.LikeMessageRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.LikeMessageResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.likeMessage =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/LikeMessage',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_LikeMessage);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.DislikeMessageRqst,
+ *   !proto.conversation.DislikeMessageResponse>}
+ */
+const methodDescriptor_ConversationService_DislikeMessage = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/DislikeMessage',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.DislikeMessageRqst,
+  proto.conversation.DislikeMessageResponse,
+  /**
+   * @param {!proto.conversation.DislikeMessageRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.DislikeMessageResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.DislikeMessageRqst,
+ *   !proto.conversation.DislikeMessageResponse>}
+ */
+const methodInfo_ConversationService_DislikeMessage = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.DislikeMessageResponse,
+  /**
+   * @param {!proto.conversation.DislikeMessageRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.DislikeMessageResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.DislikeMessageRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.DislikeMessageResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.DislikeMessageResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.dislikeMessage =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/DislikeMessage',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_DislikeMessage,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.DislikeMessageRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.DislikeMessageResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.dislikeMessage =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/DislikeMessage',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_DislikeMessage);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.SetMessageReadRqst,
+ *   !proto.conversation.SetMessageReadResponse>}
+ */
+const methodDescriptor_ConversationService_SetMessageRead = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/SetMessageRead',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.SetMessageReadRqst,
+  proto.conversation.SetMessageReadResponse,
+  /**
+   * @param {!proto.conversation.SetMessageReadRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.SetMessageReadResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.conversation.SetMessageReadRqst,
+ *   !proto.conversation.SetMessageReadResponse>}
+ */
+const methodInfo_ConversationService_SetMessageRead = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.conversation.SetMessageReadResponse,
+  /**
+   * @param {!proto.conversation.SetMessageReadRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.SetMessageReadResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.SetMessageReadRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.conversation.SetMessageReadResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.SetMessageReadResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.setMessageRead =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/SetMessageRead',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_SetMessageRead,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.SetMessageReadRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.SetMessageReadResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.setMessageRead =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/SetMessageRead',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_SetMessageRead);
 };
 
 

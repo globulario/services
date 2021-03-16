@@ -48,6 +48,15 @@ message Message {
 	
 	/** The message language **/
 	string language = 7;
+	
+	/** The like list **/
+	repeated string likes = 8;
+	
+	/** The dislike like list */
+	repeated string dislikes = 9;
+	
+	/** The list of participants who has read the message */
+	repeated string readers = 10;
 }
 
 message Conversation {
@@ -199,6 +208,19 @@ message JoinConversationRequest{
 
 message JoinConversationResponse{
 	Message msg = 1;
+	Conversation conversation = 2;
+}
+
+message KickoutFromConversationRequest{
+	/** The conversation uuid */
+	string conversation_uuid = 1;
+	
+	/** The account id **/
+	string account = 2;
+}
+
+message KickoutFromConversationResponse{
+	/** nothing to do here */
 }
 
 message GetConversationsRequest{
@@ -218,7 +240,7 @@ message LeaveConversationRequest{
 }
 
 message LeaveConversationResponse{
-	
+	Conversation conversation = 1;
 }
 
 message SendMessageRequest {
@@ -246,6 +268,33 @@ message FindMessagesRequest{
 
 message FindMessagesResponse{
 	Message message = 1;
+}
+
+message LikeMessageRqst{
+	string message =1;
+	string account = 2;
+}
+
+message LikeMessageResponse{
+	/** Nothing here **/
+}
+
+message DislikeMessageRqst{
+	string message =1;
+	string account = 2;
+}
+
+message DislikeMessageResponse{
+	/** Nothing here **/
+}
+
+message SetMessageReadRqst{
+	string message =1;
+	string account = 2;
+}
+
+message SetMessageReadResponse{
+	/** Nothing here **/
 }
 
 message StopRequest {
@@ -290,6 +339,11 @@ service ConversationService {
   // Return the list of conversations created by a given user.
   rpc GetConversations(GetConversationsRequest) returns (GetConversationsResponse);
 
+  // Kickout a user for any good reason...
+  rpc KickoutFromConversation(KickoutFromConversationRequest) returns (KickoutFromConversationResponse);
+
+  ////////////////////////////////// Invitation ///////////////////////////////////
+
   // Conversation owner can invite a contact into Conversation.
   rpc SendInvitation(SendInvitationRequest) returns(SendInvitationResponse);
 
@@ -318,5 +372,14 @@ service ConversationService {
 
   // Retreive a conversation by keywords or name...
   rpc FindMessages(FindMessagesRequest) returns (stream FindMessagesResponse);
+
+  // append a like message
+  rpc LikeMessage(LikeMessageRqst) returns (LikeMessageResponse);
+
+  // dislike message
+  rpc DislikeMessage(DislikeMessageRqst) returns (DislikeMessageResponse);
+
+  // set message as read
+  rpc SetMessageRead(SetMessageReadRqst) returns(SetMessageReadResponse);
 
 }
