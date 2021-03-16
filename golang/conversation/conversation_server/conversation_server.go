@@ -543,7 +543,6 @@ func (self *server) removeConversationParticipant(participant string, conversati
 	}
 
 	c.Participants = paticipants
-	fmt.Println("-------> active participant are ", c.GetName(), c.GetParticipants())
 	return self.saveConversation(c)
 }
 
@@ -563,8 +562,6 @@ func (self *server) addParticipantConversation(paticipant string, conversation s
 	if Utility.Contains(_conversations, conversation) {
 		return nil
 	}
-
-	fmt.Println("-----> conversation: ", _conversations)
 
 	// Now I will append the newly created conversation into conversation owned by
 	// the client id.
@@ -610,6 +607,66 @@ func (self *server) removeParticipantConversation(paticipant string, conversatio
 
 }
 
+// Kickout a user for any good reason...
+func (self *server) KickoutFromConversation(ctx context.Context, rqst *conversationpb.KickoutFromConversationRequest) (*conversationpb.KickoutFromConversationResponse, error) {
+
+	var clientId string
+	var err error
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			clientId, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				log.Println("token validation fail with error: ", err)
+				return nil, err
+			}
+
+		} else {
+			errors.New("No token was given!")
+		}
+	}
+
+	// Get conversation if not exist I will return here.
+	_, err = self.getConversation(rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Validate the clientId is the owner of the conversation.
+	isOwner, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if !isOwner {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Only the owner of the conversation can kickout a participant!")))
+	}
+
+	// Here I will simply remove the converstion from the paticipant.
+	err = self.removeConversationParticipant(rqst.Account, rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	err = self.removeParticipantConversation(rqst.Account, rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &conversationpb.KickoutFromConversationResponse{}, err
+
+}
+
 // Delete the conversation
 func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
 	var clientId string
@@ -630,18 +687,31 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 		}
 	}
 
-	// Validate the clientId is the owner of the conversation.
-	hasAccess, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	// Get conversation if not exist I will return here.
+	conversation, err := self.getConversation(rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if !hasAccess {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("You must be the owner of the conversation to invite other user!")))
+	// Validate the clientId is the owner of the conversation.
+	_, err = self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	if err != nil {
+		// Here I will simply remove the converstion from the paticipant.
+		err := self.removeConversationParticipant(clientId, rqst.ConversationUuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		err = self.removeParticipantConversation(clientId, rqst.ConversationUuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		return nil, err
 	}
 
 	// Close leveldb connection
@@ -676,13 +746,6 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 	}
 
 	// Remove the pending invitation.
-	conversation, err := self.getConversation(rqst.ConversationUuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	if conversation.Invitations != nil {
 		for i := 0; i < len(conversation.Invitations.Invitations); i++ {
 			self.removeInvitation(conversation.Invitations.Invitations[i])
@@ -840,6 +903,13 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	conversation, err := self.getConversation(rqst.ConversationUuid)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	fmt.Println("------------------------------> paticipants: ", conversation.GetParticipants())
 	// Retreive all message from the conversation...
 	data, err := conn.GetItem(rqst.ConversationUuid + "/*")
 	if err == nil {
@@ -850,6 +920,11 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 				return err
 			}
 			if len(results) == 0 {
+				stream.Send(&conversationpb.JoinConversationResponse{
+					Msg:          nil,
+					Conversation: conversation,
+				})
+
 				return errors.New("EOF")
 			}
 
@@ -867,15 +942,29 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 				}
 
 				if err == nil {
-					stream.Send(&conversationpb.JoinConversationResponse{
-						Msg: &conversationpb.Message{
-							Uuid:         msg["uuid"].(string),
-							CreationTime: int64(Utility.ToInt(msg["creationTime"])),
-							Conversation: msg["conversation"].(string),
-							Author:       msg["author"].(string),
-							Language:     language,
-							Text:         text},
-					})
+					if i == 0 {
+						stream.Send(&conversationpb.JoinConversationResponse{
+							Msg: &conversationpb.Message{
+								Uuid:         msg["uuid"].(string),
+								CreationTime: int64(Utility.ToInt(msg["creationTime"])),
+								Conversation: msg["conversation"].(string),
+								Author:       msg["author"].(string),
+								Language:     language,
+								Text:         text},
+							Conversation: conversation,
+						})
+					} else {
+						stream.Send(&conversationpb.JoinConversationResponse{
+							Msg: &conversationpb.Message{
+								Uuid:         msg["uuid"].(string),
+								CreationTime: int64(Utility.ToInt(msg["creationTime"])),
+								Conversation: msg["conversation"].(string),
+								Author:       msg["author"].(string),
+								Language:     language,
+								Text:         text},
+							Conversation: nil,
+						})
+					}
 				} else {
 					return err
 				}
@@ -927,8 +1016,15 @@ func (self *server) LeaveConversation(ctx context.Context, rqst *conversationpb.
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	return &conversationpb.LeaveConversationResponse{}, nil
+	conversation, err := self.getConversation(rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &conversationpb.LeaveConversationResponse{
+		Conversation: conversation,
+	}, nil
 }
 
 // Conversation owner can invite a contact into Conversation.
@@ -1518,6 +1614,21 @@ func (self *server) DeleteMessage(ctx context.Context, rqst *conversationpb.Dele
 func (self *server) FindMessages(rqst *conversationpb.FindMessagesRequest, stream conversationpb.ConversationService_FindMessagesServer) error {
 
 	return nil
+}
+
+// append a like message
+func (self *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMessageRqst) (*conversationpb.LikeMessageResponse, error) {
+	return nil, nil
+}
+
+// dislike message
+func (self *server) DislikeMessage(ctx context.Context, rqst *conversationpb.DislikeMessageRqst) (*conversationpb.DislikeMessageResponse, error) {
+	return nil, nil
+}
+
+// set message as read
+func (self *server) SetMessageRead(ctx context.Context, rqst *conversationpb.SetMessageReadRqst) (*conversationpb.SetMessageReadResponse, error) {
+	return nil, nil
 }
 
 // That function process channel operation and run in it own go routine.
