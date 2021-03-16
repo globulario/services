@@ -848,7 +848,7 @@ proto.conversation.ConversationServiceClient.prototype.kickoutFromConversation =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.KickoutFromConversationResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.kickoutFromConversation =
     function(request, metadata) {
@@ -1643,7 +1643,7 @@ proto.conversation.ConversationServiceClient.prototype.likeMessage =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.LikeMessageResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.likeMessage =
     function(request, metadata) {
@@ -1723,7 +1723,7 @@ proto.conversation.ConversationServiceClient.prototype.dislikeMessage =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.DislikeMessageResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.dislikeMessage =
     function(request, metadata) {
@@ -1803,7 +1803,7 @@ proto.conversation.ConversationServiceClient.prototype.setMessageRead =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.conversation.SetMessageReadResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.conversation.ConversationServicePromiseClient.prototype.setMessageRead =
     function(request, metadata) {
