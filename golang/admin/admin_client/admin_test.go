@@ -89,11 +89,11 @@ func TestInstallService(t *testing.T) {
 	time.Sleep(time.Second * 5)
 }
 */
-
+/*
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
-	service_pid, proxy_pid, err := client.StartService("2a862136-0df2-4745-b68a-acbc295f3ae4")
+	service_pid, proxy_pid, err := client.StartService("d9213adc-4c37-4ad1-a315-762c32c03468")
 	if err != nil {
 
 		log.Println("---> ", err)
@@ -101,10 +101,11 @@ func TestStartService(t *testing.T) {
 	log.Println("service pid:", service_pid, " proxy pid:", proxy_pid)
 
 }
+*/
 
 /*
 func TestStopService(t *testing.T) {
-	err := client.StopService("475f1bbb-42ca-44a8-9bfd-b6db1fadf2d9")
+	err := client.StopService("d9213adc-4c37-4ad1-a315-762c32c03468")
 	if err != nil {
 		log.Println(err)
 		return
@@ -121,7 +122,6 @@ func TestUninstallService(t *testing.T) {
 }
 */
 
-/*
 func TestRestartServices(t *testing.T) {
 	err := client.RestartServices()
 	if err != nil {
@@ -130,7 +130,6 @@ func TestRestartServices(t *testing.T) {
 	}
 	log.Println("RestartServices succeed!")
 }
-*/
 
 /*func TestDeployApplication(t *testing.T) {
 	err := client.DeployApplication("testApp", "/home/dave/Documents/chitchat")
