@@ -254,7 +254,8 @@ message SendMessageResponse {
 
 message DeleteMessageRequest {
 	/** The message uuid */
-	string uuid = 1;
+	string conversation = 1;
+	string uuid = 2;
 }
 
 message DeleteMessageResponse {
@@ -271,8 +272,9 @@ message FindMessagesResponse{
 }
 
 message LikeMessageRqst{
-	string message =1;
-	string account = 2;
+	string conversation = 1;
+	string message =2;
+	string account = 3;
 }
 
 message LikeMessageResponse{
@@ -280,8 +282,9 @@ message LikeMessageResponse{
 }
 
 message DislikeMessageRqst{
-	string message =1;
-	string account = 2;
+	string conversation = 1;
+	string message =2;
+	string account = 3;
 }
 
 message DislikeMessageResponse{
@@ -289,8 +292,9 @@ message DislikeMessageResponse{
 }
 
 message SetMessageReadRqst{
-	string message =1;
-	string account = 2;
+	string conversation = 1;
+	string message =2;
+	string account = 3;
 }
 
 message SetMessageReadResponse{

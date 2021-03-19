@@ -1449,7 +1449,6 @@ func (self *server) GetReceivedInvitations(ctx context.Context, rqst *conversati
 	var clientId string
 	var err error
 
-	fmt.Println("----------------> GetReceivedInvitation for ", rqst.Account)
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
@@ -1546,64 +1545,69 @@ func (self *server) GetSentInvitations(ctx context.Context, rqst *conversationpb
 	return &conversationpb.GetSentInvitationsResponse{Invitations: sent_invitations}, nil
 }
 
-// Send a message
-func (self *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMessageRequest) (*conversationpb.SendMessageResponse, error) {
+/**
+ * Create/Update message and send it back on the conversation channel.
+ */
+func (self *server) sendMessage(msg *conversationpb.Message) error {
 
 	// Save the message in the database...
-	conn, err := self.getConversationConnection(rqst.Msg.Conversation)
+	conn, err := self.getConversationConnection(msg.Conversation)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	// Here I will save the message.
 	var marshaler jsonpb.Marshaler
-	jsonStr_, err := marshaler.MarshalToString(rqst.Msg)
+	jsonStr_, err := marshaler.MarshalToString(msg)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	// The key will be composed of the conversation id and message uuid...
-	err = conn.SetItem(rqst.Msg.Conversation+"/"+Utility.ToString(rqst.Msg.CreationTime), []byte(jsonStr_))
+	err = conn.SetItem(msg.Conversation+"/"+Utility.ToString(msg.Uuid), []byte(jsonStr_))
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	// Now I will index the message in the search engine...
-	Utility.CreateDirIfNotExist(self.Root + "/conversations/" + rqst.Msg.Conversation + "/search_data")
-	self.search_engine.IndexJsonObject(self.Root+"/conversations/"+rqst.Msg.Conversation+"/search_data", jsonStr_, rqst.Msg.Language, "uuid", []string{"text"}, jsonStr_)
+	Utility.CreateDirIfNotExist(self.Root + "/conversations/" + msg.Conversation + "/search_data")
+	self.search_engine.IndexJsonObject(self.Root+"/conversations/"+msg.Conversation+"/search_data", jsonStr_, msg.Language, "uuid", []string{"text"}, jsonStr_)
 
 	// TODO set the last message date in the conversation **/
-	conversation, err := self.getConversation(rqst.Msg.Conversation)
+	conversation, err := self.getConversation(msg.Conversation)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	conversation.LastMessageTime = time.Now().Unix()
 
 	err = self.saveConversation(conversation)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	// Send the message on the network...
 	send_message := make(map[string]interface{})
 	send_message["action"] = "send_message"
-	send_message["name"] = rqst.Msg.Conversation
-	send_message["message"] = rqst.Msg
+	send_message["name"] = msg.Conversation
+	send_message["message"] = msg
 
-	// publish the data.
+	// publish the message.
 	self.actions <- send_message
 
+	return nil
+}
+
+// Send a message
+func (self *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMessageRequest) (*conversationpb.SendMessageResponse, error) {
+
+	// Save the message in the database...
+	err := self.sendMessage(rqst.Msg)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	return &conversationpb.SendMessageResponse{}, nil
 }
 
@@ -1618,14 +1622,82 @@ func (self *server) FindMessages(rqst *conversationpb.FindMessagesRequest, strea
 	return nil
 }
 
+/**
+ * Get message.
+ */
+func (self *server) getMessage(conversation string, uuid string) (*conversationpb.Message, error) {
+	data, err := self.store.GetItem(conversation + "/" + uuid)
+	msg := new(conversationpb.Message)
+	if err != nil {
+		return nil, err
+	}
+
+	err = jsonpb.UnmarshalString(string(data), msg)
+	if err != nil {
+		return nil, err
+	}
+
+	return msg, nil
+}
+
 // append a like message
 func (self *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMessageRqst) (*conversationpb.LikeMessageResponse, error) {
-	return nil, nil
+
+	// Get the message by it id.
+	msg, err := self.getMessage(rqst.Conversation, rqst.Message)
+	/** Authors cannot like it own message...*/
+	if msg.Author == rqst.Account {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("To be humble is not to think less of oneself, but to think of oneself less.")))
+	}
+
+	/** Append only if the msg is not likes. */
+	if !Utility.Contains(msg.Likes, rqst.Account) {
+		msg.Likes = append(msg.Likes, rqst.Account)
+	} else {
+		msg.Likes = Utility.RemoveString(msg.Likes, rqst.Account)
+	}
+
+	/** Send message */
+	err = self.sendMessage(msg)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.LikeMessageResponse{}, nil
 }
 
 // dislike message
 func (self *server) DislikeMessage(ctx context.Context, rqst *conversationpb.DislikeMessageRqst) (*conversationpb.DislikeMessageResponse, error) {
-	return nil, nil
+	// Get the message by it id.
+	msg, err := self.getMessage(rqst.Conversation, rqst.Message)
+
+	/** Authors cannot like it own message...*/
+	if msg.Author == rqst.Account {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Low self-esteem is like driving through life with your hand-brake on.")))
+	}
+
+	/** Append only if the msg is not likes. */
+	if !Utility.Contains(msg.Dislikes, rqst.Account) {
+		msg.Likes = append(msg.Dislikes, rqst.Account)
+	} else {
+		msg.Likes = Utility.RemoveString(msg.Dislikes, rqst.Account)
+	}
+
+	/** Send message */
+	err = self.sendMessage(msg)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.DislikeMessageResponse{}, nil
 }
 
 // set message as read
