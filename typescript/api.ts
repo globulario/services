@@ -188,7 +188,7 @@ export function hasRuningProcess(
   globular.adminService
     .hasRunningProcess(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: HasRunningProcessResponse) => {
@@ -220,7 +220,7 @@ export function readFullConfig(
     globular.adminService
       .getFullConfig(rqst, {
         token: getToken(),
-        application: application,
+        application: application.length > 0 ? application : globular.config.IndexApplication,
         domain: domain,
       })
       .then((rsp) => {
@@ -254,7 +254,7 @@ export function saveConfig(
     globular.adminService
       .saveConfig(rqst, {
         token: getToken(),
-        application: application,
+        application: application.length > 0 ? application : globular.config.IndexApplication,
         domain: domain,
       })
       .then((rsp) => {
@@ -424,7 +424,7 @@ export function renameFile(
   globular.fileService
     .rename(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
       path: path + "/" + oldName,
     })
@@ -460,7 +460,7 @@ export function deleteFile(
   globular.fileService
     .deleteFile(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
       path: path,
     })
@@ -495,7 +495,7 @@ export function deleteDir(
   globular.fileService
     .deleteDir(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
       path: path,
     })
@@ -534,7 +534,7 @@ export function createArchive(
   globular.fileService
     .createAchive(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
       path: path,
     })
@@ -609,7 +609,7 @@ export function downloadDir(
           globular.fileService
             .deleteFile(rqst, {
               token: getToken(),
-              application: application,
+              application: application.length > 0 ? application : globular.config.IndexApplication,
               domain: domain,
               path: path,
             })
@@ -657,7 +657,7 @@ export function readDir(
 
   const stream = globular.fileService.readDir(rqst, {
     token: getToken(),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
     path: path,
   });
@@ -731,7 +731,7 @@ export function createDir(
       globular.fileService
         .createDir(rqst, {
           token: getToken(),
-          application: application,
+          application: application.length > 0 ? application : globular.config.IndexApplication,
           domain: domain,
           path: path,
         })
@@ -778,7 +778,7 @@ export function queryTs(
   globular.monitoringService
     .query(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((resp) => {
@@ -828,7 +828,7 @@ export function queryTsRange(
 
   const stream = globular.monitoringService.queryRange(rqst, {
     token: getToken(),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -872,7 +872,7 @@ export function getAllAccountsInfo(
   rqst.setQuery("{}"); // means all values.
 
   const stream = globular.persistenceService.find(rqst, {
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -921,7 +921,7 @@ export function registerAccount(
   // Create the user account.
   globular.resourceService
     .registerAccount(request, {
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp) => {
@@ -951,7 +951,7 @@ export function deleteAccount(
   globular.resourceService
     .deleteAccount(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp) => {
@@ -983,7 +983,7 @@ export function removeRoleFromAccount(
   globular.resourceService
     .removeAccountRole(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp) => {
@@ -1015,7 +1015,7 @@ export function appendRoleToAccount(
   globular.resourceService
     .addAccountRole(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp) => {
@@ -1050,7 +1050,7 @@ export function updateAccountEmail(
   globular.adminService
     .setEmail(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp) => {
@@ -1092,7 +1092,7 @@ export function updateAccountPassword(
   globular.adminService
     .setPassword(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp) => {
@@ -1130,7 +1130,7 @@ export function authenticate(
 
   // Create the user account.
   globular.resourceService
-    .authenticate(rqst, { application: application, domain: domain })
+    .authenticate(rqst, { application: application.length > 0 ? application : globular.config.IndexApplication, domain: domain })
     .then((rsp) => {
       // Here I will set the token in the localstorage.
       let token = rsp.getToken();
@@ -1178,7 +1178,7 @@ export function refreshToken(
   globular.resourceService
     .refreshToken(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: RefreshTokenRsp) => {
@@ -1230,7 +1230,7 @@ export function appendUserData(
   globular.persistenceService
     .insertOne(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: any) => {
@@ -1271,7 +1271,7 @@ export function readOneUserData(
   globular.persistenceService
     .findOne(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: any) => {
@@ -1311,7 +1311,7 @@ export function readUserData(
   // call persist data
   const stream = globular.persistenceService.find(rqst, {
     token: getToken(),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -1345,7 +1345,7 @@ export function getAllActions(
 ) {
   const rqst = new GetAllActionsRqst();
   globular.resourceService
-    .getAllActions(rqst, { application: application, domain: domain })
+    .getAllActions(rqst, { application: application.length > 0 ? application : globular.config.IndexApplication, domain: domain })
     .then((rsp: GetAllActionsRsp) => {
       callback(rsp.getActionsList());
     })
@@ -1371,7 +1371,7 @@ export function getAllRoles(
   rqst.setQuery("{}"); // means all values.
 
   const stream = globular.persistenceService.find(rqst, {
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -1411,7 +1411,7 @@ export function appendActionToRole(
   globular.resourceService
     .addRoleActions(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: AddRoleActionsRsp) => {
@@ -1443,7 +1443,7 @@ export function removeActionFromRole(
   globular.resourceService
     .removeRoleAction(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: RemoveAccountRoleRsp) => {
@@ -1478,7 +1478,7 @@ export function createRole(
   globular.resourceService
     .createRole(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: CreateRoleRsp) => {
@@ -1510,7 +1510,7 @@ export function deleteRole(
   globular.resourceService
     .deleteRole(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: CreateRoleRsp) => {
@@ -1571,7 +1571,7 @@ export function appendActionToApplication(
   globular.resourceService
     .addApplicationActions(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: AddApplicationActionsRsp) => {
@@ -1603,7 +1603,7 @@ export function removeActionFromApplication(
   globular.resourceService
     .removeApplicationAction(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: RemoveApplicationActionRsp) => {
@@ -1634,7 +1634,7 @@ export function deleteApplication(
   globular.resourceService
     .deleteApplication(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: DeleteApplicationRsp) => {
@@ -1672,7 +1672,7 @@ export function saveApplication(
   globular.persistenceService
     .replaceOne(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: ReplaceOneRsp) => {
@@ -1714,7 +1714,7 @@ export function getPackageDescriptor(
   globular.packagesDicovery
     .getPackageDescriptor(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: GetPackageDescriptorResponse) => {
@@ -1741,7 +1741,7 @@ export function GetPackagesDescriptor(
   const rqst = new GetPackagesDescriptorRequest();
 
   const stream = globular.packagesDicovery.getPackagesDescriptor(rqst, {
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -1781,7 +1781,7 @@ export function setServicesDescriptor(
   globular.packagesDicovery
     .setPackageDescriptor(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then(callback)
@@ -1806,7 +1806,7 @@ export function FindPackages(
 
   // Find services by keywords.
   globular.packagesDicovery
-    .findPackages(rqst, { application: application, domain: domain })
+    .findPackages(rqst, { application: application.length > 0 ? application : globular.config.IndexApplication, domain: domain })
     .then((rsp: FindPackagesDescriptorResponse) => {
       callback(rsp.getResultsList());
     })
@@ -1846,7 +1846,7 @@ export function installService(
   globular.adminService
     .installService(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: InstallServiceResponse) => {
@@ -1871,7 +1871,7 @@ export function stopService(
   globular.adminService
     .stopService(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then(() => {
@@ -1898,7 +1898,7 @@ export function startService(
   globular.adminService
     .startService(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then(() => {
@@ -1925,7 +1925,7 @@ export function saveService(
   globular.adminService
     .saveConfig(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: SaveConfigResponse) => {
@@ -1963,7 +1963,7 @@ export function uninstallService(
   globular.adminService
     .uninstallService(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: UninstallServiceResponse) => {
@@ -1996,7 +1996,7 @@ export function getServiceBundles(
   rqst.setQuery(`{}`); // means all values.
 
   var stream = globular.persistenceService.find(rqst, {
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain + ":" + window.location.port,
   });
 
@@ -2053,7 +2053,7 @@ export function getReferencedValue(
   globular.persistenceService
     .findOne(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: FindOneResp) => {
@@ -2092,7 +2092,7 @@ export function readErrors(
   // call persist data
   const stream = globular.persistenceService.find(rqst, {
     token: getToken(),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -2133,7 +2133,7 @@ export function readLogs(
   // call persist data
   const stream = globular.logService.getLog(rqst, {
     token: getToken(),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -2185,7 +2185,7 @@ export function clearAllLog(
   globular.logService
     .clearAllLog(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then(callback)
@@ -2214,7 +2214,7 @@ export function deleteLogEntry(
   globular.logService
     .deleteLog(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then(callback)
@@ -2249,7 +2249,7 @@ export function getNumbeOfLogsByMethod(
   // call persist data
   const stream = globular.persistenceService.aggregate(rqst, {
     token: getToken(),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -2308,7 +2308,7 @@ export function syncLdapInfos(
   globular.resourceService
     .synchronizeLdap(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: SynchronizeLdapRsp) => {
@@ -2342,7 +2342,7 @@ export function pingSql(
   globular.sqlService
     .ping(rqst, {
       token: getToken(),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: PingConnectionRsp) => {
@@ -2391,7 +2391,7 @@ export function searchDocuments(
 
   let stream = globular.searchService.searchDocuments(rqst, {
     token: localStorage.getItem("user_token"),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -2429,7 +2429,7 @@ export function createPeer(
   globular.resourceService
     .registerPeer(rqst, {
       token: localStorage.getItem("user_token"),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then(callback)
@@ -2447,7 +2447,7 @@ export function getAllPeersInfo(
 
   let stream = globular.resourceService.getPeers(rqst, {
     token: localStorage.getItem("user_token"),
-    application: application,
+    application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
@@ -2478,7 +2478,7 @@ export function appendActionToPeer(
   globular.resourceService
     .addPeerActions(rqst, {
       token: localStorage.getItem("user_token"),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: AddPeerActionsRsp) => {
@@ -2503,7 +2503,7 @@ export function removeActionFromPeer(
   globular.resourceService
     .removePeerAction(rqst, {
       token: localStorage.getItem("user_token"),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: RemovePeerActionRsp) => {
@@ -2526,7 +2526,7 @@ export function deletePeer(
   globular.resourceService
     .deletePeer(rqst, {
       token: localStorage.getItem("user_token"),
-      application: application,
+      application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
     })
     .then((rsp: DeletePeerRsp) => {

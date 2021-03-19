@@ -45,6 +45,7 @@ export interface IServiceConfig {
   CertAuthorityTrust: string;
   CertFile: string;
   KeyFile: string;
+
 }
 
 /**
@@ -71,7 +72,8 @@ export interface IConfig {
   CertStableURL: string;
   CertURL: string;
   IdleTimeout: number;
-
+  IndexApplication: string;
+  
   // The map of service object.
   Services: IServices;
 }
