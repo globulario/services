@@ -228,9 +228,9 @@ export class EventHub {
 
     if (!local) {
       if (this.subscribers[name] == undefined) {
-       
+
         this.subscribers[name] = {}
-      
+
         const rqst = new SubscribeRequest
         rqst.setName(name)
         rqst.setUuid(this.uuid)
@@ -300,7 +300,7 @@ export class EventHub {
     if (local === true) {
       this.dispatch(name, data)
     } else {
-     
+
       // Create a new request.
       const rqst = new PublishRequest();
       const evt = new Event();
@@ -419,7 +419,6 @@ export class Globular {
         );
         this._services[config.Id] = this._adminService
       });
-      return this._adminService;
     }
     return this._adminService;
   }
@@ -441,7 +440,6 @@ export class Globular {
         );
         this._services[config.Id] = this._resourceService
       });
-      return this._resourceService;
     }
     return this._resourceService;
   }
@@ -463,7 +461,6 @@ export class Globular {
         );
         this._services[config.Id] = this._logService
       })
-      return this._logService;
     }
     return this._logService;
   }
@@ -485,7 +482,6 @@ export class Globular {
         );
         this._services[config.Id] = this._conversationService
       });
-      return this._conversationService;
     }
     return this._conversationService;
   }
@@ -507,7 +503,6 @@ export class Globular {
         );
         this._services[config.Id] = this._rbacService
       });
-      return this._rbacService;
     }
     return this._rbacService;
   }
@@ -529,7 +524,6 @@ export class Globular {
         );
         this._services[config.Id] = this._loadBalancingService
       });
-      return this._loadBalancingService;
     }
     return this._loadBalancingService;
   }
@@ -551,7 +545,6 @@ export class Globular {
         );
         this._services[config.Id] = this._packagesDicovery
       });
-      return this._packagesDicovery;
     }
     return this._packagesDicovery;
   }
@@ -573,7 +566,6 @@ export class Globular {
         );
         this._services[config.Id] = this._servicesRepository
       });
-      return this._servicesRepository;
     }
 
     return this._servicesRepository;
@@ -596,7 +588,6 @@ export class Globular {
         );
         this._services[config.Id] = this._certificateAuthority
       });
-      return this._certificateAuthority;
     }
     return this._certificateAuthority;
   }
@@ -620,58 +611,53 @@ export class Globular {
           this._services[config.Id] = this._catalogService
         }
       });
-      return this._catalogService;
     }
     return this._catalogService
   }
 
   private _echoService: EchoServicePromiseClient
   public get echoService(): EchoServicePromiseClient | undefined {
-    if (this._echoService != null) {
-      return this._echoService
+    if (this._echoService == null) {
+      let configs = this.getConfigs('echo.EchoService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._echoService == null) {
+          this._echoService = new EchoServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._echoService
+        }
+
+      });
     }
-    let configs = this.getConfigs('echo.EchoService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._echoService == null) {
-        this._echoService = new EchoServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._echoService
-      }
-      return this._echoService;
-    });
-    return undefined;
+    return this._echoService;
   }
 
   private _eventService: EventServicePromiseClient
   public get eventService(): EventServicePromiseClient | undefined {
-    if (this._eventService != null) {
-      return this._eventService
+    if (this._eventService == null) {
+      let configs = this.getConfigs('event.EventService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._eventService == null) {
+          this._eventService = new EventServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._eventService
+        }
+      });
     }
-    let configs = this.getConfigs('event.EventService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._eventService == null) {
-
-        this._eventService = new EventServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._eventService
-      }
-      return this._eventService;
-    });
-    return undefined;
+    return this._eventService
   }
 
   public resetEventService() {
@@ -680,218 +666,203 @@ export class Globular {
 
   private _fileService: FileServicePromiseClient
   public get fileService(): FileServicePromiseClient | undefined {
-    if (this._fileService != null) {
-      return this._fileService
+    if (this._fileService == null) {
+      let configs = this.getConfigs('file.FileService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._fileService == null) {
+          this._fileService = new FileServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._fileService
+        }
+
+      })
     }
-    let configs = this.getConfigs('file.FileService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._fileService == null) {
-        this._fileService = new FileServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._fileService
-      }
-      return this._fileService;
-    })
-    return undefined;
+    return this._fileService;
   }
 
   private _ldapService: LdapServicePromiseClient
   public get ldapService(): LdapServicePromiseClient | undefined {
-    if (this._ldapService != null) {
+    if (this._ldapService == null) {
+      let configs = this.getConfigs('ldap.LdapService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._ldapService == null) {
+          this._ldapService = new LdapServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._ldapService
+        }
+      })
       return this._ldapService
     }
-    let configs = this.getConfigs('ldap.LdapService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._ldapService == null) {
-        this._ldapService = new LdapServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._ldapService
-      }
-      return this._ldapService;
-    })
-    return undefined;
   }
 
   private _persistenceService: PersistenceServicePromiseClient
   public get persistenceService(): PersistenceServicePromiseClient | undefined {
-    if (this._persistenceService != null) {
+    if (this._persistenceService == null) {
+      let configs = this.getConfigs('persistence.PersistenceService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._persistenceService == null) {
+          this._persistenceService = new PersistenceServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._persistenceService
+        }
+      });
       return this._persistenceService
     }
-    let configs = this.getConfigs('persistence.PersistenceService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._persistenceService == null) {
-        this._persistenceService = new PersistenceServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._persistenceService
-      }
-      return this._persistenceService;
-    });
-    return undefined;
   }
 
   private _mailService: MailServicePromiseClient
   public get mailService(): MailServicePromiseClient | undefined {
-    if (this._mailService != null) {
-      return this._mailService
-    }
-    let configs = this.getConfigs('mail.MailService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._mailService == null) {
-        this._mailService = new MailServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._mailService
-      }
+    if (this._mailService == null) {
+      let configs = this.getConfigs('mail.MailService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._mailService == null) {
+          this._mailService = new MailServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._mailService
+        }
+
+      });
       return this._mailService;
-    });
-    return undefined;
+    }
   }
 
   private _sqlService: SqlServicePromiseClient
   public get sqlService(): SqlServicePromiseClient | undefined {
-    if (this._sqlService != null) {
-      return this._sqlService
+    if (this._sqlService == null) {
+      let configs = this.getConfigs('sql.SqlService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._sqlService == null) {
+          this._sqlService = new SqlServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._sqlService
+        }
+      });
     }
-    let configs = this.getConfigs('sql.SqlService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._sqlService == null) {
-        this._sqlService = new SqlServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._sqlService
-      }
-      return this._sqlService;
-    });
-    return undefined;
+    return this._sqlService
   }
 
   private _storageService: StorageServicePromiseClient
   public get storageService(): StorageServicePromiseClient | undefined {
-    if (this._storageService != null) {
-      return this._storageService
+    if (this._storageService == null) {
+      let configs = this.getConfigs('storage.StorageService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._storageService == null) {
+          this._storageService = new StorageServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._storageService
+        }
+      });
     }
-    let configs = this.getConfigs('storage.StorageService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._storageService == null) {
-        this._storageService = new StorageServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._storageService
-      }
-      return this._storageService;
-    });
-    return undefined;
+    return this._storageService;
   }
 
   private _monitoringService: MonitoringServicePromiseClient
   public get monitoringService(): MonitoringServicePromiseClient | undefined {
-    if (this._monitoringService != null) {
+    if (this._monitoringService == null) {
+
+      let configs = this.getConfigs('monitoring.MonitoringService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._monitoringService == null) {
+          this._monitoringService = new MonitoringServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._monitoringService
+        }
+      })
       return this._monitoringService
     }
-    let configs = this.getConfigs('monitoring.MonitoringService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._monitoringService == null) {
-        this._monitoringService = new MonitoringServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._monitoringService
-      }
-      return this._monitoringService;
-    })
-    return undefined;
   }
 
   private _spcService: SpcServicePromiseClient
   public get spcService(): SpcServicePromiseClient | undefined {
-    if (this._spcService != null) {
+    if (this._spcService == null) {
+      let configs = this.getConfigs('spc.SpcService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._spcService == null) {
+          this._spcService = new SpcServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._spcService
+        }
+      })
       return this._spcService
     }
-    let configs = this.getConfigs('spc.SpcService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._spcService == null) {
-        this._spcService = new SpcServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._spcService
-      }
-      return this._spcService;
-    })
-    return undefined;
   }
 
   private _searchService: SearchServicePromiseClient
   public get searchService(): SearchServicePromiseClient | undefined {
     if (this._searchService != null) {
+      let configs = this.getConfigs('search.SearchService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._searchService == null) {
+          this._searchService = new SearchServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._searchService
+        }
+      })
       return this.searchService
     }
-    let configs = this.getConfigs('search.SearchService')
-    configs.forEach((config: IServiceConfig) => {
-      if (this._searchService == null) {
-        this._searchService = new SearchServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._searchService
-      }
-      return this._searchService;
-    })
-    return undefined;
   }
 
   /**
