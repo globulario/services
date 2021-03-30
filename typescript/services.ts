@@ -73,7 +73,7 @@ export interface IConfig {
   CertURL: string;
   IdleTimeout: number;
   IndexApplication: string;
-  
+
   // The map of service object.
   Services: IServices;
 }
@@ -100,7 +100,6 @@ function randomUUID(): string {
 window.onbeforeunload = function (e: any) {
 
   console.log("cleanup network ressources...");
-  EventHub.cleanup();
 
   return undefined;
 };
@@ -109,42 +108,68 @@ window.onbeforeunload = function (e: any) {
  * That local and distant event hub.
  */
 export class EventHub {
-  private service: any;
+  private globular: Globular;
   private subscribers: any;
-  private subscriptions: any;
   private uuid: string;
-
-  // need by clean function
-  static remoteSucribers: any;
-  static services: Array<any>;
 
   /**
    * @param {*} service If undefined only local event will be allow.
    */
-  constructor(service: any) {
+  constructor(g: Globular) {
 
-    // needed by clean.
-    if (EventHub.services == undefined) {
-      EventHub.services = new Array<any>();
-    }
-    EventHub.services.push(service);
-
-    // The network event bus.
-    this.service = service
+    // The parent globular object.
+    this.globular = g;
     // Subscriber function map.
     this.subscribers = {}
-    // Subscription name/uuid's maps
-    this.subscriptions = {}
     // This is the client uuid
     this.uuid = randomUUID();
 
+    // This will stay there until disconnect will be call...
+    this.connect(null);
+
+  }
+
+  reinitRemoteListeners() {
+    setTimeout(() => {
+      let subscriptions = []
+      for (const name in this.subscribers) {
+        for (var uuid in this.subscribers[name]) {
+          let subscription = this.subscribers[name][uuid]
+          if (!subscription.local) {
+            if (subscriptions.indexOf(name) == -1) {
+              subscriptions.push(name)
+            }
+          }
+        }
+      }
+
+      let subscribe = () => {
+        let name = subscriptions.pop()
+        const rqst = new SubscribeRequest
+        rqst.setName(name)
+        rqst.setUuid(this.uuid)
+        this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
+          console.log("subscribed to ", name)
+          if (subscriptions.length > 0) {
+            subscribe();
+          }
+        }).catch(err => { console.log(err) })
+      }
+
+      subscribe()
+    }, 5000)
+  }
+
+  /** Connect to the remote server. */
+  connect(callback: () => void) {
     // Open the connection with the server.
-    if (this.service !== undefined) {
+    if (this.globular.eventService !== undefined) {
+      console.log("connect to event service...")
       // The first step is to subscribe to an event channel.
       const rqst = new OnEventRequest()
       rqst.setUuid(this.uuid)
 
-      const stream = this.service.onEvent(rqst, {});
+      const stream = this.globular.eventService.onEvent(rqst, {});
 
       // Get the stream and set event on it...
       stream.on('data', (rsp: any) => {
@@ -156,16 +181,39 @@ export class EventHub {
 
       stream.on('status', (status: any) => {
         if (status.code === 0) {
-          /** Nothing to do here. */
+          /** nothing here. */
+
+        } else if (status.details == "transport is closing") {
+          console.log("disconnect from event service...")
+          this.globular.resetEventService();
+
+          this.connect(() => {
+            this.reinitRemoteListeners()
+          });
         }
       });
 
       stream.on('end', () => {
         // stream end signal
         /** Nothing to do here. */
-      });
-    }
 
+      });
+
+      if (callback != undefined) {
+        callback();
+      }
+
+    } else {
+      // Wait a second before try to connect agin...
+      console.log("wait a second")
+      setTimeout(() => {
+        console.log("try to connect to event service...")
+        this.connect(() => {
+          this.reinitRemoteListeners()
+        })
+
+      }, 1000)
+    }
   }
 
   /**
@@ -174,38 +222,32 @@ export class EventHub {
    * @param {*} onevent That function is call when the event is use.
    */
   subscribe(name: string, onsubscribe: (uuid: string) => any, onevent: (data: any) => any, local: boolean) {
+
     // Register the local subscriber.
     const uuid = randomUUID()
+
     if (!local) {
-      const rqst = new SubscribeRequest
-      rqst.setName(name)
-      rqst.setUuid(this.uuid)
-      this.service.subscribe(rqst).then((rsp: SubscribeResponse) => {
-        if (this.subscribers[name] === undefined) {
-          this.subscribers[name] = {}
-        }
-        this.subscribers[name][uuid] = onevent
-
-        // Needed by cleanup function...
-        if (EventHub.remoteSucribers == undefined) {
-          EventHub.remoteSucribers = {};
-        }
-        if (EventHub.remoteSucribers[name] == undefined) {
-          EventHub.remoteSucribers[name] = [];
-        }
-
-        if (EventHub.remoteSucribers[name].indexOf(this.uuid) == -1) {
-          EventHub.remoteSucribers[name].push(this.uuid)
-        }
-
+      if (this.subscribers[name] == undefined) {
+       
+        this.subscribers[name] = {}
+      
+        const rqst = new SubscribeRequest
+        rqst.setName(name)
+        rqst.setUuid(this.uuid)
+        this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
+          this.subscribers[name][uuid] = { onsubscribe: onsubscribe, onevent: onevent, local: local }
+          onsubscribe(uuid)
+        })
+      } else {
+        this.subscribers[name][uuid] = { onsubscribe: onsubscribe, onevent: onevent, local: local }
         onsubscribe(uuid)
-      })
+      }
     } else {
       // create a uuid and call onsubscribe callback.
       if (this.subscribers[name] === undefined) {
         this.subscribers[name] = {}
       }
-      this.subscribers[name][uuid] = onevent
+      this.subscribers[name][uuid] = { onsubscribe: onsubscribe, onevent: onevent, local: local }
       onsubscribe(uuid)
     }
   }
@@ -222,36 +264,24 @@ export class EventHub {
     if (this.subscribers[name][uuid] === undefined) {
       return
     }
+
+    const subscription = this.subscribers[name][uuid]
+
     // Remove the local subscriber.
     delete this.subscribers[name][uuid]
+
     if (Object.keys(this.subscribers[name]).length === 0) {
       delete this.subscribers[name]
       // disconnect from the distant server.
-      if (this.service !== undefined) {
+      if (this.globular.eventService !== undefined && !subscription.local) {
+
         const rqst = new UnSubscribeRequest();
         rqst.setName(name);
-        rqst.setUuid(this.subscriptions[name])
-
-        // remove the subcription uuid.
-        delete this.subscriptions[name]
+        rqst.setUuid(this.uuid)
 
         // Now I will test with promise
-        this.service.unSubscribe(rqst)
+        this.globular.eventService.unSubscribe(rqst)
           .then((resp: any) => {
-            /** Nothing to do here */
-            if (EventHub.remoteSucribers == undefined) {
-              return;
-            }
-
-            if (EventHub.remoteSucribers[name] == undefined) {
-              return
-            }
-
-            if (EventHub.remoteSucribers[name].indexOf(this.uuid) != -1) {
-              // remove it from the event hub...
-              EventHub.remoteSucribers[name].splice(EventHub.remoteSucribers[name].indexOf(this.uuid), 1)
-            }
-
           })
           .catch((error: any) => {
             console.log(error)
@@ -270,6 +300,7 @@ export class EventHub {
     if (local === true) {
       this.dispatch(name, data)
     } else {
+     
       // Create a new request.
       const rqst = new PublishRequest();
       const evt = new Event();
@@ -281,7 +312,7 @@ export class EventHub {
       rqst.setEvt(evt);
 
       // Now I will test with promise
-      this.service.publish(rqst)
+      this.globular.eventService.publish(rqst)
         .then((resp: any) => {
           /** Nothing to do here. */
         })
@@ -298,49 +329,13 @@ export class EventHub {
       if (this.subscribers !== undefined) {
         if (this.subscribers[name] !== undefined) {
           if (this.subscribers[name][uuid] !== undefined) {
-            this.subscribers[name][uuid](data);
+            this.subscribers[name][uuid].onevent(data);
           }
         }
       }
     }
   }
 
-  /** Clean up all connections... */
-  static cleanup() {
-    for (var name in EventHub.remoteSucribers) {
-      for (var i = 0; i < EventHub.remoteSucribers[name]; i++) {
-        const rqst = new UnSubscribeRequest();
-        let uuid = EventHub.remoteSucribers[name][i];
-        rqst.setName(name);
-        rqst.setUuid(uuid)
-
-        // Now I will test with promise
-        for (var j = 0; j < EventHub.services.length; j++) {
-          let service = EventHub.services[j]
-          service.unSubscribe(rqst)
-            .then((resp: any) => {
-              /** Nothing to do here */
-              if (EventHub.remoteSucribers == undefined) {
-                return;
-              }
-
-              if (EventHub.remoteSucribers[name] == undefined) {
-                return
-              }
-
-              if (EventHub.remoteSucribers[name].indexOf(uuid) != -1) {
-                // remove it from the event hub...
-                EventHub.remoteSucribers[name].splice(EventHub.remoteSucribers[name].indexOf(uuid), 1)
-              }
-
-            })
-            .catch((error: any) => {
-              console.log(error)
-            })
-        }
-      }
-    }
-  }
 }
 
 // Get the configuration from url
@@ -383,7 +378,7 @@ export class Globular {
       this._services = {};
 
       // here I will connect the event hub...
-      this._eventHub = new EventHub(this.eventService);
+      this._eventHub = new EventHub(this);
 
       // I will subscribe on services configuration update.
       this._eventHub.subscribe("update_globular_service_configuration_evt", () => { }, (evt: any) => {
@@ -664,6 +659,7 @@ export class Globular {
     let config = this.getFirstConfigByName('event.EventService')
     if (config != undefined) {
       if (this._eventService == null) {
+
         this._eventService = new EventServicePromiseClient(
           this.config.Protocol +
           '://' +
@@ -678,6 +674,10 @@ export class Globular {
       return this._eventService;
     }
     return undefined;
+  }
+
+  public resetEventService() {
+    this._eventService = undefined;
   }
 
   private _fileService: FileServicePromiseClient
@@ -909,3 +909,4 @@ export class Globular {
     return null;
   }
 }
+

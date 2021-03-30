@@ -100,7 +100,7 @@ message ConnectRequest{
 
 /** The message stream */
 message ConnectResponse{
-	Message message = 1;
+	Message msg = 1;
 }
 
 message DisconnectRequest{

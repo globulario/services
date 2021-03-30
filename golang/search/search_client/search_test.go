@@ -98,7 +98,6 @@ func TestSearchDocument(t *testing.T) {
 		log.Println(err)
 		return
 	}
-	log.Println("-------> ", results)
 
 	for i := 0; i < len(results); i++ {
 		log.Println(results[i])

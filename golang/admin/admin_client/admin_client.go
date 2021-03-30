@@ -235,7 +235,6 @@ func (self *Admin_Client) RestartServices() error {
 
 	_, err := self.c.RestartServices(globular.GetClientContext(self), rqst)
 	if err != nil {
-		log.Println("---------> ", 238, err)
 		return err
 	}
 

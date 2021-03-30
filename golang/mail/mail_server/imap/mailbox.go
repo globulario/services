@@ -397,12 +397,10 @@ func (mbox *MailBox_impl) CopyMessages(uid bool, seqset *imap.SeqSet, destName s
 // If the Backend implements Updater, it must notify the client immediately
 // via an expunge update.
 func (mbox *MailBox_impl) Expunge() error {
-	log.Println("=--------> expunge!")
 	messages := mbox.getMessages()
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
-		log.Println("----> 415")
 		deleted := false
 		for _, flag := range msg.Flags {
 			if flag == imap.DeletedFlag {
@@ -410,14 +408,11 @@ func (mbox *MailBox_impl) Expunge() error {
 				break
 			}
 		}
-		log.Println("----> 424")
 		if deleted {
-			log.Println("----> 426")
 			// mbox.Messages = append(mbox.Messages[:i], mbox.Messages[i+1:]...)
 			connectionId := mbox.user + "_db"
 			err := Store.DeleteOne(connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, "")
 			if err != nil {
-				log.Println("--------> fail to delete message from message box ", mbox.name, err)
 				return err
 			}
 		}

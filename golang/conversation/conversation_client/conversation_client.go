@@ -382,7 +382,7 @@ func (self *Conversation_Client) connect(uuid string, data_channel chan *convers
 			}
 
 			// Get the result...
-			data_channel <- msg.Message
+			data_channel <- msg.GetMsg()
 		}
 	}()
 

@@ -2742,7 +2742,7 @@ proto.conversation.ConnectResponse.prototype.toObject = function(opt_includeInst
  */
 proto.conversation.ConnectResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: (f = msg.getMessage()) && proto.conversation.Message.toObject(includeInstance, f)
+    msg: (f = msg.getMsg()) && proto.conversation.Message.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -2782,7 +2782,7 @@ proto.conversation.ConnectResponse.deserializeBinaryFromReader = function(msg, r
     case 1:
       var value = new proto.conversation.Message;
       reader.readMessage(value,proto.conversation.Message.deserializeBinaryFromReader);
-      msg.setMessage(value);
+      msg.setMsg(value);
       break;
     default:
       reader.skipField();
@@ -2813,7 +2813,7 @@ proto.conversation.ConnectResponse.prototype.serializeBinary = function() {
  */
 proto.conversation.ConnectResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getMessage();
+  f = message.getMsg();
   if (f != null) {
     writer.writeMessage(
       1,
@@ -2825,10 +2825,10 @@ proto.conversation.ConnectResponse.serializeBinaryToWriter = function(message, w
 
 
 /**
- * optional Message message = 1;
+ * optional Message msg = 1;
  * @return {?proto.conversation.Message}
  */
-proto.conversation.ConnectResponse.prototype.getMessage = function() {
+proto.conversation.ConnectResponse.prototype.getMsg = function() {
   return /** @type{?proto.conversation.Message} */ (
     jspb.Message.getWrapperField(this, proto.conversation.Message, 1));
 };
@@ -2838,7 +2838,7 @@ proto.conversation.ConnectResponse.prototype.getMessage = function() {
  * @param {?proto.conversation.Message|undefined} value
  * @return {!proto.conversation.ConnectResponse} returns this
 */
-proto.conversation.ConnectResponse.prototype.setMessage = function(value) {
+proto.conversation.ConnectResponse.prototype.setMsg = function(value) {
   return jspb.Message.setWrapperField(this, 1, value);
 };
 
@@ -2847,8 +2847,8 @@ proto.conversation.ConnectResponse.prototype.setMessage = function(value) {
  * Clears the message field making it undefined.
  * @return {!proto.conversation.ConnectResponse} returns this
  */
-proto.conversation.ConnectResponse.prototype.clearMessage = function() {
-  return this.setMessage(undefined);
+proto.conversation.ConnectResponse.prototype.clearMsg = function() {
+  return this.setMsg(undefined);
 };
 
 
@@ -2856,7 +2856,7 @@ proto.conversation.ConnectResponse.prototype.clearMessage = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.conversation.ConnectResponse.prototype.hasMessage = function() {
+proto.conversation.ConnectResponse.prototype.hasMsg = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
@@ -7198,7 +7198,8 @@ proto.conversation.DeleteMessageRequest.prototype.toObject = function(opt_includ
  */
 proto.conversation.DeleteMessageRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, "")
+    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    uuid: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -7237,6 +7238,10 @@ proto.conversation.DeleteMessageRequest.deserializeBinaryFromReader = function(m
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
+      msg.setConversation(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
       msg.setUuid(value);
       break;
     default:
@@ -7268,10 +7273,17 @@ proto.conversation.DeleteMessageRequest.prototype.serializeBinary = function() {
  */
 proto.conversation.DeleteMessageRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getUuid();
+  f = message.getConversation();
   if (f.length > 0) {
     writer.writeString(
       1,
+      f
+    );
+  }
+  f = message.getUuid();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
       f
     );
   }
@@ -7279,10 +7291,10 @@ proto.conversation.DeleteMessageRequest.serializeBinaryToWriter = function(messa
 
 
 /**
- * optional string uuid = 1;
+ * optional string conversation = 1;
  * @return {string}
  */
-proto.conversation.DeleteMessageRequest.prototype.getUuid = function() {
+proto.conversation.DeleteMessageRequest.prototype.getConversation = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -7291,8 +7303,26 @@ proto.conversation.DeleteMessageRequest.prototype.getUuid = function() {
  * @param {string} value
  * @return {!proto.conversation.DeleteMessageRequest} returns this
  */
-proto.conversation.DeleteMessageRequest.prototype.setUuid = function(value) {
+proto.conversation.DeleteMessageRequest.prototype.setConversation = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string uuid = 2;
+ * @return {string}
+ */
+proto.conversation.DeleteMessageRequest.prototype.getUuid = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.conversation.DeleteMessageRequest} returns this
+ */
+proto.conversation.DeleteMessageRequest.prototype.setUuid = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
@@ -7736,8 +7766,9 @@ proto.conversation.LikeMessageRqst.prototype.toObject = function(opt_includeInst
  */
 proto.conversation.LikeMessageRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    account: jspb.Message.getFieldWithDefault(msg, 2, "")
+    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    message: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    account: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -7776,9 +7807,13 @@ proto.conversation.LikeMessageRqst.deserializeBinaryFromReader = function(msg, r
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setMessage(value);
+      msg.setConversation(value);
       break;
     case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMessage(value);
+      break;
+    case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setAccount(value);
       break;
@@ -7811,17 +7846,24 @@ proto.conversation.LikeMessageRqst.prototype.serializeBinary = function() {
  */
 proto.conversation.LikeMessageRqst.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getMessage();
+  f = message.getConversation();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
-  f = message.getAccount();
+  f = message.getMessage();
   if (f.length > 0) {
     writer.writeString(
       2,
+      f
+    );
+  }
+  f = message.getAccount();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
       f
     );
   }
@@ -7829,10 +7871,10 @@ proto.conversation.LikeMessageRqst.serializeBinaryToWriter = function(message, w
 
 
 /**
- * optional string message = 1;
+ * optional string conversation = 1;
  * @return {string}
  */
-proto.conversation.LikeMessageRqst.prototype.getMessage = function() {
+proto.conversation.LikeMessageRqst.prototype.getConversation = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -7841,16 +7883,16 @@ proto.conversation.LikeMessageRqst.prototype.getMessage = function() {
  * @param {string} value
  * @return {!proto.conversation.LikeMessageRqst} returns this
  */
-proto.conversation.LikeMessageRqst.prototype.setMessage = function(value) {
+proto.conversation.LikeMessageRqst.prototype.setConversation = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional string account = 2;
+ * optional string message = 2;
  * @return {string}
  */
-proto.conversation.LikeMessageRqst.prototype.getAccount = function() {
+proto.conversation.LikeMessageRqst.prototype.getMessage = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -7859,8 +7901,26 @@ proto.conversation.LikeMessageRqst.prototype.getAccount = function() {
  * @param {string} value
  * @return {!proto.conversation.LikeMessageRqst} returns this
  */
-proto.conversation.LikeMessageRqst.prototype.setAccount = function(value) {
+proto.conversation.LikeMessageRqst.prototype.setMessage = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string account = 3;
+ * @return {string}
+ */
+proto.conversation.LikeMessageRqst.prototype.getAccount = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.conversation.LikeMessageRqst} returns this
+ */
+proto.conversation.LikeMessageRqst.prototype.setAccount = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
@@ -7997,8 +8057,9 @@ proto.conversation.DislikeMessageRqst.prototype.toObject = function(opt_includeI
  */
 proto.conversation.DislikeMessageRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    account: jspb.Message.getFieldWithDefault(msg, 2, "")
+    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    message: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    account: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -8037,9 +8098,13 @@ proto.conversation.DislikeMessageRqst.deserializeBinaryFromReader = function(msg
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setMessage(value);
+      msg.setConversation(value);
       break;
     case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMessage(value);
+      break;
+    case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setAccount(value);
       break;
@@ -8072,17 +8137,24 @@ proto.conversation.DislikeMessageRqst.prototype.serializeBinary = function() {
  */
 proto.conversation.DislikeMessageRqst.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getMessage();
+  f = message.getConversation();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
-  f = message.getAccount();
+  f = message.getMessage();
   if (f.length > 0) {
     writer.writeString(
       2,
+      f
+    );
+  }
+  f = message.getAccount();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
       f
     );
   }
@@ -8090,10 +8162,10 @@ proto.conversation.DislikeMessageRqst.serializeBinaryToWriter = function(message
 
 
 /**
- * optional string message = 1;
+ * optional string conversation = 1;
  * @return {string}
  */
-proto.conversation.DislikeMessageRqst.prototype.getMessage = function() {
+proto.conversation.DislikeMessageRqst.prototype.getConversation = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -8102,16 +8174,16 @@ proto.conversation.DislikeMessageRqst.prototype.getMessage = function() {
  * @param {string} value
  * @return {!proto.conversation.DislikeMessageRqst} returns this
  */
-proto.conversation.DislikeMessageRqst.prototype.setMessage = function(value) {
+proto.conversation.DislikeMessageRqst.prototype.setConversation = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional string account = 2;
+ * optional string message = 2;
  * @return {string}
  */
-proto.conversation.DislikeMessageRqst.prototype.getAccount = function() {
+proto.conversation.DislikeMessageRqst.prototype.getMessage = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -8120,8 +8192,26 @@ proto.conversation.DislikeMessageRqst.prototype.getAccount = function() {
  * @param {string} value
  * @return {!proto.conversation.DislikeMessageRqst} returns this
  */
-proto.conversation.DislikeMessageRqst.prototype.setAccount = function(value) {
+proto.conversation.DislikeMessageRqst.prototype.setMessage = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string account = 3;
+ * @return {string}
+ */
+proto.conversation.DislikeMessageRqst.prototype.getAccount = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.conversation.DislikeMessageRqst} returns this
+ */
+proto.conversation.DislikeMessageRqst.prototype.setAccount = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
@@ -8258,8 +8348,9 @@ proto.conversation.SetMessageReadRqst.prototype.toObject = function(opt_includeI
  */
 proto.conversation.SetMessageReadRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
-    message: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    account: jspb.Message.getFieldWithDefault(msg, 2, "")
+    conversation: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    message: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    account: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -8298,9 +8389,13 @@ proto.conversation.SetMessageReadRqst.deserializeBinaryFromReader = function(msg
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setMessage(value);
+      msg.setConversation(value);
       break;
     case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMessage(value);
+      break;
+    case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setAccount(value);
       break;
@@ -8333,17 +8428,24 @@ proto.conversation.SetMessageReadRqst.prototype.serializeBinary = function() {
  */
 proto.conversation.SetMessageReadRqst.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getMessage();
+  f = message.getConversation();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
-  f = message.getAccount();
+  f = message.getMessage();
   if (f.length > 0) {
     writer.writeString(
       2,
+      f
+    );
+  }
+  f = message.getAccount();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
       f
     );
   }
@@ -8351,10 +8453,10 @@ proto.conversation.SetMessageReadRqst.serializeBinaryToWriter = function(message
 
 
 /**
- * optional string message = 1;
+ * optional string conversation = 1;
  * @return {string}
  */
-proto.conversation.SetMessageReadRqst.prototype.getMessage = function() {
+proto.conversation.SetMessageReadRqst.prototype.getConversation = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -8363,16 +8465,16 @@ proto.conversation.SetMessageReadRqst.prototype.getMessage = function() {
  * @param {string} value
  * @return {!proto.conversation.SetMessageReadRqst} returns this
  */
-proto.conversation.SetMessageReadRqst.prototype.setMessage = function(value) {
+proto.conversation.SetMessageReadRqst.prototype.setConversation = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional string account = 2;
+ * optional string message = 2;
  * @return {string}
  */
-proto.conversation.SetMessageReadRqst.prototype.getAccount = function() {
+proto.conversation.SetMessageReadRqst.prototype.getMessage = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -8381,8 +8483,26 @@ proto.conversation.SetMessageReadRqst.prototype.getAccount = function() {
  * @param {string} value
  * @return {!proto.conversation.SetMessageReadRqst} returns this
  */
-proto.conversation.SetMessageReadRqst.prototype.setAccount = function(value) {
+proto.conversation.SetMessageReadRqst.prototype.setMessage = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string account = 3;
+ * @return {string}
+ */
+proto.conversation.SetMessageReadRqst.prototype.getAccount = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.conversation.SetMessageReadRqst} returns this
+ */
+proto.conversation.SetMessageReadRqst.prototype.setAccount = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
