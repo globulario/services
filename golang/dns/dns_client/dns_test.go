@@ -5,8 +5,8 @@ import (
 	"log"
 	"testing"
 
-	"github.com/globulario/Globular/dns/dns_client"
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/Globular/dns/dns_client"
 )
 
 var (
@@ -28,7 +28,6 @@ func TestSetA(t *testing.T) {
 	if err == nil {
 		log.Println(err)
 	}
-	log.Println("----> domain registered "+domain, Utility.MyIP())
 }
 
 func TestResolve(t *testing.T) {

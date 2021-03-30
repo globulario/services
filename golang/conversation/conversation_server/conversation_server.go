@@ -909,7 +909,7 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	fmt.Println("------------------------------> paticipants: ", conversation.GetParticipants())
+
 	// Retreive all message from the conversation...
 	data, err := conn.GetItem(rqst.ConversationUuid + "/*")
 	if err == nil {

@@ -36,7 +36,6 @@ func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 	}
 
 	if err != nil {
-		log.Println("---> ", err)
 		return nil, err
 	}
 
@@ -59,7 +58,7 @@ func (self *User_impl) ListMailboxes(subscribed bool) ([]backend.Mailbox, error)
 // GetMailbox returns a mailbox. If it doesn't exist, it returns
 // ErrNoSuchMailbox.
 func (self *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
-	log.Println("---> 65")
+
 	connectionId := self.Username() + "_db"
 	query := `{"Name":"` + name + `"}`
 	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
@@ -89,7 +88,7 @@ func (self *User_impl) GetMailbox(name string) (backend.Mailbox, error) {
 // used in the previous incarnation of the mailbox UNLESS the new incarnation
 // has a different unique identifier validity value.
 func (self *User_impl) CreateMailbox(name string) error {
-	log.Println("---> 95")
+
 	info := new(imap.MailboxInfo)
 	info.Name = name
 	info.Delimiter = "/"
@@ -115,7 +114,7 @@ func (self *User_impl) CreateMailbox(name string) error {
 // reuse the identifiers of the former incarnation, UNLESS the new incarnation
 // has a different unique identifier validity value.
 func (self *User_impl) DeleteMailbox(name string) error {
-	log.Println("---> 121")
+
 	connectionId := self.Username() + "_db"
 
 	// First I will delete the entry in MailBoxes...

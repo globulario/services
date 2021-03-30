@@ -119,7 +119,7 @@ func (mbox *MailBox_impl) uidNext() uint32 {
 
 // Return the list of message from the bakend.
 func (mbox *MailBox_impl) getMessages() []*Message {
-	log.Println("---> getMessages")
+
 	messages := make([]*Message, 0)
 	connectionId := mbox.user + "_db"
 
@@ -248,7 +248,7 @@ func (mbox *MailBox_impl) Check() error {
 //
 // Messages must be sent to ch. When the function returns, ch must be closed.
 func (mbox *MailBox_impl) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
-	log.Println("---> ListMessages")
+
 	defer close(ch)
 	messages := mbox.getMessages()
 
@@ -410,14 +410,13 @@ func (mbox *MailBox_impl) Expunge() error {
 				break
 			}
 		}
-		log.Println("----> 424")
+
 		if deleted {
-			log.Println("----> 426")
+
 			// mbox.Messages = append(mbox.Messages[:i], mbox.Messages[i+1:]...)
 			connectionId := mbox.user + "_db"
 			err := Store.DeleteOne(connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, "")
 			if err != nil {
-				log.Println("--------> fail to delete message from message box ", mbox.name, err)
 				return err
 			}
 		}

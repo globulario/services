@@ -11,26 +11,25 @@ import (
 
 var (
 	// Connect to the admin client.
-	client, _   = NewAdminService_Client("mon-intranet:10098", "admin.AdminService")
-	resource, _ = resource_client.NewResourceService_Client("mon-intranet:10009", "resource.ResourceService")
+	client, _   = NewAdminService_Client("mon-intranet:10097", "admin.AdminService")
+	resource, _ = resource_client.NewResourceService_Client("mon-intranet:10097", "resource.ResourceService")
 )
 
 // Test various function here.
-/*
+
 func TestGetConfig(t *testing.T) {
-	_, err := client.GetConfig()
+	config, err := client.GetConfig()
 	if err != nil {
 		log.Println(err)
 		t.FailNow()
 	}
-	log.Println("Get Config succeed!")
+	log.Println("Get Config succeed!", config)
 }
-*/
 
 func TestGetFullConfig(t *testing.T) {
 	token, err := resource.Authenticate("sa", "adminadmin")
 	if err != nil {
-		log.Println("Fail to authenticate to mon-intranet:10009")
+		log.Println("Fail to authenticate to mon-intranet:10012")
 		log.Println(err.Error())
 		return
 	}
@@ -93,7 +92,7 @@ func TestInstallService(t *testing.T) {
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
-	service_pid, proxy_pid, err := client.StartService("d9213adc-4c37-4ad1-a315-762c32c03468")
+	service_pid, proxy_pid, err := client.StartService("spc.SpcService")
 	if err != nil {
 
 		log.Println("---> ", err)
@@ -103,16 +102,22 @@ func TestStartService(t *testing.T) {
 }
 */
 
-/*
 func TestStopService(t *testing.T) {
-	err := client.StopService("d9213adc-4c37-4ad1-a315-762c32c03468")
+	token, err := resource.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println("Fail to authenticate to mon-intranet:10097")
+		log.Println(err.Error())
+		return
+	}
+	log.Println(token)
+	err = client.StopService("efc.EntityFrameworkService")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	log.Println("---> stop service succeeded")
 }
-*/
+
 /*
 func TestUninstallService(t *testing.T) {
 	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
@@ -121,7 +126,7 @@ func TestUninstallService(t *testing.T) {
 	}
 }
 */
-
+/*
 func TestRestartServices(t *testing.T) {
 	err := client.RestartServices()
 	if err != nil {
@@ -130,7 +135,7 @@ func TestRestartServices(t *testing.T) {
 	}
 	log.Println("RestartServices succeed!")
 }
-
+*/
 /*func TestDeployApplication(t *testing.T) {
 	err := client.DeployApplication("testApp", "/home/dave/Documents/chitchat")
 	if err != nil {

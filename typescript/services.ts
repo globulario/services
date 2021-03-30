@@ -73,7 +73,7 @@ export interface IConfig {
   CertURL: string;
   IdleTimeout: number;
   IndexApplication: string;
-  
+
   // The map of service object.
   Services: IServices;
 }
@@ -411,8 +411,8 @@ export class Globular {
   public get adminService(): AdminServicePromiseClient | undefined {
     // refresh the config.
     if (this._adminService == null) {
-      let config = this.getFirstConfigByName('admin.AdminService')
-      if (config != undefined) {
+      let configs = this.getConfigs('admin.AdminService')
+      configs.forEach((config: IServiceConfig) => {
         this._adminService = new AdminServicePromiseClient(
           this.config.Protocol +
           '://' +
@@ -423,8 +423,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._adminService
-        return this._adminService;
-      }
+      });
+      return this._adminService;
     }
     return this._adminService;
   }
@@ -433,8 +433,8 @@ export class Globular {
   public get resourceService(): ResourceServicePromiseClient | undefined {
     // refresh the config.
     if (this._resourceService == null) {
-      let config = this.getFirstConfigByName('resource.ResourceService')
-      if (config != undefined) {
+      let configs = this.getConfigs('resource.ResourceService')
+      configs.forEach((config: IServiceConfig) => {
         this._resourceService = new ResourceServicePromiseClient(
           this.config.Protocol +
           '://' +
@@ -445,8 +445,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._resourceService
-        return this._resourceService;
-      }
+      });
+      return this._resourceService;
     }
     return this._resourceService;
   }
@@ -455,8 +455,8 @@ export class Globular {
   public get logService(): LogServicePromiseClient | undefined {
     // refresh the config.
     if (this._logService == null) {
-      let config = this.getFirstConfigByName('log.LogService')
-      if (config != undefined) {
+      let configs = this.getConfigs('log.LogService')
+      configs.forEach((config: IServiceConfig) => {
         this._logService = new LogServicePromiseClient(
           this.config.Protocol +
           '://' +
@@ -467,8 +467,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._logService
-        return this._logService;
-      }
+      })
+      return this._logService;
     }
     return this._logService;
   }
@@ -477,8 +477,8 @@ export class Globular {
   public get conversationService(): ConversationServicePromiseClient | undefined {
     // refresh the config.
     if (this._conversationService == null) {
-      let config = this.getFirstConfigByName('conversation.ConversationService')
-      if (config != undefined) {
+      let configs = this.getConfigs('conversation.ConversationService')
+      configs.forEach((config: IServiceConfig) => {
         this._conversationService = new ConversationServicePromiseClient(
           this.config.Protocol +
           '://' +
@@ -489,8 +489,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._conversationService
-        return this._conversationService;
-      }
+      });
+      return this._conversationService;
     }
     return this._conversationService;
   }
@@ -499,8 +499,8 @@ export class Globular {
   public get rbacService(): RbacServicePromiseClient | undefined {
     // refresh the config.
     if (this._rbacService == null) {
-      let config = this.getFirstConfigByName('rbac.RbacService')
-      if (config != undefined) {
+      let configs = this.getConfigs('rbac.RbacService')
+      configs.forEach((config: IServiceConfig) => {
         this._rbacService = new RbacServicePromiseClient(
           this.config.Protocol +
           '://' +
@@ -511,8 +511,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._rbacService
-        return this._rbacService;
-      }
+      });
+      return this._rbacService;
     }
     return this._rbacService;
   }
@@ -521,8 +521,8 @@ export class Globular {
   public get loadBalancingService(): LoadBalancingServicePromiseClient | undefined {
     // refresh the config.
     if (this._loadBalancingService == null) {
-      let config = this.getFirstConfigByName('lb.LoadBalancingService')
-      if (config != undefined) {
+      let configs = this.getConfigs('lb.LoadBalancingService')
+      configs.forEach((config: IServiceConfig) => {
         this._loadBalancingService = new LoadBalancingServicePromiseClient(
           this.config.Protocol +
           '://' +
@@ -533,8 +533,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._loadBalancingService
-        return this._loadBalancingService;
-      }
+      });
+      return this._loadBalancingService;
     }
     return this._loadBalancingService;
   }
@@ -543,8 +543,8 @@ export class Globular {
   public get packagesDicovery(): PackageDiscoveryPromiseClient | undefined {
     // refresh the config.
     if (this._packagesDicovery == null) {
-      let config = this.getFirstConfigByName('packages.PackageDiscovery')
-      if (config != undefined) {
+      let configs = this.getConfigs('packages.PackageDiscovery')
+      configs.forEach((config: IServiceConfig) => {
         this._packagesDicovery = new PackageDiscoveryPromiseClient(
           this.config.Protocol +
           '://' +
@@ -555,8 +555,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._packagesDicovery
-        return this._packagesDicovery;
-      }
+      });
+      return this._packagesDicovery;
     }
     return this._packagesDicovery;
   }
@@ -565,8 +565,8 @@ export class Globular {
   public get servicesRepository(): PackageRepositoryPromiseClient | undefined {
     // refresh the config.
     if (this._servicesRepository == null) {
-      let config = this.getFirstConfigByName('packages.PackageRepository')
-      if (config != undefined) {
+      let configs = this.getConfigs('packages.PackageRepository')
+      configs.forEach((config: IServiceConfig) => {
         this._servicesRepository = new PackageRepositoryPromiseClient(
           this.config.Protocol +
           '://' +
@@ -577,8 +577,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._servicesRepository
-        return this._servicesRepository;
-      }
+      });
+      return this._servicesRepository;
     }
 
     return this._servicesRepository;
@@ -588,8 +588,8 @@ export class Globular {
   public get certificateAuthority(): CertificateAuthorityPromiseClient | undefined {
     // refresh the config.
     if (this._certificateAuthority == null) {
-      let config = this.getFirstConfigByName('ca.CertificateAuthority')
-      if (config != undefined) {
+      let configs = this.getConfigs('ca.CertificateAuthority')
+      configs.forEach((config: IServiceConfig) => {
         this._certificateAuthority = new CertificateAuthorityPromiseClient(
           this.config.Protocol +
           '://' +
@@ -600,9 +600,8 @@ export class Globular {
           null,
         );
         this._services[config.Id] = this._certificateAuthority
-
-        return this._certificateAuthority;
-      }
+      });
+      return this._certificateAuthority;
     }
     return this._certificateAuthority;
   }
@@ -610,26 +609,25 @@ export class Globular {
   // list of services.
   private _catalogService: CatalogServicePromiseClient
   public get catalogService(): CatalogServicePromiseClient | undefined {
-    if (this._catalogService != null) {
-      return this._catalogService
-    }
-    let config = this.getFirstConfigByName('catalog.CatalogService')
-    if (config != undefined) {
-      if (this._catalogService == null) {
-        this._catalogService = new CatalogServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._catalogService
-      }
+    if (this._catalogService == null) {
+      let configs = this.getConfigs('catalog.CatalogService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._catalogService == null) {
+          this._catalogService = new CatalogServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._catalogService
+        }
+      });
       return this._catalogService;
     }
-    return undefined;
+    return this._catalogService
   }
 
   private _echoService: EchoServicePromiseClient
@@ -637,8 +635,8 @@ export class Globular {
     if (this._echoService != null) {
       return this._echoService
     }
-    let config = this.getFirstConfigByName('echo.EchoService')
-    if (config != undefined) {
+    let configs = this.getConfigs('echo.EchoService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._echoService == null) {
         this._echoService = new EchoServicePromiseClient(
           this.config.Protocol +
@@ -652,7 +650,7 @@ export class Globular {
         this._services[config.Id] = this._echoService
       }
       return this._echoService;
-    }
+    });
     return undefined;
   }
 
@@ -661,8 +659,8 @@ export class Globular {
     if (this._eventService != null) {
       return this._eventService
     }
-    let config = this.getFirstConfigByName('event.EventService')
-    if (config != undefined) {
+    let configs = this.getConfigs('event.EventService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._eventService == null) {
         this._eventService = new EventServicePromiseClient(
           this.config.Protocol +
@@ -676,7 +674,7 @@ export class Globular {
         this._services[config.Id] = this._eventService
       }
       return this._eventService;
-    }
+    });
     return undefined;
   }
 
@@ -685,8 +683,8 @@ export class Globular {
     if (this._fileService != null) {
       return this._fileService
     }
-    let config = this.getFirstConfigByName('file.FileService')
-    if (config != undefined) {
+    let configs = this.getConfigs('file.FileService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._fileService == null) {
         this._fileService = new FileServicePromiseClient(
           this.config.Protocol +
@@ -700,7 +698,7 @@ export class Globular {
         this._services[config.Id] = this._fileService
       }
       return this._fileService;
-    }
+    })
     return undefined;
   }
 
@@ -709,8 +707,8 @@ export class Globular {
     if (this._ldapService != null) {
       return this._ldapService
     }
-    let config = this.getFirstConfigByName('ldap.LdapService')
-    if (config != undefined) {
+    let configs = this.getConfigs('ldap.LdapService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._ldapService == null) {
         this._ldapService = new LdapServicePromiseClient(
           this.config.Protocol +
@@ -724,7 +722,7 @@ export class Globular {
         this._services[config.Id] = this._ldapService
       }
       return this._ldapService;
-    }
+    })
     return undefined;
   }
 
@@ -733,8 +731,8 @@ export class Globular {
     if (this._persistenceService != null) {
       return this._persistenceService
     }
-    let config = this.getFirstConfigByName('persistence.PersistenceService')
-    if (config != undefined) {
+    let configs = this.getConfigs('persistence.PersistenceService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._persistenceService == null) {
         this._persistenceService = new PersistenceServicePromiseClient(
           this.config.Protocol +
@@ -748,7 +746,7 @@ export class Globular {
         this._services[config.Id] = this._persistenceService
       }
       return this._persistenceService;
-    }
+    });
     return undefined;
   }
 
@@ -757,8 +755,8 @@ export class Globular {
     if (this._mailService != null) {
       return this._mailService
     }
-    let config = this.getFirstConfigByName('mail.MailService')
-    if (config != undefined) {
+    let configs = this.getConfigs('mail.MailService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._mailService == null) {
         this._mailService = new MailServicePromiseClient(
           this.config.Protocol +
@@ -772,7 +770,7 @@ export class Globular {
         this._services[config.Id] = this._mailService
       }
       return this._mailService;
-    }
+    });
     return undefined;
   }
 
@@ -781,8 +779,8 @@ export class Globular {
     if (this._sqlService != null) {
       return this._sqlService
     }
-    let config = this.getFirstConfigByName('sql.SqlService')
-    if (config != undefined) {
+    let configs = this.getConfigs('sql.SqlService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._sqlService == null) {
         this._sqlService = new SqlServicePromiseClient(
           this.config.Protocol +
@@ -796,7 +794,7 @@ export class Globular {
         this._services[config.Id] = this._sqlService
       }
       return this._sqlService;
-    }
+    });
     return undefined;
   }
 
@@ -805,8 +803,8 @@ export class Globular {
     if (this._storageService != null) {
       return this._storageService
     }
-    let config = this.getFirstConfigByName('storage.StorageService')
-    if (config != undefined) {
+    let configs = this.getConfigs('storage.StorageService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._storageService == null) {
         this._storageService = new StorageServicePromiseClient(
           this.config.Protocol +
@@ -820,7 +818,7 @@ export class Globular {
         this._services[config.Id] = this._storageService
       }
       return this._storageService;
-    }
+    });
     return undefined;
   }
 
@@ -829,8 +827,8 @@ export class Globular {
     if (this._monitoringService != null) {
       return this._monitoringService
     }
-    let config = this.getFirstConfigByName('monitoring.MonitoringService')
-    if (config != undefined) {
+    let configs = this.getConfigs('monitoring.MonitoringService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._monitoringService == null) {
         this._monitoringService = new MonitoringServicePromiseClient(
           this.config.Protocol +
@@ -844,7 +842,7 @@ export class Globular {
         this._services[config.Id] = this._monitoringService
       }
       return this._monitoringService;
-    }
+    })
     return undefined;
   }
 
@@ -853,8 +851,8 @@ export class Globular {
     if (this._spcService != null) {
       return this._spcService
     }
-    let config = this.getFirstConfigByName('spc.SpcService')
-    if (config != undefined) {
+    let configs = this.getConfigs('spc.SpcService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._spcService == null) {
         this._spcService = new SpcServicePromiseClient(
           this.config.Protocol +
@@ -868,7 +866,7 @@ export class Globular {
         this._services[config.Id] = this._spcService
       }
       return this._spcService;
-    }
+    })
     return undefined;
   }
 
@@ -877,8 +875,8 @@ export class Globular {
     if (this._searchService != null) {
       return this.searchService
     }
-    let config = this.getFirstConfigByName('search.SearchService')
-    if (config != undefined) {
+    let configs = this.getConfigs('search.SearchService')
+    configs.forEach((config: IServiceConfig) => {
       if (this._searchService == null) {
         this._searchService = new SearchServicePromiseClient(
           this.config.Protocol +
@@ -892,20 +890,38 @@ export class Globular {
         this._services[config.Id] = this._searchService
       }
       return this._searchService;
-    }
+    })
     return undefined;
+  }
+
+  /**
+   * Return a service instance
+   * @param name The name of the service.
+   * @param id The id of the service.
+   * 
+   * as example to get a specific instance of the file services.
+   *  globular.getServiceById("file.fileService", "applications")
+   */
+  getServiceById(name: string, id: string): any {
+    for (const id_ in this.config.Services) {
+      const service = this.config.Services[id]
+      if (service.Name == name && id_ == id) {
+        return service;
+      }
+    }
   }
 
   // Return the first configuration that match the given name.
   // The load balancer will be in charge to select the correct service instance from the list
   // The first instance is the entry point of the services.
-  getFirstConfigByName(name: string): IServiceConfig {
+  getConfigs(name: string): Array<IServiceConfig> {
+    let services = new Array<IServiceConfig>();
     for (const id in this.config.Services) {
       const service = this.config.Services[id]
       if (service.Name == name) {
-        return service;
+        services.push(service);
       }
     }
-    return null;
+    return services;
   }
 }

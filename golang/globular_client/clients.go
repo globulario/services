@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 
+	//	"log"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/Globular/security"
 	"google.golang.org/grpc"
@@ -97,6 +99,7 @@ func InitClient(client Client, address string, id string) error {
 
 	// Here I will initialyse the client
 	config, err := security.GetClientConfig(address, id, port, os.TempDir())
+
 	if err == nil {
 		port = int(config["Port"].(float64))
 	}
@@ -121,6 +124,7 @@ func InitClient(client Client, address string, id string) error {
 
 	// Set security values.
 	if config["TLS"] != nil {
+
 		// Change server cert to client cert and do the same for key
 		certificateFile := strings.Replace(config["CertFile"].(string), "server", "client", -1)
 		keyFile := strings.Replace(config["KeyFile"].(string), "server", "client", -1)
