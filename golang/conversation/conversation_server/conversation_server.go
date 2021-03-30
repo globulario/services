@@ -495,15 +495,12 @@ func (self *server) GetConversations(ctx context.Context, rqst *conversationpb.G
 	uuids := make([]string, 0)
 
 	json.Unmarshal(_conversations_, &uuids)
-	fmt.Println(uuids)
 	for i := 0; i < len(uuids); i++ {
 		conversation, err := self.getConversation(uuids[i])
 		if err == nil {
 			_conversations.Conversations = append(_conversations.Conversations, conversation)
 		}
 	}
-
-	fmt.Println(_conversations.Conversations)
 
 	return &conversationpb.GetConversationsResponse{
 		Conversations: _conversations,
@@ -530,7 +527,7 @@ func (self *server) removeConversationParticipant(participant string, conversati
 	if err != nil {
 		return err
 	}
-	fmt.Println("---> remove participant: ", participant)
+
 	if !Utility.Contains(c.Participants, participant) {
 		return nil
 	}
@@ -705,12 +702,14 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
+
 		err = self.removeParticipantConversation(clientId, rqst.ConversationUuid)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
+
 		return nil, err
 	}
 
@@ -930,38 +929,17 @@ func (self *server) JoinConversation(rqst *conversationpb.JoinConversationReques
 
 			for i := 0; i < len(results); i++ {
 
-				msg := results[i].(map[string]interface{})
-				text := ""
-				if msg["text"] != nil {
-					text = msg["text"].(string)
-				}
-
-				language := "en"
-				if msg["Language"] != nil {
-					language = msg["Language"].(string)
-				}
+				msg, err := self.getMessage(results[i].(map[string]interface{})["conversation"].(string), results[i].(map[string]interface{})["uuid"].(string))
 
 				if err == nil {
 					if i == 0 {
 						stream.Send(&conversationpb.JoinConversationResponse{
-							Msg: &conversationpb.Message{
-								Uuid:         msg["uuid"].(string),
-								CreationTime: int64(Utility.ToInt(msg["creationTime"])),
-								Conversation: msg["conversation"].(string),
-								Author:       msg["author"].(string),
-								Language:     language,
-								Text:         text},
+							Msg:          msg,
 							Conversation: conversation,
 						})
 					} else {
 						stream.Send(&conversationpb.JoinConversationResponse{
-							Msg: &conversationpb.Message{
-								Uuid:         msg["uuid"].(string),
-								CreationTime: int64(Utility.ToInt(msg["creationTime"])),
-								Conversation: msg["conversation"].(string),
-								Author:       msg["author"].(string),
-								Language:     language,
-								Text:         text},
+							Msg:          msg,
 							Conversation: nil,
 						})
 					}
@@ -1212,8 +1190,6 @@ func (self *server) saveConversation(conversation *conversationpb.Conversation) 
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("conversation ", conversation.Name, conversation.LastMessageTime, " was saved!")
 
 	// Now I will set the search information for conversations...
 	err = self.search_engine.IndexJsonObject(self.Root+"/conversations/search_data", jsonStr, conversation.Language, "uuid", []string{"name", "keywords"}, jsonStr)
@@ -1564,7 +1540,7 @@ func (self *server) sendMessage(msg *conversationpb.Message) error {
 	}
 
 	// The key will be composed of the conversation id and message uuid...
-	err = conn.SetItem(msg.Conversation+"/"+Utility.ToString(msg.Uuid), []byte(jsonStr_))
+	err = conn.SetItem(msg.Conversation+"/"+msg.Uuid, []byte(jsonStr_))
 	if err != nil {
 		return err
 	}
@@ -1573,7 +1549,7 @@ func (self *server) sendMessage(msg *conversationpb.Message) error {
 	Utility.CreateDirIfNotExist(self.Root + "/conversations/" + msg.Conversation + "/search_data")
 	self.search_engine.IndexJsonObject(self.Root+"/conversations/"+msg.Conversation+"/search_data", jsonStr_, msg.Language, "uuid", []string{"text"}, jsonStr_)
 
-	// TODO set the last message date in the conversation **/
+	// set the conversation time...
 	conversation, err := self.getConversation(msg.Conversation)
 	if err != nil {
 		return err
@@ -1595,6 +1571,8 @@ func (self *server) sendMessage(msg *conversationpb.Message) error {
 	// publish the message.
 	self.actions <- send_message
 
+	fmt.Println("---->(save) send message: ", msg)
+
 	return nil
 }
 
@@ -1613,7 +1591,13 @@ func (self *server) SendMessage(ctx context.Context, rqst *conversationpb.SendMe
 
 // Delete message.
 func (self *server) DeleteMessage(ctx context.Context, rqst *conversationpb.DeleteMessageRequest) (*conversationpb.DeleteMessageResponse, error) {
-	return nil, nil
+
+	err := self.deleteMessges(rqst.Conversation, rqst.Uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	return &conversationpb.DeleteMessageResponse{}, nil
 }
 
 // Retreive a conversation by keywords or name...
@@ -1626,7 +1610,14 @@ func (self *server) FindMessages(rqst *conversationpb.FindMessagesRequest, strea
  * Get message.
  */
 func (self *server) getMessage(conversation string, uuid string) (*conversationpb.Message, error) {
-	data, err := self.store.GetItem(conversation + "/" + uuid)
+	conn, err := self.getConversationConnection(conversation)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	data, err := conn.GetItem(conversation + "/" + uuid)
 	msg := new(conversationpb.Message)
 	if err != nil {
 		return nil, err
@@ -1636,8 +1627,17 @@ func (self *server) getMessage(conversation string, uuid string) (*conversationp
 	if err != nil {
 		return nil, err
 	}
-
+	fmt.Println("---->get message: ", msg)
 	return msg, nil
+}
+
+func (self *server) deleteMessges(conversation string, uuid string) error {
+	conn, err := self.getConversationConnection(conversation)
+	if err != nil {
+		return err
+	}
+
+	return conn.RemoveItem(conversation + "/" + uuid + "*")
 }
 
 // append a like message
@@ -1645,6 +1645,11 @@ func (self *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMe
 
 	// Get the message by it id.
 	msg, err := self.getMessage(rqst.Conversation, rqst.Message)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	/** Authors cannot like it own message...*/
 	if msg.Author == rqst.Account {
 		return nil, status.Errorf(
@@ -1653,7 +1658,9 @@ func (self *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMe
 	}
 
 	/** Append only if the msg is not likes. */
+
 	if !Utility.Contains(msg.Likes, rqst.Account) {
+		msg.Dislikes = Utility.RemoveString(msg.Dislikes, rqst.Account)
 		msg.Likes = append(msg.Likes, rqst.Account)
 	} else {
 		msg.Likes = Utility.RemoveString(msg.Likes, rqst.Account)
@@ -1674,7 +1681,11 @@ func (self *server) LikeMessage(ctx context.Context, rqst *conversationpb.LikeMe
 func (self *server) DislikeMessage(ctx context.Context, rqst *conversationpb.DislikeMessageRqst) (*conversationpb.DislikeMessageResponse, error) {
 	// Get the message by it id.
 	msg, err := self.getMessage(rqst.Conversation, rqst.Message)
-
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	/** Authors cannot like it own message...*/
 	if msg.Author == rqst.Account {
 		return nil, status.Errorf(
@@ -1684,9 +1695,10 @@ func (self *server) DislikeMessage(ctx context.Context, rqst *conversationpb.Dis
 
 	/** Append only if the msg is not likes. */
 	if !Utility.Contains(msg.Dislikes, rqst.Account) {
-		msg.Likes = append(msg.Dislikes, rqst.Account)
+		msg.Likes = Utility.RemoveString(msg.Likes, rqst.Account)
+		msg.Dislikes = append(msg.Dislikes, rqst.Account)
 	} else {
-		msg.Likes = Utility.RemoveString(msg.Dislikes, rqst.Account)
+		msg.Dislikes = Utility.RemoveString(msg.Dislikes, rqst.Account)
 	}
 
 	/** Send message */
@@ -1736,18 +1748,16 @@ func (self *server) run() {
 					channels[a["name"].(string)] = append(channels[a["name"].(string)], a["uuid"].(string))
 				}
 			} else if action == "send_message" {
-				//fmt.Println("---> send_message")
 				if channels[a["name"].(string)] != nil {
 					toDelete := make([]string, 0)
 					for i := 0; i < len(channels[a["name"].(string)]); i++ {
 						uuid := channels[a["name"].(string)][i]
 						stream := streams[uuid]
 						msg := a["message"].(*conversationpb.Message)
-						//fmt.Println("---sent message ", msg)
 						if stream != nil {
 							// Here I will send data to stream.
 							err := stream.Send(&conversationpb.ConnectResponse{
-								Message: msg,
+								Msg: msg,
 							})
 
 							// In case of error I will remove the subscriber

@@ -201,7 +201,7 @@ func (self *XapianEngine) DeleteDocument(path string, id string) error {
 	// Begin the transaction.
 	db.Begin_transaction(true)
 
-	id_ := "Q" + id // strings.ToUpper(id[0:1]) + strings.ToLower(id[1:])
+	id_ := "Q" + Utility.GenerateUUID(id) // strings.ToUpper(id[0:1]) + strings.ToLower(id[1:])
 
 	// Delete a document from the database.
 	db.Delete_document(id_)
@@ -311,7 +311,7 @@ func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[st
 	// Here If the object contain an id I will add it as boolean term and
 	// replace existing document or create it.
 	if len(id) > 0 {
-		_id := "Q" + Utility.ToString(obj[id])
+		_id := "Q" + Utility.GenerateUUID(Utility.ToString(obj[id]))
 		doc.Add_boolean_term(_id)
 		db.Replace_document(_id, doc)
 	} else {
