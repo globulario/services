@@ -227,7 +227,7 @@ func CreateServicePackage(s Service, distPath string, platform string) (string, 
 
 	// tar + gzip
 	var buf bytes.Buffer
-	Utility.CompressDir("", path, &buf)
+	Utility.CompressDir(path, &buf)
 
 	// write the .tar.gzip
 	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))

@@ -567,7 +567,6 @@ export class Globular {
         this._services[config.Id] = this._servicesRepository
       });
     }
-
     return this._servicesRepository;
   }
 
@@ -632,9 +631,7 @@ export class Globular {
           );
           this._services[config.Id] = this._echoService
         }
-
-      });
-    }
+      }); }
     return this._echoService;
   }
 
@@ -655,8 +652,7 @@ export class Globular {
           );
           this._services[config.Id] = this._eventService
         }
-      });
-    }
+      });}
     return this._eventService
   }
 
@@ -682,8 +678,7 @@ export class Globular {
           this._services[config.Id] = this._fileService
         }
 
-      })
-    }
+      })}
     return this._fileService;
   }
 
@@ -704,9 +699,8 @@ export class Globular {
           );
           this._services[config.Id] = this._ldapService
         }
-      })
+      })}
       return this._ldapService
-    }
   }
 
   private _persistenceService: PersistenceServicePromiseClient
@@ -727,8 +721,8 @@ export class Globular {
           this._services[config.Id] = this._persistenceService
         }
       });
-      return this._persistenceService
     }
+    return this._persistenceService
   }
 
   private _mailService: MailServicePromiseClient
@@ -750,8 +744,8 @@ export class Globular {
         }
 
       });
-      return this._mailService;
     }
+    return this._mailService;
   }
 
   private _sqlService: SqlServicePromiseClient
@@ -817,8 +811,8 @@ export class Globular {
           this._services[config.Id] = this._monitoringService
         }
       })
-      return this._monitoringService
     }
+    return this._monitoringService
   }
 
   private _spcService: SpcServicePromiseClient
@@ -839,8 +833,8 @@ export class Globular {
           this._services[config.Id] = this._spcService
         }
       })
-      return this._spcService
     }
+    return this._spcService
   }
 
   private _searchService: SearchServicePromiseClient
@@ -861,8 +855,8 @@ export class Globular {
           this._services[config.Id] = this._searchService
         }
       })
-      return this.searchService
     }
+    return this.searchService
   }
 
   /**

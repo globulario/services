@@ -20,6 +20,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/adminpb"
 	globular "github.com/globulario/services/golang/globular_client"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -278,18 +279,10 @@ func (self *Admin_Client) createServicePackage(publisherId string, serviceName s
 	log.Println("Service path is ", servicePath)
 	// Take the information from the configuration...
 	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
-	log.Println(id)
-
-	// So here I will create a directory and put file in it...
-	path := id
-	Utility.CreateDirIfNotExist(path)
-
-	// copy all the data.
-	Utility.CopyDirContent(servicePath, path)
 
 	// tar + gzip
 	var buf bytes.Buffer
-	Utility.CompressDir("", path, &buf)
+	Utility.CompressDir(servicePath, &buf)
 
 	// write the .tar.gzip
 	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
@@ -305,9 +298,6 @@ func (self *Admin_Client) createServicePackage(publisherId string, serviceName s
 
 	// close the file.
 	fileToWrite.Close()
-
-	// Remove the dir when the archive is created.
-	err = os.RemoveAll(path)
 
 	if err != nil {
 		log.Println(311)
@@ -361,7 +351,32 @@ func (self *Admin_Client) UploadServicePackage(user string, organization string,
 	// First of all I will create the archive for the service.
 	// If a path is given I will take it entire content. If not
 	// the proto, the config and the executable only will be taken.
-	packagePath, err := self.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, path)
+
+	// So here I will create set the good file structure in a temp directory and
+	// copy file in it that will be the bundle to be use...
+	tmp_dir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + s["PublisherId"].(string) + "%" + s["Name"].(string) + "%" + s["Version"].(string) + "%" + s["Id"].(string) + "%" + platform
+	path_ := tmp_dir + "/" + s["PublisherId"].(string) + "/" + s["Name"].(string) + "/" + s["Version"].(string) + "/" + s["Id"].(string)
+	defer os.Remove(tmp_dir)
+
+	// I will create the directory
+	Utility.CreateDirIfNotExist(path)
+
+	// Now I will copy the content of the given path into it...
+	err = Utility.CopyDir(path+"/.", path_)
+
+	if err != nil {
+		return "", 0, err
+	}
+
+	// Now I will copy the proto file into the directory Version
+	proto := strings.ReplaceAll(protos[0], "\\", "/")
+	err = Utility.CopyFile(proto, tmp_dir+"/"+s["PublisherId"].(string)+"/"+s["Name"].(string)+"/"+s["Version"].(string)+"/"+proto[strings.LastIndex(proto, "/"):])
+	if err != nil {
+		log.Println(err)
+		return "", 0, err
+	}
+
+	packagePath, err := self.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
 	if err != nil {
 		return "", 0, err
 	}
@@ -452,16 +467,21 @@ func (self *Admin_Client) PublishService(user, organization, token, domain, path
 			keywords = append(keywords, s["Keywords"].([]interface{})[i].(string))
 		}
 	}
-
+	if s["Repositories"] == nil {
+		s["Repositories"] = []interface{}{"localhost"}
+	}
 	repositories := s["Repositories"].([]interface{})
 	if len(repositories) == 0 {
-		return errors.New("No services repositories was found in config.json! Please use the option -repository to specify one.")
+		repositories = []interface{}{"localhost"}
 
 	}
 
+	if s["Discoveries"] == nil {
+		s["Discoveries"] = []interface{}{"localhost"}
+	}
 	discoveries := s["Discoveries"].([]interface{})
-	if len(repositories) == 0 {
-		return errors.New("No services discoveries was found in config.json! Please use the option -repository to specify one.")
+	if len(discoveries) == 0 {
+		discoveries = []interface{}{"localhost"}
 	}
 
 	rqst := new(adminpb.PublishServiceRequest)
@@ -478,8 +498,15 @@ func (self *Admin_Client) PublishService(user, organization, token, domain, path
 	rqst.Platform = platform
 
 	// Set the token into the context and send the request.
-	md := metadata.New(map[string]string{"token": token, "domain": domain, "user": user})
-	ctx := metadata.NewOutgoingContext(context.Background(), md)
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
 
 	_, err = self.c.PublishService(ctx, rqst)
 
@@ -489,14 +516,23 @@ func (self *Admin_Client) PublishService(user, organization, token, domain, path
 /**
  * Intall a new service or update an existing one.
  */
-func (self *Admin_Client) InstallService(discoveryId string, publisherId string, serviceId string) error {
+func (self *Admin_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
 
 	rqst := new(adminpb.InstallServiceRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
 
-	_, err := self.c.InstallService(globular.GetClientContext(self), rqst)
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.InstallService(ctx, rqst)
 
 	return err
 }
@@ -504,14 +540,23 @@ func (self *Admin_Client) InstallService(discoveryId string, publisherId string,
 /**
  * Intall a new service or update an existing one.
  */
-func (self *Admin_Client) UninstallService(publisherId string, serviceId string, version string) error {
+func (self *Admin_Client) UninstallService(token string, domain string, user string, publisherId string, serviceId string, version string) error {
 
 	rqst := new(adminpb.UninstallServiceRequest)
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
 	rqst.Version = version
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
 
-	_, err := self.c.UninstallService(globular.GetClientContext(self), rqst)
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.UninstallService(ctx, rqst)
 
 	return err
 }
@@ -542,20 +587,18 @@ func (self *Admin_Client) InstallCertificates(domain string, port int, path stri
  * Deploy the content of an application with a given name to the server.
  */
 func (self *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
-
-	name_ := Utility.GenerateUUID(name)
-	Utility.CreateDirIfNotExist(name_)
-	Utility.CopyDirContent(path, name_)
-
-	// Now I will open the data and create a archive from it.
-	var buffer bytes.Buffer
-	err := Utility.CompressDir("", name_, &buffer)
+	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
 	}
-
-	// remove the dir and keep the archive in memory
-	defer os.RemoveAll(name_)
+	path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
+	log.Println("Deploy directory: ", path)
+	// Now I will open the data and create a archive from it.
+	var buffer bytes.Buffer
+	err = Utility.CompressDir(path, &buffer)
+	if err != nil {
+		return -1, err
+	}
 
 	// From the path I will get try to find the package.json file and get information from it...
 	absolutePath, err := filepath.Abs(path)

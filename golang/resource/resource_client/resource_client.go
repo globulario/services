@@ -174,6 +174,7 @@ func (self *Resource_Client) SetCaFile(caFile string) {
 func (self *Resource_Client) Authenticate(name string, password string) (string, error) {
 	// In case of other domain than localhost I will rip off the token file
 	// before each authentication.
+
 	path := os.TempDir() + string(os.PathSeparator) + self.GetDomain() + "_token"
 	if !Utility.IsLocal(self.GetDomain()) {
 		// remove the file if it already exist.
