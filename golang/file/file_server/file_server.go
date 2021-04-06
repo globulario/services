@@ -50,8 +50,6 @@ var (
 
 	// The default domain.
 	domain string = "localhost"
-
-	//s *server
 )
 
 // Value need by Globular to start the services...
@@ -503,19 +501,13 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	return info, err
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Directory operations
-////////////////////////////////////////////////////////////////////////////////
-func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
-
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(path, "\\", "/")
-
+func (self *server) formatPath(path string) string {
+	path = strings.ReplaceAll(path, "\\", "//")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
+				path = self.Root + path
+			} else if !strings.HasSuffix(path, "/") {
 				path = self.Root + path
 			} else {
 				path = self.Root + "/" + path
@@ -524,6 +516,15 @@ func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServi
 			path = self.Root
 		}
 	}
+	return path
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Directory operations
+////////////////////////////////////////////////////////////////////////////////
+func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
+
+	path := self.formatPath(rqst.GetPath())
 
 	info, err := readDir(self, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight())
 	if err != nil {
@@ -558,22 +559,7 @@ func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServi
 
 // Create a new directory
 func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
-				path = self.Root + path
-			} else {
-				path = self.Root + string(os.PathSeparator) + path
-			}
-		} else {
-			path = self.Root
-		}
-	}
+	path := self.formatPath(rqst.GetPath())
 
 	err := Utility.CreateDirIfNotExist(path + string(os.PathSeparator) + rqst.GetName())
 	if err != nil {
@@ -590,22 +576,7 @@ func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest
 
 // Create an archive from a given dir and set it with name.
 func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
-				path = self.Root + path
-			} else {
-				path = self.Root + string(os.PathSeparator) + path
-			}
-		} else {
-			path = self.Root
-		}
-	}
+	path := self.formatPath(rqst.GetPath())
 
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
@@ -638,24 +609,7 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 
 // Rename a file or a directory.
 func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*filepb.RenameResponse, error) {
-
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
-				path = self.Root + path
-			} else {
-				path = self.Root + string(os.PathSeparator) + path
-			}
-		} else {
-			path = self.Root
-		}
-	}
-
+	path := self.formatPath(rqst.GetPath())
 	err := os.Rename(path+string(os.PathSeparator)+rqst.OldName, path+string(os.PathSeparator)+rqst.NewName)
 	if err != nil {
 		return nil, status.Errorf(
@@ -670,23 +624,7 @@ func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fi
 
 // Delete a directory
 func (self *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest) (*filepb.DeleteDirResponse, error) {
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
-				path = self.Root + path
-			} else {
-				path = self.Root + string(os.PathSeparator) + path
-			}
-		} else {
-			path = self.Root
-		}
-	}
-
+	path := self.formatPath(rqst.GetPath())
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -712,22 +650,7 @@ func (self *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest
 // Get file info, can be use to get file thumbnail or knowing that a file exist
 // or not.
 func (self *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequest) (*filepb.GetFileInfoResponse, error) {
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
-				path = self.Root + path
-			} else {
-				path = self.Root + string(os.PathSeparator) + path
-			}
-		} else {
-			path = self.Root
-		}
-	}
+	path := self.formatPath(rqst.GetPath())
 
 	info, err := getFileInfo(self, path)
 
@@ -773,22 +696,7 @@ func (self *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoReq
 
 // Read file, can be use for small to medium file...
 func (self *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
-				path = self.Root + path
-			} else {
-				path = self.Root + string(os.PathSeparator) + path
-			}
-
-		} else {
-			path = self.Root
-		}
-	}
+	path := self.formatPath(rqst.GetPath())
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -850,10 +758,7 @@ func (self *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 		switch msg := rqst.File.(type) {
 		case *filepb.SaveFileRequest_Path:
 			// The roo will be the Root specefied by the server.
-			path = msg.Path
-			if strings.HasPrefix(path, "/") {
-				path = self.Root + string(os.PathSeparator) + path
-			}
+			path = self.formatPath(msg.Path)
 
 		case *filepb.SaveFileRequest_Data:
 			data = append(data, msg.Data...)
@@ -865,23 +770,7 @@ func (self *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 
 // Delete file
 func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
-	path := rqst.GetPath()
-
-	// set the correct os path separator.
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-
-	if strings.HasPrefix(path, string(os.PathSeparator)) {
-		if len(path) > 1 {
-			if strings.HasPrefix(path, string(os.PathSeparator)) {
-				path = self.Root + path
-			} else {
-				path = self.Root + string(os.PathSeparator) + path
-			}
-		} else {
-			path = self.Root
-		}
-	}
-
+	path := self.formatPath(rqst.GetPath())
 	err := os.Remove(path)
 
 	if err != nil {
