@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"mime"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -482,17 +483,19 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				return nil, err
 			}
 
-			info_.Mime, err = Utility.GetFileContentType(f_)
-			if err == nil {
-				// in case of image...
-				if strings.HasPrefix(info_.Mime, "image/") {
-					if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-						info_.Thumbnail = createThumbnail(f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-					}
+			fileExtension := f.Name()[strings.LastIndex(f.Name(), "."):]
+
+			info_.Mime = mime.TypeByExtension(fileExtension) //, err = Utility.GetFileContentType(f_)
+			//if err == nil {
+			// in case of image...
+			if strings.HasPrefix(info_.Mime, "image/") {
+				if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
+					info_.Thumbnail = createThumbnail(f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 				}
-			} else {
-				info_.Mime = "unknow"
 			}
+			/*} else {
+				info_.Mime = "unknow"
+			}*/
 
 			info.Files = append(info.Files, info_)
 		}
@@ -585,7 +588,7 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 	}
 
 	var buf bytes.Buffer
-	Utility.CompressDir(self.Root, path, &buf)
+	Utility.CompressDir(path, &buf)
 
 	dest := path[0:strings.LastIndex(path, string(os.PathSeparator))] + string(os.PathSeparator) + rqst.GetName() + ".tgz"
 
