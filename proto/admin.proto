@@ -162,6 +162,7 @@ message InstallApplicationRequest{
 	string applicationId = 2;
 	string publisherId = 3;
 	string version = 4;
+	string domain = 5; // optional usefull if your server serve multiple domain.
 }
 
 message InstallApplicationResponse{
@@ -173,6 +174,7 @@ message UninstallApplicationRequest{
 	string publisherId = 2;
 	string version = 3;
 	bool deletePermissions = 4;
+	string domain = 5; // optional usefull if your server serve multiple domain.
 }
 
 message UninstallApplicationResponse{

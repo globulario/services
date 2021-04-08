@@ -562,6 +562,58 @@ func (self *Admin_Client) UninstallService(token string, domain string, user str
 }
 
 /**
+ * Intall a new application or update an existing one.
+ */
+func (self *Admin_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string) error {
+	log.Println("Install application ", applicationId, "on server ", domain)
+	rqst := new(adminpb.InstallApplicationRequest)
+	rqst.DicorveryId = discoveryId
+	rqst.PublisherId = publisherId
+	rqst.ApplicationId = applicationId
+	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
+
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.InstallApplication(ctx, rqst)
+
+	return err
+}
+
+/**
+ * Uninstall application, if no version is given the most recent version will
+ * be install.
+ */
+func (self *Admin_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
+	log.Println("Uninstall application ", applicationId, " at address ", domain, "...")
+	rqst := new(adminpb.UninstallApplicationRequest)
+	rqst.PublisherId = publisherId
+	rqst.ApplicationId = applicationId
+	rqst.Version = version
+	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
+	ctx := globular.GetClientContext(self)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := self.c.UninstallApplication(ctx, rqst)
+
+	return err
+}
+
+/**
  * Generate the certificates for a given domain. The port is the http port use
  * to get the configuration (80 by default). The path is where the file will be
  * written. The return values are the path to tree certicate path.
