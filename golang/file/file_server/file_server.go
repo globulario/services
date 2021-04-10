@@ -5,8 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
-	//"fmt"
+	"fmt"
 	"image"
 	"image/gif"
 	"image/jpeg"
@@ -29,11 +28,14 @@ import (
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
 	"github.com/tealeg/xlsx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
 )
@@ -82,6 +84,9 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+
+	// The rbac client
+	rbac_client_ *rbac_client.Rbac_Client
 
 	// Specific to file server.
 	Root string
@@ -571,6 +576,7 @@ func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	self.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetName())
 	// The directory was successfuly created.
 	return &filepb.CreateDirResponse{
 		Result: true,
@@ -579,35 +585,124 @@ func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest
 
 // Create an archive from a given dir and set it with name.
 func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
-	path := self.formatPath(rqst.GetPath())
 
-	if !Utility.Exists(path) {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No file found with path '"+path+"'")))
+	var user string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+
+			user, _, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+		}
+	}
+
+	// Here I will create the directory...
+	tmp := os.TempDir() + "/" + rqst.GetName()
+	createTempDir := true
+
+	if len(rqst.Paths) == 1 {
+		info, _ := os.Stat(self.Root + rqst.Paths[0])
+		if info.IsDir() {
+			tmp = self.Root + rqst.Paths[0]
+			createTempDir = false
+		}
+	}
+
+	// This will create a temporary directory...
+	if createTempDir {
+		Utility.CreateDirIfNotExist(tmp)
+		defer os.Remove(tmp)
+
+		//defer os.Remove(tmp)
+		for i := 0; i < len(rqst.Paths); i++ {
+			// The file or directory must be in the path.
+			if Utility.Exists(self.Root + rqst.Paths[i]) {
+				info, _ := os.Stat(self.Root + rqst.Paths[i])
+				fileName := rqst.Paths[i][strings.LastIndex(rqst.Paths[i], "/"):]
+				if info.IsDir() {
+					Utility.CopyDir(self.Root+rqst.Paths[i], tmp+"/"+fileName)
+				} else {
+					Utility.CopyFile(self.Root+rqst.Paths[i], tmp+"/"+fileName)
+				}
+			}
+		}
 	}
 
 	var buf bytes.Buffer
-	Utility.CompressDir(path, &buf)
+	Utility.CompressDir(tmp, &buf)
 
-	dest := path[0:strings.LastIndex(path, string(os.PathSeparator))] + string(os.PathSeparator) + rqst.GetName() + ".tgz"
+	dest := "/users/" + user + "/" + rqst.GetName() + ".tgz"
+
+	// Set user as owner.
+	self.createPermission(ctx, dest)
 
 	// Now I will save the file to the destination.
-	err := ioutil.WriteFile(dest, buf.Bytes(), 0644)
+	err = ioutil.WriteFile(self.Root+dest, buf.Bytes(), 0644)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Remove the
-	path = strings.Replace(rqst.Path, "\\", "/", -1)
-	dest = path[0:strings.LastIndex(path, "/")] + "/" + rqst.GetName() + ".tgz"
-
 	return &filepb.CreateArchiveResponse{
 		Result: dest,
 	}, nil
 
+}
+
+func (self *server) createPermission(ctx context.Context, path string) error {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, _, err = Interceptors.ValidateToken(token)
+			if err != nil {
+				return err
+			}
+		} else {
+			errors.New("No token was given!")
+		}
+	}
+
+	// Now I will set it in the rbac as ressource owner...
+	permissions := &rbacpb.Permissions{
+		Allowed: []*rbacpb.Permission{},
+		Denied:  []*rbacpb.Permission{},
+		Owners: &rbacpb.Permission{
+			Name:          "owner", // The name is informative in that particular case.
+			Applications:  []string{},
+			Accounts:      []string{clientId},
+			Groups:        []string{},
+			Peers:         []string{},
+			Organizations: []string{},
+		},
+	}
+
+	// Set the owner of the conversation.
+	err = self.rbac_client_.SetResourcePermissions(path, permissions)
+
+	fmt.Println("Set permission to ", path, clientId)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Rename a file or a directory.
@@ -619,6 +714,12 @@ func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fi
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// Remove the permission for the previous path.
+	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath() + "/" + rqst.GetOldName())
+	self.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetNewName())
+
+	// TODO recreate ressource permission for all directory sub-dir...
 
 	return &filepb.RenameResponse{
 		Result: true,
@@ -640,6 +741,8 @@ func (self *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
 	return &filepb.DeleteDirResponse{
 		Result: true,
@@ -773,6 +876,7 @@ func (self *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 
 // Delete file
 func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
+
 	path := self.formatPath(rqst.GetPath())
 	err := os.Remove(path)
 
@@ -781,6 +885,9 @@ func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReque
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// I will remove the conversation from the db.
+	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
 	return &filepb.DeleteFileResponse{
 		Result: true,
@@ -887,6 +994,9 @@ func main() {
 	// Register the echo services
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// Init the Role Based Access Control client.
+	s_impl.rbac_client_, _ = rbac_client.NewRbacService_Client(s_impl.Domain, "rbac.RbacService")
 
 	// Start the service.
 	s_impl.StartService()

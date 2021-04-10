@@ -101,7 +101,7 @@ message GetThumbnailsResponse {
 
 // Write the execel file on the server.
 message CreateArchiveRequest{
-	string path = 1; // The directory to archive
+	repeated string paths = 1; // The directory to archive
 	string name = 2; // the name
 }
 

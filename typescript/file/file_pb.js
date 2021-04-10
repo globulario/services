@@ -450,7 +450,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.file.CreateArchiveRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.file.CreateArchiveRequest.repeatedFields_, null);
 };
 goog.inherits(proto.file.CreateArchiveRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -3567,6 +3567,13 @@ proto.file.GetThumbnailsResponse.prototype.setData = function(value) {
 
 
 
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.file.CreateArchiveRequest.repeatedFields_ = [1];
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -3598,7 +3605,7 @@ proto.file.CreateArchiveRequest.prototype.toObject = function(opt_includeInstanc
  */
 proto.file.CreateArchiveRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    pathsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
     name: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
@@ -3638,7 +3645,7 @@ proto.file.CreateArchiveRequest.deserializeBinaryFromReader = function(msg, read
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPath(value);
+      msg.addPaths(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
@@ -3673,9 +3680,9 @@ proto.file.CreateArchiveRequest.prototype.serializeBinary = function() {
  */
 proto.file.CreateArchiveRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getPath();
+  f = message.getPathsList();
   if (f.length > 0) {
-    writer.writeString(
+    writer.writeRepeatedString(
       1,
       f
     );
@@ -3691,20 +3698,39 @@ proto.file.CreateArchiveRequest.serializeBinaryToWriter = function(message, writ
 
 
 /**
- * optional string path = 1;
- * @return {string}
+ * repeated string paths = 1;
+ * @return {!Array<string>}
  */
-proto.file.CreateArchiveRequest.prototype.getPath = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+proto.file.CreateArchiveRequest.prototype.getPathsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.file.CreateArchiveRequest} returns this
+ */
+proto.file.CreateArchiveRequest.prototype.setPathsList = function(value) {
+  return jspb.Message.setField(this, 1, value || []);
 };
 
 
 /**
  * @param {string} value
+ * @param {number=} opt_index
  * @return {!proto.file.CreateArchiveRequest} returns this
  */
-proto.file.CreateArchiveRequest.prototype.setPath = function(value) {
-  return jspb.Message.setProto3StringField(this, 1, value);
+proto.file.CreateArchiveRequest.prototype.addPaths = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.file.CreateArchiveRequest} returns this
+ */
+proto.file.CreateArchiveRequest.prototype.clearPathsList = function() {
+  return this.setPathsList([]);
 };
 
 

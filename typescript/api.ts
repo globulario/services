@@ -518,17 +518,13 @@ export function deleteDir(
  */
 export function createArchive(
   globular: Globular,
-  path: string,
+  paths: Array<string>,
   name: string,
   callback: (path: string) => void,
   errorCallback: (err: any) => void
 ) {
   const rqst = new CreateArchiveRequest();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
-  if (path.length === 0) {
-    path = "/";
-  }
-  rqst.setPath(path);
+  rqst.setPathsList(paths);
   rqst.setName(name);
 
   globular.fileService
@@ -536,7 +532,6 @@ export function createArchive(
       token: getToken(),
       application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
-      path: path,
     })
     .then((rsp: CreateArchiveResponse) => {
       callback(rsp.getResult());
@@ -596,7 +591,7 @@ export function downloadDir(
   // Create an archive-> download it-> delete it...
   createArchive(
     globular,
-    path,
+    [path],
     name,
     (_path: string) => {
       // display the archive path...
