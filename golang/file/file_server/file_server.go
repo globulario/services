@@ -1003,6 +1003,45 @@ func main() {
 
 }
 
+// Move a file/directory
+func (self *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
+
+	// So here I will call the function mv at repetition for each path...
+	for i := 0; i < len(rqst.Files); i++ {
+		f := self.Root + rqst.Files[i]
+		if Utility.Exists(f) {
+			err := Utility.Move(f, self.Root+rqst.Path)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+
+	return &filepb.MoveResponse{Result: true}, nil
+}
+
+// Copy a file/directory
+func (self *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
+	// So here I will call the function mv at repetition for each path...
+	for i := 0; i < len(rqst.Files); i++ {
+		f := self.Root + rqst.Files[i]
+		if Utility.Exists(f) {
+			info, err := os.Stat(f)
+			if err == nil {
+				if info.IsDir() {
+					// Copy the directory
+					Utility.CopyDir(f, rqst.Path)
+				} else {
+					// Copy the file
+					Utility.CopyFile(f, rqst.Path)
+				}
+			}
+		}
+	}
+
+	return &filepb.CopyResponse{Result: true}, nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Utility functions
 ////////////////////////////////////////////////////////////////////////////////

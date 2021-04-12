@@ -468,6 +468,166 @@ proto.file.FileServicePromiseClient.prototype.rename =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.MoveRequest,
+ *   !proto.file.MoveResponse>}
+ */
+const methodDescriptor_FileService_Move = new grpc.web.MethodDescriptor(
+  '/file.FileService/Move',
+  grpc.web.MethodType.UNARY,
+  proto.file.MoveRequest,
+  proto.file.MoveResponse,
+  /**
+   * @param {!proto.file.MoveRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.MoveResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.file.MoveRequest,
+ *   !proto.file.MoveResponse>}
+ */
+const methodInfo_FileService_Move = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.file.MoveResponse,
+  /**
+   * @param {!proto.file.MoveRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.MoveResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.MoveRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.file.MoveResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.MoveResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.move =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/Move',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_Move,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.MoveRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.MoveResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.move =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/Move',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_Move);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.CopyRequest,
+ *   !proto.file.CopyResponse>}
+ */
+const methodDescriptor_FileService_Copy = new grpc.web.MethodDescriptor(
+  '/file.FileService/Copy',
+  grpc.web.MethodType.UNARY,
+  proto.file.CopyRequest,
+  proto.file.CopyResponse,
+  /**
+   * @param {!proto.file.CopyRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.CopyResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.file.CopyRequest,
+ *   !proto.file.CopyResponse>}
+ */
+const methodInfo_FileService_Copy = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.file.CopyResponse,
+  /**
+   * @param {!proto.file.CopyRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.CopyResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.CopyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.file.CopyResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.CopyResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.copy =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/Copy',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_Copy,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.CopyRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.CopyResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.copy =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/Copy',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_Copy);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.CreateArchiveRequest,
  *   !proto.file.CreateArchiveResponse>}
  */

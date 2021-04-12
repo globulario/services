@@ -467,7 +467,7 @@ func (self *server) CreateConversation(ctx context.Context, rqst *conversationpb
 	}
 
 	// Set the owner of the conversation.
-	err = self.rbac_client_.SetResourcePermissions("conversations/"+uuid, permissions)
+	err = self.rbac_client_.SetResourcePermissions(uuid, permissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -634,7 +634,7 @@ func (self *server) KickoutFromConversation(ctx context.Context, rqst *conversat
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	isOwner, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", "conversations/"+rqst.ConversationUuid)
+	isOwner, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -693,7 +693,7 @@ func (self *server) DeleteConversation(ctx context.Context, rqst *conversationpb
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	_, err = self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", "conversations/"+rqst.ConversationUuid)
+	_, err = self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
 		// Here I will simply remove the converstion from the paticipant.
 		err := self.removeConversationParticipant(clientId, rqst.ConversationUuid)
@@ -1037,7 +1037,7 @@ func (self *server) SendInvitation(ctx context.Context, rqst *conversationpb.Sen
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	hasAccess, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", "conversations/"+rqst.Invitation.Conversation)
+	hasAccess, err := self.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

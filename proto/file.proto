@@ -47,6 +47,24 @@ message RenameResponse {
 	bool result = 1;
 }
 
+message CopyRequest {
+	string path = 1; // the path of the directory where to copy files.
+	repeated string files = 2; // The list of files/directories to be copied
+}
+
+message CopyResponse {
+	bool result = 1;
+}
+
+message MoveRequest {
+	string path = 1; // the path of the directory where to move files.
+	repeated string files = 2; // The list of files/directories to be move
+}
+
+message MoveResponse {
+	bool result = 1;
+}
+
 message GetFileInfoRequest {
 	string path = 1;
 	int32 thumnailWidth = 2;
@@ -152,6 +170,12 @@ service FileService {
 	
 	// Rename a file/directory
 	rpc Rename(RenameRequest) returns (RenameResponse){};
+	
+	// Move a file/directory
+	rpc Move(MoveRequest) returns (MoveResponse){};
+	
+	// Copy a file/directory
+	rpc Copy(CopyRequest) returns (CopyResponse){};
 	
 	// Create an archive from a given dir and set it with name.
 	rpc CreateAchive(CreateArchiveRequest) returns (CreateArchiveResponse);
