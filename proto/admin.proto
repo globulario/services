@@ -203,6 +203,8 @@ message DeployApplicationRequest{
 	repeated string actions = 10; // That need to be use by the application...
 	string repository = 11;
 	string discovery = 12;
+	string icon = 13;
+	string alias = 14;
 }
 
 message DeployApplicationResponse{

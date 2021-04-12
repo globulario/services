@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/polds/imgbase64"
+
 	//	"log"
 	"os"
 	"strconv"
@@ -639,6 +641,7 @@ func (self *Admin_Client) InstallCertificates(domain string, port int, path stri
  * Deploy the content of an application with a given name to the server.
  */
 func (self *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
+
 	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
@@ -680,6 +683,11 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	description := packageConfig["description"].(string)
 	version := packageConfig["version"].(string)
 
+	alias := name
+	if packageConfig["alias"] != nil {
+		alias = packageConfig["alias"].(string)
+	}
+
 	// Set keywords.
 	keywords := make([]string, 0)
 	if packageConfig["keywords"] != nil {
@@ -696,6 +704,32 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 			log.Println("set action permission: ", packageConfig["actions"].([]interface{})[i].(string))
 			actions = append(actions, packageConfig["actions"].([]interface{})[i].(string))
 		}
+	}
+
+	var icon string
+
+	// Now the icon...
+	if packageConfig["icon"] != nil {
+		// The image icon.
+		// iconPath := absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
+		iconPath, _ := filepath.Abs(path)
+		iconPath = strings.ReplaceAll(absolutePath, "\\", "/")
+		lastIndex := strings.LastIndex(iconPath, "/")
+		iconPath = iconPath[0:lastIndex] + "/" + packageConfig["icon"].(string)
+		if Utility.Exists(iconPath) {
+			// Convert to png before creating the data url.
+			if strings.HasSuffix(strings.ToLower(iconPath), ".svg") {
+				pngPath := os.TempDir() + "/output.png"
+				defer os.Remove(pngPath)
+				err := Utility.SvgToPng(iconPath, pngPath, 128, 128)
+				if err == nil {
+					iconPath = pngPath
+				}
+			}
+			// So here I will create the b64 string
+			icon, _ = imgbase64.FromLocal(iconPath)
+		}
+
 	}
 
 	// Set the token into the context and send the request.
@@ -725,6 +759,8 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 				Description:  description,
 				Keywords:     keywords,
 				Actions:      actions,
+				Icon:         icon,
+				Alias:        alias,
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)

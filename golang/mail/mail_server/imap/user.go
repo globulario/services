@@ -2,7 +2,7 @@ package imap
 
 import (
 	"errors"
-	"log"
+	//	"log"
 
 	"github.com/davecourtois/Utility"
 	"github.com/emersion/go-imap"
