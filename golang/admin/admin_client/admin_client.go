@@ -66,13 +66,14 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 	client := new(Admin_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
-
 		return nil, err
 	}
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
 		return nil, err
 	}
+
 	client.c = adminpb.NewAdminServiceClient(client.cc)
 
 	return client, nil
@@ -706,6 +707,22 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 		}
 	}
 
+	roles := make([]*adminpb.Role, 0)
+	if packageConfig["roles"] != nil {
+		// Here I will create the roles require by the applications.
+		roles_ := packageConfig["roles"].([]interface{})
+		for i := 0; i < len(roles_); i++ {
+			role_ := roles_[i].(map[string]interface{})
+			role := new(adminpb.Role)
+			role.Name = role_["name"].(string)
+			role.Actions = make([]string, 0)
+			for j := 0; j < len(role_["actions"].([]interface{})); j++ {
+				role.Actions = append(role.Actions, role_["actions"].([]interface{})[j].(string))
+			}
+			roles = append(roles, role)
+		}
+	}
+
 	var icon string
 
 	// Now the icon...
@@ -761,6 +778,7 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 				Actions:      actions,
 				Icon:         icon,
 				Alias:        alias,
+				Roles:        roles,
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)

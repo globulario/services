@@ -8,6 +8,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,7 +288,7 @@ func (self *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.Subje
 /**
  * Validata action...
  */
-func (self *Rbac_Client) ValidateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
+func (self *Rbac_Client) ValidateAction(token string, application string, domain string, organization string, action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 	rqst := &rbacpb.ValidateActionRqst{
 		Action:  action,
 		Subject: subject,
@@ -295,7 +296,10 @@ func (self *Rbac_Client) ValidateAction(action string, subject string, subjectTy
 		Infos:   resources,
 	}
 
-	rsp, err := self.c.ValidateAction(globular.GetClientContext(self), rqst)
+	md := metadata.New(map[string]string{"token": token, "application": application, "domain": domain, "organization": organization})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	rsp, err := self.c.ValidateAction(ctx, rqst)
 	if err != nil {
 		return false, err
 	}

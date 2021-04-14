@@ -27,7 +27,7 @@ func TestGetConfig(t *testing.T) {
 }
 
 func TestGetFullConfig(t *testing.T) {
-	token, err := resource.Authenticate("sa", "adminadmin")
+	token, err := resource.Authenticate("mm006819@ud6.uf6", "400zm89V")
 	if err != nil {
 		log.Println("Fail to authenticate to mon-intranet:10012")
 		log.Println(err.Error())
@@ -101,7 +101,7 @@ func TestStartService(t *testing.T) {
 
 }
 */
-
+/*
 func TestStopService(t *testing.T) {
 	token, err := resource.Authenticate("sa", "adminadmin")
 	if err != nil {
@@ -117,7 +117,7 @@ func TestStopService(t *testing.T) {
 	}
 	log.Println("---> stop service succeeded")
 }
-
+*/
 /*
 func TestUninstallService(t *testing.T) {
 	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")

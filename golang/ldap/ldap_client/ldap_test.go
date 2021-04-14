@@ -14,6 +14,7 @@ var (
 )
 
 // First test create a fresh new connection...
+/*
 func TestCreateConnection(t *testing.T) {
 	fmt.Println("Connection creation test.")
 
@@ -23,8 +24,10 @@ func TestCreateConnection(t *testing.T) {
 	}
 	log.Println("Connection created!")
 }
+*/
 
 // Test a ldap query.
+/*
 func TestSearch(t *testing.T) {
 
 	// I will execute a simple ldap search here...
@@ -39,8 +42,10 @@ func TestSearch(t *testing.T) {
 		log.Println(results[i])
 	}
 }
+*/
 
 // Test a ldap query.
+/*
 func TestDeleteConnection(t *testing.T) {
 	err := client.DeleteConnection("test_ldap")
 	if err != nil {
@@ -48,3 +53,4 @@ func TestDeleteConnection(t *testing.T) {
 	}
 	log.Println("Connection deleted!")
 }
+*/

@@ -190,6 +190,11 @@ message MicroService {
 	string platform = 5; // The platform
 }
 
+message Role {
+	string name = 1;
+	repeated string actions = 2;
+}
+
 message DeployApplicationRequest{
 	string name = 1;
 	string domain = 2;
@@ -205,6 +210,7 @@ message DeployApplicationRequest{
 	string discovery = 12;
 	string icon = 13;
 	string alias = 14;
+	repeated Role roles = 15;
 }
 
 message DeployApplicationResponse{
