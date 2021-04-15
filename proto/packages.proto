@@ -7,8 +7,14 @@ package packages;
 option go_package="packages/packagespb";
 
 message Role {
-	string name = 1;
-	repeated string actions = 2;
+	string id = 1;
+	string name = 2;
+	repeated string actions = 3;
+}
+
+message Group {
+	string id=1;
+	string name = 2;
 }
 
 enum PackageType {
@@ -33,8 +39,9 @@ message PackageDescriptor {
 	repeated string keywords = 10; // keywords that describe the application/service
 	repeated string actions = 11; // optional, contain the list of actions required by that application / services
 	repeated Role roles = 12; // The list of roles required by the application/service
-	string icon = 13;
-	string alias = 14;
+	repeated Group groups= 13;
+	string icon = 14;
+	string alias = 15;
 }
 
 

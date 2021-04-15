@@ -27,7 +27,7 @@ func TestGetConfig(t *testing.T) {
 }
 
 func TestGetFullConfig(t *testing.T) {
-	token, err := resource.Authenticate("mm006819@ud6.uf6", "400zm89V")
+	token, err := resource.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("Fail to authenticate to mon-intranet:10012")
 		log.Println(err.Error())
@@ -92,7 +92,7 @@ func TestInstallService(t *testing.T) {
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
-	service_pid, proxy_pid, err := client.StartService("spc.SpcService")
+	service_pid, proxy_pid, err := client.StartService("persistence.PersistenceService")
 	if err != nil {
 
 		log.Println("---> ", err)
@@ -110,14 +110,14 @@ func TestStopService(t *testing.T) {
 		return
 	}
 	log.Println(token)
-	err = client.StopService("efc.EntityFrameworkService")
+	err = client.StopService("13fe664e-a64c-4465-8977-22fb7a22dec6")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	log.Println("---> stop service succeeded")
-}
-*/
+}*/
+
 /*
 func TestUninstallService(t *testing.T) {
 	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
@@ -177,7 +177,9 @@ func TestRunCmd(t *testing.T) {
 		log.Println("---> ", token)
 	}
 
-	results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"}, true)
+	//results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"}, true)
+	results, err := client.RunCmd(token, "taskkill", []string{"/F", "/PID", "1884"}, true)
+
 	if err != nil {
 		log.Println(err)
 		t.FailNow()
@@ -185,7 +187,8 @@ func TestRunCmd(t *testing.T) {
 
 	log.Println(results)
 }
-
+*/
+/*
 func TestGeneratePost(t *testing.T) {
 	var err error
 	client_, err := resource_client.NewResourceService_Client("mon-iis-01:10003", "resource.ResourceService")

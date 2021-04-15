@@ -191,8 +191,14 @@ message MicroService {
 }
 
 message Role {
-	string name = 1;
-	repeated string actions = 2;
+	string id=1;
+	string name = 2;
+	repeated string actions = 3;
+}
+
+message Group {
+	string id=1;
+	string name = 2;
 }
 
 message DeployApplicationRequest{
@@ -211,6 +217,7 @@ message DeployApplicationRequest{
 	string icon = 13;
 	string alias = 14;
 	repeated Role roles = 15;
+	repeated Group groups = 16;
 }
 
 message DeployApplicationResponse{
