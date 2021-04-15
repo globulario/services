@@ -707,6 +707,7 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 		}
 	}
 
+	// Create roles.
 	roles := make([]*adminpb.Role, 0)
 	if packageConfig["roles"] != nil {
 		// Here I will create the roles require by the applications.
@@ -714,12 +715,26 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 		for i := 0; i < len(roles_); i++ {
 			role_ := roles_[i].(map[string]interface{})
 			role := new(adminpb.Role)
+			role.Id = role_["id"].(string)
 			role.Name = role_["name"].(string)
 			role.Actions = make([]string, 0)
 			for j := 0; j < len(role_["actions"].([]interface{})); j++ {
 				role.Actions = append(role.Actions, role_["actions"].([]interface{})[j].(string))
 			}
 			roles = append(roles, role)
+		}
+	}
+
+	// Create groups.
+	groups := make([]*adminpb.Group, 0)
+	if packageConfig["groups"] != nil {
+		groups_ := packageConfig["groups"].([]interface{})
+		for i := 0; i < len(groups_); i++ {
+			group_ := groups_[i].(map[string]interface{})
+			group := new(adminpb.Group)
+			group.Id = group_["id"].(string)
+			group.Name = group_["name"].(string)
+			groups = append(groups, group)
 		}
 	}
 
@@ -779,6 +794,7 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 				Icon:         icon,
 				Alias:        alias,
 				Roles:        roles,
+				Groups:       groups,
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)

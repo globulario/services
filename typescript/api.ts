@@ -63,6 +63,19 @@ import {
   DeleteApplicationRsp,
   RemovePeerActionRsp,
   DeletePeerRsp,
+  GetRolesRqst,
+  GetRolesRsp,
+  Group,
+  GetGroupsRqst,
+  GetGroupsRsp,
+  AddGroupMemberAccountRqst,
+  AddAccountRoleRsp,
+  RemoveGroupMemberAccountRqst,
+  RemoveGroupMemberAccountRsp,
+  CreateGroupRqst,
+  CreateGroupRsp,
+  DeleteGroupRqst,
+  DeleteGroupRsp,
 } from "./resource/resource_pb";
 
 import {
@@ -1359,26 +1372,23 @@ export function getAllRoles(
   callback: (roles: any[]) => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new FindRqst();
-  rqst.setCollection("Roles");
-  rqst.setDatabase("local_resource");
-  rqst.setId("local_resource");
+  const rqst = new GetRolesRqst
   rqst.setQuery("{}"); // means all values.
 
-  const stream = globular.persistenceService.find(rqst, {
+  const stream = globular.resourceService.getRoles(rqst, {
     application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
 
-  let data = [];
+  let data = new Array<Role>();
 
-  stream.on("data", (rsp: FindResp) => {
-    data = mergeTypedArrays(data, rsp.getData())
+  stream.on("data", (rsp: GetRolesRsp) => {
+    data = data.concat(rsp.getRolesList())
   });
 
   stream.on("status", (status) => {
     if (status.code === 0) {
-      callback(JSON.parse(uint8arrayToStringMethod(data)));
+      callback(data);
     } else {
       errorCallback({ message: status.details });
     }
@@ -1437,6 +1447,72 @@ export function removeActionFromRole(
 
   globular.resourceService
     .removeRoleAction(rqst, {
+      token: getToken(),
+      application: application.length > 0 ? application : globular.config.IndexApplication,
+      domain: domain,
+    })
+    .then((rsp: RemoveAccountRoleRsp) => {
+      callback();
+    })
+    .catch((err: any) => {
+      errorCallback(err);
+    });
+}
+
+/**
+ * Append member to a given group.
+ * @param roleId the role id
+ * @param accountId The account id.
+ * @param callback The success callback
+ * @param errorCallback The error callback.
+ */
+export function addAccountRole(
+  globular: Globular,
+  roleId: string,
+  accountId: string,
+  callback: () => void,
+  errorCallback: (err: any) => void
+) {
+  const rqst = new AddAccountRoleRqst
+
+  rqst.setRoleid(roleId)
+  rqst.setAccountid(accountId)
+
+  globular.resourceService
+    .addAccountRole(rqst, {
+      token: getToken(),
+      application: application.length > 0 ? application : globular.config.IndexApplication,
+      domain: domain,
+    })
+    .then((rsp: AddAccountRoleRsp) => {
+      callback();
+    })
+    .catch((err: any) => {
+      errorCallback(err);
+    });
+}
+
+/**
+ * Remove the action from a given role.
+ * @param action The action id
+ * @param role The role id
+ * @param callback success callback
+ * @param errorCallback error callback
+ */
+export function removeAccountRole(
+  globular: Globular,
+  roleId: string,
+  accountId: string,
+  callback: () => void,
+  errorCallback: (err: any) => void
+) {
+  const rqst = new RemoveAccountRoleRqst
+
+  rqst.setRoleid(roleId)
+  rqst.setAccountid(accountId)
+
+  globular.resourceService
+    .removeAccountRole(rqst, {
       token: getToken(),
       application: application.length > 0 ? application : globular.config.IndexApplication,
       domain: domain,
@@ -1515,6 +1591,174 @@ export function deleteRole(
       errorCallback(err);
     });
 }
+
+///////////////////////////////////// Group Operation ////////////////////////////////////////
+/**
+ * Retreive the list of all available group on the server.
+ * @param callback That function is call in case of success.
+ * @param errorCallback That function is call in case error.
+ */
+export function getAllGroups(
+  globular: Globular,
+  callback: (roles: any[]) => void,
+  errorCallback: (err: any) => void
+) {
+  const rqst = new GetGroupsRqst();
+  rqst.setQuery("{}"); // means all values.
+
+  const stream = globular.resourceService.getGroups(rqst, {
+    application: application.length > 0 ? application : globular.config.IndexApplication,
+    domain: domain,
+  });
+
+  let data = new Array<Group>();
+  stream.on("data", (rsp: GetGroupsRsp) => {
+    data = data.concat(rsp.getGroupsList())
+  });
+
+  stream.on("status", (status) => {
+    if (status.code === 0) {
+      callback(data);
+    } else {
+      errorCallback({ message: status.details });
+    }
+  });
+}
+
+/**
+ * Append member to a given group.
+ * @param groupId to group
+ * @param accountId The account.
+ * @param callback The success callback
+ * @param errorCallback The error callback.
+ */
+export function appendMemberToGroup(
+  globular: Globular,
+  groupId: string,
+  accountId: string,
+  callback: () => void,
+  errorCallback: (err: any) => void
+) {
+  const rqst = new AddGroupMemberAccountRqst
+
+  rqst.setGroupid(groupId)
+  rqst.setAccountid(accountId)
+
+  globular.resourceService
+    .addGroupMemberAccount(rqst, {
+      token: getToken(),
+      application: application.length > 0 ? application : globular.config.IndexApplication,
+      domain: domain,
+    })
+    .then((rsp: AddAccountRoleRsp) => {
+      callback();
+    })
+    .catch((err: any) => {
+      errorCallback(err);
+    });
+}
+
+/**
+ * Remove the action from a given role.
+ * @param action The action id
+ * @param role The role id
+ * @param callback success callback
+ * @param errorCallback error callback
+ */
+export function removeMemberFromGroup(
+  globular: Globular,
+  groupId: string,
+  accountId: string,
+  callback: () => void,
+  errorCallback: (err: any) => void
+) {
+  const rqst = new RemoveGroupMemberAccountRqst
+
+  rqst.setGroupid(groupId)
+  rqst.setAccountid(accountId)
+
+  globular.resourceService
+    .removeGroupMemberAccount(rqst, {
+      token: getToken(),
+      application: application.length > 0 ? application : globular.config.IndexApplication,
+      domain: domain,
+    })
+    .then((rsp: RemoveGroupMemberAccountRsp) => {
+      callback();
+    })
+    .catch((err: any) => {
+      errorCallback(err);
+    });
+}
+
+/**
+ * Create a new Group
+ * @param globular
+ * @param application
+ * @param domain
+ * @param id
+ * @param callback
+ * @param errorCallback
+ */
+export function createGroup(
+  globular: Globular,
+  id: string,
+  name: string,
+  callback: () => void,
+  errorCallback: (err: any) => void
+) {
+  const rqst = new CreateGroupRqst();
+  const group = new Group();
+  group.setId(id);
+  group.setName(id);
+  rqst.setGroup(group);
+
+  globular.resourceService
+    .createGroup(rqst, {
+      token: getToken(),
+      application: application.length > 0 ? application : globular.config.IndexApplication,
+      domain: domain,
+    })
+    .then((rsp: CreateGroupRsp) => {
+      callback();
+    })
+    .catch((err: any) => {
+      errorCallback(err);
+    });
+}
+
+/**
+ * Delete a given role
+ * @param globular
+ * @param application
+ * @param domain
+ * @param id
+ * @param callback
+ * @param errorCallback
+ */
+export function deleteGroup(
+  globular: Globular,
+  id: string,
+  callback: () => void,
+  errorCallback: (err: any) => void
+) {
+  const rqst = new DeleteGroupRqst();
+  rqst.setGroup(id);
+
+  globular.resourceService
+    .deleteGroup(rqst, {
+      token: getToken(),
+      application: application.length > 0 ? application : globular.config.IndexApplication,
+      domain: domain,
+    })
+    .then((rsp: DeleteGroupRsp) => {
+      callback();
+    })
+    .catch((err: any) => {
+      errorCallback(err);
+    });
+}
+
 
 ///////////////////////////////////// Application operations /////////////////////////////////
 

@@ -54,7 +54,7 @@ protoc --js_out=import_style=commonjs:typescript/search  -I ./proto/ search.prot
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/search -I ./proto/ search.proto
 mkdir typescript/event
 protoc --js_out=import_style=commonjs:typescript/event  -I ./proto/ event.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/event -I ./proto/ event.proto
+protoc --js_out=import_style=commonjs:typescript/event  -I ./proto/ event.proto
 mkdir typescript/storage
 protoc --js_out=import_style=commonjs:typescript/storage  -I ./proto/ storage.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/storage -I ./proto/ storage.proto
