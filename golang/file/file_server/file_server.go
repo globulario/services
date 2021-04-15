@@ -1029,13 +1029,17 @@ func (self *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb
 			info, err := os.Stat(f)
 			if err == nil {
 				if info.IsDir() {
+					fmt.Println("----> copy dir ", f, " to ", self.Root+rqst.Path)
 					// Copy the directory
-					Utility.CopyDir(f, rqst.Path)
+					Utility.CopyDir(f, self.Root+rqst.Path)
 				} else {
+					fmt.Println("----> copy file ", f, "to", self.Root+rqst.Path)
 					// Copy the file
-					Utility.CopyFile(f, rqst.Path)
+					Utility.CopyFile(f, self.Root+rqst.Path)
 				}
 			}
+		} else {
+			fmt.Println("file " + f + " dosen't exist!")
 		}
 	}
 

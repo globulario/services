@@ -238,7 +238,7 @@ type UnsafeRbacServiceServer interface {
 }
 
 func RegisterRbacServiceServer(s grpc.ServiceRegistrar, srv RbacServiceServer) {
-	s.RegisterService(&RbacService_ServiceDesc, srv)
+	s.RegisterService(&_RbacService_serviceDesc, srv)
 }
 
 func _RbacService_SetResourcePermissions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -457,10 +457,7 @@ func _RbacService_ValidateAction_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-// RbacService_ServiceDesc is the grpc.ServiceDesc for RbacService service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var RbacService_ServiceDesc = grpc.ServiceDesc{
+var _RbacService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "rbac.RbacService",
 	HandlerType: (*RbacServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
