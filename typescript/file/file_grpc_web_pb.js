@@ -138,7 +138,7 @@ proto.file.FileServiceClient.prototype.stop =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.StopResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.stop =
     function(request, metadata) {
@@ -293,7 +293,7 @@ proto.file.FileServiceClient.prototype.createDir =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.CreateDirResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.createDir =
     function(request, metadata) {
@@ -373,7 +373,7 @@ proto.file.FileServiceClient.prototype.deleteDir =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.DeleteDirResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.deleteDir =
     function(request, metadata) {
@@ -453,7 +453,7 @@ proto.file.FileServiceClient.prototype.rename =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.RenameResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.rename =
     function(request, metadata) {
@@ -533,7 +533,7 @@ proto.file.FileServiceClient.prototype.move =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.MoveResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.move =
     function(request, metadata) {
@@ -613,7 +613,7 @@ proto.file.FileServiceClient.prototype.copy =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.CopyResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.copy =
     function(request, metadata) {
@@ -693,7 +693,7 @@ proto.file.FileServiceClient.prototype.createAchive =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.CreateArchiveResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.createAchive =
     function(request, metadata) {
@@ -773,7 +773,7 @@ proto.file.FileServiceClient.prototype.getFileInfo =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.GetFileInfoResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.getFileInfo =
     function(request, metadata) {
@@ -928,7 +928,7 @@ proto.file.FileServiceClient.prototype.deleteFile =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.DeleteFileResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.deleteFile =
     function(request, metadata) {
@@ -1083,7 +1083,7 @@ proto.file.FileServiceClient.prototype.writeExcelFile =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.WriteExcelFileResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.writeExcelFile =
     function(request, metadata) {
@@ -1163,7 +1163,7 @@ proto.file.FileServiceClient.prototype.htmlToPdf =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.HtmlToPdfResponse>}
- *     Promise that resolves to the response
+ *     A native promise that resolves to the response
  */
 proto.file.FileServicePromiseClient.prototype.htmlToPdf =
     function(request, metadata) {
