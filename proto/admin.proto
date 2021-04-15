@@ -79,6 +79,8 @@ message SetRootEmailResponse {
 	string token = 1;
 }
 
+// TODO reset password.
+
 message SetPasswordRequest{
 	string accountId = 1;
 	string oldPassword = 2;
