@@ -332,7 +332,21 @@ func (self *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopResp
 /**
  * Create a thumbnail...
  */
-func createThumbnail(file *os.File, thumbnailMaxHeight int, thumbnailMaxWidth int) string {
+func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbnailMaxWidth int) string {
+
+	// Here if thumbnail already exist in hiden files I will use it...
+
+	_fileName := file.Name()[strings.LastIndex(file.Name(), "/")+1 : strings.LastIndex(file.Name(), ".")]
+	_path := path + "/.hidden/" + _fileName + "/_thumbnail_"
+	if Utility.Exists(path + "/.hidden/" + _fileName) {
+		thumbnail, err := ioutil.ReadFile(_path)
+		if err == nil {
+			return string(thumbnail)
+		}
+	}
+
+	Utility.CreateDirIfNotExist(path + "/.hidden/" + _fileName)
+
 	// Set the buffer pointer back to the begening of the file...
 	file.Seek(0, 0)
 	var originalImg image.Image
@@ -380,12 +394,28 @@ func createThumbnail(file *os.File, thumbnailMaxHeight int, thumbnailMaxWidth in
 
 	// Now I will calculate the image size...
 	img := resize.Resize(uint(h), uint(w), originalImg, resize.Lanczos3)
+
 	var buf bytes.Buffer
-	jpeg.Encode(&buf, img, &jpeg.Options{jpeg.DefaultQuality})
+	if strings.HasSuffix(file.Name(), ".png") || strings.HasSuffix(file.Name(), ".PNG") {
+		err = png.Encode(&buf, img)
+	} else {
+		err = jpeg.Encode(&buf, img, &jpeg.Options{jpeg.DefaultQuality})
+	}
+
+	if err != nil {
+		return ""
+	}
 
 	// Now I will save the buffer containt to the thumbnail...
 	thumbnail := imgbase64.FromBuffer(buf)
 	file.Seek(0, 0) // Set the reader back to the begenin of the file...
+
+	// Save the thumbnail into a file to not having to recreate-it each time...
+	err = ioutil.WriteFile(_path, []byte(thumbnail), 0644)
+	if err != nil {
+		log.Println("--------------------------> thumbnail file err ", _path, err)
+	}
+
 	return thumbnail
 }
 
@@ -451,7 +481,7 @@ func getThumbnails(info *fileInfo) []interface{} {
 /**
  * Read the directory and return the file info.
  */
-func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32) (*fileInfo, error) {
+func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool) (*fileInfo, error) {
 
 	// get the file info
 	info, err := getFileInfo(s, path)
@@ -470,14 +500,20 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	for _, f := range files {
 
 		if f.IsDir() {
-			if recursive {
-				info_, err := readDir(s, path+string(os.PathSeparator)+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight)
+			if recursive || f.Name() == ".hidden" || strings.Index(path, ".hidden") != -1 {
+				info_, err := readDir(s, path+string(os.PathSeparator)+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
+				if err != nil {
+					return nil, err
+				}
+				info.Files = append(info.Files, info_)
+			} else {
+				info_, err := readDir(s, path+string(os.PathSeparator)+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, false)
 				if err != nil {
 					return nil, err
 				}
 				info.Files = append(info.Files, info_)
 			}
-		} else {
+		} else if readFiles {
 
 			info_, err := getFileInfo(s, path+string(os.PathSeparator)+f.Name())
 
@@ -488,19 +524,56 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				return nil, err
 			}
 
-			fileExtension := f.Name()[strings.LastIndex(f.Name(), "."):]
+			if strings.Index(f.Name(), ".") != -1 {
+				fileExtension := f.Name()[strings.LastIndex(f.Name(), "."):]
+				info_.Mime = mime.TypeByExtension(fileExtension)
+			} else {
+				info_.Mime, _ = Utility.GetFileContentType(f_)
+			}
 
-			info_.Mime = mime.TypeByExtension(fileExtension) //, err = Utility.GetFileContentType(f_)
-			//if err == nil {
-			// in case of image...
-			if strings.HasPrefix(info_.Mime, "image/") {
-				if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-					info_.Thumbnail = createThumbnail(f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+			// Create thumbnail if the path is not in hidden file...
+			if strings.Index(path, ".hidden") == -1 {
+				if strings.HasPrefix(info_.Mime, "image/") {
+					if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
+						info_.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+					}
+				} else if strings.HasPrefix(info_.Mime, "video/") {
+					path, err := os.Getwd()
+					if err == nil {
+						path = path + "/mimetypes/video-x-generic.png"
+						icon, err := os.Open(path)
+						if err == nil {
+							info_.Thumbnail = createThumbnail(path, icon, 80, 80)
+						} else {
+							fmt.Println(err)
+						}
+					}
+
+				} else if strings.Index(info_.Mime, "/") != -1 {
+
+					// In that case I will get read image from png file and create a
+					// thumbnail with it...
+					path, err := os.Getwd()
+					if err == nil {
+						path = path + "/mimetypes/" + strings.ReplaceAll(strings.Split(info_.Mime, ";")[0], "/", "-") + ".png"
+						icon, err := os.Open(path)
+						if err == nil {
+							info_.Thumbnail = createThumbnail(path, icon, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+						}
+					}
+				} else {
+					path, err := os.Getwd()
+					if err == nil {
+						path = path + "/mimetypes/unknown.png"
+						icon, err := os.Open(path)
+						if err == nil {
+							info_.Thumbnail = createThumbnail(path, icon, 80, 80)
+						} else {
+							fmt.Println(err)
+						}
+					}
 				}
 			}
-			/*} else {
-				info_.Mime = "unknow"
-			}*/
 
 			info.Files = append(info.Files, info_)
 		}
@@ -534,7 +607,7 @@ func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServi
 
 	path := self.formatPath(rqst.GetPath())
 
-	info, err := readDir(self, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight())
+	info, err := readDir(self, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true)
 	if err != nil {
 		return err
 	}
@@ -719,7 +792,16 @@ func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fi
 	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath() + "/" + rqst.GetOldName())
 	self.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetNewName())
 
-	// TODO recreate ressource permission for all directory sub-dir...
+	// Rename it .hidden file.
+	hiddenFolderFrom := path + "/.hidden/" + rqst.GetOldName()[strings.LastIndex(rqst.GetOldName(), "/")+1:strings.LastIndex(rqst.GetOldName(), ".")]
+	hiddenFolderTo := path + "/.hidden/" + rqst.GetNewName()[strings.LastIndex(rqst.GetNewName(), "/")+1:strings.LastIndex(rqst.GetNewName(), ".")]
+
+	if Utility.Exists(hiddenFolderFrom) {
+		err := os.Rename(hiddenFolderFrom, hiddenFolderTo)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
 
 	return &filepb.RenameResponse{
 		Result: true,
@@ -777,7 +859,7 @@ func (self *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoReq
 	// in case of image...
 	if strings.HasPrefix(info.Mime, "image/") {
 		if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-			info.Thumbnail = createThumbnail(f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+			info.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 		}
 	}
 
@@ -886,8 +968,21 @@ func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReque
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// I will remove the conversation from the db.
+	// I will remove the permission from the db.
 	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
+
+	// Also delete informations from .hidden
+	path_ := path[0:strings.LastIndex(path, "/")]
+	fileName := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+
+	hiddenFolder := path_ + "/.hidden/" + fileName
+
+	if Utility.Exists(hiddenFolder) {
+		err := os.RemoveAll(hiddenFolder)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
 
 	return &filepb.DeleteFileResponse{
 		Result: true,
@@ -1008,11 +1103,24 @@ func (self *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb
 
 	// So here I will call the function mv at repetition for each path...
 	for i := 0; i < len(rqst.Files); i++ {
-		f := self.Root + rqst.Files[i]
-		if Utility.Exists(f) {
-			err := Utility.Move(f, self.Root+rqst.Path)
+		path := self.Root + rqst.Files[i]
+		if Utility.Exists(path) {
+			err := Utility.Move(path, self.Root+rqst.Path)
 			if err != nil {
 				fmt.Println(err)
+			}
+
+			// If hidden folder exist for it...
+			path_ := path[0:strings.LastIndex(path, "/")]
+			fileName := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+			hiddenFolder := path_ + "/.hidden/" + fileName
+
+			if Utility.Exists(hiddenFolder) {
+				Utility.CreateDirIfNotExist(self.Root + rqst.Path + "/.hidden")
+				err := Utility.Move(hiddenFolder, self.Root+rqst.Path+"/.hidden")
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
 		}
 	}
@@ -1029,13 +1137,23 @@ func (self *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb
 			info, err := os.Stat(f)
 			if err == nil {
 				if info.IsDir() {
-					fmt.Println("----> copy dir ", f, " to ", self.Root+rqst.Path)
 					// Copy the directory
 					Utility.CopyDir(f, self.Root+rqst.Path)
 				} else {
-					fmt.Println("----> copy file ", f, "to", self.Root+rqst.Path)
 					// Copy the file
 					Utility.CopyFile(f, self.Root+rqst.Path)
+
+					// If hidden folder exist for it...
+					path_ := f[0:strings.LastIndex(f, "/")]
+					fileName := f[strings.LastIndex(f, "/")+1 : strings.LastIndex(f, ".")]
+					hiddenFolder := path_ + "/.hidden/" + fileName
+
+					if Utility.Exists(hiddenFolder) {
+						err := Utility.CopyDir(hiddenFolder, self.Root+rqst.Path+"/.hidden")
+						if err != nil {
+							fmt.Println(err)
+						}
+					}
 				}
 			}
 		} else {
@@ -1061,7 +1179,7 @@ func (self *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream file
 		path = strings.Replace(path, "/", string(os.PathSeparator), -1)
 	}
 
-	info, err := readDir(self, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth())
+	info, err := readDir(self, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true)
 	if err != nil {
 		return err
 	}

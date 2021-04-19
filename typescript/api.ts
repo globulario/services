@@ -647,8 +647,11 @@ function mergeTypedArraysUnsafe(a: any, b: any) {
 export function readDir(
   globular: Globular,
   path: string,
+  recursive: boolean,
   callback: (dir: any) => void,
-  errorCallback: (err: any) => void
+  errorCallback: (err: any) => void,
+  thumbnail_height: number = 80,
+  thumbnail_width:number = 80
 ) {
   path = path.replace("/webroot", ""); // remove the /webroot part.
   if (path.length === 0) {
@@ -657,9 +660,10 @@ export function readDir(
 
   const rqst = new ReadDirRequest();
   rqst.setPath(path);
-  rqst.setRecursive(true);
-  rqst.setThumnailheight(256);
-  rqst.setThumnailwidth(256);
+  rqst.setRecursive(recursive);
+
+  rqst.setThumnailheight(thumbnail_height);
+  rqst.setThumnailwidth(thumbnail_width);
 
   let uint8array = new Uint8Array(0);
 
@@ -721,6 +725,7 @@ export function createDir(
   readDir(
     globular,
     path,
+    false,
     (dir: any) => {
       let newDirName = "New Folder";
       for (let i = 0; i < 1024; i++) {
