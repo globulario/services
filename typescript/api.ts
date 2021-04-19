@@ -354,17 +354,6 @@ export enum OwnerType {
 
 ///////////////////////////////////// File operations /////////////////////////////////
 
-/** Upload list of file on the server. 
- * 
-     ex.
-    let files = new Array<File>()
-    for(var key in actions_map){
-        let actions = actions_map[key]
-        let f = new File([JSON.stringify(actions)], key, {type: 'text/plain'})
-        files.push(f)
-    };
-    uploadFiles("/globular_tests", files);
-*/
 export function uploadFiles(path: string, files: File[], callback: () => void) {
   const fd = new FormData();
 
@@ -709,50 +698,30 @@ function fileExist(fileName: string, files: any[]): boolean {
 export function createDir(
   globular: Globular,
   path: string,
+  name: string,
   callback: (dirName: string) => void,
   errorCallback: (err: any) => void
 ) {
-  path = path.replace("/webroot", ""); // remove the /webroot part.
-  if (path.length === 0) {
-    path = "/";
-  }
+     // Set the request.
+     const rqst = new CreateDirRequest();
+     rqst.setPath(path);
+     rqst.setName(name);
 
-  // first of all I will read the directory content...
-  readDir(
-    globular,
-    path,
-    (dir: any) => {
-      let newDirName = "New Folder";
-      for (let i = 0; i < 1024; i++) {
-        if (!fileExist(newDirName, dir.Files)) {
-          break;
-        }
-        newDirName = "New Folder (" + i + ")";
-      }
-
-      // Set the request.
-      const rqst = new CreateDirRequest();
-      rqst.setPath(path);
-      rqst.setName(newDirName);
-
-      // Create a directory at the given path.
-      globular.fileService
-        .createDir(rqst, {
-          token: getToken(),
-          application: application.length > 0 ? application : globular.config.IndexApplication,
-          domain: domain,
-          path: path,
-        })
-        .then(() => {
-          // The new directory was created.
-          callback(newDirName);
-        })
-        .catch((err: any) => {
-          errorCallback(err);
-        });
-    },
-    errorCallback
-  );
+     // Create a directory at the given path.
+     globular.fileService
+       .createDir(rqst, {
+         token: getToken(),
+         application: application.length > 0 ? application : globular.config.IndexApplication,
+         domain: domain,
+         path: path,
+       })
+       .then(() => {
+         // The new directory was created.
+         callback(name);
+       })
+       .catch((err: any) => {
+         errorCallback(err);
+       });
 }
 
 ///////////////////////////////////// Time series Query //////////////////////////////////////

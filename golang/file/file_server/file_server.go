@@ -568,7 +568,6 @@ func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServi
 // Create a new directory
 func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
 	path := self.formatPath(rqst.GetPath())
-
 	err := Utility.CreateDirIfNotExist(path + string(os.PathSeparator) + rqst.GetName())
 	if err != nil {
 		return nil, status.Errorf(
