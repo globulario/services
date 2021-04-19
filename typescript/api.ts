@@ -636,8 +636,11 @@ function mergeTypedArraysUnsafe(a: any, b: any) {
 export function readDir(
   globular: Globular,
   path: string,
+  recursive: boolean,
   callback: (dir: any) => void,
-  errorCallback: (err: any) => void
+  errorCallback: (err: any) => void,
+  thumbnail_height: number = 80,
+  thumbnail_width:number = 80
 ) {
   path = path.replace("/webroot", ""); // remove the /webroot part.
   if (path.length === 0) {
@@ -646,9 +649,10 @@ export function readDir(
 
   const rqst = new ReadDirRequest();
   rqst.setPath(path);
-  rqst.setRecursive(true);
-  rqst.setThumnailheight(256);
-  rqst.setThumnailwidth(256);
+  rqst.setRecursive(recursive);
+
+  rqst.setThumnailheight(thumbnail_height);
+  rqst.setThumnailwidth(thumbnail_width);
 
   let uint8array = new Uint8Array(0);
 
@@ -702,6 +706,7 @@ export function createDir(
   callback: (dirName: string) => void,
   errorCallback: (err: any) => void
 ) {
+<<<<<<< HEAD
      // Set the request.
      const rqst = new CreateDirRequest();
      rqst.setPath(path);
@@ -722,6 +727,50 @@ export function createDir(
        .catch((err: any) => {
          errorCallback(err);
        });
+=======
+  path = path.replace("/webroot", ""); // remove the /webroot part.
+  if (path.length === 0) {
+    path = "/";
+  }
+
+  // first of all I will read the directory content...
+  readDir(
+    globular,
+    path,
+    false,
+    (dir: any) => {
+      let newDirName = "New Folder";
+      for (let i = 0; i < 1024; i++) {
+        if (!fileExist(newDirName, dir.Files)) {
+          break;
+        }
+        newDirName = "New Folder (" + i + ")";
+      }
+
+      // Set the request.
+      const rqst = new CreateDirRequest();
+      rqst.setPath(path);
+      rqst.setName(newDirName);
+
+      // Create a directory at the given path.
+      globular.fileService
+        .createDir(rqst, {
+          token: getToken(),
+          application: application.length > 0 ? application : globular.config.IndexApplication,
+          domain: domain,
+          path: path,
+        })
+        .then(() => {
+          // The new directory was created.
+          callback(newDirName);
+        })
+        .catch((err: any) => {
+          errorCallback(err);
+        });
+    },
+    errorCallback
+  );
+>>>>>>> 77b02d35fd2a3d5b7c21ee02ea5eb2307b196053
 }
 
 ///////////////////////////////////// Time series Query //////////////////////////////////////

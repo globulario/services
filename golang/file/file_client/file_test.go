@@ -17,7 +17,7 @@ var (
 func _TestReadDir(t *testing.T) {
 	fmt.Println("Read dir test")
 
-	_, err := client.ReadDir("c:/temp", true, 256, 256)
+	_, err := client.ReadDir("c:/temp", true, 80, 80)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -30,7 +30,7 @@ func _TestReadDir(t *testing.T) {
 func TestGetThumbnails(t *testing.T) {
 	fmt.Println("Get Thumbnails")
 
-	_, err := client.GetThumbnails("C:/temp", true, 256, 256)
+	_, err := client.GetThumbnails("C:/temp", true, 80, 80)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
