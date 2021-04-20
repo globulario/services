@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
+	//"fmt"
 	"io"
 	"log"
 	"os"
@@ -923,19 +925,22 @@ func (self *server) Delete(ctx context.Context, rqst *persistencepb.DeleteRqst) 
 
 // Delete one document at time
 func (self *server) DeleteOne(ctx context.Context, rqst *persistencepb.DeleteOneRqst) (*persistencepb.DeleteOneRsp, error) {
+	//fmt.Println("-------------------------------> 927 DeleteOne call: ", rqst.Id)
 	store := self.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("DeleteOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
+		//fmt.Println("931 ------------------> delete err ", err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	//fmt.Println("935------------------> delete ", rqst.Id)
 	err := store.DeleteOne(ctx, strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Options)
 	if err != nil {
+		//fmt.Println("938 ------------------> delete err ", err)
 		return nil, err
 	}
-
+	//fmt.Println("941 ------------------> delete successed!!!!!!!!!", rqst.Id)
 	return &persistencepb.DeleteOneRsp{
 		Result: true,
 	}, nil
@@ -1017,7 +1022,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
 	if len(os.Args) == 2 {

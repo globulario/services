@@ -335,8 +335,8 @@ func (self *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopResp
 func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbnailMaxWidth int) string {
 
 	// Here if thumbnail already exist in hiden files I will use it...
-
-	_fileName := file.Name()[strings.LastIndex(file.Name(), "/")+1 : strings.LastIndex(file.Name(), ".")]
+	_fileName := strings.ReplaceAll(file.Name(), "\\", "/")
+	_fileName = _fileName[strings.LastIndex(_fileName, "/")+1 : strings.LastIndex(_fileName, ".")]
 	_path := path + "/.hidden/" + _fileName + "/_thumbnail_"
 	if Utility.Exists(path + "/.hidden/" + _fileName) {
 		thumbnail, err := ioutil.ReadFile(_path)

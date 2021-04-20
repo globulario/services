@@ -3,11 +3,9 @@ package persistence_client
 import (
 	//"fmt"
 	//"io/ioutil"
+	"fmt"
 	"log"
-
 	"testing"
-
-	"github.com/globulario/Globular/persistence/persistence_client"
 	//"github.com/davecourtois/Utility"
 )
 
@@ -16,7 +14,7 @@ import (
 var (
 
 	// Connect to the plc client.
-	client = persistence_client.NewPersistence_Client("localhost", "persistence.PersistenceService")
+	client, _ = NewPersistenceService_Client("localhost:10000", "persistence.PersistenceService")
 )
 
 // First test create a fresh new connection...
@@ -181,13 +179,13 @@ func TestCreateConnection(t *testing.T) {
 }*/
 
 /** Test remove **/
-/*func TestRemove(t *testing.T) {
+func TestRemove(t *testing.T) {
 	fmt.Println("Test Remove")
 
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
-	Collection := "Employees"
-	Query := `{"emp_no": 200000}`
+	Id := "visualinspection_db"
+	Database := "visualinspection_db"
+	Collection := "Postits"
+	Query := `{"date": 1618952053013}`
 
 	err := client.DeleteOne(Id, Database, Collection, Query, "")
 	if err != nil {
@@ -195,7 +193,7 @@ func TestCreateConnection(t *testing.T) {
 	}
 
 	log.Println("---> Delete success!")
-}*/
+}
 
 /*func TestRemoveMany(t *testing.T) {
 	fmt.Println("Test Remove")
