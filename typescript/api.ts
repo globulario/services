@@ -353,17 +353,8 @@ export enum OwnerType {
 
 
 ///////////////////////////////////// File operations /////////////////////////////////
-/**
- * 
- * @param path The path where on the server to upload the files.
- * @param files The list of files to upload
- * @param completeHandler The complete handler
- * @param errorHandler The error handler.
- * @param progressHandler The progress handler
- * @param abortHandler The abort handler.
- * see example at https://codepen.io/PerfectIsShit/pen/zogMXP
- */
-export function uploadFiles(path: string, files: File[], completeHandler: ()=>void, errorHandler?:(event:any)=>void, progressHandler?: (event: any)=>void, abortHandler?: (event: any)=>void) {
+
+export function uploadFiles(path: string, files: File[], callback: () => void, onerror?: (evt:any)=>void, onprogress?: (evt:any)=>void, port?:number) {
   const fd = new FormData();
 
   // add all selected files
@@ -375,13 +366,12 @@ export function uploadFiles(path: string, files: File[], completeHandler: ()=>vo
 
   // create the request
   const xhr = new XMLHttpRequest();
-
-  // Connect handling functions.
-  xhr.upload.addEventListener("progress", progressHandler, false);
-  xhr.addEventListener("error", errorHandler, false);
-  xhr.addEventListener("abort", abortHandler, false);
-
-  // The load event...
+  xhr.onerror = onerror
+  xhr.onprogress = onprogress
+  xhr.onloadend = callback
+  
+/*
+  // Start download...
   xhr.onload = () => {
     if (xhr.status >= 200 && xhr.status < 300) {
       // we done! I will use the rename file event to refresh the directory...
@@ -390,9 +380,17 @@ export function uploadFiles(path: string, files: File[], completeHandler: ()=>vo
       }
     }
   };
+*/
 
   // path to server would be where you'd normally post the form to
-  xhr.open("POST", "/uploads", true);
+  let url = window.location.protocol + "//" + window.location.hostname 
+  if(port!=undefined){
+    url +=  ":"  + port
+  }
+  
+  url += "/upload"
+
+  xhr.open("POST", url, true);
   xhr.setRequestHeader("token", getToken());
   xhr.setRequestHeader("application", application);
   xhr.setRequestHeader("domain", domain);
@@ -601,10 +599,17 @@ export function downloadDir(
   globular: Globular,
   path: string,
   callback: () => void,
-  errorCallback: (err: any) => void
+  errorCallback: (err: any) => void,
+  port?:number
 ) {
+
   const name = path.split("/")[path.split("/").length - 1];
   path = path.replace("/webroot", ""); // remove the /webroot part.
+
+  // append the port to the url.
+  if(port!=undefined){
+    path += ":"+port + path
+  }
 
   // Create an archive-> download it-> delete it...
   createArchive(
@@ -612,8 +617,16 @@ export function downloadDir(
     [path],
     name,
     (_path: string) => {
+      
       // display the archive path...
-      downloadFileHttp(window.location.origin + _path, name, () => {
+      let url = window.location.protocol + "//" + window.location.hostname 
+      if(port!=undefined){
+        url +=  ":"  + port
+      }
+      
+      url += _path
+
+      downloadFileHttp(url, name, () => {
         // Here the file was downloaded I will now delete it.
         setTimeout(() => {
           // wait a little and remove the archive from the server.
