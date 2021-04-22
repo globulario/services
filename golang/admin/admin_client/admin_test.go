@@ -26,6 +26,7 @@ func TestGetConfig(t *testing.T) {
 	log.Println("Get Config succeed!", config)
 }
 
+/*
 func TestGetFullConfig(t *testing.T) {
 	token, err := resource.Authenticate("sa", "adminadmin")
 	if err != nil {
@@ -42,7 +43,7 @@ func TestGetFullConfig(t *testing.T) {
 	log.Println(config)
 	log.Println("GetFullConfig succeed!")
 }
-
+*/
 // Test modify the config...
 /*func TestSaveConfig(t *testing.T) {
 	log.Println("---> test get config.")
@@ -92,7 +93,7 @@ func TestInstallService(t *testing.T) {
 func TestStartService(t *testing.T) {
 	log.Println("---> test get config.")
 
-	service_pid, proxy_pid, err := client.StartService("persistence.PersistenceService")
+	service_pid, proxy_pid, err := client.StartService("file.FileService")
 	if err != nil {
 
 		log.Println("---> ", err)
@@ -110,14 +111,14 @@ func TestStopService(t *testing.T) {
 		return
 	}
 	log.Println(token)
-	err = client.StopService("13fe664e-a64c-4465-8977-22fb7a22dec6")
+	err = client.StopService("file.FileService")
 	if err != nil {
 		log.Println(err)
 		return
 	}
 	log.Println("---> stop service succeeded")
-}*/
-
+}
+*/
 /*
 func TestUninstallService(t *testing.T) {
 	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
@@ -162,10 +163,10 @@ func TestRestartServices(t *testing.T) {
 	}
 }
 */
-/*
+
 func TestRunCmd(t *testing.T) {
 	var err error
-	client_, err := resource_client.NewResourceService_Client("mon-iis-01:8080", "resource.ResourceService")
+	client_, err := resource_client.NewResourceService_Client("mon-intranet:10097", "resource.ResourceService")
 	if err != nil {
 		log.Println("----> fail to connect with error ", err)
 		return
@@ -177,15 +178,51 @@ func TestRunCmd(t *testing.T) {
 		log.Println("---> ", token)
 	}
 
-	//results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"}, true)
-	results, err := client.RunCmd(token, "taskkill", []string{"/F", "/PID", "1884"}, true)
+	// results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"}, true)
+	results, err := client.RunCmd(token, "taskkill", []string{"/F", "/PID", "15024"}, true)
+	// results, err := client.RunCmd(token, "set", []string{"PATH=%PATH%;C:/applications_services/exec/ffmpeg-N-101994-g84ac1440b2-win64-gpl-shared/bin"}, true)
+	// results, err := client.RunCmd(token, "setx", []string{"/M", "PATH ", "C:/applications_services/exec/ffmpeg-N-101994-g84ac1440b2-win64-gpl-shared/bin"}, true)
+	//results, err := client.RunCmd(token, "ffmpeg", []string{"-version"}, true)
+	//results, err := client.RunCmd(token, "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", []string{"-command", `"Restart-Service SLS-Globular -Force"`}, true)
+
+	if err != nil {
+		log.Println(err)
+		t.FailNow()
+	}
+	log.Println(results)
+}
+
+/*
+func TestGetVariable(t *testing.T) {
+	var err error
+	client_, err := resource_client.NewResourceService_Client("mon-intranet:10097", "resource.ResourceService")
+	if err != nil {
+		log.Println("----> fail to connect with error ", err)
+		return
+	}
+	token, err := client_.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println("---> ", err)
+	} else {
+		log.Println("---> ", token)
+	}
+
+	val, err := client.GetEnvironmentVariable(token, "path")
 
 	if err != nil {
 		log.Println(err)
 		t.FailNow()
 	}
 
-	log.Println(results)
+	log.Println(val)
+
+	val += ";C:\\applications_services\\exec\\ffmpeg-N-101994-g84ac1440b2-win64-gpl-shared\\bin"
+	err = client.SetEnvironmentVariable(token, "path", val)
+	if err != nil {
+		log.Println(err)
+		t.FailNow()
+	}
+
 }
 */
 /*
