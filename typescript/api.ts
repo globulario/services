@@ -353,8 +353,17 @@ export enum OwnerType {
 
 
 ///////////////////////////////////// File operations /////////////////////////////////
-
-export function uploadFiles(path: string, files: File[], callback: () => void) {
+/**
+ * 
+ * @param path The path where on the server to upload the files.
+ * @param files The list of files to upload
+ * @param completeHandler The complete handler
+ * @param errorHandler The error handler.
+ * @param progressHandler The progress handler
+ * @param abortHandler The abort handler.
+ * see example at https://codepen.io/PerfectIsShit/pen/zogMXP
+ */
+export function uploadFiles(path: string, files: File[], completeHandler: ()=>void, errorHandler?:(event:any)=>void, progressHandler?: (event: any)=>void, abortHandler?: (event: any)=>void) {
   const fd = new FormData();
 
   // add all selected files
@@ -367,11 +376,17 @@ export function uploadFiles(path: string, files: File[], callback: () => void) {
   // create the request
   const xhr = new XMLHttpRequest();
 
+  // Connect handling functions.
+  xhr.upload.addEventListener("progress", progressHandler, false);
+  xhr.addEventListener("error", errorHandler, false);
+  xhr.addEventListener("abort", abortHandler, false);
+
+  // The load event...
   xhr.onload = () => {
     if (xhr.status >= 200 && xhr.status < 300) {
       // we done! I will use the rename file event to refresh the directory...
-      if (callback != null) {
-        callback();
+      if (completeHandler != null) {
+        completeHandler();
       }
     }
   };
@@ -396,6 +411,7 @@ export function uploadFiles(path: string, files: File[], callback: () => void) {
     }
   };
   xhr.send(fd);
+
 }
 
 /**
