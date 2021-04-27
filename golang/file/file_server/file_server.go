@@ -695,7 +695,7 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 	// This will create a temporary directory...
 	if createTempDir {
 		Utility.CreateDirIfNotExist(tmp)
-		defer os.Remove(tmp)
+		defer os.RemoveAll(tmp)
 
 		//defer os.Remove(tmp)
 		for i := 0; i < len(rqst.Paths); i++ {

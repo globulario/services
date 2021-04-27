@@ -346,10 +346,12 @@ func (self *server) StartService() error {
 }
 
 func (self *server) StopService() error {
+	self.exit <- true
 	return globular.StopService(self, self.grpcServer)
 }
 
 func (self *server) Stop(context.Context, *conversationpb.StopRequest) (*conversationpb.StopResponse, error) {
+	self.exit <- true
 	return &conversationpb.StopResponse{}, self.StopService()
 }
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"runtime"
 
 	"path/filepath"
 	"strings"
@@ -359,7 +360,7 @@ func (self *Admin_Client) UploadServicePackage(user string, organization string,
 	// copy file in it that will be the bundle to be use...
 	tmp_dir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + s["PublisherId"].(string) + "%" + s["Name"].(string) + "%" + s["Version"].(string) + "%" + s["Id"].(string) + "%" + platform
 	path_ := tmp_dir + "/" + s["PublisherId"].(string) + "/" + s["Name"].(string) + "/" + s["Version"].(string) + "/" + s["Id"].(string)
-	defer os.Remove(tmp_dir)
+	defer os.RemoveAll(tmp_dir)
 
 	// I will create the directory
 	Utility.CreateDirIfNotExist(path)
@@ -385,7 +386,7 @@ func (self *Admin_Client) UploadServicePackage(user string, organization string,
 	}
 
 	// Remove the file when it's transfer on the server...
-	defer os.Remove(packagePath)
+	defer os.RemoveAll(packagePath)
 
 	// Read the package data.
 	packageFile, err := os.Open(packagePath)
@@ -636,6 +637,110 @@ func (self *Admin_Client) InstallCertificates(domain string, port int, path stri
 	}
 
 	return rsp.Certkey, rsp.Cert, rsp.Cacert, nil
+}
+
+/**
+ * Push update to a give globular server.
+ */
+func (self *Admin_Client) Update(path string, platform string, token string, domain string) (int, error) {
+
+	// Set the token into the context and send the request.
+	md := metadata.New(map[string]string{"token": string(token), "domain": domain})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	// Open the stream...
+	stream, err := self.c.Update(ctx)
+	if err != nil {
+		return -1, err
+	}
+
+	data, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer data.Close()
+
+	reader := bufio.NewReader(data)
+
+	const BufferSize = 1024 * 5 // the chunck size.
+	var size int
+
+	for {
+		var data [BufferSize]byte
+		bytesread, err := reader.Read(data[0:BufferSize])
+		if bytesread > 0 {
+			rqst := &adminpb.UpdateRequest{
+				Data:     data[0:bytesread],
+				Platform: platform,
+			}
+			// send the data to the server.
+			err = stream.Send(rqst)
+			if err != nil {
+				return -1, err
+			}
+		}
+		size += bytesread
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+			return -1, err
+		}
+	}
+
+	_, err = stream.CloseAndRecv()
+	if err != nil && err != io.EOF {
+		return -1, err
+	}
+
+	return size, nil
+
+}
+
+/**
+ * Download globular executable from a given source...
+ */
+func (self *Admin_Client) DownloadGlobular(source, platform, path string) error {
+
+	// Retreive a single value...
+	rqst := &adminpb.DownloadGlobularRequest{
+		Source:   source,
+		Platform: platform,
+	}
+
+	stream, err := self.c.DownloadGlobular(globular.GetClientContext(self), rqst)
+	if err != nil {
+		return err
+	}
+
+	// Here I will create the final array
+	var buffer bytes.Buffer
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		_, err = buffer.Write(msg.Data)
+		if err != nil {
+			return err
+		}
+	}
+	log.Println("----------> tmp file is in ", path)
+
+	Utility.CreateDirIfNotExist(path)
+
+	path += "/Globular"
+	if runtime.GOOS == "windows" {
+		path += ".exe"
+	}
+
+	// The buffer that contain the
+	return ioutil.WriteFile(path, buffer.Bytes(), 0755)
 }
 
 /**
@@ -902,11 +1007,31 @@ func (self *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := self.c.RunCmd(ctx, rqst)
+	stream, err := self.c.RunCmd(ctx, rqst)
 	if err != nil {
 		return "", err
 	}
-	return rsp.Result, nil
+
+	// Here I will create the final array
+	var buffer bytes.Buffer
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+
+		_, err = buffer.Write([]byte(msg.Result))
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return string(buffer.Bytes()), nil
+
 }
 
 func (self *Admin_Client) KillProcess(token string, pid int) error {
