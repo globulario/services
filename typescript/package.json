@@ -1,10 +1,6 @@
 {
   "name": "globular-web-client",
-<<<<<<< HEAD
-  "version": "1.1.142",
-=======
-  "version": "1.1.147",
->>>>>>> 53fd93ed874dea188ecad2e113ca64ed122806d3
+  "version": "1.1.150",
   "description": "Globular client side",
   "main": "./services.js",
   "types": "./services.d.ts",

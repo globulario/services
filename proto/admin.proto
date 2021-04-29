@@ -233,7 +233,7 @@ message RunCmdRequest{
 }
 
 message RunCmdResponse{
-	string result = 1; // The content of the result ass a string.
+	string result = 1; // The content of the result as a string.
 	int32 pid=4;
 }
 
@@ -301,7 +301,31 @@ message GetPidsResponse {
 	repeated int32 pids = 1;
 }
 
+message UpdateRequest{
+	string platform = 1; // The platform
+	bytes data = 2;
+}
+
+message UpdateResponse {
+	
+}
+
+message DownloadGlobularRequest{
+	string platform = 1; // The platform
+	string source = 2; // The address of the server to update from
+}
+
+message DownloadGlobularResponse {
+	bytes data = 1;
+}
+
 service AdminService {
+  
+  // Update a given globular server (use by command line.)
+  rpc Update(stream  UpdateRequest) returns(UpdateResponse);
+
+  // Download Globular executable file.
+  rpc DownloadGlobular(DownloadGlobularRequest) returns(stream DownloadGlobularResponse);
 
   // Install certificates from a given server at a given path.
   rpc InstallCertificates(InstallCertificatesRequest) returns(InstallCertificatesResponse);
@@ -365,7 +389,7 @@ service AdminService {
   rpc HasRunningProcess(HasRunningProcessRequest) returns(HasRunningProcessResponse);
 
   // Run an external command.
-  rpc RunCmd(RunCmdRequest) returns(RunCmdResponse);
+  rpc RunCmd(RunCmdRequest) returns(stream RunCmdResponse);
 
   // Set environement variable.
   rpc SetEnvironmentVariable(SetEnvironmentVariableRequest) returns(SetEnvironmentVariableResponse);

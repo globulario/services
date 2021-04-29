@@ -354,25 +354,23 @@ export enum OwnerType {
 
 ///////////////////////////////////// File operations /////////////////////////////////
 
-export function uploadFiles(path: string, files: File[], callback: () => void, onerror?: (evt:any)=>void, onprogress?: (evt:any)=>void, port?:number) {
-  const fd = new FormData();
-
+export function uploadFiles(path: string, files: File[], completeHandler: () => void, errorHandler?: (event: any) => void, progressHandler?: (event: any) => void, abortHandler?: (event: any) => void, port?: number) {
+  var fd = new FormData();
   // add all selected files
   for (var i = 0; i < files.length; i++) {
-    let file = files[i];
+    var file = files[i];
     fd.append("multiplefiles", file, file.name);
     fd.append("path", path);
   }
-
   // create the request
-  const xhr = new XMLHttpRequest();
-  xhr.onerror = onerror
-  xhr.onprogress = onprogress
-  xhr.onloadend = callback
-  
-/*
-  // Start download...
-  xhr.onload = () => {
+  var xhr = new XMLHttpRequest();
+  // Connect handling functions.
+  xhr.upload.addEventListener("progress", progressHandler, false);
+  xhr.addEventListener("error", errorHandler, false);
+  xhr.addEventListener("abort", abortHandler, false);
+
+  // The load event...
+  xhr.onload = function () {
     if (xhr.status >= 200 && xhr.status < 300) {
       // we done! I will use the rename file event to refresh the directory...
       if (completeHandler != null) {
@@ -380,36 +378,23 @@ export function uploadFiles(path: string, files: File[], callback: () => void, o
       }
     }
   };
-*/
 
   // path to server would be where you'd normally post the form to
-  let url = window.location.protocol + "//" + window.location.hostname 
-  if(port!=undefined){
-    url +=  ":"  + port
+  let url = window.location.protocol + "//" + window.location.hostname
+  if (port != undefined) {
+    url += ":" + port
   }
-  
-  url += "/upload"
 
+  url += "/uploads"
   xhr.open("POST", url, true);
+
+  // path to server would be where you'd normally post the form to
   xhr.setRequestHeader("token", getToken());
   xhr.setRequestHeader("application", application);
   xhr.setRequestHeader("domain", domain);
   xhr.setRequestHeader("path", path);
-  xhr.onerror = (err: any) => { };
 
-  xhr.onreadystatechange = () => {
-    if (xhr.readyState === 4) {
-      //if complete
-      if (xhr.status === 200) {
-        //check if "OK" (200)
-        //success
-      } else {
-        console.log("Permission denied to upload file " + path);
-      }
-    }
-  };
   xhr.send(fd);
-
 }
 
 /**
@@ -600,15 +585,15 @@ export function downloadDir(
   path: string,
   callback: () => void,
   errorCallback: (err: any) => void,
-  port?:number
+  port?: number
 ) {
 
   const name = path.split("/")[path.split("/").length - 1];
   path = path.replace("/webroot", ""); // remove the /webroot part.
 
   // append the port to the url.
-  if(port!=undefined){
-    path += ":"+port + path
+  if (port != undefined) {
+    path += ":" + port + path
   }
 
   // Create an archive-> download it-> delete it...
@@ -617,13 +602,13 @@ export function downloadDir(
     [path],
     name,
     (_path: string) => {
-      
+
       // display the archive path...
-      let url = window.location.protocol + "//" + window.location.hostname 
-      if(port!=undefined){
-        url +=  ":"  + port
+      let url = window.location.protocol + "//" + window.location.hostname
+      if (port != undefined) {
+        url += ":" + port
       }
-      
+
       url += _path
 
       downloadFileHttp(url, name, () => {
@@ -669,7 +654,7 @@ export function readDir(
   callback: (dir: any) => void,
   errorCallback: (err: any) => void,
   thumbnail_height: number = 80,
-  thumbnail_width:number = 80
+  thumbnail_width: number = 80
 ) {
   path = path.replace("/webroot", ""); // remove the /webroot part.
   if (path.length === 0) {
@@ -739,26 +724,26 @@ export function createDir(
   if (path.length === 0) {
     path = "/";
   }
-   // Set the request.
-   const rqst = new CreateDirRequest();
-   rqst.setPath(path);
-   rqst.setName(name);
+  // Set the request.
+  const rqst = new CreateDirRequest();
+  rqst.setPath(path);
+  rqst.setName(name);
 
-   // Create a directory at the given path.
-   globular.fileService
-     .createDir(rqst, {
-       token: getToken(),
-       application: application.length > 0 ? application : globular.config.IndexApplication,
-       domain: domain,
-       path: path,
-     })
-     .then(() => {
-       // The new directory was created.
-       callback(name);
-     })
-     .catch((err: any) => {
-       errorCallback(err);
-     });
+  // Create a directory at the given path.
+  globular.fileService
+    .createDir(rqst, {
+      token: getToken(),
+      application: application.length > 0 ? application : globular.config.IndexApplication,
+      domain: domain,
+      path: path,
+    })
+    .then(() => {
+      // The new directory was created.
+      callback(name);
+    })
+    .catch((err: any) => {
+      errorCallback(err);
+    });
 }
 
 ///////////////////////////////////// Time series Query //////////////////////////////////////
@@ -1785,7 +1770,7 @@ export function getAllApplicationsInfo(
   globular.resourceService
     .getAllApplicationsInfo(rqst)
     .then((rsp: GetAllApplicationsInfoRsp) => {
-      const infos =  rsp.getApplicationsList();
+      const infos = rsp.getApplicationsList();
       callback(infos);
     })
     .catch((err: any) => {
@@ -2302,7 +2287,7 @@ export function getReferencedValue(
       domain: domain,
     })
     .then((rsp: FindOneResp) => {
-      callback( rsp.getResult());
+      callback(rsp.getResult());
     })
     .catch((err: any) => {
       errorCallback(err);

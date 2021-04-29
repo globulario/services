@@ -553,20 +553,18 @@ func (self *MongoStore) Delete(ctx context.Context, connectionId string, databas
  */
 func (self *MongoStore) DeleteOne(ctx context.Context, connectionId string, database string, collection string, query string, optionsStr string) error {
 
-	//fmt.Println("-----------> 554 ", query)
 	if self.clients[connectionId].Database(database) == nil {
 		return errors.New("No database found with name " + database)
 	}
-	//fmt.Println("-----------> 558 ", query)
+
 	if self.clients[connectionId].Database(database).Collection(collection) == nil {
 		return errors.New("No collection found with name " + collection)
 	}
-	//fmt.Println("-----------> 562 ", query)
+
 	collection_ := self.clients[connectionId].Database(database).Collection(collection)
 	q := make(map[string]interface{})
 	err := json.Unmarshal([]byte(query), &q)
 	if err != nil {
-		//fmt.Println("-----------> 566 ", q)
 		return err
 	}
 
@@ -575,18 +573,14 @@ func (self *MongoStore) DeleteOne(ctx context.Context, connectionId string, data
 		opts = make([]*options.DeleteOptions, 0)
 		err := json.Unmarshal([]byte(optionsStr), &opts)
 		if err != nil {
-			//fmt.Println("-----------> 575 ", q)
 			return err
 		}
 	}
 
-	//fmt.Println("-----------> 580 ", q)
 	_, err = collection_.DeleteOne(ctx, q, opts...)
 	if err != nil {
-		//fmt.Println("-----------> 583 ", q)
 		return err
 	}
-	//fmt.Println("-----------> 586 ", q)
 	return nil
 }
 

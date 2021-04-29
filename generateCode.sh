@@ -27,6 +27,29 @@ protoc proto/spc.proto --go-grpc_out=require_unimplemented_servers=false:./golan
 protoc proto/catalog.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/conversation.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
+# Web-Api generation.
+# ** Note that gooleapis /usr/local/include/google/api must exist... (https://github.com/googleapis/googleapis)
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/admin/adminpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true admin.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/resource/resourcepb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true resource.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/rbac/rbacpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true rbac.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/log/logpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true log.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/packages/packagespb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true packages.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/ca/capb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true ca.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/dns/dnspb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true dns.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/echo/echopb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true echo.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/search/searchpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true search.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/event/eventpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true event.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/storage/storagepb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true storage.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/file/filepb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true file.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/ldap/ldappb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true ldap.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/mail/mailpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true mail.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/monitoring/monitoringpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true monitoring.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/spc/spcpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true spc.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/catalog/catalogpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true catalog.proto
+protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/conversation/conversationpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true conversation.proto
+
+
+
 # TypeScript grpc files generation.
 mkdir typescript/admin
 protoc --js_out=import_style=commonjs:typescript/admin  -I ./proto/ admin.proto
