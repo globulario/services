@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "ZzZG9upaBVsfahlRCjYzcChTkk64Uwg0W2mIb9o6s4Go/7UoqQK2dJNLktyxpWvgk5gPVxZSHy9w9fMw5uxjAw==",
+  "dgSpecHash": "66ikv5B1tZxsIAYFpfXV0Klrng2Uox6CU9RZqs0QDmk6/qGfJMoBzeWPE4cxuiVlRu7mdIu0H0GV3OYPCZuAkA==",
   "success": true,
   "projectFilePath": "C:\\Users\\mm006819\\go\\src\\github.com\\globulario\\services\\csharp\\lb\\GlobularLoadBalancingClient\\GlobularLoadBalancingClient.csproj",
   "expectedPackageFiles": [
@@ -10,7 +10,8 @@
     "C:\\Users\\mm006819\\.nuget\\packages\\grpc.core.api\\2.34.0\\grpc.core.api.2.34.0.nupkg.sha512",
     "C:\\Users\\mm006819\\.nuget\\packages\\system.memory\\4.5.3\\system.memory.4.5.3.nupkg.sha512",
     "C:\\Users\\mm006819\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\4.5.2\\system.runtime.compilerservices.unsafe.4.5.2.nupkg.sha512",
-    "C:\\Users\\mm006819\\.nuget\\packages\\system.text.json\\5.0.0\\system.text.json.5.0.0.nupkg.sha512"
+    "C:\\Users\\mm006819\\.nuget\\packages\\system.text.json\\5.0.0\\system.text.json.5.0.0.nupkg.sha512",
+    "C:\\Users\\mm006819\\.nuget\\packages\\globularclient\\1.0.3\\globularclient.1.0.3.nupkg.sha512"
   ],
   "logs": []
 }
