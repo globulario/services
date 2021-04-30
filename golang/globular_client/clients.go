@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	//	"log"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
