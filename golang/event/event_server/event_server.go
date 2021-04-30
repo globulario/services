@@ -282,7 +282,7 @@ func (self *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self /*Interceptors.ServerUnaryInterceptor*/, nil /*Interceptors.ServerStreamInterceptor*/, nil)
+	self.grpcServer, err = globular.InitGrpcServer(self /*interceptors.ServerUnaryInterceptor*/, nil /*interceptors.ServerStreamInterceptor*/, nil)
 	if err != nil {
 		return err
 	}

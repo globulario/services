@@ -24,10 +24,10 @@ import (
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/nfnt/resize"
@@ -301,7 +301,7 @@ func (self *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, Interceptors.ServerUnaryInterceptor, Interceptors.ServerStreamInterceptor)
+	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -666,7 +666,7 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			user, _, _, _, err = Interceptors.ValidateToken(token)
+			user, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -742,7 +742,7 @@ func (self *server) createPermission(ctx context.Context, path string) error {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, err = Interceptors.ValidateToken(token)
+			clientId, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return err
 			}

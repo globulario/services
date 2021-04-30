@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/globulario/Globular/Interceptors"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/monitoring/monitoring_client"
 	"github.com/globulario/services/golang/monitoring/monitoring_store"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
@@ -294,7 +294,7 @@ func (self *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, Interceptors.ServerUnaryInterceptor, Interceptors.ServerStreamInterceptor)
+	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}

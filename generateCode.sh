@@ -48,8 +48,6 @@ protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/spc/spcpb --gr
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/catalog/catalogpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true catalog.proto
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/conversation/conversationpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true conversation.proto
 
-
-
 # TypeScript grpc files generation.
 mkdir typescript/admin
 protoc --js_out=import_style=commonjs:typescript/admin  -I ./proto/ admin.proto

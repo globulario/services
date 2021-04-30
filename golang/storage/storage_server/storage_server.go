@@ -14,9 +14,9 @@ import (
 
 	//	"time"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/Globular/Interceptors"
 	"github.com/globulario/services/golang/storage/storage_client"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/storage/storagepb"
@@ -302,7 +302,7 @@ func (self *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, Interceptors.ServerUnaryInterceptor, Interceptors.ServerStreamInterceptor)
+	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}

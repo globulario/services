@@ -23,8 +23,6 @@ import (
 	"github.com/globulario/services/golang/admin/admin_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	//"google.golang.org/grpc/grpclog"
 	"errors"
 	"runtime"
 )

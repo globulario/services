@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/Globular/Interceptors"
+	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -292,7 +292,7 @@ func (self *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, Interceptors.ServerUnaryInterceptor, Interceptors.ServerStreamInterceptor)
+	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
