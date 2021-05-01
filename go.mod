@@ -2,82 +2,60 @@ module github.com/globulario/services
 
 go 1.16
 
+replace github.com/globulario/services/golang/security => ./golang/security
 
-replace github.com/globulario/services/golang/securtiy  => ./golang/security
-replace github.com/globulario/services/golang/interceptors   => ./golang/interceptors
-replace github.com/globulario/services/golang/globular_client => ./golang/globular_client
-replace github.com/globulario/services/golang/globular_service => ./golang/globular_service
-
-replace github.com/globulario/services/golang/resourcepb => ./golang/resourcepb
-replace github.com/globulario/services/golang/resource_client => ./golang/resource_client
+replace github.com/globulario/services/golang/resource/resourcepb => ./golang/resource/resourcepb
 
 replace github.com/globulario/services/golang/admin/adminpb => ./golang/admin/adminpb
-replace github.com/globulario/services/golang/admin/admin_client => ./golang/admin/admin_client
 
-replace github.com/globulario/services/golang/capb => ./golang/capb
-replace github.com/globulario/services/golang/ca_client => ./golang/ca_client
+replace github.com/globulario/services/golang/globular_client => ./golang/globular_client
 
-replace github.com/globulario/services/golang/lbpb => ./golang/lbpb
-replace github.com/globulario/services/golang/lb_client => ./golang/lb_client
+replace github.com/globulario/services/golang/lb/lbpb => ./golang/lb/lbpb
 
-replace github.com/globulario/services/golang/logpb => ./golang/logpb
-replace github.com/globulario/services/golang/log_client => ./golang/log_client
+replace github.com/globulario/services/golang/lb/load_balancing_client => ./golang/lb/load_balancing_client
 
-replace github.com/globulario/services/golang/catalogpb => ./golang/catalogpb
-replace github.com/globulario/services/golang/catalog_client => ./golang/catalog_client
-replace github.com/globulario/services/golang/catalog_server => ./golang/catalog_server
+replace github.com/globulario/services/golang/persistence/persistencepb => ./golang/persistence/persistencepb
 
-replace github.com/globulario/services/golang/conversationpb => ./golang/conversationpb
-replace github.com/globulario/services/golang/conversation_client => ./golang/conversation_client
-replace github.com/globulario/services/golang/conversation_server => ./golang/conversation_server
+replace github.com/globulario/services/golang/persistence/persistence_client => ./golang/persistence/persistence_client
 
-replace github.com/globulario/services/golang/dnspb => ./golang/dnspb
-replace github.com/globulario/services/golang/dns_client => ./golang/dns_client
-replace github.com/globulario/services/golang/dns_server => ./golang/dns_server
+replace github.com/globulario/services/golang/mail/mailpb => ./golang/mail/mailpb
 
-replace github.com/globulario/services/golang/echopb => ./golang/echopb
-replace github.com/globulario/services/golang/echo_client => ./golang/echo_client
-replace github.com/globulario/services/golang/echo_server => ./golang/echo_server
+replace github.com/globulario/services/golang/mail/mail_client => ./golang/mail/mail_client
 
-replace github.com/globulario/services/golang/filepb => ./golang/filepb
-replace github.com/globulario/services/golang/file_client => ./golang/file_client
-replace github.com/globulario/services/golang/file_server => ./golang/file_server
+replace github.com/globulario/services/golang/spc/spcpb => ./golang/spcpb
 
-replace github.com/globulario/services/golang/ldappb => ./golang/ldappb
-replace github.com/globulario/services/golang/ldap_client => ./golang/ldap_client
-replace github.com/globulario/services/golang/ldap_server => ./golang/ldap_server
+replace github.com/globulario/services/golang/spc/spc_client => ./golang/spc_client
 
-replace github.com/globulario/services/golang/mailpb => ./golang/mailpb
-replace github.com/globulario/services/golang/mail_client => ./golang/mail_client
-replace github.com/globulario/services/golang/mail_server => ./golang/mail_server
-
-replace github.com/globulario/services/golang/monitoringpb => ./golang/monitoringpb
-replace github.com/globulario/services/golang/monitoring_client => ./golang/monitoring_client
-replace github.com/globulario/services/golang/monitoring_server => ./golang/monitoring_server
-
-replace github.com/globulario/services/golang/packagespb => ./golang/packagespb
-replace github.com/globulario/services/golang/packages_client => ./golang/packages_client
-replace github.com/globulario/services/golang/packages_server => ./golang/packages_server
-
-replace github.com/globulario/services/golang/persistencepb => ./golang/persistencepb
-replace github.com/globulario/services/golang/persistence_client => ./golang/persistence_client
-replace github.com/globulario/services/golang/persistence_server => ./golang/persistence_server
-
-replace github.com/globulario/services/golang/rbacpb => ./golang/rbacpb
-replace github.com/globulario/services/golang/rbac_client => ./golang/rbac_client
-replace github.com/globulario/services/golang/rbac_server => ./golang/rbac_server
-
-replace github.com/globulario/services/golang/searchpb => ./golang/searchpb
-replace github.com/globulario/services/golang/search_client => ./golang/search_client
-replace github.com/globulario/services/golang/search_server => ./golang/search_server
-
-replace github.com/globulario/services/golang/spcpb => ./golang/spcpb
-replace github.com/globulario/services/golang/spc_client => ./golang/spc_client
-
-replace github.com/globulario/services/golang/sqlpb => ./golang/sqlpb
-replace github.com/globulario/services/golang/sql_client => ./golang/sql_client
-replace github.com/globulario/services/golang/sql_server => ./golang/sql_server
-
-replace github.com/globulario/services/golang/storagepb => ./golang/storagepb
-replace github.com/globulario/services/golang/storage_client => ./golang/storage_client
-replace github.com/globulario/services/golang/storage_server => ./golang/storage_server
+require (
+	github.com/alexbrainman/odbc v0.0.0-20200426075526-f0492dfa1575
+	github.com/allegro/bigcache v1.2.1
+	github.com/davecourtois/GoXapian v0.0.0-20201222213557-81c72bc9e73c
+	github.com/davecourtois/Utility v0.0.0-20210430205301-666a7d0dc453
+	github.com/denisenkom/go-mssqldb v0.10.0
+	github.com/emersion/go-imap v1.0.6
+	github.com/emersion/go-message v0.14.1
+	github.com/emersion/go-smtp v0.15.0 // indirect
+	github.com/emersion/go-smtp-mta v0.0.0-20170206201558-f9b2f2fd6e9a
+	github.com/globulario/services/golang/globular_client v0.0.0-20210501011657-2bc6004d4175
+	github.com/globulario/services/golang/globular_service v0.0.0-20210501011657-2bc6004d4175
+	github.com/globulario/services/golang/interceptors v0.0.0-20210501011657-2bc6004d4175
+	github.com/globulario/services/golang/lb/load_balancing_client v0.0.0-00010101000000-000000000000 // indirect
+	github.com/globulario/services/golang/mail/mail_client v0.0.0-00010101000000-000000000000
+	github.com/globulario/services/golang/mail/mailpb v0.0.0-00010101000000-000000000000
+	github.com/globulario/services/golang/persistence/persistence_client v0.0.0-00010101000000-000000000000
+	github.com/globulario/services/golang/persistence/persistence_store v0.0.0-20210501011657-2bc6004d4175
+	github.com/globulario/services/golang/persistence/persistencepb v0.0.0-00010101000000-000000000000
+	github.com/globulario/services/golang/resource/resource_client v0.0.0-20210501011657-2bc6004d4175
+	github.com/go-sql-driver/mysql v1.6.0
+	github.com/golang/protobuf v1.5.2
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.4.0
+	github.com/lib/pq v1.10.1
+	github.com/mattn/go-sqlite3 v1.14.7
+	github.com/mhale/smtpd v0.0.0-20210322105601-438c8edb069c
+	github.com/prometheus/client_golang v1.10.0
+	github.com/syndtr/goleveldb v1.0.0
+	google.golang.org/grpc v1.37.0
+	google.golang.org/protobuf v1.26.0
+	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect
+	gopkg.in/gomail.v1 v1.0.0-20150320132819-11b919ab4933
+)

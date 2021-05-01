@@ -10,7 +10,6 @@ replace github.com/globulario/services/golang/echo/echopb => ../echopb
 
 replace github.com/globulario/services/golang/admin/adminpb => ../../admin/adminpb
 
-
 require (
 	github.com/davecourtois/Utility v0.0.0-20210430205301-666a7d0dc453
 	github.com/globulario/services/golang/echo/echopb v0.0.0-00010101000000-000000000000

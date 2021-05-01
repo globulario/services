@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/globulario/services/cpp/spc/spcpb"
+	//"github.com/globulario/services/spc/spcpb"
 	"google.golang.org/grpc"
 
 	"testing"
