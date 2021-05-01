@@ -297,7 +297,7 @@ func (self *server) Init() error {
 		return err
 	}
 
-	self.Services = make(map[string]interface{}, 0)
+	self.Services = make(map[string]interface{})
 
 	// Connect to the persistence service.
 	if self.Services["Persistence"] != nil {
@@ -367,7 +367,7 @@ func (self *server) CreateConnection(ctx context.Context, rqst *catalogpb.Create
 	if self.persistenceClient != nil {
 		persistence := self.Services["Persistence"].(map[string]interface{})
 		if persistence["Connections"] == nil {
-			persistence["Connections"] = make(map[string]interface{}, 0)
+			persistence["Connections"] = make(map[string]interface{})
 		}
 
 		connections := persistence["Connections"].(map[string]interface{})
@@ -380,7 +380,7 @@ func (self *server) CreateConnection(ctx context.Context, rqst *catalogpb.Create
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		connection := make(map[string]interface{}, 0)
+		connection := make(map[string]interface{})
 		connection["Id"] = rqst.Connection.GetId()
 		connection["Name"] = rqst.Connection.GetName()
 		connection["Host"] = rqst.Connection.GetHost()
@@ -1502,7 +1502,7 @@ func (self *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.Get
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	results := make([]map[string]interface{}, 0)
+	results := make([]map[string]interface{})
 	err = json.Unmarshal([]byte(jsonStr), &results)
 
 	if err != nil {
@@ -1972,7 +1972,7 @@ func (self *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManu
 }
 
 func (self *server) getOptionsString(options string) (string, error) {
-	options_ := make([]map[string]interface{}, 0)
+	options_ := make([]map[string]interface{})
 	if len(options) > 0 {
 		err := json.Unmarshal([]byte(options), &options_)
 		if err != nil {

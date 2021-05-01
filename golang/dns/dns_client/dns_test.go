@@ -4,29 +4,30 @@ import (
 	//"encoding/json"
 	"log"
 	"testing"
-
 	"github.com/davecourtois/Utility"
 )
 
 var (
 	// Try to connect to a nameserver.
-	client *dns_client.DNS_Client
+	client *DNS_Client
 )
 
 // Test various function here.
 func TestSetA(t *testing.T) {
 	var err error
-	client, err = dns_client.NewDns_Client("ns2.globular.app", "dns_server")
+	client, err = NewDnsService_Client("ns2.globular.app", "dns_server")
 	if err != nil {
 		log.Println("fail to get domain ", err)
 		return
 	}
 
 	// Set ip address
-	domain, err := client.SetA("globular.io", Utility.MyIP(), 1000)
+	domain, err := client.SetA("globular.io", "nodex.globular.io", Utility.MyIP(), 1000)
 	if err == nil {
 		log.Println(err)
 	}
+
+	log.Println("domain ", domain, "was register!")
 }
 
 func TestResolve(t *testing.T) {

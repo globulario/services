@@ -7,8 +7,6 @@ import (
 
 	//"os"
 	"testing"
-
-	"github.com/globulario/services/golang/resource/resource_client"
 )
 
 // Set the correct addresse here as needed.
@@ -107,7 +105,7 @@ func TestQueryContext(t *testing.T) {
 		log.Println("Fail to read employee db", err)
 	}
 
-	results := make(map[string]interface{}, 0)
+	results := make(map[string]interface{})
 	json.Unmarshal([]byte(data), &results)
 	log.Println(results["data"])
 

@@ -59,7 +59,7 @@ type server struct {
 
 	TLS bool
 
-	// self-signed X.509 public keys for distribution
+	// svr-signed X.509 public keys for distribution
 	CertFile string
 
 	// a private RSA key to sign and authenticate the public key
@@ -76,200 +76,200 @@ type server struct {
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (self *server) GetId() string {
-	return self.Id
+func (svr *server) GetId() string {
+	return svr.Id
 }
-func (self *server) SetId(id string) {
-	self.Id = id
+func (svr *server) SetId(id string) {
+	svr.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (self *server) GetName() string {
-	return self.Name
+func (svr *server) GetName() string {
+	return svr.Name
 }
-func (self *server) SetName(name string) {
-	self.Name = name
+func (svr *server) SetName(name string) {
+	svr.Name = name
 }
 
 // The description of the service
-func (self *server) GetDescription() string {
-	return self.Description
+func (svr *server) GetDescription() string {
+	return svr.Description
 }
-func (self *server) SetDescription(description string) {
-	self.Description = description
+func (svr *server) SetDescription(description string) {
+	svr.Description = description
 }
 
 // The list of keywords of the services.
-func (self *server) GetKeywords() []string {
-	return self.Keywords
+func (svr *server) GetKeywords() []string {
+	return svr.Keywords
 }
-func (self *server) SetKeywords(keywords []string) {
-	self.Keywords = keywords
-}
-
-func (self *server) GetRepositories() []string {
-	return self.Repositories
-}
-func (self *server) SetRepositories(repositories []string) {
-	self.Repositories = repositories
+func (svr *server) SetKeywords(keywords []string) {
+	svr.Keywords = keywords
 }
 
-func (self *server) GetDiscoveries() []string {
-	return self.Discoveries
+func (svr *server) GetRepositories() []string {
+	return svr.Repositories
 }
-func (self *server) SetDiscoveries(discoveries []string) {
-	self.Discoveries = discoveries
+func (svr *server) SetRepositories(repositories []string) {
+	svr.Repositories = repositories
+}
+
+func (svr *server) GetDiscoveries() []string {
+	return svr.Discoveries
+}
+func (svr *server) SetDiscoveries(discoveries []string) {
+	svr.Discoveries = discoveries
 }
 
 // Dist
-func (self *server) Dist(path string) (string, error) {
+func (svr *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, self)
+	return globular.Dist(path, svr)
 }
 
-func (self *server) GetPlatform() string {
+func (svr *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
 // The path of the executable.
-func (self *server) GetPath() string {
-	return self.Path
+func (svr *server) GetPath() string {
+	return svr.Path
 }
-func (self *server) SetPath(path string) {
-	self.Path = path
+func (svr *server) SetPath(path string) {
+	svr.Path = path
 }
 
 // The path of the .proto file.
-func (self *server) GetProto() string {
-	return self.Proto
+func (svr *server) GetProto() string {
+	return svr.Proto
 }
-func (self *server) SetProto(proto string) {
-	self.Proto = proto
+func (svr *server) SetProto(proto string) {
+	svr.Proto = proto
 }
 
 // The gRpc port.
-func (self *server) GetPort() int {
-	return self.Port
+func (svr *server) GetPort() int {
+	return svr.Port
 }
-func (self *server) SetPort(port int) {
-	self.Port = port
+func (svr *server) SetPort(port int) {
+	svr.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (self *server) GetProxy() int {
-	return self.Proxy
+func (svr *server) GetProxy() int {
+	return svr.Proxy
 }
-func (self *server) SetProxy(proxy int) {
-	self.Proxy = proxy
+func (svr *server) SetProxy(proxy int) {
+	svr.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (self *server) GetProtocol() string {
-	return self.Protocol
+func (svr *server) GetProtocol() string {
+	return svr.Protocol
 }
-func (self *server) SetProtocol(protocol string) {
-	self.Protocol = protocol
+func (svr *server) SetProtocol(protocol string) {
+	svr.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (self *server) GetAllowAllOrigins() bool {
-	return self.AllowAllOrigins
+func (svr *server) GetAllowAllOrigins() bool {
+	return svr.AllowAllOrigins
 }
-func (self *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	self.AllowAllOrigins = allowAllOrigins
+func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	svr.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (self *server) GetAllowedOrigins() string {
-	return self.AllowedOrigins
+func (svr *server) GetAllowedOrigins() string {
+	return svr.AllowedOrigins
 }
 
-func (self *server) SetAllowedOrigins(allowedOrigins string) {
-	self.AllowedOrigins = allowedOrigins
+func (svr *server) SetAllowedOrigins(allowedOrigins string) {
+	svr.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (self *server) GetDomain() string {
-	return self.Domain
+func (svr *server) GetDomain() string {
+	return svr.Domain
 }
-func (self *server) SetDomain(domain string) {
-	self.Domain = domain
+func (svr *server) SetDomain(domain string) {
+	svr.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (self *server) GetTls() bool {
-	return self.TLS
+func (svr *server) GetTls() bool {
+	return svr.TLS
 }
-func (self *server) SetTls(hasTls bool) {
-	self.TLS = hasTls
+func (svr *server) SetTls(hasTls bool) {
+	svr.TLS = hasTls
 }
 
 // The certificate authority file
-func (self *server) GetCertAuthorityTrust() string {
-	return self.CertAuthorityTrust
+func (svr *server) GetCertAuthorityTrust() string {
+	return svr.CertAuthorityTrust
 }
-func (self *server) SetCertAuthorityTrust(ca string) {
-	self.CertAuthorityTrust = ca
+func (svr *server) SetCertAuthorityTrust(ca string) {
+	svr.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (self *server) GetCertFile() string {
-	return self.CertFile
+func (svr *server) GetCertFile() string {
+	return svr.CertFile
 }
-func (self *server) SetCertFile(certFile string) {
-	self.CertFile = certFile
+func (svr *server) SetCertFile(certFile string) {
+	svr.CertFile = certFile
 }
 
 // The key file.
-func (self *server) GetKeyFile() string {
-	return self.KeyFile
+func (svr *server) GetKeyFile() string {
+	return svr.KeyFile
 }
-func (self *server) SetKeyFile(keyFile string) {
-	self.KeyFile = keyFile
+func (svr *server) SetKeyFile(keyFile string) {
+	svr.KeyFile = keyFile
 }
 
 // The service version
-func (self *server) GetVersion() string {
-	return self.Version
+func (svr *server) GetVersion() string {
+	return svr.Version
 }
-func (self *server) SetVersion(version string) {
-	self.Version = version
+func (svr *server) SetVersion(version string) {
+	svr.Version = version
 }
 
 // The publisher id.
-func (self *server) GetPublisherId() string {
-	return self.PublisherId
+func (svr *server) GetPublisherId() string {
+	return svr.PublisherId
 }
-func (self *server) SetPublisherId(publisherId string) {
-	self.PublisherId = publisherId
-}
-
-func (self *server) GetKeepUpToDate() bool {
-	return self.KeepUpToDate
-}
-func (self *server) SetKeepUptoDate(val bool) {
-	self.KeepUpToDate = val
+func (svr *server) SetPublisherId(publisherId string) {
+	svr.PublisherId = publisherId
 }
 
-func (self *server) GetKeepAlive() bool {
-	return self.KeepAlive
+func (svr *server) GetKeepUpToDate() bool {
+	return svr.KeepUpToDate
 }
-func (self *server) SetKeepAlive(val bool) {
-	self.KeepAlive = val
+func (svr *server) SetKeepUptoDate(val bool) {
+	svr.KeepUpToDate = val
 }
 
-func (self *server) GetPermissions() []interface{} {
-	return self.Permissions
+func (svr *server) GetKeepAlive() bool {
+	return svr.KeepAlive
 }
-func (self *server) SetPermissions(permissions []interface{}) {
-	self.Permissions = permissions
+func (svr *server) SetKeepAlive(val bool) {
+	svr.KeepAlive = val
+}
+
+func (svr *server) GetPermissions() []interface{} {
+	return svr.Permissions
+}
+func (svr *server) SetPermissions(permissions []interface{}) {
+	svr.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (self *server) Init() error {
+func (svr *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
@@ -277,13 +277,13 @@ func (self *server) Init() error {
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-	err := globular.InitService(dir+"/config.json", self)
+	err := globular.InitService(dir+"/config.json", svr)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -293,33 +293,33 @@ func (self *server) Init() error {
 }
 
 // Save the configuration values.
-func (self *server) Save() error {
+func (svr *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", self)
+	return globular.SaveService(dir+"/config.json", svr)
 }
 
-func (self *server) StartService() error {
-	return globular.StartService(self, self.grpcServer)
+func (svr *server) StartService() error {
+	return globular.StartService(svr, svr.grpcServer)
 }
 
-func (self *server) StopService() error {
-	return globular.StopService(self, self.grpcServer)
+func (svr *server) StopService() error {
+	return globular.StopService(svr, svr.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *echopb.StopRequest) (*echopb.StopResponse, error) {
-	return &echopb.StopResponse{}, self.StopService()
+func (svr *server) Stop(context.Context, *echopb.StopRequest) (*echopb.StopResponse, error) {
+	return &echopb.StopResponse{}, svr.StopService()
 }
 
 //Stop(context.Context, *StopRequest) (*StopResponse, error)
 /////////////////////// Echo specific function /////////////////////////////////
 
 // Implementation of the Echo method.
-func (self *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.EchoResponse, error) {
+func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.EchoResponse, error) {
 	fmt.Println("Try echo a value")
 
 	// In that case I will save it in file.
-	err := self.Save()
+	err := svr.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -363,7 +363,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number

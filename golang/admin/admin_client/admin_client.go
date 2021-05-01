@@ -13,7 +13,6 @@ import (
 
 	"path/filepath"
 	"strings"
-
 	"github.com/polds/imgbase64"
 
 	//	"log"
@@ -80,106 +79,106 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 	return client, nil
 }
 
-func (self *Admin_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (admin_client *Admin_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(admin_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(admin_client.c, ctx, method, rqst)
 }
 
 // Return the address
-func (self *Admin_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (admin_client *Admin_Client) GetAddress() string {
+	return admin_client.domain + ":" + strconv.Itoa(admin_client.port)
 }
 
 // Return the domain
-func (self *Admin_Client) GetDomain() string {
-	return self.domain
+func (admin_client *Admin_Client) GetDomain() string {
+	return admin_client.domain
 }
 
 // Return the id of the service instance
-func (self *Admin_Client) GetId() string {
-	return self.id
+func (admin_client *Admin_Client) GetId() string {
+	return admin_client.id
 }
 
 // Return the name of the service
-func (self *Admin_Client) GetName() string {
-	return self.name
+func (admin_client *Admin_Client) GetName() string {
+	return admin_client.name
 }
 
 // must be close when no more needed.
-func (self *Admin_Client) Close() {
-	self.cc.Close()
+func (admin_client *Admin_Client) Close() {
+	admin_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Admin_Client) SetPort(port int) {
-	self.port = port
+func (admin_client *Admin_Client) SetPort(port int) {
+	admin_client.port = port
 }
 
 // Set the client service instance id.
-func (self *Admin_Client) SetId(id string) {
-	self.id = id
+func (admin_client *Admin_Client) SetId(id string) {
+	admin_client.id = id
 }
 
 // Set the client name.
-func (self *Admin_Client) SetName(name string) {
-	self.name = name
+func (admin_client *Admin_Client) SetName(name string) {
+	admin_client.name = name
 }
 
 // Set the domain.
-func (self *Admin_Client) SetDomain(domain string) {
-	self.domain = domain
+func (admin_client *Admin_Client) SetDomain(domain string) {
+	admin_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Admin_Client) HasTLS() bool {
-	return self.hasTLS
+func (admin_client *Admin_Client) HasTLS() bool {
+	return admin_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Admin_Client) GetCertFile() string {
-	return self.certFile
+func (admin_client *Admin_Client) GetCertFile() string {
+	return admin_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Admin_Client) GetKeyFile() string {
-	return self.keyFile
+func (admin_client *Admin_Client) GetKeyFile() string {
+	return admin_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Admin_Client) GetCaFile() string {
-	return self.caFile
+func (admin_client *Admin_Client) GetCaFile() string {
+	return admin_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Admin_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (admin_client *Admin_Client) SetTLS(hasTls bool) {
+	admin_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Admin_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (admin_client *Admin_Client) SetCertFile(certFile string) {
+	admin_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Admin_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (admin_client *Admin_Client) SetKeyFile(keyFile string) {
+	admin_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Admin_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (admin_client *Admin_Client) SetCaFile(caFile string) {
+	admin_client.caFile = caFile
 }
 
 /////////////////////// API /////////////////////
 
 // Get server configuration.
-func (self *Admin_Client) GetConfig() (interface{}, error) {
+func (admin_client *Admin_Client) GetConfig() (interface{}, error) {
 	rqst := new(adminpb.GetConfigRequest)
-	rsp, err := self.c.GetConfig(globular.GetClientContext(self), rqst)
+	rsp, err := admin_client.c.GetConfig(globular.GetClientContext(admin_client), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -188,11 +187,11 @@ func (self *Admin_Client) GetConfig() (interface{}, error) {
 }
 
 // Get the server configuration with all detail must be secured.
-func (self *Admin_Client) GetFullConfig() (interface{}, error) {
+func (admin_client *Admin_Client) GetFullConfig() (interface{}, error) {
 
 	rqst := new(adminpb.GetConfigRequest)
 
-	rsp, err := self.c.GetFullConfig(globular.GetClientContext(self), rqst)
+	rsp, err := admin_client.c.GetFullConfig(globular.GetClientContext(admin_client), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -200,12 +199,12 @@ func (self *Admin_Client) GetFullConfig() (interface{}, error) {
 	return rsp.GetResult(), nil
 }
 
-func (self *Admin_Client) SaveConfig(config string) error {
+func (admin_client *Admin_Client) SaveConfig(config string) error {
 	rqst := &adminpb.SaveConfigRequest{
 		Config: config,
 	}
 
-	_, err := self.c.SaveConfig(globular.GetClientContext(self), rqst)
+	_, err := admin_client.c.SaveConfig(globular.GetClientContext(admin_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -213,10 +212,10 @@ func (self *Admin_Client) SaveConfig(config string) error {
 	return nil
 }
 
-func (self *Admin_Client) StartService(id string) (int, int, error) {
+func (admin_client *Admin_Client) StartService(id string) (int, int, error) {
 	rqst := new(adminpb.StartServiceRequest)
 	rqst.ServiceId = id
-	rsp, err := self.c.StartService(globular.GetClientContext(self), rqst)
+	rsp, err := admin_client.c.StartService(globular.GetClientContext(admin_client), rqst)
 	if err != nil {
 		return -1, -1, err
 	}
@@ -224,21 +223,21 @@ func (self *Admin_Client) StartService(id string) (int, int, error) {
 	return int(rsp.ServicePid), int(rsp.ProxyPid), nil
 }
 
-func (self *Admin_Client) StopService(id string) error {
+func (admin_client *Admin_Client) StopService(id string) error {
 	rqst := new(adminpb.StopServiceRequest)
 	rqst.ServiceId = id
-	_, err := self.c.StopService(globular.GetClientContext(self), rqst)
+	_, err := admin_client.c.StopService(globular.GetClientContext(admin_client), rqst)
 	if err != nil {
 		return err
 	}
-
+	
 	return nil
 }
 
-func (self *Admin_Client) RestartServices() error {
+func (admin_client *Admin_Client) RestartServices() error {
 	rqst := new(adminpb.RestartServicesRequest)
 
-	_, err := self.c.RestartServices(globular.GetClientContext(self), rqst)
+	_, err := admin_client.c.RestartServices(globular.GetClientContext(admin_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -247,14 +246,14 @@ func (self *Admin_Client) RestartServices() error {
 }
 
 // Register and start an application.
-func (self *Admin_Client) RegisterExternalApplication(id string, path string, args []string) (int, error) {
+func (admin_client *Admin_Client) RegisterExternalApplication(id string, path string, args []string) (int, error) {
 	rqst := &adminpb.RegisterExternalApplicationRequest{
 		ServiceId: id,
 		Path:      path,
 		Args:      args,
 	}
 
-	rsp, err := self.c.RegisterExternalApplication(globular.GetClientContext(self), rqst)
+	rsp, err := admin_client.c.RegisterExternalApplication(globular.GetClientContext(admin_client), rqst)
 
 	if err != nil {
 		return -1, err
@@ -265,21 +264,8 @@ func (self *Admin_Client) RegisterExternalApplication(id string, path string, ar
 
 /////////////////////////// Services management functions ////////////////////////
 
-func (self *Admin_Client) hasRunningProcess(name string) (bool, error) {
-	rqst := &adminpb.HasRunningProcessRequest{
-		Name: name,
-	}
-
-	rsp, err := self.c.HasRunningProcess(globular.GetClientContext(self), rqst)
-	if err != nil {
-		return false, err
-	}
-
-	return rsp.Result, nil
-}
-
 /** Create a service package **/
-func (self *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
+func (admin_client *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
 	log.Println("Service path is ", servicePath)
 	// Take the information from the configuration...
 	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
@@ -313,12 +299,12 @@ func (self *Admin_Client) createServicePackage(publisherId string, serviceName s
 /**
  * Create and Upload the service archive on the server.
  */
-func (self *Admin_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) (string, int, error) {
+func (admin_client *Admin_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) (string, int, error) {
 
 	// Here I will try to read the service configuation from the path.
 	configs, _ := Utility.FindFileByName(path, "config.json")
 	if len(configs) == 0 {
-		return "", 0, errors.New("No configuration file was found")
+		return "", 0, errors.New("no configuration file was found")
 	}
 
 	// Find proto by name
@@ -327,7 +313,7 @@ func (self *Admin_Client) UploadServicePackage(user string, organization string,
 		return "", 0, errors.New("No prototype file was found at path '" + path + "'")
 	}
 
-	s := make(map[string]interface{}, 0)
+	s := make(map[string]interface{})
 	data, err := ioutil.ReadFile(configs[0])
 	if err != nil {
 		return "", 0, err
@@ -380,7 +366,7 @@ func (self *Admin_Client) UploadServicePackage(user string, organization string,
 		return "", 0, err
 	}
 
-	packagePath, err := self.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
+	packagePath, err := admin_client.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
 	if err != nil {
 		return "", 0, err
 	}
@@ -397,7 +383,7 @@ func (self *Admin_Client) UploadServicePackage(user string, organization string,
 
 	// Now I will create the request to upload the package on the server.
 	// Open the stream...
-	stream, err := self.c.UploadServicePackage(ctx)
+	stream, err := admin_client.c.UploadServicePackage(ctx)
 	if err != nil {
 		return "", 0, err
 	}
@@ -447,14 +433,14 @@ func (self *Admin_Client) UploadServicePackage(user string, organization string,
 /**
  * Publish a service from a runing globular server.
  */
-func (self *Admin_Client) PublishService(user, organization, token, domain, path, configPath, platform string) error {
+func (admin_client *Admin_Client) PublishService(user, organization, token, domain, path, configPath, platform string) error {
 
 	// Here I will try to read the service configuation from the path.
 	configs, _ := Utility.FindFileByName(configPath, "config.json")
 	if len(configs) == 0 {
-		return errors.New("No configuration file was found")
+		return errors.New("no configuration file was found")
 	}
-	s := make(map[string]interface{}, 0)
+	s := make(map[string]interface{})
 	data, err := ioutil.ReadFile(configs[0])
 	if err != nil {
 		return err
@@ -502,7 +488,7 @@ func (self *Admin_Client) PublishService(user, organization, token, domain, path
 	rqst.Platform = platform
 
 	// Set the token into the context and send the request.
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -512,7 +498,7 @@ func (self *Admin_Client) PublishService(user, organization, token, domain, path
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err = self.c.PublishService(ctx, rqst)
+	_, err = admin_client.c.PublishService(ctx, rqst)
 
 	return err
 }
@@ -520,13 +506,13 @@ func (self *Admin_Client) PublishService(user, organization, token, domain, path
 /**
  * Intall a new service or update an existing one.
  */
-func (self *Admin_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
+func (admin_client *Admin_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
 
 	rqst := new(adminpb.InstallServiceRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -536,7 +522,7 @@ func (self *Admin_Client) InstallService(token string, domain string, user strin
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := self.c.InstallService(ctx, rqst)
+	_, err := admin_client.c.InstallService(ctx, rqst)
 
 	return err
 }
@@ -544,13 +530,13 @@ func (self *Admin_Client) InstallService(token string, domain string, user strin
 /**
  * Intall a new service or update an existing one.
  */
-func (self *Admin_Client) UninstallService(token string, domain string, user string, publisherId string, serviceId string, version string) error {
+func (admin_client *Admin_Client) UninstallService(token string, domain string, user string, publisherId string, serviceId string, version string) error {
 
 	rqst := new(adminpb.UninstallServiceRequest)
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
 	rqst.Version = version
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -560,7 +546,7 @@ func (self *Admin_Client) UninstallService(token string, domain string, user str
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := self.c.UninstallService(ctx, rqst)
+	_, err := admin_client.c.UninstallService(ctx, rqst)
 
 	return err
 }
@@ -568,7 +554,7 @@ func (self *Admin_Client) UninstallService(token string, domain string, user str
 /**
  * Intall a new application or update an existing one.
  */
-func (self *Admin_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string) error {
+func (admin_client *Admin_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string) error {
 	log.Println("Install application ", applicationId, "on server ", domain)
 	rqst := new(adminpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
@@ -576,7 +562,7 @@ func (self *Admin_Client) InstallApplication(token string, domain string, user s
 	rqst.ApplicationId = applicationId
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -586,7 +572,7 @@ func (self *Admin_Client) InstallApplication(token string, domain string, user s
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := self.c.InstallApplication(ctx, rqst)
+	_, err := admin_client.c.InstallApplication(ctx, rqst)
 
 	return err
 }
@@ -595,14 +581,14 @@ func (self *Admin_Client) InstallApplication(token string, domain string, user s
  * Uninstall application, if no version is given the most recent version will
  * be install.
  */
-func (self *Admin_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
+func (admin_client *Admin_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
 	log.Println("Uninstall application ", applicationId, " at address ", domain, "...")
 	rqst := new(adminpb.UninstallApplicationRequest)
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
 	rqst.Version = version
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -612,7 +598,7 @@ func (self *Admin_Client) UninstallApplication(token string, domain string, user
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := self.c.UninstallApplication(ctx, rqst)
+	_, err := admin_client.c.UninstallApplication(ctx, rqst)
 
 	return err
 }
@@ -622,7 +608,7 @@ func (self *Admin_Client) UninstallApplication(token string, domain string, user
  * to get the configuration (80 by default). The path is where the file will be
  * written. The return values are the path to tree certicate path.
  */
-func (self *Admin_Client) InstallCertificates(domain string, port int, path string) (string, string, string, error) {
+func (admin_client *Admin_Client) InstallCertificates(domain string, port int, path string) (string, string, string, error) {
 
 	rqst := &adminpb.InstallCertificatesRequest{
 		Domain: domain,
@@ -630,7 +616,7 @@ func (self *Admin_Client) InstallCertificates(domain string, port int, path stri
 		Port:   int32(port),
 	}
 
-	rsp, err := self.c.InstallCertificates(globular.GetClientContext(self), rqst)
+	rsp, err := admin_client.c.InstallCertificates(globular.GetClientContext(admin_client), rqst)
 
 	if err != nil {
 		return "", "", "", err
@@ -642,14 +628,14 @@ func (self *Admin_Client) InstallCertificates(domain string, port int, path stri
 /**
  * Push update to a give globular server.
  */
-func (self *Admin_Client) Update(path string, platform string, token string, domain string) (int, error) {
+func (admin_client *Admin_Client) Update(path string, platform string, token string, domain string) (int, error) {
 
 	// Set the token into the context and send the request.
 	md := metadata.New(map[string]string{"token": string(token), "domain": domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	// Open the stream...
-	stream, err := self.c.Update(ctx)
+	stream, err := admin_client.c.Update(ctx)
 	if err != nil {
 		return -1, err
 	}
@@ -700,7 +686,7 @@ func (self *Admin_Client) Update(path string, platform string, token string, dom
 /**
  * Download globular executable from a given source...
  */
-func (self *Admin_Client) DownloadGlobular(source, platform, path string) error {
+func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string) error {
 
 	// Retreive a single value...
 	rqst := &adminpb.DownloadGlobularRequest{
@@ -708,7 +694,7 @@ func (self *Admin_Client) DownloadGlobular(source, platform, path string) error 
 		Platform: platform,
 	}
 
-	stream, err := self.c.DownloadGlobular(globular.GetClientContext(self), rqst)
+	stream, err := admin_client.c.DownloadGlobular(globular.GetClientContext(admin_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -746,7 +732,7 @@ func (self *Admin_Client) DownloadGlobular(source, platform, path string) error 
 /**
  * Deploy the content of an application with a given name to the server.
  */
-func (self *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
+func (admin_client *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
 
 	dir, err := os.Getwd()
 	if err != nil {
@@ -774,7 +760,7 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	} else if Utility.Exists(absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json") {
 		absolutePath = absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
 	} else {
-		err = errors.New("no package.config file was found!")
+		err = errors.New("no package.config file was found")
 		return -1, err
 	}
 
@@ -849,8 +835,8 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	if packageConfig["icon"] != nil {
 		// The image icon.
 		// iconPath := absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
-		iconPath, _ := filepath.Abs(path)
-		iconPath = strings.ReplaceAll(absolutePath, "\\", "/")
+		iconPath, _ := filepath.Abs(absolutePath)
+		iconPath = strings.ReplaceAll(iconPath, "\\", "/")
 		lastIndex := strings.LastIndex(iconPath, "/")
 		iconPath = iconPath[0:lastIndex] + "/" + packageConfig["icon"].(string)
 		if Utility.Exists(iconPath) {
@@ -874,7 +860,7 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	// Open the stream...
-	stream, err := self.c.DeployApplication(ctx)
+	stream, err := admin_client.c.DeployApplication(ctx)
 	if err != nil {
 		return -1, err
 	}
@@ -927,13 +913,13 @@ func (self *Admin_Client) DeployApplication(user string, name string, organizati
 /**
  * Set environement variable.
  */
-func (self *Admin_Client) SetEnvironmentVariable(token, name, value string) error {
+func (admin_client *Admin_Client) SetEnvironmentVariable(token, name, value string) error {
 	rqst := &adminpb.SetEnvironmentVariableRequest{
 		Name:  name,
 		Value: value,
 	}
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -943,18 +929,18 @@ func (self *Admin_Client) SetEnvironmentVariable(token, name, value string) erro
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := self.c.SetEnvironmentVariable(ctx, rqst)
+	_, err := admin_client.c.SetEnvironmentVariable(ctx, rqst)
 	return err
 
 }
 
 // UnsetEnvironement variable.
-func (self *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
+func (admin_client *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
 	rqst := &adminpb.UnsetEnvironmentVariableRequest{
 		Name: name,
 	}
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -963,16 +949,16 @@ func (self *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	_, err := self.c.UnsetEnvironmentVariable(ctx, rqst)
+	_, err := admin_client.c.UnsetEnvironmentVariable(ctx, rqst)
 	return err
 }
 
-func (self *Admin_Client) GetEnvironmentVariable(token, name string) (string, error) {
+func (admin_client *Admin_Client) GetEnvironmentVariable(token, name string) (string, error) {
 	rqst := &adminpb.GetEnvironmentVariableRequest{
 		Name: name,
 	}
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -981,7 +967,7 @@ func (self *Admin_Client) GetEnvironmentVariable(token, name string) (string, er
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	rsp, err := self.c.GetEnvironmentVariable(ctx, rqst)
+	rsp, err := admin_client.c.GetEnvironmentVariable(ctx, rqst)
 	if err != nil {
 
 		return "", err
@@ -990,14 +976,14 @@ func (self *Admin_Client) GetEnvironmentVariable(token, name string) (string, er
 }
 
 // Run a command.
-func (self *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool) (string, error) {
+func (admin_client *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool) (string, error) {
 	rqst := &adminpb.RunCmdRequest{
 		Cmd:      cmd,
 		Args:     args,
 		Blocking: blocking,
 	}
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -1007,7 +993,7 @@ func (self *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	stream, err := self.c.RunCmd(ctx, rqst)
+	stream, err := admin_client.c.RunCmd(ctx, rqst)
 	if err != nil {
 		return "", err
 	}
@@ -1030,16 +1016,16 @@ func (self *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool
 		}
 	}
 
-	return string(buffer.Bytes()), nil
+	return buffer.String(), nil
 
 }
 
-func (self *Admin_Client) KillProcess(token string, pid int) error {
+func (admin_client *Admin_Client) KillProcess(token string, pid int) error {
 	rqst := &adminpb.KillProcessRequest{
 		Pid: int64(pid),
 	}
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -1049,16 +1035,16 @@ func (self *Admin_Client) KillProcess(token string, pid int) error {
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := self.c.KillProcess(ctx, rqst)
+	_, err := admin_client.c.KillProcess(ctx, rqst)
 	return err
 }
 
-func (self *Admin_Client) KillProcesses(token string, name string) error {
+func (admin_client *Admin_Client) KillProcesses(token string, name string) error {
 	rqst := &adminpb.KillProcessesRequest{
 		Name: name,
 	}
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -1068,15 +1054,15 @@ func (self *Admin_Client) KillProcesses(token string, name string) error {
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := self.c.KillProcesses(ctx, rqst)
+	_, err := admin_client.c.KillProcesses(ctx, rqst)
 	return err
 }
 
-func (self *Admin_Client) GetPids(token string, name string) ([]int32, error) {
+func (admin_client *Admin_Client) GetPids(token string, name string) ([]int32, error) {
 	rqst := &adminpb.GetPidsRequest{
 		Name: name,
 	}
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -1086,7 +1072,7 @@ func (self *Admin_Client) GetPids(token string, name string) ([]int32, error) {
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := self.c.GetPids(ctx, rqst)
+	rsp, err := admin_client.c.GetPids(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}

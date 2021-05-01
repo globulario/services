@@ -126,10 +126,10 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
 func getLocalConfig() (map[string]interface{}, error) {
 
 	if !Utility.Exists(os.TempDir() + "/GLOBULAR_ROOT") {
-		return nil, errors.New("No local Globular instance found!")
+		return nil, errors.New("no local Globular instance found")
 	}
 
-	config := make(map[string]interface{}, 0)
+	config := make(map[string]interface{})
 	root, err := ioutil.ReadFile(os.TempDir() + "/GLOBULAR_ROOT")
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func getLocalConfig() (map[string]interface{}, error) {
 
 	index := strings.LastIndex(string(root), ":")
 	if index == -1 {
-		return nil, errors.New("File contain does not contain ':' separator! ")
+		return nil, errors.New("file contain does not contain ':' separator")
 	}
 
 	root_ := string(root)[0:index]
@@ -185,7 +185,7 @@ func getRemoteConfig(address string, port int) (map[string]interface{}, error) {
 func getCaCertificate(address string, port int) (string, error) {
 
 	if len(address) == 0 {
-		return "", errors.New("No address was given!")
+		return "", errors.New("no address was given")
 	}
 
 	// Here I will get the configuration information from http...
@@ -216,7 +216,7 @@ func getCaCertificate(address string, port int) (string, error) {
 func signCaCertificate(address string, csr string, port int) (string, error) {
 
 	if len(address) == 0 {
-		return "", errors.New("No address was given!")
+		return "", errors.New("no address was given")
 	}
 
 	csr_str := base64.StdEncoding.EncodeToString([]byte(csr))
@@ -320,6 +320,9 @@ func getCredentialConfig(basePath string, address string, country string, state 
 
 	// generate the SAN file
 	err = GenerateSanConfig(creds, country, state, city, organization, alternateDomains_)
+	if err != nil {
+		return "", "", "", err
+	}
 
 	// Step 2: Generate the client signing request.
 	err = GenerateClientCertificateSigningRequest(creds, pwd, address)
@@ -381,7 +384,7 @@ func GenerateAuthorityPrivateKey(path string, pwd string) error {
 
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/"+"ca.key") {
-		return errors.New("Fail to generate the Authority private key")
+		return errors.New("fail to generate the Authority private key")
 	}
 	return nil
 }
@@ -411,7 +414,7 @@ func GenerateAuthorityTrustCertificate(path string, pwd string, expiration_delay
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/"+"ca.crt") {
 		log.Println(err)
-		return errors.New("Fail to generate the trust certificate")
+		return errors.New("fail to generate the trust certificate")
 	}
 
 	return nil
@@ -437,7 +440,7 @@ func GenerateSeverPrivateKey(path string, pwd string) error {
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/"+"server.key") {
 		log.Println(err)
-		return errors.New("Fail to generate server private key")
+		return errors.New("fail to generate server private key")
 	}
 	return nil
 }
@@ -508,7 +511,7 @@ func GenerateClientCertificateSigningRequest(path string, pwd string, domain str
 
 	if err != nil || !Utility.Exists(path+"/"+"client.csr") {
 		log.Println(args)
-		return errors.New("Fail to generate client certificate signing request.")
+		return errors.New("fail to generate client certificate signing request")
 	}
 
 	return nil
@@ -619,7 +622,7 @@ func GenerateServerCertificateSigningRequest(path string, pwd string, domain str
 
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/"+"server.csr") {
-		return errors.New("Fail to generate server certificate signing request.")
+		return errors.New("fail to generate server certificate signing request")
 	}
 
 	return nil
@@ -705,9 +708,10 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 	for i := 0; i < len(alternateDomains); i++ {
 		alternateDomains_[i] = alternateDomains[i].(string)
 	}
+
 	// Alternate domain must contain the domain (CN=domain)...
 	if !Utility.Contains(alternateDomains_, domain) {
-		alternateDomains_ = append(alternateDomains_, domain)
+		alternateDomains_ = append([]string{domain}, alternateDomains_...)
 	}
 
 	// Generate the SAN configuration.
@@ -716,7 +720,7 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 		return err
 	}
 
-	log.Println("Step 1: Generate Certificate Authority + Trust Certificate (ca.crt)")
+	log.Println("step 1: Generate Certificate Authority Trust Certificate (ca.crt)")
 	err = GenerateAuthorityPrivateKey(path, pwd)
 	if err != nil {
 

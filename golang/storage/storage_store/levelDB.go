@@ -54,7 +54,7 @@ func (self *LevelDB_store) run() {
 
 func NewLevelDB_store() *LevelDB_store {
 	s := new(LevelDB_store)
-	s.actions = make(chan map[string]interface{}, 0)
+	s.actions = make(chan map[string]interface{})
 	go func(store *LevelDB_store) {
 		store.run()
 	}(s)
@@ -75,7 +75,7 @@ func (self *LevelDB_store) open(optionsStr string) error {
 			return errors.New("store path and store name must be given as options!")
 		}
 
-		options := make(map[string]interface{}, 0)
+		options := make(map[string]interface{})
 		json.Unmarshal([]byte(optionsStr), &options)
 
 		if options["path"] == nil {
@@ -201,7 +201,7 @@ func (self *LevelDB_store) SetItem(key string, val []byte) error {
 
 // Get item with a given key.
 func (self *LevelDB_store) GetItem(key string) ([]byte, error) {
-	action := map[string]interface{}{"name": "GetItem", "results": make(chan map[string]interface{}, 0), "key": key}
+	action := map[string]interface{}{"name": "GetItem", "results": make(chan map[string]interface{}), "key": key}
 	self.actions <- action
 	results := <-action["results"].(chan map[string]interface{})
 	if results["err"] != nil {

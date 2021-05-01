@@ -242,7 +242,7 @@ func (self *MongoStore) Find(ctx context.Context, connectionId string, database 
 
 	collection_ := self.clients[connectionId].Database(database).Collection(collection)
 	var q interface{}
-	q = make(map[string]interface{}, 0)
+	q = make(map[string]interface{})
 	err := json.Unmarshal([]byte(query), &q)
 
 	if err != nil {

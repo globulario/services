@@ -46,7 +46,7 @@ func (self *BigCache_store) run() {
 // Use it to use the store.
 func NewBigCache_store() *BigCache_store {
 	s := new(BigCache_store)
-	s.actions = make(chan map[string]interface{}, 0)
+	s.actions = make(chan map[string]interface{})
 
 	go func() {
 		s.run()
@@ -114,7 +114,7 @@ func (self *BigCache_store) SetItem(key string, val []byte) error {
 
 // Get item with a given key.
 func (self *BigCache_store) GetItem(key string) ([]byte, error) {
-	action := map[string]interface{}{"name": "GetItem", "results": make(chan map[string]interface{}, 0), "key": key}
+	action := map[string]interface{}{"name": "GetItem", "results": make(chan map[string]interface{}), "key": key}
 	self.actions <- action
 	results := <-action["results"].(chan map[string]interface{})
 	if results["err"] != nil {

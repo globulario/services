@@ -1230,7 +1230,7 @@ func (self *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelF
 
 	}
 
-	sheets := make(map[string]interface{}, 0)
+	sheets := make(map[string]interface{})
 
 	err := json.Unmarshal([]byte(rqst.Data), &sheets)
 	if err != nil {

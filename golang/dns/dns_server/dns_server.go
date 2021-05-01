@@ -924,7 +924,7 @@ func (self *server) getMx(id string) (map[string]interface{}, uint32, error) {
 	uuid := Utility.GenerateUUID("MX:" + id)
 	data, err := self.store.GetItem(uuid)
 
-	values := make(map[string]interface{}, 0) // use a map instead of Mx struct.
+	values := make(map[string]interface{}) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, &values)
 	if err != nil {
 		return nil, 0, status.Errorf(
@@ -951,7 +951,7 @@ func (self *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values := make(map[string]interface{}, 0)
+	values := make(map[string]interface{})
 	err = json.Unmarshal(data, &values)
 	if err != nil {
 		return nil, status.Errorf(

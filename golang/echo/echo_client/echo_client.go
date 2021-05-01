@@ -61,120 +61,120 @@ func NewEchoService_Client(address string, id string) (*Echo_Client, error) {
 	return client, nil
 }
 
-func (self *Echo_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (echo_client *Echo_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(echo_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(echo_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *Echo_Client) GetDomain() string {
-	return self.domain
+func (echo_client *Echo_Client) GetDomain() string {
+	return echo_client.domain
 }
 
 // Return the address
-func (self *Echo_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (echo_client *Echo_Client) GetAddress() string {
+	return echo_client.domain + ":" + strconv.Itoa(echo_client.port)
 }
 
 // Return the id of the service instance
-func (self *Echo_Client) GetId() string {
-	return self.id
+func (echo_client *Echo_Client) GetId() string {
+	return echo_client.id
 }
 
 // Return the name of the service
-func (self *Echo_Client) GetName() string {
-	return self.name
+func (echo_client *Echo_Client) GetName() string {
+	return echo_client.name
 }
 
 // must be close when no more needed.
-func (self *Echo_Client) Close() {
-	self.cc.Close()
+func (echo_client *Echo_Client) Close() {
+	echo_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Echo_Client) SetPort(port int) {
-	self.port = port
+func (echo_client *Echo_Client) SetPort(port int) {
+	echo_client.port = port
 }
 
 // Set the client instance id.
-func (self *Echo_Client) SetId(id string) {
-	self.id = id
+func (echo_client *Echo_Client) SetId(id string) {
+	echo_client.id = id
 }
 
 // Set the client name.
-func (self *Echo_Client) SetName(name string) {
-	self.name = name
+func (echo_client *Echo_Client) SetName(name string) {
+	echo_client.name = name
 }
 
 // Set the domain.
-func (self *Echo_Client) SetDomain(domain string) {
-	self.domain = domain
+func (echo_client *Echo_Client) SetDomain(domain string) {
+	echo_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Echo_Client) HasTLS() bool {
-	return self.hasTLS
+func (echo_client *Echo_Client) HasTLS() bool {
+	return echo_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Echo_Client) GetCertFile() string {
-	return self.certFile
+func (echo_client *Echo_Client) GetCertFile() string {
+	return echo_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Echo_Client) GetKeyFile() string {
-	return self.keyFile
+func (echo_client *Echo_Client) GetKeyFile() string {
+	return echo_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Echo_Client) GetCaFile() string {
-	return self.caFile
+func (echo_client *Echo_Client) GetCaFile() string {
+	return echo_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Echo_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (echo_client *Echo_Client) SetTLS(hasTls bool) {
+	echo_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Echo_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (echo_client *Echo_Client) SetCertFile(certFile string) {
+	echo_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Echo_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (echo_client *Echo_Client) SetKeyFile(keyFile string) {
+	echo_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Echo_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (echo_client *Echo_Client) SetCaFile(caFile string) {
+	echo_client.caFile = caFile
 }
 
 ////////////////// Api //////////////////////
 // Stop the service.
-func (self *Echo_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &echopb.StopRequest{})
+func (echo_client *Echo_Client) StopService() {
+	echo_client.c.Stop(globular.GetClientContext(echo_client), &echopb.StopRequest{})
 }
 
-func (self *Echo_Client) Echo(token string, msg interface{}) (string, error) {
+func (echo_client *Echo_Client) Echo(token string, msg interface{}) (string, error) {
 
 	rqst := &echopb.EchoRequest{
 		Message: Utility.ToString(msg),
 	}
 
-	ctx := globular.GetClientContext(self)
+	ctx := globular.GetClientContext(echo_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		md.Append("token", string(token))
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := self.c.Echo(ctx, rqst)
+	rsp, err := echo_client.c.Echo(ctx, rqst)
 	if err != nil {
 		return "", err
 	}

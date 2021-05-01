@@ -6,9 +6,9 @@ import (
 	"io"
 	"strconv"
 
+	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/sql/sqlpb"
-	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
 )
 
@@ -227,7 +227,7 @@ func (self *SQL_Client) QueryContext(connectionId string, query string, paramete
 
 	// Here I will create the final array
 	data := make([]interface{}, 0)
-	header := make([]map[string]interface{}, 0)
+	header := make([]map[string]interface{})
 
 	for {
 		msg, err := stream.Recv()
@@ -252,7 +252,7 @@ func (self *SQL_Client) QueryContext(connectionId string, query string, paramete
 	}
 
 	// Create object result and put header and data in it.
-	result := make(map[string]interface{}, 0)
+	result := make(map[string]interface{})
 	result["header"] = header
 	result["data"] = data
 	resultStr, _ := json.Marshal(result)
@@ -279,7 +279,7 @@ func (self *SQL_Client) ExecContext(connectionId interface{}, query interface{},
 		return "", err
 	}
 
-	result := make(map[string]interface{}, 0)
+	result := make(map[string]interface{})
 	result["affectRows"] = rsp.AffectedRows
 	result["lastId"] = rsp.LastId
 	resultStr, _ := json.Marshal(result)

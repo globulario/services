@@ -15,7 +15,7 @@ import (
 
 	"os/exec"
 
-	"github.com/davecourtois/GoXapian"
+	xapian "github.com/davecourtois/GoXapian"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/search/searchpb"
 )
@@ -154,7 +154,7 @@ func (self *XapianEngine) searchDocuments(paths []string, language string, field
 
 		if !it.Equals(enquire.Get_matching_terms_end(mset.Get_hit(uint(i)))) {
 
-			infos := make(map[string]interface{}, 0)
+			infos := make(map[string]interface{})
 			err := json.Unmarshal([]byte(doc.Get_data()), &infos)
 			if err != nil {
 				return nil, err
@@ -294,10 +294,10 @@ func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[st
 	// Here I will set object metadata.
 	var infos map[string]interface{}
 	if len(data) > 0 {
-		infos = make(map[string]interface{}, 0)
+		infos = make(map[string]interface{})
 		json.Unmarshal([]byte(data), &infos)
 	} else {
-		infos = make(map[string]interface{}, 0)
+		infos = make(map[string]interface{})
 		// keep meta data inside the object...
 		if len(id) > 0 {
 			infos["__id__"] = id
@@ -444,7 +444,7 @@ func (self *XapianEngine) indexDir(dbPath string, dirPath string, language strin
 	id := "Q" + Utility.GenerateUUID(dirPath)
 	doc.Add_boolean_term(id)
 
-	infos := make(map[string]interface{}, 0)
+	infos := make(map[string]interface{})
 
 	infos["path"] = dirPath
 	infos["__type__"] = "file"
@@ -567,7 +567,7 @@ func (self *XapianEngine) indexFile(db xapian.WritableDatabase, path string, lan
 	id := "Q" + Utility.GenerateUUID(path)
 	doc.Add_boolean_term(id)
 
-	infos := make(map[string]interface{}, 0)
+	infos := make(map[string]interface{})
 	infos["path"] = path
 	infos["__type__"] = "file"
 	infos["mime"] = mime
