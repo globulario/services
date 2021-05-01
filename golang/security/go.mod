@@ -1,4 +1,4 @@
-module globulario/services/golang/security
+module github.com/globulario/services/golang/security
 
 go 1.16
 

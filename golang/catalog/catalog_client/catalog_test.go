@@ -4,9 +4,6 @@ import (
 	"log"
 	"testing"
 	"time"
-
-	"github.com/globulario/Globular/catalog/catalog_client"
-	"github.com/globulario/Globular/catalog/catalogpb"
 	"github.com/davecourtois/Utility"
 	"github.com/golang/protobuf/jsonpb"
 )

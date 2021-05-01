@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"testing"
-
-	"github.com/globulario/Globular/ldap/ldap_client"
 )
 
 var (

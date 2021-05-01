@@ -20,9 +20,9 @@ import (
 	//"google.golang.org/grpc/grpclog"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/ldap/ldap_client"
+	LDAP "github.com/go-ldap/ldap/v3"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
-	LDAP "gopkg.in/ldap.v3"
 )
 
 var (

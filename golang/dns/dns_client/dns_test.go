@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/Globular/dns/dns_client"
 )
 
 var (
