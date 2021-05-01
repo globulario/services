@@ -1,4 +1,4 @@
-module globulario/services/golang/packages/packages_client
+module github.com/globulario/services/golang/packages/packages_client
 
 go 1.16
 

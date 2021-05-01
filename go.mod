@@ -26,36 +26,29 @@ replace github.com/globulario/services/golang/spc/spcpb => ./golang/spcpb
 
 replace github.com/globulario/services/golang/spc/spc_client => ./golang/spc_client
 
+replace github.com/globulario/services/golang/log/logpb => ./golang/log/logpb
+
+replace github.com/globulario/services/golang/log/log_client => ./golang/log/log_client
+
+replace github.com/globulario/services/golang/pacakges/pacakgespb => ./golang/pacakges/pacakgespb
+
+replace github.com/globulario/services/golang/pacakges/pacakges_client => ./golang/pacakges/pacakges_client
+
+replace github.com/globulario/services/golang/search/searchpb => ./golang/search/searchpb
+
+replace github.com/globulario/services/golang/search/search_client => ./golang/search/search_client
+
+replace github.com/globulario/services/golang/storage/storagepb => ./golang/storage/storagepb
+
+replace github.com/globulario/services/golang/storage/store => ./golang/storage/store
+
+replace github.com/globulario/services/golang/storage/storage_client => ./golang/storage/storage_client
+
 require (
-	github.com/alexbrainman/odbc v0.0.0-20200426075526-f0492dfa1575
-	github.com/allegro/bigcache v1.2.1
 	github.com/davecourtois/GoXapian v0.0.0-20201222213557-81c72bc9e73c
 	github.com/davecourtois/Utility v0.0.0-20210430205301-666a7d0dc453
-	github.com/denisenkom/go-mssqldb v0.10.0
-	github.com/emersion/go-imap v1.0.6
-	github.com/emersion/go-message v0.14.1
-	github.com/emersion/go-smtp v0.15.0 // indirect
-	github.com/emersion/go-smtp-mta v0.0.0-20170206201558-f9b2f2fd6e9a
-	github.com/globulario/services/golang/globular_client v0.0.0-20210501011657-2bc6004d4175
-	github.com/globulario/services/golang/globular_service v0.0.0-20210501011657-2bc6004d4175
-	github.com/globulario/services/golang/interceptors v0.0.0-20210501011657-2bc6004d4175
-	github.com/globulario/services/golang/lb/load_balancing_client v0.0.0-00010101000000-000000000000 // indirect
-	github.com/globulario/services/golang/mail/mail_client v0.0.0-00010101000000-000000000000
-	github.com/globulario/services/golang/mail/mailpb v0.0.0-00010101000000-000000000000
-	github.com/globulario/services/golang/persistence/persistence_client v0.0.0-00010101000000-000000000000
-	github.com/globulario/services/golang/persistence/persistence_store v0.0.0-20210501011657-2bc6004d4175
-	github.com/globulario/services/golang/persistence/persistencepb v0.0.0-00010101000000-000000000000
-	github.com/globulario/services/golang/resource/resource_client v0.0.0-20210501011657-2bc6004d4175
-	github.com/go-sql-driver/mysql v1.6.0
-	github.com/golang/protobuf v1.5.2
+	github.com/globulario/services/golang/search/searchpb v0.0.0-00010101000000-000000000000
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.4.0
-	github.com/lib/pq v1.10.1
-	github.com/mattn/go-sqlite3 v1.14.7
-	github.com/mhale/smtpd v0.0.0-20210322105601-438c8edb069c
-	github.com/prometheus/client_golang v1.10.0
-	github.com/syndtr/goleveldb v1.0.0
 	google.golang.org/grpc v1.37.0
 	google.golang.org/protobuf v1.26.0
-	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect
-	gopkg.in/gomail.v1 v1.0.0-20150320132819-11b919ab4933
 )
