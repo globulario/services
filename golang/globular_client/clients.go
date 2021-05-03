@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
+	//"log"
 	"os"
 	"reflect"
 	"strings"
@@ -93,12 +94,12 @@ func InitClient(client Client, address string, id string) error {
 		address = address_[0]
 		port = Utility.ToInt(address_[1])
 	}
-
+	
 	client.SetDomain(address)
 
 	// Here I will initialyse the client
 	config, err := security.GetClientConfig(address, id, port, os.TempDir())
-
+	
 	if err == nil {
 		port = int(config["Port"].(float64))
 	}
@@ -123,7 +124,7 @@ func InitClient(client Client, address string, id string) error {
 
 	// Set security values.
 	if config["TLS"] != nil {
-
+		
 		// Change server cert to client cert and do the same for key
 		certificateFile := strings.Replace(config["CertFile"].(string), "server", "client", -1)
 		keyFile := strings.Replace(config["KeyFile"].(string), "server", "client", -1)
@@ -132,7 +133,7 @@ func InitClient(client Client, address string, id string) error {
 		client.SetCertFile(certificateFile)
 		client.SetCaFile(config["CertAuthorityTrust"].(string))
 		client.SetTLS(config["TLS"].(bool))
-
+		
 	} else {
 		client.SetTLS(false)
 	}

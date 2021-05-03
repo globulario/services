@@ -716,7 +716,6 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
 			return err
 		}
 	}
-	log.Println("----------> tmp file is in ", path)
 
 	Utility.CreateDirIfNotExist(path)
 
@@ -733,7 +732,8 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
  * Deploy the content of an application with a given name to the server.
  */
 func (admin_client *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
-
+	log.Println("deploy application ", name)
+	
 	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
@@ -831,12 +831,12 @@ func (admin_client *Admin_Client) DeployApplication(user string, name string, or
 
 	var icon string
 
+
 	// Now the icon...
 	if packageConfig["icon"] != nil {
 		// The image icon.
 		// iconPath := absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
-		iconPath, _ := filepath.Abs(absolutePath)
-		iconPath = strings.ReplaceAll(iconPath, "\\", "/")
+		iconPath := strings.ReplaceAll(absolutePath, "\\", "/")
 		lastIndex := strings.LastIndex(iconPath, "/")
 		iconPath = iconPath[0:lastIndex] + "/" + packageConfig["icon"].(string)
 		if Utility.Exists(iconPath) {

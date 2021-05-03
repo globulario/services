@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 )
 
 var (
@@ -203,7 +203,7 @@ func TestValidateAccess(t *testing.T) {
 	filePath := "C:/temp/toto.txt"
 
 	// Test if account owner can do anything.
-	hasPermission_0, err := rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "read", filePath)
+	hasPermission_0, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "read", filePath)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -216,14 +216,14 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Now I will test remove the ressource owner and play the same action again.
-	err = rbac_client_.RemoveResourceOwner(filePath, "account_0", resourcepb.SubjectType_ACCOUNT)
+	err = rbac_client_.RemoveResourceOwner(filePath, "account_0", rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 
 	// Test if the owner has permission event the permission is explicitly specify!
-	hasPermission_3, err := rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "execute", filePath)
+	hasPermission_3, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "execute", filePath)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -238,13 +238,13 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Put back account_0 in list of owners
-	err = rbac_client_.AddResourceOwner(filePath, "account_0", resourcepb.SubjectType_ACCOUNT)
+	err = rbac_client_.AddResourceOwner(filePath, "account_0", rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
 
-	hasPermission_3, err = rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "execute", filePath)
+	hasPermission_3, err = rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "execute", filePath)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -258,7 +258,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Test get permission without being the owner.
-	hasPermission_1, err := rbac_client_.ValidateAccess("account_1", resourcepb.SubjectType_ACCOUNT, "read", filePath)
+	hasPermission_1, err := rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "read", filePath)
 	if err != nil {
 		log.Println(err)
 	}
@@ -270,7 +270,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Test not having permission whitout being the owner.
-	hasPermission_2, err := rbac_client_.ValidateAccess("account_1", resourcepb.SubjectType_ACCOUNT, "write", filePath)
+	hasPermission_2, err := rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "write", filePath)
 	if err != nil {
 		log.Println(err)
 	}
@@ -282,7 +282,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Test having permission denied.
-	hasPermission_4, err := rbac_client_.ValidateAccess("account_2", resourcepb.SubjectType_ACCOUNT, "read", filePath)
+	hasPermission_4, err := rbac_client_.ValidateAccess("account_2", rbacpb.SubjectType_ACCOUNT, "read", filePath)
 	if err != nil {
 		log.Println(err)
 	}
@@ -295,7 +295,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Test permission denied for orgnization...
-	hasPermission_5, err := rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "delete", filePath)
+	hasPermission_5, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "delete", filePath)
 	if err != nil {
 		log.Println(err)
 	}
@@ -309,7 +309,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Test permission denied because of account is in denied organisation.
-	hasPermission_6, err := rbac_client_.ValidateAccess("account_1", resourcepb.SubjectType_ACCOUNT, "delete", filePath)
+	hasPermission_6, err := rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "delete", filePath)
 	if err != nil {
 		log.Println(err)
 	}
@@ -328,7 +328,7 @@ func TestValidateAccess(t *testing.T) {
 	if err != nil {
 		log.Println(err)
 	}
-	hasPermission_3, err = rbac_client_.ValidateAccess("account_1", resourcepb.SubjectType_ACCOUNT, "execute", filePath)
+	hasPermission_3, err = rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "execute", filePath)
 	if err != nil {
 		log.Println(err)
 		t.Fail()
@@ -343,12 +343,12 @@ func TestValidateAccess(t *testing.T) {
 	}
 
 	// Here I will try to remove all access ...
-	err = rbac_client_.DeleteAllAccess("account_0", resourcepb.SubjectType_ACCOUNT)
+	err = rbac_client_.DeleteAllAccess("account_0", rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		log.Println(err)
 	}
 
-	hasPermission_6, err = rbac_client_.ValidateAccess("account_0", resourcepb.SubjectType_ACCOUNT, "delete", filePath)
+	hasPermission_6, err = rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "delete", filePath)
 	if err != nil {
 		log.Println(err)
 	}

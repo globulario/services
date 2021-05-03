@@ -73,6 +73,9 @@ export interface IConfig {
   CertURL: string;
   IdleTimeout: number;
   IndexApplication: string;
+  Path: string;
+  DataPath: string;
+  ConfigPath: string; 
 
   // The map of service object.
   Services: IServices;

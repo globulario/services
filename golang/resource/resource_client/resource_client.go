@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"strconv"
 
@@ -58,13 +59,12 @@ func NewResourceService_Client(address string, id string) (*Resource_Client, err
 
 	err := globular.InitClient(client, address, id)
 	if err != nil {
-
 		return nil, err
 	}
-
+	log.Println("-------------> 64", client);
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-
+		log.Println("-------------> 67", err);
 		return nil, err
 	}
 
@@ -73,110 +73,110 @@ func NewResourceService_Client(address string, id string) (*Resource_Client, err
 	return client, nil
 }
 
-func (self *Resource_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (resource_client *Resource_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(resource_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(resource_client.c, ctx, method, rqst)
 }
 
 // Return the ipv4 address
 // Return the address
-func (self *Resource_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (resource_client *Resource_Client) GetAddress() string {
+	return resource_client.domain + ":" + strconv.Itoa(resource_client.port)
 }
 
 // Return the domain
-func (self *Resource_Client) GetDomain() string {
-	return self.domain
+func (resource_client *Resource_Client) GetDomain() string {
+	return resource_client.domain
 }
 
 // Return the id of the service instance
-func (self *Resource_Client) GetId() string {
-	return self.id
+func (resource_client *Resource_Client) GetId() string {
+	return resource_client.id
 }
 
 // Return the name of the service
-func (self *Resource_Client) GetName() string {
-	return self.name
+func (resource_client *Resource_Client) GetName() string {
+	return resource_client.name
 }
 
 // must be close when no more needed.
-func (self *Resource_Client) Close() {
-	self.cc.Close()
+func (resource_client *Resource_Client) Close() {
+	resource_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Resource_Client) SetPort(port int) {
-	self.port = port
+func (resource_client *Resource_Client) SetPort(port int) {
+	resource_client.port = port
 }
 
 // Set the client name.
-func (self *Resource_Client) SetId(id string) {
-	self.id = id
+func (resource_client *Resource_Client) SetId(id string) {
+	resource_client.id = id
 }
 
 // Set the client name.
-func (self *Resource_Client) SetName(name string) {
-	self.name = name
+func (resource_client *Resource_Client) SetName(name string) {
+	resource_client.name = name
 }
 
 // Set the domain.
-func (self *Resource_Client) SetDomain(domain string) {
-	self.domain = domain
+func (resource_client *Resource_Client) SetDomain(domain string) {
+	resource_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Resource_Client) HasTLS() bool {
-	return self.hasTLS
+func (resource_client *Resource_Client) HasTLS() bool {
+	return resource_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Resource_Client) GetCertFile() string {
-	return self.certFile
+func (resource_client *Resource_Client) GetCertFile() string {
+	return resource_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Resource_Client) GetKeyFile() string {
-	return self.keyFile
+func (resource_client *Resource_Client) GetKeyFile() string {
+	return resource_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Resource_Client) GetCaFile() string {
-	return self.caFile
+func (resource_client *Resource_Client) GetCaFile() string {
+	return resource_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Resource_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (resource_client *Resource_Client) SetTLS(hasTls bool) {
+	resource_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Resource_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (resource_client *Resource_Client) SetCertFile(certFile string) {
+	resource_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Resource_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (resource_client *Resource_Client) SetKeyFile(keyFile string) {
+	resource_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Resource_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (resource_client *Resource_Client) SetCaFile(caFile string) {
+	resource_client.caFile = caFile
 }
 
 ////////////// API ////////////////
 
 // Authenticate a user.
-func (self *Resource_Client) Authenticate(name string, password string) (string, error) {
+func (resource_client *Resource_Client) Authenticate(name string, password string) (string, error) {
 	// In case of other domain than localhost I will rip off the token file
 	// before each authentication.
 
-	path := os.TempDir() + string(os.PathSeparator) + self.GetDomain() + "_token"
-	if !Utility.IsLocal(self.GetDomain()) {
+	path := os.TempDir() + string(os.PathSeparator) + resource_client.GetDomain() + "_token"
+	if !Utility.IsLocal(resource_client.GetDomain()) {
 		// remove the file if it already exist.
 		os.Remove(path)
 	}
@@ -186,14 +186,14 @@ func (self *Resource_Client) Authenticate(name string, password string) (string,
 		Password: password,
 	}
 
-	rsp, err := self.c.Authenticate(globular.GetClientContext(self), rqst)
+	rsp, err := resource_client.c.Authenticate(globular.GetClientContext(resource_client), rqst)
 	if err != nil {
 		return "", err
 	}
 
 	// Here I will save the token into the temporary directory the token will be valid for a given time (default is 15 minutes)
 	// it's the responsability of the client to keep it refresh... see Refresh token from the server...
-	if !Utility.IsLocal(self.GetDomain()) {
+	if !Utility.IsLocal(resource_client.GetDomain()) {
 		err = ioutil.WriteFile(path, []byte(rsp.Token), 0644)
 		if err != nil {
 			return "", err
@@ -206,11 +206,11 @@ func (self *Resource_Client) Authenticate(name string, password string) (string,
 /**
  *  Generate a new token from expired one.
  */
-func (self *Resource_Client) RefreshToken(token string) (string, error) {
+func (resource_client *Resource_Client) RefreshToken(token string) (string, error) {
 	rqst := new(resourcepb.RefreshTokenRqst)
 	rqst.Token = token
 
-	rsp, err := self.c.RefreshToken(globular.GetClientContext(self), rqst)
+	rsp, err := resource_client.c.RefreshToken(globular.GetClientContext(resource_client), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -223,7 +223,7 @@ func (self *Resource_Client) RefreshToken(token string) (string, error) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new Organization
-func (self *Resource_Client) CreateOrganization(id string, name string) error {
+func (resource_client *Resource_Client) CreateOrganization(id string, name string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.CreateOrganizationRqst{
@@ -233,26 +233,26 @@ func (self *Resource_Client) CreateOrganization(id string, name string) error {
 		},
 	}
 
-	_, err := self.c.CreateOrganization(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.CreateOrganization(globular.GetClientContext(resource_client), rqst)
 	return err
 
 }
 
 // Create a new Organization
-func (self *Resource_Client) DeleteOrganization(id string) error {
+func (resource_client *Resource_Client) DeleteOrganization(id string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.DeleteOrganizationRqst{
 		Organization: id,
 	}
 
-	_, err := self.c.DeleteOrganization(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.DeleteOrganization(globular.GetClientContext(resource_client), rqst)
 	return err
 
 }
 
 // Add to Organisation...
-func (self *Resource_Client) AddOrganizationAccount(organisationId string, accountId string) error {
+func (resource_client *Resource_Client) AddOrganizationAccount(organisationId string, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationAccountRqst{
@@ -260,11 +260,11 @@ func (self *Resource_Client) AddOrganizationAccount(organisationId string, accou
 		AccountId:      accountId,
 	}
 
-	_, err := self.c.AddOrganizationAccount(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddOrganizationAccount(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
-func (self *Resource_Client) AddOrganizationRole(organisationId string, roleId string) error {
+func (resource_client *Resource_Client) AddOrganizationRole(organisationId string, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationRoleRqst{
@@ -272,11 +272,11 @@ func (self *Resource_Client) AddOrganizationRole(organisationId string, roleId s
 		RoleId:         roleId,
 	}
 
-	_, err := self.c.AddOrganizationRole(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddOrganizationRole(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
-func (self *Resource_Client) AddOrganizationGroup(organisationId string, groupId string) error {
+func (resource_client *Resource_Client) AddOrganizationGroup(organisationId string, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationGroupRqst{
@@ -284,11 +284,11 @@ func (self *Resource_Client) AddOrganizationGroup(organisationId string, groupId
 		GroupId:        groupId,
 	}
 
-	_, err := self.c.AddOrganizationGroup(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddOrganizationGroup(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
-func (self *Resource_Client) AddOrganizationApplication(organisationId string, applicationId string) error {
+func (resource_client *Resource_Client) AddOrganizationApplication(organisationId string, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationApplicationRqst{
@@ -296,13 +296,13 @@ func (self *Resource_Client) AddOrganizationApplication(organisationId string, a
 		ApplicationId:  applicationId,
 	}
 
-	_, err := self.c.AddOrganizationApplication(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddOrganizationApplication(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
 // Remove from organization
 
-func (self *Resource_Client) RemoveOrganizationAccount(organisationId string, accountId string) error {
+func (resource_client *Resource_Client) RemoveOrganizationAccount(organisationId string, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationAccountRqst{
@@ -310,11 +310,11 @@ func (self *Resource_Client) RemoveOrganizationAccount(organisationId string, ac
 		AccountId:      accountId,
 	}
 
-	_, err := self.c.RemoveOrganizationAccount(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemoveOrganizationAccount(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
-func (self *Resource_Client) RemoveOrganizationRole(organisationId string, roleId string) error {
+func (resource_client *Resource_Client) RemoveOrganizationRole(organisationId string, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationRoleRqst{
@@ -322,11 +322,11 @@ func (self *Resource_Client) RemoveOrganizationRole(organisationId string, roleI
 		RoleId:         roleId,
 	}
 
-	_, err := self.c.RemoveOrganizationRole(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemoveOrganizationRole(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
-func (self *Resource_Client) RemoveOrganizationGroup(organisationId string, groupId string) error {
+func (resource_client *Resource_Client) RemoveOrganizationGroup(organisationId string, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationGroupRqst{
@@ -334,11 +334,11 @@ func (self *Resource_Client) RemoveOrganizationGroup(organisationId string, grou
 		GroupId:        groupId,
 	}
 
-	_, err := self.c.RemoveOrganizationGroup(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemoveOrganizationGroup(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
-func (self *Resource_Client) RemoveOrganizationApplication(organisationId string, applicationId string) error {
+func (resource_client *Resource_Client) RemoveOrganizationApplication(organisationId string, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationApplicationRqst{
@@ -346,7 +346,7 @@ func (self *Resource_Client) RemoveOrganizationApplication(organisationId string
 		ApplicationId:  applicationId,
 	}
 
-	_, err := self.c.RemoveOrganizationApplication(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemoveOrganizationApplication(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
@@ -355,7 +355,7 @@ func (self *Resource_Client) RemoveOrganizationApplication(organisationId string
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a new Account.
-func (self *Resource_Client) RegisterAccount(name string, email string, password string, confirmation_password string) error {
+func (resource_client *Resource_Client) RegisterAccount(name string, email string, password string, confirmation_password string) error {
 	rqst := &resourcepb.RegisterAccountRqst{
 		Account: &resourcepb.Account{
 			Name:     name,
@@ -365,29 +365,29 @@ func (self *Resource_Client) RegisterAccount(name string, email string, password
 		ConfirmPassword: confirmation_password,
 	}
 
-	_, err := self.c.RegisterAccount(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RegisterAccount(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
 // Delete an account.
-func (self *Resource_Client) DeleteAccount(id string) error {
+func (resource_client *Resource_Client) DeleteAccount(id string) error {
 	rqst := &resourcepb.DeleteAccountRqst{
 		Id: id,
 	}
 
-	_, err := self.c.DeleteAccount(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.DeleteAccount(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
 /**
  * Set role to a account
  */
-func (self *Resource_Client) AddAccountRole(accountId string, roleId string) error {
+func (resource_client *Resource_Client) AddAccountRole(accountId string, roleId string) error {
 	rqst := &resourcepb.AddAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
 	}
-	_, err := self.c.AddAccountRole(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddAccountRole(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -395,12 +395,12 @@ func (self *Resource_Client) AddAccountRole(accountId string, roleId string) err
 /**
  * Remove role from an account
  */
-func (self *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
+func (resource_client *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
 	rqst := &resourcepb.RemoveAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
 	}
-	_, err := self.c.RemoveAccountRole(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemoveAccountRole(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -412,48 +412,48 @@ func (self *Resource_Client) RemoveAccountRole(accountId string, roleId string) 
 /**
  * Create a new group.
  */
-func (self *Resource_Client) CreateGroup(id string, name string) error {
+func (resource_client *Resource_Client) CreateGroup(id string, name string) error {
 	rqst := new(resourcepb.CreateGroupRqst)
 	g := new(resourcepb.Group)
 	g.Name = name
 	g.Id = id
 	rqst.Group = g
-	ctx := globular.GetClientContext(self)
-	_, err := self.c.CreateGroup(ctx, rqst)
+	ctx := globular.GetClientContext(resource_client)
+	_, err := resource_client.c.CreateGroup(ctx, rqst)
 
 	return err
 }
 
-func (self *Resource_Client) AddGroupMemberAccount(groupId string, accountId string) error {
+func (resource_client *Resource_Client) AddGroupMemberAccount(groupId string, accountId string) error {
 	rqst := new(resourcepb.AddGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
 
-	ctx := globular.GetClientContext(self)
-	_, err := self.c.AddGroupMemberAccount(ctx, rqst)
+	ctx := globular.GetClientContext(resource_client)
+	_, err := resource_client.c.AddGroupMemberAccount(ctx, rqst)
 	return err
 }
 
-func (self *Resource_Client) DeleteGroup(groupId string) error {
+func (resource_client *Resource_Client) DeleteGroup(groupId string) error {
 	rqst := new(resourcepb.DeleteGroupRqst)
 	rqst.Group = groupId
 
-	ctx := globular.GetClientContext(self)
-	_, err := self.c.DeleteGroup(ctx, rqst)
+	ctx := globular.GetClientContext(resource_client)
+	_, err := resource_client.c.DeleteGroup(ctx, rqst)
 	return err
 }
 
-func (self *Resource_Client) RemoveGroupMemberAccount(groupId string, accountId string) error {
+func (resource_client *Resource_Client) RemoveGroupMemberAccount(groupId string, accountId string) error {
 	rqst := new(resourcepb.RemoveGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
 
-	ctx := globular.GetClientContext(self)
-	_, err := self.c.RemoveGroupMemberAccount(ctx, rqst)
+	ctx := globular.GetClientContext(resource_client)
+	_, err := resource_client.c.RemoveGroupMemberAccount(ctx, rqst)
 	return err
 }
 
-func (self *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error) {
+func (resource_client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error) {
 
 	// Open the stream...
 	groups := make([]*resourcepb.Group, 0)
@@ -461,7 +461,7 @@ func (self *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error
 	rqst := new(resourcepb.GetGroupsRqst)
 	rqst.Query = query
 
-	stream, err := self.c.GetGroups(globular.GetClientContext(self), rqst)
+	stream, err := resource_client.c.GetGroups(globular.GetClientContext(resource_client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -495,23 +495,23 @@ func (self *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error
 /**
  * Create a new role with given action list.
  */
-func (self *Resource_Client) CreateRole(id string, name string, actions []string) error {
+func (resource_client *Resource_Client) CreateRole(id string, name string, actions []string) error {
 	rqst := new(resourcepb.CreateRoleRqst)
 	role := new(resourcepb.Role)
 	role.Id = id
 	role.Name = name
 	role.Actions = actions
 	rqst.Role = role
-	_, err := self.c.CreateRole(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.CreateRole(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
 
-func (self *Resource_Client) DeleteRole(name string) error {
+func (resource_client *Resource_Client) DeleteRole(name string) error {
 	rqst := new(resourcepb.DeleteRoleRqst)
 	rqst.RoleId = name
 
-	_, err := self.c.DeleteRole(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.DeleteRole(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -519,12 +519,12 @@ func (self *Resource_Client) DeleteRole(name string) error {
 /**
  * Add a action to a given role.
  */
-func (self *Resource_Client) AddRoleActions(roleId string, actions []string) error {
+func (resource_client *Resource_Client) AddRoleActions(roleId string, actions []string) error {
 	rqst := &resourcepb.AddRoleActionsRqst{
 		RoleId:  roleId,
 		Actions: actions,
 	}
-	_, err := self.c.AddRoleActions(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddRoleActions(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -532,12 +532,12 @@ func (self *Resource_Client) AddRoleActions(roleId string, actions []string) err
 /**
  * Remove action from a given role.
  */
-func (self *Resource_Client) RemoveRoleAction(roleId string, action string) error {
+func (resource_client *Resource_Client) RemoveRoleAction(roleId string, action string) error {
 	rqst := &resourcepb.RemoveRoleActionRqst{
 		RoleId: roleId,
 		Action: action,
 	}
-	_, err := self.c.RemoveRoleAction(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemoveRoleAction(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -547,38 +547,38 @@ func (self *Resource_Client) RemoveRoleAction(roleId string, action string) erro
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a peer with a given name and mac address.
-func (self *Resource_Client) RegisterPeer(domain string) error {
+func (resource_client *Resource_Client) RegisterPeer(domain string) error {
 	rqst := &resourcepb.RegisterPeerRqst{
 		Peer: &resourcepb.Peer{
 			Domain: domain,
 		},
 	}
 
-	_, err := self.c.RegisterPeer(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RegisterPeer(globular.GetClientContext(resource_client), rqst)
 	return err
 
 }
 
 // Delete a peer
-func (self *Resource_Client) DeletePeer(domain string) error {
+func (resource_client *Resource_Client) DeletePeer(domain string) error {
 	rqst := &resourcepb.DeletePeerRqst{
 		Peer: &resourcepb.Peer{
 			Domain: domain,
 		},
 	}
-	_, err := self.c.DeletePeer(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.DeletePeer(globular.GetClientContext(resource_client), rqst)
 	return err
 }
 
 /**
  * Add a action to a given peer.
  */
-func (self *Resource_Client) AddPeerActions(domain string, actions []string) error {
+func (resource_client *Resource_Client) AddPeerActions(domain string, actions []string) error {
 	rqst := &resourcepb.AddPeerActionsRqst{
 		Domain:  domain,
 		Actions: actions,
 	}
-	_, err := self.c.AddPeerActions(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddPeerActions(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -586,12 +586,12 @@ func (self *Resource_Client) AddPeerActions(domain string, actions []string) err
 /**
  * Remove action from a given peer.
  */
-func (self *Resource_Client) RemovePeerAction(domain string, action string) error {
+func (resource_client *Resource_Client) RemovePeerAction(domain string, action string) error {
 	rqst := &resourcepb.RemovePeerActionRqst{
 		Domain: domain,
 		Action: action,
 	}
-	_, err := self.c.RemovePeerAction(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemovePeerAction(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -602,12 +602,12 @@ func (self *Resource_Client) RemovePeerAction(domain string, action string) erro
 /**
  * Add a action to a given application.
  */
-func (self *Resource_Client) AddApplicationActions(applicationId string, actions []string) error {
+func (resource_client *Resource_Client) AddApplicationActions(applicationId string, actions []string) error {
 	rqst := &resourcepb.AddApplicationActionsRqst{
 		ApplicationId: applicationId,
 		Actions:       actions,
 	}
-	_, err := self.c.AddApplicationActions(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.AddApplicationActions(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
@@ -615,12 +615,12 @@ func (self *Resource_Client) AddApplicationActions(applicationId string, actions
 /**
  * Remove action from a given application.
  */
-func (self *Resource_Client) RemoveApplicationAction(applicationId string, action string) error {
+func (resource_client *Resource_Client) RemoveApplicationAction(applicationId string, action string) error {
 	rqst := &resourcepb.RemoveApplicationActionRqst{
 		ApplicationId: applicationId,
 		Action:        action,
 	}
-	_, err := self.c.RemoveApplicationAction(globular.GetClientContext(self), rqst)
+	_, err := resource_client.c.RemoveApplicationAction(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }

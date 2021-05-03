@@ -11,12 +11,12 @@ import (
 
 var (
 	// Connect to the admin client.
-	client, _   = NewAdminService_Client("mon-intranet:10097", "admin.AdminService")
-	resource, _ = resource_client.NewResourceService_Client("mon-intranet:10097", "resource.ResourceService")
+	client, _   = NewAdminService_Client("sexy.globular.cloud", "admin.AdminService")
+	resource, _ = resource_client.NewResourceService_Client("sexy.globular.cloud", "resource.ResourceService")
 )
 
 // Test various function here.
-
+/*
 func TestGetConfig(t *testing.T) {
 	config, err := client.GetConfig()
 	if err != nil {
@@ -25,9 +25,10 @@ func TestGetConfig(t *testing.T) {
 	}
 	log.Println("Get Config succeed!", config)
 }
+*/
 
-/*
 func TestGetFullConfig(t *testing.T) {
+	log.Println("----------> get token...", resource)
 	token, err := resource.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("Fail to authenticate to mon-intranet:10012")
@@ -43,7 +44,7 @@ func TestGetFullConfig(t *testing.T) {
 	log.Println(config)
 	log.Println("GetFullConfig succeed!")
 }
-*/
+
 // Test modify the config...
 /*func TestSaveConfig(t *testing.T) {
 	log.Println("---> test get config.")

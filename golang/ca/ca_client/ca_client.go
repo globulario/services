@@ -60,98 +60,98 @@ func NewCaService_Client(address string, id string) (*Ca_Client, error) {
 	return client, nil
 }
 
-func (self *Ca_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (ca_client *Ca_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(ca_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(ca_client.c, ctx, method, rqst)
 }
 
 // Return the address
-func (self *Ca_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (ca_client *Ca_Client) GetAddress() string {
+	return ca_client.domain + ":" + strconv.Itoa(ca_client.port)
 }
 
 // Return the domain
-func (self *Ca_Client) GetDomain() string {
-	return self.domain
+func (ca_client *Ca_Client) GetDomain() string {
+	return ca_client.domain
 }
 
 // Return the id of the service instance
-func (self *Ca_Client) GetId() string {
-	return self.id
+func (ca_client *Ca_Client) GetId() string {
+	return ca_client.id
 }
 
 // Return the name of the service
-func (self *Ca_Client) GetName() string {
-	return self.name
+func (ca_client *Ca_Client) GetName() string {
+	return ca_client.name
 }
 
 // must be close when no more needed.
-func (self *Ca_Client) Close() {
-	self.cc.Close()
+func (ca_client *Ca_Client) Close() {
+	ca_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Ca_Client) SetPort(port int) {
-	self.port = port
+func (ca_client *Ca_Client) SetPort(port int) {
+	ca_client.port = port
 }
 
 // Set the client instance id.
-func (self *Ca_Client) SetId(id string) {
-	self.id = id
+func (ca_client *Ca_Client) SetId(id string) {
+	ca_client.id = id
 }
 
 // Set the client name.
-func (self *Ca_Client) SetName(name string) {
-	self.name = name
+func (ca_client *Ca_Client) SetName(name string) {
+	ca_client.name = name
 }
 
 // Set the domain.
-func (self *Ca_Client) SetDomain(domain string) {
-	self.domain = domain
+func (ca_client *Ca_Client) SetDomain(domain string) {
+	ca_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Ca_Client) HasTLS() bool {
-	return self.hasTLS
+func (ca_client *Ca_Client) HasTLS() bool {
+	return ca_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Ca_Client) GetCertFile() string {
-	return self.certFile
+func (ca_client *Ca_Client) GetCertFile() string {
+	return ca_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Ca_Client) GetKeyFile() string {
-	return self.keyFile
+func (ca_client *Ca_Client) GetKeyFile() string {
+	return ca_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Ca_Client) GetCaFile() string {
-	return self.caFile
+func (ca_client *Ca_Client) GetCaFile() string {
+	return ca_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Ca_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (ca_client *Ca_Client) SetTLS(hasTls bool) {
+	ca_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Ca_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (ca_client *Ca_Client) SetCertFile(certFile string) {
+	ca_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Ca_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (ca_client *Ca_Client) SetKeyFile(keyFile string) {
+	ca_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Ca_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (ca_client *Ca_Client) SetCaFile(caFile string) {
+	ca_client.caFile = caFile
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,12 +162,12 @@ func (self *Ca_Client) SetCaFile(caFile string) {
  * Take signing request and made it sign by the server. If succed a signed
  * certificate is return.
  */
-func (self *Ca_Client) SignCertificate(csr string) (string, error) {
+func (ca_client *Ca_Client) SignCertificate(csr string) (string, error) {
 	// The certificate request.
 	rqst := new(capb.SignCertificateRequest)
 	rqst.Csr = csr
 
-	rsp, err := self.c.SignCertificate(globular.GetClientContext(self), rqst)
+	rsp, err := ca_client.c.SignCertificate(globular.GetClientContext(ca_client), rqst)
 	if err == nil {
 		return rsp.Crt, nil
 	}
@@ -178,10 +178,10 @@ func (self *Ca_Client) SignCertificate(csr string) (string, error) {
 /**
  * Get the ca.crt file content.
  */
-func (self *Ca_Client) GetCaCertificate() (string, error) {
+func (ca_client *Ca_Client) GetCaCertificate() (string, error) {
 	rqst := new(capb.GetCaCertificateRequest)
 
-	rsp, err := self.c.GetCaCertificate(globular.GetClientContext(self), rqst)
+	rsp, err := ca_client.c.GetCaCertificate(globular.GetClientContext(ca_client), rqst)
 	if err == nil {
 		return rsp.Ca, nil
 	}
