@@ -11,8 +11,8 @@ import (
 
 var (
 	// Connect to the admin client.
-	client, _   = NewAdminService_Client("sexy.globular.cloud", "admin.AdminService")
-	resource, _ = resource_client.NewResourceService_Client("sexy.globular.cloud", "resource.ResourceService")
+	client, _   = NewAdminService_Client("globular.cloud", "admin.AdminService")
+	resource, _ = resource_client.NewResourceService_Client("globular.cloud", "resource.ResourceService")
 )
 
 // Test various function here.
@@ -31,7 +31,7 @@ func TestGetFullConfig(t *testing.T) {
 	log.Println("----------> get token...", resource)
 	token, err := resource.Authenticate("sa", "adminadmin")
 	if err != nil {
-		log.Println("Fail to authenticate to mon-intranet:10012")
+		log.Println("Fail to authenticate")
 		log.Println(err.Error())
 		return
 	}
@@ -107,7 +107,7 @@ func TestStartService(t *testing.T) {
 func TestStopService(t *testing.T) {
 	token, err := resource.Authenticate("sa", "adminadmin")
 	if err != nil {
-		log.Println("Fail to authenticate to mon-intranet:10097")
+		log.Println("Fail to authenticate to globular.cloud")
 		log.Println(err.Error())
 		return
 	}
@@ -167,7 +167,7 @@ func TestRestartServices(t *testing.T) {
 
 func TestRunCmd(t *testing.T) {
 	var err error
-	client_, err := resource_client.NewResourceService_Client("mon-intranet:10097", "resource.ResourceService")
+	client_, err := resource_client.NewResourceService_Client("globular.cloud", "resource.ResourceService")
 	if err != nil {
 		log.Println("----> fail to connect with error ", err)
 		return
@@ -196,7 +196,7 @@ func TestRunCmd(t *testing.T) {
 /*
 func TestGetVariable(t *testing.T) {
 	var err error
-	client_, err := resource_client.NewResourceService_Client("mon-intranet:10097", "resource.ResourceService")
+	client_, err := resource_client.NewResourceService_Client("globular.cloud", "resource.ResourceService")
 	if err != nil {
 		log.Println("----> fail to connect with error ", err)
 		return

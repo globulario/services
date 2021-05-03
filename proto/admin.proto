@@ -165,6 +165,7 @@ message InstallApplicationRequest{
 	string publisherId = 3;
 	string version = 4;
 	string domain = 5; // optional usefull if your server serve multiple domain.
+	bool set_as_default = 6;
 }
 
 message InstallApplicationResponse{
@@ -220,6 +221,7 @@ message DeployApplicationRequest{
 	string alias = 14;
 	repeated Role roles = 15;
 	repeated Group groups = 16;
+	bool set_as_default = 17;
 }
 
 message DeployApplicationResponse{

@@ -554,13 +554,14 @@ func (admin_client *Admin_Client) UninstallService(token string, domain string, 
 /**
  * Intall a new application or update an existing one.
  */
-func (admin_client *Admin_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string) error {
+func (admin_client *Admin_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string, set_as_default bool) error {
 	log.Println("Install application ", applicationId, "on server ", domain)
 	rqst := new(adminpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
+	rqst.SetAsDefault = set_as_default
 
 	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
@@ -731,7 +732,7 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
 /**
  * Deploy the content of an application with a given name to the server.
  */
-func (admin_client *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string) (int, error) {
+func (admin_client *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
 	log.Println("deploy application ", name)
 	
 	dir, err := os.Getwd()
@@ -886,6 +887,7 @@ func (admin_client *Admin_Client) DeployApplication(user string, name string, or
 				Alias:        alias,
 				Roles:        roles,
 				Groups:       groups,
+				SetAsDefault: set_as_default,
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)
