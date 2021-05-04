@@ -223,19 +223,15 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
-
 	var signCertificateAddress = "http://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate"
-	log.Println("----------> 228: ", signCertificateAddress)
 
 	resp, err = http.Get(signCertificateAddress + "?csr=" + csr_str)
 	if err != nil {
-		log.Println("---> 232")
 		return "", err
 	}
 
-	log.Println("----------> 236: ", signCertificateAddress)
 	defer resp.Body.Close()
-	log.Println("---> 232")
+
 	if resp.StatusCode == http.StatusCreated {
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -271,9 +267,9 @@ func getCredentialConfig(basePath string, address string, country string, state 
 
 	// Return the existing paths...
 	if Utility.Exists(creds) &&
-		Utility.Exists(creds+"/"+"client.pem") &&
-		Utility.Exists(creds+"/"+"client.crt") &&
-		Utility.Exists(creds+"/"+"ca.crt") {
+		Utility.Exists(creds+"/client.pem") &&
+		Utility.Exists(creds+"/client.crt") &&
+		Utility.Exists(creds+"/ca.crt") {
 		info, _ := os.Stat(creds)
 
 		// test if the certificate are older than 5 mount.
@@ -300,7 +296,7 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	}
 
 	// Write the ca.crt file on the disk
-	err = ioutil.WriteFile(creds+"/"+"ca.crt", []byte(ca_crt), 0664)
+	err = ioutil.WriteFile(creds+"/ca.crt", []byte(ca_crt), 0444)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -343,7 +339,7 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	}
 
 	// Write bact the client certificate in file on the disk
-	err = ioutil.WriteFile(creds+"/"+"client.crt", []byte(client_crt), 0664)
+	err = ioutil.WriteFile(creds+"/client.crt", []byte(client_crt), 0444)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -379,12 +375,16 @@ func GenerateAuthorityPrivateKey(path string, pwd string) error {
 	args = append(args, "pass:"+pwd)
 	args = append(args, "-des3")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"ca.key")
+	args = append(args, path+"/ca.key")
 	args = append(args, "4096")
 
 	err := exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"ca.key") {
-		return errors.New("fail to generate the Authority private key")
+	if err != nil || !Utility.Exists(path+"/ca.key") {
+		if err == nil {
+			err = errors.New("fail to generate the Authority private key " + path+"/ca.key")
+		}
+		log.Println(err)
+		return err
 	}
 	return nil
 }
@@ -405,16 +405,19 @@ func GenerateAuthorityTrustCertificate(path string, pwd string, expiration_delay
 	args = append(args, "-days")
 	args = append(args, strconv.Itoa(expiration_delay))
 	args = append(args, "-key")
-	args = append(args, path+"/"+"ca.key")
+	args = append(args, path+"/ca.key")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"ca.crt")
+	args = append(args, path+"/ca.crt")
 	args = append(args, "-subj")
 	args = append(args, "/CN=Root CA")
 
 	err := exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"ca.crt") {
+	if err != nil || !Utility.Exists(path+"/ca.crt") {
+		if err == nil {
+			err = errors.New("fail to generate the trust certificate " + path+"/ca.crt")
+		}
 		log.Println(err)
-		return errors.New("fail to generate the trust certificate")
+		return err
 	}
 
 	return nil
@@ -434,13 +437,16 @@ func GenerateSeverPrivateKey(path string, pwd string) error {
 	args = append(args, "pass:"+pwd)
 	args = append(args, "-des3")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"server.key")
+	args = append(args, path+"/server.key")
 	args = append(args, "4096")
 
 	err := exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"server.key") {
+	if err != nil || !Utility.Exists(path+"/server.key") {
+		if err == nil {
+			err = errors.New("fail to generate server private key " + path+"/server.key")
+		}
 		log.Println(err)
-		return errors.New("fail to generate server private key")
+		return err
 	}
 	return nil
 }
@@ -458,13 +464,16 @@ func GenerateClientPrivateKey(path string, pwd string) error {
 	args = append(args, "pass:"+pwd)
 	args = append(args, "-des3")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"client.pass.key")
+	args = append(args, path+"/client.pass.key")
 	args = append(args, "4096")
 
 	err := exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"client.pass.key") {
+	if err != nil || !Utility.Exists(path+"/client.pass.key") {
+		if err == nil {
+			err = errors.New("fail to generate client private key " + path+"/client.pass.key")
+		}
 		log.Println(err)
-		return errors.New("Fail to generate client private key " + err.Error())
+		return err
 	}
 
 	args = make([]string, 0)
@@ -472,13 +481,17 @@ func GenerateClientPrivateKey(path string, pwd string) error {
 	args = append(args, "-passin")
 	args = append(args, "pass:"+pwd)
 	args = append(args, "-in")
-	args = append(args, path+"/"+"client.pass.key")
+	args = append(args, path+"/client.pass.key")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"client.key")
+	args = append(args, path+"/client.key")
 
 	err = exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"client.key") {
-		return errors.New("Fail to generate client private key " + err.Error())
+	if err != nil || !Utility.Exists(path+"/client.key") {
+		if err == nil {
+			err = errors.New("fail to generate client private key " + path+"/client.key")
+		}
+		log.Println(err)
+		return err
 	}
 
 	// Remove the file.
@@ -499,19 +512,22 @@ func GenerateClientCertificateSigningRequest(path string, pwd string, domain str
 	args = append(args, "req")
 	args = append(args, "-new")
 	args = append(args, "-key")
-	args = append(args, path+"/"+"client.key")
+	args = append(args, path+"/client.key")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"client.csr")
+	args = append(args, path+"/client.csr")
 	args = append(args, "-subj")
 	args = append(args, "/CN="+domain)
 	args = append(args, "-config")
-	args = append(args, path+"/"+"san.conf")
+	args = append(args, path+"/san.conf")
 
 	err := exec.Command(cmd, args...).Run()
 
-	if err != nil || !Utility.Exists(path+"/"+"client.csr") {
-		log.Println(args)
-		return errors.New("fail to generate client certificate signing request")
+	if err != nil || !Utility.Exists(path+"/client.csr") {
+		if err == nil {
+			err = errors.New("fail to generate client certificate signing request " + path+"/client.key")
+		}
+		log.Println(err)
+		return err
 	}
 
 	return nil
@@ -532,23 +548,27 @@ func GenerateSignedClientCertificate(path string, pwd string, expiration_delay i
 	args = append(args, "-days")
 	args = append(args, strconv.Itoa(expiration_delay))
 	args = append(args, "-in")
-	args = append(args, path+"/"+"client.csr")
+	args = append(args, path+"/client.csr")
 	args = append(args, "-CA")
-	args = append(args, path+"/"+"ca.crt")
+	args = append(args, path+"/ca.crt")
 	args = append(args, "-CAkey")
-	args = append(args, path+"/"+"ca.key")
+	args = append(args, path+"/ca.key")
 	args = append(args, "-set_serial")
 	args = append(args, "01")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"client.crt")
+	args = append(args, path+"/client.crt")
 	args = append(args, "-extfile")
-	args = append(args, path+"/"+"san.conf")
+	args = append(args, path+"/san.conf")
 	args = append(args, "-extensions")
 	args = append(args, "v3_req")
 
 	err := exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"client.crt") {
-		log.Println("fail to get the signed server certificate")
+	if err != nil || !Utility.Exists(path+"/client.crt") {
+		if err == nil {
+			err = errors.New("fail to get the signed server certificate " + path+"/client.key")
+		}
+		log.Println(err)
+		return err
 	}
 
 	return nil
@@ -612,17 +632,21 @@ func GenerateServerCertificateSigningRequest(path string, pwd string, domain str
 	args = append(args, "pass:"+pwd)
 	args = append(args, "-new")
 	args = append(args, "-key")
-	args = append(args, path+"/"+"server.key")
+	args = append(args, path+"/server.key")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"server.csr")
+	args = append(args, path+"/server.csr")
 	args = append(args, "-subj")
 	args = append(args, "/CN="+domain)
 	args = append(args, "-config")
-	args = append(args, path+"/"+"san.conf")
+	args = append(args, path+"/san.conf")
 
 	err := exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"server.csr") {
-		return errors.New("fail to generate server certificate signing request")
+	if err != nil || !Utility.Exists(path+"/server.csr") {
+		if err == nil {
+			err = errors.New("fail to generate server certificate signing request" + path+"/client.key")
+		}
+		log.Println(err)
+		return err
 	}
 
 	return nil
@@ -644,24 +668,27 @@ func GenerateSignedServerCertificate(path string, pwd string, expiration_delay i
 	args = append(args, "-days")
 	args = append(args, strconv.Itoa(expiration_delay))
 	args = append(args, "-in")
-	args = append(args, path+"/"+"server.csr")
+	args = append(args, path+"/server.csr")
 	args = append(args, "-CA")
-	args = append(args, path+"/"+"ca.crt")
+	args = append(args, path+"/ca.crt")
 	args = append(args, "-CAkey")
-	args = append(args, path+"/"+"ca.key")
+	args = append(args, path+"/ca.key")
 	args = append(args, "-set_serial")
 	args = append(args, "01")
 	args = append(args, "-out")
-	args = append(args, path+"/"+"server.crt")
+	args = append(args, path+"/server.crt")
 	args = append(args, "-extfile")
-	args = append(args, path+"/"+"san.conf")
+	args = append(args, path+"/san.conf")
 	args = append(args, "-extensions")
 	args = append(args, "v3_req")
 
 	err := exec.Command(cmd, args...).Run()
-	if err != nil || !Utility.Exists(path+"/"+"server.crt") {
-		log.Println(args)
-		log.Println("fail to get the signed server certificate")
+	if err != nil || !Utility.Exists(path+"/server.crt") {
+		if err == nil {
+			err = errors.New("fail to get the signed server certificate" + path+"/server.key")
+		}
+		log.Println(err)
+		return err
 
 	}
 
@@ -688,7 +715,11 @@ func KeyToPem(name string, path string, pwd string) error {
 
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/"+name+".key") {
-		return errors.New("Fail to generate " + name + ".pem key from " + name + ".key")
+		if err == nil {
+			err =  errors.New("Fail to generate " + name + ".pem key from " + name + ".key")
+		}
+		log.Println(err)
+		return err
 	}
 
 	return nil
