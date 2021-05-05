@@ -381,6 +381,7 @@ func (admin_client *Admin_Client) UploadServicePackage(user string, organization
 	}
 	defer packageFile.Close()
 
+	
 	// Now I will create the request to upload the package on the server.
 	// Open the stream...
 	stream, err := admin_client.c.UploadServicePackage(ctx)
@@ -413,11 +414,12 @@ func (admin_client *Admin_Client) UploadServicePackage(user string, organization
 			err = nil
 			break
 		} else if err != nil {
+
 			return "", 0, err
 		}
 
 	}
-
+	
 	// get the file path on the server where the package is store before being
 	// publish.
 	rsp, err := stream.CloseAndRecv()
@@ -426,7 +428,6 @@ func (admin_client *Admin_Client) UploadServicePackage(user string, organization
 			return "", 0, err
 		}
 	}
-
 	return rsp.Path, size, nil
 }
 
@@ -508,14 +509,16 @@ func (admin_client *Admin_Client) PublishService(user, organization, token, doma
  */
 func (admin_client *Admin_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
 
-	rqst := new(adminpb.InstallServiceRequest)
+	log.Println("Install service", serviceId, "publisherId", publisherId, "discovery", discoveryId, "on", domain)
+	log.Println("token: ", token);
+
+	rqst := new(adminpb.InstallServiceRequest, )
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
 	ctx := globular.GetClientContext(admin_client)
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-
 		if len(md.Get("token")) != 0 {
 			md.Set("token", token)
 		}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"strconv"
 
@@ -61,10 +60,9 @@ func NewResourceService_Client(address string, id string) (*Resource_Client, err
 	if err != nil {
 		return nil, err
 	}
-	log.Println("-------------> 64", client);
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		log.Println("-------------> 67", err);
 		return nil, err
 	}
 

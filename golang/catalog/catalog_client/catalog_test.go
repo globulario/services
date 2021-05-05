@@ -4,7 +4,9 @@ import (
 	"log"
 	"testing"
 	"time"
+
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/catalog/catalogpb"
 	"github.com/golang/protobuf/jsonpb"
 )
 
@@ -47,12 +49,12 @@ func TestSaveItemDefintion(t *testing.T) {
 		Values: []*catalogpb.Reference{
 			&catalogpb.Reference{
 				RefDbName: "catalogue_2_db",
-				RefObjId:  Utility.GenerateUUID("LENGTH" + "en"),
+				RefObjId:  Utility.GenerateUUID("LENGTHen"),
 				RefColId:  "PropertyDefinition",
 			},
 			&catalogpb.Reference{
 				RefDbName: "catalogue_2_db",
-				RefObjId:  Utility.GenerateUUID("DIAMETER" + "en"),
+				RefObjId:  Utility.GenerateUUID("DIAMETERen"),
 				RefColId:  "PropertyDefinition",
 			},
 		},
@@ -62,12 +64,12 @@ func TestSaveItemDefintion(t *testing.T) {
 		Values: []*catalogpb.Reference{
 			&catalogpb.Reference{
 				RefDbName: "catalogue_2_db",
-				RefObjId:  Utility.GenerateUUID("LENGTH" + "fr"),
+				RefObjId:  Utility.GenerateUUID("LENGTHfr"),
 				RefColId:  "PropertyDefinition",
 			},
 			&catalogpb.Reference{
 				RefDbName: "catalogue_2_db",
-				RefObjId:  Utility.GenerateUUID("DIAMETER" + "fr"),
+				RefObjId:  Utility.GenerateUUID("DIAMETERfr"),
 				RefColId:  "PropertyDefinition",
 			},
 		},
@@ -148,7 +150,7 @@ func TestSavePackageSupplier(t *testing.T) {
 	// Set the package reference.
 	packageRef := &catalogpb.Reference{
 		RefDbName: "catalogue_2_db",
-		RefObjId:  Utility.GenerateUUID("pipe_pack_1" + "fr"),
+		RefObjId:  Utility.GenerateUUID("pipe_pack_1fr"),
 		RefColId:  "Package",
 	}
 
@@ -210,13 +212,13 @@ func TestAppendItemdescriptionCategory(t *testing.T) {
 	client.SaveCategory("catalogue_2_db", "Pipes", "Tuyaux", "fr", "")
 	itemDefinitionRef := &catalogpb.Reference{
 		RefDbName: "catalogue_2_db",
-		RefObjId:  Utility.GenerateUUID("PIPE" + "fr"),
+		RefObjId:  Utility.GenerateUUID("PIPEfr"),
 		RefColId:  "ItemDefinition",
 	}
 
 	categoryRef := &catalogpb.Reference{
 		RefDbName: "catalogue_2_db",
-		RefObjId:  Utility.GenerateUUID("Pipes" + "fr"),
+		RefObjId:  Utility.GenerateUUID("Pipesfr"),
 		RefColId:  "Category",
 	}
 
@@ -234,13 +236,13 @@ func TestRemoveItemdescriptionCategory(t *testing.T) {
 	client.SaveCategory("catalogue_2_db", "Pipes", "Tuyaux", "fr", "")
 	itemDefinitionRef := &catalogpb.Reference{
 		RefDbName: "catalogue_2_db",
-		RefObjId:  Utility.GenerateUUID("PIPE" + "fr"),
+		RefObjId:  Utility.GenerateUUID("PIPEfr"),
 		RefColId:  "ItemDefinition",
 	}
 
 	categoryRef := &catalogpb.Reference{
 		RefDbName: "catalogue_2_db",
-		RefObjId:  Utility.GenerateUUID("Pipes" + "fr"),
+		RefObjId:  Utility.GenerateUUID("Pipesfr"),
 		RefColId:  "Category",
 	}
 

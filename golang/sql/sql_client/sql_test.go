@@ -18,7 +18,7 @@ var (
 func TestCreateConnection(t *testing.T) {
 	resource, err := resource_client.NewResourceService_Client("mon-intranet:10009", "resource.ResourceService")
 	if err != nil {
-		log.Println("Fail to connect to " + "mon-intranet:10009 " + err.Error())
+		log.Println("Fail to connect to mon-intranet:10009 " + err.Error())
 		log.Println(err.Error())
 		os.Exit(-1)
 	}

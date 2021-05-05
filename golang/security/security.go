@@ -253,12 +253,12 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	pwd := "1111"
 
 	// use the temp dir to store the certificate in that case.
-	path := basePath + "/" + "config" + "/" + "tls"
+	path := basePath + "/config/tls"
 
 	// must have write access of file.
-	_, err = ioutil.ReadFile(path + "/" + address + "/" + "client.pem")
+	_, err = ioutil.ReadFile(path + "/" + address + "/client.pem")
 	if err != nil {
-		path = basePath + "/" + "config" + "/" + "tls"
+		path = basePath + "/config/tls"
 		err = nil
 	}
 
@@ -277,9 +277,9 @@ func getCredentialConfig(basePath string, address string, country string, state 
 			os.RemoveAll(creds)
 		} else {
 
-			keyPath = creds + "/" + "client.pem"
-			certPath = creds + "/" + "client.crt"
-			caPath = creds + "/" + "ca.crt"
+			keyPath = creds + "/client.pem"
+			certPath = creds + "/client.crt"
+			caPath = creds + "/ca.crt"
 			return
 		}
 	}
@@ -327,7 +327,7 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	}
 
 	// Step 3: Generate client signed certificate.
-	client_csr, err := ioutil.ReadFile(creds + "/" + "client.csr")
+	client_csr, err := ioutil.ReadFile(creds + "/client.csr")
 	if err != nil {
 		return "", "", "", err
 	}
@@ -353,9 +353,9 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	}
 
 	// set the credential paths.
-	keyPath = creds + "/" + "client.pem"
-	certPath = creds + "/" + "client.crt"
-	caPath = creds + "/" + "ca.crt"
+	keyPath = creds + "/client.pem"
+	certPath = creds + "/client.crt"
+	caPath = creds + "/ca.crt"
 
 	return
 }
@@ -364,7 +364,7 @@ func getCredentialConfig(basePath string, address string, country string, state 
 
 // Generate the Certificate Authority private key file (this shouldn't be shared in real life)
 func GenerateAuthorityPrivateKey(path string, pwd string) error {
-	if Utility.Exists(path + "/" + "ca.key") {
+	if Utility.Exists(path + "/ca.key") {
 		return nil
 	}
 
@@ -381,7 +381,7 @@ func GenerateAuthorityPrivateKey(path string, pwd string) error {
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/ca.key") {
 		if err == nil {
-			err = errors.New("fail to generate the Authority private key " + path+"/ca.key")
+			err = errors.New("fail to generate the Authority private key " + path + "/ca.key")
 		}
 		log.Println(err)
 		return err
@@ -391,7 +391,7 @@ func GenerateAuthorityPrivateKey(path string, pwd string) error {
 
 // Certificate Authority trust certificate (this should be shared whit users)
 func GenerateAuthorityTrustCertificate(path string, pwd string, expiration_delay int, domain string) error {
-	if Utility.Exists(path + "/" + "ca.crt") {
+	if Utility.Exists(path + "/ca.crt") {
 		return nil
 	}
 
@@ -414,7 +414,7 @@ func GenerateAuthorityTrustCertificate(path string, pwd string, expiration_delay
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/ca.crt") {
 		if err == nil {
-			err = errors.New("fail to generate the trust certificate " + path+"/ca.crt")
+			err = errors.New("fail to generate the trust certificate " + path + "/ca.crt")
 		}
 		log.Println(err)
 		return err
@@ -427,7 +427,7 @@ func GenerateAuthorityTrustCertificate(path string, pwd string, expiration_delay
 
 // Server private key, password protected (this shoudn't be shared)
 func GenerateSeverPrivateKey(path string, pwd string) error {
-	if Utility.Exists(path + "/" + "server.key") {
+	if Utility.Exists(path + "/server.key") {
 		return nil
 	}
 	cmd := "openssl"
@@ -443,7 +443,7 @@ func GenerateSeverPrivateKey(path string, pwd string) error {
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/server.key") {
 		if err == nil {
-			err = errors.New("fail to generate server private key " + path+"/server.key")
+			err = errors.New("fail to generate server private key " + path + "/server.key")
 		}
 		log.Println(err)
 		return err
@@ -453,7 +453,7 @@ func GenerateSeverPrivateKey(path string, pwd string) error {
 
 // Generate client private key and certificate.
 func GenerateClientPrivateKey(path string, pwd string) error {
-	if Utility.Exists(path + "/" + "client.key") {
+	if Utility.Exists(path + "/client.key") {
 		return nil
 	}
 
@@ -470,7 +470,7 @@ func GenerateClientPrivateKey(path string, pwd string) error {
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/client.pass.key") {
 		if err == nil {
-			err = errors.New("fail to generate client private key " + path+"/client.pass.key")
+			err = errors.New("fail to generate client private key " + path + "/client.pass.key")
 		}
 		log.Println(err)
 		return err
@@ -488,14 +488,14 @@ func GenerateClientPrivateKey(path string, pwd string) error {
 	err = exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/client.key") {
 		if err == nil {
-			err = errors.New("fail to generate client private key " + path+"/client.key")
+			err = errors.New("fail to generate client private key " + path + "/client.key")
 		}
 		log.Println(err)
 		return err
 	}
 
 	// Remove the file.
-	err = os.Remove(path + "/" + "client.pass.key")
+	err = os.Remove(path + "/client.pass.key")
 	if err != nil {
 		return errors.New("fail to remove intermediate key client.pass.key")
 	}
@@ -503,7 +503,7 @@ func GenerateClientPrivateKey(path string, pwd string) error {
 }
 
 func GenerateClientCertificateSigningRequest(path string, pwd string, domain string) error {
-	if Utility.Exists(path + "/" + "client.csr") {
+	if Utility.Exists(path + "/client.csr") {
 		return nil
 	}
 
@@ -524,7 +524,7 @@ func GenerateClientCertificateSigningRequest(path string, pwd string, domain str
 
 	if err != nil || !Utility.Exists(path+"/client.csr") {
 		if err == nil {
-			err = errors.New("fail to generate client certificate signing request " + path+"/client.key")
+			err = errors.New("fail to generate client certificate signing request " + path + "/client.key")
 		}
 		log.Println(err)
 		return err
@@ -535,7 +535,7 @@ func GenerateClientCertificateSigningRequest(path string, pwd string, domain str
 
 func GenerateSignedClientCertificate(path string, pwd string, expiration_delay int) error {
 
-	if Utility.Exists(path + "/" + "client.crt") {
+	if Utility.Exists(path + "/client.crt") {
 		return nil
 	}
 
@@ -565,7 +565,7 @@ func GenerateSignedClientCertificate(path string, pwd string, expiration_delay i
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/client.crt") {
 		if err == nil {
-			err = errors.New("fail to get the signed server certificate " + path+"/client.key")
+			err = errors.New("fail to get the signed server certificate " + path + "/client.key")
 		}
 		log.Println(err)
 		return err
@@ -621,7 +621,7 @@ subjectAltName = @alt_names
 // Server certificate signing request (this should be shared with the CA owner)
 func GenerateServerCertificateSigningRequest(path string, pwd string, domain string) error {
 
-	if Utility.Exists(path + "/" + "server.crs") {
+	if Utility.Exists(path + "/server.crs") {
 		return nil
 	}
 
@@ -643,7 +643,7 @@ func GenerateServerCertificateSigningRequest(path string, pwd string, domain str
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/server.csr") {
 		if err == nil {
-			err = errors.New("fail to generate server certificate signing request" + path+"/client.key")
+			err = errors.New("fail to generate server certificate signing request" + path + "/client.key")
 		}
 		log.Println(err)
 		return err
@@ -655,7 +655,7 @@ func GenerateServerCertificateSigningRequest(path string, pwd string, domain str
 // Server certificate signed by the CA (this would be sent back to the client by the CA owner)
 func GenerateSignedServerCertificate(path string, pwd string, expiration_delay int) error {
 
-	if Utility.Exists(path + "/" + "server.crt") {
+	if Utility.Exists(path + "/server.crt") {
 		return nil
 	}
 
@@ -685,7 +685,7 @@ func GenerateSignedServerCertificate(path string, pwd string, expiration_delay i
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/server.crt") {
 		if err == nil {
-			err = errors.New("fail to get the signed server certificate" + path+"/server.key")
+			err = errors.New("fail to get the signed server certificate" + path + "/server.key")
 		}
 		log.Println(err)
 		return err
@@ -716,7 +716,7 @@ func KeyToPem(name string, path string, pwd string) error {
 	err := exec.Command(cmd, args...).Run()
 	if err != nil || !Utility.Exists(path+"/"+name+".key") {
 		if err == nil {
-			err =  errors.New("Fail to generate " + name + ".pem key from " + name + ".key")
+			err = errors.New("Fail to generate " + name + ".pem key from " + name + ".key")
 		}
 		log.Println(err)
 		return err
@@ -731,7 +731,7 @@ func KeyToPem(name string, path string, pwd string) error {
  * Share ca.crt (needed by the client), server.csr (needed by the CA)
  */
 func GenerateServicesCertificates(pwd string, expiration_delay int, domain string, path string, country string, state string, city string, organization string, alternateDomains []interface{}) error {
-	if Utility.Exists(path + "/" + "client.crt") {
+	if Utility.Exists(path + "/client.crt") {
 		return nil // certificate are already created.
 	}
 

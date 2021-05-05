@@ -326,7 +326,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/admin.AdminService/InstallCertificates" ||
 		method == "/packages.PackageDiscovery/FindServices" ||
 		method == "/packages.PackageDiscovery/GetServiceDescriptor" ||
-		method == "/packages.PackageDiscovery/GetServicesDescriptor" ||
+		method == "/packages.PackageDiscovery/GetPackagesDescriptor" ||
+		method == "/packages.PackageDiscovery/GetPackageDescriptor" ||
 		method == "/rbac.RbacService/ValidateAction" ||
 		method == "/rbac.RbacService/ValidateAccess" ||
 		method == "/rbac.RbacService/GetResourcePermissions" ||
@@ -344,8 +345,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	if len(token) > 0 {
 		clientId, _, _, _, err = ValidateToken(token)
-		if err != nil {
-			log.Println("token validation fail with error: ", err)
+		if err != nil && !hasAccess {
+			log.Println("token validation fail with error: ", token, err)
 			return nil, err
 		}
 		if clientId == "sa" {
@@ -459,7 +460,8 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 
 	hasAccess := l.clientId == "sa" ||
 		l.method == "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo" ||
-		l.method == "/admin.adminService/DownloadGlobular"
+		l.method == "/admin.adminService/DownloadGlobular" ||
+		l.method == "/packages.PackageRepository/DownloadBundle"
 
 	if hasAccess {
 		return nil

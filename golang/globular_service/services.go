@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"path/filepath"
 
 	//	"fmt"
 	"io/ioutil"
@@ -19,12 +20,13 @@ import (
 	"os/signal"
 	"time"
 
+	"errors"
+	"runtime"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"errors"
-	"runtime"
 )
 
 // The client service interface.
@@ -164,8 +166,20 @@ func InitService(path string, s Service) error {
 		execPath = strings.ReplaceAll(execPath, "\\", "/")
 		s.SetPath(execPath)
 
-		path_ := execPath[0:strings.Index(execPath, "/globulario/services/")]
-		s.SetProto(path_ + "/globulario/services/" + s.GetProto())
+		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+		if err != nil {
+			return err
+		}
+
+		// Here I will try to find the proto file...
+		files, err := Utility.FindFileByName(dir, ".proto")
+
+		if err == nil && len(files) > 0 {
+			s.SetProto(files[0])
+		} else if strings.Contains(execPath, "/globulario/services/") {
+			path_ := execPath[0:strings.Index(execPath, "/globulario/services/")]
+			s.SetProto(path_ + "/globulario/services/" + s.GetProto())
+		}
 
 		// save the service configuation.
 		return SaveService(path, s)
