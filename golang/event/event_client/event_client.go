@@ -1,11 +1,12 @@
 package event_client
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 
-	//	"log"
+	"log"
 	"time"
 
 	"context"
@@ -99,13 +100,13 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
  * and the client. Local handler are kept in a map with a unique uuid, so many
  * handler can exist for a single event.
  */
-func (self *Event_Client) run() error {
+func (event_client *Event_Client) run() error {
 
 	// Create the channel.
 	data_channel := make(chan *eventpb.Event, 0)
 
 	// start listenting to events from the server...
-	err := self.onEvent(self.uuid, data_channel)
+	err := event_client.onEvent(event_client.uuid, data_channel)
 	if err != nil {
 		return err
 	}
@@ -118,13 +119,11 @@ func (self *Event_Client) run() error {
 		case evt := <-data_channel:
 			// So here I received an event, I will dispatch it to it function.
 			handlers_ := handlers[evt.Name]
-			if handlers_ != nil {
-				for _, fct := range handlers_ {
-					// Call the handler.
-					fct(evt)
-				}
+			for _, fct := range handlers_ {
+				// Call the handler.
+				fct(evt)
 			}
-		case action := <-self.actions:
+		case action := <-event_client.actions:
 			if action["action"].(string) == "subscribe" {
 				if handlers[action["name"].(string)] == nil {
 					handlers[action["name"].(string)] = make(map[string]func(*eventpb.Event))
@@ -145,113 +144,113 @@ func (self *Event_Client) run() error {
 	}
 }
 
-func (self *Event_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (event_client *Event_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(event_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(event_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *Event_Client) GetDomain() string {
-	return self.domain
+func (event_client *Event_Client) GetDomain() string {
+	return event_client.domain
 }
 
 // Return the address
-func (self *Event_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (event_client *Event_Client) GetAddress() string {
+	return event_client.domain + ":" + strconv.Itoa(event_client.port)
 }
 
 // Return the id of the service instance
-func (self *Event_Client) GetId() string {
-	return self.id
+func (event_client *Event_Client) GetId() string {
+	return event_client.id
 }
 
 // Return the name of the service
-func (self *Event_Client) GetName() string {
-	return self.name
+func (event_client *Event_Client) GetName() string {
+	return event_client.name
 }
 
 // must be close when no more needed.
-func (self *Event_Client) Close() {
-	self.cc.Close()
+func (event_client *Event_Client) Close() {
+	event_client.cc.Close()
 	action := make(map[string]interface{})
 	action["action"] = "stop"
 
 	// set the action.
-	self.actions <- action
+	event_client.actions <- action
 }
 
 // Set grpc_service port.
-func (self *Event_Client) SetPort(port int) {
-	self.port = port
+func (event_client *Event_Client) SetPort(port int) {
+	event_client.port = port
 }
 
 // Set the client instance id.
-func (self *Event_Client) SetId(id string) {
-	self.id = id
+func (event_client *Event_Client) SetId(id string) {
+	event_client.id = id
 }
 
 // Set the client name.
-func (self *Event_Client) SetName(name string) {
-	self.name = name
+func (event_client *Event_Client) SetName(name string) {
+	event_client.name = name
 }
 
 // Set the domain.
-func (self *Event_Client) SetDomain(domain string) {
-	self.domain = domain
+func (event_client *Event_Client) SetDomain(domain string) {
+	event_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Event_Client) HasTLS() bool {
-	return self.hasTLS
+func (event_client *Event_Client) HasTLS() bool {
+	return event_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Event_Client) GetCertFile() string {
-	return self.certFile
+func (event_client *Event_Client) GetCertFile() string {
+	return event_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Event_Client) GetKeyFile() string {
-	return self.keyFile
+func (event_client *Event_Client) GetKeyFile() string {
+	return event_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Event_Client) GetCaFile() string {
-	return self.caFile
+func (event_client *Event_Client) GetCaFile() string {
+	return event_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Event_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (event_client *Event_Client) SetTLS(hasTls bool) {
+	event_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Event_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (event_client *Event_Client) SetCertFile(certFile string) {
+	event_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Event_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (event_client *Event_Client) SetKeyFile(keyFile string) {
+	event_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Event_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (event_client *Event_Client) SetCaFile(caFile string) {
+	event_client.caFile = caFile
 }
 
 ///////////////////// API ///////////////////////
 // Stop the service.
-func (self *Event_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &eventpb.StopRequest{})
+func (event_client *Event_Client) StopService() {
+	event_client.c.Stop(globular.GetClientContext(event_client), &eventpb.StopRequest{})
 }
 
 // Publish and event over the network
-func (self *Event_Client) Publish(name string, data interface{}) error {
+func (event_client *Event_Client) Publish(name string, data interface{}) error {
 	rqst := &eventpb.PublishRequest{
 		Evt: &eventpb.Event{
 			Name: name,
@@ -259,7 +258,7 @@ func (self *Event_Client) Publish(name string, data interface{}) error {
 		},
 	}
 
-	_, err := self.c.Publish(globular.GetClientContext(self), rqst)
+	_, err := event_client.c.Publish(globular.GetClientContext(event_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -267,13 +266,13 @@ func (self *Event_Client) Publish(name string, data interface{}) error {
 	return nil
 }
 
-func (self *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event) error {
+func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event) error {
 
 	rqst := &eventpb.OnEventRequest{
 		Uuid: uuid,
 	}
 
-	stream, err := self.c.OnEvent(globular.GetClientContext(self), rqst)
+	stream, err := event_client.c.OnEvent(globular.GetClientContext(event_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -299,15 +298,38 @@ func (self *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event)
 	return nil
 }
 
-// Subscribe to an event it return it subscriber uuid. The uuid must be use
-// to unsubscribe from the channel. data_channel is use to get event data.
-func (self *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
-	rqst := &eventpb.SubscribeRequest{
-		Name: name,
-		Uuid: self.uuid,
+/**
+ * Maximize chance to connect with the event server...
+ **/
+func (event_client *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
+	registered := false
+	for nbTry := 5; !registered && nbTry > 0; nbTry-- {
+		err := event_client.subscribe(name, uuid, fct)
+		if err == nil {
+			log.Println("subscription to ", name, " succeed!")
+			registered = true
+		} else {
+			nbTry--
+			time.Sleep(2 * time.Second)
+		}
 	}
 
-	_, err := self.c.Subscribe(globular.GetClientContext(self), rqst)
+	if !registered {
+		return errors.New("fail to subscribe to " + name)
+	}
+
+	return nil
+}
+
+// Subscribe to an event it return it subscriber uuid. The uuid must be use
+// to unsubscribe from the channel. data_channel is use to get event data.
+func (event_client *Event_Client) subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
+	rqst := &eventpb.SubscribeRequest{
+		Name: name,
+		Uuid: event_client.uuid,
+	}
+
+	_, err := event_client.c.Subscribe(globular.GetClientContext(event_client), rqst)
 	if err != nil {
 		fmt.Println("fail to subscribe to event name ", name, err)
 		return err
@@ -320,21 +342,21 @@ func (self *Event_Client) Subscribe(name string, uuid string, fct func(evt *even
 	action["fct"] = fct
 
 	// set the action.
-	self.actions <- action
+	event_client.actions <- action
 
 	return nil
 }
 
 // Exit event channel.
-func (self *Event_Client) UnSubscribe(name string, uuid string) error {
+func (event_client *Event_Client) UnSubscribe(name string, uuid string) error {
 
 	// Unsubscribe from the event channel.
 	rqst := &eventpb.UnSubscribeRequest{
 		Name: name,
-		Uuid: self.uuid,
+		Uuid: event_client.uuid,
 	}
 
-	_, err := self.c.UnSubscribe(globular.GetClientContext(self), rqst)
+	_, err := event_client.c.UnSubscribe(globular.GetClientContext(event_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -345,6 +367,7 @@ func (self *Event_Client) UnSubscribe(name string, uuid string) error {
 	action["name"] = name
 
 	// set the action.
-	self.actions <- action
+	event_client.actions <- action
+
 	return nil
 }
