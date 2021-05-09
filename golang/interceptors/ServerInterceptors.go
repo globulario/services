@@ -460,10 +460,11 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 
 	hasAccess := l.clientId == "sa" ||
 		l.method == "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo" ||
-		l.method == "/admin.adminService/DownloadGlobular" ||
+		l.method == "/admin.AdminService/DownloadGlobular" ||
 		l.method == "/packages.PackageRepository/DownloadBundle"
 
 	if hasAccess {
+		//log.Println("has access ", l.method )
 		return nil
 	}
 
@@ -528,10 +529,10 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	peer_, _ := peer.FromContext(stream.Context())
 	address := peer_.Addr.String()
 	address = address[0:strings.Index(address, ":")]
-
 	if len(token) > 0 {
 		clientId, _, _, _, err = ValidateToken(token)
 		if err != nil {
+			log.Println("---------------> 535 ", err)
 			return err
 		}
 	}
@@ -541,9 +542,11 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		serverName := Utility.GetProperty(srv, "Name").(string)
 		serverDomain := Utility.GetProperty(srv, "Domain").(string)
 		serverPort := int32(Utility.GetProperty(srv, "Port").(int))
+
 		// Set load balancing informations.
 		lb_client, err := getLoadBalancingClient(domain, serverId, serverName, serverDomain, serverPort)
 		if err != nil {
+			log.Println("---------------> 549 ", err)
 			return err
 		}
 
@@ -581,6 +584,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	getCache().RemoveItem(uuid)
 
 	if err != nil {
+		log.Println("---------------> 585 ", err)
 		return err
 	}
 

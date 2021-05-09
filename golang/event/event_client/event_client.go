@@ -3,7 +3,6 @@ package event_client
 import (
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 
 	"log"
@@ -54,6 +53,9 @@ type Event_Client struct {
 
 	// The event channel.
 	actions chan map[string]interface{}
+
+	// Return true if the client is connected.
+	isConnected bool
 }
 
 // Create a connection to the service.
@@ -80,17 +82,15 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 	// It will wait 5 second and try it again.
 	nb_try_connect := 15
 
-	go func() {
-		for nb_try_connect > 0 {
-			err := client.run()
-			if err != nil && nb_try_connect == 0 {
-				fmt.Println("78 Fail to create event client: ", id, err)
-				break // exit loop.
-			}
-			time.Sleep(5 * time.Second) // wait five seconds.
-			nb_try_connect--
+	for nb_try_connect > 0 {
+		err := client.run()
+		if err != nil && nb_try_connect == 0 {
+			fmt.Println("78 Fail to create event client: ", id, err)
+			return nil, err
 		}
-	}()
+		time.Sleep(250 * time.Millisecond) // wait five seconds.
+		nb_try_connect--
+	}
 
 	return client, nil
 }
@@ -138,10 +138,26 @@ func (event_client *Event_Client) run() error {
 					}
 				}
 			} else if action["action"].(string) == "stop" {
-				return nil
+				log.Println("close client event processing loop")
+				// Try to unsubscibe...
+				for name, _ := range handlers {
+					// Here I will unsubscribe to all event...
+					rqst := &eventpb.UnSubscribeRequest{
+						Name: name,
+						Uuid: event_client.uuid,
+					}
+					_, err := event_client.c.UnSubscribe(globular.GetClientContext(event_client), rqst)
+					if err != nil {
+						log.Println(err)
+					}
+				}
+
+				event_client.isConnected = false;
+				break
 			}
 		}
 	}
+
 }
 
 func (event_client *Event_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -173,10 +189,16 @@ func (event_client *Event_Client) GetName() string {
 
 // must be close when no more needed.
 func (event_client *Event_Client) Close() {
+
+	// nothing to do if the client is not connected.
+	if !event_client.isConnected {
+		return 
+	}
+	
 	event_client.cc.Close()
+	
 	action := make(map[string]interface{})
 	action["action"] = "stop"
-
 	// set the action.
 	event_client.actions <- action
 }
@@ -277,25 +299,25 @@ func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventp
 		return err
 	}
 
+	event_client.isConnected = true;
+
 	// Run in it own goroutine.
 	go func() {
 		for {
 			msg, err := stream.Recv()
-			if err == io.EOF {
+			if err != nil && event_client.isConnected{
 				// end of stream...
-				break
-			}
-			if err != nil {
-				break
+				event_client.Close()
 			}
 
 			// Get the result...
 			data_channel <- msg.Evt
 		}
+
 	}()
 
 	// Wait for subscriber uuid and return it to the function caller.
-	return nil
+	return stream.CloseSend()
 }
 
 /**
@@ -303,6 +325,7 @@ func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventp
  **/
 func (event_client *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
 	registered := false
+
 	for nbTry := 5; !registered && nbTry > 0; nbTry-- {
 		err := event_client.subscribe(name, uuid, fct)
 		if err == nil {
@@ -331,7 +354,6 @@ func (event_client *Event_Client) subscribe(name string, uuid string, fct func(e
 
 	_, err := event_client.c.Subscribe(globular.GetClientContext(event_client), rqst)
 	if err != nil {
-		fmt.Println("fail to subscribe to event name ", name, err)
 		return err
 	}
 

@@ -2,14 +2,15 @@ package event_client
 
 import (
 	"log"
-	"strconv"
+	//	"strconv"
 	"testing"
-	"time"
+	//	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/event/eventpb"
 )
 
+/*
 func subscribeTo(client *Event_Client, subject string) string {
 	fct := func(evt *eventpb.Event) {
 		log.Println("---> event received: ", string(evt.Data))
@@ -22,11 +23,11 @@ func subscribeTo(client *Event_Client, subject string) string {
 	}
 	return uuid
 }
-
+*/
 /**
  * Test event
  */
-
+/*
 func _TestEventService(t *testing.T) {
 	log.Println("Test event service")
 	domain := "globular.live"
@@ -58,16 +59,32 @@ func _TestEventService(t *testing.T) {
 		clients[i].UnSubscribe(subject, uuids[i])
 	}
 
+}*/
+
+func subscribeTo(client *Event_Client) string {
+	fct := func(evt *eventpb.Event) {
+		log.Println("---> event received: ", string(evt.Data))
+	}
+
+	uuid := Utility.RandomUUID()
+	err := client.Subscribe("update_globular_event", uuid, fct)
+	if err != nil {
+		log.Println("---> err", err)
+	}
+	return uuid
 }
 
 func TestPublishEvent(t *testing.T) {
+
 	log.Println("test event service.")
-	c, err := NewEventService_Client("localhost", "event.EventService")
+	c, err := NewEventService_Client("globular.io", "event.EventService")
 	if err != nil {
 		log.Println("fail to connect to event service ", err)
 	}
 
+	subscribeTo(c)
+
 	// Here I will publish a simple string...
 
-	c.Publish("on_echo_event", []byte("This is a simple test!"))
+	c.Publish("update_globular_event", []byte("---->"))
 }

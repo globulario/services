@@ -11,9 +11,9 @@ import (
 	"log"
 	"runtime"
 
+	"github.com/polds/imgbase64"
 	"path/filepath"
 	"strings"
-	"github.com/polds/imgbase64"
 
 	//	"log"
 	"os"
@@ -230,7 +230,7 @@ func (admin_client *Admin_Client) StopService(id string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -381,7 +381,6 @@ func (admin_client *Admin_Client) UploadServicePackage(user string, organization
 	}
 	defer packageFile.Close()
 
-	
 	// Now I will create the request to upload the package on the server.
 	// Open the stream...
 	stream, err := admin_client.c.UploadServicePackage(ctx)
@@ -419,7 +418,7 @@ func (admin_client *Admin_Client) UploadServicePackage(user string, organization
 		}
 
 	}
-	
+
 	// get the file path on the server where the package is store before being
 	// publish.
 	rsp, err := stream.CloseAndRecv()
@@ -468,40 +467,43 @@ func (admin_client *Admin_Client) PublishService(user, organization, token, doma
 	}
 
 	if s["Discoveries"] == nil {
-		s["Discoveries"] = []interface{}{"localhost"}
+		return errors.New("no discovery was set on that server")
 	}
+
 	discoveries := s["Discoveries"].([]interface{})
-	if len(discoveries) == 0 {
-		discoveries = []interface{}{"localhost"}
-	}
+	
+	for i := 0; i < len(discoveries); i++ {
+		rqst := new(adminpb.PublishServiceRequest)
+		rqst.Path = path
+		rqst.User = user
+		rqst.Organization = organization
+		rqst.Description = s["Description"].(string)
+		rqst.DicorveryId = discoveries[i].(string)
+		rqst.RepositoryId = repositories[0].(string)
+		rqst.Keywords = keywords
+		rqst.Version = s["Version"].(string)
+		rqst.ServiceId = s["Id"].(string)
+		rqst.ServiceName = s["Name"].(string)
+		rqst.Platform = platform
 
-	rqst := new(adminpb.PublishServiceRequest)
-	rqst.Path = path
-	rqst.User = user
-	rqst.Organization = organization
-	rqst.Description = s["Description"].(string)
-	rqst.DicorveryId = discoveries[0].(string)
-	rqst.RepositoryId = repositories[0].(string)
-	rqst.Keywords = keywords
-	rqst.Version = s["Version"].(string)
-	rqst.ServiceId = s["Id"].(string)
-	rqst.ServiceName = s["Name"].(string)
-	rqst.Platform = platform
+		// Set the token into the context and send the request.
+		ctx := globular.GetClientContext(admin_client)
+		if len(token) > 0 {
+			md, _ := metadata.FromOutgoingContext(ctx)
 
-	// Set the token into the context and send the request.
-	ctx := globular.GetClientContext(admin_client)
-	if len(token) > 0 {
-		md, _ := metadata.FromOutgoingContext(ctx)
-
-		if len(md.Get("token")) != 0 {
-			md.Set("token", token)
+			if len(md.Get("token")) != 0 {
+				md.Set("token", token)
+			}
+			ctx = metadata.NewOutgoingContext(context.Background(), md)
 		}
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+
+		_, err = admin_client.c.PublishService(ctx, rqst)
+		if err != nil {
+			log.Println("fail to publish service at ", discoveries[i] , err)
+		}
 	}
 
-	_, err = admin_client.c.PublishService(ctx, rqst)
-
-	return err
+	return nil
 }
 
 /**
@@ -510,9 +512,9 @@ func (admin_client *Admin_Client) PublishService(user, organization, token, doma
 func (admin_client *Admin_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
 
 	log.Println("Install service", serviceId, "publisherId", publisherId, "discovery", discoveryId, "on", domain)
-	log.Println("token: ", token);
+	log.Println("token: ", token)
 
-	rqst := new(adminpb.InstallServiceRequest, )
+	rqst := new(adminpb.InstallServiceRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
@@ -711,6 +713,7 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
 			// end of stream...
 			break
 		}
+		
 		if err != nil {
 			return err
 		}
@@ -737,7 +740,7 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
  */
 func (admin_client *Admin_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
 	log.Println("deploy application ", name)
-	
+
 	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
@@ -835,7 +838,6 @@ func (admin_client *Admin_Client) DeployApplication(user string, name string, or
 
 	var icon string
 
-
 	// Now the icon...
 	if packageConfig["icon"] != nil {
 		// The image icon.
@@ -894,7 +896,9 @@ func (admin_client *Admin_Client) DeployApplication(user string, name string, or
 			}
 			// send the data to the server.
 			err = stream.Send(rqst)
-			if err != nil {
+			if err == io.EOF {
+				break
+			} else if err != nil {
 				return -1, err
 			}
 		}
