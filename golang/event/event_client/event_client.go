@@ -82,15 +82,17 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 	// It will wait 5 second and try it again.
 	nb_try_connect := 15
 
-	for nb_try_connect > 0 {
-		err := client.run()
-		if err != nil && nb_try_connect == 0 {
-			fmt.Println("78 Fail to create event client: ", id, err)
-			return nil, err
+	go func() {
+		for nb_try_connect > 0 {
+			err := client.run()
+			if err != nil && nb_try_connect == 0 {
+				fmt.Println("Fail to create event client: ", address, id, err)
+				return;
+			}
+			time.Sleep(250 * time.Millisecond) // wait five seconds.
+			nb_try_connect--
 		}
-		time.Sleep(250 * time.Millisecond) // wait five seconds.
-		nb_try_connect--
-	}
+	}()
 
 	return client, nil
 }
@@ -138,20 +140,6 @@ func (event_client *Event_Client) run() error {
 					}
 				}
 			} else if action["action"].(string) == "stop" {
-				log.Println("close client event processing loop")
-				// Try to unsubscibe...
-				for name, _ := range handlers {
-					// Here I will unsubscribe to all event...
-					rqst := &eventpb.UnSubscribeRequest{
-						Name: name,
-						Uuid: event_client.uuid,
-					}
-					_, err := event_client.c.UnSubscribe(globular.GetClientContext(event_client), rqst)
-					if err != nil {
-						log.Println(err)
-					}
-				}
-
 				event_client.isConnected = false;
 				break
 			}
@@ -305,9 +293,11 @@ func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventp
 	go func() {
 		for {
 			msg, err := stream.Recv()
-			if err != nil && event_client.isConnected{
+			if err != nil || !event_client.isConnected || msg == nil{
 				// end of stream...
 				event_client.Close()
+				stream.CloseSend();
+				return 
 			}
 
 			// Get the result...
@@ -317,7 +307,7 @@ func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventp
 	}()
 
 	// Wait for subscriber uuid and return it to the function caller.
-	return stream.CloseSend()
+	return nil
 }
 
 /**
