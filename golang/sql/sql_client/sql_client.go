@@ -60,107 +60,107 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 	return client, nil
 }
 
-func (self *SQL_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (sql_client *SQL_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(sql_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(sql_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *SQL_Client) GetDomain() string {
-	return self.domain
+func (sql_client *SQL_Client) GetDomain() string {
+	return sql_client.domain
 }
 
 // Return the address
-func (self *SQL_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (sql_client *SQL_Client) GetAddress() string {
+	return sql_client.domain + ":" + strconv.Itoa(sql_client.port)
 }
 
 // Return the id of the service instance
-func (self *SQL_Client) GetId() string {
-	return self.id
+func (sql_client *SQL_Client) GetId() string {
+	return sql_client.id
 }
 
 // Return the name of the service
-func (self *SQL_Client) GetName() string {
-	return self.name
+func (sql_client *SQL_Client) GetName() string {
+	return sql_client.name
 }
 
 // must be close when no more needed.
-func (self *SQL_Client) Close() {
-	self.cc.Close()
+func (sql_client *SQL_Client) Close() {
+	sql_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *SQL_Client) SetPort(port int) {
-	self.port = port
+func (sql_client *SQL_Client) SetPort(port int) {
+	sql_client.port = port
 }
 
 // Set the client name.
-func (self *SQL_Client) SetName(name string) {
-	self.name = name
+func (sql_client *SQL_Client) SetName(name string) {
+	sql_client.name = name
 }
 
 // Set the client service instance id.
-func (self *SQL_Client) SetId(id string) {
-	self.id = id
+func (sql_client *SQL_Client) SetId(id string) {
+	sql_client.id = id
 }
 
 // Set the domain.
-func (self *SQL_Client) SetDomain(domain string) {
-	self.domain = domain
+func (sql_client *SQL_Client) SetDomain(domain string) {
+	sql_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *SQL_Client) HasTLS() bool {
-	return self.hasTLS
+func (sql_client *SQL_Client) HasTLS() bool {
+	return sql_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *SQL_Client) GetCertFile() string {
-	return self.certFile
+func (sql_client *SQL_Client) GetCertFile() string {
+	return sql_client.certFile
 }
 
 // Get the TLS key file path
-func (self *SQL_Client) GetKeyFile() string {
-	return self.keyFile
+func (sql_client *SQL_Client) GetKeyFile() string {
+	return sql_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *SQL_Client) GetCaFile() string {
-	return self.caFile
+func (sql_client *SQL_Client) GetCaFile() string {
+	return sql_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *SQL_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (sql_client *SQL_Client) SetTLS(hasTls bool) {
+	sql_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *SQL_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (sql_client *SQL_Client) SetCertFile(certFile string) {
+	sql_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *SQL_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (sql_client *SQL_Client) SetKeyFile(keyFile string) {
+	sql_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *SQL_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (sql_client *SQL_Client) SetCaFile(caFile string) {
+	sql_client.caFile = caFile
 }
 
 ////////////////////////// API ////////////////////////////
 // Stop the service.
-func (self *SQL_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &sqlpb.StopRequest{})
+func (sql_client *SQL_Client) StopService() {
+	sql_client.c.Stop(globular.GetClientContext(sql_client), &sqlpb.StopRequest{})
 }
 
-func (self *SQL_Client) CreateConnection(connectionId string, name string, driver string, user string, password string, host string, port int32, charset string) error {
+func (sql_client *SQL_Client) CreateConnection(connectionId string, name string, driver string, user string, password string, host string, port int32, charset string) error {
 	// Create a new connection
 	rqst := &sqlpb.CreateConnectionRqst{
 		Connection: &sqlpb.Connection{
@@ -175,31 +175,31 @@ func (self *SQL_Client) CreateConnection(connectionId string, name string, drive
 		},
 	}
 
-	_, err := self.c.CreateConnection(globular.GetClientContext(self), rqst)
+	_, err := sql_client.c.CreateConnection(globular.GetClientContext(sql_client), rqst)
 
 	return err
 }
 
-func (self *SQL_Client) DeleteConnection(connectionId string) error {
+func (sql_client *SQL_Client) DeleteConnection(connectionId string) error {
 
 	rqst := &sqlpb.DeleteConnectionRqst{
 		Id: connectionId,
 	}
 
-	_, err := self.c.DeleteConnection(globular.GetClientContext(self), rqst)
+	_, err := sql_client.c.DeleteConnection(globular.GetClientContext(sql_client), rqst)
 
 	return err
 }
 
 // Test if a connection is found
-func (self *SQL_Client) Ping(connectionId interface{}) (string, error) {
+func (sql_client *SQL_Client) Ping(connectionId interface{}) (string, error) {
 
 	// Here I will try to ping a non-existing connection.
 	rqst := &sqlpb.PingConnectionRqst{
 		Id: Utility.ToString(connectionId),
 	}
 
-	rsp, err := self.c.Ping(globular.GetClientContext(self), rqst)
+	rsp, err := sql_client.c.Ping(globular.GetClientContext(sql_client), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -208,7 +208,7 @@ func (self *SQL_Client) Ping(connectionId interface{}) (string, error) {
 }
 
 // That function return the json string with all element in it.
-func (self *SQL_Client) QueryContext(connectionId string, query string, parameters string) (string, error) {
+func (sql_client *SQL_Client) QueryContext(connectionId string, query string, parameters string) (string, error) {
 
 	// The query and all it parameters.
 	rqst := &sqlpb.QueryContextRqst{
@@ -220,14 +220,14 @@ func (self *SQL_Client) QueryContext(connectionId string, query string, paramete
 	}
 
 	// Because number of values can be high I will use a stream.
-	stream, err := self.c.QueryContext(globular.GetClientContext(self), rqst)
+	stream, err := sql_client.c.QueryContext(globular.GetClientContext(sql_client), rqst)
 	if err != nil {
 		return "", err
 	}
 
 	// Here I will create the final array
 	data := make([]interface{}, 0)
-	header := make([]map[string]interface{})
+	header := make([]map[string]interface{}, 0)
 
 	for {
 		msg, err := stream.Recv()
@@ -259,7 +259,7 @@ func (self *SQL_Client) QueryContext(connectionId string, query string, paramete
 	return string(resultStr), nil
 }
 
-func (self *SQL_Client) ExecContext(connectionId interface{}, query interface{}, parameters string, tx interface{}) (string, error) {
+func (sql_client *SQL_Client) ExecContext(connectionId interface{}, query interface{}, parameters string, tx interface{}) (string, error) {
 
 	if tx == nil {
 		tx = false
@@ -274,7 +274,7 @@ func (self *SQL_Client) ExecContext(connectionId interface{}, query interface{},
 		Tx: Utility.ToBool(tx),
 	}
 
-	rsp, err := self.c.ExecContext(globular.GetClientContext(self), rqst)
+	rsp, err := sql_client.c.ExecContext(globular.GetClientContext(sql_client), rqst)
 	if err != nil {
 		return "", err
 	}
