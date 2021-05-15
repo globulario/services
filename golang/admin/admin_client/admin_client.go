@@ -528,6 +528,11 @@ func (admin_client *Admin_Client) InstallService(token string, domain string, us
 	}
 
 	_, err := admin_client.c.InstallService(ctx, rqst)
+	
+	// Fail to install service.
+	if err != nil {
+		log.Println("fail to install service with error ", err.Error())
+	}
 
 	return err
 }
