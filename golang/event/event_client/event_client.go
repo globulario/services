@@ -78,10 +78,9 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 	// The channel where data will be exchange.
 	client.actions = make(chan map[string]interface{})
 
-	// Open a connection with the server. In case the server is not ready
+	// Open a connection with the server. In case the server is not readyz
 	// It will wait 5 second and try it again.
-	nb_try_connect := 15
-
+	nb_try_connect := 10
 	go func() {
 		for nb_try_connect > 0 {
 			err := client.run()
@@ -89,7 +88,7 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 				fmt.Println("Fail to create event client: ", address, id, err)
 				return;
 			}
-			time.Sleep(250 * time.Millisecond) // wait five seconds.
+			time.Sleep(500 * time.Millisecond) // wait five seconds.
 			nb_try_connect--
 		}
 	}()
