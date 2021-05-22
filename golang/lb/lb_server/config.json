@@ -1,0 +1,30 @@
+{
+  "Id": "eaf6f679-093d-460c-b187-c95eb263a940",
+  "Name": "lb.LoadBalancingService",
+  "Domain": "localhost",
+  "Path": "/home/dave/go/src/github.com/globulario/services/golang/lb/lb_server/lb_server",
+  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/lb.proto",
+  "Port": 10029,
+  "Proxy": 10030,
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "Protocol": "grpc",
+  "Version": "0.0.1",
+  "PublisherId": "globulario",
+  "KeepUpToDate": false,
+  "KeepAlive": false,
+  "Description": "The Hello world of gRPC service!",
+  "Keywords": [
+    "Example",
+    "Echo",
+    "Test",
+    "Service"
+  ],
+  "Repositories": [],
+  "Discoveries": [],
+  "TLS": false,
+  "CertFile": "",
+  "KeyFile": "",
+  "CertAuthorityTrust": "",
+  "Permissions": []
+}

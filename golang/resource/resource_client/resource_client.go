@@ -1,18 +1,9 @@
 package resource_client
 
 import (
-	//"bytes"
 	"context"
 	"io"
-	"io/ioutil"
-	"os"
 	"strconv"
-
-	//	"time"
-
-	//"log"
-
-	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
@@ -168,53 +159,6 @@ func (resource_client *Resource_Client) SetCaFile(caFile string) {
 
 ////////////// API ////////////////
 
-// Authenticate a user.
-func (resource_client *Resource_Client) Authenticate(name string, password string) (string, error) {
-	// In case of other domain than localhost I will rip off the token file
-	// before each authentication.
-
-	path := os.TempDir() + string(os.PathSeparator) + resource_client.GetDomain() + "_token"
-	if !Utility.IsLocal(resource_client.GetDomain()) {
-		// remove the file if it already exist.
-		os.Remove(path)
-	}
-
-	rqst := &resourcepb.AuthenticateRqst{
-		Name:     name,
-		Password: password,
-	}
-
-	rsp, err := resource_client.c.Authenticate(globular.GetClientContext(resource_client), rqst)
-	if err != nil {
-		return "", err
-	}
-
-	// Here I will save the token into the temporary directory the token will be valid for a given time (default is 15 minutes)
-	// it's the responsability of the client to keep it refresh... see Refresh token from the server...
-	if !Utility.IsLocal(resource_client.GetDomain()) {
-		err = ioutil.WriteFile(path, []byte(rsp.Token), 0644)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return rsp.Token, nil
-}
-
-/**
- *  Generate a new token from expired one.
- */
-func (resource_client *Resource_Client) RefreshToken(token string) (string, error) {
-	rqst := new(resourcepb.RefreshTokenRqst)
-	rqst.Token = token
-
-	rsp, err := resource_client.c.RefreshToken(globular.GetClientContext(resource_client), rqst)
-	if err != nil {
-		return "", err
-	}
-
-	return rsp.Token, nil
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Organisation

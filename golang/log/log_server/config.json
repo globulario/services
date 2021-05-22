@@ -1,0 +1,31 @@
+{
+  "Id": "8db2eeb4-c192-4013-871a-8a749ececd58",
+  "Name": "log.LogService",
+  "Domain": "localhost",
+  "Path": "/home/dave/go/src/github.com/globulario/services/golang/log/log_server/log_server",
+  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/log.proto",
+  "Port": 10029,
+  "Proxy": 10030,
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "Protocol": "grpc",
+  "Version": "0.0.1",
+  "PublisherId": "globulario",
+  "KeepUpToDate": false,
+  "KeepAlive": false,
+  "Description": "The Hello world of gRPC service!",
+  "Keywords": [
+    "Example",
+    "Echo",
+    "Test",
+    "Service"
+  ],
+  "Repositories": [],
+  "Discoveries": [],
+  "TLS": false,
+  "CertFile": "",
+  "KeyFile": "",
+  "CertAuthorityTrust": "",
+  "Permissions": [],
+  "Root": ""
+}

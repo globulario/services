@@ -1,0 +1,502 @@
+
+// Authenticate a user.
+func (resource_client *Resource_Client) Authenticate(name string, password string) (string, error) {
+	// In case of other domain than localhost I will rip off the token file
+	// before each authentication.
+
+	path := os.TempDir() + string(os.PathSeparator) + resource_client.GetDomain() + "_token"
+	if !Utility.IsLocal(resource_client.GetDomain()) {
+		// remove the file if it already exist.
+		os.Remove(path)
+	}
+
+	rqst := &resourcepb.AuthenticateRqst{
+		Name:     name,
+		Password: password,
+	}
+
+	rsp, err := resource_client.c.Authenticate(globular.GetClientContext(resource_client), rqst)
+	if err != nil {
+		return "", err
+	}
+
+	// Here I will save the token into the temporary directory the token will be valid for a given time (default is 15 minutes)
+	// it's the responsability of the client to keep it refresh... see Refresh token from the server...
+	if !Utility.IsLocal(resource_client.GetDomain()) {
+		err = ioutil.WriteFile(path, []byte(rsp.Token), 0644)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return rsp.Token, nil
+}
+
+/**
+ *  Generate a new token from expired one.
+ */
+func (resource_client *Resource_Client) RefreshToken(token string) (string, error) {
+	rqst := new(resourcepb.RefreshTokenRqst)
+	rqst.Token = token
+
+	rsp, err := resource_client.c.RefreshToken(globular.GetClientContext(resource_client), rqst)
+	if err != nil {
+		return "", err
+	}
+
+	return rsp.Token, nil
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///////////////////////////////////////////////////////////// SERVER... ////////////////////////////////////////////////////////
+
+//* Authenticate a account by it name or email.
+// That function test if the password is the correct one for a given user
+// if it is a token is generate and that token will be use by other service
+// to validate permission over the requested resourcepb.
+func (resource_server *server) Authenticate(ctx context.Context, rqst *resourcepb.AuthenticateRqst) (*resourcepb.AuthenticateRsp, error) {
+
+	// Get the persistence connection
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	// in case of sa user.(admin)
+	if rqst.Password == resource_server.Backend_user && rqst.Name == "sa" {
+		// Generate a token to identify the user.
+		tokenString, err := interceptors.GenerateToken(resource_server.jwtKey, resource_server.SessionTimeout, "sa", "sa", "")
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		id, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
+		err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Tokens", `{"_id":"`+id+`"}`, `{"_id":"`+id+`","expireAt":`+Utility.ToString(expireAt)+`}`, `[{"upsert":true}]`)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		/** Return the token only **/
+		return &resourcepb.AuthenticateRsp{
+			Token: tokenString,
+		}, nil
+	}
+
+	values, _ := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", `{"name":"`+rqst.Name+`"}`, "")
+	if len(values) == 0 {
+		values, err = p.Find(context.Background(), "local_resource", "local_resource", "Accounts", `{"email":"`+rqst.Name+`"}`, "")
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if len(values) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No account found for entry "+rqst.Name)))
+	}
+
+	/* TODO Fix the authentication service here...
+	if values[0].(map[string]interface{})["password"].(string) != Utility.GenerateUUID(rqst.Password) {
+
+		ldap_, err := resource_server.getLdapClient()
+		if err != nil {
+			return nil, err
+		}
+
+		// Here I will try to made use of ldap if there is a service configure.ldap
+		err = ldap_.Authenticate("", values[0].(map[string]interface{})["name"].(string), rqst.Password)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// Set the password whit
+		err = resource_server.setPassword(values[0].(map[string]interface{})["_id"].(string), values[0].(map[string]interface{})["password"].(string), rqst.Password)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+	*/
+	user := values[0].(map[string]interface{})["_id"].(string)
+	// Generate a token to identify the user.
+	tokenString, err := interceptors.GenerateToken(resource_server.jwtKey, resource_server.SessionTimeout, user, values[0].(map[string]interface{})["name"].(string), values[0].(map[string]interface{})["email"].(string))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	/**
+	// Create the user file directory.
+
+	path := "/users/" + values[0].(map[string]interface{})["name"].(string)
+	Utility.CreateDirIfNotExist(resource_server.data + "/files" + path)
+
+	resource_server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
+
+	name_ := values[0].(map[string]interface{})["name"].(string)
+	name_ = strings.ReplaceAll(strings.ReplaceAll(name_, ".", "_"), "@", "_")
+
+	p_, err := resource_server.getPersistenceSaConnection()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Open the user database connection.
+	address, port := resource_server.getBackendAddress()
+	err = p_.CreateConnection(name_+"_db", name_+"_db", address, float64(port), 0, name_, rqst.Password, 5000, "", false)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no persistence service are available to store resource information")))
+	}
+	*/
+
+	// save the newly create token into the database.
+	id, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Tokens", `{"_id":"`+id+`"}`, `{"_id":"`+id+`","expireAt":`+Utility.ToString(expireAt)+`}`, `[{"upsert":true}]`)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// save the token for the default session time.
+	//resource_server.setTokenByAddress(ctx, tokenString)
+
+	// Here I got the token I will now put it in the cache.
+	return &resourcepb.AuthenticateRsp{
+		Token: tokenString,
+	}, nil
+}
+
+/**
+ * Refresh token get a new token.
+ */
+func (resource_server *server) RefreshToken(ctx context.Context, rqst *resourcepb.RefreshTokenRqst) (*resourcepb.RefreshTokenRsp, error) {
+
+	// That service made user of persistence service.
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	// first of all I will validate the current token.
+	id, name, email, expireAt, err := interceptors.ValidateToken(rqst.Token)
+
+	if err != nil {
+		if !strings.HasPrefix(err.Error(), "token is expired") {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// If the token is older than seven day without being refresh then I retrun an error.
+	if time.Unix(expireAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
+	}
+
+	// Here I will test if a newer token exist for that user if it's the case
+	// I will not refresh that token.
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Tokens", `{"_id":"`+id+`"}`, `[{"Projection":{"expireAt":1}}]`)
+	if err == nil && values != nil {
+		lastTokenInfo := values.(map[string]interface{})
+		savedTokenExpireAt := time.Unix(int64(lastTokenInfo["expireAt"].(int32)), 0)
+		log.Println("already existing token expire at ", savedTokenExpireAt.String())
+		log.Println("newly created token expire at ", time.Unix(expireAt, 0).String())
+		// That mean a newer token was already refresh.
+		if time.Unix(expireAt, 0).Before(savedTokenExpireAt) {
+			err := errors.New("that token cannot not be refresh because a newer one already exist. You need to re-authenticate in order to get a new token")
+			log.Println(err)
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	tokenString, err := interceptors.GenerateToken(resource_server.jwtKey, resource_server.SessionTimeout, id, name, email)
+	if err != nil {
+		log.Println(err)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// get back the new expireAt
+	id, name, _, expireAt, _ = interceptors.ValidateToken(tokenString)
+
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Tokens", `{"_id":"`+id+`"}`, `{"_id":"`+id+`","expireAt":`+Utility.ToString(expireAt)+`}`, `[{"upsert":true}]`)
+	if err != nil {
+		log.Println(err)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	log.Println("token was refresh with success for entity named ", name, "!!")
+
+	// return the token string.
+	return &resourcepb.RefreshTokenRsp{
+		Token: tokenString,
+	}, nil
+}
+
+
+//* Validate a token *
+func (resource_server *server) ValidateToken(ctx context.Context, rqst *resourcepb.ValidateTokenRqst) (*resourcepb.ValidateTokenRsp, error) {
+	clientId, _, _, expireAt, err := interceptors.ValidateToken(rqst.Token)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &resourcepb.ValidateTokenRsp{
+		ClientId: clientId,
+		Expired:  expireAt,
+	}, nil
+}
+
+
+/**
+ * Set account passowrd.
+ *
+ * new_password: new password /TODO validate
+ * old_password: old password to authenticate the user.
+ */
+func (globule *Globule) setPassword(accountId string, oldPassword string, newPassword string) error {
+
+	// First of all I will get the user information from the database.
+	p, err := globule.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
+	if err != nil {
+		return err
+	}
+
+	account := values.(map[string]interface{})
+
+	if len(oldPassword) == 0 {
+		return errors.New("you must give your old password")
+	}
+
+	// Test the old password.
+	if oldPassword != account["password"] {
+		if Utility.GenerateUUID(oldPassword) != account["password"] {
+			return errors.New("wrong password given")
+		}
+	}
+
+	// Now update the sa password in mongo db.
+	name := account["name"].(string)
+	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
+
+	changePasswordScript := fmt.Sprintf(
+		"db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, newPassword)
+
+	// I will execute the sript with the admin function.
+	address, _ := globule.getBackendAddress()
+	if address == "0.0.0.0" {
+		err = p.RunAdminCmd(context.Background(), "local_resource", "sa", globule.RootPassword, changePasswordScript)
+		if err != nil {
+			return err
+		}
+	} else {
+		p_, err := globule.getPersistenceSaConnection()
+		if err != nil {
+			return err
+		}
+		err = p_.RunAdminCmd("local_resource", "sa", globule.RootPassword, changePasswordScript)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Here I will update the user information.
+	account["password"] = Utility.GenerateUUID(newPassword)
+
+	// Here I will save the role.
+	jsonStr := "{"
+	jsonStr += `"name":"` + account["name"].(string) + `",`
+	jsonStr += `"email":"` + account["email"].(string) + `",`
+	jsonStr += `"password":"` + account["password"].(string) + `",`
+	jsonStr += `"roles":[`
+
+	account["roles"] = []interface{}(account["roles"].(primitive.A))
+	for j := 0; j < len(account["roles"].([]interface{})); j++ {
+		db := account["roles"].([]interface{})[j].(map[string]interface{})["$db"].(string)
+		db = strings.ReplaceAll(db, "@", "_")
+		db = strings.ReplaceAll(db, ".", "_")
+
+		jsonStr += `{`
+		jsonStr += `"$ref":"` + account["roles"].([]interface{})[j].(map[string]interface{})["$ref"].(string) + `",`
+		jsonStr += `"$id":"` + account["roles"].([]interface{})[j].(map[string]interface{})["$id"].(string) + `",`
+		jsonStr += `"$db":"` + db + `"`
+		jsonStr += `}`
+		if j < len(account["roles"].([]interface{}))-1 {
+			jsonStr += `,`
+		}
+	}
+	jsonStr += `]`
+	jsonStr += "}"
+
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"name":"`+account["name"].(string)+`"}`, jsonStr, ``)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+//Set the root password
+func (globule *Globule) SetPassword(ctx context.Context, rqst *adminpb.SetPasswordRequest) (*adminpb.SetPasswordResponse, error) {
+
+	// First of all I will get the user information from the database.
+	err := globule.setPassword(rqst.AccountId, rqst.OldPassword, rqst.NewPassword)
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	token, err := globule.getToken()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &adminpb.SetPasswordResponse{
+		Token: string(token),
+	}, nil
+
+}
+
+
+
+// Set the root password
+func (admin_server *server) SetRootPassword(ctx context.Context, rqst *adminpb.SetRootPasswordRequest) (*adminpb.SetRootPasswordResponse, error) {
+
+	// TODO Authentication service will be in charge of set the root password...
+
+	/**
+	// Here I will set the root password.
+	if admin_server.RootPassword != rqst.OldPassword {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("wrong password given")))
+	}
+
+	// Now I will update de sa password.
+	admin_server.RootPassword = rqst.NewPassword
+
+	// Now update the sa password in mongo db.
+	changeRootPasswordScript := fmt.Sprintf(
+		"db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", "sa", rqst.NewPassword)
+
+	p, err := admin_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// I will execute the script with the admin function.
+	address, _ := admin_server.getBackendAddress()
+	if address == "0.0.0.0" {
+		err = p.RunAdminCmd(context.Background(), "local_resource", "sa", rqst.OldPassword, changeRootPasswordScript)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	} else {
+		p_, err := admin_server.getPersistenceSaConnection()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		err = p_.RunAdminCmd("local_resource", "sa", admin_server.RootPassword, changeRootPasswordScript)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	token, err := admin_server.getToken()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &adminpb.SetRootPasswordResponse{
+		Token: string(token),
+	}, nil
+	*/
+	return nil, errors.New("not implemented")
+}
+
+//Set the root email
+func (admin_server *server) SetRootEmail(ctx context.Context, rqst *adminpb.SetRootEmailRequest) (*adminpb.SetRootEmailResponse, error) {
+	/**
+	// Here I will set the root password.
+	if admin_server.AdminEmail != rqst.OldEmail {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong email given, old email is "+rqst.OldEmail+" not "+admin_server.AdminEmail+"!")))
+	}
+
+	// Now I will update de sa password.
+	admin_server.AdminEmail = rqst.NewEmail
+
+	// save the configuration.
+	admin_server.saveConfig()
+
+	// read the local token.
+	token, err := admin_server.getToken()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Return the token.
+	return &adminpb.SetRootEmailResponse{
+		Token: string(token),
+	}, nil
+	*/
+	return nil, errors.New("not implemented")
+}

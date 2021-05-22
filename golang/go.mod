@@ -31,6 +31,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
 	go.mongodb.org/mongo-driver v1.5.1
+	golang.org/x/net v0.0.0-20210428140749-89ef3d95e781 // indirect
 	google.golang.org/grpc v1.37.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect

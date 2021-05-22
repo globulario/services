@@ -1,0 +1,31 @@
+{
+  "Id": "8d395eea-bc1b-42fa-b551-ceadf38a6a51",
+  "Name": "rbac.RbacService",
+  "Domain": "localhost",
+  "Path": "/home/dave/go/src/github.com/globulario/services/golang/rbac/rbac_server/rbac_server",
+  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/rbac.proto",
+  "Port": 10029,
+  "Proxy": 10030,
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "Protocol": "grpc",
+  "Version": "0.0.1",
+  "PublisherId": "globulario",
+  "KeepUpToDate": false,
+  "KeepAlive": false,
+  "Description": "The Hello world of gRPC service!",
+  "Keywords": [
+    "Example",
+    "rbac",
+    "Test",
+    "Service"
+  ],
+  "Repositories": [],
+  "Discoveries": [],
+  "TLS": false,
+  "Root": "",
+  "CertFile": "",
+  "KeyFile": "",
+  "CertAuthorityTrust": "",
+  "Permissions": []
+}

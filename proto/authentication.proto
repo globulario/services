@@ -1,0 +1,100 @@
+
+/**
+ * Authentication service
+ */
+syntax = "proto3";
+package authentication;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "authentication/authenticationpb";
+
+
+/** Authenticate the user **/
+message AuthenticateRqst{
+	string name = 1;
+	string password =2;
+}
+
+message AuthenticateRsp {
+	string token = 1;
+}
+
+/** Refresh token **/
+message RefreshTokenRqst{
+	string token = 1;
+}
+
+message RefreshTokenRsp {
+	string token = 1;
+}
+
+message ValidateTokenRqst{
+	string token = 1;
+}
+
+message ValidateTokenRsp{
+	string clientId = 1;
+	int64 expired = 2;
+}
+
+// TODO reset password.
+
+message SetPasswordRequest{
+	string accountId = 1;
+	string oldPassword = 2;
+	string newPassword = 3;
+}
+
+message SetPasswordResponse {
+	string token = 1;
+}
+
+message SetRootPasswordRequest{
+	string oldPassword = 1;
+	string newPassword = 2;
+}
+
+message SetRootPasswordResponse {
+	string token = 1;
+}
+
+message SetRootEmailRequest{
+	string oldEmail = 1;
+	string newEmail = 2;
+}
+
+message SetRootEmailResponse {
+	string token = 1;
+}
+
+/**
+ * That service must be use to authencate user.
+ * to see...
+ * https://youtu.be/B3xnJI2lHmc
+ */
+service AuthenticationService {
+	
+	/** Validate a token **/
+	rpc ValidateToken(ValidateTokenRqst) returns (ValidateTokenRsp);	
+		
+	/** Refresh token get a new token **/
+	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
+
+	/** Set the account password **/
+  	rpc SetPassword(SetPasswordRequest) returns(SetPasswordResponse);
+
+	//Set the root password
+	rpc SetRootPassword(SetRootPasswordRequest) returns(SetRootPasswordResponse);
+
+	//Set the root email
+	rpc SetRootEmail(SetRootEmailRequest) returns(SetRootEmailResponse);
+
+
+	////////////////////////////////////////////////////////////////////////////
+	// Authentication
+	////////////////////////////////////////////////////////////////////////////
+	
+	/** Authenticate a user **/
+	rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
+}

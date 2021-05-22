@@ -173,7 +173,6 @@ func (dns_client *DNS_Client) StopService() {
 
 func (dns_client *DNS_Client) GetA(domain string) (string, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetARequest{
 		Domain: domain,
 	}
@@ -192,7 +191,6 @@ func (dns_client *DNS_Client) GetA(domain string) (string, error) {
 // be done by globular.io and not the dns itdns_client.
 func (dns_client *DNS_Client) SetA(domain string, subdomain string, ipv4 string, ttl uint32) (string, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetARequest{
 		Domain: subdomain,
 		A:      ipv4,
@@ -207,8 +205,7 @@ func (dns_client *DNS_Client) SetA(domain string, subdomain string, ipv4 string,
 }
 
 func (dns_client *DNS_Client) RemoveA(domain string) error {
-
-	// I will execute a simple ldap search here...
+	
 	rqst := &dnspb.RemoveARequest{
 		Domain: domain,
 	}
@@ -222,7 +219,6 @@ func (dns_client *DNS_Client) RemoveA(domain string) error {
 
 func (dns_client *DNS_Client) GetAAAA(domain string) (string, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetAAAARequest{
 		Domain: domain,
 	}
@@ -236,7 +232,6 @@ func (dns_client *DNS_Client) GetAAAA(domain string) (string, error) {
 
 func (dns_client *DNS_Client) SetAAAA(domain string, ipv6 string, ttl uint32) (string, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetAAAARequest{
 		Domain: domain,
 		Aaaa:   ipv6,
@@ -252,7 +247,6 @@ func (dns_client *DNS_Client) SetAAAA(domain string, ipv6 string, ttl uint32) (s
 
 func (dns_client *DNS_Client) RemoveAAAA(domain string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveAAAARequest{
 		Domain: domain,
 	}
@@ -266,7 +260,6 @@ func (dns_client *DNS_Client) RemoveAAAA(domain string) error {
 
 func (dns_client *DNS_Client) GetText(domain string, id string) ([]string, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetTextRequest{
 		Id: id,
 	}
@@ -281,7 +274,6 @@ func (dns_client *DNS_Client) GetText(domain string, id string) ([]string, error
 
 func (dns_client *DNS_Client) SetText(domain string, id string, values []string, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetTextRequest{
 		Id:     id,
 		Values: values,
@@ -294,7 +286,6 @@ func (dns_client *DNS_Client) SetText(domain string, id string, values []string,
 
 func (dns_client *DNS_Client) RemoveText(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveTextRequest{
 		Id: id,
 	}
@@ -308,7 +299,6 @@ func (dns_client *DNS_Client) RemoveText(domain string, id string) error {
 
 func (dns_client *DNS_Client) GetNs(domain string, id string) (string, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetNsRequest{
 		Id: id,
 	}
@@ -323,7 +313,6 @@ func (dns_client *DNS_Client) GetNs(domain string, id string) (string, error) {
 
 func (dns_client *DNS_Client) SetNs(domain string, id string, ns string, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetNsRequest{
 		Id:  id,
 		Ns:  ns,
@@ -336,7 +325,6 @@ func (dns_client *DNS_Client) SetNs(domain string, id string, ns string, ttl uin
 
 func (dns_client *DNS_Client) RemoveNs(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveNsRequest{
 		Id: id,
 	}
@@ -350,7 +338,6 @@ func (dns_client *DNS_Client) RemoveNs(domain string, id string) error {
 
 func (dns_client *DNS_Client) GetCName(domain string, id string) (string, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetCNameRequest{
 		Id: id,
 	}
@@ -365,7 +352,6 @@ func (dns_client *DNS_Client) GetCName(domain string, id string) (string, error)
 
 func (dns_client *DNS_Client) SetCName(domain string, id string, cname string, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetCNameRequest{
 		Id:    id,
 		Cname: cname,
@@ -378,7 +364,6 @@ func (dns_client *DNS_Client) SetCName(domain string, id string, cname string, t
 
 func (dns_client *DNS_Client) RemoveCName(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveCNameRequest{
 		Id: id,
 	}
@@ -392,7 +377,6 @@ func (dns_client *DNS_Client) RemoveCName(domain string, id string) error {
 
 func (dns_client *DNS_Client) GetMx(domain string, id string) (map[string]interface{}, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetMxRequest{
 		Id: id,
 	}
@@ -411,7 +395,6 @@ func (dns_client *DNS_Client) GetMx(domain string, id string) (map[string]interf
 
 func (dns_client *DNS_Client) SetMx(domain string, id string, preference uint16, mx string, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetMxRequest{
 		Id: id,
 		Mx: &dnspb.MX{
@@ -427,7 +410,6 @@ func (dns_client *DNS_Client) SetMx(domain string, id string, preference uint16,
 
 func (dns_client *DNS_Client) RemoveMx(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveMxRequest{
 		Id: id,
 	}
@@ -441,7 +423,6 @@ func (dns_client *DNS_Client) RemoveMx(domain string, id string) error {
 
 func (dns_client *DNS_Client) GetSoa(domain string, id string) (map[string]interface{}, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetSoaRequest{
 		Id: id,
 	}
@@ -465,7 +446,6 @@ func (dns_client *DNS_Client) GetSoa(domain string, id string) (map[string]inter
 
 func (dns_client *DNS_Client) SetSoa(domain string, id string, ns string, mbox string, serial uint32, refresh uint32, retry uint32, expire uint32, minttl uint32, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetSoaRequest{
 		Id: id,
 		Soa: &dnspb.SOA{
@@ -486,7 +466,6 @@ func (dns_client *DNS_Client) SetSoa(domain string, id string, ns string, mbox s
 
 func (dns_client *DNS_Client) RemoveSoa(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveSoaRequest{
 		Id: id,
 	}
@@ -500,7 +479,6 @@ func (dns_client *DNS_Client) RemoveSoa(domain string, id string) error {
 
 func (dns_client *DNS_Client) GetUri(domain string, id string) (map[string]interface{}, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetUriRequest{
 		Id: id,
 	}
@@ -520,7 +498,6 @@ func (dns_client *DNS_Client) GetUri(domain string, id string) (map[string]inter
 
 func (dns_client *DNS_Client) SetUri(domain string, id string, priority uint32, weight uint32, target string, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetUriRequest{
 		Id: id,
 		Uri: &dnspb.URI{
@@ -537,7 +514,6 @@ func (dns_client *DNS_Client) SetUri(domain string, id string, priority uint32, 
 
 func (dns_client *DNS_Client) RemoveUri(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveUriRequest{
 		Id: id,
 	}
@@ -551,7 +527,6 @@ func (dns_client *DNS_Client) RemoveUri(domain string, id string) error {
 
 func (dns_client *DNS_Client) GetCaa(domain string, id string) (map[string]interface{}, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetCaaRequest{
 		Id: id,
 	}
@@ -571,7 +546,6 @@ func (dns_client *DNS_Client) GetCaa(domain string, id string) (map[string]inter
 
 func (dns_client *DNS_Client) SetCaa(domain string, id string, flag uint32, tag string, value string, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetCaaRequest{
 		Id: id,
 		Caa: &dnspb.CAA{
@@ -588,7 +562,6 @@ func (dns_client *DNS_Client) SetCaa(domain string, id string, flag uint32, tag 
 
 func (dns_client *DNS_Client) RemoveCaa(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveCaaRequest{
 		Id: id,
 	}
@@ -602,7 +575,6 @@ func (dns_client *DNS_Client) RemoveCaa(domain string, id string) error {
 
 func (dns_client *DNS_Client) GetAfsdb(domain string, id string) (map[string]interface{}, error) {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.GetAfsdbRequest{
 		Id: id,
 	}
@@ -621,7 +593,6 @@ func (dns_client *DNS_Client) GetAfsdb(domain string, id string) (map[string]int
 
 func (dns_client *DNS_Client) SetAfsdb(domain string, id string, subtype uint32, hostname string, ttl uint32) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.SetAfsdbRequest{
 		Id: id,
 		Afsdb: &dnspb.AFSDB{
@@ -637,7 +608,6 @@ func (dns_client *DNS_Client) SetAfsdb(domain string, id string, subtype uint32,
 
 func (dns_client *DNS_Client) RemoveAfsdb(domain string, id string) error {
 
-	// I will execute a simple ldap search here...
 	rqst := &dnspb.RemoveAfsdbRequest{
 		Id: id,
 	}

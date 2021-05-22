@@ -5,57 +5,7 @@ syntax = "proto3";
 package resource;
 
 import "google/protobuf/struct.proto";
-
 option go_package = "resource/resourcepb";
-
-message UserSyncInfos{
-	string base = 1;
-	string query = 2; // ldap query to get the list of users.
-	string id = 3; // user account id
-	string email = 4; // ldap email attribute
-}
-
-message GroupSyncInfos{
-	string base = 1;
-	string query = 2; // ldap query
-	string id = 3;
-}
-
-// That Information is use to synchronize LDAP user with Globular Account and
-// LDAP group with Globular Role.
-message LdapSyncInfos {
-	string ldapSeriveId = 1;
-	string connectionId = 2;
-	int32 refresh = 3;
-	UserSyncInfos userSyncInfos = 4;
-	GroupSyncInfos groupSyncInfos = 5;
-}
-
-// Create Account and Roles from LDAP User and Groups
-message SynchronizeLdapRqst{
-	LdapSyncInfos syncInfo = 1;
-}
-
-message SynchronizeLdapRsp{
-	bool result = 1;
-}
-
-message ValidateTokenRqst{
-	string token = 1;
-}
-
-message ValidateTokenRsp{
-	string clientId = 1;
-	int64 expired = 2;
-}
-
-message GetAllActionsRqst{
-
-}
-
-message GetAllActionsRsp{
-	repeated string actions = 1;
-}
 
 /** Account **/
 message Account {
@@ -91,31 +41,42 @@ message RegisterAccountRsp {
 	string result = 1;
 }
 
+
+message AccountExistRqst{
+	string id = 1;
+}
+
+message AccountExistRsp{
+	bool result=1;
+}
+
+/**
+ * Return the list of accounts (query is use to get specific account's).
+ */
+message GetAccountsRqst{
+	string query = 1;
+}
+
+message GetAccountsRsp{
+	repeated Account accounts = 1;
+}
+
+message SetEmailRequest{
+	string accountId = 1;
+	string oldEmail = 2;
+	string newEmail = 3;
+}
+
+message SetEmailResponse {
+	
+}
+
 message DeleteAccountRqst{
 	string id = 1;
 }
 
 message DeleteAccountRsp {
 	string result = 1;
-}
-
-/** Authenticate the user **/
-message AuthenticateRqst{
-	string name = 1;
-	string password =2;
-}
-
-message AuthenticateRsp {
-	string token = 1;
-}
-
-/** Refresh token **/
-message RefreshTokenRqst{
-	string token = 1;
-}
-
-message RefreshTokenRsp {
-	string token = 1;
 }
 
 message AddAccountRoleRqst{
@@ -181,6 +142,30 @@ message DeleteRoleRsp{
 	bool result = 1;
 }
 
+/** The application */
+message Application{
+	string id = 1;
+	string name = 2;
+	string password = 3;
+	string path = 4;
+	string version= 5;
+	string description = 6;
+	repeated string actions = 7;
+	repeated string keywords = 8;
+	string icon = 9;
+	string alias = 10;
+	string publisherid = 11;
+}
+
+/** Create / Update an application */
+message CreateApplicationRqst {
+	Application application = 1;
+}
+
+message CreateApplicationRsp {
+	
+}
+
 message DeleteApplicationRqst{
 	string applicationId = 1;
 }
@@ -198,25 +183,40 @@ message GetAllApplicationsInfoRsp{
 	repeated google.protobuf.Struct applications = 1;
 }
 
-
-message AccountExistRqst{
+/** The application version */
+message GetApplicationVersionRqst {
 	string id = 1;
 }
 
-message AccountExistRsp{
-	bool result=1;
+message GetApplicationVersionRsp {
+	string version = 1;
 }
 
-
-/**
- * Return the list of accounts (query is use to get specific account's).
- */
-message GetAccountsRqst{
-	string query = 1;
+/** The application icon */
+message GetApplicationIconRqst {
+	string id = 1;
 }
 
-message GetAccountsRsp{
-	repeated Account accounts = 1;
+message GetApplicationIconRsp {
+	string icon = 1;
+}
+
+/** The application alias */
+message GetApplicationAliasRqst {
+	string id = 1;
+}
+
+message GetApplicationAliasRsp {
+	string alias = 1;
+}
+
+message IsOrgnanizationMemberRqst {
+	string organizationId = 1;
+	string accountId = 2;
+}
+
+message IsOrgnanizationMemberRsp{
+	bool result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -501,7 +501,61 @@ message RemoveOrganizationAccountRsp{
 	bool result = 1;
 }
 
+enum NotificationType {
+	USER_NOTIFICATION = 0;
+	APPLICATION_NOTIFICATION = 1;
+	SYSTEM_NOTIFICATION = 2;
+}
 
+message Notification{
+	string id = 1;
+	int64 date = 2;
+	bytes message = 3;
+	string recipient = 4;
+	string sender = 5;
+	NotificationType notification_type = 6;
+}
+
+message CreateNotificationRqst {
+	Notification notification = 1;
+}
+
+message CreateNotificationRsp {
+
+}
+
+message GetNotificationsRqst {
+	string recipient = 1;
+}
+
+message GetNotificationsRsp {
+	repeated Notification notifications = 1;
+}
+
+message DeleteNotificationRqst {
+	string id = 1;
+}
+
+message DeleteNotificationRsp {
+
+}
+
+message ClearAllNotificationsRqst{
+	string recipient = 1;
+}
+
+message ClearAllNotificationsRsp{
+
+}
+
+message ClearNotificationsByTypeRqst{
+	string recipient = 1;
+	NotificationType notification_type = 2;
+}
+
+message ClearNotificationsByTypeRsp{
+
+}
 
 /**
  * That service is use to manage Globular resource like permissions and accounts
@@ -509,31 +563,7 @@ message RemoveOrganizationAccountRsp{
  * objects.
  */
 service ResourceService {
-	
-	/** Return the list of all grpc methods **/
-	rpc GetAllActions(GetAllActionsRqst) returns(GetAllActionsRsp);
-	
-	/** Validate a token **/
-	rpc ValidateToken(ValidateTokenRqst) returns (ValidateTokenRsp);	
-		
-	/** Refresh token get a new token **/
-	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
-	
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Authentication
-	////////////////////////////////////////////////////////////////////////////
-	
-	/** Authenticate a user **/
-	rpc Authenticate(AuthenticateRqst) returns(AuthenticateRsp);
-	
-	/** Synchronize Resource with LDAP if connection exist **/
-	rpc SynchronizeLdap(SynchronizeLdapRqst) returns(SynchronizeLdapRsp);
-		
-	////////////////////////////////////////////////////////////////////////////
-	// Resource's control objects
-	////////////////////////////////////////////////////////////////////////////
-	
+
 	////////////////////////////////////////////////////////////////////////////
 	// Organization's
 	////////////////////////////////////////////////////////////////////////////
@@ -614,17 +644,18 @@ service ResourceService {
 
 	/** Remove a contact from a given account **/
 	rpc RemoveAccountContact(RemoveAccountContactRqst) returns(RemoveAccountContactRsp);
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Action's control objects (Role Base'd)
-	////////////////////////////////////////////////////////////////////////////
-	
 
+	/** Set / Change the account email **/
+	rpc SetEmail(SetEmailRequest) returns(SetEmailResponse);
+
+	/** Test if account is part of a given organization **/
+	rpc IsOrgnanizationMember(IsOrgnanizationMemberRqst) returns(IsOrgnanizationMemberRsp);
+	
 	////////////////////////////////////////////////////////////////////////////
 	// Role's
 	////////////////////////////////////////////////////////////////////////////
 	
-	/** Create a role with given action list **/
+	/** Create / update a role with given action list **/
 	rpc CreateRole(CreateRoleRqst) returns(CreateRoleRsp);
 	
 	/** Return the list of roles **/
@@ -639,10 +670,12 @@ service ResourceService {
 	/** Remove an action to existing role. **/
 	rpc RemoveRoleAction(RemoveRoleActionRqst) returns(RemoveRoleActionRsp);
 	
-	
 	////////////////////////////////////////////////////////////////////////////
 	// Application's
 	////////////////////////////////////////////////////////////////////////////
+
+	/** Create an application **/
+	rpc CreateApplication(CreateApplicationRqst) returns(CreateApplicationRsp);
 
 	/** Return a json string with all applications informations **/
 	rpc GetAllApplicationsInfo(GetAllApplicationsInfoRqst) returns(GetAllApplicationsInfoRsp);
@@ -655,6 +688,15 @@ service ResourceService {
 	
 	/** Remove an action to existing applications. **/
 	rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns(RemoveApplicationActionRsp);
+
+	/** Retreive application version */
+	rpc GetApplicationVersion(GetApplicationVersionRqst) returns(GetApplicationVersionRsp);
+
+	/** Reteive application alias */
+	rpc GetApplicationAlias(GetApplicationAliasRqst) returns(GetApplicationAliasRsp);
+
+	/** Reteive application icon */
+	rpc GetApplicationIcon(GetApplicationIconRqst) returns(GetApplicationIconRsp);
 	
 	////////////////////////////////////////////////////////////////////////////
 	// Peer's
@@ -674,4 +716,23 @@ service ResourceService {
 	
 	/** Remove peer action permission **/
 	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
+
+	////////////////////////////////////////////////////////////////////////////
+	// Notification's
+	////////////////////////////////////////////////////////////////////////////
+
+	/** Create a notification */
+	rpc CreateNotification(CreateNotificationRqst) returns(CreateNotificationRsp);
+
+	/** Retreive notifications */
+	rpc GetNotifications(GetNotificationsRqst) returns(stream GetNotificationsRsp);
+
+	/** Remove a notification */
+	rpc DeleteNotification(DeleteNotificationRqst) returns(DeleteNotificationRsp);
+
+	/** Remove all Notification */
+	rpc ClearAllNotifications(ClearAllNotificationsRqst) returns(ClearAllNotificationsRsp);
+
+	/** Remove all notification of a given type */
+	rpc ClearNotificationsByType(ClearNotificationsByTypeRqst) returns(ClearNotificationsByTypeRsp);
 }

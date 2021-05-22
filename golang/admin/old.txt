@@ -1,0 +1,28 @@
+  
+// Return the configuration of the whole server.
+message GetConfigRequest {
+}
+
+message GetConfigResponse {
+  google.protobuf.Struct result = 1;
+}
+
+message SaveConfigRequest {
+  string config = 1; // The json string
+}
+
+message SaveConfigResponse {
+  string result = 1;
+}
+  
+  
+  
+  /** Configurations **/
+  // Return configuration whitout all detail, no needed to be secure.
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+
+  // Return the configuration with all detail, must be secure.
+  rpc GetFullConfig(GetConfigRequest) returns (GetConfigResponse);
+
+  // Save a service configuration
+  rpc SaveConfig(SaveConfigRequest) returns (SaveConfigResponse);

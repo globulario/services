@@ -377,7 +377,7 @@ func getAdminClient(domain string) (*admin_client.Admin_Client, error) {
 func UpdateServiceConfig(s Service) error {
 
 	// Create the file...
-	str, err := Utility.ToJson(s)
+	/*str, err := Utility.ToJson(s)
 	if err != nil {
 		return err
 	}
@@ -385,8 +385,9 @@ func UpdateServiceConfig(s Service) error {
 	if err != nil {
 		return err
 	}
-
-	return admin_client_.SaveConfig(str)
+	return admin_client_.SaveConfig(str)*/
+	
+	return errors.New("not implemented") 
 }
 
 /**

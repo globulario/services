@@ -161,12 +161,13 @@ func getCache() *storage_store.BigCache_store {
 
 // Refresh a token.
 func refreshToken(domain string, token string) (string, error) {
+	/*
 	resource_client, err := GetResourceClient(domain)
 	if err != nil {
 		return "", err
-	}
-
-	return resource_client.RefreshToken(token)
+	}*/
+	// TODO made use of authentication service insted...
+	return "", errors.New("not implemented");//resource_client.RefreshToken(token)
 }
 
 /**

@@ -175,95 +175,6 @@ func (admin_client *Admin_Client) SetCaFile(caFile string) {
 
 /////////////////////// API /////////////////////
 
-// Get server configuration.
-func (admin_client *Admin_Client) GetConfig() (interface{}, error) {
-	rqst := new(adminpb.GetConfigRequest)
-	rsp, err := admin_client.c.GetConfig(globular.GetClientContext(admin_client), rqst)
-	if err != nil {
-		return "", err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-// Get the server configuration with all detail must be secured.
-func (admin_client *Admin_Client) GetFullConfig() (interface{}, error) {
-
-	rqst := new(adminpb.GetConfigRequest)
-
-	rsp, err := admin_client.c.GetFullConfig(globular.GetClientContext(admin_client), rqst)
-	if err != nil {
-		return "", err
-	}
-
-	return rsp.GetResult(), nil
-}
-
-func (admin_client *Admin_Client) SaveConfig(config string) error {
-	rqst := &adminpb.SaveConfigRequest{
-		Config: config,
-	}
-
-	_, err := admin_client.c.SaveConfig(globular.GetClientContext(admin_client), rqst)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (admin_client *Admin_Client) StartService(id string) (int, int, error) {
-	rqst := new(adminpb.StartServiceRequest)
-	rqst.ServiceId = id
-	rsp, err := admin_client.c.StartService(globular.GetClientContext(admin_client), rqst)
-	if err != nil {
-		return -1, -1, err
-	}
-
-	return int(rsp.ServicePid), int(rsp.ProxyPid), nil
-}
-
-func (admin_client *Admin_Client) StopService(id string) error {
-	rqst := new(adminpb.StopServiceRequest)
-	rqst.ServiceId = id
-	_, err := admin_client.c.StopService(globular.GetClientContext(admin_client), rqst)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (admin_client *Admin_Client) RestartServices() error {
-	rqst := new(adminpb.RestartServicesRequest)
-
-	_, err := admin_client.c.RestartServices(globular.GetClientContext(admin_client), rqst)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Register and start an application.
-func (admin_client *Admin_Client) RegisterExternalApplication(id string, path string, args []string) (int, error) {
-	rqst := &adminpb.RegisterExternalApplicationRequest{
-		ServiceId: id,
-		Path:      path,
-		Args:      args,
-	}
-
-	rsp, err := admin_client.c.RegisterExternalApplication(globular.GetClientContext(admin_client), rqst)
-
-	if err != nil {
-		return -1, err
-	}
-
-	return int(rsp.ServicePid), nil
-}
-
-/////////////////////////// Services management functions ////////////////////////
-
 /** Create a service package **/
 func (admin_client *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
 	log.Println("Service path is ", servicePath)
@@ -506,60 +417,6 @@ func (admin_client *Admin_Client) PublishService(user, organization, token, doma
 	return nil
 }
 
-/**
- * Intall a new service or update an existing one.
- */
-func (admin_client *Admin_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
-
-	log.Println("Install service", serviceId, "publisherId", publisherId, "discovery", discoveryId, "on", domain)
-	log.Println("token: ", token)
-
-	rqst := new(adminpb.InstallServiceRequest)
-	rqst.DicorveryId = discoveryId
-	rqst.PublisherId = publisherId
-	rqst.ServiceId = serviceId
-	ctx := globular.GetClientContext(admin_client)
-	if len(token) > 0 {
-		md, _ := metadata.FromOutgoingContext(ctx)
-		if len(md.Get("token")) != 0 {
-			md.Set("token", token)
-		}
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-
-	_, err := admin_client.c.InstallService(ctx, rqst)
-	
-	// Fail to install service.
-	if err != nil {
-		log.Println("fail to install service with error ", err.Error())
-	}
-
-	return err
-}
-
-/**
- * Intall a new service or update an existing one.
- */
-func (admin_client *Admin_Client) UninstallService(token string, domain string, user string, publisherId string, serviceId string, version string) error {
-
-	rqst := new(adminpb.UninstallServiceRequest)
-	rqst.PublisherId = publisherId
-	rqst.ServiceId = serviceId
-	rqst.Version = version
-	ctx := globular.GetClientContext(admin_client)
-	if len(token) > 0 {
-		md, _ := metadata.FromOutgoingContext(ctx)
-
-		if len(md.Get("token")) != 0 {
-			md.Set("token", token)
-		}
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
-	}
-
-	_, err := admin_client.c.UninstallService(ctx, rqst)
-
-	return err
-}
 
 /**
  * Intall a new application or update an existing one.
@@ -619,15 +476,15 @@ func (admin_client *Admin_Client) UninstallApplication(token string, domain stri
  * to get the configuration (80 by default). The path is where the file will be
  * written. The return values are the path to tree certicate path.
  */
-func (admin_client *Admin_Client) InstallCertificates(domain string, port int, path string) (string, string, string, error) {
+func (admin_client *Admin_Client) GetCertificates(domain string, port int, path string) (string, string, string, error) {
 
-	rqst := &adminpb.InstallCertificatesRequest{
+	rqst := &adminpb.GetCertificatesRequest{
 		Domain: domain,
 		Path:   path,
 		Port:   int32(port),
 	}
 
-	rsp, err := admin_client.c.InstallCertificates(globular.GetClientContext(admin_client), rqst)
+	rsp, err := admin_client.c.GetCertificates(globular.GetClientContext(admin_client), rqst)
 
 	if err != nil {
 		return "", "", "", err

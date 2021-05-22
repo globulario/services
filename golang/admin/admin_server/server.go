@@ -1,0 +1,461 @@
+package main
+
+import (
+	"errors"
+	"log"
+	"os"
+	"path/filepath"
+	"strconv"
+
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/admin/admin_client"
+	"github.com/globulario/services/golang/admin/adminpb"
+	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"google.golang.org/grpc"
+
+	//"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/reflection"
+)
+
+// The default values.
+var (
+	defaultPort  = 10029
+	defaultProxy = 10030
+
+	// By default all origins are allowed.
+	allow_all_origins = true
+
+	// comma separeated values.
+	allowed_origins string = ""
+
+	domain string = "localhost"
+)
+
+// Value need by Globular to start the services...
+type server struct {
+	// The global attribute of the services.
+	Id              string
+	Name            string
+	Domain          string
+	Path            string
+	Proto           string
+	Port            int
+	Proxy           int
+	AllowAllOrigins bool
+	AllowedOrigins  string // comma separated string.
+	Protocol        string
+	Version         string
+	PublisherId     string
+	KeepUpToDate    bool
+	KeepAlive       bool
+	Description     string
+	Keywords        []string
+	Repositories    []string
+	Discoveries     []string
+
+	TLS bool
+
+	// svr-signed X.509 public keys for distribution
+	CertFile string
+
+	// a private RSA key to sign and authenticate the public key
+	KeyFile string
+
+	// a private RSA key to sign and authenticate the public key
+	CertAuthorityTrust string
+
+	Permissions []interface{} // contains the action permission for the services.
+
+	// Where application must be installed, default valus is /var/globular/webroot
+	WebRoot string
+
+	// Where application data are store.
+	ApplicationsRoot string
+
+	// The grpc server.
+	grpcServer *grpc.Server
+}
+
+// Globular services implementation...
+// The id of a particular service instance.
+func (svr *server) GetId() string {
+	return svr.Id
+}
+func (svr *server) SetId(id string) {
+	svr.Id = id
+}
+
+// The name of a service, must be the gRpc Service name.
+func (svr *server) GetName() string {
+	return svr.Name
+}
+func (svr *server) SetName(name string) {
+	svr.Name = name
+}
+
+// The description of the service
+func (svr *server) GetDescription() string {
+	return svr.Description
+}
+func (svr *server) SetDescription(description string) {
+	svr.Description = description
+}
+
+// The list of keywords of the services.
+func (svr *server) GetKeywords() []string {
+	return svr.Keywords
+}
+func (svr *server) SetKeywords(keywords []string) {
+	svr.Keywords = keywords
+}
+
+func (svr *server) GetRepositories() []string {
+	return svr.Repositories
+}
+func (svr *server) SetRepositories(repositories []string) {
+	svr.Repositories = repositories
+}
+
+func (svr *server) GetDiscoveries() []string {
+	return svr.Discoveries
+}
+func (svr *server) SetDiscoveries(discoveries []string) {
+	svr.Discoveries = discoveries
+}
+
+// Dist
+func (svr *server) Dist(path string) (string, error) {
+
+	return globular.Dist(path, svr)
+}
+
+func (svr *server) GetPlatform() string {
+	return globular.GetPlatform()
+}
+
+// The path of the executable.
+func (svr *server) GetPath() string {
+	return svr.Path
+}
+func (svr *server) SetPath(path string) {
+	svr.Path = path
+}
+
+// The path of the .proto file.
+func (svr *server) GetProto() string {
+	return svr.Proto
+}
+func (svr *server) SetProto(proto string) {
+	svr.Proto = proto
+}
+
+// The gRpc port.
+func (svr *server) GetPort() int {
+	return svr.Port
+}
+func (svr *server) SetPort(port int) {
+	svr.Port = port
+}
+
+// The reverse proxy port (use by gRpc Web)
+func (svr *server) GetProxy() int {
+	return svr.Proxy
+}
+func (svr *server) SetProxy(proxy int) {
+	svr.Proxy = proxy
+}
+
+// Can be one of http/https/tls
+func (svr *server) GetProtocol() string {
+	return svr.Protocol
+}
+func (svr *server) SetProtocol(protocol string) {
+	svr.Protocol = protocol
+}
+
+// Return true if all Origins are allowed to access the mircoservice.
+func (svr *server) GetAllowAllOrigins() bool {
+	return svr.AllowAllOrigins
+}
+func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	svr.AllowAllOrigins = allowAllOrigins
+}
+
+// If AllowAllOrigins is false then AllowedOrigins will contain the
+// list of address that can reach the services.
+func (svr *server) GetAllowedOrigins() string {
+	return svr.AllowedOrigins
+}
+
+func (svr *server) SetAllowedOrigins(allowedOrigins string) {
+	svr.AllowedOrigins = allowedOrigins
+}
+
+// Can be a ip address or domain name.
+func (svr *server) GetDomain() string {
+	return svr.Domain
+}
+func (svr *server) SetDomain(domain string) {
+	svr.Domain = domain
+}
+
+// TLS section
+
+// If true the service run with TLS. The
+func (svr *server) GetTls() bool {
+	return svr.TLS
+}
+func (svr *server) SetTls(hasTls bool) {
+	svr.TLS = hasTls
+}
+
+// The certificate authority file
+func (svr *server) GetCertAuthorityTrust() string {
+	return svr.CertAuthorityTrust
+}
+func (svr *server) SetCertAuthorityTrust(ca string) {
+	svr.CertAuthorityTrust = ca
+}
+
+// The certificate file.
+func (svr *server) GetCertFile() string {
+	return svr.CertFile
+}
+func (svr *server) SetCertFile(certFile string) {
+	svr.CertFile = certFile
+}
+
+// The key file.
+func (svr *server) GetKeyFile() string {
+	return svr.KeyFile
+}
+func (svr *server) SetKeyFile(keyFile string) {
+	svr.KeyFile = keyFile
+}
+
+// The service version
+func (svr *server) GetVersion() string {
+	return svr.Version
+}
+func (svr *server) SetVersion(version string) {
+	svr.Version = version
+}
+
+// The publisher id.
+func (svr *server) GetPublisherId() string {
+	return svr.PublisherId
+}
+func (svr *server) SetPublisherId(publisherId string) {
+	svr.PublisherId = publisherId
+}
+
+func (svr *server) GetKeepUpToDate() bool {
+	return svr.KeepUpToDate
+}
+func (svr *server) SetKeepUptoDate(val bool) {
+	svr.KeepUpToDate = val
+}
+
+func (svr *server) GetKeepAlive() bool {
+	return svr.KeepAlive
+}
+func (svr *server) SetKeepAlive(val bool) {
+	svr.KeepAlive = val
+}
+
+func (svr *server) GetPermissions() []interface{} {
+	return svr.Permissions
+}
+func (svr *server) SetPermissions(permissions []interface{}) {
+	svr.Permissions = permissions
+}
+
+// Create the configuration file if is not already exist.
+func (svr *server) Init() error {
+
+	// That function is use to get access to other server.
+	Utility.RegisterFunction("NewadminService_Client", admin_client.NewAdminService_Client)
+
+	// Get the configuration path.
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+
+	err := globular.InitService(dir+"/config.json", svr)
+	if err != nil {
+		return err
+	}
+
+	// Initialyse GRPC server.
+	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+// Save the configuration values.
+func (svr *server) Save() error {
+	// Create the file...
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	return globular.SaveService(dir+"/config.json", svr)
+}
+
+func (svr *server) StartService() error {
+	return globular.StartService(svr, svr.grpcServer)
+}
+
+func (svr *server) StopService() error {
+	return globular.StopService(svr, svr.grpcServer)
+}
+
+/////////////////////// resource manager functions /////////////////////////////////
+func (svr *server) deleteApplication(applicationId string) error {
+
+	return errors.New("not implemented")
+}
+
+func (svr *server) createApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+	return errors.New("not implemented")
+}
+
+func (svr *server) getApplicationVersion(id string) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (svr *server) getApplicationIcon(id string) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (svr *server) getApplicationAlias(id string) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (svr *server) createRole(id, name string, actions []string) error {
+	return errors.New("not implemented")
+}
+
+func (svr *server) createGroup(id, name string) error {
+	return errors.New("not implemented")
+}
+
+func (svr *server) isOrganizationMemeber(user, organization string) bool {
+	// TODO implement it!
+	return false
+}
+
+/////////////////////// rbac manager functions ///////////////////////////////////
+
+// Set the ressource owner.
+func (svr *server) addResourceOwner(path, subject string, subjectType rbacpb.SubjectType) error {
+	return errors.New("not implemented")
+}
+
+func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (srv *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+	return errors.New("not implemented")
+}
+
+func (serv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	return false, false, errors.New("not implemented")
+}
+
+///////////////////// event service functions ////////////////////////////////////
+func (svr *server) publish(event string, data []byte) error {
+	return errors.New("not implemented")
+}
+
+/////////////////////// admin specific functions /////////////////////////////////
+/**
+ * Send a application notification.
+ * That function will send notification to all connected user of that application.
+ */
+func (svr *server) sendApplicationNotification(application string, message string) error {
+
+	// That service made user of persistence service.
+
+	/** The notification object. */
+	/* TODO Create Notification from resource.pb....
+	notification := make(map[string]interface{})
+	id := time.Now().Unix()
+	notification["_id"] = id
+	notification["_type"] = 1
+	notification["_text"] = message
+	notification["_recipient"] = application
+	notification["_date"] = id
+
+	jsonStr, err := Utility.ToJson(data)
+	if err != nil {
+		return err
+	}
+	notification["_sender"] = jsonStr
+
+	_, err = p.InsertOne(context.Background(), "local_resource", application+"_db", "Notifications", notification, "")
+	if err != nil {
+		return err
+	}
+
+	jsonStr, err = Utility.ToJson(notification)
+	if err != nil {
+		return err
+	}
+
+	return svr.publish(application+"_notification_event", []byte(jsonStr))
+	*/
+	return errors.New("not implemented")
+}
+
+// That service is use to give access to SQL.
+// port number must be pass as argument.
+func main() {
+
+	// set the logger.
+	//grpclog.SetLogger(log.New(os.Stdout, "admin_service: ", log.LstdFlags))
+
+	// Set the log information in case of crash...
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// Initialyse service with default values.
+	s_impl := new(server)
+	s_impl.Name = string(adminpb.File_proto_admin_proto.Services().Get(0).FullName())
+	s_impl.Proto = adminpb.File_proto_admin_proto.Path()
+	s_impl.Port = defaultPort
+	s_impl.Proxy = defaultProxy
+	s_impl.Protocol = "grpc"
+	s_impl.Domain = domain
+	s_impl.Version = "0.0.1"
+	s_impl.PublisherId = "globulario"
+	s_impl.Description = "Admin service must be use with priviled"
+	s_impl.Keywords = []string{"Example", "admin", "Test", "Service"}
+	s_impl.Repositories = make([]string, 0)
+	s_impl.Discoveries = make([]string, 0)
+	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.WebRoot = "/var/globular/webroot"
+	s_impl.ApplicationsRoot = "/var/globular/data/files/applications"
+
+	s_impl.AllowAllOrigins = allow_all_origins
+	s_impl.AllowedOrigins = allowed_origins
+
+	// Here I will retreive the list of connections from file if there are some...
+	err := s_impl.Init()
+	if err != nil {
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+	}
+
+	if len(os.Args) == 2 {
+		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
+	}
+
+	// Register the admin services
+	adminpb.RegisterAdminServiceServer(s_impl.grpcServer, s_impl)
+	reflection.Register(s_impl.grpcServer)
+
+	// Start the service.
+	s_impl.StartService()
+
+}
