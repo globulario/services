@@ -1,0 +1,67 @@
+syntax = "proto3";
+package admin;
+
+option go_package="application_manager/application_managerpb";
+
+import "resource.proto";
+
+message InstallApplicationRequest{
+	string dicorveryId = 1;
+	string applicationId = 2;
+	string publisherId = 3;
+	string version = 4;
+	string domain = 5; // optional usefull if your server serve multiple domain.
+	bool set_as_default = 6;
+}
+
+message InstallApplicationResponse{
+	bool result = 1;
+}
+
+message UninstallApplicationRequest{
+	string applicationId = 1;
+	string publisherId = 2;
+	string version = 3;
+	bool deletePermissions = 4;
+	string domain = 5; // optional usefull if your server serve multiple domain.
+}
+
+message UninstallApplicationResponse{
+	bool result = 1;
+}
+
+message DeployApplicationRequest{
+	string name = 1;
+	string domain = 2;
+	bytes data = 3;
+	string user = 4;
+	string organization = 5;
+	string version = 6;
+	repeated string keywords = 7;
+	string description = 8;
+	repeated string actions = 9; // That need to be use by the application...
+	string repository = 10;
+	string discovery = 11;
+	string icon = 12;
+	string alias = 13;
+	repeated resource.Role roles = 14;
+	repeated resource.Group groups = 15;
+	bool set_as_default = 16;
+}
+
+message DeployApplicationResponse{
+	bool result = 1;
+}
+
+service ApplicationManagerService {
+
+  // Install application...
+  rpc InstallApplication(InstallApplicationRequest) returns (InstallApplicationResponse);
+
+  // Uninstall application...
+  rpc UninstallApplication(UninstallApplicationRequest) returns (UninstallApplicationResponse);
+
+  // Pulbish and install application.
+  rpc DeployApplication(stream DeployApplicationRequest) returns (DeployApplicationResponse);
+
+}

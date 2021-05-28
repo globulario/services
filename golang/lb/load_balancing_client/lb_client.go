@@ -71,100 +71,100 @@ func NewLbService_Client(address string, id string) (*Lb_Client, error) {
 	return client, nil
 }
 
-func (self *Lb_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Lb_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
 // Return the address
-func (self *Lb_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (client *Lb_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the domain
-func (self *Lb_Client) GetDomain() string {
-	return self.domain
+func (client *Lb_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the id of the service instance
-func (self *Lb_Client) GetId() string {
-	return self.id
+func (client *Lb_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (self *Lb_Client) GetName() string {
-	return self.name
+func (client *Lb_Client) GetName() string {
+	return client.name
 }
 
 // must be close when no more needed.
-func (self *Lb_Client) Close() {
+func (client *Lb_Client) Close() {
 	// Close the load report loop.
-	self.close_channel <- true
-	self.cc.Close()
+	client.close_channel <- true
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Lb_Client) SetPort(port int) {
-	self.port = port
+func (client *Lb_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client instance id.
-func (self *Lb_Client) SetId(id string) {
-	self.id = id
+func (client *Lb_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (self *Lb_Client) SetName(name string) {
-	self.name = name
+func (client *Lb_Client) SetName(name string) {
+	client.name = name
 }
 
 // Set the domain.
-func (self *Lb_Client) SetDomain(domain string) {
-	self.domain = domain
+func (client *Lb_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Lb_Client) HasTLS() bool {
-	return self.hasTLS
+func (client *Lb_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Lb_Client) GetCertFile() string {
-	return self.certFile
+func (client *Lb_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (self *Lb_Client) GetKeyFile() string {
-	return self.keyFile
+func (client *Lb_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Lb_Client) GetCaFile() string {
-	return self.caFile
+func (client *Lb_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Lb_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (client *Lb_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Lb_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (client *Lb_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Lb_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (client *Lb_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Lb_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (client *Lb_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,23 +172,23 @@ func (self *Lb_Client) SetCaFile(caFile string) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Start reporting client load infos.
-func (self *Lb_Client) startReportLoadInfo() error {
-	self.close_channel = make(chan bool)
-	self.report_load_info_channel = make(chan *lbpb.LoadInfo)
+func (client *Lb_Client) startReportLoadInfo() error {
+	client.close_channel = make(chan bool)
+	client.report_load_info_channel = make(chan *lbpb.LoadInfo)
 
 	// Open the stream...
-	stream, err := self.c.ReportLoadInfo(globular.GetClientContext(self))
+	stream, err := client.c.ReportLoadInfo(globular.GetClientContext(client))
 	if err != nil {
 		return err
 	}
 
 	for {
 		select {
-		case <-self.close_channel:
+		case <-client.close_channel:
 			// exit.
 			break
 
-		case load_info := <-self.report_load_info_channel:
+		case load_info := <-client.report_load_info_channel:
 			rqst := &lbpb.ReportLoadInfoRequest{
 				Info: load_info,
 			}
@@ -198,27 +198,27 @@ func (self *Lb_Client) startReportLoadInfo() error {
 	}
 
 	// Close the stream.
-	_, err = stream.CloseAndRecv()
+	//, err = stream.CloseAndRecv()
 
-	return err
+	//return err
 
 }
 
 // Simply report the load info to the load balancer service.
-func (self *Lb_Client) ReportLoadInfo(load_info *lbpb.LoadInfo) {
-	if self.report_load_info_channel == nil {
+func (client *Lb_Client) ReportLoadInfo(load_info *lbpb.LoadInfo) {
+	if client.report_load_info_channel == nil {
 		return // the service is not ready to get info.
 	}
-	self.report_load_info_channel <- load_info
+	client.report_load_info_channel <- load_info
 }
 
 // Get the list of candidate for a given services.
-func (self *Lb_Client) GetCandidates(serviceName string) ([]*lbpb.ServerInfo, error) {
+func (client *Lb_Client) GetCandidates(serviceName string) ([]*lbpb.ServerInfo, error) {
 	rqst := &lbpb.GetCanditatesRequest{
 		ServiceName: serviceName,
 	}
 
-	resp, err := self.c.GetCanditates(globular.GetClientContext(self), rqst)
+	resp, err := client.c.GetCanditates(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}

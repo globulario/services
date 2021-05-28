@@ -1,0 +1,74 @@
+/**
+ * Service management functionality.
+ */
+syntax = "proto3";
+package discovery;
+
+import "resource.proto";
+
+option go_package="discovery/discoverypb";
+
+message PublishServiceRequest{
+	string serviceId = 1;
+	string serviceName = 2;
+	string user = 3;
+	string organization = 4;
+	string path = 5;
+	string dicorveryId = 6;
+	string repositoryId = 7;
+	string description = 8;
+	repeated string keywords = 9;
+	string version = 10;
+	string platform = 11;
+}
+
+message PublishServiceResponse{
+	bool result = 1;
+}
+
+message PublishApplicationRequest{
+	string name = 1;
+	string domain = 2;
+	bytes data = 3;
+	string user = 4;
+	string organization = 5;
+	string version = 6;
+	repeated string keywords = 7;
+	string description = 8;
+	repeated string actions = 9; // That need to be use by the application...
+	string repository = 10;
+	string discovery = 11;
+	string icon = 12;
+	string alias = 13;
+	repeated resource.Role roles = 14;
+	repeated resource.Group groups = 15;
+	bool set_as_default = 16;
+}
+
+message PublishApplicationResponse{
+	bool result = 1;
+}
+
+/** functionality to retreive a service **/
+service PackageDiscovery {
+	
+	/** Search service by keywords **/
+	rpc FindPackages(resource.FindPackagesDescriptorRequest) returns (resource.FindPackagesDescriptorResponse);
+	
+	/** Return the list of all packages **/
+	rpc GetPackageDescriptor(resource.GetPackageDescriptorRequest) returns ( resource.GetPackageDescriptorResponse);
+	
+	/** Return the list of all packages **/
+	rpc GetPackagesDescriptor(resource.GetPackagesDescriptorRequest) returns(stream resource.GetPackagesDescriptorResponse);
+	
+	/** Save a service descriptor **/
+	rpc SetPackageDescriptor(resource.SetPackageDescriptorRequest) returns(resource.SetPackageDescriptorResponse);
+	
+    /** Publish a service into globular repository */
+    rpc PublishService(PublishServiceRequest) returns (PublishServiceResponse);
+	
+    // Publish a web application to a globular discovery services.
+    rpc PublishApplication(PublishApplicationRequest) returns (PublishApplicationResponse);
+
+}
+

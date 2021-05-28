@@ -101,8 +101,9 @@ message LabelNamesResponse{
 message LabelValuesRequest{
 	string connectionId = 1;
 	string label = 2;
-	int64 startTime = 3;
-	int64 endTime = 4;
+	repeated string values = 3;
+	int64 startTime = 4;
+	int64 endTime = 5;
 }
 
 message LabelValuesResponse{

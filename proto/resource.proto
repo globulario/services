@@ -7,6 +7,46 @@ package resource;
 import "google/protobuf/struct.proto";
 option go_package = "resource/resourcepb";
 
+/** That message will contain the information to update a service on a node. **/
+message PackageBundle {
+
+	PackageDescriptor descriptor = 1;
+
+	/** additionnal informations not found in the descriptor **/
+	string checksum = 2;
+	string plaform = 3;
+	int32 size = 4;
+	int64 modified = 5;
+	bytes Binairies = 6; // not save in the bd 
+}
+
+enum PackageType {
+	UNKNOW_TYPE = 0; // not work correctly with ToJson function...
+	SERVICE_TYPE = 1;
+	APPLICATION_TYPE = 2;
+}
+
+/**
+ * A package can contain Service or Application. The type will be use to dertmine 
+ * what the package contain.
+ */
+message PackageDescriptor {
+	string id = 1;
+	string name = 2;
+	PackageType type = 3;
+	string publisherId = 4; // Cam be Organization or Account.
+	string version = 6;
+	string description = 7;
+	repeated string repositories = 8; // The list of repositories that has the package
+	repeated string discoveries = 9; // The list of dicoveries that has the package
+	repeated string keywords = 10; // keywords that describe the application/service
+	repeated string actions = 11; // optional, contain the list of actions required by that application / services
+	repeated Role roles = 12; // The list of roles required by the application/service
+	repeated Group groups= 13;
+	string icon = 14;
+	string alias = 15;
+}
+
 /** Account **/
 message Account {
 	string id=1;
@@ -217,6 +257,22 @@ message IsOrgnanizationMemberRqst {
 
 message IsOrgnanizationMemberRsp{
 	bool result = 1;
+}
+
+message SetPackageBundleRequest {
+	PackageBundle bundle = 1;
+}
+
+message SetPackageBundleResponse {
+	bool result = 1;
+}
+
+message GetPackageBundleChecksumRequest {
+	string id = 1; // the bundle id.
+}
+
+message GetPackageBundleChecksumResponse {
+	string checksum = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -557,6 +613,42 @@ message ClearNotificationsByTypeRsp{
 
 }
 
+message GetPackageDescriptorRequest {
+	string serviceId = 1;
+	string publisherId = 2;
+}
+
+
+message GetPackageDescriptorResponse {
+	// Return one of more service descriptor with various versions.
+	repeated PackageDescriptor results = 1;
+}
+
+message GetPackagesDescriptorRequest {
+	string query = 1;
+}
+
+message GetPackagesDescriptorResponse {
+	repeated PackageDescriptor results = 1;
+}
+
+message SetPackageDescriptorRequest {
+	PackageDescriptor descriptor = 1;
+}
+
+message SetPackageDescriptorResponse {
+	bool result = 1;
+}
+
+message FindPackagesDescriptorRequest {
+	repeated string keywords = 1;
+}
+
+message FindPackagesDescriptorResponse {
+	repeated PackageDescriptor results = 1;
+}
+
+
 /**
  * That service is use to manage Globular resource like permissions and accounts
  * or role. The service made use of Persistence service to store various 
@@ -735,4 +827,30 @@ service ResourceService {
 
 	/** Remove all notification of a given type */
 	rpc ClearNotificationsByType(ClearNotificationsByTypeRqst) returns(ClearNotificationsByTypeRsp);
+
+	////////////////////////////////////////////////////////////////////////////
+	// Package's
+	////////////////////////////////////////////////////////////////////////////
+	
+	// Descriptor
+
+	/** Search service by keywords **/
+	rpc FindPackages(FindPackagesDescriptorRequest) returns (FindPackagesDescriptorResponse);
+	
+	/** Return the list of all packages **/
+	rpc GetPackageDescriptor(GetPackageDescriptorRequest) returns ( GetPackageDescriptorResponse);
+	
+	/** Return the list of all packages **/
+	rpc GetPackagesDescriptor(GetPackagesDescriptorRequest) returns(stream GetPackagesDescriptorResponse);
+	
+	/** Save a service descriptor **/
+	rpc SetPackageDescriptor(SetPackageDescriptorRequest) returns(SetPackageDescriptorResponse);
+
+	// Bundle...
+
+	/** Retreive a pacakge bundle **/
+	rpc SetPackageBundle(SetPackageBundleRequest) returns(SetPackageBundleResponse);
+
+	/** Return the checksum for a given bundle */
+	rpc GetPackageBundleChecksum(GetPackageBundleChecksumRequest) returns(GetPackageBundleChecksumResponse);
 }

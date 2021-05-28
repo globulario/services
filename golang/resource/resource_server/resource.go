@@ -6,27 +6,27 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 
 	//"reflect"
 	"strings"
 	"time"
 
 	"encoding/json"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/resource/resourcepb"
 
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/golang/protobuf/jsonpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
-
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func (resource_server *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
@@ -2446,4 +2446,344 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 //* Remove all notification of a given type
 func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqst *resourcepb.ClearNotificationsByTypeRqst) (*resourcepb.ClearNotificationsByTypeRsp, error) {
 	return nil, errors.New("not implemented")
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Pakage informations...
+/////////////////////////////////////////////////////////////////////////////////////////
+
+// Find packages by keywords...
+func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackagesDescriptorRequest) (*resourcepb.FindPackagesDescriptorResponse, error) {
+	// That service made user of persistence service.
+	p, err := server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	kewordsStr, err := Utility.ToJson(rqst.Keywords)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Test...
+	query := `{"keywords": { "$all" : ` + kewordsStr + `}}`
+
+	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	descriptors := make([]*resourcepb.PackageDescriptor, len(data))
+	for i := 0; i < len(data); i++ {
+		descriptor := data[i].(map[string]interface{})
+		descriptors[i] = new(resourcepb.PackageDescriptor)
+		descriptors[i].Id = descriptor["id"].(string)
+		descriptors[i].Name = descriptor["name"].(string)
+		descriptors[i].Description = descriptor["description"].(string)
+		descriptors[i].PublisherId = descriptor["publisherid"].(string)
+		descriptors[i].Version = descriptor["version"].(string)
+		descriptors[i].Icon = descriptor["icon"].(string)
+		descriptors[i].Alias = descriptor["alias"].(string)
+		if descriptor["keywords"] != nil {
+			descriptor["keywords"] = []interface{}(descriptor["keywords"].(primitive.A))
+			descriptors[i].Keywords = make([]string, len(descriptor["keywords"].([]interface{})))
+			for j := 0; j < len(descriptor["keywords"].([]interface{})); j++ {
+				descriptors[i].Keywords[j] = descriptor["keywords"].([]interface{})[j].(string)
+			}
+		}
+		if descriptor["actions"] != nil {
+			descriptor["actions"] = []interface{}(descriptor["actions"].(primitive.A))
+			descriptors[i].Actions = make([]string, len(descriptor["actions"].([]interface{})))
+			for j := 0; j < len(descriptor["actions"].([]interface{})); j++ {
+				descriptors[i].Actions[j] = descriptor["actions"].([]interface{})[j].(string)
+			}
+		}
+		if descriptor["discoveries"] != nil {
+			descriptor["discoveries"] = []interface{}(descriptor["discoveries"].(primitive.A))
+			descriptors[i].Discoveries = make([]string, len(descriptor["discoveries"].([]interface{})))
+			for j := 0; j < len(descriptor["discoveries"].([]interface{})); j++ {
+				descriptors[i].Discoveries[j] = descriptor["discoveries"].([]interface{})[j].(string)
+			}
+		}
+
+		if descriptor["repositories"] != nil {
+			descriptor["repositories"] = []interface{}(descriptor["repositories"].(primitive.A))
+			descriptors[i].Repositories = make([]string, len(descriptor["repositories"].([]interface{})))
+			for j := 0; j < len(descriptor["repositories"].([]interface{})); j++ {
+				descriptors[i].Repositories[j] = descriptor["repositories"].([]interface{})[j].(string)
+			}
+		}
+	}
+
+	// Return the list of Service Descriptor.
+	return &resourcepb.FindPackagesDescriptorResponse{
+		Results: descriptors,
+	}, nil
+}
+
+//* Retrun all version of a given packages. *
+func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
+	p, err := server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	query := `{"id":"` + rqst.ServiceId + `", "publisherid":"` + rqst.PublisherId + `"}`
+
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if len(values) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No service descriptor with id "+rqst.ServiceId+" was found for publisher id "+rqst.PublisherId)))
+	}
+
+	descriptors := make([]*resourcepb.PackageDescriptor, len(values))
+	for i := 0; i < len(values); i++ {
+
+		descriptor := values[i].(map[string]interface{})
+		descriptors[i] = new(resourcepb.PackageDescriptor)
+		descriptors[i].Id = descriptor["id"].(string)
+		descriptors[i].Name = descriptor["name"].(string)
+		if descriptor["alias"] != nil {
+			descriptors[i].Alias = descriptor["alias"].(string)
+		} else {
+			descriptors[i].Alias = descriptors[i].Name
+		}
+		if descriptor["icon"] != nil {
+			descriptors[i].Icon = descriptor["icon"].(string)
+		}
+		if descriptor["description"] != nil {
+			descriptors[i].Description = descriptor["description"].(string)
+		}
+		if descriptor["publisherid"] != nil {
+			descriptors[i].PublisherId = descriptor["publisherid"].(string)
+		}
+		if descriptor["version"] != nil {
+			descriptors[i].Version = descriptor["version"].(string)
+		}
+		descriptors[i].Type = resourcepb.PackageType(Utility.ToInt(descriptor["type"]))
+
+		if descriptor["keywords"] != nil {
+			descriptor["keywords"] = []interface{}(descriptor["keywords"].(primitive.A))
+			descriptors[i].Keywords = make([]string, len(descriptor["keywords"].([]interface{})))
+			for j := 0; j < len(descriptor["keywords"].([]interface{})); j++ {
+				descriptors[i].Keywords[j] = descriptor["keywords"].([]interface{})[j].(string)
+			}
+		}
+
+		if descriptor["actions"] != nil {
+			descriptor["actions"] = []interface{}(descriptor["actions"].(primitive.A))
+			descriptors[i].Actions = make([]string, len(descriptor["actions"].([]interface{})))
+			for j := 0; j < len(descriptor["actions"].([]interface{})); j++ {
+				descriptors[i].Actions[j] = descriptor["actions"].([]interface{})[j].(string)
+			}
+		}
+
+		if descriptor["discoveries"] != nil {
+			descriptor["discoveries"] = []interface{}(descriptor["discoveries"].(primitive.A))
+			descriptors[i].Discoveries = make([]string, len(descriptor["discoveries"].([]interface{})))
+			for j := 0; j < len(descriptor["discoveries"].([]interface{})); j++ {
+				descriptors[i].Discoveries[j] = descriptor["discoveries"].([]interface{})[j].(string)
+			}
+		}
+
+		if descriptor["repositories"] != nil {
+			descriptor["repositories"] = []interface{}(descriptor["repositories"].(primitive.A))
+			descriptors[i].Repositories = make([]string, len(descriptor["repositories"].([]interface{})))
+			for j := 0; j < len(descriptor["repositories"].([]interface{})); j++ {
+				descriptors[i].Repositories[j] = descriptor["repositories"].([]interface{})[j].(string)
+			}
+		}
+	}
+
+	sort.Slice(descriptors[:], func(i, j int) bool {
+		return descriptors[i].Version > descriptors[j].Version
+	})
+
+	// Return the list of Service Descriptor.
+	return &resourcepb.GetPackageDescriptorResponse{
+		Results: descriptors,
+	}, nil
+}
+
+//* Return the list of all services *
+func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorRequest, stream resourcepb.ResourceService_GetPackagesDescriptorServer) error {
+	p, err := server.getPersistenceStore()
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Services", `{}`, "")
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	descriptors := make([]*resourcepb.PackageDescriptor, 0)
+	for i := 0; i < len(data); i++ {
+		descriptor := new(resourcepb.PackageDescriptor)
+
+		descriptor.Id = data[i].(map[string]interface{})["id"].(string)
+		descriptor.Name = data[i].(map[string]interface{})["name"].(string)
+		descriptor.Description = data[i].(map[string]interface{})["description"].(string)
+		descriptor.PublisherId = data[i].(map[string]interface{})["publisherid"].(string)
+		descriptor.Version = data[i].(map[string]interface{})["version"].(string)
+		descriptor.Icon = data[i].(map[string]interface{})["icon"].(string)
+		descriptor.Alias = data[i].(map[string]interface{})["alias"].(string)
+		descriptor.Type = resourcepb.PackageType(Utility.ToInt(data[i].(map[string]interface{})["type"]))
+
+		if data[i].(map[string]interface{})["keywords"] != nil {
+			data[i].(map[string]interface{})["keywords"] = []interface{}(data[i].(map[string]interface{})["keywords"].(primitive.A))
+			descriptor.Keywords = make([]string, len(data[i].(map[string]interface{})["keywords"].([]interface{})))
+			for j := 0; j < len(data[i].(map[string]interface{})["keywords"].([]interface{})); j++ {
+				descriptor.Keywords[j] = data[i].(map[string]interface{})["keywords"].([]interface{})[j].(string)
+			}
+		}
+
+		if data[i].(map[string]interface{})["actions"] != nil {
+			data[i].(map[string]interface{})["actions"] = []interface{}(data[i].(map[string]interface{})["actions"].(primitive.A))
+			descriptor.Actions = make([]string, len(data[i].(map[string]interface{})["actions"].([]interface{})))
+			for j := 0; j < len(data[i].(map[string]interface{})["actions"].([]interface{})); j++ {
+				descriptor.Actions[j] = data[i].(map[string]interface{})["actions"].([]interface{})[j].(string)
+			}
+		}
+
+		if data[i].(map[string]interface{})["discoveries"] != nil {
+			data[i].(map[string]interface{})["discoveries"] = []interface{}(data[i].(map[string]interface{})["discoveries"].(primitive.A))
+			descriptor.Discoveries = make([]string, len(data[i].(map[string]interface{})["discoveries"].([]interface{})))
+			for j := 0; j < len(data[i].(map[string]interface{})["discoveries"].([]interface{})); j++ {
+				descriptor.Discoveries[j] = data[i].(map[string]interface{})["discoveries"].([]interface{})[j].(string)
+			}
+		}
+
+		if data[i].(map[string]interface{})["repositories"] != nil {
+			data[i].(map[string]interface{})["repositories"] = []interface{}(data[i].(map[string]interface{})["repositories"].(primitive.A))
+			descriptor.Repositories = make([]string, len(data[i].(map[string]interface{})["repositories"].([]interface{})))
+			for j := 0; j < len(data[i].(map[string]interface{})["repositories"].([]interface{})); j++ {
+				descriptor.Repositories[j] = data[i].(map[string]interface{})["repositories"].([]interface{})[j].(string)
+			}
+		}
+
+		descriptors = append(descriptors, descriptor)
+		// send at each 20
+		if i%20 == 0 {
+			stream.Send(&resourcepb.GetPackagesDescriptorResponse{
+				Results: descriptors,
+			})
+			descriptors = make([]*resourcepb.PackageDescriptor, 0)
+		}
+	}
+
+	if len(descriptors) > 0 {
+		stream.Send(&resourcepb.GetPackagesDescriptorResponse{
+			Results: descriptors,
+		})
+	}
+
+	// Return the list of Service Descriptor.
+	return nil
+}
+
+/**
+ * Create / Update a pacakge descriptor
+ */
+func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
+	p, err := server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	var marshaler jsonpb.Marshaler
+
+	jsonStr, err := marshaler.MarshalToString(rqst.Descriptor_)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// little fix...
+	jsonStr = strings.ReplaceAll(jsonStr, "publisherId", "publisherid")
+
+	// Always create a new if not already exist.
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Services", `{"id":"`+rqst.Descriptor_.Id+`", "publisherid":"`+rqst.Descriptor_.PublisherId+`", "version":"`+rqst.Descriptor_.Version+`"}`, jsonStr, `[{"upsert": true}]`)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.SetPackageDescriptorResponse{
+		Result: true,
+	}, nil
+}
+
+//* Get the package bundle checksum use for validation *
+func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resourcepb.GetPackageBundleChecksumRequest) (*resourcepb.GetPackageBundleChecksumResponse, error) {
+	p, err := server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "PackageBundle", `{"_id":"`+rqst.Id+`"}`, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Here I will retreive the values from the db and
+	return &resourcepb.GetPackageBundleChecksumResponse{
+		Checksum: values.(map[string]interface{})["checksum"].(string),
+	}, nil
+
+}
+
+//* Set the package bundle (without data)
+func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPackageBundleRequest) (*resourcepb.SetPackageBundleResponse, error) {
+	bundle := rqst.Bundle
+
+	p, err := server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Generate the bundle id....
+	id := Utility.GenerateUUID(bundle.Descriptor_.PublisherId + "%" + bundle.Descriptor_.Name + "%" + bundle.Descriptor_.Version + "%" + bundle.Descriptor_.Id + "%" + bundle.Plaform)
+
+	log.Println(id)
+	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.Descriptor_.PublisherId, "servicename": bundle.Descriptor_.Name, "serviceid": bundle.Descriptor_.Id, "modified": time.Now().Unix(), "size": len(bundle.Binairies)})
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "PackageBundle", `{"_id":"`+id+`"}`, jsonStr, `[{"upsert": true}]`)
+
+	return nil, err
 }

@@ -325,8 +325,8 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(logpb.File_proto_log_proto.Services().Get(0).FullName())
-	s_impl.Proto = logpb.File_proto_log_proto.Path()
+	s_impl.Name = string(logpb.File_log_proto.Services().Get(0).FullName())
+	s_impl.Proto = logpb.File_log_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

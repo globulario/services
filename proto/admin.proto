@@ -14,103 +14,6 @@ message HasRunningProcessResponse {
 	bool result = 1;
 }
 
-message PublishServiceRequest{
-	string serviceId = 1;
-	string serviceName = 2;
-	string user = 3;
-	string organization = 4;
-	string path = 5;
-	string dicorveryId = 6;
-	string repositoryId = 7;
-	string description = 8;
-	repeated string keywords = 9;
-	string version = 10;
-	string platform = 11;
-}
-
-message UploadServicePackageRequest{
-	string user = 1;
-	string organization = 2;
-	bytes data = 3;
-}
-
-message UploadServicePackageResponse{
-	string path = 1;
-}
-
-message PublishServiceResponse{
-	bool result = 1;
-}
-
-message InstallApplicationRequest{
-	string dicorveryId = 1;
-	string applicationId = 2;
-	string publisherId = 3;
-	string version = 4;
-	string domain = 5; // optional usefull if your server serve multiple domain.
-	bool set_as_default = 6;
-}
-
-message InstallApplicationResponse{
-	bool result = 1;
-}
-
-message UninstallApplicationRequest{
-	string applicationId = 1;
-	string publisherId = 2;
-	string version = 3;
-	bool deletePermissions = 4;
-	string domain = 5; // optional usefull if your server serve multiple domain.
-}
-
-message UninstallApplicationResponse{
-	bool result = 1;
-}
-
-// Contain the information about serivces requiered by application.
-message MicroService {
-	string repositoryId = 1; // Where to search
-	string publisherId = 2; // The organization or user
-	string id = 3; // The id of the dependency
-	string version = 4; // The version of the dependency
-	string platform = 5; // The platform
-}
-
-message Role {
-	string id=1;
-	string name = 2;
-	repeated string actions = 3;
-}
-
-message Group {
-	string id=1;
-	string name = 2;
-}
-
-message DeployApplicationRequest{
-	string name = 1;
-	string domain = 2;
-	bytes data = 3;
-	string user = 4;
-	string organization = 5;
-	string version = 6;
-	repeated string keywords = 7;
-	string description = 8;
-	repeated MicroService microServices = 9;
-	repeated string actions = 10; // That need to be use by the application...
-	string repository = 11;
-	string discovery = 12;
-	string icon = 13;
-	string alias = 14;
-	repeated Role roles = 15;
-	repeated Group groups = 16;
-	bool set_as_default = 17;
-}
-
-message DeployApplicationResponse{
-	bool result = 1;
-}
-
 message RunCmdRequest{
 	string cmd = 1;
 	repeated string args = 2;
@@ -241,25 +144,5 @@ service AdminService {
 
   // Return the list of process id with a given name.
   rpc GetPids(GetPidsRequest) returns(GetPidsResponse);
-
-
-  // TODO put in application manager and service manager
-
-   /** Publishing **/
-  // Publish a service...
-  rpc PublishService(PublishServiceRequest) returns (PublishServiceResponse);
-
-  // Create and upload service package
-  rpc UploadServicePackage(stream UploadServicePackageRequest) returns(UploadServicePackageResponse);
-
-  // Deloyed a web application to a globular node. That must be use at development mostly...
-  rpc DeployApplication(stream DeployApplicationRequest) returns (DeployApplicationResponse);
-
-  /** Applications */
-  // Install application...
-  rpc InstallApplication(InstallApplicationRequest) returns (InstallApplicationResponse);
-
-  // Uninstall application...
-  rpc UninstallApplication(UninstallApplicationRequest) returns (UninstallApplicationResponse);
 
 }

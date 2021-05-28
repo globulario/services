@@ -1,0 +1,32 @@
+syntax = "proto3";
+package repository;
+
+import "resource.proto";
+
+option go_package="repository/repositorypb";
+
+message UploadBundleRequest {
+	bytes data = 1;
+}
+
+message UploadBundleResponse {
+	bool result = 1;
+}
+
+message DownloadBundleRequest {
+	resource.PackageDescriptor descriptor = 1;
+	string plaform = 2;
+}
+
+message DownloadBundleResponse {
+	bytes data = 1;
+}
+
+/** functionality to download/upload a service **/
+service PackageRepository {
+	/** Download a package bundle from a pacakge repository **/
+	rpc DownloadBundle(DownloadBundleRequest) returns(stream DownloadBundleResponse);
+	
+	/** Upload a package bundle to a repository **/
+	rpc UploadBundle(stream UploadBundleRequest) returns(UploadBundleResponse);
+}

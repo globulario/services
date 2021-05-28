@@ -85,200 +85,200 @@ type server struct {
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (self *server) GetId() string {
-	return self.Id
+func (server *server) GetId() string {
+	return server.Id
 }
-func (self *server) SetId(id string) {
-	self.Id = id
+func (server *server) SetId(id string) {
+	server.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (self *server) GetName() string {
-	return self.Name
+func (server *server) GetName() string {
+	return server.Name
 }
-func (self *server) SetName(name string) {
-	self.Name = name
+func (server *server) SetName(name string) {
+	server.Name = name
 }
 
 // The description of the service
-func (self *server) GetDescription() string {
-	return self.Description
+func (server *server) GetDescription() string {
+	return server.Description
 }
-func (self *server) SetDescription(description string) {
-	self.Description = description
+func (server *server) SetDescription(description string) {
+	server.Description = description
 }
 
 // The list of keywords of the services.
-func (self *server) GetKeywords() []string {
-	return self.Keywords
+func (server *server) GetKeywords() []string {
+	return server.Keywords
 }
-func (self *server) SetKeywords(keywords []string) {
-	self.Keywords = keywords
-}
-
-func (self *server) GetRepositories() []string {
-	return self.Repositories
-}
-func (self *server) SetRepositories(repositories []string) {
-	self.Repositories = repositories
+func (server *server) SetKeywords(keywords []string) {
+	server.Keywords = keywords
 }
 
-func (self *server) GetDiscoveries() []string {
-	return self.Discoveries
+func (server *server) GetRepositories() []string {
+	return server.Repositories
 }
-func (self *server) SetDiscoveries(discoveries []string) {
-	self.Discoveries = discoveries
+func (server *server) SetRepositories(repositories []string) {
+	server.Repositories = repositories
+}
+
+func (server *server) GetDiscoveries() []string {
+	return server.Discoveries
+}
+func (server *server) SetDiscoveries(discoveries []string) {
+	server.Discoveries = discoveries
 }
 
 // Dist
-func (self *server) Dist(path string) (string, error) {
+func (server *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, self)
+	return globular.Dist(path, server)
 }
 
-func (self *server) GetPlatform() string {
+func (server *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
 // The path of the executable.
-func (self *server) GetPath() string {
-	return self.Path
+func (server *server) GetPath() string {
+	return server.Path
 }
-func (self *server) SetPath(path string) {
-	self.Path = path
+func (server *server) SetPath(path string) {
+	server.Path = path
 }
 
 // The path of the .proto file.
-func (self *server) GetProto() string {
-	return self.Proto
+func (server *server) GetProto() string {
+	return server.Proto
 }
-func (self *server) SetProto(proto string) {
-	self.Proto = proto
+func (server *server) SetProto(proto string) {
+	server.Proto = proto
 }
 
 // The gRpc port.
-func (self *server) GetPort() int {
-	return self.Port
+func (server *server) GetPort() int {
+	return server.Port
 }
-func (self *server) SetPort(port int) {
-	self.Port = port
+func (server *server) SetPort(port int) {
+	server.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (self *server) GetProxy() int {
-	return self.Proxy
+func (server *server) GetProxy() int {
+	return server.Proxy
 }
-func (self *server) SetProxy(proxy int) {
-	self.Proxy = proxy
+func (server *server) SetProxy(proxy int) {
+	server.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (self *server) GetProtocol() string {
-	return self.Protocol
+func (server *server) GetProtocol() string {
+	return server.Protocol
 }
-func (self *server) SetProtocol(protocol string) {
-	self.Protocol = protocol
+func (server *server) SetProtocol(protocol string) {
+	server.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (self *server) GetAllowAllOrigins() bool {
-	return self.AllowAllOrigins
+func (server *server) GetAllowAllOrigins() bool {
+	return server.AllowAllOrigins
 }
-func (self *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	self.AllowAllOrigins = allowAllOrigins
+func (server *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	server.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (self *server) GetAllowedOrigins() string {
-	return self.AllowedOrigins
+func (server *server) GetAllowedOrigins() string {
+	return server.AllowedOrigins
 }
 
-func (self *server) SetAllowedOrigins(allowedOrigins string) {
-	self.AllowedOrigins = allowedOrigins
+func (server *server) SetAllowedOrigins(allowedOrigins string) {
+	server.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (self *server) GetDomain() string {
-	return self.Domain
+func (server *server) GetDomain() string {
+	return server.Domain
 }
-func (self *server) SetDomain(domain string) {
-	self.Domain = domain
+func (server *server) SetDomain(domain string) {
+	server.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (self *server) GetTls() bool {
-	return self.TLS
+func (server *server) GetTls() bool {
+	return server.TLS
 }
-func (self *server) SetTls(hasTls bool) {
-	self.TLS = hasTls
+func (server *server) SetTls(hasTls bool) {
+	server.TLS = hasTls
 }
 
 // The certificate authority file
-func (self *server) GetCertAuthorityTrust() string {
-	return self.CertAuthorityTrust
+func (server *server) GetCertAuthorityTrust() string {
+	return server.CertAuthorityTrust
 }
-func (self *server) SetCertAuthorityTrust(ca string) {
-	self.CertAuthorityTrust = ca
+func (server *server) SetCertAuthorityTrust(ca string) {
+	server.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (self *server) GetCertFile() string {
-	return self.CertFile
+func (server *server) GetCertFile() string {
+	return server.CertFile
 }
-func (self *server) SetCertFile(certFile string) {
-	self.CertFile = certFile
+func (server *server) SetCertFile(certFile string) {
+	server.CertFile = certFile
 }
 
 // The key file.
-func (self *server) GetKeyFile() string {
-	return self.KeyFile
+func (server *server) GetKeyFile() string {
+	return server.KeyFile
 }
-func (self *server) SetKeyFile(keyFile string) {
-	self.KeyFile = keyFile
+func (server *server) SetKeyFile(keyFile string) {
+	server.KeyFile = keyFile
 }
 
 // The service version
-func (self *server) GetVersion() string {
-	return self.Version
+func (server *server) GetVersion() string {
+	return server.Version
 }
-func (self *server) SetVersion(version string) {
-	self.Version = version
+func (server *server) SetVersion(version string) {
+	server.Version = version
 }
 
 // The publisher id.
-func (self *server) GetPublisherId() string {
-	return self.PublisherId
+func (server *server) GetPublisherId() string {
+	return server.PublisherId
 }
-func (self *server) SetPublisherId(publisherId string) {
-	self.PublisherId = publisherId
-}
-
-func (self *server) GetKeepUpToDate() bool {
-	return self.KeepUpToDate
-}
-func (self *server) SetKeepUptoDate(val bool) {
-	self.KeepUpToDate = val
+func (server *server) SetPublisherId(publisherId string) {
+	server.PublisherId = publisherId
 }
 
-func (self *server) GetKeepAlive() bool {
-	return self.KeepAlive
+func (server *server) GetKeepUpToDate() bool {
+	return server.KeepUpToDate
 }
-func (self *server) SetKeepAlive(val bool) {
-	self.KeepAlive = val
+func (server *server) SetKeepUptoDate(val bool) {
+	server.KeepUpToDate = val
 }
 
-func (self *server) GetPermissions() []interface{} {
-	return self.Permissions
+func (server *server) GetKeepAlive() bool {
+	return server.KeepAlive
 }
-func (self *server) SetPermissions(permissions []interface{}) {
-	self.Permissions = permissions
+func (server *server) SetKeepAlive(val bool) {
+	server.KeepAlive = val
+}
+
+func (server *server) GetPermissions() []interface{} {
+	return server.Permissions
+}
+func (server *server) SetPermissions(permissions []interface{}) {
+	server.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (self *server) Init() error {
+func (server *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewLdapService_Client", ldap_client.NewLdapService_Client)
@@ -286,13 +286,13 @@ func (self *server) Init() error {
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-	err := globular.InitService(dir+"/config.json", self)
+	err := globular.InitService(dir+"/config.json", server)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	server.grpcServer, err = globular.InitGrpcServer(server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -302,31 +302,31 @@ func (self *server) Init() error {
 }
 
 // Save the configuration values.
-func (self *server) Save() error {
+func (server *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", self)
+	return globular.SaveService(dir+"/config.json", server)
 }
 
-func (self *server) StartService() error {
-	return globular.StartService(self, self.grpcServer)
+func (server *server) StartService() error {
+	return globular.StartService(server, server.grpcServer)
 }
 
-func (self *server) StopService() error {
-	return globular.StopService(self, self.grpcServer)
+func (server *server) StopService() error {
+	return globular.StopService(server, server.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *ldappb.StopRequest) (*ldappb.StopResponse, error) {
-	return &ldappb.StopResponse{}, self.StopService()
+func (server *server) Stop(context.Context, *ldappb.StopRequest) (*ldappb.StopResponse, error) {
+	return &ldappb.StopResponse{}, server.StopService()
 }
 
 /**
  * Connect to a ldap server...
  */
-func (self *server) connect(id string, userId string, pwd string) (*LDAP.Conn, error) {
+func (server *server) connect(id string, userId string, pwd string) (*LDAP.Conn, error) {
 
 	// The info must be set before that function is call.
-	info := self.Connections[id]
+	info := server.Connections[id]
 
 	conn, err := LDAP.Dial("tcp", fmt.Sprintf("%s:%d", info.Host, info.Port))
 	if err != nil {
@@ -361,22 +361,22 @@ func (self *server) connect(id string, userId string, pwd string) (*LDAP.Conn, e
 }
 
 // Authenticate a user with LDAP server.
-func (self *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateRqst) (*ldappb.AuthenticateRsp, error) {
+func (server *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateRqst) (*ldappb.AuthenticateRsp, error) {
 	id := rqst.Id
 	login := rqst.Login
 	pwd := rqst.Pwd
 
 	if len(id) > 0 {
 		// I will made use of bind to authenticate the user.
-		_, err := self.connect(id, login, pwd)
+		_, err := server.connect(id, login, pwd)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	} else {
-		for id, _ := range self.Connections {
-			_, err := self.connect(id, login, pwd)
+		for id, _ := range server.Connections {
+			_, err := server.connect(id, login, pwd)
 			if err == nil {
 				return &ldappb.AuthenticateRsp{
 					Result: true,
@@ -396,7 +396,7 @@ func (self *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateR
 
 // Create a new SQL connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (self *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateConnectionRqst) (*ldappb.CreateConnectionRsp, error) {
+func (server *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateConnectionRqst) (*ldappb.CreateConnectionRsp, error) {
 	fmt.Println("Try to create a new connection")
 	// sqlpb
 	fmt.Println("Try to create a new connection")
@@ -411,9 +411,9 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateCon
 	c.Password = rsqt.Connection.Password
 
 	// set or update the connection and save it in json file.
-	self.Connections[c.Id] = c
+	server.Connections[c.Id] = c
 
-	c.conn, err = self.connect(c.Id, c.User, c.Password)
+	c.conn, err = server.connect(c.Id, c.User, c.Password)
 	defer c.conn.Close()
 
 	if err != nil {
@@ -423,14 +423,14 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateCon
 	}
 
 	// In that case I will save it in file.
-	err = self.Save()
+	err = server.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	globular.UpdateServiceConfig(self)
+	globular.UpdateServiceConfig(server)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -444,24 +444,24 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateCon
 }
 
 // Remove a connection from the map and the file.
-func (self *server) DeleteConnection(ctx context.Context, rqst *ldappb.DeleteConnectionRqst) (*ldappb.DeleteConnectionRsp, error) {
+func (server *server) DeleteConnection(ctx context.Context, rqst *ldappb.DeleteConnectionRqst) (*ldappb.DeleteConnectionRsp, error) {
 
 	id := rqst.GetId()
-	if _, ok := self.Connections[id]; !ok {
+	if _, ok := server.Connections[id]; !ok {
 		return &ldappb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	if self.Connections[id].conn != nil {
+	if server.Connections[id].conn != nil {
 		// Close the connection.
-		self.Connections[id].conn.Close()
+		server.Connections[id].conn.Close()
 	}
 
-	delete(self.Connections, id)
+	delete(server.Connections, id)
 
 	// In that case I will save it in file.
-	err := self.Save()
+	err := server.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -476,15 +476,15 @@ func (self *server) DeleteConnection(ctx context.Context, rqst *ldappb.DeleteCon
 }
 
 // Close connection.
-func (self *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldappb.CloseRsp, error) {
+func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldappb.CloseRsp, error) {
 	id := rqst.GetId()
-	if _, ok := self.Connections[id]; !ok {
+	if _, ok := server.Connections[id]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
 	}
 
-	self.Connections[id].conn.Close()
+	server.Connections[id].conn.Close()
 
 	// return success.
 	return &ldappb.CloseRsp{
@@ -505,8 +505,8 @@ func main() {
 	// The actual server implementation.
 	s_impl := new(server)
 	s_impl.Connections = make(map[string]connection)
-	s_impl.Name = string(ldappb.File_proto_ldap_proto.Services().Get(0).FullName())
-	s_impl.Proto = ldappb.File_proto_ldap_proto.Path()
+	s_impl.Name = string(ldappb.File_ldap_proto.Services().Get(0).FullName())
+	s_impl.Proto = ldappb.File_ldap_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
@@ -543,21 +543,21 @@ func main() {
  * not specify the default base is use. It return a list of values. This can
  * be interpret as a tow dimensional array.
  */
-func (self *server) search(id string, base_dn string, filter string, attributes []string) ([][]interface{}, error) {
+func (server *server) search(id string, base_dn string, filter string, attributes []string) ([][]interface{}, error) {
 
-	if _, ok := self.Connections[id]; !ok {
+	if _, ok := server.Connections[id]; !ok {
 		return nil, errors.New("Connection " + id + " dosent exist!")
 	}
 
 	// create the connection.
-	c := self.Connections[id]
-	conn, err := self.connect(id, self.Connections[id].User, self.Connections[id].Password)
+	c := server.Connections[id]
+	conn, err := server.connect(id, server.Connections[id].User, server.Connections[id].Password)
 	if err != nil {
 		return nil, err
 	}
 
 	c.conn = conn
-	self.Connections[id] = c
+	server.Connections[id] = c
 
 	// close connection after search.
 	defer c.conn.Close()
@@ -571,7 +571,7 @@ func (self *server) search(id string, base_dn string, filter string, attributes 
 		nil)
 
 	// Create simple search.
-	sr, err := self.Connections[id].conn.Search(search_request)
+	sr, err := server.Connections[id].conn.Search(search_request)
 
 	if err != nil {
 		return nil, err
@@ -594,15 +594,15 @@ func (self *server) search(id string, base_dn string, filter string, attributes 
 }
 
 // Search over LDAP server.
-func (self *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*ldappb.SearchResp, error) {
+func (server *server) Search(ctx context.Context, rqst *ldappb.SearchRqst) (*ldappb.SearchResp, error) {
 	id := rqst.Search.GetId()
-	if _, ok := self.Connections[id]; !ok {
+	if _, ok := server.Connections[id]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Connection "+id+" dosent exist!")))
 	}
 
-	results, err := self.search(id, rqst.Search.BaseDN, rqst.Search.Filter, rqst.Search.Attributes)
+	results, err := server.search(id, rqst.Search.BaseDN, rqst.Search.Filter, rqst.Search.Attributes)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/resource/resource_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
 
@@ -358,8 +358,8 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(resourcepb.File_proto_resource_proto.Services().Get(0).FullName())
-	s_impl.Proto = resourcepb.File_proto_resource_proto.Path()
+	s_impl.Name = string(resourcepb.File_resource_proto.Services().Get(0).FullName())
+	s_impl.Proto = resourcepb.File_resource_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

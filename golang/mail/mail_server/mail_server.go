@@ -616,8 +616,8 @@ func main() {
 
 	// The actual server implementation.
 	s_impl := new(server)
-	s_impl.Name = string(mailpb.File_proto_mail_proto.Services().Get(0).FullName())
-	s_impl.Proto = mailpb.File_proto_mail_proto.Path()
+	s_impl.Name = string(mailpb.File_mail_proto.Services().Get(0).FullName())
+	s_impl.Proto = mailpb.File_mail_proto.Path()
 	s_impl.Port = port
 	s_impl.Domain = domain
 	s_impl.Proxy = defaultProxy

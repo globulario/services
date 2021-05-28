@@ -5,27 +5,30 @@
 # day of my life just like that. But at then end I learn something...
 
 # GO grpc file generation
-protoc proto/admin.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/resource.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/rbac.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/log.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/lb.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/ca.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/packages.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/dns.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/echo.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/search.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/event.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/storage.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/file.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/sql.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/ldap.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/mail.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/persistence.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/monitoring.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/spc.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/catalog.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/conversation.proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/admin.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/resource.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/rbac.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/log.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/lb.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/dns.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/echo.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/search.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/event.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/storage.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/file.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/sql.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/ldap.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/mail.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/persistence.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/monitoring.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/spc.proto -I proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/catalog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/conversation.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/application_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/authentication.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 # Web-Api generation.
 # ** Note that gooleapis /usr/local/include/google/api must exist... (https://github.com/googleapis/googleapis)
@@ -34,7 +37,6 @@ protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/resource/resou
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/rbac/rbacpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true rbac.proto
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/log/logpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true log.proto
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/packages/packagespb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true packages.proto
-protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/ca/capb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true ca.proto
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/dns/dnspb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true dns.proto
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/echo/echopb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true echo.proto
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/search/searchpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true search.proto
@@ -55,12 +57,12 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/admi
 mkdir typescript/resource
 protoc --js_out=import_style=commonjs:typescript/resource  -I ./proto/ resource.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/resource -I ./proto/ resource.proto
-mkdir typescript/ca
-protoc --js_out=import_style=commonjs:typescript/ca  -I ./proto/ ca.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/ca -I ./proto/ ca.proto
-mkdir typescript/packages
-protoc --js_out=import_style=commonjs:typescript/packages  -I ./proto/ packages.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/packages -I ./proto/ packages.proto
+mkdir typescript/repository
+protoc --js_out=import_style=commonjs:typescript/repository  -I ./proto/ repository.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/repository -I ./proto/ repository.proto
+mkdir typescript/discovery
+protoc --js_out=import_style=commonjs:typescript/discovery  -I ./proto/ discovery.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/discovery -I ./proto/ discovery.proto
 mkdir typescript/lb
 protoc --js_out=import_style=commonjs:typescript/lb  -I ./proto/ lb.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/lb -I ./proto/ lb.proto

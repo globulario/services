@@ -1001,9 +1001,9 @@ func main() {
 
 	// The actual server implementation.
 	s_impl := new(server)
-	s_impl.Name = string(persistencepb.File_proto_persistence_proto.Services().Get(0).FullName())
+	s_impl.Name = string(persistencepb.File_persistence_proto.Services().Get(0).FullName())
 	s_impl.Port = defaultPort
-	s_impl.Proto = persistencepb.File_proto_persistence_proto.Path()
+	s_impl.Proto = persistencepb.File_persistence_proto.Path()
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain

@@ -31,8 +31,8 @@ func NewPrometheusStore(address string) (Store, error) {
 }
 
 // Alerts returns a list of all active alerts.
-func (self *PrometheusStore) Alerts(ctx context.Context) (string, error) {
-	result, err := self.c.Alerts(ctx)
+func (store *PrometheusStore) Alerts(ctx context.Context) (string, error) {
+	result, err := store.c.Alerts(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -46,8 +46,8 @@ func (self *PrometheusStore) Alerts(ctx context.Context) (string, error) {
 }
 
 // AlertManagers returns an overview of the current state of the Prometheus alert manager discovery.
-func (self *PrometheusStore) AlertManagers(ctx context.Context) (string, error) {
-	result, err := self.c.AlertManagers(ctx)
+func (store *PrometheusStore) AlertManagers(ctx context.Context) (string, error) {
+	result, err := store.c.AlertManagers(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -61,13 +61,13 @@ func (self *PrometheusStore) AlertManagers(ctx context.Context) (string, error) 
 }
 
 // CleanTombstones removes the deleted data from disk and cleans up the existing tombstones.
-func (self *PrometheusStore) CleanTombstones(ctx context.Context) error {
-	return self.c.CleanTombstones(ctx)
+func (store *PrometheusStore) CleanTombstones(ctx context.Context) error {
+	return store.c.CleanTombstones(ctx)
 }
 
 // Config returns the current Prometheus configuration.
-func (self *PrometheusStore) Config(ctx context.Context) (string, error) {
-	result, err := self.c.Config(ctx)
+func (store *PrometheusStore) Config(ctx context.Context) (string, error) {
+	result, err := store.c.Config(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -81,13 +81,13 @@ func (self *PrometheusStore) Config(ctx context.Context) (string, error) {
 }
 
 // DeleteSeries deletes data for a selection of series in a time range.
-func (self *PrometheusStore) DeleteSeries(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) error {
-	return self.c.DeleteSeries(ctx, matches, startTime, endTime)
+func (store *PrometheusStore) DeleteSeries(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) error {
+	return store.c.DeleteSeries(ctx, matches, startTime, endTime)
 }
 
 // Flags returns the flag values that Prometheus was launched with.
-func (self *PrometheusStore) Flags(ctx context.Context) (string, error) {
-	result, err := self.c.Flags(ctx)
+func (store *PrometheusStore) Flags(ctx context.Context) (string, error) {
+	result, err := store.c.Flags(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -101,9 +101,9 @@ func (self *PrometheusStore) Flags(ctx context.Context) (string, error) {
 }
 
 // LabelNames returns all the unique label names present in the block in sorted order.
-func (self *PrometheusStore) LabelNames(ctx context.Context) ([]string, string, error) {
+func (store *PrometheusStore) LabelNames(ctx context.Context) ([]string, string, error) {
 	var results []string
-	/*results , warnings, err := self.c.LabelNames(ctx)
+	/*results , warnings, err := store.c.LabelNames(ctx)
 	if err != nil {
 		return nil, "", err
 	}*/
@@ -118,10 +118,11 @@ func (self *PrometheusStore) LabelNames(ctx context.Context) ([]string, string, 
 }
 
 // LabelValues performs a query for the values of the given label.
-func (self *PrometheusStore) LabelValues(ctx context.Context, label string, startTime int64, endTime int64) (string, string, error) {
+func (store *PrometheusStore) LabelValues(ctx context.Context, label string, values []string, startTime int64, endTime int64) (string, string, error) {
 	startTime_ := time.Unix(startTime, 0)
 	endTime_ := time.Unix(endTime, 0)
-	results, warnings, err := self.c.LabelValues(ctx, label, startTime_, endTime_)
+	
+	results, warnings, err := store.c.LabelValues(ctx, label, values, startTime_, endTime_)
 	if err != nil {
 		return "", "", err
 	}
@@ -141,8 +142,8 @@ func (self *PrometheusStore) LabelValues(ctx context.Context, label string, star
 }
 
 // Query performs a query for the given time.
-func (self *PrometheusStore) Query(ctx context.Context, query string, ts time.Time) (string, string, error) {
-	results, warnings, err := self.c.Query(ctx, query, ts)
+func (store *PrometheusStore) Query(ctx context.Context, query string, ts time.Time) (string, string, error) {
+	results, warnings, err := store.c.Query(ctx, query, ts)
 	if err != nil {
 		return "", "", err
 	}
@@ -162,14 +163,14 @@ func (self *PrometheusStore) Query(ctx context.Context, query string, ts time.Ti
 }
 
 // QueryRange performs a query for the given range.
-func (self *PrometheusStore) QueryRange(ctx context.Context, query string, startTime time.Time, endTime time.Time, step float64) (string, string, error) {
+func (store *PrometheusStore) QueryRange(ctx context.Context, query string, startTime time.Time, endTime time.Time, step float64) (string, string, error) {
 	// Initialyse the parameter.
 	var r v1.Range
 	r.End = endTime
 	r.Start = startTime
 	r.Step = time.Duration(step) * time.Millisecond
 
-	results, warnings, err := self.c.QueryRange(ctx, query, r)
+	results, warnings, err := store.c.QueryRange(ctx, query, r)
 	if err != nil {
 		return "", "", err
 	}
@@ -188,8 +189,8 @@ func (self *PrometheusStore) QueryRange(ctx context.Context, query string, start
 }
 
 // Series finds series by label matchers.
-func (self *PrometheusStore) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) (string, string, error) {
-	results, warnings, err := self.c.Series(ctx, matches, startTime, endTime)
+func (store *PrometheusStore) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) (string, string, error) {
+	results, warnings, err := store.c.Series(ctx, matches, startTime, endTime)
 	if err != nil {
 		return "", "", err
 	}
@@ -210,8 +211,8 @@ func (self *PrometheusStore) Series(ctx context.Context, matches []string, start
 
 // Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 // under the TSDB's data directory and returns the directory as response.
-func (self *PrometheusStore) Snapshot(ctx context.Context, skipHead bool) (string, error) {
-	result, err := self.c.Snapshot(ctx, skipHead)
+func (store *PrometheusStore) Snapshot(ctx context.Context, skipHead bool) (string, error) {
+	result, err := store.c.Snapshot(ctx, skipHead)
 	if err != nil {
 		return "", err
 	}
@@ -225,8 +226,8 @@ func (self *PrometheusStore) Snapshot(ctx context.Context, skipHead bool) (strin
 }
 
 // Rules returns a list of alerting and recording rules that are currently loaded.
-func (self *PrometheusStore) Rules(ctx context.Context) (string, error) {
-	result, err := self.c.Rules(ctx)
+func (store *PrometheusStore) Rules(ctx context.Context) (string, error) {
+	result, err := store.c.Rules(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -240,8 +241,8 @@ func (self *PrometheusStore) Rules(ctx context.Context) (string, error) {
 }
 
 // Targets returns an overview of the current state of the Prometheus target discovery.
-func (self *PrometheusStore) Targets(ctx context.Context) (string, error) {
-	result, err := self.c.Targets(ctx)
+func (store *PrometheusStore) Targets(ctx context.Context) (string, error) {
+	result, err := store.c.Targets(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -255,9 +256,9 @@ func (self *PrometheusStore) Targets(ctx context.Context) (string, error) {
 }
 
 // TargetsMetadata returns metadata about metrics currently scraped by the target.
-func (self *PrometheusStore) TargetsMetadata(ctx context.Context, matchTarget string, metric string, limit string) (string, error) {
+func (store *PrometheusStore) TargetsMetadata(ctx context.Context, matchTarget string, metric string, limit string) (string, error) {
 	var results []string
-	/*results, err := self.c.TargetsMetadata(ctx, matchTarget, metric, limit)
+	/*results, err := store.c.TargetsMetadata(ctx, matchTarget, metric, limit)
 	if err != nil {
 		return "", err
 	}*/

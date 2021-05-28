@@ -343,8 +343,8 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(echopb.File_proto_echo_proto.Services().Get(0).FullName())
-	s_impl.Proto = echopb.File_proto_echo_proto.Path()
+	s_impl.Name = string(echopb.File_echo_proto.Services().Get(0).FullName())
+	s_impl.Proto = echopb.File_echo_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

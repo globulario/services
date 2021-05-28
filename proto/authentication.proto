@@ -5,8 +5,6 @@
 syntax = "proto3";
 package authentication;
 
-import "google/protobuf/struct.proto";
-
 option go_package = "authentication/authenticationpb";
 
 

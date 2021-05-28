@@ -1834,8 +1834,8 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(conversationpb.File_proto_conversation_proto.Services().Get(0).FullName())
-	s_impl.Proto = conversationpb.File_proto_conversation_proto.Path()
+	s_impl.Name = string(conversationpb.File_conversation_proto.Services().Get(0).FullName())
+	s_impl.Proto = conversationpb.File_conversation_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

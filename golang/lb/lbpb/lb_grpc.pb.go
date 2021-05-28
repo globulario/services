@@ -11,6 +11,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
+// Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
 // LoadBalancingServiceClient is the client API for LoadBalancingService service.
@@ -43,7 +44,7 @@ func (c *loadBalancingServiceClient) GetCanditates(ctx context.Context, in *GetC
 }
 
 func (c *loadBalancingServiceClient) ReportLoadInfo(ctx context.Context, opts ...grpc.CallOption) (LoadBalancingService_ReportLoadInfoClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_LoadBalancingService_serviceDesc.Streams[0], "/lb.LoadBalancingService/reportLoadInfo", opts...)
+	stream, err := c.cc.NewStream(ctx, &LoadBalancingService_ServiceDesc.Streams[0], "/lb.LoadBalancingService/reportLoadInfo", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +108,7 @@ type UnsafeLoadBalancingServiceServer interface {
 }
 
 func RegisterLoadBalancingServiceServer(s grpc.ServiceRegistrar, srv LoadBalancingServiceServer) {
-	s.RegisterService(&_LoadBalancingService_serviceDesc, srv)
+	s.RegisterService(&LoadBalancingService_ServiceDesc, srv)
 }
 
 func _LoadBalancingService_GetCanditates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -154,7 +155,10 @@ func (x *loadBalancingServiceReportLoadInfoServer) Recv() (*ReportLoadInfoReques
 	return m, nil
 }
 
-var _LoadBalancingService_serviceDesc = grpc.ServiceDesc{
+// LoadBalancingService_ServiceDesc is the grpc.ServiceDesc for LoadBalancingService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var LoadBalancingService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "lb.LoadBalancingService",
 	HandlerType: (*LoadBalancingServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
@@ -170,5 +174,5 @@ var _LoadBalancingService_serviceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "proto/lb.proto",
+	Metadata: "lb.proto",
 }

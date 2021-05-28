@@ -370,46 +370,6 @@ func (svr *server) publish(event string, data []byte) error {
 	return errors.New("not implemented")
 }
 
-/////////////////////// admin specific functions /////////////////////////////////
-/**
- * Send a application notification.
- * That function will send notification to all connected user of that application.
- */
-func (svr *server) sendApplicationNotification(application string, message string) error {
-
-	// That service made user of persistence service.
-
-	/** The notification object. */
-	/* TODO Create Notification from resource.pb....
-	notification := make(map[string]interface{})
-	id := time.Now().Unix()
-	notification["_id"] = id
-	notification["_type"] = 1
-	notification["_text"] = message
-	notification["_recipient"] = application
-	notification["_date"] = id
-
-	jsonStr, err := Utility.ToJson(data)
-	if err != nil {
-		return err
-	}
-	notification["_sender"] = jsonStr
-
-	_, err = p.InsertOne(context.Background(), "local_resource", application+"_db", "Notifications", notification, "")
-	if err != nil {
-		return err
-	}
-
-	jsonStr, err = Utility.ToJson(notification)
-	if err != nil {
-		return err
-	}
-
-	return svr.publish(application+"_notification_event", []byte(jsonStr))
-	*/
-	return errors.New("not implemented")
-}
-
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -422,8 +382,8 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(adminpb.File_proto_admin_proto.Services().Get(0).FullName())
-	s_impl.Proto = adminpb.File_proto_admin_proto.Path()
+	s_impl.Name = string(adminpb.File_admin_proto.Services().Get(0).FullName())
+	s_impl.Proto = adminpb.File_admin_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
@@ -431,7 +391,7 @@ func main() {
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "Admin service must be use with priviled"
-	s_impl.Keywords = []string{"Example", "admin", "Test", "Service"}
+	s_impl.Keywords = []string{"Manager", "Administrator", "Admin"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Permissions = make([]interface{}, 0)

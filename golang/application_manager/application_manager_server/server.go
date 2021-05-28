@@ -1,21 +1,22 @@
 package main
 
 import (
-
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/lb/load_balancing_client"
+	"github.com/globulario/services/golang/application_manager/application_manager_client"
+	"github.com/globulario/services/golang/application_manager/application_managerpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
-	"github.com/globulario/services/golang/lb/lbpb"
 )
 
 // The default values.
@@ -70,11 +71,8 @@ type server struct {
 	// The grpc server.
 	grpcServer *grpc.Server
 
-	// load balancing action channel.
-	lb_load_info_channel             chan *lbpb.LoadInfo
-	lb_remove_candidate_info_channel chan *lbpb.ServerInfo
-	lb_get_candidates_info_channel   chan map[string]interface{}
-	lb_stop_channel                  chan bool
+	// The webroot
+	WebRoot string
 }
 
 // Globular services implementation...
@@ -275,7 +273,7 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 func (svr *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewLbService_Client", load_balancing_client.NewLbService_Client)
+	Utility.RegisterFunction("NewApplicationManager_Client", application_manager_client.NewApplicationManager_Client)
 
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -310,10 +308,38 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
+/////////////////////// resource manager functions /////////////////////////////////
 
-/////////////////////// Load Balancing specific function /////////////////////////////////
+func (svr *server) createApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+	return errors.New("not implemented")
+}
 
+func (svr *server) deleteApplication(applicationId string) error {
 
+	return errors.New("not implemented")
+}
+
+func (svr *server) getApplicationVersion(id string) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (svr *server) createRole(id, name string, actions []string) error {
+	return errors.New("not implemented")
+}
+
+func (svr *server) createGroup(id, name string) error {
+	return errors.New("not implemented")
+}
+
+//////////////////////// Package Repository services /////////////////////////////////
+func (server *server) publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role) error {
+	return errors.New("not implemented")
+}
+
+///////////////////// event service functions ////////////////////////////////////
+func (svr *server) publish(event string, data []byte) error {
+	return errors.New("not implemented")
+}
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -327,19 +353,20 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(lbpb.File_proto_lb_proto.Services().Get(0).FullName())
-	s_impl.Proto = lbpb.File_proto_lb_proto.Path()
+	s_impl.Name = string(application_managerpb.File_application_manager_proto.Services().Get(0).FullName())
+	s_impl.Proto = application_managerpb.File_application_manager_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
-	s_impl.Description = "The Hello world of gRPC service!"
-	s_impl.Keywords = []string{"Example", "Echo", "Test", "Service"}
+	s_impl.Description = "Application manager service"
+	s_impl.Keywords = []string{"Install, Uninstall, Deploy applications"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.WebRoot = "/var/globular/webroot"
 
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -354,7 +381,7 @@ func main() {
 	}
 
 	// Register the echo services
-	lbpb.RegisterLoadBalancingServiceServer(s_impl.grpcServer, s_impl)
+	application_managerpb.RegisterApplicationManagerServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
 	// Start the service.

@@ -616,7 +616,7 @@ func (self *server) LabelValues(ctx context.Context, rqst *monitoringpb.LabelVal
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resultStr, warnings, err := store.LabelValues(ctx, rqst.Label, rqst.StartTime, rqst.EndTime)
+	resultStr, warnings, err := store.LabelValues(ctx, rqst.Label, rqst.Values, rqst.StartTime, rqst.EndTime)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -826,8 +826,8 @@ func main() {
 
 	// The actual server implementation.
 	s_impl := new(server)
-	s_impl.Name = string(monitoringpb.File_proto_monitoring_proto.Services().Get(0).FullName())
-	s_impl.Proto = monitoringpb.File_proto_monitoring_proto.Path()
+	s_impl.Name = string(monitoringpb.File_monitoring_proto.Services().Get(0).FullName())
+	s_impl.Proto = monitoringpb.File_monitoring_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

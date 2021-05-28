@@ -703,8 +703,8 @@ func main() {
 	// The actual server implementation.
 	s_impl := new(server)
 	s_impl.Connections = make(map[string]connection)
-	s_impl.Name = string(storagepb.File_proto_storage_proto.Services().Get(0).FullName())
-	s_impl.Proto = storagepb.File_proto_storage_proto.Path()
+	s_impl.Name = string(storagepb.File_storage_proto.Services().Get(0).FullName())
+	s_impl.Proto = storagepb.File_storage_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

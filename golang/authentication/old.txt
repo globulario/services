@@ -50,16 +50,6 @@ func (resource_client *Resource_Client) RefreshToken(token string) (string, erro
 
 
 
-
-
-
-
-
-
-
-
-
-
 ///////////////////////////////////////////////////////////// SERVER... ////////////////////////////////////////////////////////
 
 //* Authenticate a account by it name or email.

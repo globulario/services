@@ -1,24 +1,21 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
+	"errors"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/echo/echo_client"
-	"github.com/globulario/services/golang/echo/echopb"
+	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
 )
 
 // The default values.
@@ -72,6 +69,9 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+
+	// The server Root directory
+	Root string
 }
 
 // Globular services implementation...
@@ -272,7 +272,7 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 func (svr *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
+	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
 
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -307,28 +307,18 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-func (svr *server) Stop(context.Context, *echopb.StopRequest) (*echopb.StopResponse, error) {
-	return &echopb.StopResponse{}, svr.StopService()
+/////////////////////// Resource client function ///////////////////////////
+/**
+ * Return the package bundle info.
+ */
+func (server *server) getPackageBundleChecksum(id string) (string, error){
+
+	return "", errors.New("not implemented")
 }
 
-//Stop(context.Context, *StopRequest) (*StopResponse, error)
-/////////////////////// Echo specific function /////////////////////////////////
-
-// Implementation of the Echo method.
-func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.EchoResponse, error) {
-	fmt.Println("Try echo a value")
-
-	// In that case I will save it in file.
-	err := svr.Save()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &echopb.EchoResponse{
-		Message: rsqt.Message,
-	}, nil
+/////////////////////// Repositiory specific function /////////////////////////////////
+func (server *server) setPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error{
+	return  errors.New("not implemented")
 }
 
 // That service is use to give access to SQL.
@@ -336,29 +326,30 @@ func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.
 func main() {
 
 	// set the logger.
-	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(echopb.File_proto_echo_proto.Services().Get(0).FullName())
-	s_impl.Proto = echopb.File_proto_echo_proto.Path()
+	s_impl.Name = string(repositorypb.File_repository_proto.Services().Get(0).FullName())
+	s_impl.Proto = repositorypb.File_repository_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
-	s_impl.Description = "The Hello world of gRPC service!"
-	s_impl.Keywords = []string{"Example", "Echo", "Test", "Service"}
+	s_impl.Description = "Repository service, where package are store."
+	s_impl.Keywords = []string{"Repo", "Repository", "Package", "Service"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Permissions = make([]interface{}, 0)
-
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
+
+	// The default path where the data can be found.
+	s_impl.Root = "/var/globular/data"
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
@@ -369,8 +360,8 @@ func main() {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
-	// Register the echo services
-	echopb.RegisterEchoServiceServer(s_impl.grpcServer, s_impl)
+	// Register the repository services
+	repositorypb.RegisterPackageRepositoryServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
 	// Start the service.

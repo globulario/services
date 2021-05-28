@@ -515,5 +515,5 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/rbac.proto",
+	Metadata: "rbac.proto",
 }
