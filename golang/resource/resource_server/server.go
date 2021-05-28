@@ -388,6 +388,10 @@ func main() {
 	resourcepb.RegisterResourceServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
+	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+
 	// Start the service.
 	s_impl.StartService()
 

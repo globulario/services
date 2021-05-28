@@ -212,6 +212,7 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 	}
 
 	log.Println("step 1: get service descriptor")
+
 	// The first element in the array is the most recent descriptor
 	// so if no version is given the most recent will be taken.
 	descriptor := descriptors[0]
@@ -275,7 +276,6 @@ func (server *server) StopServiceInstance(ctx context.Context, rqst *services_ma
 // Return the list of services configurations.
 func (server *server) GetServicesConfig(ctx context.Context, rqst *services_managerpb.GetServicesConfigRequest) (*services_managerpb.GetServicesConfigResponse, error) {
 	configs := server.getServicesConfig()
-
 	configs_ := make([]*structpb.Struct, 0)
 	for i := 0; i < len(configs); i++ {
 		config, err := structpb.NewStruct(configs[i])
@@ -316,7 +316,6 @@ func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_mana
 	//  init the service with it new configuration.
 
 	// Save the configuration...
-
 	return &services_managerpb.SaveServiceConfigResponse{
 		/** Nothing here **/
 	}, nil

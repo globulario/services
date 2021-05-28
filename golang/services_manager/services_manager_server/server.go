@@ -4,23 +4,29 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/davecourtois/Utility"
-	"github.com/emicklei/proto"
-	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/services_manager/services_manager_client"
-	"github.com/globulario/services/golang/services_manager/services_managerpb"
-	"google.golang.org/grpc"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/davecourtois/Utility"
+	"github.com/emicklei/proto"
+	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
+	service_manager_client "github.com/globulario/services/golang/services_manager/services_manager_client"
+	"github.com/globulario/services/golang/services_manager/services_managerpb"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/struCoder/pidusage"
+	"google.golang.org/grpc"
+
 	//"google.golang.org/grpc/grpclog"
 	"encoding/json"
+	ps "github.com/mitchellh/go-ps"
 	"google.golang.org/grpc/reflection"
 	"io/ioutil"
 	"os/exec"
@@ -94,11 +100,39 @@ type server struct {
 	// The path where tls certificates are located.
 	Creds string
 
+	// The configuration path
+	ConfigPath string
+
+	// The data path
+	DataPath string
+
 	// The porst Range
 	PortsRange string
 
 	// The list of port in use.
 	portsInUse []int
+
+	// https certificate path
+	Certificate string
+
+	// https certificate bundle path
+	CertificateAuthorityBundle string
+
+	// Update servirce watch delay in second
+	WatchUpdateDelay int
+
+	// Monitoring
+	ServicesMetricsPort int
+	PromethenusPort     int
+
+	// The prometheus logging informations.
+	methodsCounterLog *prometheus.CounterVec
+
+	// Monitor the cpu usage of process.
+	servicesCpuUsage    *prometheus.GaugeVec
+	servicesMemoryUsage *prometheus.GaugeVec
+
+	exit_ chan bool
 }
 
 // Globular services implementation...
@@ -383,7 +417,6 @@ func getVal(m *sync.Map, k string) interface{} {
 
 /////////////////////////////// Log service ///////////////////////////////////////////////
 
-
 /////////////////////// Ressource manager function ////////////////////////////////////////
 func (server *server) removeRolesAction(action string) error {
 
@@ -416,19 +449,21 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 }
 
 ///////////////////////  Service Manager functions ////////////////////////////////////////////////
-func (server *server) logServiceInfo(name string, infos string){
-
+func (server *server) logServiceInfo(name string, infos string) {
+	log.Println("-----------> INFO", name, ":", infos)
 }
 
-func (server *server) logServiceError(name string, infos string){
-
+func (server *server) logServiceError(name string, infos string) {
+	log.Println("-----------> ERROR", name, ":", infos)
 }
 
-func (server *server) saveConfig()error {
+func (server *server) saveConfig() error {
 	return errors.New("not implemented")
 }
 
 func (server *server) initService(s *sync.Map) error {
+	serviceId := getStringVal(s, "Id")
+	serviceName := getStringVal(s, "Name")
 	// TODO send message to service controller...
 	hasTls := getBoolVal(s, "TLS")
 
@@ -446,7 +481,7 @@ func (server *server) initService(s *sync.Map) error {
 			s.Store("KeyFile", "")
 		}
 	}
-
+	log.Println("Init service: ", serviceId, ":", serviceName)
 	hasChange := server.saveServiceConfig(s)
 	state := getStringVal(s, "State")
 	if hasChange || state == "stopped" {
@@ -469,10 +504,304 @@ func (server *server) initService(s *sync.Map) error {
 
 	} else if state == "deleted" {
 		// be sure the process is no more there.
-		server.deleteService(getStringVal(s, "Id"))
+		server.deleteService(serviceId)
 	}
 
 	return nil
+}
+
+/**
+ * Start prometheus.
+ */
+func (server *server) startMonitoring() error {
+
+	var err error
+
+	// Here I will start promethus.
+	dataPath := server.DataPath + "/prometheus-data"
+	Utility.CreateDirIfNotExist(dataPath)
+
+	// Create the configuration the first time only...
+	if !Utility.Exists(server.ConfigPath + "/prometheus.yml") {
+		config := `# my global config
+global:
+  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  - job_name: 'prometheus'
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+    - targets: ['localhost:9090']
+  
+  - job_name: 'globular_internal_services_metrics'
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['localhost:` + Utility.ToString(server.ServicesMetricsPort) + `']
+    
+  - job_name: 'node_exporter_metrics'
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['localhost:` + Utility.ToString(server.PromethenusPort) + `']
+    
+`
+		err := ioutil.WriteFile(server.ConfigPath+"/prometheus.yml", []byte(config), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !Utility.Exists(server.ConfigPath + "/alertmanager.yml") {
+		config := `global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/'
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']
+`
+		err := ioutil.WriteFile(server.ConfigPath+"/alertmanager.yml", []byte(config), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	prometheusCmd := exec.Command("prometheus", "--web.listen-address", "0.0.0.0:"+Utility.ToString(server.PromethenusPort), "--config.file", server.ConfigPath+"/prometheus.yml", "--storage.tsdb.path", dataPath)
+	err = prometheusCmd.Start()
+	prometheusCmd.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	if err != nil {
+		log.Println("fail to start prometheus ", err)
+		return err
+	}
+
+	// Here I will register various metric that I would like to have for the dashboard.
+
+	// Prometheus logging informations.
+	server.methodsCounterLog = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "globular_methods_counter",
+		Help: "Globular services methods usage.",
+	},
+		[]string{
+			"application",
+			"user",
+			"method"},
+	)
+	prometheus.MustRegister(server.methodsCounterLog)
+
+	// Here I will monitor the cpu usage of each services
+	server.servicesCpuUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "globular_services_cpu_usage_counter",
+		Help: "Monitor the cpu usage of each services.",
+	},
+		[]string{
+			"id",
+			"name"},
+	)
+
+	server.servicesMemoryUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "globular_services_memory_usage_counter",
+		Help: "Monitor the memory usage of each services.",
+	},
+		[]string{
+			"id",
+			"name"},
+	)
+
+	// Set the function into prometheus.
+	prometheus.MustRegister(server.servicesCpuUsage)
+	prometheus.MustRegister(server.servicesMemoryUsage)
+
+	// Start feeding the time series...
+	ticker := time.NewTicker(1 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				// Here I will manage the process...
+
+				server.services.Range(func(key, s interface{}) bool {
+					pids, err := Utility.GetProcessIdsByName("Globular")
+					if err == nil {
+						for i := 0; i < len(pids); i++ {
+							sysInfo, err := pidusage.GetStat(pids[i])
+							if err == nil {
+								//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
+								server.servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
+								server.servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
+							}
+						}
+					}
+
+					pid := getIntVal(s.(*sync.Map), "Process")
+					if pid > 0 {
+						sysInfo, err := pidusage.GetStat(pid)
+						if err == nil {
+							//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
+							server.servicesCpuUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(sysInfo.CPU)
+							server.servicesMemoryUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(sysInfo.Memory)
+						}
+					} else {
+						path := getStringVal(s.(*sync.Map), "Path")
+						if len(path) > 0 {
+							server.servicesCpuUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(0)
+							server.servicesMemoryUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(0)
+							//log.Println("----> process is close for ", getStringVal(s.(*sync.Map), "Name"))
+						}
+
+					}
+					return true
+				})
+			case <-server.exit_:
+				return
+			}
+		}
+
+	}()
+
+	alertmanager := exec.Command("alertmanager", "--config.file", server.ConfigPath+"/alertmanager.yml")
+	alertmanager.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	err = alertmanager.Start()
+	if err != nil {
+		log.Println("fail to start prometheus alert manager", err)
+		// do not return here in that case simply continue without node exporter metrics.
+	}
+
+	node_exporter := exec.Command("node_exporter")
+	node_exporter.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	err = node_exporter.Start()
+	if err != nil {
+		log.Println("fail to start prometheus node exporter", err)
+		// do not return here in that case simply continue without node exporter metrics.
+	}
+
+	return nil
+}
+
+/**
+ * Keep process found in configuration in line with one found on the server.
+ */
+func (server *server) manageProcess() {
+
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				// Here I will manage the process...
+				services := server.getServices()
+				runingProcess := make(map[string][]int)
+				proxies := make([]int, 0)
+
+				// Fist of all I will get all services process...
+				for i := 0; i < len(services); i++ {
+					s := services[i]
+					pid := getIntVal(s, "Process")
+					state := getStringVal(s, "State")
+					p, err := ps.FindProcess(pid)
+					if pid != -1 && err == nil && p != nil {
+						name := p.Executable()
+						if _, ok := runingProcess[name]; !ok {
+							runingProcess[name] = make([]int, 0)
+						}
+						runingProcess[name] = append(runingProcess[name], getIntVal(s, "Process"))
+					} else if pid == -1 || p == nil {
+						if (state == "failed" || state == "stopped" || state == "running") && len(getStringVal(s, "Path")) > 1 {
+							// make sure the process is no running...
+							if getBoolVal(s, "KeepAlive") {
+								server.killServiceProcess(s, pid)
+								s.Store("State", "stopped")
+								server.initService(s)
+							}
+						}
+					} else if err != nil {
+						log.Println(err)
+					}
+
+					proxies = append(proxies, getIntVal(s, "ProxyProcess"))
+				}
+
+				proxies_, _ := Utility.GetProcessIdsByName("grpcwebproxy")
+				for i := 0; i < len(proxies_); i++ {
+					proxy := proxies_[i]
+					for j := 0; j < len(proxies); j++ {
+						if proxy == proxies[j] {
+							proxy = -1
+							break
+						}
+					}
+					if proxy != -1 {
+						p, err := os.FindProcess(proxy)
+						if err == nil {
+							p.Kill()
+						}
+					}
+				}
+
+				// Now I will find process by name on the computer and kill process not found in the configuration file.
+				for name, pids := range runingProcess {
+
+					pids_, err := Utility.GetProcessIdsByName(name)
+					if err == nil {
+						for i := 0; i < len(pids_); i++ {
+							pid := pids_[i]
+							for j := 0; j < len(pids); j++ {
+								if pid == pids[j] {
+									pid = -1
+									break
+								}
+							}
+
+							if pid != -1 {
+								p, err := os.FindProcess(pid)
+								if err == nil {
+									p.Kill()
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}()
 }
 
 /**
@@ -554,7 +883,7 @@ func (server *server) getNextAvailablePort() (int, error) {
 	portRange := strings.Split(server.PortsRange, "-")
 	start := Utility.ToInt(portRange[0]) + 1 // The first port of the range will be reserve to http configuration handler.
 	end := Utility.ToInt(portRange[1])
-
+	log.Println("get next available port form ", start, "to", end)
 	for i := start; i < end; i++ {
 		if server.isPortAvailable(i) {
 			server.portsInUse = append(server.portsInUse, i)
@@ -638,6 +967,85 @@ func (server *server) isPortAvailable(port int) bool {
 	}
 
 	return false
+}
+
+/**
+ * Start the grpc proxy.
+ */
+func (server *server) startProxy(s *sync.Map, port int, proxy int) (int, error) {
+	_, hasProxyProcess := s.Load("ProxyProcess")
+	if !hasProxyProcess {
+		s.Store("ProxyProcess", -1)
+	}
+	pid := getIntVal(s, "ProxyProcess")
+	if pid != -1 {
+		Utility.TerminateProcess(pid, 0)
+	}
+
+	// Now I will start the proxy that will be use by javascript client.
+	proxyPath := "/bin/grpcwebproxy"
+	if !strings.HasSuffix(proxyPath, ".exe") && runtime.GOOS == "windows" {
+		proxyPath += ".exe" // in case of windows.
+	}
+
+	proxyBackendAddress := server.GetDomain() + ":" + strconv.Itoa(port)
+	proxyAllowAllOrgins := "true"
+	proxyArgs := make([]string, 0)
+
+	// Use in a local network or in test.
+	proxyArgs = append(proxyArgs, "--backend_addr="+proxyBackendAddress)
+	proxyArgs = append(proxyArgs, "--allow_all_origins="+proxyAllowAllOrgins)
+	hasTls := getBoolVal(s, "TLS")
+	if hasTls {
+		certAuthorityTrust := server.Creds + "/ca.crt"
+
+		/* Services gRpc backend. */
+		proxyArgs = append(proxyArgs, "--backend_tls=true")
+		proxyArgs = append(proxyArgs, "--backend_tls_ca_files="+certAuthorityTrust)
+		proxyArgs = append(proxyArgs, "--backend_client_tls_cert_file="+server.Creds+"/client.crt")
+		proxyArgs = append(proxyArgs, "--backend_client_tls_key_file="+server.Creds+"/client.pem")
+
+		/* http2 parameters between the browser and the proxy.*/
+		proxyArgs = append(proxyArgs, "--run_http_server=false")
+		proxyArgs = append(proxyArgs, "--run_tls_server=true")
+		proxyArgs = append(proxyArgs, "--server_http_tls_port="+strconv.Itoa(proxy))
+
+		/* in case of public domain server files **/
+		proxyArgs = append(proxyArgs, "--server_tls_key_file="+server.Creds+"/server.pem")
+
+		proxyArgs = append(proxyArgs, "--server_tls_client_ca_files="+server.Creds+"/"+server.CertificateAuthorityBundle)
+		proxyArgs = append(proxyArgs, "--server_tls_cert_file="+server.Creds+"/"+server.Certificate)
+
+	} else {
+		// Now I will save the file with those new information in it.
+		proxyArgs = append(proxyArgs, "--run_http_server=true")
+		proxyArgs = append(proxyArgs, "--run_tls_server=false")
+		proxyArgs = append(proxyArgs, "--server_http_debug_port="+strconv.Itoa(proxy))
+		proxyArgs = append(proxyArgs, "--backend_tls=false")
+	}
+
+	// Keep connection open for longer exchange between client/service. Event Subscribe function
+	// is a good example of long lasting connection. (48 hours) seam to be more than enought for
+	// browser client connection maximum life.
+	proxyArgs = append(proxyArgs, "--server_http_max_read_timeout=48h")
+	proxyArgs = append(proxyArgs, "--server_http_max_write_timeout=48h")
+
+	// start the proxy service one time
+	proxyProcess := exec.Command(server.Root+proxyPath, proxyArgs...)
+	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	err := proxyProcess.Start()
+
+	if err != nil {
+		return -1, err
+	}
+
+	// save service configuration.
+	s.Store("ProxyProcess", proxyProcess.Process.Pid)
+
+	return proxyProcess.Process.Pid, nil
 }
 
 /**
@@ -790,6 +1198,40 @@ func (server *server) startService(s *sync.Map) (int, int, error) {
 
 	}(s, p)
 
+	// get another port.
+	if proxyPid == -1 {
+		proxy := getIntVal(s, "Proxy")
+		if !server.isPortAvailable(proxy) {
+			server.setService(s)
+			proxy, err = server.getNextAvailablePort()
+			if err != nil {
+				s.Store("Proxy", -1)
+
+				return -1, -1, err
+			}
+			// Set back the process
+			s.Store("Proxy", proxy)
+			server.setService(s)
+		}
+
+		// Start the proxy.
+		proxyPid, err = server.startProxy(s, port, proxy)
+		if err != nil {
+			return -1, -1, err
+		}
+	}
+
+	// save service config.
+	server.saveServiceConfig(s)
+
+	// save it to the config because pid and proxy pid have change.
+	server.saveConfig()
+
+	proxy := getIntVal(s, "Proxy")
+	log.Println("Service "+getStringVal(s, "Name")+":"+getStringVal(s, "Id")+" is up and running at port ", port, " and proxy ", proxy)
+
+	server.saveServiceConfig(s)
+
 	return pid, proxyPid, nil
 }
 
@@ -852,7 +1294,6 @@ func (server *server) saveServiceConfig(config *sync.Map) bool {
 
 			// Test if there change from the original value's
 			if reflect.DeepEqual(config_, config__) {
-				log.Println("the values has not change since last read ", configPath)
 				f.Close()
 				// set back the path's info.
 				return false
@@ -870,7 +1311,6 @@ func (server *server) saveServiceConfig(config *sync.Map) bool {
 			if err != nil {
 				log.Println("fail to publish event with error: ", err)
 			}
-
 		}
 	}
 	f.Close()
@@ -997,7 +1437,7 @@ func (server *server) stopService(s *sync.Map) error {
 		}
 	}
 
-	// admin_server.logServiceInfo(getStringVal(s, "Name"), time.Now().String()+"Service "+getStringVal(s, "Name")+" was stopped!")
+	server.logServiceInfo(getStringVal(s, "Name"), time.Now().String()+"Service "+getStringVal(s, "Name")+" was stopped!")
 	return nil
 }
 
@@ -1029,6 +1469,7 @@ func (server *server) getServices() []*sync.Map {
 }
 
 func (server *server) setService(s *sync.Map) {
+
 	id, _ := s.Load("Id")
 	// I will not set the services if it
 	if getStringVal(s, "State") != "deleted" {
@@ -1064,6 +1505,175 @@ func (server *server) deleteService(id string) error {
 	return nil
 }
 
+/**
+ * Start microservices.
+ */
+func (server *server) startServices() error {
+
+	// Initialyse the services.
+	log.Println("Initialyse services")
+	log.Println("local ip ", Utility.MyLocalIP())
+	log.Println("external ip ", Utility.MyIP())
+
+	// I will try to get configuration from services.
+	filepath.Walk(server.Root, func(path string, info os.FileInfo, err error) error {
+		path = strings.ReplaceAll(path, "\\", "/")
+		if info == nil {
+			return nil
+		}
+
+		if err == nil && info.Name() == "config.json" {
+			// So here I will read the content of the file.
+			s := make(map[string]interface{})
+			config, err := ioutil.ReadFile(path)
+			if err == nil {
+				// Read the config file.
+				err := json.Unmarshal(config, &s)
+				if err == nil {
+					if s["Protocol"] != nil {
+						// If a configuration file exist It will be use to start services,
+						// otherwise the service configuration file will be use.
+						if s["Name"] == nil {
+							log.Println("---> no 'Name' attribute found in service configuration in file config ", path)
+						} else {
+
+							// if no id was given I will generate a uuid.
+							if s["Id"] == nil {
+								s["Id"] = Utility.RandomUUID()
+							}
+
+							s_ := new(sync.Map)
+							for k, v := range s {
+								s_.Store(k, v)
+							}
+
+							server.setService(s_)
+						}
+					}
+				} else {
+					log.Println("fail to unmarshal configuration ", err)
+				}
+			} else {
+				log.Println("Fail to read config file ", path, err)
+			}
+		}
+		return nil
+	})
+
+	// Set service methods.
+	filepath.Walk(server.Root, func(path string, info os.FileInfo, err error) error {
+		path = strings.ReplaceAll(path, "\\", "/")
+		if info == nil {
+			return nil
+		}
+		if err == nil && strings.HasSuffix(info.Name(), ".proto") {
+			name := info.Name()[0:strings.Index(info.Name(), ".")]
+			server.setServiceMethods(name, path)
+		}
+		return nil
+	})
+
+	// Set the certificate keys...
+	services := server.getServices()
+	for _, s := range services {
+		if getStringVal(s, "Protocol") == "grpc" {
+			// The domain must be set in the sever configuration and not change after that.
+			hasTls := getBoolVal(s, "TLS") // set the tls...
+			if hasTls {
+				// Set TLS local services configuration here.
+				s.Store("CertAuthorityTrust", server.Creds+"/ca.crt")
+				s.Store("CertFile", server.Creds+"/server.crt")
+				s.Store("KeyFile", server.Creds+"/server.pem")
+			} else {
+				// not secure services.
+				s.Store("CertAuthorityTrust", "")
+				s.Store("CertFile", "")
+				s.Store("KeyFile", "")
+			}
+		}
+	}
+
+	log.Println("Init services")
+
+	// Initialyse service
+	for _, s := range services {
+		name := getStringVal(s, "Name")
+
+		// Get existion process information.
+		_, hasProcess := s.Load("Process")
+		processPid := -1
+		if hasProcess {
+			processPid = getIntVal(s, "Process")
+			// Now I will find if the process is running
+			if processPid != -1 {
+				_, err := os.FindProcess(processPid)
+				log.Println("find running process for", name, ":", processPid)
+				if err == nil {
+					server.killServiceProcess(s, processPid)
+					server.setService(s)
+					processPid = -1
+				}
+
+			} else {
+				_, hasProxyProcess := s.Load("ProxyProcess")
+				if hasProxyProcess {
+					proxyProcessPid := getIntVal(s, "ProxyProcess")
+					proxyProcess, err := os.FindProcess(proxyProcessPid)
+					if err == nil {
+						proxyProcess.Kill()
+					}
+				}
+			}
+		}
+
+		if processPid == -1 {
+			// The service name.
+			if name == "file.FileService" {
+				s.Store("Root", server.DataPath+"/files")
+			} else if name == "conversation.ConversationService" {
+				s.Store("Root", server.DataPath)
+			}
+			err := server.initService(s)
+			if err != nil {
+				log.Println(err)
+			}
+		} else {
+			log.Println("Process exist for service: ", name)
+		}
+	}
+
+	return nil
+}
+
+/**
+ * Stop external services.
+ */
+func (server *server) stopServices() {
+	log.Println("stop services...")
+
+	services := server.getServices()
+	for i := 0; i < len(services); i++ {
+		s := services[i]
+		if s != nil {
+			// I will also try to keep a client connection in to communicate with the service.
+			log.Println("stop service: ", getStringVal(s, "Name"))
+			server.stopService(s)
+		}
+	}
+
+	// Double check that all process are terminated...
+	for i := 0; i < len(services); i++ {
+		s := services[i]
+		processPid := getIntVal(s, "Process")
+		if processPid != -1 {
+			server.killServiceProcess(s, processPid)
+			server.setService(s)
+		}
+	}
+
+	server.saveConfig()
+}
+
 // Method must be register in order to be assign to role.
 func (server *server) registerMethods() error {
 
@@ -1072,6 +1682,7 @@ func (server *server) registerMethods() error {
 	if err != nil {
 		return err
 	}
+
 	log.Println("role sa was updated!")
 
 	err = server.setRoleActions("guest", []string{
@@ -1102,6 +1713,7 @@ func (server *server) registerMethods() error {
 		"/resource.ResourceService/GetAllActions"})
 
 	if err != nil {
+		log.Println("----------->", err)
 		return err
 	}
 
@@ -1295,8 +1907,7 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 				}
 
 				server.methods = methods
-
-				server.registerMethods() // refresh methods.
+				server.registerMethods()
 
 				// Test if the path exit.
 				path := server.Root + "/services/" + publisherId + "/" + name + "/" + version + "/" + serviceId
@@ -1319,12 +1930,33 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 
 }
 
+/**
+ * Subscribe to Discoverie's and repositories to keep services up to date.
+ */
+ func (server *server) keepServicesToDate() {
+
+	ticker := time.NewTicker(time.Duration(server.WatchUpdateDelay) * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				// Connect to service update events...
+				for _, s := range server.getServices() {
+					if getIntVal(s, "Process") != -1 {
+						// TODO implement the api where to validate the the actual service configuration and
+						// get the new one as necessary.
+						log.Println("Keep service up to date", getStringVal(s, "Name"), getStringVal(s, "Id"), getStringVal(s, "Version"))
+					}
+				}
+			}
+		}
+	}()
+}
+
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
-	// set the logger.
-	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -1347,11 +1979,17 @@ func main() {
 
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
+	s_impl.WatchUpdateDelay = 60 * 60; // validate service version at each hours...
 
 	// Create a new sync map.
 	s_impl.services = new(sync.Map)
 	s_impl.methods = make([]string, 0)
+	s_impl.PortsRange = "10000-10100"
 	s_impl.Root = "/usr/local/share/globular"
+	s_impl.DataPath = "/var/globular/data"
+	s_impl.ConfigPath = "/etc/globular/config"
+	s_impl.Creds = "/etc/globular/config/tls"
+	s_impl.exit_ = make(chan bool)
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
@@ -1366,7 +2004,31 @@ func main() {
 	services_managerpb.RegisterServicesManagerServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	// Start managed services.
+	s_impl.startServices()
+
+	// Start monitoring
+	s_impl.startMonitoring()
+
+	// Start watching from update
+	s_impl.keepServicesToDate()
+
+	// Register methods...
+	s_impl.registerMethods()
+
+	// Promometheus metrics for services.
+	http.Handle("/metrics", promhttp.Handler())
+
 	// Start the service.
 	s_impl.StartService()
+
+	// Stop services
+	s_impl.stopServices()
+
+	// stop monitoring...
+	s_impl.exit_ <- true
+
+
+	log.Println("service manager was stop...")
 
 }
