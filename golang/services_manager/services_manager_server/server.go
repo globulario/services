@@ -1857,7 +1857,7 @@ func (server *server) setServiceMethods(name string, path string) {
 // uninstall service
 func (server *server) uninstallService(publisherId string, serviceId string, version string, deletePermissions bool) error {
 
-	log.Println("Uninstalling services ", publisherId, serviceId, "...")
+	// log.Println("Uninstalling services ", publisherId, serviceId, "...")
 
 	// First of all I will stop the running service(s) instance.
 	for _, s := range server.getServices() {
