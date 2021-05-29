@@ -457,10 +457,6 @@ func (server *server) logServiceError(name string, infos string) {
 	log.Println("-----------> ERROR", name, ":", infos)
 }
 
-func (server *server) saveConfig() error {
-	return errors.New("not implemented")
-}
-
 func (server *server) initService(s *sync.Map) error {
 	serviceId := getStringVal(s, "Id")
 	serviceName := getStringVal(s, "Name")
@@ -1216,20 +1212,16 @@ func (server *server) startService(s *sync.Map) (int, int, error) {
 
 		// Start the proxy.
 		proxyPid, err = server.startProxy(s, port, proxy)
+		log.Println("-------------------> ", proxyPid, serviceName)
 		if err != nil {
 			return -1, -1, err
 		}
 	}
 
-	// save service config.
-	server.saveServiceConfig(s)
-
-	// save it to the config because pid and proxy pid have change.
-	server.saveConfig()
-
 	proxy := getIntVal(s, "Proxy")
 	log.Println("Service "+getStringVal(s, "Name")+":"+getStringVal(s, "Id")+" is up and running at port ", port, " and proxy ", proxy)
 
+	// save service config.
 	server.saveServiceConfig(s)
 
 	return pid, proxyPid, nil
@@ -1405,6 +1397,7 @@ func (server *server) stopService(s *sync.Map) error {
 	}
 	pid = getIntVal(s, "ProxyProcess")
 	if pid != -1 {
+		log.Println("terminate proxy process", pid)
 		err := Utility.TerminateProcess(pid, 0)
 		if err != nil {
 			log.Println("fail to teminate proxy process ", pid)
@@ -1460,7 +1453,6 @@ func (server *server) getServices() []*sync.Map {
 			log.Println("No executable path was found for path ", servicePath)
 			server.deleteService(getStringVal(s.(*sync.Map), "Id"))
 		}
-		_services_ = append(_services_, s.(*sync.Map))
 		return true
 	})
 
@@ -1576,6 +1568,8 @@ func (server *server) startServices() error {
 	// Set the certificate keys...
 	services := server.getServices()
 	for _, s := range services {
+		log.Println("-----> ", getStringVal(s, "Name"), ":", getStringVal(s, "Id"))
+		
 		if getStringVal(s, "Protocol") == "grpc" {
 			// The domain must be set in the sever configuration and not change after that.
 			hasTls := getBoolVal(s, "TLS") // set the tls...
@@ -1594,7 +1588,6 @@ func (server *server) startServices() error {
 	}
 
 	log.Println("Init services")
-
 	// Initialyse service
 	for _, s := range services {
 		name := getStringVal(s, "Name")
@@ -1620,6 +1613,7 @@ func (server *server) startServices() error {
 					proxyProcessPid := getIntVal(s, "ProxyProcess")
 					proxyProcess, err := os.FindProcess(proxyProcessPid)
 					if err == nil {
+						log.Println("terminate proxy process", proxyProcessPid)
 						proxyProcess.Kill()
 					}
 				}
@@ -1671,7 +1665,6 @@ func (server *server) stopServices() {
 		}
 	}
 
-	server.saveConfig()
 }
 
 // Method must be register in order to be assign to role.
@@ -1933,7 +1926,7 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 /**
  * Subscribe to Discoverie's and repositories to keep services up to date.
  */
- func (server *server) keepServicesToDate() {
+func (server *server) keepServicesToDate() {
 
 	ticker := time.NewTicker(time.Duration(server.WatchUpdateDelay) * time.Second)
 	go func() {
@@ -1952,7 +1945,6 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 		}
 	}()
 }
-
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -1979,7 +1971,7 @@ func main() {
 
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.WatchUpdateDelay = 60 * 60; // validate service version at each hours...
+	s_impl.WatchUpdateDelay = 60 * 60 // validate service version at each hours...
 
 	// Create a new sync map.
 	s_impl.services = new(sync.Map)
@@ -2027,7 +2019,6 @@ func main() {
 
 	// stop monitoring...
 	s_impl.exit_ <- true
-
 
 	log.Println("service manager was stop...")
 

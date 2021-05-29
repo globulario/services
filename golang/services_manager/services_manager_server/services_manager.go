@@ -177,7 +177,8 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			}
 
 			if needSave {
-				server.saveConfig()
+				//server.saveConfig()
+				// TODO publish update service event here...
 			}
 
 			break

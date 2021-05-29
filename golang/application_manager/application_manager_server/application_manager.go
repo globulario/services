@@ -9,6 +9,8 @@ import(
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/application_manager/application_managerpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/discovery/discovery_client"
+	"github.com/globulario/services/golang/repository/repository_client"
 	"google.golang.org/grpc/codes"
 	"bytes"
 	"regexp"
@@ -51,7 +53,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *application_
 	log.Println("Try to install application " + rqst.ApplicationId)
 
 	// Connect to the dicovery services
-	package_discovery, err := packages_client.NewPackagesDiscoveryService_Client(rqst.DicorveryId, "packages.PackageDiscovery")
+	package_discovery, err := discovery_client.NewDiscoveryService_Client(rqst.DicorveryId, "packages.PackageDiscovery")
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -91,7 +93,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *application_
 
 	for i := 0; i < len(descriptor.Repositories); i++ {
 
-		package_repository, err := packages_client.NewServicesRepositoryService_Client(descriptor.Repositories[i], "packages.PackageRepository")
+		package_repository, err := repository_client.NewRepositoryService_Client(descriptor.Repositories[i], "packages.PackageRepository")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -225,7 +227,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 
 
 // Deloyed a web application to a globular node. Mostly use a develeopment time.
-func (server *server) DeployApplication(stream application_managerpb.AdminService_DeployApplicationServer) error {
+func (server *server) DeployApplication(stream application_managerpb.ApplicationManagerService_DeployApplicationServer) error {
 
 	// - Get the information from the package.json (npm package, the version, the keywords and set the package descriptor with it.
 
@@ -330,13 +332,14 @@ func (server *server) DeployApplication(stream application_managerpb.AdminServic
 	}
 
 	// Retreive the actual application installed version.
-	previousVersion, err := server.getApplicationVersion(name)
+	previousVersion, _ := server.getApplicationVersion(name)
+
 
 	// Now I will save the bundle into a file in the temp directory.
 	path := os.TempDir() + "/" + Utility.RandomUUID()
 	defer os.RemoveAll(path)
 
-	err = ioutil.WriteFile(path, buffer.Bytes(), 0644)
+	err := ioutil.WriteFile(path, buffer.Bytes(), 0644)
 	if err != nil {
 		return err
 	}
