@@ -8,8 +8,8 @@ import (
 	"strconv"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/application_manager/application_manager_client"
-	"github.com/globulario/services/golang/application_manager/application_managerpb"
+	"github.com/globulario/services/golang/applications_manager/applications_manager_client"
+	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -273,7 +273,7 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 func (svr *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewApplicationManager_Client", application_manager_client.NewApplicationManager_Client)
+	Utility.RegisterFunction("NewApplicationsManager_Client", applications_manager_client.NewApplicationsManager_Client)
 
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -353,8 +353,8 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(application_managerpb.File_application_manager_proto.Services().Get(0).FullName())
-	s_impl.Proto = application_managerpb.File_application_manager_proto.Path()
+	s_impl.Name = string(applications_managerpb.File_applications_manager_proto.Services().Get(0).FullName())
+	s_impl.Proto = applications_managerpb.File_applications_manager_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
@@ -381,7 +381,7 @@ func main() {
 	}
 
 	// Register the echo services
-	application_managerpb.RegisterApplicationManagerServiceServer(s_impl.grpcServer, s_impl)
+	applications_managerpb.RegisterApplicationManagerServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
 	// Start the service.

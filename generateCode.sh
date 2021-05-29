@@ -24,7 +24,7 @@ protoc proto/monitoring.proto -I proto --go-grpc_out=require_unimplemented_serve
 protoc proto/spc.proto -I proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/catalog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/conversation.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/application_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/applications_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/authentication.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang

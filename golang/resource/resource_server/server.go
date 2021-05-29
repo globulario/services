@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-
+	"errors"
 	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -295,6 +295,10 @@ func (svr *server) validateAction(method string, subject string, subjectType rba
 	return false, nil
 }
 
+func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	return errors.New("not implemented")
+}
+
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
 
@@ -388,9 +392,9 @@ func main() {
 	resourcepb.RegisterResourceServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
-	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
-	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
+	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 
 	// Start the service.
 	s_impl.StartService()

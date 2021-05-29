@@ -201,6 +201,7 @@ func (svr *server) SetDomain(domain string) {
 	svr.Domain = domain
 }
 
+
 // TLS section
 
 // If true the service run with TLS. The
@@ -365,6 +366,10 @@ func (serv *server) validateAccess(subject string, subjectType rbacpb.SubjectTyp
 	return false, false, errors.New("not implemented")
 }
 
+func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	return errors.New("not implemented")
+}
+
 ///////////////////// event service functions ////////////////////////////////////
 func (svr *server) publish(event string, data []byte) error {
 	return errors.New("not implemented")
@@ -415,8 +420,9 @@ func main() {
 	adminpb.RegisterAdminServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/admin.AdminService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
-	//globule.setActionResourcesPermissions(map[string]interface{}{"action": "/admin.AdminService/PublishService", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+	// Set the Action ressource permissions.
+	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/admin.AdminService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/admin.AdminService/PublishService", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 
 	// Start the service.
 	s_impl.StartService()

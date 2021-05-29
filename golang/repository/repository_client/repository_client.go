@@ -11,12 +11,19 @@ import (
 	"github.com/globulario/services/golang/discovery/discovery_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"google.golang.org/grpc"
+
+	"google.golang.org/grpc/metadata"
 	"encoding/gob"
 	"bytes"
 	"errors"
 	"io"
 	"io/ioutil"
 	"log"
+	"encoding/json"
+	"strings"
+	"os"
+	"bufio"
+
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,6 +170,7 @@ func (client *Repository_Service_Client) SetCaFile(caFile string) {
 }
 
 ////////////////// Api //////////////////////
+
 /**
  * Download bundle from a repository and return it as an object in memory.
  */
@@ -283,3 +291,168 @@ func (self *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBu
 	return nil
 
 }
+
+/**
+ * Create and Upload the service archive on the server.
+ */
+ func (client *Repository_Service_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) error {
+
+	// Here I will try to read the service configuation from the path.
+	configs, _ := Utility.FindFileByName(path, "config.json")
+	if len(configs) == 0 {
+		return  errors.New("no configuration file was found")
+	}
+
+	// Find proto by name
+	protos, _ := Utility.FindFileByName(path, ".proto")
+	if len(protos) == 0 {
+		return errors.New("No prototype file was found at path '" + path + "'")
+	}
+
+	s := make(map[string]interface{})
+	data, err := ioutil.ReadFile(configs[0])
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+
+	// set the correct information inside the configuration
+	publisherId := user
+	if len(organization) > 0 {
+		publisherId = organization
+	}
+
+	s["PublisherId"] = publisherId
+
+	jsonStr, _ := Utility.ToJson(&s)
+	ioutil.WriteFile(configs[0], []byte(jsonStr), 0644)
+
+	md := metadata.New(map[string]string{"token": token, "domain": domain})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	// First of all I will create the archive for the service.
+	// If a path is given I will take it entire content. If not
+	// the proto, the config and the executable only will be taken.
+
+	// So here I will create set the good file structure in a temp directory and
+	// copy file in it that will be the bundle to be use...
+	tmp_dir := strings.ReplaceAll(os.TempDir(), "\\", "/") + "/" + s["PublisherId"].(string) + "%" + s["Name"].(string) + "%" + s["Version"].(string) + "%" + s["Id"].(string) + "%" + platform
+	path_ := tmp_dir + "/" + s["PublisherId"].(string) + "/" + s["Name"].(string) + "/" + s["Version"].(string) + "/" + s["Id"].(string)
+	defer os.RemoveAll(tmp_dir)
+
+	// I will create the directory
+	Utility.CreateDirIfNotExist(path)
+
+	// Now I will copy the content of the given path into it...
+	err = Utility.CopyDir(path+"/.", path_)
+
+	if err != nil {
+		return err
+	}
+
+	// Now I will copy the proto file into the directory Version
+	proto := strings.ReplaceAll(protos[0], "\\", "/")
+	err = Utility.CopyFile(proto, tmp_dir+"/"+s["PublisherId"].(string)+"/"+s["Name"].(string)+"/"+s["Version"].(string)+"/"+proto[strings.LastIndex(proto, "/"):])
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	packagePath, err := client.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
+	if err != nil {
+		return  err
+	}
+
+	// Remove the file when it's transfer on the server...
+	defer os.RemoveAll(packagePath)
+
+	// Read the package data.
+	packageFile, err := os.Open(packagePath)
+	if err != nil {
+		return  err
+	}
+	defer packageFile.Close()
+
+	// Now I will create the request to upload the package on the server.
+	// Open the stream...
+	stream, err := client.c.UploadBundle(ctx)
+	if err != nil {
+		return err
+	}
+
+	const chunksize = 1024 * 5 // the chunck size.
+	var count int
+	reader := bufio.NewReader(packageFile)
+	part := make([]byte, chunksize)
+	size := 0
+	for {
+
+		if count, err = reader.Read(part); err != nil {
+			break
+		}
+
+		rqst := &repositorypb.UploadBundleRequest{
+			Data:         part[:count],
+		}
+
+		// send the data to the server.
+		err = stream.Send(rqst)
+		size += count
+
+		if err == io.EOF {
+			err = nil
+			break
+		} else if err != nil {
+
+			return  err
+		}
+
+	}
+
+	// get the file path on the server where the package is store before being
+	// publish.
+	_, err = stream.CloseAndRecv()
+	if err != nil {
+		if err != io.EOF {
+			return err
+		}
+	}
+	return nil
+}
+
+/** Create a service package **/
+func (client *Repository_Service_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
+	log.Println("Service path is ", servicePath)
+	// Take the information from the configuration...
+	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
+
+	// tar + gzip
+	var buf bytes.Buffer
+	Utility.CompressDir(servicePath, &buf)
+
+	// write the .tar.gzip
+	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
+	if err != nil {
+		log.Println(297)
+		return "", err
+	}
+
+	if _, err := io.Copy(fileToWrite, &buf); err != nil {
+		log.Println(301)
+		return "", err
+	}
+
+	// close the file.
+	fileToWrite.Close()
+
+	if err != nil {
+		log.Println(311)
+		return "", err
+	}
+	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil
+}
+

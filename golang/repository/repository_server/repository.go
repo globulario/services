@@ -81,7 +81,6 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 		if err == io.EOF {
 			// end of stream...
 			stream.SendAndClose(&repositorypb.UploadBundleResponse{
-				Result: true,
 			})
 			err = nil
 			break

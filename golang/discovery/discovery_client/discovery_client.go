@@ -305,7 +305,7 @@ func (admin_client *Admin_Client) UploadServicePackage(user string, organization
 /**
  * Publish a service from a runing globular server.
  */
-func (Services_Manager_Client *Dicovery_Client) PublishService(user, organization, token, domain, path, configPath, platform string) error {
+func (Services_Manager_Client *Dicovery_Client) PublishService(user, organization, token, domain, configPath, platform string) error {
 
 	// Here I will try to read the service configuation from the path.
 	configs, _ := Utility.FindFileByName(configPath, "config.json")
@@ -346,7 +346,6 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 
 	for i := 0; i < len(discoveries); i++ {
 		rqst := new(discoverypb.PublishServiceRequest)
-		rqst.Path = path
 		rqst.User = user
 		rqst.Organization = organization
 		rqst.Description = s["Description"].(string)

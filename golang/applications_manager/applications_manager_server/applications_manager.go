@@ -1,30 +1,31 @@
-package main;
+package main
 
-import(
+import (
+	"bytes"
 	"context"
 	"errors"
-	"log"
-	"os"
-	"time"
-	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/application_manager/application_managerpb"
-	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/discovery/discovery_client"
-	"github.com/globulario/services/golang/repository/repository_client"
-	"google.golang.org/grpc/codes"
-	"bytes"
-	"regexp"
 	"io"
 	"io/ioutil"
+	"log"
+	"os"
+	"regexp"
 	"strings"
+	"time"
+
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
+	"github.com/globulario/services/golang/discovery/discovery_client"
+	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"golang.org/x/net/html"
+	"google.golang.org/grpc/codes"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 )
 
 // Uninstall application...
-func (server *server) UninstallApplication(ctx context.Context, rqst *application_managerpb.UninstallApplicationRequest) (*application_managerpb.UninstallApplicationResponse, error) {
+func (server *server) UninstallApplication(ctx context.Context, rqst *applications_managerpb.UninstallApplicationRequest) (*applications_managerpb.UninstallApplicationResponse, error) {
 
 	// Here I will also remove the application permissions...
 	if rqst.DeletePermissions {
@@ -42,13 +43,13 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &application_managerpb.UninstallApplicationResponse{
+	return &applications_managerpb.UninstallApplicationResponse{
 		Result: true,
 	}, nil
 }
 
 // Install web Application
-func (server *server) InstallApplication(ctx context.Context, rqst *application_managerpb.InstallApplicationRequest) (*application_managerpb.InstallApplicationResponse, error) {
+func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 	// Get the package bundle from the repository and install it on the server.
 	log.Println("Try to install application " + rqst.ApplicationId)
 
@@ -122,7 +123,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *application_
 	}
 
 	log.Println("application was install!")
-	return &application_managerpb.InstallApplicationResponse{
+	return &applications_managerpb.InstallApplicationResponse{
 		Result: true,
 	}, nil
 
@@ -225,9 +226,8 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	return err
 }
 
-
 // Deloyed a web application to a globular node. Mostly use a develeopment time.
-func (server *server) DeployApplication(stream application_managerpb.ApplicationManagerService_DeployApplicationServer) error {
+func (server *server) DeployApplication(stream applications_managerpb.ApplicationManagerService_DeployApplicationServer) error {
 
 	// - Get the information from the package.json (npm package, the version, the keywords and set the package descriptor with it.
 
@@ -255,7 +255,7 @@ func (server *server) DeployApplication(stream application_managerpb.Application
 		msg, err := stream.Recv()
 		if err == io.EOF || msg == nil {
 			// end of stream...
-			stream.SendAndClose(&application_managerpb.DeployApplicationResponse{
+			stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
 				Result: true,
 			})
 			err = nil
@@ -334,7 +334,6 @@ func (server *server) DeployApplication(stream application_managerpb.Application
 	// Retreive the actual application installed version.
 	previousVersion, _ := server.getApplicationVersion(name)
 
-
 	// Now I will save the bundle into a file in the temp directory.
 	path := os.TempDir() + "/" + Utility.RandomUUID()
 	defer os.RemoveAll(path)
@@ -397,7 +396,7 @@ func (server *server) DeployApplication(stream application_managerpb.Application
  * Send a application notification.
  * That function will send notification to all connected user of that application.
  */
- func (svr *server) sendApplicationNotification(application string, message string) error {
+func (svr *server) sendApplicationNotification(application string, message string) error {
 
 	// That service made user of persistence service.
 

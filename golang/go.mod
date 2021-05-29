@@ -15,9 +15,8 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/emersion/go-imap v1.1.0
 	github.com/emersion/go-message v0.14.1
-	github.com/emersion/go-smtp v0.15.0 // indirect
-	github.com/emersion/go-smtp-mta v0.0.0-20170206201558-f9b2f2fd6e9a
-	github.com/emicklei/proto v1.9.0 // indirect
+	github.com/emersion/go-smtp v0.15.0
+	github.com/emicklei/proto v1.9.0
 	github.com/go-ldap/ldap/v3 v3.3.0
 	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/go-sql-driver/mysql v1.6.0
@@ -27,17 +26,17 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.7
 	github.com/mhale/smtpd v0.0.0-20210322105601-438c8edb069c
 	github.com/miekg/dns v1.1.42
-	github.com/mitchellh/go-ps v1.0.0 // indirect
+	github.com/mitchellh/go-ps v1.0.0
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7
 	github.com/prometheus/client_golang v1.10.0
 	github.com/shirou/gopsutil v3.21.4+incompatible
-	github.com/struCoder/pidusage v0.1.3 // indirect
+	github.com/struCoder/pidusage v0.1.3
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
 	go.mongodb.org/mongo-driver v1.5.2
-	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
-	google.golang.org/genproto v0.0.0-20210524171403-669157292da3 // indirect
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
+	google.golang.org/genproto v0.0.0-20210524171403-669157292da3
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect

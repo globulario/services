@@ -6,7 +6,9 @@ import "resource.proto";
 option go_package="repository/repositorypb";
 
 message UploadBundleRequest {
-	bytes data = 1;
+	string user = 1;
+	string organization = 2;
+	bytes data = 3;
 }
 
 message UploadBundleResponse {

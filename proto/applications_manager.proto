@@ -1,7 +1,7 @@
 syntax = "proto3";
 package admin;
 
-option go_package="application_manager/application_managerpb";
+option go_package="applications_manager/applications_managerpb";
 
 import "resource.proto";
 

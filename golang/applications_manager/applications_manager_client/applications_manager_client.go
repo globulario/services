@@ -1,34 +1,34 @@
-package application_manager_client
+package applications_manager_client
 
 import (
-	"strconv"
-	"log"
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"io/ioutil"
+	"log"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/application_manager/application_managerpb"
-	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/polds/imgbase64"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"os"
-	"bytes"
-	"github.com/polds/imgbase64"
-	"path/filepath"
-	"io/ioutil"
-	"errors"
-	"encoding/json"
-	"io"
-
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // echo Client Service
 ////////////////////////////////////////////////////////////////////////////////
 
-type Application_Manager_Client struct {
+type Applications_Manager_Client struct {
 	cc *grpc.ClientConn
-	c  application_managerpb.ApplicationManagerServiceClient
+	c  applications_managerpb.ApplicationManagerServiceClient
 
 	// The id of the service
 	id string
@@ -56,8 +56,8 @@ type Application_Manager_Client struct {
 }
 
 // Create a connection to the service.
-func NewApplicationManager_Client(address string, id string) (*Application_Manager_Client, error) {
-	client := new(Application_Manager_Client)
+func NewApplicationsManager_Client(address string, id string) (*Applications_Manager_Client, error) {
+	client := new(Applications_Manager_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
 		return nil, err
@@ -66,103 +66,103 @@ func NewApplicationManager_Client(address string, id string) (*Application_Manag
 	if err != nil {
 		return nil, err
 	}
-	client.c = application_managerpb.NewApplicationManagerServiceClient(client.cc)
+	client.c = applications_managerpb.NewApplicationManagerServiceClient(client.cc)
 
 	return client, nil
 }
 
-func (Application_Manager_Client *Application_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (Applications_Manager_Client *Applications_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(Application_Manager_Client)
+		ctx = globular.GetClientContext(Applications_Manager_Client)
 	}
-	return globular.InvokeClientRequest(Application_Manager_Client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(Applications_Manager_Client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (Application_Manager_Client *Application_Manager_Client) GetDomain() string {
-	return Application_Manager_Client.domain
+func (Applications_Manager_Client *Applications_Manager_Client) GetDomain() string {
+	return Applications_Manager_Client.domain
 }
 
 // Return the address
-func (Application_Manager_Client *Application_Manager_Client) GetAddress() string {
-	return Application_Manager_Client.domain + ":" + strconv.Itoa(Application_Manager_Client.port)
+func (Applications_Manager_Client *Applications_Manager_Client) GetAddress() string {
+	return Applications_Manager_Client.domain + ":" + strconv.Itoa(Applications_Manager_Client.port)
 }
 
 // Return the id of the service instance
-func (Application_Manager_Client *Application_Manager_Client) GetId() string {
-	return Application_Manager_Client.id
+func (Applications_Manager_Client *Applications_Manager_Client) GetId() string {
+	return Applications_Manager_Client.id
 }
 
 // Return the name of the service
-func (Application_Manager_Client *Application_Manager_Client) GetName() string {
-	return Application_Manager_Client.name
+func (Applications_Manager_Client *Applications_Manager_Client) GetName() string {
+	return Applications_Manager_Client.name
 }
 
 // must be close when no more needed.
-func (Application_Manager_Client *Application_Manager_Client) Close() {
-	Application_Manager_Client.cc.Close()
+func (Applications_Manager_Client *Applications_Manager_Client) Close() {
+	Applications_Manager_Client.cc.Close()
 }
 
 // Set grpc_service port.
-func (Application_Manager_Client *Application_Manager_Client) SetPort(port int) {
-	Application_Manager_Client.port = port
+func (Applications_Manager_Client *Applications_Manager_Client) SetPort(port int) {
+	Applications_Manager_Client.port = port
 }
 
 // Set the client instance id.
-func (Application_Manager_Client *Application_Manager_Client) SetId(id string) {
-	Application_Manager_Client.id = id
+func (Applications_Manager_Client *Applications_Manager_Client) SetId(id string) {
+	Applications_Manager_Client.id = id
 }
 
 // Set the client name.
-func (Application_Manager_Client *Application_Manager_Client) SetName(name string) {
-	Application_Manager_Client.name = name
+func (Applications_Manager_Client *Applications_Manager_Client) SetName(name string) {
+	Applications_Manager_Client.name = name
 }
 
 // Set the domain.
-func (Application_Manager_Client *Application_Manager_Client) SetDomain(domain string) {
-	Application_Manager_Client.domain = domain
+func (Applications_Manager_Client *Applications_Manager_Client) SetDomain(domain string) {
+	Applications_Manager_Client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (Application_Manager_Client *Application_Manager_Client) HasTLS() bool {
-	return Application_Manager_Client.hasTLS
+func (Applications_Manager_Client *Applications_Manager_Client) HasTLS() bool {
+	return Applications_Manager_Client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (Application_Manager_Client *Application_Manager_Client) GetCertFile() string {
-	return Application_Manager_Client.certFile
+func (Applications_Manager_Client *Applications_Manager_Client) GetCertFile() string {
+	return Applications_Manager_Client.certFile
 }
 
 // Get the TLS key file path
-func (Application_Manager_Client *Application_Manager_Client) GetKeyFile() string {
-	return Application_Manager_Client.keyFile
+func (Applications_Manager_Client *Applications_Manager_Client) GetKeyFile() string {
+	return Applications_Manager_Client.keyFile
 }
 
 // Get the TLS key file path
-func (Application_Manager_Client *Application_Manager_Client) GetCaFile() string {
-	return Application_Manager_Client.caFile
+func (Applications_Manager_Client *Applications_Manager_Client) GetCaFile() string {
+	return Applications_Manager_Client.caFile
 }
 
 // Set the client is a secure client.
-func (Application_Manager_Client *Application_Manager_Client) SetTLS(hasTls bool) {
-	Application_Manager_Client.hasTLS = hasTls
+func (Applications_Manager_Client *Applications_Manager_Client) SetTLS(hasTls bool) {
+	Applications_Manager_Client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (Application_Manager_Client *Application_Manager_Client) SetCertFile(certFile string) {
-	Application_Manager_Client.certFile = certFile
+func (Applications_Manager_Client *Applications_Manager_Client) SetCertFile(certFile string) {
+	Applications_Manager_Client.certFile = certFile
 }
 
 // Set TLS key file path
-func (Application_Manager_Client *Application_Manager_Client) SetKeyFile(keyFile string) {
-	Application_Manager_Client.keyFile = keyFile
+func (Applications_Manager_Client *Applications_Manager_Client) SetKeyFile(keyFile string) {
+	Applications_Manager_Client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (Application_Manager_Client *Application_Manager_Client) SetCaFile(caFile string) {
-	Application_Manager_Client.caFile = caFile
+func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile string) {
+	Applications_Manager_Client.caFile = caFile
 }
 
 ////////////////// Api //////////////////////
@@ -170,9 +170,9 @@ func (Application_Manager_Client *Application_Manager_Client) SetCaFile(caFile s
 /**
  * Intall a new application or update an existing one.
  */
- func (client *Application_Manager_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string, set_as_default bool) error {
+func (client *Applications_Manager_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string, set_as_default bool) error {
 	log.Println("Install application ", applicationId, "on server ", domain)
-	rqst := new(application_managerpb.InstallApplicationRequest)
+	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
@@ -198,9 +198,9 @@ func (Application_Manager_Client *Application_Manager_Client) SetCaFile(caFile s
  * Uninstall application, if no version is given the most recent version will
  * be install.
  */
-func (client *Application_Manager_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
+func (client *Applications_Manager_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
 	log.Println("Uninstall application ", applicationId, " at address ", domain, "...")
-	rqst := new(application_managerpb.UninstallApplicationRequest)
+	rqst := new(applications_managerpb.UninstallApplicationRequest)
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
 	rqst.Version = version
@@ -219,11 +219,10 @@ func (client *Application_Manager_Client) UninstallApplication(token string, dom
 	return err
 }
 
-
 /**
  * Deploy the content of an application with a given name to the server.
  */
- func (client *Application_Manager_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
+func (client *Applications_Manager_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
 	log.Println("deploy application ", name)
 
 	dir, err := os.Getwd()
@@ -363,7 +362,7 @@ func (client *Application_Manager_Client) UninstallApplication(token string, dom
 		var data [BufferSize]byte
 		bytesread, err := buffer.Read(data[0:BufferSize])
 		if bytesread > 0 {
-			rqst := &application_managerpb.DeployApplicationRequest{
+			rqst := &applications_managerpb.DeployApplicationRequest{
 				Data:         data[0:bytesread],
 				Name:         name,
 				Domain:       domain,

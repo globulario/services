@@ -1,4 +1,4 @@
-package application_manager_client
+package applications_manager_client
 
 import (
 	//"encoding/json"
