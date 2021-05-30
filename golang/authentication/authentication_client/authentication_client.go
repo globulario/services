@@ -1,10 +1,11 @@
-package authentication_client;
+package authentication_client
 
 import (
-	"strconv"
 	"context"
-	"os"
 	"io/ioutil"
+	"os"
+	"strconv"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -204,4 +205,37 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 	return rsp.Token, nil
 }
 
+/**
+ * Set account password.
+ */
+ func (client *Authentication_Client) SetPassword(token, user, old_password, new_password string) (string, error){
 
+	rqst := new(authenticationpb.SetPasswordRequest);
+	rqst.OldPassword = old_password;
+	rqst.NewPassword = new_password;
+	rqst.AccountId = user;
+
+	rsp, err := client.c.SetPassword(globular.GetClientContext(client), rqst)
+	if err != nil {
+		return "", err
+	}
+
+	return rsp.Token, nil
+
+ }
+
+ /**
+  * Return an error if the token is not valid.
+  */
+ func (client *Authentication_Client) ValidateToken(token string) error{
+	rqst := new(authenticationpb.ValidateTokenRqst)
+
+	rqst.Token = token
+
+	_, err := client.c.ValidateToken(globular.GetClientContext(client), rqst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+ }

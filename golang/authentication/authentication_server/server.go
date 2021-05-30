@@ -11,10 +11,14 @@ import (
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/resource/resourcepb"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
 	"errors"
+	"time"
+	"fmt"
 
 	"google.golang.org/grpc/reflection"
 )
@@ -67,6 +71,14 @@ type server struct {
 	CertAuthorityTrust string
 
 	Permissions []interface{} // contains the action permission for the services.
+
+	WatchSessionsDelay int // The time in second to refresh sessions...
+
+	SessionTimeout int // The time before session expire.
+
+	Key string // The jwt key to generate token...
+
+	exit_ chan bool;
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -305,13 +317,62 @@ func (server *server) StopService() error {
 	return globular.StopService(server, server.grpcServer)
 }
 
-///////////////////////////////////// Authentication specific servervices ///////////////////////////////////////
+///////////////////// event service functions ////////////////////////////////////
+func (svr *server) publish(event string, data []byte) error {
+	return errors.New("not implemented")
+}
+
+///////////////////// resource service functions ////////////////////////////////////
+func (svr *server) getSessions() ([]*resourcepb.Session, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (svr *server) removeSession(*resourcepb.Session) error {
+	return errors.New("not implemented")
+}
+
+func (svr *server) updateSession(*resourcepb.Session) error {
+	return errors.New("not implemented")
+}
+
+func (svr *server) getSession(accountId string) (*resourcepb.Session, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (svr *server) changeAccountPassword(accountId string, pwd string) (error) {
+	return errors.New("not implemented")
+}
+
+
+///////////////////////////////////// Authentication specific services ///////////////////////////////////////
+
+/**
+ *  hashPassword return the bcrypt hash of the password.
+ */
+func (server *server) hashPassword(password string)(string, error){
+	haspassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err);
+	}
+	return string(haspassword), nil
+}
+
+/**
+ * validate the user password.
+ */
+func (server *server) validatePassword(password string, hashedPassword string) error {
+	return bcrypt.CompareHashAndPassword([]byte(password), []byte(hashedPassword));
+}
 
 /**
  * Set the secret key that will be use to validate token. That key will be generate each time the server will be
  * restarted and all token generated with previous key will be automatically invalidated...
  */
- func (server *server) setKey() error {
+func (server *server) setKey() error {
 	/**
 	server.jwtKey = []byte(Utility.RandomUUID())
 	return ioutil.WriteFile(os.TempDir()+"/globular_key", []byte(server.jwtKey), 0400)
@@ -319,81 +380,28 @@ func (server *server) StopService() error {
 	return errors.New("not implemented")
 }
 
-// Remove expired session...
-func (server *server) removeExpiredSession(accountId string, expiredAt int64) error {
-	/*
-		p, err := server.getPersistenceStore()
-		if err != nil {
-			return err
-		}
-
-		session := make(map[string]interface{}, 0)
-		session["_id"] = accountId
-		session["state"] = 1
-		session["lastStateTime"] = time.Unix(expiredAt, 0).UTC().Format("2006-01-02T15:04:05-0700")
-		jsonStr, err := Utility.ToJson(session)
-		if err != nil {
-			return err
-		}
-
-		dbName := strings.ReplaceAll(accountId, ".", "_")
-		dbName = strings.ReplaceAll(dbName, "@", "_")
-
-		err = p.ReplaceOne(context.Background(), "local_resource", dbName+"_db", "Sessions", `{"_id":"`+accountId+`"}`, jsonStr, "")
-		if err != nil {
-			return err
-		}
-
-		evtHub, err := server.getEventHub()
-		if err != nil {
-			return err
-		}
-
-		// Publish the event on the network...
-		evtHub.Publish("session_state_"+accountId+"_change_event", []byte(jsonStr))
-
-		// Now I will remove the token...
-		err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Tokens", `{"_id":"`+accountId+`"}`, "")
-		if err != nil {
-			return err
-		}
-		return nil
-	*/
-
-	return errors.New("not implemented")
-}
-
-/**
- * Todo run that function to keep session state up to date...
- */
-func (server *server) removeExpiredSessions() error {
-	// I will iterate over the list token and close expired session...
-
-	// That service made user of persistence service.
-	/*
-		p, err := server.getPersistenceStore()
-		if err != nil {
-			return err
-		}
-
-		tokens, err := p.Find(context.Background(), "local_resource", "local_resource", "Tokens", `{}`, ``)
-		if err != nil {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		for i := 0; i < len(tokens); i++ {
-			token := tokens[i].(map[string]interface{})
-			accountId := token["_id"].(string)
-			expiredAt := int64(Utility.ToInt(token["expireAt"]))
-			if expiredAt < time.Now().Unix() {
-				server.removeExpiredSession(accountId, expiredAt)
+func (server *server) removeExpiredSessions() {
+	ticker := time.NewTicker(time.Duration(server.WatchSessionsDelay) * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				// Connect to service update events...
+				// I will iterate over the list token and close expired session...
+				sessions, err := server.getSessions()
+				if err == nil {
+					for i := 0; i < len(sessions); i++ {
+						session := sessions[i]
+						if session.ExpireAt < time.Now().Unix() {
+							server.removeSession(session)
+						}
+					}
+				}
+			case <- server.exit_:
+				return // exit from the loop when the service exit.
 			}
 		}
-		return nil
-	*/
-	return errors.New("not implemented")
+	}()
 }
 
 // That service is use to give access to SQL.
@@ -421,9 +429,13 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.WatchSessionsDelay = 60
+	s_impl.SessionTimeout = 60 * 15;
+	s_impl.Key = Utility.RandomUUID();
 
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
+	s_impl.exit_ = make(chan bool)
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
@@ -438,7 +450,11 @@ func main() {
 	authenticationpb.RegisterAuthenticationServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	s_impl.removeExpiredSessions();
+
 	// Start the service.
 	s_impl.StartService()
 
+	// Exit loop...
+	s_impl.exit_ <- true
 }

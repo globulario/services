@@ -1,9 +1,9 @@
 {
-  "Id": "6e8da8f4-93a0-41ef-9c6c-d7e48b9523bd",
+  "Id": "1f8e8d42-809e-4a0b-8fd9-8b577b5b91e9",
   "Name": "resource.ResourceService",
   "Domain": "localhost",
   "Path": "/home/dave/go/src/github.com/globulario/services/golang/resource/resource_server/resource_server",
-  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/resource.proto",
+  "Proto": "/home/dave/go/src/github.com/globulario/services/resource.proto",
   "Port": 10029,
   "Proxy": 10030,
   "AllowAllOrigins": true,
@@ -24,9 +24,9 @@
   "KeyFile": "",
   "CertAuthorityTrust": "",
   "Permissions": [],
-  "Backend_address": "",
-  "Backend_port": 0,
-  "Backend_user": "",
-  "Backend_password": "",
+  "Backend_address": "localhost",
+  "Backend_port": 27017,
+  "Backend_user": "sa",
+  "Backend_password": "adminadmin",
   "SessionTimeout": 0
 }

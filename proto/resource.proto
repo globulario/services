@@ -101,6 +101,23 @@ message GetAccountsRsp{
 	repeated Account accounts = 1;
 }
 
+message GetAccountRqst{
+	string accountId = 1;
+}
+
+message GetAccountRsp{
+	Account account = 1;
+}
+
+message SetAccountPasswordRqst{
+	string accountId = 1;
+	string password = 2;
+}
+
+message SetAccountPasswordRsp{
+	/** Nothing here */
+}
+
 message SetEmailRequest{
 	string accountId = 1;
 	string oldEmail = 2;
@@ -648,6 +665,52 @@ message FindPackagesDescriptorResponse {
 	repeated PackageDescriptor results = 1;
 }
 
+enum SessionState {
+	ONLINE = 0;
+	OFFLINE=1;
+	AWAY = 2;
+}
+
+/** Information about user session */
+message Session {
+	string accountId = 1;
+	SessionState state = 2;
+	int64 last_state_time = 3; 
+	int64 expire_at = 4;
+	string token = 5; // The associated token.
+}
+
+message UpdateSessionRequest {
+	Session session = 1;
+}
+
+message UpdateSessionResponse {
+	/** Nothing here */
+}
+
+message RemoveSessionRequest {
+	string accountId = 1;
+}
+
+message RemoveSessionResponse {
+	/** Nothing here */
+}
+
+message GetSessionsRequest {
+	/** Nothing here */
+}
+
+message GetSessionsResponse {
+	repeated Session sessions = 1;
+}
+
+message GetSessionRequest {
+	string accountId = 1;
+}
+
+message GetSessionResponse {
+	Session session = 1;
+}
 
 /**
  * That service is use to manage Globular resource like permissions and accounts
@@ -721,6 +784,12 @@ service ResourceService {
 	
 	/** Delete an account **/
 	rpc DeleteAccount(DeleteAccountRqst) returns(DeleteAccountRsp);
+
+	/** Return a single account */
+	rpc GetAccount(GetAccountRqst) returns(GetAccountRsp);
+
+	/** Save an account */
+	rpc SetAccountPassword(SetAccountPasswordRqst) returns(SetAccountPasswordRsp);
 	
 	/** Return the list of accounts **/
 	rpc GetAccounts(GetAccountsRqst) returns(stream GetAccountsRsp);
@@ -742,6 +811,7 @@ service ResourceService {
 
 	/** Test if account is part of a given organization **/
 	rpc IsOrgnanizationMember(IsOrgnanizationMemberRqst) returns(IsOrgnanizationMemberRsp);
+
 	
 	////////////////////////////////////////////////////////////////////////////
 	// Role's
@@ -853,4 +923,20 @@ service ResourceService {
 
 	/** Return the checksum for a given bundle */
 	rpc GetPackageBundleChecksum(GetPackageBundleChecksumRequest) returns(GetPackageBundleChecksumResponse);
+
+	////////////////////////////////////////////////////////////////////////////
+	// Session's
+	////////////////////////////////////////////////////////////////////////////
+
+	/** Update user session informations */
+	rpc UpdateSession(UpdateSessionRequest) returns(UpdateSessionResponse);
+
+	/** Return the list of sessions */
+	rpc GetSessions(GetSessionsRequest) returns(GetSessionsResponse); 
+
+	/** Remove session */
+	rpc RemoveSession(RemoveSessionRequest) returns(RemoveSessionResponse);
+
+	/** Return a session for a given user */
+	rpc GetSession(GetSessionRequest) returns(GetSessionResponse);
 }
