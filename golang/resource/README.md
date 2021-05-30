@@ -13,9 +13,8 @@ Most of the time you need User's Management System in your application, Globular
  * **password** The account password (encrypted values).
 
  Reference to other Entities
- * **contacts**
- * **organizations**
- * **groups**
- * **roles**
+ * **contacts** Each account can store reference to other account(s). 
+ * **organizations** Organization is a mix betheen a Group and a Role, it help to manage Account access.
+ * **groups** Group are use to manage more than one account at time.
+ * **roles** Action's permission can not be granted to account directly, role are the way do to it... 
 
- 
