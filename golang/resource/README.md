@@ -5,9 +5,17 @@ The resource service contain globular entities definitions. Those entities are u
 There a list of all entities type definied by the resource service,
 
 ### Account
-Most of the time you need User's Management System in your application, Globular take care of it.  There's the list of attributes that compose an account,
+Most of the time you need User's Management System in your application, Globular take care of it.  There's the list of fields that compose an account,
 
  * **id** The account id, it must be unique.
  * **name** The account name can be the same as the id.
  * **email** The account email
  * **password** The account password (encrypted values).
+
+ Reference to other Entities
+ * **contacts**
+ * **organizations**
+ * **groups**
+ * **roles**
+
+ 
