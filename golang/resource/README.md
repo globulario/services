@@ -1,9 +1,8 @@
 # Resource service
-
-The resource service contain globular entity definition. Those entities are use by other services. For exemple RBAC (Role Base Access Control) need entities like Role, Group, Application, Session etc... All those entities must be store and retreive.
+The resource service contain globular entities definitions. Those entities are use by other services. For exemple RBAC (Role Base Access Control) need entities like Role, Group, Application, Session etc... All those entities must be store and retreive. At this time Globular made use of mongoDB to achives this goal, but any other document database and maybe SQL can implemented the datastore interfaces (Go).
 
 ## Entities
-There a list of entities definied by the resource service,
+There a list of all entities type definied by the resource service,
 
 ### Account
-The account 
+Most of the time you need User's Management System in your application, Globular take care of it.  
