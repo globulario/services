@@ -99,7 +99,6 @@ func InitClient(client Client, address string, id string) error {
 
 	// Here I will initialyse the client
 	config, err := security.GetClientConfig(address, id, port, os.TempDir())
-	
 	if err == nil {
 		port = int(config["Port"].(float64))
 	}
@@ -183,7 +182,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 				ServerName:   client.GetDomain(), // NOTE: this is required!
 				Certificates: []tls.Certificate{certificate},
 				ClientAuth:   tls.RequireAndVerifyClientCert,
-				//ClientCAs:    certPool,
+				ClientCAs:    certPool,
 				RootCAs: certPool,
 			})
 
@@ -212,12 +211,6 @@ func GetClientContext(client Client) context.Context {
 
 	// if the address is local.
 	address := client.GetDomain()
-
-	if Utility.Exists(os.TempDir() + string(os.PathSeparator) + "GLOBULAR_ROOT") {
-		root, _ := ioutil.ReadFile(os.TempDir() + string(os.PathSeparator) + "GLOBULAR_ROOT")
-		port := Utility.ToInt(string(root)[strings.LastIndex(string(root), ":")+1:])
-		address += ":" + Utility.ToString(port)
-	}
 
 	path := os.TempDir() + string(os.PathSeparator) + client.GetDomain() + "_token"
 	token, err := ioutil.ReadFile(path)

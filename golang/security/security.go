@@ -10,11 +10,20 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/davecourtois/Utility"
+)
+
+var(
+	// TODO Use environement variable here...
+	Root = "/home/dave/go/src/github.com/globulario/services/golang"
+	// Root = "/usr/local/share/globular"
+	//ConfigPath = "/etc/globular/config/config.json"
+	ConfigPath = "/home/dave/go/src/github.com/globulario/Globular/config/config.json"
 )
 
 // That function will be access via http so event server or client will be able
@@ -42,7 +51,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	} else {
 		isLocal = false
 	}
-
+	
 	if !isLocal {
 		// First I will retreive the server configuration.
 		serverConfig, err = getRemoteConfig(address, port)
@@ -124,25 +133,13 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  * Return the server local configuration if one exist.
  */
 func getLocalConfig() (map[string]interface{}, error) {
-
-	if !Utility.Exists(os.TempDir() + "/GLOBULAR_ROOT") {
-		return nil, errors.New("no local Globular instance found")
+	log.Println("get local configuration")
+	if !Utility.Exists(ConfigPath) {
+		return nil, errors.New("no local Globular configuration found")
 	}
 
 	config := make(map[string]interface{})
-	root, err := ioutil.ReadFile(os.TempDir() + "/GLOBULAR_ROOT")
-	if err != nil {
-		return nil, err
-	}
-
-	index := strings.LastIndex(string(root), ":")
-	if index == -1 {
-		return nil, errors.New("file contain does not contain ':' separator")
-	}
-
-	root_ := string(root)[0:index]
-	data, err := ioutil.ReadFile(root_ + "/config/config.json")
-
+	data, err := ioutil.ReadFile(ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -151,6 +148,37 @@ func getLocalConfig() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Now I will read the services configurations...
+	config["Services"] = make(map[string] interface{});
+
+	filepath.Walk(Root, func(path string, info os.FileInfo, err error) error {
+		path = strings.ReplaceAll(path, "\\", "/")
+		if info == nil {
+			return nil
+		}
+		
+		if err == nil && info.Name() == "config.json" {
+			// So here I will read the content of the file.
+			s := make(map[string]interface{})
+			data, err := ioutil.ReadFile(path)
+			if err == nil {
+				// Read the config file.
+				err := json.Unmarshal(data, &s)
+				if err == nil {
+					if s["Protocol"] != nil {
+						config["Services"].(map[string] interface{})[s["Id"].(string)] = s
+					}
+				} else {
+					log.Println("fail to unmarshal configuration ", err)
+				}
+			} else {
+				log.Println("Fail to read config file ", path, err)
+			}
+		}
+		return nil
+	})
+
 	return config, nil
 }
 

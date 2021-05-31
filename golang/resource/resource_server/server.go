@@ -2,28 +2,29 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/davecourtois/Utility"
-	"encoding/json"
-	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/persistence/persistence_store"
-	"google.golang.org/protobuf/reflect/protoreflect"
-	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/rbac/rbacpb"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"golang.org/x/crypto/bcrypt"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/davecourtois/Utility"
+	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/persistence/persistence_store"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/reflection"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // The default values.
@@ -539,7 +540,6 @@ func (resource_server *server) createCrossReferences(sourceId, sourceCollection,
 
 }
 
-
 //////////////////////////// Loggin info ///////////////////////////////////////
 func (resource_server *server) validateActionRequest(rqst interface{}, method string, subject string, subjectType rbacpb.SubjectType) (bool, error) {
 
@@ -581,7 +581,6 @@ func serialyseObject(obj map[string]interface{}) string {
 
 	return jsonStr
 }
-
 
 // unaryInterceptor calls authenticateClient with current context
 func (resource_server *server) unaryResourceInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
@@ -765,7 +764,7 @@ func (resource_server *server) createRole(id string, name string, actions []stri
 /**
  * Delete application Data from the backend.
  */
- func (resource_server *server) deleteApplication(applicationId string) error {
+func (resource_server *server) deleteApplication(applicationId string) error {
 
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()

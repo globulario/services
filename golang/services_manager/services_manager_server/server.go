@@ -1245,17 +1245,6 @@ func (server *server) getServiceConfigPath(s *sync.Map) string {
 // return true if the configuation has change.
 func (server *server) saveServiceConfig(config *sync.Map) bool {
 
-	root, err := ioutil.ReadFile(os.TempDir() + "/GLOBULAR_ROOT")
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	root_ := string(root)[0:strings.Index(string(root), ":")]
-
-	if !Utility.IsLocal(getStringVal(config, "Domain")) && root_ != server.Root {
-		return false
-	}
-
 	// Here I will get the service configuration
 	configPath := server.getServiceConfigPath(config)
 	if len(configPath) == 0 {
@@ -1568,8 +1557,6 @@ func (server *server) startServices() error {
 	// Set the certificate keys...
 	services := server.getServices()
 	for _, s := range services {
-		log.Println("-----> ", getStringVal(s, "Name"), ":", getStringVal(s, "Id"))
-		
 		if getStringVal(s, "Protocol") == "grpc" {
 			// The domain must be set in the sever configuration and not change after that.
 			hasTls := getBoolVal(s, "TLS") // set the tls...
@@ -1644,7 +1631,6 @@ func (server *server) startServices() error {
  */
 func (server *server) stopServices() {
 	log.Println("stop services...")
-
 	services := server.getServices()
 	for i := 0; i < len(services); i++ {
 		s := services[i]
