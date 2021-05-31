@@ -19,6 +19,10 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+var (
+	tokensPath = "/etc/globular/config/tokens"
+)
+
 // The client service interface.
 type Client interface {
 	// Return the ipv4 address
@@ -212,7 +216,11 @@ func GetClientContext(client Client) context.Context {
 	// if the address is local.
 	address := client.GetDomain()
 
-	path := os.TempDir() + string(os.PathSeparator) + client.GetDomain() + "_token"
+	Utility.CreateDirIfNotExist(tokensPath)
+	
+	// Get the token for that domain if it exist
+	path := tokensPath + "/" + client.GetDomain() + "_token"
+
 	token, err := ioutil.ReadFile(path)
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})

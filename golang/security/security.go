@@ -133,7 +133,7 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  * Return the server local configuration if one exist.
  */
 func getLocalConfig() (map[string]interface{}, error) {
-	log.Println("get local configuration")
+
 	if !Utility.Exists(ConfigPath) {
 		return nil, errors.New("no local Globular configuration found")
 	}

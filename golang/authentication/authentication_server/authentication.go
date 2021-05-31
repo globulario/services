@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"io/ioutil"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/interceptors"
@@ -66,7 +68,14 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	tokenString, err := interceptors.GenerateToken([]byte(server.Key), time.Duration(server.SessionTimeout), id, name, email)
+	key, err := server.getKey()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), id, name, email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -132,7 +141,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
+
 	// Set the password.
 	return &authenticationpb.SetPasswordResponse{
 		Token: tokenString,
@@ -150,8 +159,27 @@ func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.S
 	return nil, errors.New("not implemented")
 }
 
+/**
+ * Set the secret key that will be use to validate token. That key will be generate each time the server will be
+ * restarted and all token generated with previous key will be automatically invalidated...
+ */
+func (server *server) setKey() error {
+	return ioutil.WriteFile(keyPath+"/globular_key", []byte(Utility.RandomUUID()), 0644)
+}
+
+/**
+ * Get the key from the file.
+ */
+func (server *server) getKey() (string, error) {
+	data, err := ioutil.ReadFile(keyPath + "/globular_key")
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
 /* Authenticate a user */
-func  (server *server) authenticate(accountId string, pwd string) (string, error) {
+func (server *server) authenticate(accountId string, pwd string) (string, error) {
 	// Here I will get the account info.
 	account, err := server.getAccount(accountId)
 	if err != nil {
@@ -168,8 +196,15 @@ func  (server *server) authenticate(accountId string, pwd string) (string, error
 	session := new(resourcepb.Session)
 	session.AccountId = account.Id
 
+	key, err := server.getKey()
+	if err != nil {
+		return "", status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// The token string
-	tokenString, err := interceptors.GenerateToken([]byte(server.Key), time.Duration(server.SessionTimeout), account.Id, account.Name, account.Email)
+	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), account.Id, account.Name, account.Email)
 	if err != nil {
 		return "", err
 	}

@@ -1663,33 +1663,37 @@ func (server *server) registerMethods() error {
 	}
 
 	log.Println("role sa was updated!")
-
-	err = server.setRoleActions("guest", []string{
-		"/admin.AdminService/GetConfig",
+	err = server.setRoleActions("guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
+		"/services_manager.ServicesManagerServices/GetServiceConfig",
+		"/admin.AdminService/HasRunningProcess",
+		"/admin.AdminService/DownloadGlobular",
+		"/admin.AdminService/GetCertificates",
+		"/authentication.AuthenticationService/Authenticate",
+		"/authentication.AuthenticationService/RefreshToken",
+		"/authentication.AuthenticationService/SetPassword",
+		"/authentication.AuthenticationService/SetRootPassword",
+		"/authentication.AuthenticationService/SetRootEmail",
+		"/discovery.PackageDiscovery/FindPackages",
+		"/discovery.PackageDiscovery/GetPackagesDescriptor",
+		"/discovery.PackageDiscovery/GetPackageDescriptor",
+		"/dns.DnsService/GetA",
+		"/dns.DnsService/GetAAAA",
 		"/resource.ResourceService/RegisterAccount",
 		"/resource.ResourceService/GetAccounts",
+		"/resource.ResourceService/RegisterPeer",
+		"/resource.ResourceService/GetPeers",
 		"/resource.ResourceService/AccountExist",
-		"/resource.ResourceService/Authenticate",
-		"/resource.ResourceService/RefreshToken",
-		"/resource.ResourceService/GetPermissions",
-		"/resource.ResourceService/GetAllFilesInfo",
 		"/resource.ResourceService/GetAllApplicationsInfo",
-		"/resource.ResourceService/GetResourceOwners",
+		"/resource.ResourceService/ValidateToken",
+		"/rbac.RbacService/GetActionResourceInfos",
 		"/rbac.RbacService/ValidateAction",
 		"/rbac.RbacService/ValidateAccess",
-		"/event.EventService/Subscribe",
-		"/event.EventService/UnSubscribe",
-		"/event.EventService/OnEvent",
-		"/event.EventService/Quit",
-		"/event.EventService/Publish",
-		"/packages.PackageDiscovery/FindServices",
-		"/packages.PackageDiscovery/GetPackagesDescriptor",
-		"/packages.PackageDiscovery/GetPackageDescriptor",
-		"/packages.PackageRepository/downloadBundle",
-		"/persistence.PersistenceService/Find",
-		"/persistence.PersistenceService/FindOne",
-		"/persistence.PersistenceService/Count",
-		"/resource.ResourceService/GetAllActions"})
+		"/rbac.RbacService/GetResourcePermissions",
+		"/rbac.RbacService/GetResourcePermission",
+		"/log.LogService/Log",
+		"/log.LogService/DeleteLog",
+		"/log.LogService/GetLog",
+		"/log.LogService/ClearAllLog"})
 
 	if err != nil {
 		log.Println("----------->", err)
@@ -1697,7 +1701,6 @@ func (server *server) registerMethods() error {
 	}
 
 	log.Println("role guest was updated!")
-
 	return nil
 }
 

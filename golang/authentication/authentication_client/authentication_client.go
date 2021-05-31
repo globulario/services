@@ -13,8 +13,11 @@ import (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// echo Client Service
+// Authentication  Client Service
 ////////////////////////////////////////////////////////////////////////////////
+var (
+	tokensPath = "/etc/globular/config/tokens"
+)
 
 type Authentication_Client struct {
 	cc *grpc.ClientConn
@@ -161,8 +164,9 @@ func (client *Authentication_Client) SetCaFile(caFile string) {
 func (client *Authentication_Client) Authenticate(name string, password string) (string, error) {
 	// In case of other domain than localhost I will rip off the token file
 	// before each authentication.
+	Utility.CreateDirIfNotExist(tokensPath);
 
-	path := os.TempDir() + string(os.PathSeparator) + client.GetDomain() + "_token"
+	path := tokensPath + "/" + client.GetDomain() + "_token"
 	if !Utility.IsLocal(client.GetDomain()) {
 		// remove the file if it already exist.
 		os.Remove(path)

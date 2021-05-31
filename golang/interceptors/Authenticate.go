@@ -4,10 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+)
+
+// TODO made use of a key store...
+var (
+	keyPath = "/etc/globular/config/keys"
 )
 
 // Authentication holds the login/password
@@ -77,8 +81,9 @@ func ValidateToken(token string) (string, string, string, int64, error) {
 	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
 	// or if the signature does not match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-		// Get the key from the local temp file.
-		jwtKey, err := ioutil.ReadFile(os.TempDir() + "/globular_key")
+		
+		// Get the jwt key from file.
+		jwtKey, err := ioutil.ReadFile(keyPath + "/globular_key")
 		return jwtKey, err
 	})
 

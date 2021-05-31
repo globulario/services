@@ -16,14 +16,12 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/lb/lbpb"
 	"github.com/globulario/services/golang/lb/load_balancing_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/shirou/gopsutil/load"
 	"google.golang.org/grpc"
@@ -33,8 +31,6 @@ import (
 )
 
 var (
-	// The resource client
-	resource_client_ *resource_client.Resource_Client
 
 	// The rbac client
 	rbac_client_ *rbac_client.Rbac_Client
@@ -44,10 +40,6 @@ var (
 
 	// The logger.
 	log_client_ *log_client.Log_Client
-
-	// The map will contain connection with other server of same kind to load
-	// balance the server charge.
-	clients map[string]globular.Client
 
 	// That will contain the permission in memory to limit the number
 	// of resource request...
@@ -70,21 +62,6 @@ func GetLogClient(domain string) (*log_client.Log_Client, error) {
 }
 
 /**
- * Get a the local resource client.
- */
-func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
-	var err error
-	if resource_client_ == nil {
-		resource_client_, err = resource_client.NewResourceService_Client(domain, "resource.ResourceService")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return resource_client_, nil
-}
-
-/**
  * Get the rbac client.
  */
 func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
@@ -92,10 +69,11 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 		if err != nil {
+			log.Println("fail to get RBAC client with error ", err)
 			return nil, err
 		}
-	}
 
+	}
 	return rbac_client_, nil
 }
 
@@ -110,9 +88,6 @@ func getLoadBalancingClient(domain string, serverId string, serviceName string, 
 		if err != nil {
 			return nil, err
 		}
-
-		// Here I will create the client map.
-		clients = make(map[string]globular.Client)
 
 		// Now I will start reporting load at each minutes.
 		ticker := time.NewTicker(1 * time.Minute)
@@ -157,17 +132,6 @@ func getCache() *storage_store.BigCache_store {
 		}
 	}
 	return cache
-}
-
-// Refresh a token.
-func refreshToken(domain string, token string) (string, error) {
-	/*
-	resource_client, err := GetResourceClient(domain)
-	if err != nil {
-		return "", err
-	}*/
-	// TODO made use of authentication service insted...
-	return "", errors.New("not implemented");//resource_client.RefreshToken(token)
 }
 
 /**
@@ -296,6 +260,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
+
 	// Get the peer information.
 	p, _ := peer.FromContext(ctx)
 
@@ -322,24 +287,43 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	// needed to get access to the system.
-	if method == "/admin.AdminService/GetConfig" ||
+	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" ||
+		method == "/services_manager.ServicesManagerServices/GetServiceConfig" ||
 		method == "/admin.AdminService/HasRunningProcess" ||
-		method == "/admin.AdminService/InstallCertificates" ||
-		method == "/packages.PackageDiscovery/FindServices" ||
-		method == "/packages.PackageDiscovery/GetServiceDescriptor" ||
-		method == "/packages.PackageDiscovery/GetPackagesDescriptor" ||
-		method == "/packages.PackageDiscovery/GetPackageDescriptor" ||
+		method == "/admin.AdminService/DownloadGlobular" ||
+		method == "/admin.AdminService/GetCertificates" ||
+		method == "/authentication.AuthenticationService/Authenticate" ||
+		method == "/authentication.AuthenticationService/RefreshToken" ||
+		method == "/authentication.AuthenticationService/SetPassword" ||
+		method == "/authentication.AuthenticationService/SetRootPassword" ||
+		method == "/authentication.AuthenticationService/SetRootEmail" ||
+		method == "/discovery.PackageDiscovery/FindPackages" ||
+		method == "/discovery.PackageDiscovery/GetPackagesDescriptor" ||
+		method == "/discovery.PackageDiscovery/GetPackageDescriptor" ||
+		method == "/dns.DnsService/GetA" ||
+		method == "/dns.DnsService/GetAAAA" ||
+		method == "/resource.ResourceService/RegisterAccount" ||
+		method == "/resource.ResourceService/GetAccounts" ||
+		method == "/resource.ResourceService/RegisterPeer" ||
+		method == "/resource.ResourceService/GetPeers" ||
+		method == "/resource.ResourceService/AccountExist" ||
+		method == "/resource.ResourceService/GetAllApplicationsInfo" ||
+		method == "/resource.ResourceService/ValidateToken" ||
+		method == "/rbac.RbacService/GetActionResourceInfos" ||
 		method == "/rbac.RbacService/ValidateAction" ||
 		method == "/rbac.RbacService/ValidateAccess" ||
 		method == "/rbac.RbacService/GetResourcePermissions" ||
 		method == "/rbac.RbacService/GetResourcePermission" ||
-		method == "/dns.DnsService/GetA" ||
-		method == "/dns.DnsService/GetAAAA" ||
-		method == "/resource.ResourceService/Log" {
+		method == "/log.LogService/Log" ||
+		method == "/log.LogService/DeleteLog" ||
+		method == "/log.LogService/GetLog" ||
+		method == "/log.LogService/ClearAllLog" {
 		hasAccess = true
 	} else if (method == "/admin.AdminService/SetRootEmail" || method == "/admin.AdminService/SetRootPassword") && ((domain == "127.0.0.1" || domain == "localhost") || pwd == "adminadmin") {
 		hasAccess = true
 	}
+
+	log.Println("validate " + method)
 
 	var clientId string
 	var err error
@@ -357,7 +341,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Test if peer has access
 	if !hasAccess && len(clientId) > 0 {
-		fmt.Println("--------> interceptor validate action: ", method, clientId)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
 	}
 
@@ -533,7 +516,6 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if len(token) > 0 {
 		clientId, _, _, _, err = ValidateToken(token)
 		if err != nil {
-			log.Println("---------------> 535 ", err)
 			return err
 		}
 	}
@@ -547,7 +529,6 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		// Set load balancing informations.
 		lb_client, err := getLoadBalancingClient(domain, serverId, serverName, serverDomain, serverPort)
 		if err != nil {
-			log.Println("---------------> 549 ", err)
 			return err
 		}
 
@@ -585,7 +566,6 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	getCache().RemoveItem(uuid)
 
 	if err != nil {
-		log.Println("---------------> 585 ", err)
 		return err
 	}
 

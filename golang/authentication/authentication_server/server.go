@@ -17,8 +17,8 @@ import (
 
 	//"google.golang.org/grpc/grpclog"
 	"errors"
-	"time"
 	"fmt"
+	"time"
 
 	"google.golang.org/grpc/reflection"
 )
@@ -35,6 +35,9 @@ var (
 	allowed_origins string = ""
 
 	domain string = "localhost"
+
+	// Where the key is writting.
+	keyPath = "/etc/globular/config/keys"
 )
 
 // Value need by Globular to start the services...
@@ -76,9 +79,7 @@ type server struct {
 
 	SessionTimeout int // The time before session expire.
 
-	Key string // The jwt key to generate token...
-
-	exit_ chan bool;
+	exit_ chan bool
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -343,20 +344,19 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (svr *server) changeAccountPassword(accountId string, pwd string) (error) {
+func (svr *server) changeAccountPassword(accountId string, pwd string) error {
 	return errors.New("not implemented")
 }
-
 
 ///////////////////////////////////// Authentication specific services ///////////////////////////////////////
 
 /**
  *  hashPassword return the bcrypt hash of the password.
  */
-func (server *server) hashPassword(password string)(string, error){
+func (server *server) hashPassword(password string) (string, error) {
 	haspassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", fmt.Errorf("failed to hash password: %w", err);
+		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
 	return string(haspassword), nil
 }
@@ -365,19 +365,7 @@ func (server *server) hashPassword(password string)(string, error){
  * validate the user password.
  */
 func (server *server) validatePassword(password string, hashedPassword string) error {
-	return bcrypt.CompareHashAndPassword([]byte(password), []byte(hashedPassword));
-}
-
-/**
- * Set the secret key that will be use to validate token. That key will be generate each time the server will be
- * restarted and all token generated with previous key will be automatically invalidated...
- */
-func (server *server) setKey() error {
-	/**
-	server.jwtKey = []byte(Utility.RandomUUID())
-	return ioutil.WriteFile(os.TempDir()+"/globular_key", []byte(server.jwtKey), 0400)
-	*/
-	return errors.New("not implemented")
+	return bcrypt.CompareHashAndPassword([]byte(password), []byte(hashedPassword))
 }
 
 func (server *server) removeExpiredSessions() {
@@ -397,7 +385,7 @@ func (server *server) removeExpiredSessions() {
 						}
 					}
 				}
-			case <- server.exit_:
+			case <-server.exit_:
 				return // exit from the loop when the service exit.
 			}
 		}
@@ -430,8 +418,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WatchSessionsDelay = 60
-	s_impl.SessionTimeout = 60 * 15;
-	s_impl.Key = Utility.RandomUUID();
+	s_impl.SessionTimeout = 60 * 15
 
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -440,7 +427,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
@@ -450,7 +437,17 @@ func main() {
 	authenticationpb.RegisterAuthenticationServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	s_impl.removeExpiredSessions();
+	s_impl.removeExpiredSessions()
+
+	if !Utility.Exists(keyPath) {
+		log.Println("create configuration file...")
+		Utility.CreateDirIfNotExist(keyPath)
+		
+		err := s_impl.setKey()
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
 
 	// Start the service.
 	s_impl.StartService()

@@ -22,9 +22,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/protobuf/reflect/protoreflect"
+	"os/exec"
 )
 
 // The default values.
@@ -81,11 +80,13 @@ type server struct {
 	Backend_port     int64
 	Backend_user     string
 	Backend_password string
+	DataPath         string
 
 	// The session time out.
 	SessionTimeout time.Duration
 
-	jwtKey []byte // This is the client secret.
+	// The private key.
+	Key string
 
 	// Data store where account, role ect are keep...
 	store persistence_store.Store
@@ -299,7 +300,8 @@ func (svr *server) getActionResourcesPermissions(action string) ([]*rbacpb.Resou
 }
 
 func (svr *server) validateAction(method string, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
-	return false, nil
+
+	return false, errors.New("not implemented")
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
@@ -343,6 +345,144 @@ func (svr *server) StartService() error {
 
 func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
+}
+
+////////////////////////////////// Resource functions ///////////////////////////////////////////////
+//func (svr *server)
+
+////////////////////////////////// Resource functions ///////////////////////////////////////////////
+
+/** Stop mongod process **/
+func (server *server) stopMongod() error {
+	closeCmd := exec.Command("mongo", "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
+	err := closeCmd.Run()
+	time.Sleep(1 * time.Second)
+	return err
+}
+
+/** Create the super administrator in the db. **/
+func (server *server) registerSa() error {
+
+	// Here I will test if mongo db exist on the server.
+	existMongo := exec.Command("mongod", "--version")
+	err := existMongo.Run()
+	if err != nil {
+		log.Println("fail to start mongo db!", err)
+		return err
+	}
+
+	// Here I will create super admin if it not already exist.
+	dataPath := server.DataPath + "/mongodb-data"
+
+	if !Utility.Exists(dataPath) {
+		// Kill mongo db server if the process already run...
+		server.stopMongod()
+
+		// Here I will create the directory
+		err := os.MkdirAll(dataPath, os.ModeDir)
+		if err != nil {
+			return err
+		}
+
+		// Now I will start the command
+		mongod := exec.Command("mongod", "--port", "27017", "--dbpath", dataPath)
+		err = mongod.Start()
+		if err != nil {
+			return err
+		}
+
+		server.waitForMongo(60, false)
+
+		// Now I will create a new user name sa and give it all admin write.
+		createSaScript := fmt.Sprintf(
+			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`, server.Backend_user, server.Backend_password) // must be change...
+
+		createSaCmd := exec.Command("mongo", "--eval", createSaScript)
+		err = createSaCmd.Run()
+		if err != nil {
+			// remove the mongodb-data
+			os.RemoveAll(dataPath)
+			return err
+		}
+		server.stopMongod()
+	}
+
+	// Now I will start mongod with auth available.
+	mongod := exec.Command("mongod", "--auth", "--port", Utility.ToString(server.Backend_port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath)
+
+	err = mongod.Start()
+	if err != nil {
+		return err
+	}
+
+	// wait 15 seconds that the server restart.
+	server.waitForMongo(60, true)
+
+	// Get the list of all services method.
+	return server.createRole("guest", "guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
+		"/services_manager.ServicesManagerServices/GetServiceConfig",
+		"/admin.AdminService/HasRunningProcess",
+		"/admin.AdminService/DownloadGlobular",
+		"/admin.AdminService/GetCertificates",
+		"/authentication.AuthenticationService/Authenticate",
+		"/authentication.AuthenticationService/RefreshToken",
+		"/authentication.AuthenticationService/SetPassword",
+		"/authentication.AuthenticationService/SetRootPassword",
+		"/authentication.AuthenticationService/SetRootEmail",
+		"/discovery.PackageDiscovery/FindPackages",
+		"/discovery.PackageDiscovery/GetPackagesDescriptor",
+		"/discovery.PackageDiscovery/GetPackageDescriptor",
+		"/dns.DnsService/GetA",
+		"/dns.DnsService/GetAAAA",
+		"/resource.ResourceService/RegisterAccount",
+		"/resource.ResourceService/GetAccounts",
+		"/resource.ResourceService/RegisterPeer",
+		"/resource.ResourceService/GetPeers",
+		"/resource.ResourceService/AccountExist",
+		"/resource.ResourceService/GetAllApplicationsInfo",
+		"/resource.ResourceService/ValidateToken",
+		"/rbac.RbacService/GetActionResourceInfos",
+		"/rbac.RbacService/ValidateAction",
+		"/rbac.RbacService/ValidateAccess",
+		"/rbac.RbacService/GetResourcePermissions",
+		"/rbac.RbacService/GetResourcePermission",
+		"/log.LogService/Log",
+		"/log.LogService/DeleteLog",
+		"/log.LogService/GetLog",
+		"/log.LogService/ClearAllLog"})
+}
+
+func (server *server) waitForMongo(timeout int, withAuth bool) error {
+	time.Sleep(1 * time.Second)
+	args := make([]string, 0)
+	if withAuth {
+		args = append(args, "-u")
+		args = append(args, server.Backend_user)
+		args = append(args, "-p")
+		args = append(args, server.Backend_password)
+		args = append(args, "--authenticationDatabase")
+		args = append(args, "admin")
+	}
+	args = append(args, "--eval")
+	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
+
+	script := exec.Command("mongo", args...)
+	err := script.Run()
+	if err != nil {
+		log.Println("wait for mongo...", timeout, "s")
+		if timeout == 0 {
+			return errors.New("mongod is not responding")
+		}
+		// call again.
+		timeout -= 1
+
+		return server.waitForMongo(timeout, withAuth)
+	}
+
+	// Now I will initialyse the application connections...
+	// server.createApplicationConnection()
+
+	return nil
 }
 
 /**
@@ -426,13 +566,6 @@ func (resource_server *server) registerAccount(id string, name string, email str
 	if err != nil {
 		return err
 	}
-
-	/* TODO create connection...
-	err = p.CreateConnection(name+"_db", name+"_db", address, float64(port), 0, name, password, 5000, "", false)
-	if err != nil {
-		return errors.New("no persistence service are available to store resource information")
-	}
-	*/
 
 	// Now I will set the reference for
 	// Contact...
@@ -541,27 +674,6 @@ func (resource_server *server) createCrossReferences(sourceId, sourceCollection,
 }
 
 //////////////////////////// Loggin info ///////////////////////////////////////
-func (resource_server *server) validateActionRequest(rqst interface{}, method string, subject string, subjectType rbacpb.SubjectType) (bool, error) {
-
-	infos, err := resource_server.getActionResourcesPermissions(method)
-	if err != nil {
-		infos = make([]*rbacpb.ResourceInfos, 0)
-	} else {
-		// Here I will get the params...
-		val, _ := Utility.CallMethod(rqst, "ProtoReflect", []interface{}{})
-		rqst_ := val.(protoreflect.Message)
-		if rqst_.Descriptor().Fields().Len() > 0 {
-			for i := 0; i < len(infos); i++ {
-				// Get the path value from retreive infos.
-				param := rqst_.Descriptor().Fields().Get(Utility.ToInt(infos[i].Index))
-				path, _ := Utility.CallMethod(rqst, "Get"+strings.ToUpper(string(param.Name())[0:1])+string(param.Name())[1:], []interface{}{})
-				infos[i].Path = path.(string)
-			}
-		}
-	}
-
-	return resource_server.validateAction(method, subject, rbacpb.SubjectType_ACCOUNT, infos)
-}
 
 // That function is necessary to serialyse reference and kept field orders
 func serialyseObject(obj map[string]interface{}) string {
@@ -580,106 +692,6 @@ func serialyseObject(obj map[string]interface{}) string {
 	jsonStr = strings.ReplaceAll(jsonStr, `"__c__"`, `"$db"`)
 
 	return jsonStr
-}
-
-// unaryInterceptor calls authenticateClient with current context
-func (resource_server *server) unaryResourceInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	method := info.FullMethod
-
-	// The token and the application id.
-	var token string
-	var application string
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		application = strings.Join(md["application"], "")
-		token = strings.Join(md["token"], "")
-	}
-
-	hasAccess := false
-
-	// If the address is local I will give the permission.
-	/* Test only
-	peer_, _ := peer.FromContext(ctx)
-	address := peer_.Addr.String()
-	address = address[0:strings.Index(address, ":")]
-	if Utility.IsLocal(address) {
-		hasAccess = true
-	}*/
-
-	var err error
-	// Here some method are accessible by default.
-	if method == "/admin.adminService/GetConfig" ||
-		method == "/admin.adminService/DownloadGlobular" ||
-		method == "/resource.ResourceService/GetAllActions" ||
-		method == "/resource.ResourceService/RegisterAccount" ||
-		method == "/resource.ResourceService/GetAccounts" ||
-		method == "/resource.ResourceService/RegisterPeer" ||
-		method == "/resource.ResourceService/GetPeers" ||
-		method == "/resource.ResourceService/AccountExist" ||
-		method == "/resource.ResourceService/Authenticate" ||
-		method == "/resource.ResourceService/RefreshToken" ||
-		method == "/resource.ResourceService/GetAllFilesInfo" ||
-		method == "/resource.ResourceService/GetAllApplicationsInfo" ||
-		method == "/resource.ResourceService/ValidateToken" ||
-		method == "/rbac.RbacService/ValidateAction" ||
-		method == "/rbac.RbacService/ValidateAccess" ||
-		method == "/rbac.RbacService/GetResourcePermissions" ||
-		method == "/rbac.RbacService/GetResourcePermission" ||
-		method == "/log.LogService/Log" ||
-		method == "/log.LogService/DeleteLog" ||
-		method == "/log.LogService/GetLog" ||
-		method == "/log.LogService/ClearAllLog" {
-		hasAccess = true
-	}
-
-	var clientId string
-
-	// Test if the user has access to execute the method
-	if len(token) > 0 && !hasAccess {
-		var expiredAt int64
-		var err error
-
-		/*clientId*/
-		clientId, _, _, expiredAt, err = interceptors.ValidateToken(token)
-		if err != nil {
-			return nil, err
-		}
-
-		if expiredAt < time.Now().Unix() {
-			return nil, errors.New("the token is expired")
-		}
-
-		hasAccess = clientId == "sa"
-		if !hasAccess {
-			hasAccess, _ = resource_server.validateActionRequest(rqst, method, clientId, rbacpb.SubjectType_ACCOUNT)
-		}
-	}
-
-	// Test if the application has access to execute the method.
-	if len(application) > 0 && !hasAccess {
-		// TODO validate rpc method access
-		hasAccess, _ = resource_server.validateActionRequest(rqst, method, application, rbacpb.SubjectType_APPLICATION)
-	}
-
-	if !hasAccess {
-		err := errors.New("Permission denied to execute method " + method + " user:" + clientId + " application:" + application)
-		return nil, err
-	}
-
-	// Execute the action.
-	result, err := handler(ctx, rqst)
-	return result, err
-}
-
-// Stream interceptor.
-func (resource_server *server) streamResourceInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-
-	err := handler(srv, stream)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (resource_server *server) addAccountContact(accountId string, contactId string) error {
@@ -860,11 +872,15 @@ func main() {
 	s_impl.Backend_port = 27017
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
+	s_impl.DataPath = "/var/globular/data"
+
+	// TODO get the key from the key store or authentication service...
+	s_impl.Key = ""
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
@@ -877,6 +893,9 @@ func main() {
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+
+	// Start mongo db...
+	s_impl.registerSa()
 
 	// Start the service.
 	s_impl.StartService()

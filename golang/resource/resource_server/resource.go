@@ -15,7 +15,6 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/interceptors"
-
 	"github.com/globulario/services/golang/resource/resourcepb"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -118,7 +117,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 	}
 
 	// Generate a token to identify the user.
-	tokenString, err := interceptors.GenerateToken(resource_server.jwtKey, resource_server.SessionTimeout, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	tokenString, err := interceptors.GenerateToken([]byte(resource_server.Key), resource_server.SessionTimeout, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
