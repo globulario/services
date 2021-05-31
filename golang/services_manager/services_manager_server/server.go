@@ -1653,7 +1653,8 @@ func (server *server) stopServices() {
 
 }
 
-// Method must be register in order to be assign to role.
+// Set admin method, guest role will be set in resource service directly because
+// method are static.
 func (server *server) registerMethods() error {
 
 	// Here I will persit the sa role if it dosent already exist.
@@ -1662,45 +1663,6 @@ func (server *server) registerMethods() error {
 		return err
 	}
 
-	log.Println("role sa was updated!")
-	err = server.setRoleActions("guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
-		"/services_manager.ServicesManagerServices/GetServiceConfig",
-		"/admin.AdminService/HasRunningProcess",
-		"/admin.AdminService/DownloadGlobular",
-		"/admin.AdminService/GetCertificates",
-		"/authentication.AuthenticationService/Authenticate",
-		"/authentication.AuthenticationService/RefreshToken",
-		"/authentication.AuthenticationService/SetPassword",
-		"/authentication.AuthenticationService/SetRootPassword",
-		"/authentication.AuthenticationService/SetRootEmail",
-		"/discovery.PackageDiscovery/FindPackages",
-		"/discovery.PackageDiscovery/GetPackagesDescriptor",
-		"/discovery.PackageDiscovery/GetPackageDescriptor",
-		"/dns.DnsService/GetA",
-		"/dns.DnsService/GetAAAA",
-		"/resource.ResourceService/RegisterAccount",
-		"/resource.ResourceService/GetAccounts",
-		"/resource.ResourceService/RegisterPeer",
-		"/resource.ResourceService/GetPeers",
-		"/resource.ResourceService/AccountExist",
-		"/resource.ResourceService/GetAllApplicationsInfo",
-		"/resource.ResourceService/ValidateToken",
-		"/rbac.RbacService/GetActionResourceInfos",
-		"/rbac.RbacService/ValidateAction",
-		"/rbac.RbacService/ValidateAccess",
-		"/rbac.RbacService/GetResourcePermissions",
-		"/rbac.RbacService/GetResourcePermission",
-		"/log.LogService/Log",
-		"/log.LogService/DeleteLog",
-		"/log.LogService/GetLog",
-		"/log.LogService/ClearAllLog"})
-
-	if err != nil {
-		log.Println("----------->", err)
-		return err
-	}
-
-	log.Println("role guest was updated!")
 	return nil
 }
 

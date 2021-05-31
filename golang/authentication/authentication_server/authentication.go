@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	//"log"
 	"strings"
 	"time"
 
@@ -119,15 +120,8 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	pwd, err := server.hashPassword(account.Password)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Now I will update the account...
-	err = server.changeAccountPassword(rqst.AccountId, pwd)
+	err = server.changeAccountPassword(rqst.AccountId, rqst.OldPassword, rqst.NewPassword)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -135,7 +129,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 	}
 
 	// finaly I will call authenticate to generate the token string and set it at return...
-	tokenString, err := server.authenticate(account.Id, pwd)
+	tokenString, err := server.authenticate(account.Id, rqst.NewPassword)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -145,7 +139,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 	// Set the password.
 	return &authenticationpb.SetPasswordResponse{
 		Token: tokenString,
-	}, errors.New("not implemented")
+	}, nil
 }
 
 //Set the root password

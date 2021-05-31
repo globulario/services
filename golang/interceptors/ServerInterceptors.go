@@ -260,7 +260,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-
 	// Get the peer information.
 	p, _ := peer.FromContext(ctx)
 
@@ -281,11 +280,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// If the call come from a local client it has hasAccess
 	hasAccess := false
 
-	var pwd string
-	if Utility.GetProperty(info.Server, "RootPassword") != nil {
-		pwd = Utility.GetProperty(info.Server, "RootPassword").(string)
-	}
-
 	// needed to get access to the system.
 	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" ||
 		method == "/services_manager.ServicesManagerServices/GetServiceConfig" ||
@@ -302,13 +296,18 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/discovery.PackageDiscovery/GetPackageDescriptor" ||
 		method == "/dns.DnsService/GetA" ||
 		method == "/dns.DnsService/GetAAAA" ||
-		method == "/resource.ResourceService/RegisterAccount" ||
+		method == "/resource.ResourceService/UpdateSession" ||
+		method == "/resource.ResourceService/GetSession" ||
+		method == "/resource.ResourceService/GetSessions" ||
+		method == "/resource.ResourceService/RemoveSession" ||
 		method == "/resource.ResourceService/GetAccounts" ||
+		method == "/resource.ResourceService/GetAccount" ||
 		method == "/resource.ResourceService/RegisterPeer" ||
 		method == "/resource.ResourceService/GetPeers" ||
 		method == "/resource.ResourceService/AccountExist" ||
 		method == "/resource.ResourceService/GetAllApplicationsInfo" ||
-		method == "/resource.ResourceService/ValidateToken" ||
+		method == "/resource.ResourceService/SetAccountPassword" ||
+		method == "/resource.ResourceService/RegisterAccount" ||
 		method == "/rbac.RbacService/GetActionResourceInfos" ||
 		method == "/rbac.RbacService/ValidateAction" ||
 		method == "/rbac.RbacService/ValidateAccess" ||
@@ -318,8 +317,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/log.LogService/DeleteLog" ||
 		method == "/log.LogService/GetLog" ||
 		method == "/log.LogService/ClearAllLog" {
-		hasAccess = true
-	} else if (method == "/admin.AdminService/SetRootEmail" || method == "/admin.AdminService/SetRootPassword") && ((domain == "127.0.0.1" || domain == "localhost") || pwd == "adminadmin") {
 		hasAccess = true
 	}
 

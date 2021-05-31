@@ -194,6 +194,7 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 	return rsp.Token, nil
 }
 
+
 /**
  *  Generate a new token from expired one.
  */
@@ -212,7 +213,7 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 /**
  * Set account password.
  */
- func (client *Authentication_Client) SetPassword(token, user, old_password, new_password string) (string, error){
+ func (client *Authentication_Client) SetPassword(user, old_password, new_password string) (string, error){
 
 	rqst := new(authenticationpb.SetPasswordRequest);
 	rqst.OldPassword = old_password;

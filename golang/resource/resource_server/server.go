@@ -85,9 +85,6 @@ type server struct {
 	// The session time out.
 	SessionTimeout time.Duration
 
-	// The private key.
-	Key string
-
 	// Data store where account, role ect are keep...
 	store persistence_store.Store
 
@@ -436,6 +433,7 @@ func (server *server) registerSa() error {
 		"/dns.DnsService/GetAAAA",
 		"/resource.ResourceService/RegisterAccount",
 		"/resource.ResourceService/GetAccounts",
+		"/resource.ResourceService/GetAccount",
 		"/resource.ResourceService/RegisterPeer",
 		"/resource.ResourceService/GetPeers",
 		"/resource.ResourceService/AccountExist",
@@ -479,9 +477,6 @@ func (server *server) waitForMongo(timeout int, withAuth bool) error {
 		return server.waitForMongo(timeout, withAuth)
 	}
 
-	// Now I will initialyse the application connections...
-	// server.createApplicationConnection()
-
 	return nil
 }
 
@@ -511,6 +506,16 @@ func (resource_server *server) hashPassword(password string) (string, error) {
 	return string(haspassword), nil
 }
 
+/**
+ * Return the hash password.
+ */
+func (resource_server *server) validatePassword(password string, hash string) (error) {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+}
+
+/**
+ * Register an Account.
+ */
 func (resource_server *server) registerAccount(id string, name string, email string, password string, organizations []string, contacts []string, roles []string, groups []string) error {
 
 	// That service made user of persistence service.
@@ -873,9 +878,6 @@ func main() {
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
 	s_impl.DataPath = "/var/globular/data"
-
-	// TODO get the key from the key store or authentication service...
-	s_impl.Key = ""
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

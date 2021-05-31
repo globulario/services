@@ -6,6 +6,14 @@ import (
 	"log"
 )
 
+var (
+	// Connect to the plc client.
+	client, _       = NewAuthenticationService_Client("localhost", "authentication.AuthenticationService")
+	//rbac_client_, _ = rbac_client.NewRbacService_Client("localhost", "resource.RbacService")
+
+	//token string // the token use by test.
+)
+
 // Test various function here.
 func Test(t *testing.T) {
 
@@ -13,14 +21,21 @@ func Test(t *testing.T) {
 }
 
 
+
 func TestAuthenticate(t *testing.T) {
-	log.Println("---> test authenticate account.")
-	/*
-	var err error
-	token, err = client.Authenticate("sa", "adminadmin")
+	token, err := client.Authenticate("dave", "400zm89Aaa")
 	if err != nil {
-		log.Println("---> ", err)
+		log.Println("Fail to authenticate with error ", err)
 	} else {
-		log.Println("---> ", token)
-	}*/
+		log.Println("Authenticate succeed", token)
+	}
+}
+
+func TestSetPassword(t *testing.T) {
+	token, err := client.SetPassword("dave", "400zm89Aaa", "400zm89AaB")
+	if err != nil {
+		log.Println("Fail to authenticate with error ", err)
+	} else {
+		log.Println("Password is updated ", token)
+	}
 }

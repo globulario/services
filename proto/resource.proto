@@ -111,7 +111,8 @@ message GetAccountRsp{
 
 message SetAccountPasswordRqst{
 	string accountId = 1;
-	string password = 2;
+	string old_password = 2;
+	string new_password = 3;
 }
 
 message SetAccountPasswordRsp{

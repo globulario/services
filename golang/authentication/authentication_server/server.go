@@ -11,13 +11,13 @@ import (
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
 	"errors"
-	"fmt"
 	"time"
 
 	"google.golang.org/grpc/reflection"
@@ -318,54 +318,94 @@ func (server *server) StopService() error {
 	return globular.StopService(server, server.grpcServer)
 }
 
+var(
+	resourceClient *resource_client.Resource_Client
+)
+
 ///////////////////// event service functions ////////////////////////////////////
 func (svr *server) publish(event string, data []byte) error {
 	return errors.New("not implemented")
 }
 
 ///////////////////// resource service functions ////////////////////////////////////
+func (svr *server) getResourceClient() (*resource_client.Resource_Client, error){
+	if resourceClient != nil {
+		return resourceClient, nil
+	}
+
+	resourceClient, err := resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	if err != nil {
+		return nil, err
+	}
+
+	return resourceClient, nil
+}
+
 func (svr *server) getSessions() ([]*resourcepb.Session, error) {
-	return nil, errors.New("not implemented")
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return resourceClient.GetSessions()
 }
 
-func (svr *server) removeSession(*resourcepb.Session) error {
-	return errors.New("not implemented")
+func (svr *server) removeSession(accountId string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+
+	return resourceClient.RemoveSession(accountId)
 }
 
-func (svr *server) updateSession(*resourcepb.Session) error {
-	return errors.New("not implemented")
+func (svr *server) updateSession(session *resourcepb.Session) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+
+	return resourceClient.UpdateSession(session)
 }
 
 func (svr *server) getSession(accountId string) (*resourcepb.Session, error) {
-	return nil, errors.New("not implemented")
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return resourceClient.GetSession(accountId)
 }
 
+/**
+ * Retreive an account with a given id.
+ */
 func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	return nil, errors.New("not implemented")
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return resourceClient.GetAccount(accountId)
 }
 
-func (svr *server) changeAccountPassword(accountId string, pwd string) error {
-	return errors.New("not implemented")
+
+func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+
+	return resourceClient.SetAccountPassword(accountId, oldPassword, newPassword)
 }
 
 ///////////////////////////////////// Authentication specific services ///////////////////////////////////////
 
 /**
- *  hashPassword return the bcrypt hash of the password.
- */
-func (server *server) hashPassword(password string) (string, error) {
-	haspassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", fmt.Errorf("failed to hash password: %w", err)
-	}
-	return string(haspassword), nil
-}
-
-/**
  * validate the user password.
  */
 func (server *server) validatePassword(password string, hashedPassword string) error {
-	return bcrypt.CompareHashAndPassword([]byte(password), []byte(hashedPassword))
+	return bcrypt.CompareHashAndPassword( []byte(hashedPassword), []byte(password))
 }
 
 func (server *server) removeExpiredSessions() {
@@ -381,7 +421,7 @@ func (server *server) removeExpiredSessions() {
 					for i := 0; i < len(sessions); i++ {
 						session := sessions[i]
 						if session.ExpireAt < time.Now().Unix() {
-							server.removeSession(session)
+							server.removeSession(session.AccountId)
 						}
 					}
 				}

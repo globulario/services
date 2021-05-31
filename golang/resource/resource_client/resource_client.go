@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strconv"
+
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
@@ -159,7 +160,6 @@ func (resource_client *Resource_Client) SetCaFile(caFile string) {
 
 ////////////// API ////////////////
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // Organisation
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,6 +311,36 @@ func (resource_client *Resource_Client) RegisterAccount(name string, email strin
 	return err
 }
 
+// Get account with a given id/name
+func (resource_client *Resource_Client) GetAccount(id string) (*resourcepb.Account, error) {
+	rqst := &resourcepb.GetAccountRqst{
+		AccountId: id,
+	}
+	rsp, err := resource_client.c.GetAccount(globular.GetClientContext(resource_client), rqst)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Account, nil
+}
+
+// Set the new password.
+func (resource_client *Resource_Client) SetAccountPassword(accountId, oldPassword, newPassword string) (error){
+	rqst:=&resourcepb.SetAccountPasswordRqst{
+		AccountId: accountId,
+		OldPassword: oldPassword,
+		NewPassword: newPassword,
+	}
+
+	_, err := resource_client.c.SetAccountPassword(globular.GetClientContext(resource_client), rqst)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Delete an account.
 func (resource_client *Resource_Client) DeleteAccount(id string) error {
 	rqst := &resourcepb.DeleteAccountRqst{
@@ -343,6 +373,63 @@ func (resource_client *Resource_Client) RemoveAccountRole(accountId string, role
 		RoleId:    roleId,
 	}
 	_, err := resource_client.c.RemoveAccountRole(globular.GetClientContext(resource_client), rqst)
+
+	return err
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Sessions
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Return a given session
+ */
+func (resource_client *Resource_Client) GetSession(accountId string) (*resourcepb.Session, error) {
+	rqst := &resourcepb.GetSessionRequest{
+		AccountId: accountId,
+	}
+	rsp, err := resource_client.c.GetSession(globular.GetClientContext(resource_client), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Session, nil
+}
+
+/**
+ * Return the list of all active sessions on the server.
+ */
+func (resource_client *Resource_Client) GetSessions() ([]*resourcepb.Session, error) {
+	rqst := &resourcepb.GetSessionsRequest{}
+	rsp, err := resource_client.c.GetSessions(globular.GetClientContext(resource_client), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Sessions, nil
+}
+
+/**
+ * Remove a session
+ */
+func (resource_client *Resource_Client) RemoveSession(accountId string) error {
+	rqst := &resourcepb.RemoveSessionRequest{
+		AccountId: accountId,
+	}
+	_, err := resource_client.c.RemoveSession(globular.GetClientContext(resource_client), rqst)
+
+	return err
+}
+
+/**
+ * Update/Create a session.
+ */
+func (resource_client *Resource_Client) UpdateSession(session *resourcepb.Session) error {
+	rqst := &resourcepb.UpdateSessionRequest{
+		Session: session,
+	}
+
+	_, err := resource_client.c.UpdateSession(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }

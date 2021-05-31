@@ -19,13 +19,16 @@ import (
 
 	"github.com/golang/protobuf/jsonpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
+	"io/ioutil"
 )
 
-
+var (
+	keyPath = "/etc/globular/config/keys"
+)
 
 // Set the root password
 func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {
@@ -116,23 +119,25 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	data, err := ioutil.ReadFile(keyPath + "/globular_key")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	// Generate a token to identify the user.
-	tokenString, err := interceptors.GenerateToken([]byte(resource_server.Key), resource_server.SessionTimeout, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	p, err := resource_server.getPersistenceStore()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
+	tokenString, err := interceptors.GenerateToken([]byte(data), resource_server.SessionTimeout, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
 	id, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
-	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Tokens", map[string]interface{}{"_id": id, "expireAt": Utility.ToString(expireAt)}, "")
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+
+	err = resource_server.updateSession(id, 0, tokenString, time.Now().Unix(), expireAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -210,6 +215,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 }
 
 //* Update account password.
+// TODO make sure only user can 
 func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -218,7 +224,44 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"_id":"`+rqst.AccountId+`"}`, `{ "$set":{"password":"`+rqst.Password+`"}}`, "")
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+rqst.AccountId+`"},{"name":"`+rqst.AccountId+`"} ]}`, ``)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	account := values.(map[string]interface{})
+
+	// Now update the sa password in mongo db.
+	name := account["name"].(string)
+	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
+	
+	// Here I will validate the old password.
+	err = resource_server.validatePassword(rqst.OldPassword, account["password"].(string))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	// Change the password...
+	changePasswordScript := fmt.Sprintf(
+		"db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
+	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, changePasswordScript)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Create bcrypt...
+	pwd, err := resource_server.hashPassword(rqst.NewPassword)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"_id":"`+rqst.AccountId+`"}`, `{ "$set":{"password":"`+string(pwd)+`"}}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -330,8 +373,6 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 	return nil
 }
-
-
 
 //* Add contact to a given account *
 func (resource_server *server) AddAccountContact(ctx context.Context, rqst *resourcepb.AddAccountContactRqst) (*resourcepb.AddAccountContactRsp, error) {
@@ -492,17 +533,6 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Delete permissions
-	// TODO delete account permissions
-
-	// Delete the token.
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Tokens", `{"_id":"`+rqst.Id+`"}`, "")
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	name := account["name"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
@@ -526,16 +556,6 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	/* TODO fix it...
-	p_, _ := resource_server.getPersistenceSaConnection()
-	err = p_.DeleteConnection(name + "_db")
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-	*/
 
 	return &resourcepb.DeleteAccountRsp{
 		Result: rqst.Id,
@@ -571,7 +591,6 @@ if err != nil || count == 0 {
 	}
 }
 */
-
 
 //* Create a role with given action list *
 func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
@@ -686,7 +705,6 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 
 	return nil
 }
-
 
 //* Delete a role with a given id *
 func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRqst) (*resourcepb.DeleteRoleRsp, error) {
@@ -996,7 +1014,6 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 	return &resourcepb.CreateApplicationRsp{}, nil
 }
 
-
 //* Delete an application from the server. *
 func (resource_server *server) DeleteApplication(ctx context.Context, rqst *resourcepb.DeleteApplicationRqst) (*resourcepb.DeleteApplicationRsp, error) {
 
@@ -1195,7 +1212,6 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 
 	return &resourcepb.RemoveApplicationActionRsp{Result: true}, nil
 }
-
 
 ///////////////////////  resource management. /////////////////
 func (resource_server *server) GetAllApplicationsInfo(ctx context.Context, rqst *resourcepb.GetAllApplicationsInfoRqst) (*resourcepb.GetAllApplicationsInfoRsp, error) {
@@ -2422,33 +2438,36 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 // Session
 /////////////////////////////////////////////////////////////////////////////////////////
 
-//* Update user session informations
-func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
+func (server *server) updateSession(accountId string, state int, token string, last_session_time, expire_at int64) error{
 	p, err := server.getPersistenceStore()
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	session := make(map[string]interface{}, 0)
-	session["_id"] = rqst.Session.AccountId
-	session["state"] = 1
-	session["expire_at"] = time.Unix(rqst.Session.ExpireAt, 0).UTC().Format("2006-01-02T15:04:05-0700")
-	session["last_state_time"] = time.Unix(rqst.Session.LastStateTime, 0).UTC().Format("2006-01-02T15:04:05-0700")
-	session["token"] = rqst.Session.Token
+	session["_id"] = accountId
+	session["state"] = state
+	session["expire_at"] = time.Unix(expire_at, 0).UTC().Format("2006-01-02T15:04:05-0700")
+	session["last_state_time"] = time.Unix(last_session_time, 0).UTC().Format("2006-01-02T15:04:05-0700")
+	session["token"] = token
 
 	jsonStr, err := Utility.ToJson(session)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
-	dbName := strings.ReplaceAll(rqst.Session.AccountId, ".", "_")
+	dbName := strings.ReplaceAll(accountId, ".", "_")
 	dbName = strings.ReplaceAll(dbName, "@", "_")
 
-	err = p.ReplaceOne(context.Background(), "local_resource", dbName+"_db", "Sessions", `{"_id":"`+rqst.Session.AccountId+`"}`, jsonStr, "")
+	return p.ReplaceOne(context.Background(), "local_resource", dbName+"_db", "Sessions", `{"_id":"`+accountId+`"}`, jsonStr, `[{"upsert":true}]`)
+
+}
+
+//* Update user session informations
+func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
+
+	err := server.updateSession(rqst.Session.AccountId, 1, rqst.Session.Token,rqst.Session.LastStateTime, rqst.Session.ExpireAt)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

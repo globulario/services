@@ -31,7 +31,7 @@ func TestCreateOrganization(t *testing.T) {
 
 /** Test create account **/
 func TestCreateAccount(t *testing.T) {
-	err := client.RegisterAccount("dave", "dave@globular.io", "1234", "1234")
+	err := client.RegisterAccount("dave", "dave@globular.io", "400zm89Aaa", "400zm89Aaa")
 	if err != nil {
 		log.Println("---> create account fail! ", err)
 	} else {
