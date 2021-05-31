@@ -9,6 +9,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -320,11 +321,29 @@ func (server *server) StopService() error {
 
 var(
 	resourceClient *resource_client.Resource_Client
+	eventClient *event_client.Event_Client
 )
 
 ///////////////////// event service functions ////////////////////////////////////
+func (svr *server) getEventClient() (*event_client.Event_Client, error){
+	if eventClient != nil {
+		return eventClient, nil
+	}
+
+	eventClient, err := event_client.NewEventService_Client(svr.Domain, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
+
+	return eventClient, nil
+}
+
 func (svr *server) publish(event string, data []byte) error {
-	return errors.New("not implemented")
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+	return eventClient.Publish(event, data)
 }
 
 ///////////////////// resource service functions ////////////////////////////////////

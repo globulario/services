@@ -23,7 +23,7 @@ func Test(t *testing.T) {
 
 
 func TestAuthenticate(t *testing.T) {
-	token, err := client.Authenticate("dave", "400zm89Aaa")
+	token, err := client.Authenticate("dave", "400zm89AaB")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
 	} else {
@@ -32,7 +32,7 @@ func TestAuthenticate(t *testing.T) {
 }
 
 func TestSetPassword(t *testing.T) {
-	token, err := client.SetPassword("dave", "400zm89Aaa", "400zm89AaB")
+	token, err := client.SetPassword("dave", "400zm89AaB", "400zm89AaB")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
 	} else {
