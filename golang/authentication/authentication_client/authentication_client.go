@@ -226,7 +226,37 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 	}
 
 	return rsp.Token, nil
+ }
 
+ func (client *Authentication_Client) SetRootPassword(old_password, new_password string) (string, error){
+
+	rqst := new(authenticationpb.SetRootPasswordRequest);
+	rqst.OldPassword = old_password;
+	rqst.NewPassword = new_password;
+
+	rsp, err := client.c.SetRootPassword(globular.GetClientContext(client), rqst)
+	if err != nil {
+		return "", err
+	}
+
+	return rsp.Token, nil
+ }
+
+ /**
+  * Set the Root email.
+  */
+ func (client *Authentication_Client) SetRootEmail(oldEmail, newEmail string) error {
+
+	rqst := new(authenticationpb.SetRootEmailRequest);
+	rqst.NewEmail = newEmail
+	rqst.OldEmail = oldEmail
+
+	_, err := client.c.SetRootEmail(globular.GetClientContext(client), rqst)
+	if err != nil {
+		return   err
+	}
+
+	return  nil
  }
 
  /**

@@ -530,7 +530,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		fmt.Println("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		fmt.Println("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 		return
 	}
 
@@ -549,7 +549,7 @@ func main() {
 	err = s_impl.StartService()
 
 	if err != nil {
-		fmt.Println("Fail to start service %s: %s", s_impl.Name, s_impl.Id, err)
+		fmt.Println("Fail to start service %s: %s", s_impl.Name, s_impl.Id)
 		return
 	}
 

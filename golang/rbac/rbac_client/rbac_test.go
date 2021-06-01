@@ -1,17 +1,19 @@
 package rbac_client
 
 import (
+	"io/ioutil"
 	"log"
+	"os"
 	"testing"
 
-	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 )
 
 var (
 	// Connect to the services client.
-	rbac_client_, _ = NewRbacService_Client("localhost", "resource.RbacService")
-
+	rbac_client_, _     = NewRbacService_Client("localhost", "rbac.RbacService")
 	resource_client_, _ = resource_client.NewResourceService_Client("localhost", "resource.ResourceService")
 )
 
@@ -24,12 +26,14 @@ func TestSetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("organization_0 was created successfully!")
 
 	err = resource_client_.CreateOrganization("organization_1", "Organization 1")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("organization_1 was created successfully!")
 
 	/** Create group */
 	err = resource_client_.CreateGroup("group_0", "Group 0")
@@ -37,12 +41,14 @@ func TestSetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("group_0 was created successfully!")
 
 	err = resource_client_.CreateGroup("group_1", "Group 1")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("group_1 was created successfully!")
 
 	/** Create an account */
 	err = resource_client_.RegisterAccount("account_0", "account_0@test.com", "1234", "1234")
@@ -50,18 +56,21 @@ func TestSetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("account_0 was created successfully!")
 
 	err = resource_client_.RegisterAccount("account_1", "account_1@test.com", "1234", "1234")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("account_1 was created successfully!")
 
 	err = resource_client_.RegisterAccount("account_2", "account_2@test.com", "1234", "1234")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("account_2 was created successfully!")
 
 	// Now set the account to the group
 	err = resource_client_.AddGroupMemberAccount("group_0", "account_0")
@@ -69,12 +78,14 @@ func TestSetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("account_0 was added to group_0 successfully!")
 
 	err = resource_client_.AddGroupMemberAccount("group_1", "account_1")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("account_1 was added to group_1 successfully!")
 
 	// Add the group to the organization.
 	err = resource_client_.AddOrganizationGroup("organization_0", "group_0")
@@ -82,12 +93,14 @@ func TestSetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("group_0 was added to organization_0 successfully!")
 
 	err = resource_client_.AddOrganizationGroup("organization_1", "group_1")
 	if err != nil {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("group_1 was added to organization_1 created successfully!")
 
 	// Now create a peer
 	err = resource_client_.RegisterPeer("p0.test.com")
@@ -95,6 +108,7 @@ func TestSetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("p0.test.com was created successfully!")
 
 	// Now create a peer
 	err = resource_client_.RegisterPeer("p1.test.com")
@@ -102,13 +116,25 @@ func TestSetResources(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
+	log.Println("p1.test.com was created successfully!")
 
 }
 
 func TestSetResourcePermissions(t *testing.T) {
 
+	// Here I will create a file and set permission on it.
+	
 	// A fictive file path...
-	filePath := "C:/temp/toto.txt"
+	filePath := "/tmp/toto.txt"
+	if Utility.Exists(filePath){
+		os.Remove(filePath)
+	}
+	err := ioutil.WriteFile(filePath, []byte("La vie ne vaut rien, mais rien ne vaut la vie!"), 0777)
+	if err != nil {
+		log.Println(err)
+		t.Fail()
+	}
+
 
 	permissions := &rbacpb.Permissions{
 		Allowed: []*rbacpb.Permission{
@@ -173,7 +199,7 @@ func TestSetResourcePermissions(t *testing.T) {
 		},
 	}
 
-	err := rbac_client_.SetResourcePermissions(filePath, permissions)
+	err = rbac_client_.SetResourcePermissions(filePath, permissions)
 	if err != nil {
 		log.Println(err)
 	}
@@ -183,7 +209,7 @@ func TestSetResourcePermissions(t *testing.T) {
 // Test read a given permission to determine if suject can do given action...
 func TestGetResourcePermission(t *testing.T) {
 
-	filePath := "C:/temp/toto.txt"
+	filePath := "/tmp/toto.txt"
 	_, err := rbac_client_.GetResourcePermission(filePath, "read", rbacpb.PermissionType_ALLOWED)
 	if err != nil {
 		log.Println(err)
@@ -192,7 +218,7 @@ func TestGetResourcePermission(t *testing.T) {
 }
 
 func TestSetResourcePermission(t *testing.T) {
-	filePath := "C:/temp/toto.txt"
+	filePath := "/tmp/toto.txt"
 	err := rbac_client_.DeleteResourcePermission(filePath, "execute", rbacpb.PermissionType_ALLOWED)
 	if err != nil {
 		log.Println(err)
@@ -200,7 +226,7 @@ func TestSetResourcePermission(t *testing.T) {
 }
 
 func TestValidateAccess(t *testing.T) {
-	filePath := "C:/temp/toto.txt"
+	filePath := "/tmp/toto.txt"
 
 	// Test if account owner can do anything.
 	hasPermission_0, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "read", filePath)
@@ -364,7 +390,7 @@ func TestValidateAccess(t *testing.T) {
 
 // Test delete a specific ressource permission...
 func TestDeleteResourcePermissions(t *testing.T) {
-	filePath := "C:/temp/toto.txt"
+	filePath := "/tmp/toto.txt"
 
 	err := rbac_client_.DeleteResourcePermissions(filePath)
 	if err != nil {

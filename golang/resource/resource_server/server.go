@@ -12,18 +12,19 @@ import (
 	"strings"
 	"time"
 
+	"os/exec"
+
 	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_store"
-	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"os/exec"
 )
 
 // The default values.
@@ -286,24 +287,33 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 	svr.Permissions = permissions
 }
 
-// Use rbac client here...
-func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
-	return nil
-}
+var (
+	rbac_client_ *rbac_client.Rbac_Client
+)
 
-func (svr *server) getActionResourcesPermissions(action string) ([]*rbacpb.ResourceInfos, error) {
+//////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
+/**
+ * Get the rbac client.
+ */
+ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		if err != nil {
+			log.Println("fail to get RBAC client with error ", err)
+			return nil, err
+		}
 
-	return nil, nil
-}
-
-func (svr *server) validateAction(method string, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
-
-	return false, errors.New("not implemented")
+	}
+	return rbac_client_, nil
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
 	return errors.New("not implemented")
 }
+
+
+//////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
 
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
@@ -345,9 +355,8 @@ func (svr *server) StopService() error {
 }
 
 ////////////////////////////////// Resource functions ///////////////////////////////////////////////
-//func (svr *server)
 
-////////////////////////////////// Resource functions ///////////////////////////////////////////////
+// MongoDB backend, it must reside on the same server as the resource server (at this time...)
 
 /** Stop mongod process **/
 func (server *server) stopMongod() error {
@@ -509,7 +518,7 @@ func (resource_server *server) hashPassword(password string) (string, error) {
 /**
  * Return the hash password.
  */
-func (resource_server *server) validatePassword(password string, hash string) (error) {
+func (resource_server *server) validatePassword(password string, hash string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }
 

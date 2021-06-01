@@ -189,7 +189,7 @@ func validateAction(token string, application string, domain string, organizatio
 	if err != nil {
 		return false, err
 	}
-	hasAccess, err := rbac_client_.ValidateAction(token, application, domain, organization, method, subject, subjectType, infos)
+	hasAccess, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
 		return false, err
 	}

@@ -19,6 +19,7 @@ message PublishServiceRequest{
 	repeated string keywords = 8;
 	string version = 9;
 	string platform = 10;
+	string path = 11;
 }
 
 message PublishServiceResponse{
@@ -42,6 +43,7 @@ message PublishApplicationRequest{
 	repeated resource.Role roles = 14;
 	repeated resource.Group groups = 15;
 	bool set_as_default = 16;
+	string path = 17;
 }
 
 message PublishApplicationResponse{

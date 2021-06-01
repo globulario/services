@@ -4,7 +4,7 @@
 syntax = "proto3";
 package resource;
 
-import "google/protobuf/struct.proto";
+//import "google/protobuf/struct.proto";
 option go_package = "resource/resourcepb";
 
 /** That message will contain the information to update a service on a node. **/
@@ -213,6 +213,8 @@ message Application{
 	string icon = 9;
 	string alias = 10;
 	string publisherid = 11;
+	int64 creation_date = 12;
+	int64 last_deployed = 13;
 }
 
 /** Create / Update an application */
@@ -233,12 +235,12 @@ message DeleteApplicationRsp{
 }
 
 // Retrun a json with applications informations.
-message GetAllApplicationsInfoRqst{
-	
+message GetApplicationsRqst{
+	string query = 1;
 }
 
-message GetAllApplicationsInfoRsp{
-	repeated google.protobuf.Struct applications = 1;
+message GetApplicationsRsp{
+	repeated Application applications = 1;
 }
 
 /** The application version */
@@ -302,6 +304,7 @@ message Group {
 	string id = 1;
 	string name = 2; // must be unique on the network.
 	repeated string  members=3; // can be empty...
+	repeated string  organizations=4; // can be empty...
 }
 
 /**
@@ -698,7 +701,7 @@ message RemoveSessionResponse {
 }
 
 message GetSessionsRequest {
-	/** Nothing here */
+	string query = 1;
 }
 
 message GetSessionsResponse {
@@ -841,7 +844,7 @@ service ResourceService {
 	rpc CreateApplication(CreateApplicationRqst) returns(CreateApplicationRsp);
 
 	/** Return a json string with all applications informations **/
-	rpc GetAllApplicationsInfo(GetAllApplicationsInfoRqst) returns(GetAllApplicationsInfoRsp);
+	rpc GetApplications(GetApplicationsRqst) returns(stream GetApplicationsRsp);
 	
 	/** Delete an application from the server. **/
 	rpc DeleteApplication(DeleteApplicationRqst) returns(DeleteApplicationRsp);

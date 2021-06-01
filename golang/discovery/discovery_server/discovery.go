@@ -6,6 +6,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
@@ -52,11 +53,16 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 // Publish a service. The service must be install localy on the server.
 func (server *server) PublishService(ctx context.Context, rqst *discoverypb.PublishServiceRequest) (*discoverypb.PublishServiceResponse, error) {
 	log.Println("try to publish service ", rqst.ServiceName, "...")
+
 	// Make sure the user is part of the organization if one is given.
 	publisherId := rqst.User
 	if len(rqst.Organization) > 0 {
+		isMember, err := server.isOrganizationMember(rqst.User, rqst.Organization)
+		if err != nil {
+			return nil, err
+		}
 		publisherId = rqst.Organization
-		if !server.isOrganizationMemeber(rqst.User, rqst.Organization) {
+		if !isMember {
 			err := errors.New(rqst.User + " is not member of " + rqst.Organization)
 			log.Println(err.Error())
 			return nil, err
@@ -76,6 +82,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 		Type:         resourcepb.PackageType_SERVICE_TYPE,
 	}
 
+	// Publish the service package.
 	err := server.publishPackage(rqst.User, rqst.Organization, rqst.DicorveryId, rqst.RepositoryId, rqst.Platform, rqst.Path, descriptor)
 
 	if err != nil {
@@ -91,56 +98,57 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 
 // Publish a web application to a globular node. That must be use at development mostly...
 func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PublishApplication not implemented")
-}
+	
+	log.Println("try to publish application ", rqst.Name, "...")
 
-/* TODO use UploadServicePackage
-// Upload a service package.
-func (server *server) UploadServicePackage(stream discoverypb.AdminService_UploadServicePackageServer) error {
-	// The bundle will cantain the necessary information to install the service.
-	path := os.TempDir() + "/" + Utility.RandomUUID()
+	// Make sure the user is part of the organization if one is given.
+	publisherId := rqst.User
+	if len(rqst.Organization) > 0 {
+		isMember, err := server.isOrganizationMember(rqst.User, rqst.Organization)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		publisherId = rqst.Organization
+		if !isMember {
+			err := errors.New(rqst.User + " is not member of " + rqst.Organization)
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
 
-	fo, err := os.Create(path)
+	// Now I will upload the service to the repository...
+	descriptor := &resourcepb.PackageDescriptor{
+		Id:           rqst.Name,
+		Name:         rqst.Name,
+		PublisherId:  publisherId,
+		Version:      rqst.Version,
+		Description:  rqst.Description,
+		Keywords:     rqst.Keywords,
+		Repositories: []string{rqst.Repository},
+		Discoveries:  []string{rqst.Discovery},
+		Type:         resourcepb.PackageType_SERVICE_TYPE,
+	}
+
+	// Publish the application package.
+	err := server.publishPackage(rqst.User, rqst.Organization, rqst.Discovery, rqst.Repository, "webapp", rqst.Path, descriptor)
+
+	// Set the path of the directory where the application can store files.
+	Utility.CreateDirIfNotExist("/var/globular/data/files/applications/" + rqst.Name)
 	if err != nil {
-		return status.Errorf(
+		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	defer fo.Close()
 
-	for {
-		msg, err := stream.Recv()
-		if err == nil {
-			if len(msg.Organization) > 0 {
-				if !server.isOrganizationMemeber(msg.User, msg.Organization) {
-					return status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New(msg.User+" is not a member of "+msg.Organization)))
-				}
-			}
-		}
-
-		if msg == nil {
-			stream.SendAndClose(&discoverypb.UploadServicePackageResponse{
-				Path: path,
-			})
-			err = nil
-			break
-		} else if err == io.EOF || len(msg.Data) == 0 {
-			// end of stream...
-			stream.SendAndClose(&discoverypb.UploadServicePackageResponse{
-				Path: path,
-			})
-			err = nil
-			break
-		} else if err != nil {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		} else {
-			fo.Write(msg.Data)
-		}
+	err = server.addResourceOwner("/applications/"+ rqst.Name, rqst.Name, rbacpb.SubjectType_APPLICATION)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return nil
+
+	return &discoverypb.PublishApplicationResponse{}, nil
 }
-*/

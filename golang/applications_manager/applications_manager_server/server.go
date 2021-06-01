@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,8 +9,11 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_manager_client"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
+	"github.com/globulario/services/golang/discovery/discovery_client"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
 
@@ -308,38 +310,122 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-/////////////////////// resource manager functions /////////////////////////////////
+var (
+	resourceClient *resource_client.Resource_Client
+	discoveryClient *discovery_client.Dicovery_Client
+	event_client_ *event_client.Event_Client
+)
 
-func (svr *server) createApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
-	return errors.New("not implemented")
+////////////////////////////////////////////////////////////////////////////////////////
+// Resource manager function
+////////////////////////////////////////////////////////////////////////////////////////
+func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+	var err error
+	if resourceClient != nil {
+		return resourceClient, nil
+	}
+
+	resourceClient, err = resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	if err != nil {
+		return nil, err
+	}
+
+	return resourceClient, nil
 }
 
 func (svr *server) deleteApplication(applicationId string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+	
+	return resourceClient.DeleteApplication(applicationId)
+}
 
-	return errors.New("not implemented")
+func (svr *server) createApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+
+	return resourceClient.CreateApplication(id, password, path, publisherId, version, description, alias, icon, actions, keywords);
+
 }
 
 func (svr *server) getApplicationVersion(id string) (string, error) {
-	return "", errors.New("not implemented")
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return "", err
+	}
+
+	return resourceClient.GetApplicationVersion(id)
 }
 
 func (svr *server) createRole(id, name string, actions []string) error {
-	return errors.New("not implemented")
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return  err
+	}
+
+	return resourceClient.CreateRole(id, name, actions)
 }
 
 func (svr *server) createGroup(id, name string) error {
-	return errors.New("not implemented")
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return  err
+	}
+
+	return resourceClient.CreateGroup(id, name)
 }
 
 //////////////////////// Package Repository services /////////////////////////////////
+func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, error) {
+	if discoveryClient != nil {
+		return discoveryClient, nil
+	}
+
+	discoveryClient, err := discovery_client.NewDiscoveryService_Client(svr.Domain, "discovery.DiscoveryService")
+	if err != nil {
+		return nil, err
+	}
+
+	return discoveryClient, nil
+}
+
 func (server *server) publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role) error {
-	return errors.New("not implemented")
+	discoveryClient, err :=  server.getDsicoveryClient()
+	
+	if err != nil {
+		return err
+	}
+
+	// Publish the application...
+	return discoveryClient.PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles)
 }
 
 ///////////////////// event service functions ////////////////////////////////////
-func (svr *server) publish(event string, data []byte) error {
-	return errors.New("not implemented")
+func (svr *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ != nil {
+		return event_client_, nil
+	}
+	event_client_, err = event_client.NewEventService_Client(svr.Domain, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
+
+	return event_client_, nil
 }
+
+func (svr *server) publish(event string, data []byte) error {
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+	return eventClient.Publish(event, data)
+}
+
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -374,7 +460,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number

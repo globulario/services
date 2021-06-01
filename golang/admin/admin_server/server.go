@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -9,14 +8,15 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/admin/adminpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
+	
 )
 
 // The default values.
@@ -201,7 +201,6 @@ func (svr *server) SetDomain(domain string) {
 	svr.Domain = domain
 }
 
-
 // TLS section
 
 // If true the service run with TLS. The
@@ -312,68 +311,38 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-/////////////////////// resource manager functions /////////////////////////////////
-func (svr *server) deleteApplication(applicationId string) error {
 
-	return errors.New("not implemented")
-}
+var (
+	rbac_client_ *rbac_client.Rbac_Client
+)
 
-func (svr *server) createApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
-	return errors.New("not implemented")
-}
+/**
+ * Get the rbac client.
+ */
+ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		if err != nil {
+			log.Println("fail to get RBAC client with error ", err)
+			return nil, err
+		}
 
-func (svr *server) getApplicationVersion(id string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func (svr *server) getApplicationIcon(id string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func (svr *server) getApplicationAlias(id string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func (svr *server) createRole(id, name string, actions []string) error {
-	return errors.New("not implemented")
-}
-
-func (svr *server) createGroup(id, name string) error {
-	return errors.New("not implemented")
-}
-
-func (svr *server) isOrganizationMemeber(user, organization string) bool {
-	// TODO implement it!
-	return false
-}
-
-/////////////////////// rbac manager functions ///////////////////////////////////
-
-// Set the ressource owner.
-func (svr *server) addResourceOwner(path, subject string, subjectType rbacpb.SubjectType) error {
-	return errors.New("not implemented")
-}
-
-func (srv *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (srv *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
-	return errors.New("not implemented")
-}
-
-func (serv *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	return false, false, errors.New("not implemented")
+	}
+	return rbac_client_, nil
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	return errors.New("not implemented")
+	rbac_client_, err := GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+
+	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
 
 ///////////////////// event service functions ////////////////////////////////////
-func (svr *server) publish(event string, data []byte) error {
-	return errors.New("not implemented")
-}
+
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -409,7 +378,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
 	if len(os.Args) == 2 {

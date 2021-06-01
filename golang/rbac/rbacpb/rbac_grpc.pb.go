@@ -38,6 +38,8 @@ type RbacServiceClient interface {
 	DeleteAllAccess(ctx context.Context, in *DeleteAllAccessRqst, opts ...grpc.CallOption) (*DeleteAllAccessRsp, error)
 	//* Validate if a user can get access to a given Resource for a given operation (read, write...)
 	ValidateAccess(ctx context.Context, in *ValidateAccessRqst, opts ...grpc.CallOption) (*ValidateAccessRsp, error)
+	//* Set Actions resource Permissions
+	SetActionResourcesPermissions(ctx context.Context, in *SetActionResourcesPermissionsRqst, opts ...grpc.CallOption) (*SetActionResourcesPermissionsRsp, error)
 	//* Return the action ressource informations.
 	GetActionResourceInfos(ctx context.Context, in *GetActionResourceInfosRqst, opts ...grpc.CallOption) (*GetActionResourceInfosRsp, error)
 	//* Validate the actions
@@ -142,6 +144,15 @@ func (c *rbacServiceClient) ValidateAccess(ctx context.Context, in *ValidateAcce
 	return out, nil
 }
 
+func (c *rbacServiceClient) SetActionResourcesPermissions(ctx context.Context, in *SetActionResourcesPermissionsRqst, opts ...grpc.CallOption) (*SetActionResourcesPermissionsRsp, error) {
+	out := new(SetActionResourcesPermissionsRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/SetActionResourcesPermissions", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *rbacServiceClient) GetActionResourceInfos(ctx context.Context, in *GetActionResourceInfosRqst, opts ...grpc.CallOption) (*GetActionResourceInfosRsp, error) {
 	out := new(GetActionResourceInfosRsp)
 	err := c.cc.Invoke(ctx, "/rbac.RbacService/GetActionResourceInfos", in, out, opts...)
@@ -184,6 +195,8 @@ type RbacServiceServer interface {
 	DeleteAllAccess(context.Context, *DeleteAllAccessRqst) (*DeleteAllAccessRsp, error)
 	//* Validate if a user can get access to a given Resource for a given operation (read, write...)
 	ValidateAccess(context.Context, *ValidateAccessRqst) (*ValidateAccessRsp, error)
+	//* Set Actions resource Permissions
+	SetActionResourcesPermissions(context.Context, *SetActionResourcesPermissionsRqst) (*SetActionResourcesPermissionsRsp, error)
 	//* Return the action ressource informations.
 	GetActionResourceInfos(context.Context, *GetActionResourceInfosRqst) (*GetActionResourceInfosRsp, error)
 	//* Validate the actions
@@ -223,6 +236,9 @@ func (UnimplementedRbacServiceServer) DeleteAllAccess(context.Context, *DeleteAl
 }
 func (UnimplementedRbacServiceServer) ValidateAccess(context.Context, *ValidateAccessRqst) (*ValidateAccessRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateAccess not implemented")
+}
+func (UnimplementedRbacServiceServer) SetActionResourcesPermissions(context.Context, *SetActionResourcesPermissionsRqst) (*SetActionResourcesPermissionsRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetActionResourcesPermissions not implemented")
 }
 func (UnimplementedRbacServiceServer) GetActionResourceInfos(context.Context, *GetActionResourceInfosRqst) (*GetActionResourceInfosRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetActionResourceInfos not implemented")
@@ -422,6 +438,24 @@ func _RbacService_ValidateAccess_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RbacService_SetActionResourcesPermissions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetActionResourcesPermissionsRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).SetActionResourcesPermissions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/SetActionResourcesPermissions",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).SetActionResourcesPermissions(ctx, req.(*SetActionResourcesPermissionsRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RbacService_GetActionResourceInfos_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetActionResourceInfosRqst)
 	if err := dec(in); err != nil {
@@ -504,6 +538,10 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateAccess",
 			Handler:    _RbacService_ValidateAccess_Handler,
+		},
+		{
+			MethodName: "SetActionResourcesPermissions",
+			Handler:    _RbacService_SetActionResourcesPermissions_Handler,
 		},
 		{
 			MethodName: "GetActionResourceInfos",

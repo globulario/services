@@ -3,6 +3,8 @@ syntax = "proto3";
 package rbac;
 
 option go_package="rbac/rbacpb";
+import "google/protobuf/struct.proto";
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Role Based Access Control.
@@ -144,7 +146,8 @@ message ValidateAccessRqst {
 }
 
 message ValidateAccessRsp {
-	bool result = 1;
+	bool hasAccess = 1;
+	bool accessDenied = 2;
 }
 
 message GetActionResourceInfosRqst{
@@ -172,6 +175,13 @@ message ValidateActionRsp {
 	bool result = 1;
 }
 
+message SetActionResourcesPermissionsRqst{
+	google.protobuf.Struct permissions = 1;
+}
+
+message SetActionResourcesPermissionsRsp{
+
+}
 
 /**
  * The service to control action and resource access.
@@ -207,6 +217,9 @@ service RbacService {
 	
 	/** Validate if a user can get access to a given Resource for a given operation (read, write...) */
 	rpc ValidateAccess(ValidateAccessRqst) returns(ValidateAccessRsp);
+
+	/** Set Actions resource Permissions */
+	rpc SetActionResourcesPermissions(SetActionResourcesPermissionsRqst) returns(SetActionResourcesPermissionsRsp);
 		
 	/////////////////////////// Rpc Action Valdisation ////////////////////////////////
 	

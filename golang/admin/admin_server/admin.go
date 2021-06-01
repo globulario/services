@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	"os/exec"
-	"strings"
 	"github.com/globulario/services/golang/security"
 
 	"github.com/davecourtois/Utility"

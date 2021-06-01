@@ -165,11 +165,10 @@ func (client *Dicovery_Client) SetCaFile(caFile string) {
 
 ////////////////// Api //////////////////////
 
-
 /**
  * Create and Upload the service archive on the server.
  */
- /*
+/*
 func (admin_client *Admin_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) (string, int, error) {
 
 	// Here I will try to read the service configuation from the path.
@@ -380,11 +379,11 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 /**
  * Find a packages by keywords.
  */
-func (self *Dicovery_Client) FindServices(keywords []string) ([]*resourcepb.PackageDescriptor, error) {
+func (client *Dicovery_Client) FindServices(keywords []string) ([]*resourcepb.PackageDescriptor, error) {
 	rqst := new(resourcepb.FindPackagesDescriptorRequest)
 	rqst.Keywords = keywords
 
-	rsp, err := self.c.FindPackages(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.FindPackages(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -395,13 +394,13 @@ func (self *Dicovery_Client) FindServices(keywords []string) ([]*resourcepb.Pack
 /**
  * Get list of service descriptor for one service with  various version.
  */
-func (self *Dicovery_Client) GetPackageDescriptor(service_id string, publisher_id string) ([]*resourcepb.PackageDescriptor, error) {
+func (client *Dicovery_Client) GetPackageDescriptor(service_id string, publisher_id string) ([]*resourcepb.PackageDescriptor, error) {
 	rqst := &resourcepb.GetPackageDescriptorRequest{
 		ServiceId:   service_id,
 		PublisherId: publisher_id,
 	}
 
-	rsp, err := self.c.GetPackageDescriptor(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.GetPackageDescriptor(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -412,11 +411,11 @@ func (self *Dicovery_Client) GetPackageDescriptor(service_id string, publisher_i
 /**
  * Get a list of all packages descriptor for a given server.
  */
-func (self *Dicovery_Client) GetPackagesDescriptorDescriptor() ([]*resourcepb.PackageDescriptor, error) {
+func (client *Dicovery_Client) GetPackagesDescriptorDescriptor() ([]*resourcepb.PackageDescriptor, error) {
 	descriptors := make([]*resourcepb.PackageDescriptor, 0)
 	rqst := &resourcepb.GetPackagesDescriptorRequest{}
 
-	stream, err := self.c.GetPackagesDescriptor(globular.GetClientContext(self), rqst)
+	stream, err := client.c.GetPackagesDescriptor(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -441,3 +440,29 @@ func (self *Dicovery_Client) GetPackagesDescriptorDescriptor() ([]*resourcepb.Pa
 	return descriptors, nil
 }
 
+/**
+ * Publish an application on the server.
+ */
+func (client *Dicovery_Client) PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role) error {
+	// TODO upload the package and publish the application after see old admin client code bundle from the path...
+
+	rqst := &discoverypb.PublishApplicationRequest{
+		User:         user,
+		Organization: organization,
+		Name:         name,
+		Domain:       domain,
+		Version:      version,
+		Description:  description,
+		Icon:         icon,
+		Alias:        alias,
+		Repository:   repositoryId,
+		Discovery:    discoveryId,
+		Actions:      actions,
+		Keywords:     keywords,
+		Roles:        roles,
+	}
+
+	_, err := client.c.PublishApplication(globular.GetClientContext(client), rqst)
+
+	return err
+}

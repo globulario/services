@@ -61,7 +61,7 @@ service ApplicationManagerService {
   // Uninstall application...
   rpc UninstallApplication(UninstallApplicationRequest) returns (UninstallApplicationResponse);
 
-  // Pulbish and install application.
+  // Pulbish and install application, use at development time...
   rpc DeployApplication(stream DeployApplicationRequest) returns (DeployApplicationResponse);
 
 }

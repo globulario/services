@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+
 	//"log"
 	"strings"
 	"time"
@@ -15,6 +17,11 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+var (
+	configPath = "/etc/globular/config/config.json"
+	tokensPath = "/etc/globular/config/tokens"
 )
 
 //* Validate a token *
@@ -142,15 +149,138 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 	}, nil
 }
 
-//Set the root password
+// Set the root password, the root password will be save in the configuration file.
 func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
-	// Reset the passowrd.
-	return nil, errors.New("not implemented")
+
+	// The root password will be
+	if !Utility.Exists(configPath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration found at "+`"`+configPath+`"`)))
+	}
+
+	data, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	config := make(map[string]interface{})
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I go Globular config file I will get the password.
+	password := config["RootPassword"].(string)
+
+	// adminadmin is the default password...
+	if password == "adminadmin" {
+		if rqst.OldPassword != password {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given password dosent match existing one")))
+		}
+
+		// In that case I will simply hash the new given password.
+		password, err = server.hashPassword(rqst.NewPassword)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	config["RootPassword"] = password
+	jsonStr, err := Utility.ToJson(config)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = ioutil.WriteFile(configPath, []byte(jsonStr), 0644)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	key, err := server.getKey()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// The token string
+	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), "sa", "sa", config["AdminEmail"].(string))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Generate a token...
+	return &authenticationpb.SetRootPasswordResponse{
+		Token: tokenString,
+	}, nil
 }
 
 //Set the root email
 func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
-	return nil, errors.New("not implemented")
+
+	// The root password will be
+	if !Utility.Exists(configPath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration found at "+`"`+configPath+`"`)))
+	}
+
+	data, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	config := make(map[string]interface{})
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I go Globular config file I will get the password.
+	email := config["AdminEmail"].(string)
+	if email != rqst.OldEmail {
+
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given email dosent match existing one")))
+
+	}
+
+	config["AdminEmail"] = rqst.NewEmail
+	jsonStr, err := Utility.ToJson(config)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = ioutil.WriteFile(configPath, []byte(jsonStr), 0644)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &authenticationpb.SetRootEmailResponse{}, nil
 }
 
 /**
@@ -174,6 +304,68 @@ func (server *server) getKey() (string, error) {
 
 /* Authenticate a user */
 func (server *server) authenticate(accountId string, pwd string) (string, error) {
+	key, err := server.getKey()
+	if err != nil {
+		return "", status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// If the user is the root...
+	if accountId == "sa" {
+		// The root password will be
+		if !Utility.Exists(configPath) {
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration found at "+`"`+configPath+`"`)))
+		}
+
+		data, err := ioutil.ReadFile(configPath)
+		if err != nil {
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		config := make(map[string]interface{})
+		err = json.Unmarshal(data, &config)
+		if err != nil {
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// Now I go Globular config file I will get the password.
+		password := config["RootPassword"].(string)
+
+		// adminadmin is the default password...
+		if password == "adminadmin" {
+			if pwd != password {
+				return "", status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the given password dosent match existing one")))
+			}
+		} else {
+			// Now I will validate the password received with the one in the account
+			err = server.validatePassword(pwd, password)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), "sa", "sa", config["AdminEmail"].(string))
+		if err != nil {
+			return "", status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// So here I will keep the token...
+		ioutil.WriteFile(tokensPath + "/" + server.Domain + "_token", []byte(tokenString), 0644)
+
+		return tokenString, nil
+	}
+
 	// Here I will get the account info.
 	account, err := server.getAccount(accountId)
 	if err != nil {
@@ -189,13 +381,6 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 	// Now I will create the session and generate it token.
 	session := new(resourcepb.Session)
 	session.AccountId = account.Id
-
-	key, err := server.getKey()
-	if err != nil {
-		return "", status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
 
 	// The token string
 	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), account.Id, account.Name, account.Email)

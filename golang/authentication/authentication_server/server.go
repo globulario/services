@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
-	"errors"
+	// "errors"
 	"time"
 
 	"google.golang.org/grpc/reflection"
@@ -319,23 +319,23 @@ func (server *server) StopService() error {
 	return globular.StopService(server, server.grpcServer)
 }
 
-var(
-	resourceClient *resource_client.Resource_Client
-	eventClient *event_client.Event_Client
+var (
+	resource_client_ *resource_client.Resource_Client
+	event_client_    *event_client.Event_Client
 )
 
 ///////////////////// event service functions ////////////////////////////////////
-func (svr *server) getEventClient() (*event_client.Event_Client, error){
-	if eventClient != nil {
-		return eventClient, nil
+func (svr *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ != nil {
+		return event_client_, nil
 	}
-
-	eventClient, err := event_client.NewEventService_Client(svr.Domain, "event.EventService")
+	event_client_, err = event_client.NewEventService_Client(svr.Domain, "event.EventService")
 	if err != nil {
 		return nil, err
 	}
 
-	return eventClient, nil
+	return event_client_, nil
 }
 
 func (svr *server) publish(event string, data []byte) error {
@@ -347,28 +347,33 @@ func (svr *server) publish(event string, data []byte) error {
 }
 
 ///////////////////// resource service functions ////////////////////////////////////
-func (svr *server) getResourceClient() (*resource_client.Resource_Client, error){
-	if resourceClient != nil {
-		return resourceClient, nil
+func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+	var err error
+	if resource_client_ != nil {
+		return resource_client_, nil
 	}
 
-	resourceClient, err := resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	resource_client_, err = resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
 	if err != nil {
 		return nil, err
 	}
 
-	return resourceClient, nil
+	return resource_client_, nil
 }
 
+/**
+ * Get actives sessions
+ */
 func (svr *server) getSessions() ([]*resourcepb.Session, error) {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return nil, err
 	}
 
-	return resourceClient.GetSessions()
+	return resourceClient.GetSessions(`{"state":0}`)
 }
 
+/** Now yet use **/
 func (svr *server) removeSession(accountId string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
@@ -408,7 +413,6 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 	return resourceClient.GetAccount(accountId)
 }
 
-
 func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
@@ -424,9 +428,26 @@ func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword str
  * validate the user password.
  */
 func (server *server) validatePassword(password string, hashedPassword string) error {
-	return bcrypt.CompareHashAndPassword( []byte(hashedPassword), []byte(password))
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
+/**
+ * Return the hash value of a given password.
+ */
+func (server *server) hashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(hash), nil
+}
+
+/**
+ * Invalidate expired session token...
+ * TODO remove sessions older than a week...
+ */
 func (server *server) removeExpiredSessions() {
 	ticker := time.NewTicker(time.Duration(server.WatchSessionsDelay) * time.Second)
 	go func() {
@@ -440,7 +461,8 @@ func (server *server) removeExpiredSessions() {
 					for i := 0; i < len(sessions); i++ {
 						session := sessions[i]
 						if session.ExpireAt < time.Now().Unix() {
-							server.removeSession(session.AccountId)
+							session.State = 1
+							server.updateSession(session)
 						}
 					}
 				}
@@ -477,7 +499,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WatchSessionsDelay = 60
-	s_impl.SessionTimeout = 60 * 15
+	s_impl.SessionTimeout = 60 * 15 * 1000
 
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -501,7 +523,7 @@ func main() {
 	if !Utility.Exists(keyPath) {
 		log.Println("create configuration file...")
 		Utility.CreateDirIfNotExist(keyPath)
-		
+
 		err := s_impl.setKey()
 		if err != nil {
 			log.Fatalln(err)

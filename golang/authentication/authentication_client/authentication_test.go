@@ -1,17 +1,13 @@
 package authentication_client
 
 import (
-
-	"testing"
 	"log"
+	"testing"
 )
 
 var (
 	// Connect to the plc client.
-	client, _       = NewAuthenticationService_Client("localhost", "authentication.AuthenticationService")
-	//rbac_client_, _ = rbac_client.NewRbacService_Client("localhost", "resource.RbacService")
-
-	//token string // the token use by test.
+	client, _ = NewAuthenticationService_Client("localhost", "authentication.AuthenticationService")
 )
 
 // Test various function here.
@@ -20,10 +16,17 @@ func Test(t *testing.T) {
 	t.Log("Test")
 }
 
-
-
 func TestAuthenticate(t *testing.T) {
-	token, err := client.Authenticate("dave", "400zm89AaB")
+
+	token, err := client.Authenticate("dave", "400zm89Aaa")
+	if err != nil {
+		log.Println("Fail to authenticate with error ", err)
+	} else {
+		log.Println("Authenticate succeed", token)
+	}
+
+	// Now I will test to authenticate the root...
+	token, err = client.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
 	} else {
@@ -31,11 +34,22 @@ func TestAuthenticate(t *testing.T) {
 	}
 }
 
+
 func TestSetPassword(t *testing.T) {
-	token, err := client.SetPassword("dave", "400zm89AaB", "400zm89AaB")
+	token, err := client.SetPassword("dave", "400zm89Aaa", "400zm89Aaa")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
 	} else {
 		log.Println("Password is updated ", token)
 	}
 }
+
+func TestSetRootPassword(t *testing.T) {
+	token, err := client.SetRootPassword("adminadmin", "adminadmin")
+	if err != nil {
+		log.Println("Fail to authenticate with error ", err)
+	} else {
+		log.Println("Password is updated ", token)
+	}
+}
+

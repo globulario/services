@@ -1,17 +1,17 @@
 package main
 
 import (
-
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"errors"
+
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"google.golang.org/grpc"
 
@@ -311,9 +311,30 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-///////////////////// event service functions ////////////////////////////////////
+//////////////////////////////// Event client /////////////////////////////////
+var(
+event_client_ *event_client.Event_Client
+)
+
+func (svr *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ != nil {
+		return event_client_, nil
+	}
+	event_client_, err = event_client.NewEventService_Client(svr.Domain, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
+
+	return event_client_, nil
+}
+
 func (svr *server) publish(event string, data []byte) error {
-	return errors.New("not implemented")
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+	return eventClient.Publish(event, data)
 }
 
 // That service is use to give access to SQL.
@@ -352,7 +373,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err = s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number

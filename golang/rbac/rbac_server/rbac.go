@@ -8,13 +8,11 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/rbac/rbacpb"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"google.golang.org/grpc/codes"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	
 )
 
 func (rbac_server *server) setEntityResourcePermissions(entity string, path string) error {
@@ -997,37 +995,32 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			if !accessDenied {
 
 				// from the account I will get the list of group.
-				account, err := rbac_server.getAccountById(subject)
+				account, err := rbac_server.getAccount(subject)
 				if err != nil {
 					return false, false, errors.New("No account named " + subject + " exist!")
 				}
 
-				if account["groups"] != nil {
-					groups := []interface{}(account["groups"].(primitive.A))
-					if groups != nil {
-						for i := 0; i < len(groups); i++ {
-							groupId := groups[i].(map[string]interface{})["$id"].(string)
-							_, accessDenied_, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
-							if accessDenied_ {
-								return false, true, errors.New("Access denied for " + subjectStr + " " + subject + "!")
-							}
+				if account.Groups != nil {
+					for i := 0; i < len(account.Groups); i++ {
+						groupId := account.Groups[i]
+						_, accessDenied_, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
+						if accessDenied_ {
+							return false, true, errors.New("Access denied for " + subjectStr + " " + subject + "!")
 						}
 					}
 				}
 
 				// from the account I will get the list of group.
-				if account["organizations"] != nil {
-					organizations := []interface{}(account["organizations"].(primitive.A))
-					if organizations != nil {
-						for i := 0; i < len(organizations); i++ {
-							organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-							_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-							if accessDenied_ {
-								return false, true, errors.New("Access denied for " + subjectStr + " " + subject + "!")
-							}
+				if account.Organizations != nil {
+					for i := 0; i < len(account.Organizations); i++ {
+						organizationId := account.Organizations[i]
+						_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+						if accessDenied_ {
+							return false, true, errors.New("Access denied for " + subjectStr + " " + subject + "!")
 						}
 					}
 				}
+
 			}
 
 		} else if subjectType == rbacpb.SubjectType_APPLICATION {
@@ -1046,23 +1039,21 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			if !accessDenied {
 
 				// from the account I will get the list of group.
-				group, err :=  rbac_server.getGroupById(subject)
+				group, err := rbac_server.getGroup(subject)
 				if err != nil {
 					return false, false, errors.New("No account named " + subject + " exist!")
 				}
 
-				if group["organizations"] != nil {
-					organizations := []interface{}(group["organizations"].(primitive.A))
-					if organizations != nil {
-						for i := 0; i < len(organizations); i++ {
-							organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-							_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-							if accessDenied_ {
-								return false, true, errors.New("Access denied for " + subjectStr + " " + organizationId + "!")
-							}
+				if group.Organizations != nil {
+					for i := 0; i < len(group.Organizations); i++ {
+						organizationId := group.Organizations[i]
+						_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+						if accessDenied_ {
+							return false, true, errors.New("Access denied for " + subjectStr + " " + organizationId + "!")
 						}
 					}
 				}
+
 			}
 
 		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
@@ -1105,34 +1096,29 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 				// Here I will test if a newer token exist for that user if it's the case
 				// I will not refresh that token.
-				account, err := rbac_server.getAccountById(subject)
+				account, err := rbac_server.getAccount(subject)
 				if err == nil {
 					// from the account I will get the list of group.
-					if account["groups"] != nil {
-						groups := []interface{}(account["groups"].(primitive.A))
-						if groups != nil {
-							for i := 0; i < len(groups); i++ {
-								groupId := groups[i].(map[string]interface{})["$id"].(string)
-								hasAccess_, _, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
-								if hasAccess_ {
-									return true, false, nil
-								}
+					if account.Groups != nil {
+						for i := 0; i < len(account.Groups); i++ {
+							groupId := account.Groups[i]
+							hasAccess_, _, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
+							if hasAccess_ {
+								return true, false, nil
 							}
 						}
 					}
 
 					// from the account I will get the list of group.
-					if account["organizations"] != nil {
-						organizations := []interface{}(account["organizations"].(primitive.A))
-						if organizations != nil {
-							for i := 0; i < len(organizations); i++ {
-								organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-								hasAccess_, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-								if hasAccess_ {
-									return true, false, nil
-								}
+					if account.Organizations != nil {
+						for i := 0; i < len(account.Organizations); i++ {
+							organizationId := account.Organizations[i]
+							hasAccess_, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+							if hasAccess_ {
+								return true, false, nil
 							}
 						}
+
 					}
 				}
 			}
@@ -1149,17 +1135,14 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			if !hasAccess {
 				// Here I will test if a newer token exist for that user if it's the case
 				// I will not refresh that token.
-				group, err := rbac_server.getGroupById(subject)
+				group, err := rbac_server.getGroup(subject)
 				if err == nil {
-					if group["organizations"] != nil {
-						organizations := []interface{}(group["organizations"].(primitive.A))
-						if organizations != nil {
-							for i := 0; i < len(organizations); i++ {
-								organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-								hasAccess_, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-								if hasAccess_ {
-									return true, false, nil
-								}
+					if group.Organizations != nil {
+						for i := 0; i < len(group.Organizations); i++ {
+							organizationId := group.Organizations[i]
+							hasAccess_, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+							if hasAccess_ {
+								return true, false, nil
 							}
 						}
 					}
@@ -1205,14 +1188,14 @@ func (rbac_server *server) ValidateAccess(ctx context.Context, rqst *rbacpb.Vali
 	// Here I will get information from context.
 
 	hasAccess, accessDenied, err := rbac_server.validateAccess(rqst.Subject, rqst.Type, rqst.Permission, rqst.Path)
-	if err != nil || !hasAccess || accessDenied {
+	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// The permission is set.
-	return &rbacpb.ValidateAccessRsp{Result: true}, nil
+	return &rbacpb.ValidateAccessRsp{HasAccess: hasAccess, AccessDenied: accessDenied}, nil
 }
 
 /** Set action permissions.
@@ -1227,6 +1210,21 @@ func (rbac_server *server) setActionResourcesPermissions(permissions map[string]
 	}
 	rbac_server.permissions.SetItem(permissions["action"].(string), data)
 	return nil
+}
+
+/**
+ * Set Action Ressource
+ */
+func (rbac_server *server) SetActionResourcesPermissions(ctx context.Context, rqst *rbacpb.SetActionResourcesPermissionsRqst) (*rbacpb.SetActionResourcesPermissionsRsp, error) {
+
+	err := rbac_server.setActionResourcesPermissions(rqst.Permissions.AsMap())
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &rbacpb.SetActionResourcesPermissionsRsp{}, nil
 }
 
 // Retreive the ressource infos from the database.
@@ -1274,31 +1272,33 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 	log.Println("Validate action ", action, "for", subject)
 
-	var values map[string]interface{}
-	var err error
+	var actions []string
 
 	// Validate the access for a given suject...
 	hasAccess := false
 
 	// So first of all I will validate the actions itself...
 	if subjectType == rbacpb.SubjectType_APPLICATION {
-		values, err = rbac_server.getApplicationById(subject)
+		application, err := rbac_server.getApplication(subject)
 		if err != nil {
 			log.Println("access refuse for execute action ", action, "to", subject, err)
 			return false, err
 		}
+		actions = application.Actions
 	} else if subjectType == rbacpb.SubjectType_PEER {
-		values, err = rbac_server.getPeerById(subject)
+		peer, err := rbac_server.getPeer(subject)
 		if err != nil {
 			log.Println("access refuse for execute action ", action, "to", subject, err)
 			return false, err
 		}
+		actions = peer.Actions
 	} else if subjectType == rbacpb.SubjectType_ROLE {
-		values, err = rbac_server.getRoleById(subject)
+		role, err := rbac_server.getRole(subject)
 		if err != nil {
 			log.Println("access refuse for execute action ", action, "to", subject, err)
 			return false, err
 		}
+		actions = role.Actions
 	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
 
 		// If the user is the super admin i will return true.
@@ -1306,32 +1306,28 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			return true, nil
 		}
 
-		values, err = rbac_server.getAccountById(subject)
+		account, err := rbac_server.getAccount(subject)
 		if err != nil {
 			return false, err
 		}
-		
+
 		// call the rpc method.
-		if values["roles"].(primitive.A) != nil {
-			roles := []interface{}(values["roles"].(primitive.A))
-			if roles != nil {
-				for i := 0; i < len(roles); i++ {
-					roleId := roles[i].(map[string]interface{})["$id"].(string)
-					hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
-					if hasAccess_ {
-						hasAccess = hasAccess_
-						break
-					}
+		if account.Roles != nil {
+			for i := 0; i < len(account.Roles); i++ {
+				roleId := account.Roles[i]
+				hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
+				if hasAccess_ {
+					hasAccess = hasAccess_
+					break
 				}
 			}
 		}
 	}
 
 	if !hasAccess {
-		if values["actions"] != nil {
-			actions := []interface{}(values["actions"].(primitive.A))
+		if actions != nil {
 			for i := 0; i < len(actions); i++ {
-				if actions[i].(string) == action {
+				if actions[i] == action {
 					hasAccess = true
 				}
 			}

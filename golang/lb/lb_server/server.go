@@ -1,21 +1,20 @@
 package main
 
 import (
-
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/lb/load_balancing_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/lb/load_balancing_client"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/reflection"
 	"github.com/globulario/services/golang/lb/lbpb"
+	"google.golang.org/grpc/reflection"
 )
 
 // The default values.
@@ -310,10 +309,7 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-
 /////////////////////// Load Balancing specific function /////////////////////////////////
-
-
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -347,7 +343,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
@@ -358,7 +354,7 @@ func main() {
 	reflection.Register(s_impl.grpcServer)
 
 	// Start load balancing
-	s_impl.startLoadBalancing();
+	s_impl.startLoadBalancing()
 
 	// Start the service.
 	s_impl.StartService()

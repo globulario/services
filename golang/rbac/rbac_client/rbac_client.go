@@ -8,7 +8,9 @@ import (
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
+
+	// "google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,123 +62,123 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 	return client, nil
 }
 
-func (self *Rbac_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Rbac_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *Rbac_Client) GetDomain() string {
-	return self.domain
+func (client *Rbac_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (self *Rbac_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (client *Rbac_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (self *Rbac_Client) GetId() string {
-	return self.id
+func (client *Rbac_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (self *Rbac_Client) GetName() string {
-	return self.name
+func (client *Rbac_Client) GetName() string {
+	return client.name
 }
 
 // must be close when no more needed.
-func (self *Rbac_Client) Close() {
-	self.cc.Close()
+func (client *Rbac_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Rbac_Client) SetPort(port int) {
-	self.port = port
+func (client *Rbac_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client instance id.
-func (self *Rbac_Client) SetId(id string) {
-	self.id = id
+func (client *Rbac_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (self *Rbac_Client) SetName(name string) {
-	self.name = name
+func (client *Rbac_Client) SetName(name string) {
+	client.name = name
 }
 
 // Set the domain.
-func (self *Rbac_Client) SetDomain(domain string) {
-	self.domain = domain
+func (client *Rbac_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Rbac_Client) HasTLS() bool {
-	return self.hasTLS
+func (client *Rbac_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Rbac_Client) GetCertFile() string {
-	return self.certFile
+func (client *Rbac_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (self *Rbac_Client) GetKeyFile() string {
-	return self.keyFile
+func (client *Rbac_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Rbac_Client) GetCaFile() string {
-	return self.caFile
+func (client *Rbac_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Rbac_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (client *Rbac_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Rbac_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (client *Rbac_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Rbac_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (client *Rbac_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Rbac_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (client *Rbac_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////////////////////////  Api  /////////////////////////////////////
 
 /** Set resource permissions this method will replace existing permission at once **/
-func (self *Rbac_Client) SetResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+func (client *Rbac_Client) SetResourcePermissions(path string, permissions *rbacpb.Permissions) error {
 	rqst := &rbacpb.SetResourcePermissionsRqst{
 		Path:        path,
 		Permissions: permissions,
 	}
 
-	_, err := self.c.SetResourcePermissions(globular.GetClientContext(self), rqst)
+	_, err := client.c.SetResourcePermissions(globular.GetClientContext(client), rqst)
 	return err
 
 }
 
 /** Get resource permissions **/
-func (self *Rbac_Client) GetResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) (*rbacpb.Permission, error) {
+func (client *Rbac_Client) GetResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) (*rbacpb.Permission, error) {
 	rqst := &rbacpb.GetResourcePermissionRqst{
 		Name: permissionName,
 		Type: permissionType,
 		Path: path,
 	}
 
-	rsp, err := self.c.GetResourcePermission(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.GetResourcePermission(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -184,12 +186,12 @@ func (self *Rbac_Client) GetResourcePermission(path string, permissionName strin
 }
 
 /** Get resource permissions for a given path**/
-func (self *Rbac_Client) GetResourcePermissions(path string) (*rbacpb.Permissions, error) {
+func (client *Rbac_Client) GetResourcePermissions(path string) (*rbacpb.Permissions, error) {
 	rqst := &rbacpb.GetResourcePermissionsRqst{
 		Path: path,
 	}
 
-	rsp, err := self.c.GetResourcePermissions(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.GetResourcePermissions(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -197,78 +199,78 @@ func (self *Rbac_Client) GetResourcePermissions(path string) (*rbacpb.Permission
 }
 
 /** Delete a resource permissions (when a resource is deleted) **/
-func (self *Rbac_Client) DeleteResourcePermissions(path string) error {
+func (client *Rbac_Client) DeleteResourcePermissions(path string) error {
 	rqst := &rbacpb.DeleteResourcePermissionsRqst{
 		Path: path,
 	}
 
-	_, err := self.c.DeleteResourcePermissions(globular.GetClientContext(self), rqst)
+	_, err := client.c.DeleteResourcePermissions(globular.GetClientContext(client), rqst)
 	return err
 }
 
 /** Delete a specific resource permission **/
-func (self *Rbac_Client) DeleteResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) error {
+func (client *Rbac_Client) DeleteResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) error {
 	rqst := &rbacpb.DeleteResourcePermissionRqst{
 		Name: permissionName,
 		Type: permissionType,
 		Path: path,
 	}
 
-	_, err := self.c.DeleteResourcePermission(globular.GetClientContext(self), rqst)
+	_, err := client.c.DeleteResourcePermission(globular.GetClientContext(client), rqst)
 	return err
 }
 
 /** Set specific resource permission  ex. read permission... **/
-func (self *Rbac_Client) SetResourcePermission(path string, permission *rbacpb.Permission, permissionType rbacpb.PermissionType) error {
+func (client *Rbac_Client) SetResourcePermission(path string, permission *rbacpb.Permission, permissionType rbacpb.PermissionType) error {
 	rqst := &rbacpb.SetResourcePermissionRqst{
 		Permission: permission,
 		Type:       permissionType,
 		Path:       path,
 	}
 
-	_, err := self.c.SetResourcePermission(globular.GetClientContext(self), rqst)
+	_, err := client.c.SetResourcePermission(globular.GetClientContext(client), rqst)
 	return err
 }
 
 /** Add resource owner do nothing if it already exist */
-func (self *Rbac_Client) AddResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
+func (client *Rbac_Client) AddResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.AddResourceOwnerRqst{
 		Type:    subjectType,
 		Subject: owner,
 		Path:    path,
 	}
 
-	_, err := self.c.AddResourceOwner(globular.GetClientContext(self), rqst)
+	_, err := client.c.AddResourceOwner(globular.GetClientContext(client), rqst)
 	return err
 
 }
 
 /** Remove resource owner */
-func (self *Rbac_Client) RemoveResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
+func (client *Rbac_Client) RemoveResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.RemoveResourceOwnerRqst{
 		Subject: owner,
 		Path:    path,
 		Type:    subjectType,
 	}
 
-	_, err := self.c.RemoveResourceOwner(globular.GetClientContext(self), rqst)
+	_, err := client.c.RemoveResourceOwner(globular.GetClientContext(client), rqst)
 	return err
 }
 
 /** That function must be call when a subject is removed to clean up permissions. */
-func (self *Rbac_Client) DeleteAllAccess(subject string, subjectType rbacpb.SubjectType) error {
+func (client *Rbac_Client) DeleteAllAccess(subject string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.DeleteAllAccessRqst{
 		Subject: subject,
 		Type:    subjectType,
 	}
 
-	_, err := self.c.DeleteAllAccess(globular.GetClientContext(self), rqst)
+	_, err := client.c.DeleteAllAccess(globular.GetClientContext(client), rqst)
 	return err
 
 }
 
 /** Validate if a user can get access to a given Resource for a given operation (read, write...) **/
-func (self *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.SubjectType, permission string, path string) (bool, error) {
+func (client *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.SubjectType, permission string, path string) (bool, bool, error) {
 
 	rqst := &rbacpb.ValidateAccessRqst{
 		Subject:    subject,
@@ -277,18 +279,18 @@ func (self *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.Subje
 		Permission: permission,
 	}
 
-	rsp, err := self.c.ValidateAccess(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.ValidateAccess(globular.GetClientContext(client), rqst)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
-	return rsp.GetResult(), nil
+	return rsp.HasAccess, rsp.AccessDenied, nil
 }
 
 /**
  * Validata action...
  */
-func (self *Rbac_Client) ValidateAction(token string, application string, domain string, organization string, action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
+func (client *Rbac_Client) ValidateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 	rqst := &rbacpb.ValidateActionRqst{
 		Action:  action,
 		Subject: subject,
@@ -296,10 +298,7 @@ func (self *Rbac_Client) ValidateAction(token string, application string, domain
 		Infos:   resources,
 	}
 
-	md := metadata.New(map[string]string{"token": token, "application": application, "domain": domain, "organization": organization})
-	ctx := metadata.NewOutgoingContext(context.Background(), md)
-
-	rsp, err := self.c.ValidateAction(ctx, rqst)
+	rsp, err := client.c.ValidateAction(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return false, err
 	}
@@ -311,15 +310,32 @@ func (self *Rbac_Client) ValidateAction(token string, application string, domain
 /**
  * Get action ressource paramater infos...
  */
-func (self *Rbac_Client) GetActionResourceInfos(action string) ([]*rbacpb.ResourceInfos, error) {
+func (client *Rbac_Client) GetActionResourceInfos(action string) ([]*rbacpb.ResourceInfos, error) {
 	rqst := &rbacpb.GetActionResourceInfosRqst{
 		Action: action,
 	}
 
-	rsp, err := self.c.GetActionResourceInfos(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.GetActionResourceInfos(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
 
 	return rsp.Infos, err
+}
+
+func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]interface{}) error {
+	permissions_, err := structpb.NewStruct(permissions)
+	if err != nil {
+		return err
+	}
+	rqst := &rbacpb.SetActionResourcesPermissionsRqst{
+		Permissions: permissions_,
+	}
+
+	_, err = client.c.SetActionResourcesPermissions(globular.GetClientContext(client), rqst)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

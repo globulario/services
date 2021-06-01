@@ -26,14 +26,15 @@ import (
 
 	//"google.golang.org/grpc/grpclog"
 	"encoding/json"
-	ps "github.com/mitchellh/go-ps"
-	"google.golang.org/grpc/reflection"
 	"io/ioutil"
 	"os/exec"
 	"reflect"
 	"runtime"
 	"strings"
 	"sync"
+
+	ps "github.com/mitchellh/go-ps"
+	"google.golang.org/grpc/reflection"
 )
 
 // The default values.
@@ -1937,7 +1938,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id, err)
+		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number

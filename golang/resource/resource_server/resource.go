@@ -22,7 +22,6 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 	"io/ioutil"
 )
 
@@ -1214,24 +1213,23 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 }
 
 ///////////////////////  resource management. /////////////////
-func (resource_server *server) GetAllApplicationsInfo(ctx context.Context, rqst *resourcepb.GetAllApplicationsInfoRqst) (*resourcepb.GetAllApplicationsInfoRsp, error) {
+func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error{
 
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// So here I will get the list of retreived permission.
-	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", `{}`, "")
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", rqst.Query, "")
 	if err != nil {
-		return nil, status.Errorf(
+		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Convert to struct.
-	infos := make([]*structpb.Struct, 0)
+	// Convert to Application.
 	for i := 0; i < len(values); i++ {
 		values_ := values[i].(map[string]interface{})
 
@@ -1243,17 +1241,14 @@ func (resource_server *server) GetAllApplicationsInfo(ctx context.Context, rqst 
 			values_["alias"] = ""
 		}
 
-		info, err := structpb.NewStruct(map[string]interface{}{"_id": values_["_id"], "name": values_["_id"], "path": values_["path"], "creation_date": values_["creation_date"], "last_deployed": values_["last_deployed"], "alias": values_["alias"], "icon": values_["icon"], "description": values_["description"]})
-		if err == nil {
-			infos = append(infos, info)
-		} else {
-			log.Println(err)
-		}
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: values_["creation_date"].(int64), LastDeployed: values_["last_deployed"].(int64), Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string)}
+		
+		stream.Send(&resourcepb.GetApplicationsRsp{
+			Applications: []*resourcepb.Application{application},
+		})
 	}
 
-	return &resourcepb.GetAllApplicationsInfoRsp{
-		Applications: infos,
-	}, nil
+	return nil
 
 }
 
@@ -1945,21 +1940,28 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 			for j := 0; j < len(members); j++ {
 				g.Members = append(g.Members, members[j].(map[string]interface{})["$id"].(string))
 			}
-
-			values = append(values, g)
-			if len(values) >= maxSize {
-				err := stream.Send(
-					&resourcepb.GetGroupsRsp{
-						Groups: values,
-					},
-				)
-				if err != nil {
-					return status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-				values = make([]*resourcepb.Group, 0)
+		}else if groups[i].(map[string]interface{})["organizations"] != nil{
+			organizations := []interface{}(groups[i].(map[string]interface{})["organizations"].(primitive.A))
+			g.Organizations = make([]string, 0)
+			for j := 0; j < len(organizations); j++ {
+				g.Organizations = append(g.Organizations, organizations[j].(map[string]interface{})["$id"].(string))
 			}
+
+		}
+		
+		values = append(values, g)
+		if len(values) >= maxSize {
+			err := stream.Send(
+				&resourcepb.GetGroupsRsp{
+					Groups: values,
+				},
+			)
+			if err != nil {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			values = make([]*resourcepb.Group, 0)
 		}
 	}
 
@@ -2444,7 +2446,7 @@ func (server *server) updateSession(accountId string, state int, token string, l
 		return err
 	}
 
-	session := make(map[string]interface{}, 0)
+	session := make(map[string]interface{})
 	session["_id"] = accountId
 	session["state"] = state
 	session["expire_at"] = time.Unix(expire_at, 0).UTC().Format("2006-01-02T15:04:05-0700")
@@ -2456,17 +2458,14 @@ func (server *server) updateSession(accountId string, state int, token string, l
 		return err
 	}
 
-	dbName := strings.ReplaceAll(accountId, ".", "_")
-	dbName = strings.ReplaceAll(dbName, "@", "_")
-
-	return p.ReplaceOne(context.Background(), "local_resource", dbName+"_db", "Sessions", `{"_id":"`+accountId+`"}`, jsonStr, `[{"upsert":true}]`)
+	return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", `{"_id":"`+accountId+`"}`, jsonStr, `[{"upsert":true}]`)
 
 }
 
 //* Update user session informations
 func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
 
-	err := server.updateSession(rqst.Session.AccountId, 1, rqst.Session.Token,rqst.Session.LastStateTime, rqst.Session.ExpireAt)
+	err := server.updateSession(rqst.Session.AccountId, int(rqst.Session.State), rqst.Session.Token,rqst.Session.LastStateTime, rqst.Session.ExpireAt)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -2505,7 +2504,7 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	sessions, err := p.Find(context.Background(), "local_resource", "local_resource", "Sessions", `{}`, ``)
+	sessions, err := p.Find(context.Background(), "local_resource", "local_resource", "Sessions", rqst.Query, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2515,7 +2514,9 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 	sessions_ := make([]*resourcepb.Session, 0)
 	for i := 0; i < len(sessions); i++ {
 		session := sessions[i].(map[string]interface{})
-		sessions_ = append(sessions_, &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: session["expire_at"].(int64), LastStateTime: session["last_state_time"].(int64), State: resourcepb.SessionState(session["state"].(int)), Token: session["token"].(string)})
+		expireAt, _ := Utility.DateTimeFromString(session["expire_at"].(string), "2021-06-01T11:40:44+0000")
+		lastStateTime, _ := Utility.DateTimeFromString(session["last_state_time"].(string), "2021-06-01T11:40:44+0000")
+		sessions_ = append(sessions_, &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: expireAt.Unix(), LastStateTime: lastStateTime.Unix(), State: resourcepb.SessionState(session["state"].(int32)), Token: session["token"].(string)})
 	}
 
 	return &resourcepb.GetSessionsResponse{
