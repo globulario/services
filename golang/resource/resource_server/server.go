@@ -309,7 +309,7 @@ var (
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	return errors.New("not implemented")
+	return rbac_client_.SetActionResourcesPermissions(permissions )
 }
 
 

@@ -470,6 +470,14 @@ message RemoveRoleActionRsp{
 	bool result = 1;
 }
 
+message RemoveRolesActionRqst{
+	string action = 2;
+}
+
+message RemoveRolesActionRsp{
+	bool result = 1;
+}
+
 message AddApplicationActionsRqst{
 	string applicationId = 1;
 	repeated string actions = 2;
@@ -485,6 +493,14 @@ message RemoveApplicationActionRqst{
 }
 
 message RemoveApplicationActionRsp{
+	bool result = 1;
+}
+
+message RemoveApplicationsActionRqst{
+	string action = 2;
+}
+
+message RemoveApplicationsActionRsp{
 	bool result = 1;
 }
 
@@ -505,6 +521,15 @@ message RemovePeerActionRqst{
 message RemovePeerActionRsp{
 	bool result = 1;
 }
+
+message RemovePeersActionRqst{
+	string action = 2;
+}
+
+message RemovePeersActionRsp{
+	bool result = 1;
+}
+
 
 message AddOrganizationAccountRqst{
 	string organizationId = 1;
@@ -835,6 +860,9 @@ service ResourceService {
 	
 	/** Remove an action to existing role. **/
 	rpc RemoveRoleAction(RemoveRoleActionRqst) returns(RemoveRoleActionRsp);
+
+	/** Remove an action from all roles. **/
+	rpc RemoveRolesAction(RemoveRolesActionRqst) returns(RemoveRolesActionRsp);
 	
 	////////////////////////////////////////////////////////////////////////////
 	// Application's
@@ -854,6 +882,9 @@ service ResourceService {
 	
 	/** Remove an action to existing applications. **/
 	rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns(RemoveApplicationActionRsp);
+
+	/** Remove an action from all applications. **/
+	rpc RemoveApplicationsAction(RemoveApplicationsActionRqst) returns(RemoveApplicationsActionRsp);
 
 	/** Retreive application version */
 	rpc GetApplicationVersion(GetApplicationVersionRqst) returns(GetApplicationVersionRsp);
@@ -882,6 +913,9 @@ service ResourceService {
 	
 	/** Remove peer action permission **/
 	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
+
+	/** Remove peer action permission **/
+	rpc RemovePeersAction(RemovePeersActionRqst) returns(RemovePeersActionRsp);
 
 	////////////////////////////////////////////////////////////////////////////
 	// Notification's

@@ -605,6 +605,18 @@ func (resource_client *Resource_Client) RemoveRoleAction(roleId string, action s
 }
 
 /**
+ * Remove an action from all roles.
+ */
+func (resource_client *Resource_Client) RemoveRolesAction(action string) error {
+	rqst := &resourcepb.RemoveRolesActionRqst{
+		Action: action,
+	}
+	_, err := resource_client.c.RemoveRolesAction(globular.GetClientContext(resource_client), rqst)
+
+	return err
+}
+
+/**
  * Remove action from a given application.
  */
  func (resource_client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error) {
@@ -691,6 +703,18 @@ func (resource_client *Resource_Client) RemovePeerAction(domain string, action s
 }
 
 /**
+ * Remove action from all peer's.
+ */
+ func (resource_client *Resource_Client) RemovePeersAction(action string) error {
+	rqst := &resourcepb.RemovePeersActionRqst{
+		Action: action,
+	}
+	_, err := resource_client.c.RemovePeersAction(globular.GetClientContext(resource_client), rqst)
+
+	return err
+}
+
+/**
  * Remove action from a given application.
  */
  func (resource_client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error) {
@@ -752,6 +776,19 @@ func (resource_client *Resource_Client) RemoveApplicationAction(applicationId st
 
 	return err
 }
+
+/**
+ * Remove action from a given application.
+ */
+ func (resource_client *Resource_Client) RemoveApplicationsAction(action string) error {
+	rqst := &resourcepb.RemoveApplicationsActionRqst{
+		Action:        action,
+	}
+	_, err := resource_client.c.RemoveApplicationsAction(globular.GetClientContext(resource_client), rqst)
+
+	return err
+}
+
 
 /**
  * Retreive applications...

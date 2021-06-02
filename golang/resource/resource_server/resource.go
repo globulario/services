@@ -124,7 +124,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
+
 	// Generate a token to identify the user.
 	tokenString, err := interceptors.GenerateToken([]byte(data), resource_server.SessionTimeout, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
 	id, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
@@ -134,7 +134,6 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	err = resource_server.updateSession(id, 0, tokenString, time.Now().Unix(), expireAt)
 	if err != nil {
@@ -214,7 +213,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 }
 
 //* Update account password.
-// TODO make sure only user can 
+// TODO make sure only user can
 func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -234,7 +233,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	// Now update the sa password in mongo db.
 	name := account["name"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
-	
+
 	// Here I will validate the old password.
 	err = resource_server.validatePassword(rqst.OldPassword, account["password"].(string))
 	if err != nil {
@@ -810,6 +809,64 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 }
 
 //* Remove an action to existing role. *
+func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.RemoveRolesActionRqst) (*resourcepb.RemoveRolesActionRsp, error) {
+
+	// That service made user of persistence service.
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	// Here I will test if a newer token exist for that user if it's the case
+	// I will not refresh that token.
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", `{}`, ``)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	for i := 0; i < len(values); i++ {
+		role := values[i].(map[string]interface{})
+
+		needSave := false
+		if role["actions"] == nil {
+			role["actions"] = []string{rqst.Action}
+			needSave = true
+		} else {
+			exist := false
+			actions := make([]interface{}, 0)
+			actions_ := []interface{}(role["actions"].(primitive.A))
+			for i := 0; i < len(actions_); i++ {
+				if actions_[i].(string) == rqst.Action {
+					exist = true
+				} else {
+					actions = append(actions, actions_[i])
+				}
+			}
+			if exist {
+				role["actions"] = actions
+				needSave = true
+			}
+		}
+
+		if needSave {
+			// jsonStr, _ := json.Marshal(role)
+			jsonStr := serialyseObject(role)
+
+			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+role["_id"].(string)+`"}`, string(jsonStr), ``)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+	}
+
+	return &resourcepb.RemoveRolesActionRsp{Result: true}, nil
+}
+
+//* Remove an action to existing role. *
 func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.RemoveRoleActionRqst) (*resourcepb.RemoveRoleActionRsp, error) {
 
 	// That service made user of persistence service.
@@ -1212,8 +1269,62 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 	return &resourcepb.RemoveApplicationActionRsp{Result: true}, nil
 }
 
+//* Remove an action to existing application. *
+func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcepb.RemoveApplicationsActionRqst) (*resourcepb.RemoveApplicationsActionRsp, error) {
+
+	// That service made user of persistence service.
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", `{}`, ``)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	for i := 0; i < len(values); i++ {
+		application := values[i].(map[string]interface{})
+
+		needSave := false
+		if application["actions"] == nil {
+			application["actions"] = []string{rqst.Action}
+			needSave = true
+		} else {
+			exist := false
+			actions := make([]interface{}, 0)
+			application["actions"] = []interface{}(application["actions"].(primitive.A))
+			for i := 0; i < len(application["actions"].([]interface{})); i++ {
+				if application["actions"].([]interface{})[i].(string) == rqst.Action {
+					exist = true
+				} else {
+					actions = append(actions, application["actions"].([]interface{})[i])
+				}
+			}
+			if exist {
+				application["actions"] = actions
+				needSave = true
+			}
+		}
+
+		if needSave {
+			jsonStr := serialyseObject(application)
+			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+application["_id"].(string)+`"}`, string(jsonStr), ``)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+	}
+
+	return &resourcepb.RemoveApplicationsActionRsp{Result: true}, nil
+}
+
 ///////////////////////  resource management. /////////////////
-func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error{
+func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
 
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -1242,7 +1353,7 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 		}
 
 		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: values_["creation_date"].(int64), LastDeployed: values_["last_deployed"].(int64), Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string)}
-		
+
 		stream.Send(&resourcepb.GetApplicationsRsp{
 			Applications: []*resourcepb.Application{application},
 		})
@@ -1500,6 +1611,57 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 	}
 
 	return &resourcepb.RemovePeerActionRsp{Result: true}, nil
+}
+
+func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *resourcepb.RemovePeersActionRqst) (*resourcepb.RemovePeersActionRsp, error) {
+	// That service made user of persistence service.
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", `{}`, ``)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	for i := 0; i < len(values); i++ {
+		peer := values[i].(map[string]interface{})
+
+		needSave := false
+		if peer["actions"] == nil {
+			peer["actions"] = []string{rqst.Action}
+			needSave = true
+		} else {
+			exist := false
+			actions := make([]interface{}, 0)
+			for i := 0; i < len(peer["actions"].(primitive.A)); i++ {
+				if peer["actions"].(primitive.A)[i].(string) == rqst.Action {
+					exist = true
+				} else {
+					actions = append(actions, peer["actions"].(primitive.A)[i])
+				}
+			}
+			if exist {
+				peer["actions"] = actions
+				needSave = true
+			}
+		}
+
+		if needSave {
+			jsonStr := serialyseObject(peer)
+			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+peer["_id"].(string)+`"}`, string(jsonStr), ``)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+	}
+
+	return &resourcepb.RemovePeersActionRsp{Result: true}, nil
 }
 
 //* Register a new organization
@@ -1940,7 +2102,7 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 			for j := 0; j < len(members); j++ {
 				g.Members = append(g.Members, members[j].(map[string]interface{})["$id"].(string))
 			}
-		}else if groups[i].(map[string]interface{})["organizations"] != nil{
+		} else if groups[i].(map[string]interface{})["organizations"] != nil {
 			organizations := []interface{}(groups[i].(map[string]interface{})["organizations"].(primitive.A))
 			g.Organizations = make([]string, 0)
 			for j := 0; j < len(organizations); j++ {
@@ -1948,7 +2110,7 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 			}
 
 		}
-		
+
 		values = append(values, g)
 		if len(values) >= maxSize {
 			err := stream.Send(
@@ -2440,7 +2602,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 // Session
 /////////////////////////////////////////////////////////////////////////////////////////
 
-func (server *server) updateSession(accountId string, state int, token string, last_session_time, expire_at int64) error{
+func (server *server) updateSession(accountId string, state int, token string, last_session_time, expire_at int64) error {
 	p, err := server.getPersistenceStore()
 	if err != nil {
 		return err
@@ -2465,7 +2627,7 @@ func (server *server) updateSession(accountId string, state int, token string, l
 //* Update user session informations
 func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
 
-	err := server.updateSession(rqst.Session.AccountId, int(rqst.Session.State), rqst.Session.Token,rqst.Session.LastStateTime, rqst.Session.ExpireAt)
+	err := server.updateSession(rqst.Session.AccountId, int(rqst.Session.State), rqst.Session.Token, rqst.Session.LastStateTime, rqst.Session.ExpireAt)
 
 	if err != nil {
 		return nil, status.Errorf(

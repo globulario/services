@@ -1,5 +1,5 @@
 syntax = "proto3";
-package admin;
+package application_manager;
 
 option go_package="applications_manager/applications_managerpb";
 
