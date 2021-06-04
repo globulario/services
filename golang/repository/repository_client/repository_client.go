@@ -6,24 +6,24 @@ import (
 	"context"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/repository/repositorypb"
-	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/discovery/discovery_client"
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/repository/repositorypb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
 
-	"google.golang.org/grpc/metadata"
-	"encoding/gob"
+	"bufio"
 	"bytes"
+	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"io"
 	"io/ioutil"
 	"log"
-	"encoding/json"
-	"strings"
 	"os"
-	"bufio"
+	"strings"
 
+	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -174,14 +174,14 @@ func (client *Repository_Service_Client) SetCaFile(caFile string) {
 /**
  * Download bundle from a repository and return it as an object in memory.
  */
- func (self *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.PackageDescriptor, platform string) (*resourcepb.PackageBundle, error) {
+ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.PackageDescriptor, platform string) (*resourcepb.PackageBundle, error) {
 
 	rqst := &repositorypb.DownloadBundleRequest{
 		Descriptor_: descriptor,
 		Plaform:     platform,
 	}
 
-	stream, err := self.c.DownloadBundle(globular.GetClientContext(self), rqst)
+	stream, err := client.c.DownloadBundle(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -218,24 +218,24 @@ func (client *Repository_Service_Client) SetCaFile(caFile string) {
 /**
  * Upload a service bundle.
  */
-func (self *Repository_Service_Client) UploadBundle(discoveryId, serviceId, publisherId, platform, packagePath string) error {
-	log.Println("Upload package ", packagePath)
+func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, publisherId, version, platform, packagePath string) error {
+
 	// The service bundle...
 	bundle := new(resourcepb.PackageBundle)
 	bundle.Plaform = platform
 
 	// Here I will find the service descriptor from the given information.
-	discoveryService, err := discovery_client.NewDiscoveryService_Client(discoveryId, "packages.PackageDiscovery")
+	resource_client_, err := resource_client.NewResourceService_Client(client.domain, "resource.ResourceService")
 	if err != nil {
 		return err
 	}
 
-	descriptors, err := discoveryService.GetPackageDescriptor(serviceId, publisherId)
+	descriptor, err := resource_client_.GetPackageDescriptor(serviceId, publisherId, version)
 	if err != nil {
 		return err
 	}
-
-	bundle.Descriptor_ = descriptors[0]
+	
+	bundle.Descriptor_ = descriptor
 	if !Utility.Exists(packagePath) {
 		return errors.New("No package found at path " + packagePath)
 	}
@@ -246,16 +246,16 @@ func (self *Repository_Service_Client) UploadBundle(discoveryId, serviceId, publ
 		bundle.Binairies = data
 	}
 
-	return self.uploadBundle(bundle)
+	return client.uploadBundle(bundle)
 }
 
 /**
  * Upload a bundle into the service repository.
  */
-func (self *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBundle) error {
+func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBundle) error {
 
 	// Open the stream...
-	stream, err := self.c.UploadBundle(globular.GetClientContext(self))
+	stream, err := client.c.UploadBundle(globular.GetClientContext(client))
 	if err != nil {
 		return err
 	}
@@ -358,7 +358,6 @@ func (self *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBu
 	proto := strings.ReplaceAll(protos[0], "\\", "/")
 	err = Utility.CopyFile(proto, tmp_dir+"/"+s["PublisherId"].(string)+"/"+s["Name"].(string)+"/"+s["Version"].(string)+"/"+proto[strings.LastIndex(proto, "/"):])
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
@@ -426,7 +425,7 @@ func (self *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBu
 
 /** Create a service package **/
 func (client *Repository_Service_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
-	log.Println("Service path is ", servicePath)
+
 	// Take the information from the configuration...
 	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
 
@@ -437,12 +436,10 @@ func (client *Repository_Service_Client) createServicePackage(publisherId string
 	// write the .tar.gzip
 	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
 	if err != nil {
-		log.Println(297)
 		return "", err
 	}
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
-		log.Println(301)
 		return "", err
 	}
 
@@ -450,7 +447,6 @@ func (client *Repository_Service_Client) createServicePackage(publisherId string
 	fileToWrite.Close()
 
 	if err != nil {
-		log.Println(311)
 		return "", err
 	}
 	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil

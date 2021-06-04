@@ -385,7 +385,7 @@ func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, erro
 		return discoveryClient, nil
 	}
 
-	discoveryClient, err := discovery_client.NewDiscoveryService_Client(svr.Domain, "discovery.DiscoveryService")
+	discoveryClient, err := discovery_client.NewDiscoveryService_Client(svr.Domain, "discovery.PackageDiscovery")
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +393,7 @@ func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, erro
 	return discoveryClient, nil
 }
 
-func (server *server) publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role) error {
+func (server *server) publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
 	discoveryClient, err :=  server.getDsicoveryClient()
 	
 	if err != nil {
@@ -401,7 +401,7 @@ func (server *server) publishApplication(user, organization, path, name, domain,
 	}
 
 	// Publish the application...
-	return discoveryClient.PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles)
+	return discoveryClient.PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 }
 
 ///////////////////// event service functions ////////////////////////////////////

@@ -14,9 +14,7 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	
 )
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Api
@@ -35,7 +33,6 @@ func (server *server) logServiceInfo(service string, message string) error {
 	info.Level = logpb.LogLevel_INFO_MESSAGE // not necessarely errors..
 	server.log(info)
 
-	
 	return nil
 }
 
@@ -243,7 +240,7 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 }
 
 func (server *server) deleteLog(query string) error {
-	log.Println("query ", query)
+
 	// First of all I will retreive the log info with a given date.
 	data, err := server.logs.GetItem(query)
 	if err != nil {
@@ -267,7 +264,6 @@ func (server *server) deleteLog(query string) error {
 
 		key, _, err := server.getLogInfoKeyValue(&info)
 		if err != nil {
-			log.Println("---------> err ", err)
 			return err
 		}
 

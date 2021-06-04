@@ -22,7 +22,7 @@ type MailBox_impl struct {
 }
 
 func NewMailBox(user string, name string) *MailBox_impl {
-	log.Println("NewMailBox call with name ", name, " and user ", user)
+
 	box := new(MailBox_impl)
 	box.name = name
 	box.user = user
@@ -32,7 +32,6 @@ func NewMailBox(user string, name string) *MailBox_impl {
 	info.Delimiter = "/"
 	jsonStr, err := Utility.ToJson(info)
 	if err != nil {
-		log.Println(err)
 		return nil
 	}
 	connectionId := user + "_db"
@@ -42,20 +41,13 @@ func NewMailBox(user string, name string) *MailBox_impl {
 	count, err := Store.Count(connectionId, connectionId, "MailBoxes", query, "")
 
 	if err != nil || count < 1 {
-
-		log.Println(info)
-		_, err = Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, "")
-
-		if err != nil {
-			log.Println("fail to create mail box!")
-		}
+		Store.InsertOne(connectionId, connectionId, "MailBoxes", jsonStr, "")
 	}
-	log.Println("succeed to create new mail box ", name)
 	return box
 }
 
 func getMailBox(user string, name string) (*MailBox_impl, error) {
-	log.Println("getMailBox ", name, " for user ", name)
+
 	box := new(MailBox_impl)
 	box.name = name
 	box.user = user
@@ -72,7 +64,6 @@ func getMailBox(user string, name string) (*MailBox_impl, error) {
 	if err != nil || count < 1 {
 		return nil, errors.New("No mail box found with name " + name)
 	}
-	log.Println("getMailBox ", name, " for user ", name, " succeed!")
 	return box, nil
 }
 
@@ -83,13 +74,12 @@ func (mbox *MailBox_impl) Name() string {
 
 // Info returns this mailbox info.
 func (mbox *MailBox_impl) Info() (*imap.MailboxInfo, error) {
-	log.Println("get mail box info for user ", mbox.user, " name ", mbox.name)
+
 	// TODO Get box info from the server.
 	connectionId := mbox.user + "_db"
 	query := `{"Name":"` + mbox.name + `"}`
 	info_, err := Store.FindOne(connectionId, connectionId, "MailBoxes", query, "")
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
 
@@ -97,10 +87,6 @@ func (mbox *MailBox_impl) Info() (*imap.MailboxInfo, error) {
 	info := new(imap.MailboxInfo)
 	info.Name = info_["Name"].(string)
 	info.Delimiter = info_["Delimiter"].(string)
-	if info_["Attributes"] != nil {
-		log.Println("attributes ", info_["Attributes"])
-	}
-	log.Println("get mail box info for user ", mbox.user, " succeed!")
 	return info, nil
 
 }
@@ -147,10 +133,8 @@ func (mbox *MailBox_impl) getMessages() []*Message {
 		}
 
 		m.Size = uint32(msg["Size"].(float64))
-
 		layout := "2020-11-02T01:45:47.764336457Z"
 		m.Date, _ = time.Parse(layout, msg["Date"].(string))
-
 		messages = append(messages, m)
 	}
 
@@ -326,7 +310,6 @@ func (mbox *MailBox_impl) CreateMessage(flags []string, date time.Time, body ima
 // If the Backend implements Updater, it must notify the client immediately
 // via a message update.
 func (mbox *MailBox_impl) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op imap.FlagsOp, flags []string) error {
-	log.Println("-----> flags ", flags)
 	messages := mbox.getMessages()
 
 	for i, msg := range messages {
@@ -348,7 +331,6 @@ func (mbox *MailBox_impl) UpdateMessagesFlags(uid bool, seqset *imap.SeqSet, op 
 
 		err := Store.UpdateOne(connectionId, connectionId, mbox.name, `{"Uid":`+Utility.ToString(msg.Uid)+`}`, `{ "$set":{"Flags":`+jsonStr+`}}`, "")
 		if err != nil {
-			log.Println(err)
 			return err
 		}
 

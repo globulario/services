@@ -171,7 +171,7 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
  * Intall a new application or update an existing one.
  */
 func (client *Applications_Manager_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string, set_as_default bool) error {
-	log.Println("Install application ", applicationId, "on server ", domain)
+	
 	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
@@ -199,7 +199,7 @@ func (client *Applications_Manager_Client) InstallApplication(token string, doma
  * be install.
  */
 func (client *Applications_Manager_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
-	log.Println("Uninstall application ", applicationId, " at address ", domain, "...")
+	
 	rqst := new(applications_managerpb.UninstallApplicationRequest)
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
@@ -223,14 +223,15 @@ func (client *Applications_Manager_Client) UninstallApplication(token string, do
  * Deploy the content of an application with a given name to the server.
  */
 func (client *Applications_Manager_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
-	log.Println("deploy application ", name)
-
 	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
 	}
-	path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
-	log.Println("Deploy directory: ", path)
+	if !strings.HasPrefix(path, "/"){
+		path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
+		
+	}
+
 	// Now I will open the data and create a archive from it.
 	var buffer bytes.Buffer
 	err = Utility.CompressDir(path, &buffer)
@@ -346,7 +347,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	// Set the token into the context and send the request.
-	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "organization": organization, "path": "/applications", "user": user})
+	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "organization": organization, "user": user})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	// Open the stream...

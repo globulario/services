@@ -411,10 +411,8 @@ func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbna
 	file.Seek(0, 0) // Set the reader back to the begenin of the file...
 
 	// Save the thumbnail into a file to not having to recreate-it each time...
-	err = ioutil.WriteFile(_path, []byte(thumbnail), 0644)
-	if err != nil {
-		log.Println("--------------------------> thumbnail file err ", _path, err)
-	}
+	ioutil.WriteFile(_path, []byte(thumbnail), 0644)
+
 
 	return thumbnail
 }

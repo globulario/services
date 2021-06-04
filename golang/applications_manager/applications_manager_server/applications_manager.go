@@ -14,8 +14,9 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
-	"github.com/globulario/services/golang/discovery/discovery_client"
+
 	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
@@ -29,10 +30,8 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 
 	// Here I will also remove the application permissions...
 	if rqst.DeletePermissions {
-		log.Println("remove applicaiton permissions...")
+		/** TODO remove applicaiton permissions...*/
 	}
-
-	log.Println("remove applicaiton ", rqst.ApplicationId)
 
 	// Same as delete applicaitons.
 	err := server.deleteApplication(rqst.ApplicationId)
@@ -50,11 +49,9 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
-	// Get the package bundle from the repository and install it on the server.
-	log.Println("Try to install application " + rqst.ApplicationId)
 
 	// Connect to the dicovery services
-	package_discovery, err := discovery_client.NewDiscoveryService_Client(rqst.DicorveryId, "packages.PackageDiscovery")
+	resource_client_, err := resource_client.NewResourceService_Client(rqst.DicorveryId, "resource.ResourceService")
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -62,26 +59,13 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Fail to connect to "+rqst.DicorveryId)))
 	}
 
-	descriptors, err := package_discovery.GetPackageDescriptor(rqst.ApplicationId, rqst.PublisherId)
+	descriptor, err := resource_client_.GetPackageDescriptor(rqst.ApplicationId, rqst.PublisherId, rqst.Version)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	log.Println("step 1: get application descriptor")
-
-	// The first element in the array is the most recent descriptor
-	// so if no version is given the most recent will be taken.
-	descriptor := descriptors[0]
-	for i := 0; i < len(descriptors); i++ {
-		if descriptors[i].Version == rqst.Version {
-			descriptor = descriptors[i]
-			break
-		}
-	}
-
-	log.Println("step 2: try to dowload application bundle")
 	if len(descriptor.Repositories) == 0 {
 
 		if err != nil {
@@ -94,14 +78,13 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 
 	for i := 0; i < len(descriptor.Repositories); i++ {
 
-		package_repository, err := repository_client.NewRepositoryService_Client(descriptor.Repositories[i], "packages.PackageRepository")
+		package_repository, err := repository_client.NewRepositoryService_Client(descriptor.Repositories[i], "repository.PackageRepository")
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		log.Println("--> try to download application bundle from ", descriptor.Repositories[i])
 		bundle, err := package_repository.DownloadBundle(descriptor, "webapp")
 		if err != nil {
 			return nil, status.Errorf(
@@ -122,7 +105,6 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 
 	}
 
-	log.Println("application was install!")
 	return &applications_managerpb.InstallApplicationResponse{
 		Result: true,
 	}, nil
@@ -343,7 +325,8 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		return err
 	}
 
-	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles)
+	// Publish application...
+	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 
 	if err != nil {
 		return err

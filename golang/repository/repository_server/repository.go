@@ -103,7 +103,6 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 
 	// Generate the bundle id....
 	id := bundle.Descriptor_.PublisherId + "%" + bundle.Descriptor_.Name + "%" + bundle.Descriptor_.Version + "%" + bundle.Descriptor_.Id + "%" + bundle.Plaform
-	log.Println(id)
 
 	path := server.Root + "/packages-repository"
 	Utility.CreateDirIfNotExist(path)

@@ -15,6 +15,8 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
+var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js')
 const proto = {};
 proto.rbac = require('./rbac_pb.js');
 
@@ -138,7 +140,7 @@ proto.rbac.RbacServiceClient.prototype.setResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.SetResourcePermissionsRqst>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.setResourcePermissions =
     function(request, metadata) {
@@ -218,7 +220,7 @@ proto.rbac.RbacServiceClient.prototype.deleteResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteResourcePermissionsRqst>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.deleteResourcePermissions =
     function(request, metadata) {
@@ -298,7 +300,7 @@ proto.rbac.RbacServiceClient.prototype.deleteResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteResourcePermissionRqst>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.deleteResourcePermission =
     function(request, metadata) {
@@ -378,7 +380,7 @@ proto.rbac.RbacServiceClient.prototype.getResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetResourcePermissionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.getResourcePermission =
     function(request, metadata) {
@@ -458,7 +460,7 @@ proto.rbac.RbacServiceClient.prototype.setResourcePermission =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.SetResourcePermissionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.setResourcePermission =
     function(request, metadata) {
@@ -538,7 +540,7 @@ proto.rbac.RbacServiceClient.prototype.getResourcePermissions =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetResourcePermissionsRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.getResourcePermissions =
     function(request, metadata) {
@@ -618,7 +620,7 @@ proto.rbac.RbacServiceClient.prototype.addResourceOwner =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.AddResourceOwnerRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.addResourceOwner =
     function(request, metadata) {
@@ -698,7 +700,7 @@ proto.rbac.RbacServiceClient.prototype.removeResourceOwner =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.RemoveResourceOwnerRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.removeResourceOwner =
     function(request, metadata) {
@@ -778,7 +780,7 @@ proto.rbac.RbacServiceClient.prototype.deleteAllAccess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteAllAccessRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.deleteAllAccess =
     function(request, metadata) {
@@ -858,7 +860,7 @@ proto.rbac.RbacServiceClient.prototype.validateAccess =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.ValidateAccessRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.validateAccess =
     function(request, metadata) {
@@ -867,6 +869,86 @@ proto.rbac.RbacServicePromiseClient.prototype.validateAccess =
       request,
       metadata || {},
       methodDescriptor_RbacService_ValidateAccess);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.SetActionResourcesPermissionsRqst,
+ *   !proto.rbac.SetActionResourcesPermissionsRsp>}
+ */
+const methodDescriptor_RbacService_SetActionResourcesPermissions = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/SetActionResourcesPermissions',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.SetActionResourcesPermissionsRqst,
+  proto.rbac.SetActionResourcesPermissionsRsp,
+  /**
+   * @param {!proto.rbac.SetActionResourcesPermissionsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.SetActionResourcesPermissionsRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.SetActionResourcesPermissionsRqst,
+ *   !proto.rbac.SetActionResourcesPermissionsRsp>}
+ */
+const methodInfo_RbacService_SetActionResourcesPermissions = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.SetActionResourcesPermissionsRsp,
+  /**
+   * @param {!proto.rbac.SetActionResourcesPermissionsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.SetActionResourcesPermissionsRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.SetActionResourcesPermissionsRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.rbac.SetActionResourcesPermissionsRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.SetActionResourcesPermissionsRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.setActionResourcesPermissions =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/SetActionResourcesPermissions',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_SetActionResourcesPermissions,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.SetActionResourcesPermissionsRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.SetActionResourcesPermissionsRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.setActionResourcesPermissions =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/SetActionResourcesPermissions',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_SetActionResourcesPermissions);
 };
 
 
@@ -938,7 +1020,7 @@ proto.rbac.RbacServiceClient.prototype.getActionResourceInfos =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetActionResourceInfosRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.getActionResourceInfos =
     function(request, metadata) {
@@ -1018,7 +1100,7 @@ proto.rbac.RbacServiceClient.prototype.validateAction =
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.ValidateActionRsp>}
- *     A native promise that resolves to the response
+ *     Promise that resolves to the response
  */
 proto.rbac.RbacServicePromiseClient.prototype.validateAction =
     function(request, metadata) {

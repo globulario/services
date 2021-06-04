@@ -384,10 +384,6 @@ func (svr *server) getConversationConnection(id string) (*storage_store.LevelDB_
 func (svr *server) closeConversationConnection(id string) {
 
 	dbPath := svr.Root + "/conversations/" + id
-	if !Utility.Exists(dbPath) {
-		log.Println(dbPath)
-	}
-
 	connection, ok := svr.conversations.Load(dbPath)
 	if !ok {
 		return
@@ -618,7 +614,6 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 
 			clientId, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
-				log.Println("token validation fail with error: ", err)
 				return nil, err
 			}
 
@@ -636,8 +631,9 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	isOwner, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
-	if err != nil {
+	isOwner, _, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+
+	if err != nil  {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -677,7 +673,6 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 
 			clientId, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
-				log.Println("token validation fail with error: ", err)
 				return nil, err
 			}
 
@@ -695,7 +690,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	_, err = svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	_, _, err = svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
 		// Here I will simply remove the converstion from the paticipant.
 		err := svr.removeConversationParticipant(clientId, rqst.ConversationUuid)
@@ -780,13 +775,10 @@ func (svr *server) FindConversations(ctx context.Context, rqst *conversationpb.F
 
 	conversations := make([]*conversationpb.Conversation, 0)
 	for i := 0; i < len(results.Results); i++ {
-
 		conversation := new(conversationpb.Conversation)
 		err := jsonpb.UnmarshalString(results.Results[i].Data, conversation)
 		if err == nil {
 			conversations = append(conversations, conversation)
-		} else {
-			log.Println(err)
 		}
 
 	}
@@ -1039,7 +1031,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	hasAccess, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
+	hasAccess,_, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

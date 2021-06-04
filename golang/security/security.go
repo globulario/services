@@ -18,22 +18,17 @@ import (
 	"github.com/davecourtois/Utility"
 )
 
-var(
-	// TODO Use environement variable here...
-	Root = "/home/dave/go/src/github.com/globulario/services/golang"
-	// Root = "/usr/local/share/globular"
-	//ConfigPath = "/etc/globular/config/config.json"
-	ConfigPath = "/home/dave/go/src/github.com/globulario/Globular/config/config.json"
+var (
+	Root       = "/usr/local/share/globular"
+	ConfigPath = "/etc/globular/config/config.json"
 )
 
 // That function will be access via http so event server or client will be able
 // to get particular service configuration.
 func GetClientConfig(address string, name string, port int, path string) (map[string]interface{}, error) {
-
 	var serverConfig map[string]interface{}
 	var config map[string]interface{}
 	var err error
-
 	if len(address) == 0 {
 		err := errors.New("no address was given for service name " + name)
 		return nil, err
@@ -43,6 +38,8 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	// the configuration file.
 	serverConfig, err = getLocalConfig()
 
+   
+
 	isLocal := true
 	if err == nil {
 		if serverConfig["Domain"] != address {
@@ -51,7 +48,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	} else {
 		isLocal = false
 	}
-	
+
 	if !isLocal {
 		// First I will retreive the server configuration.
 		serverConfig, err = getRemoteConfig(address, port)
@@ -150,14 +147,20 @@ func getLocalConfig() (map[string]interface{}, error) {
 	}
 
 	// Now I will read the services configurations...
-	config["Services"] = make(map[string] interface{});
+	config["Services"] = make(map[string]interface{})
 
-	filepath.Walk(Root, func(path string, info os.FileInfo, err error) error {
+	// use the GLOBULAR_SERVICES_ROOT path if it set... or the Root (/usr/local/share/globular)
+	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	if len(serviceDir) == 0 {
+		serviceDir = Root
+	}
+
+	filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {
 		path = strings.ReplaceAll(path, "\\", "/")
 		if info == nil {
 			return nil
 		}
-		
+
 		if err == nil && info.Name() == "config.json" {
 			// So here I will read the content of the file.
 			s := make(map[string]interface{})
@@ -166,14 +169,8 @@ func getLocalConfig() (map[string]interface{}, error) {
 				// Read the config file.
 				err := json.Unmarshal(data, &s)
 				if err == nil {
-					if s["Protocol"] != nil {
-						config["Services"].(map[string] interface{})[s["Id"].(string)] = s
-					}
-				} else {
-					log.Println("fail to unmarshal configuration ", err)
+					config["Services"].(map[string]interface{})[s["Id"].(string)] = s
 				}
-			} else {
-				log.Println("Fail to read config file ", path, err)
 			}
 		}
 		return nil
@@ -220,7 +217,7 @@ func getCaCertificate(address string, port int) (string, error) {
 	var resp *http.Response
 	var err error
 	var caAddress = "http://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
-	log.Println("get ca certificate from ", caAddress)
+
 	resp, err = http.Get(caAddress)
 
 	if err != nil {
@@ -234,7 +231,7 @@ func getCaCertificate(address string, port int) (string, error) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println(string(bodyBytes))
+
 		return string(bodyBytes), nil
 	}
 
@@ -265,7 +262,7 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println("certificate are now signed!")
+
 		return string(bodyBytes), nil
 	}
 
@@ -411,7 +408,7 @@ func GenerateAuthorityPrivateKey(path string, pwd string) error {
 		if err == nil {
 			err = errors.New("fail to generate the Authority private key " + path + "/ca.key")
 		}
-		log.Println(err)
+
 		return err
 	}
 	return nil
@@ -444,7 +441,7 @@ func GenerateAuthorityTrustCertificate(path string, pwd string, expiration_delay
 		if err == nil {
 			err = errors.New("fail to generate the trust certificate " + path + "/ca.crt")
 		}
-		log.Println(err)
+
 		return err
 	}
 
@@ -473,7 +470,7 @@ func GenerateSeverPrivateKey(path string, pwd string) error {
 		if err == nil {
 			err = errors.New("fail to generate server private key " + path + "/server.key")
 		}
-		log.Println(err)
+
 		return err
 	}
 	return nil
@@ -500,7 +497,7 @@ func GenerateClientPrivateKey(path string, pwd string) error {
 		if err == nil {
 			err = errors.New("fail to generate client private key " + path + "/client.pass.key")
 		}
-		log.Println(err)
+
 		return err
 	}
 
@@ -518,7 +515,7 @@ func GenerateClientPrivateKey(path string, pwd string) error {
 		if err == nil {
 			err = errors.New("fail to generate client private key " + path + "/client.key")
 		}
-		log.Println(err)
+
 		return err
 	}
 
@@ -554,7 +551,7 @@ func GenerateClientCertificateSigningRequest(path string, pwd string, domain str
 		if err == nil {
 			err = errors.New("fail to generate client certificate signing request " + path + "/client.key")
 		}
-		log.Println(err)
+
 		return err
 	}
 
@@ -595,7 +592,7 @@ func GenerateSignedClientCertificate(path string, pwd string, expiration_delay i
 		if err == nil {
 			err = errors.New("fail to get the signed server certificate " + path + "/client.key")
 		}
-		log.Println(err)
+
 		return err
 	}
 
@@ -673,7 +670,7 @@ func GenerateServerCertificateSigningRequest(path string, pwd string, domain str
 		if err == nil {
 			err = errors.New("fail to generate server certificate signing request" + path + "/client.key")
 		}
-		log.Println(err)
+
 		return err
 	}
 
@@ -715,7 +712,7 @@ func GenerateSignedServerCertificate(path string, pwd string, expiration_delay i
 		if err == nil {
 			err = errors.New("fail to get the signed server certificate" + path + "/server.key")
 		}
-		log.Println(err)
+
 		return err
 
 	}
@@ -746,7 +743,7 @@ func KeyToPem(name string, path string, pwd string) error {
 		if err == nil {
 			err = errors.New("Fail to generate " + name + ".pem key from " + name + ".key")
 		}
-		log.Println(err)
+
 		return err
 	}
 
@@ -779,7 +776,6 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 		return err
 	}
 
-	log.Println("step 1: Generate Certificate Authority Trust Certificate (ca.crt)")
 	err = GenerateAuthorityPrivateKey(path, pwd)
 	if err != nil {
 
@@ -792,49 +788,41 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 		return err
 	}
 
-	log.Println("Setp 2: Generate the server Private Key (server.key)")
 	err = GenerateSeverPrivateKey(path, pwd)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Setp 3: Get a certificate signing request from the CA (server.csr)")
 	err = GenerateServerCertificateSigningRequest(path, pwd, domain)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Step 4: Sign the certificate with the CA we create(it's called self signing) - server.crt")
 	err = GenerateSignedServerCertificate(path, pwd, expiration_delay)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Step 5: Convert the server Certificate to .pem format (server.pem) - usable by gRpc")
 	err = KeyToPem("server", path, pwd)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Step 6: Generate client private key.")
 	err = GenerateClientPrivateKey(path, pwd)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Step 7: Generate the client signing request.")
 	err = GenerateClientCertificateSigningRequest(path, pwd, domain)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Step 8: Generate client signed certificate.")
 	err = GenerateSignedClientCertificate(path, pwd, expiration_delay)
 	if err != nil {
 		return err
 	}
 
-	log.Println("Step 9: Convert to pem format.")
 	err = KeyToPem("client", path, pwd)
 	if err != nil {
 		return err

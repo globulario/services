@@ -311,27 +311,24 @@ func (server *server) StopService() error {
 
 var (
 	resourceClient *resource_client.Resource_Client
-	rbac_client_ *rbac_client.Rbac_Client
+	rbac_client_   *rbac_client.Rbac_Client
 )
-
 
 //////////////////////// RBAC function //////////////////////////////////////////////
 /**
  * Get the rbac client.
  */
- func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 		if err != nil {
-			log.Println("fail to get RBAC client with error ", err)
 			return nil, err
 		}
 
 	}
 	return rbac_client_, nil
 }
-
 
 func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
 	rbac_client_, err := GetRbacClient(server.Domain)
@@ -347,7 +344,7 @@ func (server *server) setResourcePermissions(path string, permissions *rbacpb.Pe
 	if err != nil {
 		return err
 	}
-	return rbac_client_.SetResourcePermissions(path,permissions)
+	return rbac_client_.SetResourcePermissions(path, permissions)
 }
 
 func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
@@ -368,7 +365,6 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 	return rbac_client_.AddResourceOwner(path, subject, subjectType)
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -387,10 +383,10 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
 }
 
 /////////////////////// Resource function ///////////////////////////////////////////
-func (server *server) isOrganizationMember(user, organization string) (bool,error) {
+func (server *server) isOrganizationMember(user, organization string) (bool, error) {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
-		return  false, err
+		return false, err
 	}
 
 	return resourceClient.IsOrganizationMemeber(user, organization)
@@ -400,30 +396,23 @@ func (server *server) isOrganizationMember(user, organization string) (bool,erro
 func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	return resourceClient.SetPackageDescriptor(descriptor)
 }
 
-
 /////////////////////// Discovery specific function /////////////////////////////////
 
 // Publish a package, the package can contain an application or a services.
 func (server *server) publishPackage(user string, organization string, discovery string, repository string, platform string, path string, descriptor *resourcepb.PackageDescriptor) error {
-	log.Println("Publish package for user: ", user, "organization: ", organization, "discovery: ", discovery, "repository: ", repository, "platform: ", platform)
-
-	// Connect to the repository resourcepb.
-	services_repository, err := repository_client.NewRepositoryService_Client(repository, "packages.PackageRepository")
-	if err != nil {
-		return errors.New("Fail to connect to package repository at " + repository)
-	}
 
 	// Ladies and Gentlemans After one year after tow years services as resource!
 	path_ := descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Id + "/" + descriptor.Version
 
 	// So here I will set the permissions
 	var permissions *rbacpb.Permissions
+	var err error
 	permissions, err = server.getResourcePermissions(path_)
 	if err != nil {
 		// Create the permission...
@@ -484,10 +473,18 @@ func (server *server) publishPackage(user string, organization string, discovery
 		return err
 	}
 
-	// Upload the package bundle to the repository.
-	return services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, platform, path)
-}
+	// Connect to the repository resourcepb.
+	services_repository, err := repository_client.NewRepositoryService_Client(repository, "repository.PackageRepository")
+	if err != nil {
+		return errors.New("Fail to connect to package repository at " + repository)
+	}
 
+	// UploadBundle
+	log.Println("Upload package bundle ", discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version,  platform, path)
+
+	// Upload the package bundle to the repository.
+	return services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
+}
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.

@@ -3,57 +3,25 @@ package main
 import (
 	"context"
 	"errors"
+	"log"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/discovery/discoverypb"
-	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"log"
 )
 
-// Discovery
-func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPackagesDescriptorRequest) (*resourcepb.FindPackagesDescriptorResponse, error) {
-	// That service made user of persistence service.
-	var descriptors []*resourcepb.PackageDescriptor
+var (
+	resource_client_ *resource_client.Resource_Client
+)
 
-	// Return the list of Service Descriptor.
-	return &resourcepb.FindPackagesDescriptorResponse{
-		Results: descriptors,
-	}, nil
-}
-
-//* Return the list of all services *
-func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
-	var descriptors []*resourcepb.PackageDescriptor
-
-	// Return the list of Service Descriptor.
-	return &resourcepb.GetPackageDescriptorResponse{
-		Results: descriptors,
-	}, nil
-}
-
-//* Return the list of all services *
-func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorRequest, stream discoverypb.PackageDiscovery_GetPackagesDescriptorServer) error {
-
-	// Return the list of Service Descriptor.
-	return nil
-}
-
-/**
- * Set the package descriptor.
- */
-func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb.SetPackageDescriptorRequest) (*resourcepb.SetPackageDescriptorResponse, error) {
-
-	return &resourcepb.SetPackageDescriptorResponse{
-		Result: true,
-	}, nil
-}
+///////////////////// resource service functions ////////////////////////////////////
 
 // Publish a service. The service must be install localy on the server.
 func (server *server) PublishService(ctx context.Context, rqst *discoverypb.PublishServiceRequest) (*discoverypb.PublishServiceResponse, error) {
-	log.Println("try to publish service ", rqst.ServiceName, "...")
-
 	// Make sure the user is part of the organization if one is given.
 	publisherId := rqst.User
 	if len(rqst.Organization) > 0 {
@@ -98,7 +66,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 
 // Publish a web application to a globular node. That must be use at development mostly...
 func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
-	
+
 	log.Println("try to publish application ", rqst.Name, "...")
 
 	// Make sure the user is part of the organization if one is given.
@@ -129,21 +97,20 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 		Keywords:     rqst.Keywords,
 		Repositories: []string{rqst.Repository},
 		Discoveries:  []string{rqst.Discovery},
-		Type:         resourcepb.PackageType_SERVICE_TYPE,
+		Type:         resourcepb.PackageType_APPLICATION_TYPE,
 	}
 
 	// Publish the application package.
 	err := server.publishPackage(rqst.User, rqst.Organization, rqst.Discovery, rqst.Repository, "webapp", rqst.Path, descriptor)
-
-	// Set the path of the directory where the application can store files.
-	Utility.CreateDirIfNotExist("/var/globular/data/files/applications/" + rqst.Name)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = server.addResourceOwner("/applications/"+ rqst.Name, rqst.Name, rbacpb.SubjectType_APPLICATION)
+	// Set the path of the directory where the application can store files.
+	Utility.CreateDirIfNotExist("/var/globular/data/files/applications/" + rqst.Name)
+	err = server.addResourceOwner("/applications/"+rqst.Name, rqst.Name, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

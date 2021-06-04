@@ -424,8 +424,8 @@ func getVal(m *sync.Map, k string) interface{} {
 var (
 	resource_client_ *resource_client.Resource_Client
 	event_client_    *event_client.Event_Client
-	rbac_client_ *rbac_client.Rbac_Client
-	log_client_ *log_client.Log_Client
+	rbac_client_     *rbac_client.Rbac_Client
+	log_client_      *log_client.Log_Client
 )
 
 ///////////////////// event service functions ////////////////////////////////////
@@ -470,7 +470,7 @@ func (server *server) removeRolesAction(action string) error {
 
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	return resourceClient.RemoveRolesAction(action)
@@ -480,7 +480,7 @@ func (server *server) removeApplicationsAction(action string) error {
 
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	return resourceClient.RemoveApplicationsAction(action)
@@ -489,7 +489,7 @@ func (server *server) removeApplicationsAction(action string) error {
 func (server *server) removePeersAction(action string) error {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	return resourceClient.RemovePeersAction(action)
@@ -499,7 +499,7 @@ func (server *server) setRoleActions(roleId string, actions []string) error {
 
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	return resourceClient.AddRoleActions(roleId, actions)
@@ -509,12 +509,11 @@ func (server *server) setRoleActions(roleId string, actions []string) error {
 /**
  * Get the rbac client.
  */
- func  (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
 		if err != nil {
-			log.Println("fail to get RBAC client with error ", err)
 			return nil, err
 		}
 
@@ -525,9 +524,9 @@ func (server *server) setRoleActions(roleId string, actions []string) error {
 func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
 	rbac_client_, err := server.GetRbacClient()
 	if err != nil {
-		return  err
+		return err
 	}
-	return rbac_client_.SetActionResourcesPermissions(permissions )
+	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
 
 ///////////////////////  Service Manager functions ////////////////////////////////////////////////
@@ -535,12 +534,11 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 /**
  * Get the log client.
  */
- func  (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err =  log_client.NewLogService_Client(server.Domain, "log.LogService")
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
 		if err != nil {
-			log.Println("fail to get RBAC client with error ", err)
 			return nil, err
 		}
 
@@ -553,7 +551,6 @@ func (server *server) logServiceInfo(name string, infos string) {
 		return
 	}
 	log_client_.Log(server.Name, server.Domain, name, logpb.LogLevel_INFO_MESSAGE, infos)
-	log.Println("-----------> INFO", name, ":", infos)
 }
 
 func (server *server) logServiceError(name string, infos string) {
@@ -561,14 +558,12 @@ func (server *server) logServiceError(name string, infos string) {
 	if err != nil {
 		return
 	}
-	log.Println("-----------> ERROR", name, ":", infos)
 	log_client_.Log(server.Name, server.Domain, name, logpb.LogLevel_ERROR_MESSAGE, infos)
 }
 
-
 func (server *server) initService(s *sync.Map) error {
 	serviceId := getStringVal(s, "Id")
-	serviceName := getStringVal(s, "Name")
+
 	// TODO send message to service controller...
 	hasTls := getBoolVal(s, "TLS")
 
@@ -585,10 +580,6 @@ func (server *server) initService(s *sync.Map) error {
 			s.Store("CertFile", "")
 			s.Store("KeyFile", "")
 		}
-	}
-	log.Println("Init service: ", serviceId, ":", serviceName)
-	if serviceId == server.Id {
-		return errors.New("service " + serviceId + "can not initialyse itself")
 	}
 
 	hasChange := server.saveServiceConfig(s)
@@ -712,7 +703,6 @@ inhibit_rules:
 	}
 
 	if err != nil {
-		log.Println("fail to start prometheus ", err)
 		return err
 	}
 
@@ -767,7 +757,6 @@ inhibit_rules:
 						for i := 0; i < len(pids); i++ {
 							sysInfo, err := pidusage.GetStat(pids[i])
 							if err == nil {
-								//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
 								server.servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
 								server.servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
 							}
@@ -778,7 +767,6 @@ inhibit_rules:
 					if pid > 0 {
 						sysInfo, err := pidusage.GetStat(pid)
 						if err == nil {
-							//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
 							server.servicesCpuUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(sysInfo.CPU)
 							server.servicesMemoryUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(sysInfo.Memory)
 						}
@@ -787,7 +775,6 @@ inhibit_rules:
 						if len(path) > 0 {
 							server.servicesCpuUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(0)
 							server.servicesMemoryUsage.WithLabelValues(getStringVal(s.(*sync.Map), "Id"), getStringVal(s.(*sync.Map), "Name")).Set(0)
-							//log.Println("----> process is close for ", getStringVal(s.(*sync.Map), "Name"))
 						}
 
 					}
@@ -856,13 +843,13 @@ func (server *server) manageProcess() {
 						if (state == "failed" || state == "stopped" || state == "running") && len(getStringVal(s, "Path")) > 1 {
 							// make sure the process is no running...
 							if getBoolVal(s, "KeepAlive") {
-								server.killServiceProcess(s, pid)
-								s.Store("State", "stopped")
-								server.initService(s)
+								if server.Id != getStringVal(s, "Id") {
+									server.killServiceProcess(s, pid)
+									s.Store("State", "stopped")
+									server.initService(s)
+								}
 							}
 						}
-					} else if err != nil {
-						log.Println(err)
 					}
 
 					proxies = append(proxies, getIntVal(s, "ProxyProcess"))
@@ -992,7 +979,7 @@ func (server *server) getNextAvailablePort() (int, error) {
 	portRange := strings.Split(server.PortsRange, "-")
 	start := Utility.ToInt(portRange[0]) + 1 // The first port of the range will be reserve to http configuration handler.
 	end := Utility.ToInt(portRange[1])
-	log.Println("get next available port form ", start, "to", end)
+
 	for i := start; i < end; i++ {
 		if server.isPortAvailable(i) {
 			server.portsInUse = append(server.portsInUse, i)
@@ -1121,7 +1108,6 @@ func (server *server) startProxy(s *sync.Map, port int, proxy int) (int, error) 
 
 		/* in case of public domain server files **/
 		proxyArgs = append(proxyArgs, "--server_tls_key_file="+server.Creds+"/server.pem")
-
 		proxyArgs = append(proxyArgs, "--server_tls_client_ca_files="+server.Creds+"/"+server.CertificateAuthorityBundle)
 		proxyArgs = append(proxyArgs, "--server_tls_cert_file="+server.Creds+"/"+server.Certificate)
 
@@ -1173,6 +1159,10 @@ func (server *server) startService(s *sync.Map) (int, int, error) {
 	serviceName := getStringVal(s, "Name")
 	pid := getIntVal(s, "Process")
 	proxyPid := getIntVal(s, "ProxyProcess")
+
+	if server.Id == serviceId {
+		return -1, -1, errors.New("service could not start itself")
+	}
 
 	isLocal := true // TODO find a way to get information about service location.
 	if !isLocal {
@@ -1235,7 +1225,7 @@ func (server *server) startService(s *sync.Map) (int, int, error) {
 
 	err = os.Chmod(servicePath, 0755)
 	if err != nil {
-		log.Println(err)
+		return -1, -1, err
 	}
 
 	p := exec.Command(servicePath, Utility.ToString(port))
@@ -1254,12 +1244,10 @@ func (server *server) startService(s *sync.Map) (int, int, error) {
 	if err != nil {
 		s.Store("State", "fail")
 		s.Store("Process", -1)
-		log.Println("Fail to start service: ", getStringVal(s, "Name"), " at port ", port, " with error ", err)
 		return -1, -1, err
 	} else {
 		pid = p.Process.Pid
 		s.Store("Process", p.Process.Pid)
-		log.Println("Service ", getStringVal(s, "Name")+":"+getStringVal(s, "Id"), "started with pid:", getIntVal(s, "Process"))
 	}
 
 	// save the services in the map.
@@ -1277,7 +1265,6 @@ func (server *server) startService(s *sync.Map) (int, int, error) {
 					return
 
 				case line := <-output:
-					log.Println(line)
 					server.logServiceInfo(getStringVal(s, "Name"), line)
 				}
 			}
@@ -1644,7 +1631,7 @@ func (server *server) startServices() error {
 						// If a configuration file exist It will be use to start services,
 						// otherwise the service configuration file will be use.
 						if s["Name"] == nil {
-							log.Println("---> no 'Name' attribute found in service configuration in file config ", path)
+							return errors.New("no 'Name' attribute found in service configuration in file config " + path)
 						} else {
 
 							// if no id was given I will generate a uuid.
@@ -1764,7 +1751,7 @@ func (server *server) startServices() error {
  * Stop external services.
  */
 func (server *server) stopServices() {
-	log.Println("stop services...")
+
 	services := server.getServices()
 	for i := 0; i < len(services); i++ {
 		s := services[i]
@@ -1950,10 +1937,7 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 			name := getStringVal(s, "Name")
 			if getStringVal(s, "PublisherId") == publisherId && id == serviceId && getStringVal(s, "Version") == version {
 				// First of all I will unsubcribe to the package event...
-				log.Println("stop service ", name)
 				server.stopService(s)
-
-				log.Println("delete service ", name)
 				server.deleteService(id.(string))
 
 				// Get the list of method to remove from the list of actions.
@@ -1966,7 +1950,6 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 				}
 
 				// Keep permissions use when we update a service.
-				log.Println("delete service permissions")
 				if deletePermissions {
 					// Now I will remove action permissions
 					for i := 0; i < len(toDelete); i++ {
@@ -1987,6 +1970,7 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 
 				// Test if the path exit.
 				path := server.Root + "/services/" + publisherId + "/" + name + "/" + version + "/" + serviceId
+
 				// Now I will remove the service.
 				// Service are located into the packagespb...
 				if Utility.Exists(path) {
@@ -2001,7 +1985,6 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 		}
 	}
 
-	log.Println("services is now uninstalled")
 	return nil
 
 }
@@ -2060,10 +2043,15 @@ func main() {
 	s_impl.services = new(sync.Map)
 	s_impl.methods = make([]string, 0)
 	s_impl.PortsRange = "10000-10100"
+
+	// The server root...
 	s_impl.Root = "/usr/local/share/globular"
+
+	// Set the paths
 	s_impl.DataPath = "/var/globular/data"
 	s_impl.ConfigPath = "/etc/globular/config"
 	s_impl.Creds = "/etc/globular/config/tls"
+
 	s_impl.exit_ = make(chan bool)
 
 	// Here I will retreive the list of connections from file if there are some...
@@ -2080,19 +2068,23 @@ func main() {
 	reflection.Register(s_impl.grpcServer)
 
 	// Start managed services.
-	s_impl.startServices()
+	go func() {
+		s_impl.startServices()
 
-	// Start monitoring
-	s_impl.startMonitoring()
+		// Start monitoring
+		s_impl.startMonitoring()
 
-	// Start watching from update
-	s_impl.keepServicesToDate()
+		// Start watching from update
+		s_impl.keepServicesToDate()
 
-	// Register methods...
-	s_impl.registerMethods()
+		// Register methods...
+		s_impl.registerMethods()
 
-	// Promometheus metrics for services.
-	http.Handle("/metrics", promhttp.Handler())
+		// Promometheus metrics for services.
+		http.Handle("/metrics", promhttp.Handler())
+
+		//s_impl.manageProcess()
+	}()
 
 	// Start the service.
 	s_impl.StartService()
@@ -2102,7 +2094,5 @@ func main() {
 
 	// stop monitoring...
 	s_impl.exit_ <- true
-
-	log.Println("service manager was stop...")
 
 }

@@ -1090,7 +1090,6 @@ func (self *server) GetItemInstance(ctx context.Context, rqst *catalogpb.GetItem
 	instance := new(catalogpb.ItemInstance)
 	err = jsonpb.UnmarshalString(jsonStr, instance)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1157,7 +1156,6 @@ func (self *server) GetItemInstances(ctx context.Context, rqst *catalogpb.GetIte
 	instances := new(catalogpb.ItemInstances)
 	err = jsonpb.UnmarshalString(string(jsonStr), instances)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1207,7 +1205,6 @@ func (self *server) GetItemDefinition(ctx context.Context, rqst *catalogpb.GetIt
 	definition := new(catalogpb.ItemDefinition)
 	err = jsonpb.UnmarshalString(jsonStr, definition)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1273,7 +1270,6 @@ func (self *server) GetInventories(ctx context.Context, rqst *catalogpb.GetInven
 	inventories := new(catalogpb.Inventories)
 	err = jsonpb.UnmarshalString(string(jsonStr), inventories)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1345,7 +1341,6 @@ func (self *server) GetItemDefinitions(ctx context.Context, rqst *catalogpb.GetI
 	definitions := new(catalogpb.ItemDefinitions)
 	err = jsonpb.UnmarshalString(string(jsonStr), definitions)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1394,7 +1389,6 @@ func (self *server) GetSupplier(ctx context.Context, rqst *catalogpb.GetSupplier
 	supplier := new(catalogpb.Supplier)
 	err = jsonpb.UnmarshalString(jsonStr, supplier)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1459,7 +1453,6 @@ func (self *server) GetSuppliers(ctx context.Context, rqst *catalogpb.GetSupplie
 	suppliers := new(catalogpb.Suppliers)
 	err = jsonpb.UnmarshalString(string(jsonStr), suppliers)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1537,7 +1530,6 @@ func (self *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.Get
 		packageSupplier := new(catalogpb.PackageSupplier)
 		err = jsonpb.UnmarshalString(jsonStr, packageSupplier)
 		if err != nil {
-			log.Println(err)
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1592,7 +1584,6 @@ func (self *server) GetPackage(ctx context.Context, rqst *catalogpb.GetPackageRe
 	package_ := new(catalogpb.Package)
 	err = jsonpb.UnmarshalString(jsonStr, package_)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1654,7 +1645,6 @@ func (self *server) GetPackages(ctx context.Context, rqst *catalogpb.GetPackages
 	packages := new(catalogpb.Packages)
 	err = jsonpb.UnmarshalString(jsonStr, packages)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1959,7 +1949,6 @@ func (self *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManu
 	manufacturer := new(catalogpb.Manufacturer)
 	err = jsonpb.UnmarshalString(jsonStr, manufacturer)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2055,7 +2044,6 @@ func (self *server) GetManufacturers(ctx context.Context, rqst *catalogpb.GetMan
 	manufacturers := new(catalogpb.Manufacturers)
 	err = jsonpb.UnmarshalString(jsonStr, manufacturers)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2121,7 +2109,6 @@ func (self *server) GetUnitOfMeasures(ctx context.Context, rqst *catalogpb.GetUn
 	unitOfMeasures := new(catalogpb.UnitOfMeasures)
 	err = jsonpb.UnmarshalString(string(jsonStr), unitOfMeasures)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2173,7 +2160,6 @@ func (self *server) GetUnitOfMeasure(ctx context.Context, rqst *catalogpb.GetUni
 	unitOfMeasure := new(catalogpb.UnitOfMeasure)
 	err = jsonpb.UnmarshalString(jsonStr, unitOfMeasure)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

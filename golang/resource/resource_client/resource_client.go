@@ -175,8 +175,6 @@ func (resource_client *Resource_Client) SetPackageDescriptor(descriptor *resourc
 
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Organisation
 ////////////////////////////////////////////////////////////////////////////////
@@ -309,9 +307,9 @@ func (resource_client *Resource_Client) RemoveOrganizationApplication(organisati
 	return err
 }
 
-func (resource_client *Resource_Client)  IsOrganizationMemeber(user, organization string) (bool, error){
+func (resource_client *Resource_Client) IsOrganizationMemeber(user, organization string) (bool, error) {
 	rqst := &resourcepb.IsOrgnanizationMemberRqst{
-		AccountId: user,
+		AccountId:      user,
 		OrganizationId: organization,
 	}
 
@@ -358,9 +356,9 @@ func (resource_client *Resource_Client) GetAccount(id string) (*resourcepb.Accou
 }
 
 // Set the new password.
-func (resource_client *Resource_Client) SetAccountPassword(accountId, oldPassword, newPassword string) (error){
-	rqst:=&resourcepb.SetAccountPasswordRqst{
-		AccountId: accountId,
+func (resource_client *Resource_Client) SetAccountPassword(accountId, oldPassword, newPassword string) error {
+	rqst := &resourcepb.SetAccountPasswordRqst{
+		AccountId:   accountId,
 		OldPassword: oldPassword,
 		NewPassword: newPassword,
 	}
@@ -619,11 +617,11 @@ func (resource_client *Resource_Client) RemoveRolesAction(action string) error {
 /**
  * Remove action from a given application.
  */
- func (resource_client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error) {
+func (resource_client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error) {
 	rqst := &resourcepb.GetRolesRqst{
 		Query: query,
 	}
-	
+
 	stream, err := resource_client.c.GetRoles(globular.GetClientContext(resource_client), rqst)
 	if err != nil {
 		return nil, err
@@ -642,7 +640,7 @@ func (resource_client *Resource_Client) RemoveRolesAction(action string) error {
 			return nil, err
 		}
 
-		roles = append(roles,msg.Roles...)
+		roles = append(roles, msg.Roles...)
 	}
 
 	return roles, nil
@@ -705,7 +703,7 @@ func (resource_client *Resource_Client) RemovePeerAction(domain string, action s
 /**
  * Remove action from all peer's.
  */
- func (resource_client *Resource_Client) RemovePeersAction(action string) error {
+func (resource_client *Resource_Client) RemovePeersAction(action string) error {
 	rqst := &resourcepb.RemovePeersActionRqst{
 		Action: action,
 	}
@@ -717,16 +715,15 @@ func (resource_client *Resource_Client) RemovePeerAction(domain string, action s
 /**
  * Remove action from a given application.
  */
- func (resource_client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error) {
+func (resource_client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error) {
 	rqst := &resourcepb.GetPeersRqst{
 		Query: query,
 	}
-	
+
 	stream, err := resource_client.c.GetPeers(globular.GetClientContext(resource_client), rqst)
 	if err != nil {
 		return nil, err
 	}
-
 
 	peers := make([]*resourcepb.Peer, 0)
 
@@ -741,9 +738,8 @@ func (resource_client *Resource_Client) RemovePeerAction(domain string, action s
 			return nil, err
 		}
 
-		peers = append(peers,msg.Peers...)
+		peers = append(peers, msg.Peers...)
 	}
-
 
 	return peers, nil
 }
@@ -780,20 +776,19 @@ func (resource_client *Resource_Client) RemoveApplicationAction(applicationId st
 /**
  * Remove action from a given application.
  */
- func (resource_client *Resource_Client) RemoveApplicationsAction(action string) error {
+func (resource_client *Resource_Client) RemoveApplicationsAction(action string) error {
 	rqst := &resourcepb.RemoveApplicationsActionRqst{
-		Action:        action,
+		Action: action,
 	}
 	_, err := resource_client.c.RemoveApplicationsAction(globular.GetClientContext(resource_client), rqst)
 
 	return err
 }
 
-
 /**
  * Retreive applications...
  */
- func (resource_client *Resource_Client) GetApplications(query string) ([]*resourcepb.Application, error) {
+func (resource_client *Resource_Client) GetApplications(query string) ([]*resourcepb.Application, error) {
 	rqst := &resourcepb.GetApplicationsRqst{
 		Query: query,
 	}
@@ -816,9 +811,8 @@ func (resource_client *Resource_Client) RemoveApplicationAction(applicationId st
 			return nil, err
 		}
 
-		applications = append(applications,msg.Applications...)
+		applications = append(applications, msg.Applications...)
 	}
-
 
 	return applications, nil
 }
@@ -828,7 +822,7 @@ func (resource_client *Resource_Client) RemoveApplicationAction(applicationId st
  */
 func (resource_client *Resource_Client) DeleteApplication(id string) error {
 	rqst := &resourcepb.DeleteApplicationRqst{
-		 ApplicationId: id,
+		ApplicationId: id,
 	}
 
 	_, err := resource_client.c.DeleteApplication(globular.GetClientContext(resource_client), rqst)
@@ -842,18 +836,18 @@ func (resource_client *Resource_Client) DeleteApplication(id string) error {
 /**
  * Create an application descriptor...
  */
- func (resource_client *Resource_Client) CreateApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (resource_client *Resource_Client) CreateApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
 	rqst := &resourcepb.CreateApplicationRqst{
 		Application: &resourcepb.Application{
-			Id: id,
-			Path: path,
+			Id:          id,
+			Path:        path,
 			Publisherid: publisherId,
-			Version: version,
+			Version:     version,
 			Description: description,
-			Alias: alias,
-			Icon: icon,
-			Actions: actions,
-			Keywords: keywords,
+			Alias:       alias,
+			Icon:        icon,
+			Actions:     actions,
+			Keywords:    keywords,
 		},
 	}
 
@@ -862,13 +856,13 @@ func (resource_client *Resource_Client) DeleteApplication(id string) error {
 		return err
 	}
 
-	return nil;
- }
+	return nil
+}
 
- /**
-  * Return the applicaiton version.
-  */
-  func (resource_client *Resource_Client) GetApplicationVersion(id string) (string, error){
+/**
+ * Return the applicaiton version.
+ */
+func (resource_client *Resource_Client) GetApplicationVersion(id string) (string, error) {
 
 	rqst := &resourcepb.GetApplicationVersionRqst{
 		Id: id,
@@ -879,13 +873,13 @@ func (resource_client *Resource_Client) DeleteApplication(id string) error {
 		return "", err
 	}
 
-	return rsp.Version, nil;
-  }
+	return rsp.Version, nil
+}
 
- /**
-  * Return the applicaiton icon.
-  */
-  func (resource_client *Resource_Client) GetApplicationIcon(id string) (string, error){
+/**
+ * Return the applicaiton icon.
+ */
+func (resource_client *Resource_Client) GetApplicationIcon(id string) (string, error) {
 
 	rqst := &resourcepb.GetApplicationIconRqst{
 		Id: id,
@@ -896,14 +890,13 @@ func (resource_client *Resource_Client) DeleteApplication(id string) error {
 		return "", err
 	}
 
-	return rsp.Icon, nil;
-  }
+	return rsp.Icon, nil
+}
 
-
- /**
-  * Return the applicaiton icon.
-  */
-  func (resource_client *Resource_Client) GetApplicationAlias(id string) (string, error){
+/**
+ * Return the applicaiton icon.
+ */
+func (resource_client *Resource_Client) GetApplicationAlias(id string) (string, error) {
 
 	rqst := &resourcepb.GetApplicationAliasRqst{
 		Id: id,
@@ -914,47 +907,70 @@ func (resource_client *Resource_Client) DeleteApplication(id string) error {
 		return "", err
 	}
 
-	return rsp.Alias, nil;
-  }
+	return rsp.Alias, nil
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Package
 ////////////////////////////////////////////////////////////////////////////////
 
+func (resource_client *Resource_Client) GetPackageDescriptor(pacakageId, publisherId, version string) (*resourcepb.PackageDescriptor, error) {
+	rqst := &resourcepb.GetPackageDescriptorRequest{
+		ServiceId: pacakageId,
+		PublisherId: publisherId,
+	}
+
+	rsp, err := resource_client.c.GetPackageDescriptor(globular.GetClientContext(resource_client), rqst)
+	if err != nil {
+		return nil, err
+	}
+	
+	descriptors := rsp.Results
+	descriptor := descriptors[0]
+	for i := 0; i < len(descriptors); i++ {
+		if descriptors[i].Version == version {
+			descriptor = descriptors[i]
+			break
+		}
+	}
+
+	return descriptor, err
+}
+
 /**
  * Return the package checksum.
  */
-func  (resource_client *Resource_Client)  GetPackageBundleChecksum(id string) (string, error){
-  rqst := &resourcepb.GetPackageBundleChecksumRequest{
-	  Id: id,
-  }
+func (resource_client *Resource_Client) GetPackageBundleChecksum(id string) (string, error) {
+	rqst := &resourcepb.GetPackageBundleChecksumRequest{
+		Id: id,
+	}
 
-  rsp, err := resource_client.c.GetPackageBundleChecksum(globular.GetClientContext(resource_client), rqst)
-  if err != nil {
-	  return "", err
-  }
+	rsp, err := resource_client.c.GetPackageBundleChecksum(globular.GetClientContext(resource_client), rqst)
+	if err != nil {
+		return "", err
+	}
 
-  return rsp.Checksum, nil
+	return rsp.Checksum, nil
 }
 
 /**
  * Set package bundle information.
  */
- func  (resource_client *Resource_Client) SetPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
+func (resource_client *Resource_Client) SetPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
 	rqst := &resourcepb.SetPackageBundleRequest{
 		Bundle: &resourcepb.PackageBundle{
 			Descriptor_: descriptor,
-			Checksum: checksum,
-			Plaform: platform,
-			Size: size,
-			Modified: modified,
+			Checksum:    checksum,
+			Plaform:     platform,
+			Size:        size,
+			Modified:    modified,
 		},
 	}
-  
+
 	_, err := resource_client.c.SetPackageBundle(globular.GetClientContext(resource_client), rqst)
 	if err != nil {
 		return err
 	}
-  
-	return  nil
-  }
+
+	return nil
+}

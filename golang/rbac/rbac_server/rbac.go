@@ -16,15 +16,14 @@ import (
 )
 
 func (rbac_server *server) setEntityResourcePermissions(entity string, path string) error {
-	log.Println(80, "set entity ressource permission ", entity, path)
+
 	// Here I will retreive the actual list of paths use by this user.
 	data, err := rbac_server.permissions.GetItem(entity)
 	paths_ := make([]interface{}, 0)
-	log.Println("entity", entity, "data", string(data))
+
 	if err == nil {
 		err := json.Unmarshal(data, &paths_)
 		if err != nil {
-			log.Println(string(data))
 			return err
 		}
 	}
@@ -56,7 +55,7 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 	// Allowed resources
 	allowed := permissions.Allowed
 	if allowed != nil {
-		log.Println(87)
+
 		for i := 0; i < len(allowed); i++ {
 
 			// Accounts
@@ -254,14 +253,12 @@ func (rbac_server *server) deleteEntityResourcePermissions(entity string, path s
 
 	data, err := rbac_server.permissions.GetItem(entity)
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
 	paths := make([]string, 0)
 	err = json.Unmarshal(data, &paths)
 	if err != nil {
-		log.Println(err)
 		return err
 	}
 
@@ -443,7 +440,7 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 }
 
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	log.Println("get permissions for path ", path)
+
 	data, err := rbac_server.permissions.GetItem(path)
 	if err != nil {
 		return nil, status.Errorf(
@@ -461,10 +458,8 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 
 //* Delete a resource permissions (when a resource is deleted) *
 func (rbac_server *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionsRqst) (*rbacpb.DeleteResourcePermissionsRqst, error) {
-	log.Println("delete ressource permission for path ", rqst.Path)
 	permissions, err := rbac_server.getResourcePermissions(rqst.Path)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -472,7 +467,6 @@ func (rbac_server *server) DeleteResourcePermissions(ctx context.Context, rqst *
 
 	err = rbac_server.deleteResourcePermissions(rqst.Path, permissions)
 	if err != nil {
-		log.Println(err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -630,7 +624,7 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 			return err
 		}
 	}
-	log.Println("add ressource owner: ", subject, path)
+
 	// Owned resources
 	owners := permissions.Owners
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
@@ -905,7 +899,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		// In that case I will try to get parent ressource permission.
 		if len(strings.Split(path, "/")) > 1 {
 			// test for it parent.
-			log.Println("Evaluate the path ", path[0:strings.LastIndex(path, "/")])
 			return rbac_server.validateAccess(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 		}
 
@@ -926,10 +919,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			subjectStr = "Account"
 			if owners.Accounts != nil {
 				if Utility.Contains(owners.Accounts, subject) {
-
 					isOwner = true
-				} else {
-					log.Println(subject, "is not the owner of ", path)
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_APPLICATION {
@@ -965,7 +955,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 	// If the user is the owner no other validation are required.
 	if isOwner {
-		log.Println(subject, "is the owner of ", path)
 		return true, false, nil
 	}
 
@@ -1270,7 +1259,6 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  * Validate an action and also validate it resources
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
-	log.Println("Validate action ", action, "for", subject)
 
 	var actions []string
 
@@ -1281,21 +1269,18 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	if subjectType == rbacpb.SubjectType_APPLICATION {
 		application, err := rbac_server.getApplication(subject)
 		if err != nil {
-			log.Println("access refuse for execute action ", action, "to", subject, err)
 			return false, err
 		}
 		actions = application.Actions
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		peer, err := rbac_server.getPeer(subject)
 		if err != nil {
-			log.Println("access refuse for execute action ", action, "to", subject, err)
 			return false, err
 		}
 		actions = peer.Actions
 	} else if subjectType == rbacpb.SubjectType_ROLE {
 		role, err := rbac_server.getRole(subject)
 		if err != nil {
-			log.Println("access refuse for execute action ", action, "to", subject, err)
 			return false, err
 		}
 		actions = role.Actions
@@ -1340,12 +1325,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	} else if subjectType == rbacpb.SubjectType_ROLE {
 		return true, nil
 	}
-
-	log.Println("Access allow for " + subject + " to call method " + action)
-
-	// Here I will validate the access for a given subject...
-	log.Println("validate ressource access for ", subject)
-
+	
 	// Now I will validate the resource access.
 	// infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)

@@ -460,7 +460,6 @@ func (self *server) sendEmail(host string, user string, pwd string, port int, fr
 	mailer := gomail.NewMailer(host, user, pwd, port)
 
 	if err := mailer.Send(msg); err != nil {
-		log.Println("--> fail to send email ", host, user, port, err)
 		return err
 	}
 	return nil
@@ -666,7 +665,6 @@ func main() {
 		// The backend connection.
 		store, err := persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
 		if err != nil {
-			log.Println(err)
 			return
 		}
 
@@ -682,19 +680,15 @@ func main() {
 		// Open the backend main connection
 		err = store.CreateConnection("local_ressource", "local_ressource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
 		if err != nil {
-			log.Println(err)
 			return
 		}
-		log.Println("start imap")
 		// start imap server.
 		imap.StartImap(store, address, port, s_impl.Password, s_impl.KeyFile, certFile, s_impl.IMAP_Port, s_impl.IMAPS_Port, s_impl.IMAP_ALT_Port)
 
-		log.Println("start smtp")
 		// start smtp server
 		smtp.StartSmtp(store, address, port, s_impl.Domain, s_impl.KeyFile, certFile, s_impl.SMTP_Port, s_impl.SMTPS_Port, s_impl.SMTP_ALT_Port)
 
 	}()
-	log.Println("start grpc mail service")
 	// Start the service.
 	s_impl.StartService()
 

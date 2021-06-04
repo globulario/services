@@ -7,7 +7,7 @@ import (
 
 var (
 	// Connect to the plc client.
-	client, _ = NewAuthenticationService_Client("localhost", "authentication.AuthenticationService")
+	client, _ = NewAuthenticationService_Client("globular.cloud", "authentication.AuthenticationService")
 )
 
 // Test various function here.
@@ -18,7 +18,7 @@ func Test(t *testing.T) {
 
 func TestAuthenticate(t *testing.T) {
 
-	token, err := client.Authenticate("dave", "400zm89Aaa")
+	token, err := client.Authenticate("dave", "1234")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
 	} else {

@@ -6,12 +6,9 @@ import (
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
-	//"log"
 	"os"
 	"reflect"
 	"strings"
-
-	//	"log"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
@@ -90,7 +87,6 @@ type Client interface {
 func InitClient(client Client, address string, id string) error {
 
 	// Set the domain and the name from the incomming...
-
 	address_ := strings.Split(address, ":")
 
 	port := 80 // the default http port...
@@ -103,6 +99,10 @@ func InitClient(client Client, address string, id string) error {
 
 	// Here I will initialyse the client
 	config, err := security.GetClientConfig(address, id, port, os.TempDir())
+
+	if err != nil {
+		return err
+	}
 	if err == nil {
 		port = int(config["Port"].(float64))
 	}

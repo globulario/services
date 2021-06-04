@@ -138,24 +138,6 @@ func TestRestartServices(t *testing.T) {
 	log.Println("RestartServices succeed!")
 }
 */
-/*func TestDeployApplication(t *testing.T) {
-	err := client.DeployApplication("testApp", "/home/dave/Documents/chitchat")
-	if err != nil {
-		log.Panicln(err)
-	}
-}*/
-
-// Test register/start external service.
-/*func TestRegisterExternalService(t *testing.T) {
-	// Start mongo db
-	pid, err := client.RegisterExternalApplication("mongoDB_srv_win64", "E:\\MongoDB\\bin\\mongod.exe", []string{"--port", "27017", "--dbpath", "E:\\MongoDB\\data\\db"})
-
-	if err == nil {
-		log.Println("---> mongo db start at port: ", pid)
-	} else {
-		log.Println("---> err", err)
-	}
-}*/
 
 /*func TestPublishService(t *testing.T) {
 	err := client.PublishService("echo_server", "localhost:8080", "localhost:8080", "Echo is the simplest serive of all.", []string{"test", "echo"})

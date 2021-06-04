@@ -171,7 +171,6 @@ func (admin_client *Admin_Client) SetCaFile(caFile string) {
 
 /** Create a service package **/
 func (admin_client *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
-	log.Println("Service path is ", servicePath)
 	// Take the information from the configuration...
 	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
 
@@ -182,12 +181,10 @@ func (admin_client *Admin_Client) createServicePackage(publisherId string, servi
 	// write the .tar.gzip
 	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
 	if err != nil {
-		log.Println(297)
 		return "", err
 	}
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
-		log.Println(301)
 		return "", err
 	}
 
@@ -195,7 +192,6 @@ func (admin_client *Admin_Client) createServicePackage(publisherId string, servi
 	fileToWrite.Close()
 
 	if err != nil {
-		log.Println(311)
 		return "", err
 	}
 	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil

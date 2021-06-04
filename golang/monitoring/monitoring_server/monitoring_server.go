@@ -301,7 +301,7 @@ func (self *server) Init() error {
 
 	// init store for existiong connection.
 	for id, c := range self.Connections {
-		log.Println("init connection ", id)
+
 		var store monitoring_store.Store
 		var err error
 		address := "http://" + c.Host + ":" + Utility.ToString(c.Port)
@@ -311,7 +311,6 @@ func (self *server) Init() error {
 		}
 
 		if err != nil {
-			log.Println(err)
 			return err
 		}
 

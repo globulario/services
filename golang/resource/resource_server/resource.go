@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"sort"
 
 	//"reflect"
@@ -1332,8 +1331,13 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 		return err
 	}
 
+	query := rqst.Query
+	if len(query) == 0 {
+		query = "{}" // all
+	}
+
 	// So here I will get the list of retreived permission.
-	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", rqst.Query, "")
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications",query , "")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1352,7 +1356,11 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 			values_["alias"] = ""
 		}
 
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: values_["creation_date"].(int64), LastDeployed: values_["last_deployed"].(int64), Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string)}
+		// Set the date
+		creationDate :=  int64(Utility.ToInt(values_["creation_date"]))
+		lastDeployed := int64(Utility.ToInt(values_["last_deployed"]))
+
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string)}
 
 		stream.Send(&resourcepb.GetApplicationsRsp{
 			Applications: []*resourcepb.Application{application},
@@ -2440,7 +2448,7 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Services", `{}`, "")
+	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", `{}`, "")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -2536,7 +2544,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	jsonStr = strings.ReplaceAll(jsonStr, "publisherId", "publisherid")
 
 	// Always create a new if not already exist.
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Services", `{"id":"`+rqst.Descriptor_.Id+`", "publisherid":"`+rqst.Descriptor_.PublisherId+`", "version":"`+rqst.Descriptor_.Version+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", `{"id":"`+rqst.Descriptor_.Id+`", "publisherid":"`+rqst.Descriptor_.PublisherId+`", "version":"`+rqst.Descriptor_.Version+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2557,7 +2565,7 @@ func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "PackageBundle", `{"_id":"`+rqst.Id+`"}`, "")
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Bundles", `{"_id":"`+rqst.Id+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2585,15 +2593,14 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.Descriptor_.PublisherId + "%" + bundle.Descriptor_.Name + "%" + bundle.Descriptor_.Version + "%" + bundle.Descriptor_.Id + "%" + bundle.Plaform)
 
-	log.Println(id)
-	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.Descriptor_.PublisherId, "servicename": bundle.Descriptor_.Name, "serviceid": bundle.Descriptor_.Id, "modified": time.Now().Unix(), "size": len(bundle.Binairies)})
+	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.Descriptor_.PublisherId, "servicename": bundle.Descriptor_.Name, "serviceid": bundle.Descriptor_.Id, "modified": bundle.Modified, "size": bundle.Size})
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "PackageBundle", `{"_id":"`+id+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Bundles", `{"_id":"`+id+`"}`, jsonStr, `[{"upsert": true}]`)
 
 	return nil, err
 }

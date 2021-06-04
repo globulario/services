@@ -6,7 +6,6 @@ import (
 
 	"encoding/json"
 	"errors"
-	"io"
 	"io/ioutil"
 	"log"
 
@@ -377,73 +376,9 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 }
 
 /**
- * Find a packages by keywords.
- */
-func (client *Dicovery_Client) FindServices(keywords []string) ([]*resourcepb.PackageDescriptor, error) {
-	rqst := new(resourcepb.FindPackagesDescriptorRequest)
-	rqst.Keywords = keywords
-
-	rsp, err := client.c.FindPackages(globular.GetClientContext(client), rqst)
-	if err != nil {
-		return nil, err
-	}
-
-	return rsp.GetResults(), nil
-}
-
-/**
- * Get list of service descriptor for one service with  various version.
- */
-func (client *Dicovery_Client) GetPackageDescriptor(service_id string, publisher_id string) ([]*resourcepb.PackageDescriptor, error) {
-	rqst := &resourcepb.GetPackageDescriptorRequest{
-		ServiceId:   service_id,
-		PublisherId: publisher_id,
-	}
-
-	rsp, err := client.c.GetPackageDescriptor(globular.GetClientContext(client), rqst)
-	if err != nil {
-		return nil, err
-	}
-
-	return rsp.GetResults(), nil
-}
-
-/**
- * Get a list of all packages descriptor for a given server.
- */
-func (client *Dicovery_Client) GetPackagesDescriptorDescriptor() ([]*resourcepb.PackageDescriptor, error) {
-	descriptors := make([]*resourcepb.PackageDescriptor, 0)
-	rqst := &resourcepb.GetPackagesDescriptorRequest{}
-
-	stream, err := client.c.GetPackagesDescriptor(globular.GetClientContext(client), rqst)
-	if err != nil {
-		return nil, err
-	}
-
-	// Here I will create the final array
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			// end of stream...
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		descriptors = append(descriptors, msg.GetResults()...)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return descriptors, nil
-}
-
-/**
  * Publish an application on the server.
  */
-func (client *Dicovery_Client) PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role) error {
+func (client *Dicovery_Client) PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
 	// TODO upload the package and publish the application after see old admin client code bundle from the path...
 
 	rqst := &discoverypb.PublishApplicationRequest{
@@ -460,6 +395,8 @@ func (client *Dicovery_Client) PublishApplication(user, organization, path, name
 		Actions:      actions,
 		Keywords:     keywords,
 		Roles:        roles,
+		Path:         path,
+		Groups: 	  groups,
 	}
 
 	_, err := client.c.PublishApplication(globular.GetClientContext(client), rqst)

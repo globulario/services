@@ -4,17 +4,6 @@
  */
 
 import {
-  GetConfigRequest,
-  SaveConfigRequest,
-  InstallServiceRequest,
-  InstallServiceResponse,
-  StopServiceRequest,
-  StartServiceRequest,
-  SaveConfigResponse,
-  SetEmailRequest,
-  SetPasswordRequest,
-  UninstallServiceRequest,
-  UninstallServiceResponse,
   HasRunningProcessRequest,
   HasRunningProcessResponse,
 } from "./admin/admin_pb";
@@ -23,10 +12,7 @@ import { QueryRangeRequest, QueryRequest } from "./monitoring/monitoring_pb";
 
 import {
   RegisterAccountRqst,
-  AuthenticateRqst,
   Account,
-  GetAllActionsRqst,
-  GetAllActionsRsp,
   AddRoleActionsRqst,
   AddRoleActionsRsp,
   RemoveRoleActionRqst,
@@ -34,10 +20,6 @@ import {
   Role,
   CreateRoleRsp,
   DeleteRoleRqst,
-  RefreshTokenRqst,
-  RefreshTokenRsp,
-  GetAllApplicationsInfoRqst,
-  GetAllApplicationsInfoRsp,
   AddApplicationActionsRqst,
   AddApplicationActionsRsp,
   RemoveApplicationActionRqst,
@@ -45,11 +27,6 @@ import {
   DeleteAccountRqst,
   AddAccountRoleRqst,
   RemoveAccountRoleRqst,
-  SynchronizeLdapRqst,
-  LdapSyncInfos,
-  SynchronizeLdapRsp,
-  UserSyncInfos,
-  GroupSyncInfos,
   GetPeersRqst,
   GetPeersRsp,
   Peer,
@@ -76,6 +53,9 @@ import {
   CreateGroupRsp,
   DeleteGroupRqst,
   DeleteGroupRsp,
+  GetApplicationsRqst,
+  GetApplicationsRsp,
+  Application,
 } from "./resource/resource_pb";
 
 import {
@@ -129,6 +109,7 @@ import {
   SearchDocumentsResponse,
   SearchResult,
 } from "./search/search_pb";
+import { AuthenticateRqst, RefreshTokenRqst, RefreshTokenRsp } from "./authentication/authentication_pb";
 
 // Here I will get the authentication information.
 const domain = window.location.hostname;
@@ -211,73 +192,6 @@ export function hasRuningProcess(
       console.log(err);
       callback(false);
     });
-}
-
-/**
- * Return the globular configuration file. The return config object
- * can contain sensible information so it must be called with appropriate
- * level of permission.
- * @param globular
- * @param application
- * @param domain
- * @param callback
- * @param errorCallback
- */
-export function readFullConfig(
-  globular: Globular,
-  callback: (config: any) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new GetConfigRequest();
-  if (globular.adminService !== undefined) {
-    globular.adminService
-      .getFullConfig(rqst, {
-        token: getToken(),
-        application: application.length > 0 ? application : globular.config.IndexApplication,
-        domain: domain,
-      })
-      .then((rsp) => {
-        let config = rsp.getResult(); // set the globular config with the full config.
-        callback(config);
-      })
-      .catch((err) => {
-        errorCallback(err);
-      });
-  }
-}
-
-/**
- * Save a configuration
- * @param globular
- * @param application
- * @param domain
- * @param config The configuration to be save.
- * @param callback
- * @param errorCallback
- */
-export function saveConfig(
-  globular: Globular,
-  config: IConfig,
-  callback: (config: IConfig) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new SaveConfigRequest();
-  rqst.setConfig(JSON.stringify(config));
-  if (globular.adminService !== undefined) {
-    globular.adminService
-      .saveConfig(rqst, {
-        token: getToken(),
-        application: application.length > 0 ? application : globular.config.IndexApplication,
-        domain: domain,
-      })
-      .then((rsp) => {
-        config = JSON.parse(rsp.getResult());
-        callback(config);
-      })
-      .catch((err) => {
-        errorCallback(err);
-      });
-  }
 }
 
 /**
@@ -1026,85 +940,6 @@ export function appendRoleToAccount(
 }
 
 /**
- * Update the account email
- * @param accountId The account id
- * @param old_email the old email
- * @param new_email the new email
- * @param callback  the callback when success
- * @param errorCallback the error callback in case of error
- */
-export function updateAccountEmail(
-  globular: Globular,
-  accountId: string,
-  oldEmail: string,
-  newEmail: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new SetEmailRequest();
-  rqst.setAccountid(accountId);
-  rqst.setOldemail(oldEmail);
-  rqst.setNewemail(newEmail);
-
-  globular.adminService
-    .setEmail(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then((rsp) => {
-      callback();
-    })
-    .catch((err) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * The update account password
- * @param accountId The account id
- * @param old_password The old password
- * @param new_password The new password
- * @param confirm_password The new password confirmation
- * @param callback The success callback
- * @param errorCallback The error callback.
- */
-export function updateAccountPassword(
-  globular: Globular,
-  accountId: string,
-  oldPassword: string,
-  newPassword: string,
-  confirmPassword: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new SetPasswordRequest();
-  rqst.setAccountid(accountId);
-  rqst.setOldpassword(oldPassword);
-  rqst.setNewpassword(newPassword);
-
-  if (confirmPassword !== newPassword) {
-    errorCallback("password not match!");
-    return;
-  }
-
-  globular.adminService
-    .setPassword(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then((rsp) => {
-      callback();
-    })
-    .catch((error) => {
-      if (errorCallback !== undefined) {
-        errorCallback(error);
-      }
-    });
-}
-
-/**
  * Authenticate the user and get the token
  * @param globular
  * @param eventHub
@@ -1115,6 +950,7 @@ export function updateAccountPassword(
  * @param callback
  * @param errorCallback
  */
+
 export function authenticate(
   globular: Globular,
   eventHub: EventHub,
@@ -1128,7 +964,7 @@ export function authenticate(
   rqst.setPassword(password);
 
   // Create the user account.
-  globular.resourceService
+  globular.authenticationService
     .authenticate(rqst, { application: application.length > 0 ? application : globular.config.IndexApplication, domain: domain })
     .then((rsp) => {
       // Here I will set the token in the localstorage.
@@ -1139,22 +975,15 @@ export function authenticate(
       localStorage.setItem("user_token", token);
       localStorage.setItem("user_name", decoded.username);
 
-      readFullConfig(
-        globular,
-        (config: any) => {
-          // Publish local login event.
-          eventHub.publish("onlogin", config, true); // return the full config...
-          callback(decoded);
-        },
-        (err: any) => {
-          errorCallback(err);
-        }
-      );
+      // Publish local login event.
+      eventHub.publish("onlogin", globular.config, true); // return the full config...
+      callback(decoded);
     })
     .catch((err) => {
       errorCallback(err);
     });
 }
+
 
 /**
  * Function to be use to refresh token.
@@ -1174,7 +1003,7 @@ export function refreshToken(
   const rqst = new RefreshTokenRqst();
   rqst.setToken(localStorage.getItem("user_token"));
 
-  globular.resourceService
+  globular.authenticationService
     .refreshToken(rqst, {
       token: getToken(),
       application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -1331,27 +1160,6 @@ export function readUserData(
 }
 
 ///////////////////////////////////// Role action //////////////////////////////////////
-
-/**
- * Retreive all available actions on the server.
- * @param callback That function is call in case of success.
- * @param errorCallback That function is call in case error.
- */
-export function getAllActions(
-  globular: Globular,
-  callback: (ations: string[]) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new GetAllActionsRqst();
-  globular.resourceService
-    .getAllActions(rqst, { application: application.length > 0 ? application : globular.config.IndexApplication, domain: domain })
-    .then((rsp: GetAllActionsRsp) => {
-      callback(rsp.getActionsList());
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
 
 /**
  * Retreive the list of all available roles on the server.
@@ -1766,16 +1574,26 @@ export function getAllApplicationsInfo(
   callback: (infos: any) => void,
   errorCallback: (err: any) => void
 ) {
-  const rqst = new GetAllApplicationsInfoRqst();
-  globular.resourceService
-    .getAllApplicationsInfo(rqst)
-    .then((rsp: GetAllApplicationsInfoRsp) => {
-      const infos = rsp.getApplicationsList();
-      callback(infos);
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
+  const rqst = new GetApplicationsRqst();
+
+  const stream = globular.resourceService.getApplications(rqst, {
+    application: application.length > 0 ? application : globular.config.IndexApplication,
+    domain: domain,
+  });
+
+  let applications = new Array<Application>();
+
+  stream.on("data", (rsp: GetApplicationsRsp) => {
+    applications = applications.concat(rsp.getApplicationsList());
+  });
+
+  stream.on("status", (status) => {
+    if (status.code === 0) {
+      callback(applications);
+    } else {
+      errorCallback({ message: status.details });
+    }
+  });
 }
 
 /**
@@ -2039,167 +1857,6 @@ export function FindPackages(
     .findPackages(rqst, { application: application.length > 0 ? application : globular.config.IndexApplication, domain: domain })
     .then((rsp: FindPackagesDescriptorResponse) => {
       callback(rsp.getResultsList());
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Install a service
- * @param globular
- * @param application
- * @param domain
- * @param discoveryId
- * @param serviceId
- * @param publisherId
- * @param version
- * @param callback
- * @param errorCallback
- */
-export function installService(
-  globular: Globular,
-  discoveryId: string,
-  serviceId: string,
-  publisherId: string,
-  version: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new InstallServiceRequest();
-  rqst.setPublisherid(publisherId);
-  rqst.setDicorveryid(discoveryId);
-  rqst.setServiceid(serviceId);
-  rqst.setVersion(version);
-
-  // Install the service.
-  globular.adminService
-    .installService(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then((rsp: InstallServiceResponse) => {
-      readFullConfig(globular, callback, errorCallback);
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Stop a service.
- */
-export function stopService(
-  globular: Globular,
-  serviceId: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new StopServiceRequest();
-  rqst.setServiceId(serviceId);
-  globular.adminService
-    .stopService(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then(() => {
-      callback();
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Start a service
- * @param serviceId The id of the service to start.
- * @param callback  The callback on success.
- */
-export function startService(
-  globular: Globular,
-  serviceId: string,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new StartServiceRequest();
-  rqst.setServiceId(serviceId);
-  globular.adminService
-    .startService(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then(() => {
-      callback();
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Here I will save the service configuration.
- * @param service The configuration to save.
- */
-export function saveService(
-  globular: Globular,
-  service: IServiceConfig,
-  callback: (config: any) => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new SaveConfigRequest();
-
-  rqst.setConfig(JSON.stringify(service));
-  globular.adminService
-    .saveConfig(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then((rsp: SaveConfigResponse) => {
-      // The service with updated values...
-      callback(JSON.parse(rsp.getResult()));
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
-}
-
-/**
- * Uninstall a service from the server.
- * @param globular
- * @param application
- * @param domain
- * @param service
- * @param deletePermissions
- * @param callback
- * @param errorCallback
- */
-export function uninstallService(
-  globular: Globular,
-  service: IServiceConfig,
-  deletePermissions: boolean,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new UninstallServiceRequest();
-  rqst.setServiceid(service.Id);
-  rqst.setPublisherid(service.PublisherId);
-  rqst.setVersion(service.Version);
-  rqst.setDeletepermissions(deletePermissions);
-
-  globular.adminService
-    .uninstallService(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then((rsp: UninstallServiceResponse) => {
-      delete globular.config.Services[service.Id];
-      // The service with updated values...
-      callback();
     })
     .catch((err: any) => {
       errorCallback(err);
@@ -2497,56 +2154,6 @@ export function getNumbeOfLogsByMethod(
       errorCallback({ message: status.details });
     }
   });
-}
-
-///////////////////////////////////// LDAP operations /////////////////////////////////
-
-/**
- * Synchronize LDAP and Globular/MongoDB user and roles.
- * @param info The synchronisations informations.
- * @param callback success callback.
- */
-export function syncLdapInfos(
-  globular: Globular,
-  info: any,
-  timeout: number,
-  callback: () => void,
-  errorCallback: (err: any) => void
-) {
-  const rqst = new SynchronizeLdapRqst();
-  const syncInfos = new LdapSyncInfos();
-  syncInfos.setConnectionid(info.connectionId);
-  syncInfos.setLdapseriveid(info.ldapSeriveId);
-  syncInfos.setRefresh(info.refresh);
-
-  const userSyncInfos = new UserSyncInfos();
-  userSyncInfos.setBase(info.userSyncInfos.base);
-  userSyncInfos.setQuery(info.userSyncInfos.query);
-  userSyncInfos.setId(info.userSyncInfos.id);
-  userSyncInfos.setEmail(info.userSyncInfos.email);
-  syncInfos.setUsersyncinfos(userSyncInfos);
-
-  const groupSyncInfos = new GroupSyncInfos();
-  groupSyncInfos.setBase(info.groupSyncInfos.base);
-  groupSyncInfos.setQuery(info.groupSyncInfos.query);
-  groupSyncInfos.setId(info.groupSyncInfos.id);
-  syncInfos.setGroupsyncinfos(groupSyncInfos);
-
-  rqst.setSyncinfo(syncInfos);
-
-  // Try to synchronyze the ldap service.
-  globular.resourceService
-    .synchronizeLdap(rqst, {
-      token: getToken(),
-      application: application.length > 0 ? application : globular.config.IndexApplication,
-      domain: domain,
-    })
-    .then((rsp: SynchronizeLdapRsp) => {
-      callback();
-    })
-    .catch((err: any) => {
-      errorCallback(err);
-    });
 }
 
 ///////////////////////////////////// SQL operations /////////////////////////////////

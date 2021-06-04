@@ -300,7 +300,6 @@ var (
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 		if err != nil {
-			log.Println("fail to get RBAC client with error ", err)
 			return nil, err
 		}
 
@@ -309,6 +308,12 @@ var (
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	var err error
+	rbac_client_, err = GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+
 	return rbac_client_.SetActionResourcesPermissions(permissions )
 }
 
@@ -373,7 +378,6 @@ func (server *server) registerSa() error {
 	existMongo := exec.Command("mongod", "--version")
 	err := existMongo.Run()
 	if err != nil {
-		log.Println("fail to start mongo db!", err)
 		return err
 	}
 
@@ -476,7 +480,6 @@ func (server *server) waitForMongo(timeout int, withAuth bool) error {
 	script := exec.Command("mongo", args...)
 	err := script.Run()
 	if err != nil {
-		log.Println("wait for mongo...", timeout, "s")
 		if timeout == 0 {
 			return errors.New("mongod is not responding")
 		}
@@ -644,7 +647,6 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		return err
 	}
 
-	log.Println("create reference ", id, " source ", sourceCollection, " field ", field, " field ", targetId, " target ", targetCollection)
 	source := values.(map[string]interface{})
 	references := make([]interface{}, 0)
 	if source[field] != nil {
@@ -677,8 +679,7 @@ func (resource_server *server) createCrossReferences(sourceId, sourceCollection,
 
 	err = resource_server.createReference(p, targetId, targetCollection, targetField, sourceId, sourceCollection)
 	if err != nil {
-		//return err
-		log.Println(err)
+		return err
 	}
 
 	err = resource_server.createReference(p, sourceId, sourceCollection, sourceField, targetId, targetCollection)
@@ -752,7 +753,7 @@ func (resource_server *server) createGroup(id, name string, members []string) er
 	for i := 0; i < len(members); i++ {
 		err := resource_server.createCrossReferences(id, "Groups", "members", members[i], "Accounts", "groups")
 		if err != nil {
-			log.Println(err)
+			return err
 		}
 	}
 

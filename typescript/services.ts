@@ -1,4 +1,5 @@
 // Here is the list of services from the backend.
+import { AuthenticationServicePromiseClient } from './authentication/authentication_grpc_web_pb';
 import { EventServicePromiseClient } from './event/event_grpc_web_pb';
 import { EchoServicePromiseClient } from './echo/echo_grpc_web_pb';
 import { CatalogServicePromiseClient } from './catalog/catalog_grpc_web_pb';
@@ -426,6 +427,29 @@ export class Globular {
     return this._adminService;
   }
 
+  /** The authentication services */
+  private _authenticationService: AuthenticationServicePromiseClient
+  public get authenticationService(): AuthenticationServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._authenticationService == null) {
+      let configs = this.getConfigs('authentication.AuthenticationService')
+      configs.forEach((config: IServiceConfig) => {
+        this._authenticationService = new AuthenticationServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._authenticationService
+      });
+    }
+    return this._authenticationService;
+  }
+
+  /** The resource promise client */
   private _resourceService: ResourceServicePromiseClient
   public get resourceService(): ResourceServicePromiseClient | undefined {
     // refresh the config.
@@ -535,7 +559,7 @@ export class Globular {
   public get packagesDicovery(): PackageDiscoveryPromiseClient | undefined {
     // refresh the config.
     if (this._packagesDicovery == null) {
-      let configs = this.getConfigs('packages.PackageDiscovery')
+      let configs = this.getConfigs('discovery.PackageDiscovery')
       configs.forEach((config: IServiceConfig) => {
         this._packagesDicovery = new PackageDiscoveryPromiseClient(
           this.config.Protocol +
@@ -556,7 +580,7 @@ export class Globular {
   public get servicesRepository(): PackageRepositoryPromiseClient | undefined {
     // refresh the config.
     if (this._servicesRepository == null) {
-      let configs = this.getConfigs('packages.PackageRepository')
+      let configs = this.getConfigs('repository.PackageRepository')
       configs.forEach((config: IServiceConfig) => {
         this._servicesRepository = new PackageRepositoryPromiseClient(
           this.config.Protocol +

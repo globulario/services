@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/discovery/discovery_client"
+	"github.com/globulario/services/golang/resource/resource_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -41,18 +41,16 @@ func (server *server) UninstallService(ctx context.Context, rqst *services_manag
 // file postinst, postrm, preinst, postinst
 func (server *server) installService(descriptor *resourcepb.PackageDescriptor) error {
 	// repository must exist...
-	log.Println("step 2: try to dowload service bundle")
 	if len(descriptor.Repositories) == 0 {
 		return errors.New("No service repository was found for service " + descriptor.Id)
 	}
 
 	for i := 0; i < len(descriptor.Repositories); i++ {
-		services_repository, err := repository_client.NewRepositoryService_Client(descriptor.Repositories[i], "packages.PackageRepository")
+		services_repository, err := repository_client.NewRepositoryService_Client(descriptor.Repositories[i], "repository.PackageRepository")
 		if err != nil {
 			return err
 		}
 
-		log.Println("try to download service from ", descriptor.Repositories[i])
 		bundle, err := services_repository.DownloadBundle(descriptor, globular.GetPlatform())
 
 		if err == nil {
@@ -67,12 +65,6 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			r := bytes.NewReader(bundle.Binairies)
 			_extracted_path_, err := Utility.ExtractTarGz(r)
 			defer os.RemoveAll(_extracted_path_)
-			if err != nil {
-				if err.Error() != "EOF" {
-					// report the error and try to continue...
-					log.Println(err)
-				}
-			}
 
 			// I will save the binairy in file...
 			Utility.CreateDirIfNotExist(server.Root + "/services/")
@@ -87,21 +79,17 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			// before I will start the service I will get a look if preinst script must be run...
 			if Utility.Exists(path + "/preinst") {
 				// I that case I will run it...
-				log.Println("run preinst script please wait...")
 				script := exec.Command("/bin/sh", path+"/preinst")
 				err := script.Run()
 				if err != nil {
-					log.Println("error with script ", err.Error())
 					defer os.RemoveAll(path)
 					return err
 				}
-				log.Println("preinst script was execute with success! ")
 			}
 
 			configs, _ := Utility.FindFileByName(path, "config.json")
 
 			if len(configs) == 0 {
-				log.Println("No configuration file was found at at path ", path)
 				return errors.New("no configuration file was found")
 			}
 
@@ -117,7 +105,6 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 			protos, _ := Utility.FindFileByName(server.Root+"/services/"+descriptor.PublisherId+"/"+descriptor.Name+"/"+descriptor.Version, ".proto")
 			if len(protos) == 0 {
-				log.Println("No prototype file was found at at path ", server.Root+"/services/"+descriptor.PublisherId+"/"+descriptor.Name+"/"+descriptor.Version)
 				return errors.New("no configuration file was found")
 			}
 
@@ -134,7 +121,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 			err = os.Chmod(s["Path"].(string), 0755)
 			if err != nil {
-				log.Println(err)
+				return err
 			}
 
 			jsonStr, _ := Utility.ToJson(s)
@@ -143,7 +130,6 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			// set the service in the map.
 			s_ := new(sync.Map)
 			setValues(s_, s)
-			log.Println("Service is install successfully!")
 
 			// initialyse the new service.
 			err = server.initService(s_)
@@ -169,11 +155,9 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 				script := exec.Command("/bin/sh", path+"/postinst")
 				err := script.Run()
 				if err != nil {
-					log.Println("error with script ", err.Error())
 					defer os.RemoveAll(path)
 					return err
 				}
-				log.Println("running script ", path)
 			}
 
 			if needSave {
@@ -183,7 +167,6 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 			break
 		} else {
-			log.Println("fail to download error with error ", err)
 			return err
 		}
 	}
@@ -194,10 +177,9 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 // Install/Update a service on globular instance.
 func (server *server) InstallService(ctx context.Context, rqst *services_managerpb.InstallServiceRequest) (*services_managerpb.InstallServiceResponse, error) {
-	log.Println("Try to install new service ", rqst.ServiceId, "from", rqst.DicorveryId)
 
 	// Connect to the dicovery services
-	services_discovery, err := discovery_client.NewDiscoveryService_Client(rqst.DicorveryId, "packages.PackageDiscovery")
+	resource_client_, err := resource_client.NewResourceService_Client(rqst.DicorveryId, "resource.ResourceService")
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -205,25 +187,15 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to connect to "+rqst.DicorveryId)))
 	}
 
-	descriptors, err := services_discovery.GetPackageDescriptor(rqst.ServiceId, rqst.PublisherId)
+	descriptor, err := resource_client_.GetPackageDescriptor(rqst.ServiceId, rqst.PublisherId, rqst.Version)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	log.Println("step 1: get service descriptor")
-
 	// The first element in the array is the most recent descriptor
 	// so if no version is given the most recent will be taken.
-	descriptor := descriptors[0]
-	for i := 0; i < len(descriptors); i++ {
-		if descriptors[i].Version == rqst.Version {
-			descriptor = descriptors[i]
-			break
-		}
-	}
-
 	err = server.installService(descriptor)
 	if err != nil {
 		return nil, status.Errorf(
@@ -231,7 +203,6 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	log.Println("Service was install!")
 	return &services_managerpb.InstallServiceResponse{
 		Result: true,
 	}, nil

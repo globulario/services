@@ -23,7 +23,6 @@ func TestCreateConnection(t *testing.T) {
 	// err := client.CreateConnection("test", "127.0.0.1", 0, 9090)
 	err := client.CreateConnection("dashboard_connection", "localhost", 0, 9090)
 	if err != nil {
-		log.Println("Fail to create a new connection", err)
 		t.Fail()
 	}
 }
@@ -33,7 +32,6 @@ func TestGetConfig(t *testing.T) {
 	fmt.Println("Get configuration test.")
 	config, err := client.Config("dashboard_connection")
 	if err != nil {
-		log.Println("Fail to get test config", err)
 		t.Fail()
 	}
 

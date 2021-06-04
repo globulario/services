@@ -52,19 +52,7 @@ message PublishApplicationResponse{
 
 /** functionality to retreive a service **/
 service PackageDiscovery {
-	
-	/** Search service by keywords **/
-	rpc FindPackages(resource.FindPackagesDescriptorRequest) returns (resource.FindPackagesDescriptorResponse);
-	
-	/** Return the list of all packages **/
-	rpc GetPackageDescriptor(resource.GetPackageDescriptorRequest) returns ( resource.GetPackageDescriptorResponse);
-	
-	/** Return the list of all packages **/
-	rpc GetPackagesDescriptor(resource.GetPackagesDescriptorRequest) returns(stream resource.GetPackagesDescriptorResponse);
-	
-	/** Save a service descriptor **/
-	rpc SetPackageDescriptor(resource.SetPackageDescriptorRequest) returns(resource.SetPackageDescriptorResponse);
-	
+
     /** Publish a service into globular repository */
     rpc PublishService(PublishServiceRequest) returns (PublishServiceResponse);
 	

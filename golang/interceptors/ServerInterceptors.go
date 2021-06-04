@@ -69,7 +69,6 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 		if err != nil {
-			log.Println("fail to get RBAC client with error ", err)
 			return nil, err
 		}
 
@@ -305,7 +304,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/resource.ResourceService/RegisterPeer" ||
 		method == "/resource.ResourceService/GetPeers" ||
 		method == "/resource.ResourceService/AccountExist" ||
-		method == "/resource.ResourceService/GetAllApplicationsInfo" ||
 		method == "/resource.ResourceService/SetAccountPassword" ||
 		method == "/resource.ResourceService/RegisterAccount" ||
 		method == "/rbac.RbacService/GetActionResourceInfos" ||
@@ -320,15 +318,12 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		hasAccess = true
 	}
 
-	log.Println("validate " + method)
-
 	var clientId string
 	var err error
 
 	if len(token) > 0 {
 		clientId, _, _, _, err = ValidateToken(token)
 		if err != nil && !hasAccess {
-			log.Println("token validation fail with error: ", token, err)
 			return nil, err
 		}
 		if clientId == "sa" {
@@ -442,10 +437,10 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	hasAccess := l.clientId == "sa" ||
 		l.method == "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo" ||
 		l.method == "/admin.AdminService/DownloadGlobular" ||
-		l.method == "/packages.PackageRepository/DownloadBundle"
+		l.method == "/repository.PackageRepository/DownloadBundle" ||
+		l.method == "/resource.ResourceService/GetApplications"
 
 	if hasAccess {
-		//log.Println("has access ", l.method )
 		return nil
 	}
 

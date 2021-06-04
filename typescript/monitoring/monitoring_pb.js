@@ -460,7 +460,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.monitoring.LabelValuesRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.monitoring.LabelValuesRequest.repeatedFields_, null);
 };
 goog.inherits(proto.monitoring.LabelValuesRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -3581,6 +3581,13 @@ proto.monitoring.LabelNamesResponse.prototype.setWarnings = function(value) {
 
 
 
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.monitoring.LabelValuesRequest.repeatedFields_ = [3];
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -3614,8 +3621,9 @@ proto.monitoring.LabelValuesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     connectionid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     label: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    starttime: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    endtime: jspb.Message.getFieldWithDefault(msg, 4, 0)
+    valuesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
+    starttime: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    endtime: jspb.Message.getFieldWithDefault(msg, 5, 0)
   };
 
   if (includeInstance) {
@@ -3661,10 +3669,14 @@ proto.monitoring.LabelValuesRequest.deserializeBinaryFromReader = function(msg, 
       msg.setLabel(value);
       break;
     case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addValues(value);
+      break;
+    case 4:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setStarttime(value);
       break;
-    case 4:
+    case 5:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setEndtime(value);
       break;
@@ -3711,17 +3723,24 @@ proto.monitoring.LabelValuesRequest.serializeBinaryToWriter = function(message, 
       f
     );
   }
+  f = message.getValuesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      3,
+      f
+    );
+  }
   f = message.getStarttime();
   if (f !== 0) {
     writer.writeInt64(
-      3,
+      4,
       f
     );
   }
   f = message.getEndtime();
   if (f !== 0) {
     writer.writeInt64(
-      4,
+      5,
       f
     );
   }
@@ -3765,28 +3784,47 @@ proto.monitoring.LabelValuesRequest.prototype.setLabel = function(value) {
 
 
 /**
- * optional int64 startTime = 3;
+ * repeated string values = 3;
+ * @return {!Array<string>}
+ */
+proto.monitoring.LabelValuesRequest.prototype.getValuesList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.monitoring.LabelValuesRequest} returns this
+ */
+proto.monitoring.LabelValuesRequest.prototype.setValuesList = function(value) {
+  return jspb.Message.setField(this, 3, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.monitoring.LabelValuesRequest} returns this
+ */
+proto.monitoring.LabelValuesRequest.prototype.addValues = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.monitoring.LabelValuesRequest} returns this
+ */
+proto.monitoring.LabelValuesRequest.prototype.clearValuesList = function() {
+  return this.setValuesList([]);
+};
+
+
+/**
+ * optional int64 startTime = 4;
  * @return {number}
  */
 proto.monitoring.LabelValuesRequest.prototype.getStarttime = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
-};
-
-
-/**
- * @param {number} value
- * @return {!proto.monitoring.LabelValuesRequest} returns this
- */
-proto.monitoring.LabelValuesRequest.prototype.setStarttime = function(value) {
-  return jspb.Message.setProto3IntField(this, 3, value);
-};
-
-
-/**
- * optional int64 endTime = 4;
- * @return {number}
- */
-proto.monitoring.LabelValuesRequest.prototype.getEndtime = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
 };
 
@@ -3795,8 +3833,26 @@ proto.monitoring.LabelValuesRequest.prototype.getEndtime = function() {
  * @param {number} value
  * @return {!proto.monitoring.LabelValuesRequest} returns this
  */
-proto.monitoring.LabelValuesRequest.prototype.setEndtime = function(value) {
+proto.monitoring.LabelValuesRequest.prototype.setStarttime = function(value) {
   return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional int64 endTime = 5;
+ * @return {number}
+ */
+proto.monitoring.LabelValuesRequest.prototype.getEndtime = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.monitoring.LabelValuesRequest} returns this
+ */
+proto.monitoring.LabelValuesRequest.prototype.setEndtime = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
 };
 
 

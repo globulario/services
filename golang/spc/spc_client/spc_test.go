@@ -67,6 +67,4 @@ func TestSpc(t *testing.T) {
 	if err != nil {
 		log.Fatalf("error while CreateConnection: %v", err)
 	}
-
-	log.Println("Response form CreateConnection:", rsp.Result)
 }

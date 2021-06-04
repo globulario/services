@@ -74,7 +74,7 @@ func startImap(port int, keyFile string, certFile string) {
 				log.Println(err)
 				return
 			}
-			log.Println("start imap server at address ", s.Addr)
+
 			s.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
 			if err := s.ListenAndServeTLS(); err != nil {
 				log.Fatal(err)
@@ -83,7 +83,7 @@ func startImap(port int, keyFile string, certFile string) {
 			// Since we will use this server for testing only, we can allow plain text
 			// authentication over unencrypted connections
 			s.AllowInsecureAuth = true
-			log.Println("start imap server at address ", s.Addr)
+
 			if err := s.ListenAndServe(); err != nil {
 				log.Fatal(err)
 			}

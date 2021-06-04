@@ -161,9 +161,6 @@ func (client *Services_Manager_Client) SetCaFile(caFile string) {
  */
  func (client *Services_Manager_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
 
-	log.Println("Install service", serviceId, "publisherId", publisherId, "discovery", discoveryId, "on", domain)
-	log.Println("token: ", token)
-
 	rqst := new(services_managerpb.InstallServiceRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
@@ -178,11 +175,6 @@ func (client *Services_Manager_Client) SetCaFile(caFile string) {
 	}
 
 	_, err := client.c.InstallService(ctx, rqst)
-	
-	// Fail to install service.
-	if err != nil {
-		log.Println("fail to install service with error ", err.Error())
-	}
 
 	return err
 }

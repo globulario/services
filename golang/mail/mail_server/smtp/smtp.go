@@ -139,7 +139,6 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			Addr:    "0.0.0.0:" + Utility.ToString(port),
 			Appname: "MyServerApp",
 			AuthHandler: func(remoteAddr net.Addr, mechanism string, username []byte, password []byte, shared []byte) (bool, error) {
-				log.Println("authication try ", mechanism, string(username), " addresse ", remoteAddr.String())
 				answer_ := make(chan map[string]interface{})
 				authenticate <- map[string]interface{}{"user": string(username), "pwd": string(password), "answer": answer_}
 				// wait for answer...
@@ -179,12 +178,10 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			srv.TLSRequired = true
 			cer, err := tls.LoadX509KeyPair(certFile, keyFile)
 			if err != nil {
-				log.Println(err)
 				return
 			}
 			srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cer}}
 		}
-		log.Println("start smtp server at address ", srv.Addr)
 		srv.ListenAndServe()
 
 	}()
@@ -238,11 +235,9 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 		for {
 			select {
 			case data := <-incomming:
-				log.Println("Receive email from ", data["from"], " to ", data["to"])
 				saveMessage(data["to"].(string), "INBOX", data["msg"].([]byte), []string{})
 
 			case data := <-outgoing:
-				log.Println("Send email to ", data["to"], " by ", data["from"])
 				sender := new(Sender)
 				sender.Hostname = domain
 				err := sender.Send(data["from"].(string), []string{data["to"].(string)}, bytes.NewReader(data["msg"].([]byte)))
@@ -269,7 +264,7 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 				}
 
 			case rcpt := <-validateRcpt:
-				log.Println(rcpt)
+				//log.Println(rcpt)
 			}
 		}
 	}()

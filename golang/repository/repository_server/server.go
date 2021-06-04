@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -344,7 +343,12 @@ func (server *server) getPackageBundleChecksum(id string) (string, error) {
 
 /////////////////////// Repositiory specific function /////////////////////////////////
 func (server *server) setPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
-	return errors.New("not implemented")
+	resourceClient, err := server.getResourceClient()
+	if err != nil {
+		return err
+	}
+
+	return resourceClient.SetPackageBundle(checksum, platform, size, modified, descriptor)
 }
 
 // That service is use to give access to SQL.

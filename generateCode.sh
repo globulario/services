@@ -51,6 +51,15 @@ protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/catalog/catalo
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/conversation/conversationpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true conversation.proto
 
 # TypeScript grpc files generation.
+mkdir typescript/applications_manager
+protoc --js_out=import_style=commonjs:typescript/applications_manager  -I ./proto/ applications_manager.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/applications_manager -I ./proto/ applications_manager.proto
+mkdir typescript/services_manager
+protoc --js_out=import_style=commonjs:typescript/services_manager  -I ./proto/ services_manager.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/services_manager -I ./proto/ services_manager.proto
+mkdir typescript/authentication
+protoc --js_out=import_style=commonjs:typescript/authentication  -I ./proto/ authentication.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/authentication -I ./proto/ authentication.proto
 mkdir typescript/admin
 protoc --js_out=import_style=commonjs:typescript/admin  -I ./proto/ admin.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/admin -I ./proto/ admin.proto

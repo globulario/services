@@ -24,13 +24,13 @@ type XapianEngine struct {
 }
 
 // Return the underlying engine version.
-func (self *XapianEngine) GetVersion() string {
+func (search_engine *XapianEngine) GetVersion() string {
 	v := xapian.Version_string()
 	return v
 }
 
 // That function is use to generate a snippet from a text file.
-func (self *XapianEngine) snippets(mset xapian.MSet, path string, mime string, length int64) (string, error) {
+func (search_engine *XapianEngine) snippets(mset xapian.MSet, path string, mime string, length int64) (string, error) {
 
 	// Here I will read the file and try to generate a snippet for it.
 	var text string
@@ -38,7 +38,7 @@ func (self *XapianEngine) snippets(mset xapian.MSet, path string, mime string, l
 
 	// TODO append other file parser here as needed.
 	if mime == "application/pdf" {
-		text, err = self.pdfToText(path)
+		text, err = search_engine.pdfToText(path)
 		if err != nil {
 			return "", err
 		}
@@ -54,7 +54,7 @@ func (self *XapianEngine) snippets(mset xapian.MSet, path string, mime string, l
 }
 
 // Here I will append the sub-database.
-func (self *XapianEngine) addSubDBs(db xapian.Database, path string) []xapian.Database {
+func (search_engine *XapianEngine) addSubDBs(db xapian.Database, path string) []xapian.Database {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		log.Fatal(err)
@@ -69,7 +69,7 @@ func (self *XapianEngine) addSubDBs(db xapian.Database, path string) []xapian.Da
 			_db := xapian.NewDatabase(path + "/" + files[i].Name())
 			db.Add_database(_db)
 			subDbs = append(subDbs, _db)
-			subDbs = append(subDbs, self.addSubDBs(db, path+"/"+files[i].Name())...)
+			subDbs = append(subDbs, search_engine.addSubDBs(db, path+"/"+files[i].Name())...)
 		}
 	}
 
@@ -81,13 +81,13 @@ func (self *XapianEngine) addSubDBs(db xapian.Database, path string) []xapian.Da
 ////////////////////////////////////////////////////////////////////////////////
 
 // Search documents...
-func (self *XapianEngine) searchDocuments(paths []string, language string, fields []string, queryStr string, offset int32, pageSize int32, snippetLength int32) ([]*searchpb.SearchResult, error) {
-	log.Println("Search document ", paths, language, fields, queryStr)
+func (search_engine *XapianEngine) searchDocuments(paths []string, language string, fields []string, queryStr string, offset int32, pageSize int32, snippetLength int32) ([]*searchpb.SearchResult, error) {
+
 	if len(paths) == 0 {
-		return nil, errors.New("No database was path given!")
+		return nil, errors.New("no database was path given")
 	}
 	if !Utility.Exists(paths[0]) {
-		return nil, errors.New("No database found at path " + paths[0])
+		return nil, errors.New("no database found at path " + paths[0])
 	}
 
 	db := xapian.NewDatabase(paths[0])
@@ -100,7 +100,7 @@ func (self *XapianEngine) searchDocuments(paths []string, language string, field
 		defer xapian.DeleteDatabase(_db)
 
 		// Now I will recursively append data base is there is some subdirectory...
-		subDbs := self.addSubDBs(_db, path)
+		subDbs := search_engine.addSubDBs(_db, path)
 		db.Add_database(_db)
 
 		// clear pointer memory...
@@ -164,7 +164,7 @@ func (self *XapianEngine) searchDocuments(paths []string, language string, field
 				type_ = infos["__type__"].(string)
 			}
 			if type_ == "file" {
-				snippet, err := self.snippets(mset, infos["path"].(string), infos["mime"].(string), int64(snippetLength))
+				snippet, err := search_engine.snippets(mset, infos["path"].(string), infos["mime"].(string), int64(snippetLength))
 				if err != nil {
 					return nil, err
 				}
@@ -180,11 +180,11 @@ func (self *XapianEngine) searchDocuments(paths []string, language string, field
 
 }
 
-func (self *XapianEngine) SearchDocuments(paths []string, language string, fields []string, query string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) {
+func (search_engine *XapianEngine) SearchDocuments(paths []string, language string, fields []string, query string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) {
 	results := new(searchpb.SearchResults)
 	var err error
 	// Set as Hash key
-	results.Results, err = self.searchDocuments(paths, language, fields, query, offset, pageSize, snippetLength)
+	results.Results, err = search_engine.searchDocuments(paths, language, fields, query, offset, pageSize, snippetLength)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (self *XapianEngine) SearchDocuments(paths []string, language string, field
 }
 
 // Delete a document.
-func (self *XapianEngine) DeleteDocument(path string, id string) error {
+func (search_engine *XapianEngine) DeleteDocument(path string, id string) error {
 	db := xapian.NewWritableDatabase(path, xapian.DB_CREATE_OR_OPEN)
 	defer xapian.DeleteWritableDatabase(db)
 
@@ -216,7 +216,7 @@ func (self *XapianEngine) DeleteDocument(path string, id string) error {
 /**
  * Set base type indexation.
  */
-func (self *XapianEngine) indexJsonObjectField(db xapian.WritableDatabase, termgenerator xapian.TermGenerator, k string, v interface{}, indexs []string) error {
+func (search_engine *XapianEngine) indexJsonObjectField(db xapian.WritableDatabase, termgenerator xapian.TermGenerator, k string, v interface{}, indexs []string) error {
 	typeOf := reflect.TypeOf(v).Kind()
 	field := strings.ToLower(k)
 	field = strings.ToUpper(field[0:1]) + field[1:]
@@ -243,7 +243,7 @@ func (self *XapianEngine) indexJsonObjectField(db xapian.WritableDatabase, termg
 /**
  * Index a json object.
  */
-func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[string]interface{}, language string, id string, indexs []string, data string) error {
+func (search_engine *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[string]interface{}, language string, id string, indexs []string, data string) error {
 	if obj[id] == nil {
 		return errors.New("Objet has no field named " + id + " required to index...")
 	}
@@ -268,7 +268,7 @@ func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[st
 			field = strings.ToUpper(field[0:1]) + field[1:]
 			if typeOf == reflect.Map {
 				// In case of recursive structure.
-				self.indexJsonObject(db, v.(map[string]interface{}), language, id, indexs, data)
+				search_engine.indexJsonObject(db, v.(map[string]interface{}), language, id, indexs, data)
 			} else if typeOf == reflect.Slice {
 				s := reflect.ValueOf(v)
 				for i := 0; i < s.Len(); i++ {
@@ -277,15 +277,15 @@ func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[st
 					typeOf := reflect.TypeOf(_v).Kind()
 					if typeOf == reflect.Map {
 						// Slice of object.
-						self.indexJsonObject(db, _v.Interface().(map[string]interface{}), language, id, indexs, data)
+						search_engine.indexJsonObject(db, _v.Interface().(map[string]interface{}), language, id, indexs, data)
 					} else {
 						// Slice of literal type.
 
-						self.indexJsonObjectField(db, termgenerator, k, _v.Interface(), indexs)
+						search_engine.indexJsonObjectField(db, termgenerator, k, _v.Interface(), indexs)
 					}
 				}
 			} else {
-				self.indexJsonObjectField(db, termgenerator, k, v, indexs)
+				search_engine.indexJsonObjectField(db, termgenerator, k, v, indexs)
 			}
 		}
 
@@ -324,7 +324,7 @@ func (self *XapianEngine) indexJsonObject(db xapian.WritableDatabase, obj map[st
 /**
  * Index a json object.
  */
-func (self *XapianEngine) IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error {
+func (search_engine *XapianEngine) IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error {
 	db := xapian.NewWritableDatabase(path, xapian.DB_CREATE_OR_OPEN)
 	defer xapian.DeleteWritableDatabase(db)
 
@@ -341,11 +341,11 @@ func (self *XapianEngine) IndexJsonObject(path string, jsonStr string, language 
 	// Now I will append the object into the database.
 	switch v := obj.(type) {
 	case map[string]interface{}:
-		err = self.indexJsonObject(db, v, language, id, indexs, data)
+		err = search_engine.indexJsonObject(db, v, language, id, indexs, data)
 
 	case []interface{}:
 		for i := 0; i < len(v); i++ {
-			err := self.indexJsonObject(db, v[i].(map[string]interface{}), language, id, indexs, data)
+			err := search_engine.indexJsonObject(db, v[i].(map[string]interface{}), language, id, indexs, data)
 			if err != nil {
 				break
 			}
@@ -365,7 +365,7 @@ func (self *XapianEngine) IndexJsonObject(path string, jsonStr string, language 
 	return nil
 }
 
-func (self *XapianEngine) Count(path string) int32 {
+func (search_engine *XapianEngine) Count(path string) int32 {
 	db := xapian.NewDatabase(path)
 	//defer db.Close()
 	defer xapian.DeleteDatabase(db)
@@ -380,7 +380,7 @@ func (self *XapianEngine) Count(path string) int32 {
 /**
  * Index the a dir and it content.
  */
-func (self *XapianEngine) indexDir(dbPath string, dirPath string, language string) error {
+func (search_engine *XapianEngine) indexDir(dbPath string, dirPath string, language string) error {
 
 	dirInfo, err := os.Stat(dirPath)
 	if err != nil {
@@ -417,17 +417,14 @@ func (self *XapianEngine) indexDir(dbPath string, dirPath string, language strin
 	// Now I will index files and recursively index dir content.
 	for _, file := range files {
 		if file.IsDir() {
-			err := self.indexDir(dbPath+"/"+file.Name(), dirPath+"/"+file.Name(), language)
+			err := search_engine.indexDir(dbPath+"/"+file.Name(), dirPath+"/"+file.Name(), language)
 			if err != nil {
 				return err
 			}
 		} else {
 			// Here I will index the file contain in the directory.
 			path := dirPath + "/" + file.Name()
-			err := self.indexFile(db, path, language)
-			if err != nil {
-				log.Println(file.Name(), err)
-			}
+			search_engine.indexFile(db, path, language)
 		}
 	}
 
@@ -463,9 +460,9 @@ func (self *XapianEngine) indexDir(dbPath string, dirPath string, language strin
 	return err
 }
 
-func (self *XapianEngine) IndexDir(dbPath string, dirPath string, language string) error {
+func (search_engine *XapianEngine) IndexDir(dbPath string, dirPath string, language string) error {
 
-	err := self.indexDir(dbPath, dirPath, language)
+	err := search_engine.indexDir(dbPath, dirPath, language)
 	if err != nil {
 		return err
 	}
@@ -477,7 +474,7 @@ func (self *XapianEngine) IndexDir(dbPath string, dirPath string, language strin
 // file from pdf file.
 // On linux type...
 // sudo apt-get install poppler-utils
-func (self *XapianEngine) pdfToText(path string) (string, error) {
+func (search_engine *XapianEngine) pdfToText(path string) (string, error) {
 	// First of all I will test if pdftotext is install.
 	cmd := exec.Command("pdftotext", path)
 	_, err := cmd.Output()
@@ -499,8 +496,8 @@ func (self *XapianEngine) pdfToText(path string) (string, error) {
 }
 
 // Indexation of pdf file.
-func (self *XapianEngine) indexPdfFile(db xapian.WritableDatabase, path string, doc xapian.Document, termgenerator xapian.TermGenerator) error {
-	text, err := self.pdfToText(path)
+func (search_engine *XapianEngine) indexPdfFile(db xapian.WritableDatabase, path string, doc xapian.Document, termgenerator xapian.TermGenerator) error {
+	text, err := search_engine.pdfToText(path)
 	if err != nil {
 		return err
 	}
@@ -509,7 +506,7 @@ func (self *XapianEngine) indexPdfFile(db xapian.WritableDatabase, path string, 
 	return nil
 }
 
-func (self *XapianEngine) indexFile(db xapian.WritableDatabase, path string, language string) error {
+func (search_engine *XapianEngine) indexFile(db xapian.WritableDatabase, path string, language string) error {
 	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
 
 	f, err := os.Open(path)
@@ -547,7 +544,7 @@ func (self *XapianEngine) indexFile(db xapian.WritableDatabase, path string, lan
 	doc.Add_term("T" + mime)
 
 	if mime == "application/pdf" {
-		err = self.indexPdfFile(db, path, doc, termgenerator)
+		err = search_engine.indexPdfFile(db, path, doc, termgenerator)
 		if err != nil {
 			return err
 		}
@@ -581,7 +578,7 @@ func (self *XapianEngine) indexFile(db xapian.WritableDatabase, path string, lan
 }
 
 // Indexation of a text (docx, pdf,xlsx...) file.
-func (self *XapianEngine) IndexFile(filePath string, dbPath string, language string) error {
+func (search_engine *XapianEngine) IndexFile(filePath string, dbPath string, language string) error {
 
 	// The file must be accessible on the server side.
 	if !Utility.Exists(filePath) {
@@ -602,7 +599,7 @@ func (self *XapianEngine) IndexFile(filePath string, dbPath string, language str
 	defer xapian.DeleteWritableDatabase(db)
 	db.Begin_transaction()
 
-	err = self.indexFile(db, filePath, language)
+	err = search_engine.indexFile(db, filePath, language)
 	if err != nil {
 		db.Cancel_transaction()
 		db.Close()

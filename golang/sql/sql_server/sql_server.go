@@ -445,7 +445,6 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConn
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 
 	}
-	log.Println("---> connection created successfully!")
 
 	return &sqlpb.CreateConnectionRsp{
 		Result: true,
