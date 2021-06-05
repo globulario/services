@@ -16,12 +16,12 @@ Here is how to create a connection. The required parameters are,
 * The options string
 * Does the connection must be store in the configuration file
 
-```go Golang
+```go Golang tab
 	user := "sa"
 	pwd := "adminadmin"
 	err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", "localhost", 27017, 0, user, pwd, 500, "", true)
 ```
-```typescript TypeScript
+```typescript TypeScript tab
 
 ```
 
