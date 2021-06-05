@@ -18,9 +18,9 @@ Here is how to create a connection. The required parameters are,
 
 _Go_
 ```go Golang
-	user := "sa"
-	pwd := "adminadmin"
-	err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", "localhost", 27017, 0, user, pwd, 500, "", true)
+user := "sa"
+pwd := "adminadmin"
+err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", "localhost", 27017, 0, user, pwd, 500, "", true)
 ```
 
 
