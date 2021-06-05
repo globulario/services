@@ -61,111 +61,111 @@ func NewPersistenceService_Client(address string, id string) (*Persistence_Clien
 	return client, nil
 }
 
-func (self *Persistence_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Persistence_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *Persistence_Client) GetDomain() string {
-	return self.domain
+func (client *Persistence_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (self *Persistence_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (client *Persistence_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (self *Persistence_Client) GetId() string {
-	return self.id
+func (client *Persistence_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (self *Persistence_Client) GetName() string {
-	return self.name
+func (client *Persistence_Client) GetName() string {
+	return client.name
 }
 
 // must be close when no more needed.
-func (self *Persistence_Client) Close() {
-	if self.cc != nil {
-		self.cc.Close()
+func (client *Persistence_Client) Close() {
+	if client.cc != nil {
+		client.cc.Close()
 	}
 }
 
 // Set grpc_service port.
-func (self *Persistence_Client) SetPort(port int) {
-	self.port = port
+func (client *Persistence_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client instance id.
-func (self *Persistence_Client) SetId(id string) {
-	self.id = id
+func (client *Persistence_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (self *Persistence_Client) SetName(name string) {
-	self.name = name
+func (client *Persistence_Client) SetName(name string) {
+	client.name = name
 }
 
 // Set the domain.
-func (self *Persistence_Client) SetDomain(domain string) {
-	self.domain = domain
+func (client *Persistence_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Persistence_Client) HasTLS() bool {
-	return self.hasTLS
+func (client *Persistence_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Persistence_Client) GetCertFile() string {
-	return self.certFile
+func (client *Persistence_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (self *Persistence_Client) GetKeyFile() string {
-	return self.keyFile
+func (client *Persistence_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Persistence_Client) GetCaFile() string {
-	return self.caFile
+func (client *Persistence_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Persistence_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (client *Persistence_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Persistence_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (client *Persistence_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Persistence_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (client *Persistence_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Persistence_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (client *Persistence_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ///////////////////////// API /////////////////////
 
 // Stop the service.
-func (self *Persistence_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &persistencepb.StopRequest{})
+func (client *Persistence_Client) StopService() {
+	client.c.Stop(globular.GetClientContext(client), &persistencepb.StopRequest{})
 }
 
 // Create a new datastore connection.
-func (self *Persistence_Client) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string, save bool) error {
+func (client *Persistence_Client) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string, save bool) error {
 	rqst := &persistencepb.CreateConnectionRqst{
 		Connection: &persistencepb.Connection{
 			Id:       connectionId,
@@ -181,52 +181,62 @@ func (self *Persistence_Client) CreateConnection(connectionId string, name strin
 		Save: save,
 	}
 
-	_, err := self.c.CreateConnection(globular.GetClientContext(self), rqst)
+	_, err := client.c.CreateConnection(globular.GetClientContext(client), rqst)
 	return err
 }
 
-func (self *Persistence_Client) DeleteConnection(connectionId string) error {
+func (client *Persistence_Client) DeleteConnection(connectionId string) error {
 	rqst := &persistencepb.DeleteConnectionRqst{
 		Id: connectionId,
 	}
 
-	_, err := self.c.DeleteConnection(globular.GetClientContext(self), rqst)
+	_, err := client.c.DeleteConnection(globular.GetClientContext(client), rqst)
 	return err
 }
 
-func (self *Persistence_Client) Connect(id string, password string) error {
+func (client *Persistence_Client) CreateDatabase(connectionId string, database string) error {
+	rqst := &persistencepb.CreateDatabaseRqst{
+		Id: connectionId,
+		Database: database,
+	}
+
+	_, err := client.c.CreateDatabase(globular.GetClientContext(client), rqst)
+	return err
+}
+
+func (client *Persistence_Client) Connect(id string, password string) error {
 	rqst := &persistencepb.ConnectRqst{
 		ConnectionId: id,
 		Password:     password,
 	}
 
-	_, err := self.c.Connect(globular.GetClientContext(self), rqst)
+	_, err := client.c.Connect(globular.GetClientContext(client), rqst)
 	return err
 }
 
-func (self *Persistence_Client) Disconnect(connectionId string) error {
+func (client *Persistence_Client) Disconnect(connectionId string) error {
 
 	rqst := &persistencepb.DisconnectRqst{
 		ConnectionId: connectionId,
 	}
 
-	_, err := self.c.Disconnect(globular.GetClientContext(self), rqst)
+	_, err := client.c.Disconnect(globular.GetClientContext(client), rqst)
 
 	return err
 }
 
-func (self *Persistence_Client) Ping(connectionId string) error {
+func (client *Persistence_Client) Ping(connectionId string) error {
 
 	rqst := &persistencepb.PingConnectionRqst{
 		Id: connectionId,
 	}
 
-	_, err := self.c.Ping(globular.GetClientContext(self), rqst)
+	_, err := client.c.Ping(globular.GetClientContext(client), rqst)
 
 	return err
 }
 
-func (self *Persistence_Client) FindOne(connectionId string, database string, collection string, jsonStr string, options string) (map[string]interface{}, error) {
+func (client *Persistence_Client) FindOne(connectionId string, database string, collection string, jsonStr string, options string) (map[string]interface{}, error) {
 
 	// Retreive a single value...
 	rqst := &persistencepb.FindOneRqst{
@@ -237,7 +247,7 @@ func (self *Persistence_Client) FindOne(connectionId string, database string, co
 		Options:    options,
 	}
 
-	rsp, err := self.c.FindOne(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.FindOne(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -250,7 +260,7 @@ func (self *Persistence_Client) FindOne(connectionId string, database string, co
 	return obj, err
 }
 
-func (self *Persistence_Client) Find(connectionId string, database string, collection string, query string, options string) ([]interface{}, error) {
+func (client *Persistence_Client) Find(connectionId string, database string, collection string, query string, options string) ([]interface{}, error) {
 
 	// Retreive a single value...
 	rqst := &persistencepb.FindRqst{
@@ -261,7 +271,7 @@ func (self *Persistence_Client) Find(connectionId string, database string, colle
 		Options:    options,
 	}
 
-	stream, err := self.c.Find(globular.GetClientContext(self), rqst)
+	stream, err := client.c.Find(globular.GetClientContext(client), rqst)
 
 	// Here I will create the final array
 	var buffer bytes.Buffer
@@ -295,7 +305,7 @@ func (self *Persistence_Client) Find(connectionId string, database string, colle
 /**
  * Usefull function to query and transform document.
  */
-func (self *Persistence_Client) Aggregate(connectionId, database string, collection string, pipeline string, options string) ([]interface{}, error) {
+func (client *Persistence_Client) Aggregate(connectionId, database string, collection string, pipeline string, options string) ([]interface{}, error) {
 	// Retreive a single value...
 	rqst := &persistencepb.AggregateRqst{
 		Id:         connectionId,
@@ -305,7 +315,7 @@ func (self *Persistence_Client) Aggregate(connectionId, database string, collect
 		Options:    options,
 	}
 
-	stream, err := self.c.Aggregate(globular.GetClientContext(self), rqst)
+	stream, err := client.c.Aggregate(globular.GetClientContext(client), rqst)
 
 	if err != nil {
 		return nil, err
@@ -343,7 +353,7 @@ func (self *Persistence_Client) Aggregate(connectionId, database string, collect
 /**
  * Count the number of document that match the query.
  */
-func (self *Persistence_Client) Count(connectionId string, database string, collection string, query string, options string) (int, error) {
+func (client *Persistence_Client) Count(connectionId string, database string, collection string, query string, options string) (int, error) {
 
 	rqst := &persistencepb.CountRqst{
 		Id:         connectionId,
@@ -353,7 +363,7 @@ func (self *Persistence_Client) Count(connectionId string, database string, coll
 		Options:    options,
 	}
 
-	rsp, err := self.c.Count(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.Count(globular.GetClientContext(client), rqst)
 
 	if err != nil {
 		return 0, err
@@ -365,7 +375,7 @@ func (self *Persistence_Client) Count(connectionId string, database string, coll
 /**
  * Insert one value in the database.
  */
-func (self *Persistence_Client) InsertOne(connectionId string, database string, collection string, jsonStr string, options string) (string, error) {
+func (client *Persistence_Client) InsertOne(connectionId string, database string, collection string, jsonStr string, options string) (string, error) {
 
 	// Try to marshal object...
 
@@ -377,7 +387,7 @@ func (self *Persistence_Client) InsertOne(connectionId string, database string, 
 		Options:    options,
 	}
 
-	rsp, err := self.c.InsertOne(globular.GetClientContext(self), rqst)
+	rsp, err := client.c.InsertOne(globular.GetClientContext(client), rqst)
 
 	if err != nil {
 		return "", err
@@ -386,9 +396,9 @@ func (self *Persistence_Client) InsertOne(connectionId string, database string, 
 	return rsp.GetId(), err
 }
 
-func (self *Persistence_Client) InsertMany(connectionId string, database string, collection string, jsonStr string, options string) error {
+func (client *Persistence_Client) InsertMany(connectionId string, database string, collection string, jsonStr string, options string) error {
 
-	stream, err := self.c.InsertMany(globular.GetClientContext(self))
+	stream, err := client.c.InsertMany(globular.GetClientContext(client))
 	if err != nil {
 		return err
 	}
@@ -437,7 +447,7 @@ func (self *Persistence_Client) InsertMany(connectionId string, database string,
 /**
  * Insert one value in the database.
  */
-func (self *Persistence_Client) ReplaceOne(connectionId string, database string, collection string, query string, value string, options string) error {
+func (client *Persistence_Client) ReplaceOne(connectionId string, database string, collection string, query string, value string, options string) error {
 
 	rqst := &persistencepb.ReplaceOneRqst{
 		Id:         connectionId,
@@ -448,12 +458,12 @@ func (self *Persistence_Client) ReplaceOne(connectionId string, database string,
 		Options:    options,
 	}
 
-	_, err := self.c.ReplaceOne(globular.GetClientContext(self), rqst)
+	_, err := client.c.ReplaceOne(globular.GetClientContext(client), rqst)
 
 	return err
 }
 
-func (self *Persistence_Client) UpdateOne(connectionId string, database string, collection string, query string, value string, options string) error {
+func (client *Persistence_Client) UpdateOne(connectionId string, database string, collection string, query string, value string, options string) error {
 
 	rqst := &persistencepb.UpdateOneRqst{
 		Id:         connectionId,
@@ -464,7 +474,7 @@ func (self *Persistence_Client) UpdateOne(connectionId string, database string, 
 		Options:    options,
 	}
 
-	_, err := self.c.UpdateOne(globular.GetClientContext(self), rqst)
+	_, err := client.c.UpdateOne(globular.GetClientContext(client), rqst)
 
 	return err
 }
@@ -472,7 +482,7 @@ func (self *Persistence_Client) UpdateOne(connectionId string, database string, 
 /**
  * Update one or more document.
  */
-func (self *Persistence_Client) Update(connectionId string, database string, collection string, query string, value string, options string) error {
+func (client *Persistence_Client) Update(connectionId string, database string, collection string, query string, value string, options string) error {
 
 	rqst := &persistencepb.UpdateRqst{
 		Id:         connectionId,
@@ -483,7 +493,7 @@ func (self *Persistence_Client) Update(connectionId string, database string, col
 		Options:    options,
 	}
 
-	_, err := self.c.Update(globular.GetClientContext(self), rqst)
+	_, err := client.c.Update(globular.GetClientContext(client), rqst)
 
 	return err
 }
@@ -491,7 +501,7 @@ func (self *Persistence_Client) Update(connectionId string, database string, col
 /**
  * Delete one document from the db
  */
-func (self *Persistence_Client) DeleteOne(connectionId string, database string, collection string, query string, options string) error {
+func (client *Persistence_Client) DeleteOne(connectionId string, database string, collection string, query string, options string) error {
 
 	rqst := &persistencepb.DeleteOneRqst{
 		Id:         connectionId,
@@ -501,7 +511,7 @@ func (self *Persistence_Client) DeleteOne(connectionId string, database string, 
 		Options:    options,
 	}
 
-	_, err := self.c.DeleteOne(globular.GetClientContext(self), rqst)
+	_, err := client.c.DeleteOne(globular.GetClientContext(client), rqst)
 
 	if err != nil {
 		return err
@@ -513,7 +523,7 @@ func (self *Persistence_Client) DeleteOne(connectionId string, database string, 
 /**
  * Delete many document from the db.
  */
-func (self *Persistence_Client) Delete(connectionId string, database string, collection string, query string, options string) error {
+func (client *Persistence_Client) Delete(connectionId string, database string, collection string, query string, options string) error {
 
 	rqst := &persistencepb.DeleteRqst{
 		Id:         connectionId,
@@ -523,7 +533,7 @@ func (self *Persistence_Client) Delete(connectionId string, database string, col
 		Options:    options,
 	}
 
-	_, err := self.c.Delete(globular.GetClientContext(self), rqst)
+	_, err := client.c.Delete(globular.GetClientContext(client), rqst)
 
 	if err != nil {
 		return err
@@ -535,14 +545,14 @@ func (self *Persistence_Client) Delete(connectionId string, database string, col
 /**
  * Drop a collection.
  */
-func (self *Persistence_Client) DeleteCollection(connectionId string, database string, collection string) error {
+func (client *Persistence_Client) DeleteCollection(connectionId string, database string, collection string) error {
 	// Test drop collection.
 	rqst_drop_collection := &persistencepb.DeleteCollectionRqst{
 		Id:         connectionId,
 		Database:   database,
 		Collection: collection,
 	}
-	_, err := self.c.DeleteCollection(globular.GetClientContext(self), rqst_drop_collection)
+	_, err := client.c.DeleteCollection(globular.GetClientContext(client), rqst_drop_collection)
 
 	return err
 }
@@ -550,14 +560,14 @@ func (self *Persistence_Client) DeleteCollection(connectionId string, database s
 /**
  * Drop a database.
  */
-func (self *Persistence_Client) DeleteDatabase(connectionId string, database string) error {
+func (client *Persistence_Client) DeleteDatabase(connectionId string, database string) error {
 	// Test drop collection.
 	rqst_drop_db := &persistencepb.DeleteDatabaseRqst{
 		Id:       connectionId,
 		Database: database,
 	}
 
-	_, err := self.c.DeleteDatabase(globular.GetClientContext(self), rqst_drop_db)
+	_, err := client.c.DeleteDatabase(globular.GetClientContext(client), rqst_drop_db)
 
 	return err
 }
@@ -565,7 +575,7 @@ func (self *Persistence_Client) DeleteDatabase(connectionId string, database str
 /**
  * Admin function, that must be protected.
  */
-func (self *Persistence_Client) RunAdminCmd(connectionId string, user string, pwd string, script string) error {
+func (client *Persistence_Client) RunAdminCmd(connectionId string, user string, pwd string, script string) error {
 	// Test drop collection.
 	rqst_drop_db := &persistencepb.RunAdminCmdRqst{
 		ConnectionId: connectionId,
@@ -574,7 +584,7 @@ func (self *Persistence_Client) RunAdminCmd(connectionId string, user string, pw
 		Password:     pwd,
 	}
 
-	_, err := self.c.RunAdminCmd(globular.GetClientContext(self), rqst_drop_db)
+	_, err := client.c.RunAdminCmd(globular.GetClientContext(client), rqst_drop_db)
 
 	return err
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"testing"
+
+	"github.com/globulario/services/golang/authentication/authentication_client"
 	//"github.com/davecourtois/Utility"
 )
 
@@ -14,22 +16,53 @@ import (
 var (
 
 	// Connect to the plc client.
-	client, _ = NewPersistenceService_Client("localhost:10000", "persistence.PersistenceService")
+	domain = "globular.cloud"
+	client, _ = NewPersistenceService_Client(domain, "persistence.PersistenceService")
+	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
+	token, _ = authentication_client_.Authenticate("sa", "adminadmin")
 )
 
 // First test create a fresh new connection...
-/*
 func TestCreateConnection(t *testing.T) {
+	
+	log.Println(token)
+
 	//fmt.Println("Connection creation test.")
 	user := "sa"
 	pwd := "adminadmin"
-	err := client.CreateConnection("mongo_db_test_connection", "TestMongoDB", "localhost", 27017, 0, user, pwd, 500, "", true)
+	err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", "localhost", 27017, 0, user, pwd, 500, "", true)
 	if err != nil {
 		log.Println("fail to create connection! ", err)
 	}
-
 }
+
+/* In case of mongoDB the Collection and Database is create at first insert.
+func TestCreateDatabase(t *testing.T){
+	Id := "mongo_db_test_connection"
+	Database := "TestMongoDB"
+	err := client.CreateDatabase(Id, Database)
+	if err != nil {
+		log.Println("fail to create database ", Database, err)
+	}
+}
+
 */
+func TestPersistOne(t *testing.T) {
+
+	Id := "mongo_db_test_connection"
+	Database := "TestMongoDB"
+	Collection := "Employees"
+	JsonStr := `{"hire_date":"2007-07-01", "last_name":"Courtois", "first_name":"Dave", "birth_date":"1976-01-28", "emp_no":200000, "gender":"M"}`
+	id, err := client.InsertOne(Id, Database, Collection, JsonStr, "")
+
+	if err != nil {
+		log.Fatalf("TestPersistOne fail %v", err)
+	}
+
+	log.Println("one entity persist with id ", id)
+}
+
+/*
 func TestAggregate(t *testing.T) {
 	//fmt.Println("Aggregate")
 	/*user := "sa"
@@ -49,9 +82,9 @@ func TestAggregate(t *testing.T) {
 		return
 	}
 	log.Println("---> ", results)
-	*/
+	
 }
-
+*/
 /*
 func TestPingConnection(t *testing.T) {
 	log.Println("Test ping connection")
@@ -62,43 +95,62 @@ func TestPingConnection(t *testing.T) {
 	}
 	log.Println("Ping mongo_db_test_connection successed!")
 }
-
+*/
 
 // First test create a fresh new connection...
-/*func TestPersistMany(t *testing.T) {
+func TestPersistMany(t *testing.T) {
 	fmt.Println("Persist many test.")
 
-	b, err := ioutil.ReadFile("/tmp/Employees.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	str := `
+	[
+		{
+			"userId":"rirani",
+			"jobTitleName":"Developer",
+			"firstName":"Romin",
+			"lastName":"Irani",
+			"preferredFullName":"Romin Irani",
+			"employeeCode":"E1",
+			"region":"CA",
+			"phoneNumber":"408-1234567",
+			"emailAddress":"romin.k.irani@gmail.com"
+		},
+		{
+			"userId":"nirani",
+			"jobTitleName":"Developer",
+			"firstName":"Neil",
+			"lastName":"Irani",
+			"preferredFullName":"Neil Irani",
+			"employeeCode":"E2",
+			"region":"CA",
+			"phoneNumber":"408-1111111",
+			"emailAddress":"neilrirani@gmail.com"
+		},
+		{
+			"userId":"thanks",
+			"jobTitleName":"Program Directory",
+			"firstName":"Tom",
+			"lastName":"Hanks",
+			"preferredFullName":"Tom Hanks",
+			"employeeCode":"E3",
+			"region":"CA",
+			"phoneNumber":"408-2222222",
+			"emailAddress":"tomhanks@gmail.com"
+		}
+	]
+	`
 	Id := "mongo_db_test_connection"
 	Database := "TestCreateAndDelete_DB"
 	Collection := "Employees"
 
-	ids, err := client.InsertMany(Id, Database, Collection, string(b), "")
+	err := client.InsertMany(Id, Database, Collection, str, "")
 	if err != nil {
 		log.Fatalf("TestPersistMany fail %v", err)
 	}
 
-	log.Println(ids)
-}*/
+}
 
-/*func TestPersistOne(t *testing.T) {
 
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
-	Collection := "Employees"
-	JsonStr := `{"hire_date":"2007-07-01", "last_name":"Courtois", "first_name":"Dave", "birth_date":"1976-01-28", "emp_no":200000, "gender":"M"}`
-	id, err := client.InsertOne(Id, Database, Collection, JsonStr, "")
 
-	if err != nil {
-		log.Fatalf("TestPersistOne fail %v", err)
-	}
-
-	log.Println("one entity persist with id ", id)
-}*/
 /*
 func TestCreateConnection(t *testing.T) {
 	fmt.Println("Connection creation test.")
@@ -179,6 +231,7 @@ func TestCreateConnection(t *testing.T) {
 }*/
 
 /** Test remove **/
+/*
 func TestRemove(t *testing.T) {
 	fmt.Println("Test Remove")
 
@@ -194,8 +247,10 @@ func TestRemove(t *testing.T) {
 
 	log.Println("---> Delete success!")
 }
+*/
 
-/*func TestRemoveMany(t *testing.T) {
+/*
+func TestRemoveMany(t *testing.T) {
 	fmt.Println("Test Remove")
 
 	Id := "mongo_db_test_connection"
@@ -212,15 +267,21 @@ func TestRemove(t *testing.T) {
 }*/
 
 // Test create a db, create a collection and remove it after...
-/*func TestCreateAndDelete(t *testing.T) {
+/*
+func TestCreateAndDelete(t *testing.T) {
 	fmt.Println("Test Create And Delete")
 
-	Id := "mongo_db_test_connection"
-	Database := "TestCreateAndDelete_DB"
+	// Id := "mongo_db_test_connection"
+	Id := "local_resource"
+	Database := "local_resource"
 	Collection := "Employees"
 	JsonStr := `{"hire_date":"2007-07-01", "last_name":"Courtois", "first_name":"Dave", "birth_data":"1976-01-28", "emp_no":200000, "gender":"M"}`
 
 	id, err := client.InsertOne(Id, Database, Collection, JsonStr, "")
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	var c int
 	c, err = client.Count(Id, Database, Collection, "{}", "")
@@ -244,12 +305,13 @@ func TestRemove(t *testing.T) {
 
 	log.Println(id)
 
-}*/
+}
+*/
 
-/*func TestDeleteConnection(t *testing.T) {
+func TestDeleteConnection(t *testing.T) {
 	fmt.Println("Connection creation test.")
 	err := client.DeleteConnection("mongo_db_test_connection")
 	if err != nil {
 		log.Println("fail to delete connection! ", err)
 	}
-}*/
+}

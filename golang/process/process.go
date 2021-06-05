@@ -2,17 +2,16 @@ package process
 
 import (
 	"errors"
-	"os"
-	"syscall"
-	"os/exec"
-	"strings"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
-	"time"
+	ps "github.com/mitchellh/go-ps"
+	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
-	ps "github.com/mitchellh/go-ps"
-
+	"strings"
+	"syscall"
+	"time"
 )
 
 /**
@@ -20,8 +19,15 @@ import (
  */
 func KillServiceProcess(s map[string]interface{}) error {
 
-	pid := Utility.ToInt(s["Process"])
-	proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
+	pid := -1
+	if (s["Process"]) != nil {
+		pid = Utility.ToInt(s["Process"])
+	}
+
+	proxyProcessPid := -1
+	if (s["ProxyProcess"]) != nil {
+		proxyProcessPid = Utility.ToInt(s["ProxyProcess"])
+	}
 
 	// Here I will set a variable that tell globular to not keep the service alive...
 	s["State"] = "terminated"
@@ -35,14 +41,14 @@ func KillServiceProcess(s map[string]interface{}) error {
 
 	// kill it in the name of...
 	process, err := os.FindProcess(pid)
-	s["State"] =  "stopped"
+	s["State"] = "stopped"
 	if err == nil {
 		err := process.Kill()
 		if err == nil {
 			s["Process"] = -1
-			
+
 		} else {
-			s["State"] =  "failed"
+			s["State"] = "failed"
 		}
 	}
 
@@ -51,9 +57,9 @@ func KillServiceProcess(s map[string]interface{}) error {
 }
 
 // Start a service process.
-func StartServiceProcess(s map[string]interface{}, portsRange string) error{
+func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	// I will kill the process if is running...
-	KillServiceProcess(s);
+	KillServiceProcess(s)
 
 	// Get the next available port.
 	port := Utility.ToInt(s["Port"])
@@ -84,13 +90,13 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error{
 	s["Process"] = p.Process.Pid
 	s["State"] = "running"
 
-    return config.SaveServiceConfiguration(s)
+	return config.SaveServiceConfiguration(s)
 }
 
 // Start a service process.
-func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate,  portsRange string) error{
+func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate, portsRange string) error {
 
-	servicePort := Utility.ToInt(s["Port"]) 
+	servicePort := Utility.ToInt(s["Port"])
 	proxyPort := Utility.ToInt(s["Proxy"])
 
 	// Test if the port is available.
@@ -178,10 +184,8 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	// save service configuration.
 	s["ProxyProcess"] = proxyProcess.Process.Pid
 
-
 	return config.SaveServiceConfiguration(s)
 }
-
 
 // check if the process is actually running
 // However, on Unix systems, os.FindProcess always succeeds and returns
@@ -212,19 +216,19 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 /**
  * Keep process found in configuration in line with one found on the server.
  */
- func ManageServicesProcess(exit chan bool){
+func ManageServicesProcess(exit chan bool) {
 
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for {
 			select {
-			case <- exit:
+			case <-exit:
 				return // stop processing...
 			case <-ticker.C:
 				// Here I will manage the process...
 				services, err := config.GetServicesConfigurations()
 				if err != nil {
-					return 
+					return
 				}
 
 				runingProcess := make(map[string][]int)
@@ -233,25 +237,36 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 				// Fist of all I will get all services process...
 				for i := 0; i < len(services); i++ {
 					s := services[i]
-					pid :=Utility.ToInt(s["Process"])
-					state := s["State"].(string)
-					p, err := ps.FindProcess(pid)
-					if pid != -1 && err == nil && p != nil {
-						name := p.Executable()
-						if _, ok := runingProcess[name]; !ok {
-							runingProcess[name] = make([]int, 0)
+					if s["Name"] != nil {
+						pid := -1
+						if s["Process"] != nil {
+							Utility.ToInt(s["Process"])
 						}
-						runingProcess[name] = append(runingProcess[name], Utility.ToInt(s["Process"]))
-					} else if pid == -1 || p == nil {
-						if state == "failed" || state == "stopped" || state == "running" {
-							// make sure the process is no running...
-							if s["KeepAlive"].(bool) {
-								KillServiceProcess(s)
+
+						state := "stopped"
+						if s["State"] != nil{
+							state = s["State"].(string)
+						}
+
+						p, err := ps.FindProcess(pid)
+						if pid != -1 && err == nil && p != nil {
+							name := p.Executable()
+							if _, ok := runingProcess[name]; !ok {
+								runingProcess[name] = make([]int, 0)
+							}
+							runingProcess[name] = append(runingProcess[name], Utility.ToInt(s["Process"]))
+						} else if pid == -1 || p == nil {
+							if state == "failed" || state == "stopped" || state == "running" {
+								// make sure the process is no running...
+								if s["KeepAlive"].(bool) {
+									KillServiceProcess(s)
+								}
 							}
 						}
+						if s["ProxyProcess"] != nil {
+							proxies = append(proxies, Utility.ToInt(s["ProxyProcess"]))
+						}
 					}
-
-					proxies = append(proxies, Utility.ToInt(s["ProxyProcess"]))
 				}
 
 				proxies_, _ := Utility.GetProcessIdsByName("grpcwebproxy")
@@ -273,7 +288,6 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 
 				// Now I will find process by name on the computer and kill process not found in the configuration file.
 				for name, pids := range runingProcess {
-
 					pids_, err := Utility.GetProcessIdsByName(name)
 					if err == nil {
 						for i := 0; i < len(pids_); i++ {

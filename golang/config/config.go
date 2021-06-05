@@ -255,9 +255,12 @@ func GetPortsInUse() []int {
 	// I will test if the port is already taken by e services.
 	for i := 0; i < len(services); i++ {
 		s := services[i]
-		pid_ := Utility.ToInt(s["Process"])
-
-		pid := Utility.ToInt(pid_)
+		
+		pid := -1
+		if s["Process"] != nil {
+			s["Process"] = Utility.ToInt(pid)
+		}
+		
 		if pid != -1 {
 			if processIsRuning(pid) {
 				port := Utility.ToInt(s["Port"])
@@ -265,7 +268,11 @@ func GetPortsInUse() []int {
 			}
 		}
 
-		proxyPid_ := Utility.ToInt(s["ProxyProcess"])
+		proxyPid_ := -1
+		if s["ProxyProcess"] != nil {
+			s["ProxyProcess"] = Utility.ToInt(pid)
+		}
+		
 		if proxyPid_ != -1 {
 			if processIsRuning(proxyPid_) {
 				port := Utility.ToInt(s["Proxy"])
