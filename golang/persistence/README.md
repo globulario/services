@@ -9,7 +9,7 @@ Here is how to create a connection. The required parameters are,
 * The _database_ name
 * The data store _domain_ 
 * The data store _port_
-* The data story type 0 is _mongoDB_
+* The data store type 0 is _mongoDB_
 * The _user_
 * The _password_
 * The connection _timeout_
