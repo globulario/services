@@ -263,7 +263,7 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 					answer_ <- map[string]interface{}{"valid": true, "err": nil}
 				}
 
-			case rcpt := <-validateRcpt:
+			//case rcpt := <-validateRcpt:
 				//log.Println(rcpt)
 			}
 		}

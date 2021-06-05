@@ -68,7 +68,9 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	// self-signed X.509 public keys for distribution
+
+
+	// storage_server-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
@@ -80,6 +82,8 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies []string // The list of services needed by this services.
+
 	// The grpc server.
 	grpcServer *grpc.Server
 
@@ -92,203 +96,224 @@ type server struct {
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (self *server) GetId() string {
-	return self.Id
+func (storage_server *server) GetId() string {
+	return storage_server.Id
 }
-func (self *server) SetId(id string) {
-	self.Id = id
+func (storage_server *server) SetId(id string) {
+	storage_server.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (self *server) GetName() string {
-	return self.Name
+func (storage_server *server) GetName() string {
+	return storage_server.Name
 }
-func (self *server) SetName(name string) {
-	self.Name = name
+func (storage_server *server) SetName(name string) {
+	storage_server.Name = name
 }
 
 // The description of the service
-func (self *server) GetDescription() string {
-	return self.Description
+func (storage_server *server) GetDescription() string {
+	return storage_server.Description
 }
-func (self *server) SetDescription(description string) {
-	self.Description = description
+func (storage_server *server) SetDescription(description string) {
+	storage_server.Description = description
 }
 
 // The list of keywords of the services.
-func (self *server) GetKeywords() []string {
-	return self.Keywords
+func (storage_server *server) GetKeywords() []string {
+	return storage_server.Keywords
 }
-func (self *server) SetKeywords(keywords []string) {
-	self.Keywords = keywords
-}
-
-func (self *server) GetRepositories() []string {
-	return self.Repositories
-}
-func (self *server) SetRepositories(repositories []string) {
-	self.Repositories = repositories
+func (storage_server *server) SetKeywords(keywords []string) {
+	storage_server.Keywords = keywords
 }
 
-func (self *server) GetDiscoveries() []string {
-	return self.Discoveries
+func (storage_server *server) GetRepositories() []string {
+	return storage_server.Repositories
 }
-func (self *server) SetDiscoveries(discoveries []string) {
-	self.Discoveries = discoveries
+func (storage_server *server) SetRepositories(repositories []string) {
+	storage_server.Repositories = repositories
+}
+
+func (storage_server *server) GetDiscoveries() []string {
+	return storage_server.Discoveries
+}
+func (storage_server *server) SetDiscoveries(discoveries []string) {
+	storage_server.Discoveries = discoveries
 }
 
 // Dist
-func (self *server) Dist(path string) (string, error) {
+func (storage_server *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, self)
+	return globular.Dist(path, storage_server)
 }
 
-func (self *server) GetPlatform() string {
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
+}
+
+func (storage_server *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
 // The path of the executable.
-func (self *server) GetPath() string {
-	return self.Path
+func (storage_server *server) GetPath() string {
+	return storage_server.Path
 }
-func (self *server) SetPath(path string) {
-	self.Path = path
+func (storage_server *server) SetPath(path string) {
+	storage_server.Path = path
 }
 
 // The path of the .proto file.
-func (self *server) GetProto() string {
-	return self.Proto
+func (storage_server *server) GetProto() string {
+	return storage_server.Proto
 }
-func (self *server) SetProto(proto string) {
-	self.Proto = proto
+func (storage_server *server) SetProto(proto string) {
+	storage_server.Proto = proto
 }
 
 // The gRpc port.
-func (self *server) GetPort() int {
-	return self.Port
+func (storage_server *server) GetPort() int {
+	return storage_server.Port
 }
-func (self *server) SetPort(port int) {
-	self.Port = port
+func (storage_server *server) SetPort(port int) {
+	storage_server.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (self *server) GetProxy() int {
-	return self.Proxy
+func (storage_server *server) GetProxy() int {
+	return storage_server.Proxy
 }
-func (self *server) SetProxy(proxy int) {
-	self.Proxy = proxy
+func (storage_server *server) SetProxy(proxy int) {
+	storage_server.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (self *server) GetProtocol() string {
-	return self.Protocol
+func (storage_server *server) GetProtocol() string {
+	return storage_server.Protocol
 }
-func (self *server) SetProtocol(protocol string) {
-	self.Protocol = protocol
+func (storage_server *server) SetProtocol(protocol string) {
+	storage_server.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (self *server) GetAllowAllOrigins() bool {
-	return self.AllowAllOrigins
+func (storage_server *server) GetAllowAllOrigins() bool {
+	return storage_server.AllowAllOrigins
 }
-func (self *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	self.AllowAllOrigins = allowAllOrigins
+func (storage_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	storage_server.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (self *server) GetAllowedOrigins() string {
-	return self.AllowedOrigins
+func (storage_server *server) GetAllowedOrigins() string {
+	return storage_server.AllowedOrigins
 }
 
-func (self *server) SetAllowedOrigins(allowedOrigins string) {
-	self.AllowedOrigins = allowedOrigins
+func (storage_server *server) SetAllowedOrigins(allowedOrigins string) {
+	storage_server.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (self *server) GetDomain() string {
-	return self.Domain
+func (storage_server *server) GetDomain() string {
+	return storage_server.Domain
 }
-func (self *server) SetDomain(domain string) {
-	self.Domain = domain
+func (storage_server *server) SetDomain(domain string) {
+	storage_server.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (self *server) GetTls() bool {
-	return self.TLS
+func (storage_server *server) GetTls() bool {
+	return storage_server.TLS
 }
-func (self *server) SetTls(hasTls bool) {
-	self.TLS = hasTls
+func (storage_server *server) SetTls(hasTls bool) {
+	storage_server.TLS = hasTls
 }
 
 // The certificate authority file
-func (self *server) GetCertAuthorityTrust() string {
-	return self.CertAuthorityTrust
+func (storage_server *server) GetCertAuthorityTrust() string {
+	return storage_server.CertAuthorityTrust
 }
-func (self *server) SetCertAuthorityTrust(ca string) {
-	self.CertAuthorityTrust = ca
+func (storage_server *server) SetCertAuthorityTrust(ca string) {
+	storage_server.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (self *server) GetCertFile() string {
-	return self.CertFile
+func (storage_server *server) GetCertFile() string {
+	return storage_server.CertFile
 }
-func (self *server) SetCertFile(certFile string) {
-	self.CertFile = certFile
+func (storage_server *server) SetCertFile(certFile string) {
+	storage_server.CertFile = certFile
 }
 
 // The key file.
-func (self *server) GetKeyFile() string {
-	return self.KeyFile
+func (storage_server *server) GetKeyFile() string {
+	return storage_server.KeyFile
 }
-func (self *server) SetKeyFile(keyFile string) {
-	self.KeyFile = keyFile
+func (storage_server *server) SetKeyFile(keyFile string) {
+	storage_server.KeyFile = keyFile
 }
 
 // The service version
-func (self *server) GetVersion() string {
-	return self.Version
+func (storage_server *server) GetVersion() string {
+	return storage_server.Version
 }
-func (self *server) SetVersion(version string) {
-	self.Version = version
+func (storage_server *server) SetVersion(version string) {
+	storage_server.Version = version
 }
 
 // The publisher id.
-func (self *server) GetPublisherId() string {
-	return self.PublisherId
+func (storage_server *server) GetPublisherId() string {
+	return storage_server.PublisherId
 }
-func (self *server) SetPublisherId(publisherId string) {
-	self.PublisherId = publisherId
-}
-
-func (self *server) GetKeepUpToDate() bool {
-	return self.KeepUpToDate
-}
-func (self *server) SetKeepUptoDate(val bool) {
-	self.KeepUpToDate = val
+func (storage_server *server) SetPublisherId(publisherId string) {
+	storage_server.PublisherId = publisherId
 }
 
-func (self *server) GetKeepAlive() bool {
-	return self.KeepAlive
+func (storage_server *server) GetKeepUpToDate() bool {
+	return storage_server.KeepUpToDate
 }
-func (self *server) SetKeepAlive(val bool) {
-	self.KeepAlive = val
+func (storage_server *server) SetKeepUptoDate(val bool) {
+	storage_server.KeepUpToDate = val
 }
 
-func (self *server) GetPermissions() []interface{} {
-	return self.Permissions
+func (storage_server *server) GetKeepAlive() bool {
+	return storage_server.KeepAlive
 }
-func (self *server) SetPermissions(permissions []interface{}) {
-	self.Permissions = permissions
+func (storage_server *server) SetKeepAlive(val bool) {
+	storage_server.KeepAlive = val
+}
+
+func (storage_server *server) GetPermissions() []interface{} {
+	return storage_server.Permissions
+}
+func (storage_server *server) SetPermissions(permissions []interface{}) {
+	storage_server.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (self *server) Init() error {
+func (storage_server *server) Init() error {
 
-	self.stores = make(map[string]storage_store.Store)
-	self.Connections = make(map[string]connection)
+	storage_server.stores = make(map[string]storage_store.Store)
+	storage_server.Connections = make(map[string]connection)
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewStorageService_Client", storage_client.NewStorageService_Client)
@@ -296,13 +321,13 @@ func (self *server) Init() error {
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-	err := globular.InitService(dir+"/config.json", self)
+	err := globular.InitService(dir+"/config.json", storage_server)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	storage_server.grpcServer, err = globular.InitGrpcServer(storage_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -312,43 +337,43 @@ func (self *server) Init() error {
 }
 
 // Save the configuration values.
-func (self *server) Save() error {
+func (storage_server *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", self)
+	return globular.SaveService(dir+"/config.json", storage_server)
 }
 
-func (self *server) StartService() error {
-	return globular.StartService(self, self.grpcServer)
+func (storage_server *server) StartService() error {
+	return globular.StartService(storage_server, storage_server.grpcServer)
 }
 
-func (self *server) StopService() error {
-	return globular.StopService(self, self.grpcServer)
+func (storage_server *server) StopService() error {
+	return globular.StopService(storage_server, storage_server.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *storagepb.StopRequest) (*storagepb.StopResponse, error) {
-	return &storagepb.StopResponse{}, self.StopService()
+func (storage_server *server) Stop(context.Context, *storagepb.StopRequest) (*storagepb.StopResponse, error) {
+	return &storagepb.StopResponse{}, storage_server.StopService()
 }
 
 //////////////////////// Storage specific functions ////////////////////////////
 
 // Create a new KV connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (self *server) CreateConnection(ctx context.Context, rsqt *storagepb.CreateConnectionRqst) (*storagepb.CreateConnectionRsp, error) {
+func (storage_server *server) CreateConnection(ctx context.Context, rsqt *storagepb.CreateConnectionRqst) (*storagepb.CreateConnectionRsp, error) {
 	if rsqt.Connection == nil {
 		return nil, errors.New("The request dosent contain connection object!")
 	}
 
-	if self.stores == nil {
-		self.stores = make(map[string]storage_store.Store)
+	if storage_server.stores == nil {
+		storage_server.stores = make(map[string]storage_store.Store)
 	}
 
-	if self.Connections == nil {
-		self.Connections = make(map[string]connection)
+	if storage_server.Connections == nil {
+		storage_server.Connections = make(map[string]connection)
 	} else {
-		if _, ok := self.Connections[rsqt.Connection.Id]; ok {
-			if self.stores[rsqt.Connection.Id] != nil {
-				self.stores[rsqt.Connection.Id].Close() // close the previous connection.
+		if _, ok := storage_server.Connections[rsqt.Connection.Id]; ok {
+			if storage_server.stores[rsqt.Connection.Id] != nil {
+				storage_server.stores[rsqt.Connection.Id].Close() // close the previous connection.
 			}
 		}
 	}
@@ -362,7 +387,7 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *storagepb.Create
 	c.Name = rsqt.Connection.Name
 
 	// set or update the connection and save it in json file.
-	self.Connections[c.Id] = c
+	storage_server.Connections[c.Id] = c
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -371,14 +396,14 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *storagepb.Create
 	}
 
 	// In that case I will save it in file.
-	err = self.Save()
+	err = storage_server.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	globular.UpdateServiceConfig(self)
+	globular.UpdateServiceConfig(storage_server)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -395,19 +420,19 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *storagepb.Create
 }
 
 // Remove a connection from the map and the file.
-func (self *server) DeleteConnection(ctx context.Context, rqst *storagepb.DeleteConnectionRqst) (*storagepb.DeleteConnectionRsp, error) {
+func (storage_server *server) DeleteConnection(ctx context.Context, rqst *storagepb.DeleteConnectionRqst) (*storagepb.DeleteConnectionRsp, error) {
 
 	id := rqst.GetId()
-	if _, ok := self.Connections[id]; !ok {
+	if _, ok := storage_server.Connections[id]; !ok {
 		return &storagepb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	delete(self.Connections, id)
+	delete(storage_server.Connections, id)
 
 	// In that case I will save it in file.
-	err := self.Save()
+	err := storage_server.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -422,15 +447,15 @@ func (self *server) DeleteConnection(ctx context.Context, rqst *storagepb.Delete
 }
 
 // Open the store and set options...
-func (self *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storagepb.OpenRsp, error) {
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+func (storage_server *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storagepb.OpenRsp, error) {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
 	var store storage_store.Store
-	conn := self.Connections[rqst.GetId()]
+	conn := storage_server.Connections[rqst.GetId()]
 
 	// Create the store object.
 	if conn.Type == storagepb.StoreType_LEVEL_DB {
@@ -453,7 +478,7 @@ func (self *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storag
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.stores[rqst.GetId()] = store
+	storage_server.stores[rqst.GetId()] = store
 
 	return &storagepb.OpenRsp{
 		Result: true,
@@ -461,20 +486,20 @@ func (self *server) Open(ctx context.Context, rqst *storagepb.OpenRqst) (*storag
 }
 
 // Close the data store.
-func (self *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*storagepb.CloseRsp, error) {
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+func (storage_server *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*storagepb.CloseRsp, error) {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	if self.stores[rqst.GetId()] == nil {
+	if storage_server.stores[rqst.GetId()] == nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no store found for connection with id "+rqst.GetId())))
 	}
 
-	err := self.stores[rqst.GetId()].Close()
+	err := storage_server.stores[rqst.GetId()].Close()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -487,15 +512,15 @@ func (self *server) Close(ctx context.Context, rqst *storagepb.CloseRqst) (*stor
 }
 
 // Save an item in the kv store
-func (self *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest) (*storagepb.SetItemResponse, error) {
+func (storage_server *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest) (*storagepb.SetItemResponse, error) {
 
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := self.stores[rqst.GetId()]
+	store := storage_server.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -515,7 +540,7 @@ func (self *server) SetItem(ctx context.Context, rqst *storagepb.SetItemRequest)
 }
 
 // Save an item in the kv store
-func (self *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServer) error {
+func (storage_server *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemServer) error {
 
 	var rqst *storagepb.SetLargeItemRequest
 	var buffer bytes.Buffer
@@ -534,13 +559,13 @@ func (self *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemSer
 		}
 	}
 
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := self.stores[rqst.GetId()]
+	store := storage_server.stores[rqst.GetId()]
 	if store == nil {
 		return status.Errorf(
 			codes.Internal,
@@ -558,15 +583,15 @@ func (self *server) SetLargeItem(stream storagepb.StorageService_SetLargeItemSer
 }
 
 // Retreive a value with a given key
-func (self *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.StorageService_GetItemServer) error {
+func (storage_server *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.StorageService_GetItemServer) error {
 
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := self.stores[rqst.GetId()]
+	store := storage_server.stores[rqst.GetId()]
 	if store == nil {
 		return status.Errorf(
 			codes.Internal,
@@ -603,14 +628,14 @@ func (self *server) GetItem(rqst *storagepb.GetItemRequest, stream storagepb.Sto
 }
 
 // Remove an item with a given key
-func (self *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemRequest) (*storagepb.RemoveItemResponse, error) {
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+func (storage_server *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemRequest) (*storagepb.RemoveItemResponse, error) {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := self.stores[rqst.GetId()]
+	store := storage_server.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -637,14 +662,14 @@ func (self *server) RemoveItem(ctx context.Context, rqst *storagepb.RemoveItemRe
 }
 
 // Remove all items
-func (self *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*storagepb.ClearResponse, error) {
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+func (storage_server *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*storagepb.ClearResponse, error) {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := self.stores[rqst.GetId()]
+	store := storage_server.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -664,14 +689,14 @@ func (self *server) Clear(ctx context.Context, rqst *storagepb.ClearRequest) (*s
 }
 
 // Drop a store
-func (self *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*storagepb.DropResponse, error) {
-	if _, ok := self.Connections[rqst.GetId()]; !ok {
+func (storage_server *server) Drop(ctx context.Context, rqst *storagepb.DropRequest) (*storagepb.DropResponse, error) {
+	if _, ok := storage_server.Connections[rqst.GetId()]; !ok {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no connection found with id "+rqst.GetId())))
 	}
 
-	store := self.stores[rqst.GetId()]
+	store := storage_server.stores[rqst.GetId()]
 	if store == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -716,7 +741,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-
+	s_impl.Dependencies = make([]string, 0)
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

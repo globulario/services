@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	//"log"
+	"log"
 	"strings"
 	"time"
 
@@ -304,6 +304,9 @@ func (server *server) getKey() (string, error) {
 
 /* Authenticate a user */
 func (server *server) authenticate(accountId string, pwd string) (string, error) {
+
+	log.Println("try to authenticate ", accountId, pwd)
+
 	key, err := server.getKey()
 	if err != nil {
 		return "", status.Errorf(
@@ -311,6 +314,7 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	log.Println("317")
 	// If the user is the root...
 	if accountId == "sa" {
 		// The root password will be
@@ -365,13 +369,13 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 
 		return tokenString, nil
 	}
-
+	log.Println("372")
 	// Here I will get the account info.
 	account, err := server.getAccount(accountId)
 	if err != nil {
 		return "", err
 	}
-
+	log.Println("378")
 	// Now I will validate the password received with the one in the account
 	err = server.validatePassword(pwd, account.Password)
 	if err != nil {
@@ -387,7 +391,7 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 	if err != nil {
 		return "", err
 	}
-
+	log.Println("394")
 	// get the expire time.
 	_, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
 
@@ -395,12 +399,12 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 	session.ExpireAt = expireAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
-
+	log.Println("402")
 	err = server.updateSession(session)
 	if err != nil {
 		return "", err
 	}
-
+	log.Println("407")
 	return tokenString, nil
 }
 

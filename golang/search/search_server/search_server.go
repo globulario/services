@@ -57,7 +57,7 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	// self-signed X.509 public keys for distribution
+	// search_server-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
@@ -69,6 +69,7 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies []string // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -84,200 +85,220 @@ type server struct {
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (self *server) GetId() string {
-	return self.Id
+func (search_server *server) GetId() string {
+	return search_server.Id
 }
-func (self *server) SetId(id string) {
-	self.Id = id
+func (search_server *server) SetId(id string) {
+	search_server.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (self *server) GetName() string {
-	return self.Name
+func (search_server *server) GetName() string {
+	return search_server.Name
 }
-func (self *server) SetName(name string) {
-	self.Name = name
+func (search_server *server) SetName(name string) {
+	search_server.Name = name
 }
 
 // The description of the service
-func (self *server) GetDescription() string {
-	return self.Description
+func (search_server *server) GetDescription() string {
+	return search_server.Description
 }
-func (self *server) SetDescription(description string) {
-	self.Description = description
-}
-
-func (self *server) GetRepositories() []string {
-	return self.Repositories
-}
-func (self *server) SetRepositories(repositories []string) {
-	self.Repositories = repositories
+func (search_server *server) SetDescription(description string) {
+	search_server.Description = description
 }
 
-func (self *server) GetDiscoveries() []string {
-	return self.Discoveries
+func (search_server *server) GetRepositories() []string {
+	return search_server.Repositories
 }
-func (self *server) SetDiscoveries(discoveries []string) {
-	self.Discoveries = discoveries
+func (search_server *server) SetRepositories(repositories []string) {
+	search_server.Repositories = repositories
+}
+
+func (search_server *server) GetDiscoveries() []string {
+	return search_server.Discoveries
+}
+func (search_server *server) SetDiscoveries(discoveries []string) {
+	search_server.Discoveries = discoveries
 }
 
 // The list of keywords of the services.
-func (self *server) GetKeywords() []string {
-	return self.Keywords
+func (search_server *server) GetKeywords() []string {
+	return search_server.Keywords
 }
-func (self *server) SetKeywords(keywords []string) {
-	self.Keywords = keywords
+func (search_server *server) SetKeywords(keywords []string) {
+	search_server.Keywords = keywords
 }
 
 // Dist
-func (self *server) Dist(path string) (string, error) {
+func (search_server *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, self)
+	return globular.Dist(path, search_server)
 }
 
-func (self *server) GetPlatform() string {
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
+}
+
+func (search_server *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
 // The path of the executable.
-func (self *server) GetPath() string {
-	return self.Path
+func (search_server *server) GetPath() string {
+	return search_server.Path
 }
-func (self *server) SetPath(path string) {
-	self.Path = path
+func (search_server *server) SetPath(path string) {
+	search_server.Path = path
 }
 
 // The path of the .proto file.
-func (self *server) GetProto() string {
-	return self.Proto
+func (search_server *server) GetProto() string {
+	return search_server.Proto
 }
-func (self *server) SetProto(proto string) {
-	self.Proto = proto
+func (search_server *server) SetProto(proto string) {
+	search_server.Proto = proto
 }
 
 // The gRpc port.
-func (self *server) GetPort() int {
-	return self.Port
+func (search_server *server) GetPort() int {
+	return search_server.Port
 }
-func (self *server) SetPort(port int) {
-	self.Port = port
+func (search_server *server) SetPort(port int) {
+	search_server.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (self *server) GetProxy() int {
-	return self.Proxy
+func (search_server *server) GetProxy() int {
+	return search_server.Proxy
 }
-func (self *server) SetProxy(proxy int) {
-	self.Proxy = proxy
+func (search_server *server) SetProxy(proxy int) {
+	search_server.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (self *server) GetProtocol() string {
-	return self.Protocol
+func (search_server *server) GetProtocol() string {
+	return search_server.Protocol
 }
-func (self *server) SetProtocol(protocol string) {
-	self.Protocol = protocol
+func (search_server *server) SetProtocol(protocol string) {
+	search_server.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (self *server) GetAllowAllOrigins() bool {
-	return self.AllowAllOrigins
+func (search_server *server) GetAllowAllOrigins() bool {
+	return search_server.AllowAllOrigins
 }
-func (self *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	self.AllowAllOrigins = allowAllOrigins
+func (search_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	search_server.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (self *server) GetAllowedOrigins() string {
-	return self.AllowedOrigins
+func (search_server *server) GetAllowedOrigins() string {
+	return search_server.AllowedOrigins
 }
 
-func (self *server) SetAllowedOrigins(allowedOrigins string) {
-	self.AllowedOrigins = allowedOrigins
+func (search_server *server) SetAllowedOrigins(allowedOrigins string) {
+	search_server.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (self *server) GetDomain() string {
-	return self.Domain
+func (search_server *server) GetDomain() string {
+	return search_server.Domain
 }
-func (self *server) SetDomain(domain string) {
-	self.Domain = domain
+func (search_server *server) SetDomain(domain string) {
+	search_server.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (self *server) GetTls() bool {
-	return self.TLS
+func (search_server *server) GetTls() bool {
+	return search_server.TLS
 }
-func (self *server) SetTls(hasTls bool) {
-	self.TLS = hasTls
+func (search_server *server) SetTls(hasTls bool) {
+	search_server.TLS = hasTls
 }
 
 // The certificate authority file
-func (self *server) GetCertAuthorityTrust() string {
-	return self.CertAuthorityTrust
+func (search_server *server) GetCertAuthorityTrust() string {
+	return search_server.CertAuthorityTrust
 }
-func (self *server) SetCertAuthorityTrust(ca string) {
-	self.CertAuthorityTrust = ca
+func (search_server *server) SetCertAuthorityTrust(ca string) {
+	search_server.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (self *server) GetCertFile() string {
-	return self.CertFile
+func (search_server *server) GetCertFile() string {
+	return search_server.CertFile
 }
-func (self *server) SetCertFile(certFile string) {
-	self.CertFile = certFile
+func (search_server *server) SetCertFile(certFile string) {
+	search_server.CertFile = certFile
 }
 
 // The key file.
-func (self *server) GetKeyFile() string {
-	return self.KeyFile
+func (search_server *server) GetKeyFile() string {
+	return search_server.KeyFile
 }
-func (self *server) SetKeyFile(keyFile string) {
-	self.KeyFile = keyFile
+func (search_server *server) SetKeyFile(keyFile string) {
+	search_server.KeyFile = keyFile
 }
 
 // The service version
-func (self *server) GetVersion() string {
-	return self.Version
+func (search_server *server) GetVersion() string {
+	return search_server.Version
 }
-func (self *server) SetVersion(version string) {
-	self.Version = version
+func (search_server *server) SetVersion(version string) {
+	search_server.Version = version
 }
 
 // The publisher id.
-func (self *server) GetPublisherId() string {
-	return self.PublisherId
+func (search_server *server) GetPublisherId() string {
+	return search_server.PublisherId
 }
-func (self *server) SetPublisherId(publisherId string) {
-	self.PublisherId = publisherId
-}
-
-func (self *server) GetKeepUpToDate() bool {
-	return self.KeepUpToDate
-}
-func (self *server) SetKeepUptoDate(val bool) {
-	self.KeepUpToDate = val
+func (search_server *server) SetPublisherId(publisherId string) {
+	search_server.PublisherId = publisherId
 }
 
-func (self *server) GetKeepAlive() bool {
-	return self.KeepAlive
+func (search_server *server) GetKeepUpToDate() bool {
+	return search_server.KeepUpToDate
 }
-func (self *server) SetKeepAlive(val bool) {
-	self.KeepAlive = val
+func (search_server *server) SetKeepUptoDate(val bool) {
+	search_server.KeepUpToDate = val
 }
 
-func (self *server) GetPermissions() []interface{} {
-	return self.Permissions
+func (search_server *server) GetKeepAlive() bool {
+	return search_server.KeepAlive
 }
-func (self *server) SetPermissions(permissions []interface{}) {
-	self.Permissions = permissions
+func (search_server *server) SetKeepAlive(val bool) {
+	search_server.KeepAlive = val
+}
+
+func (search_server *server) GetPermissions() []interface{} {
+	return search_server.Permissions
+}
+func (search_server *server) SetPermissions(permissions []interface{}) {
+	search_server.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (self *server) Init() error {
+func (search_server *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
@@ -285,54 +306,54 @@ func (self *server) Init() error {
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-	err := globular.InitService(dir+"/config.json", self)
+	err := globular.InitService(dir+"/config.json", search_server)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	search_server.grpcServer, err = globular.InitGrpcServer(search_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
 	// Init the seach engine.
-	self.search_engine = new(search_engine.XapianEngine)
+	search_server.search_engine = new(search_engine.XapianEngine)
 
 	return nil
 
 }
 
 // Save the configuration values.
-func (self *server) Save() error {
+func (search_server *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", self)
+	return globular.SaveService(dir+"/config.json", search_server)
 }
 
-func (self *server) StartService() error {
-	return globular.StartService(self, self.grpcServer)
+func (search_server *server) StartService() error {
+	return globular.StartService(search_server, search_server.grpcServer)
 }
 
-func (self *server) StopService() error {
-	return globular.StopService(self, self.grpcServer)
+func (search_server *server) StopService() error {
+	return globular.StopService(search_server, search_server.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *searchpb.StopRequest) (*searchpb.StopResponse, error) {
-	return &searchpb.StopResponse{}, self.StopService()
+func (search_server *server) Stop(context.Context, *searchpb.StopRequest) (*searchpb.StopResponse, error) {
+	return &searchpb.StopResponse{}, search_server.StopService()
 }
 
 // Return the underlying engine version.
-func (self *server) GetEngineVersion(ctx context.Context, rqst *searchpb.GetEngineVersionRequest) (*searchpb.GetEngineVersionResponse, error) {
+func (search_server *server) GetEngineVersion(ctx context.Context, rqst *searchpb.GetEngineVersionRequest) (*searchpb.GetEngineVersionResponse, error) {
 
 	return &searchpb.GetEngineVersionResponse{
-		Message: self.search_engine.GetVersion(),
+		Message: search_server.search_engine.GetVersion(),
 	}, nil
 }
 
 // Remove a document from the db
-func (self *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDocumentRequest) (*searchpb.DeleteDocumentResponse, error) {
-	err := self.search_engine.DeleteDocument(rqst.Path, rqst.Id)
+func (search_server *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDocumentRequest) (*searchpb.DeleteDocumentResponse, error) {
+	err := search_server.search_engine.DeleteDocument(rqst.Path, rqst.Id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -343,16 +364,16 @@ func (self *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDoc
 }
 
 // Return the number of document in a database.
-func (self *server) Count(ctx context.Context, rqst *searchpb.CountRequest) (*searchpb.CountResponse, error) {
+func (search_server *server) Count(ctx context.Context, rqst *searchpb.CountRequest) (*searchpb.CountResponse, error) {
 
 	return &searchpb.CountResponse{
-		Result: self.search_engine.Count(rqst.Path),
+		Result: search_server.search_engine.Count(rqst.Path),
 	}, nil
 
 }
 
 // Search documents
-func (self *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream searchpb.SearchService_SearchDocumentsServer) error {
+func (search_server *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, stream searchpb.SearchService_SearchDocumentsServer) error {
 	results := new(searchpb.SearchResults)
 	var err error
 
@@ -373,12 +394,12 @@ func (self *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, strea
 	// Set as Hash key
 	resultKey = Utility.GenerateUUID(resultKey)
 
-	data, err := self.cache.GetItem(resultKey)
+	data, err := search_server.cache.GetItem(resultKey)
 	if err == nil {
 		results = new(searchpb.SearchResults)
 		err = jsonpb.UnmarshalString(string(data), results)
 	} else {
-		results, err := self.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
+		results, err := search_server.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
 		if err != nil {
 			return err
 		}
@@ -390,7 +411,7 @@ func (self *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, strea
 			return err
 		}
 
-		self.cache.SetItem(resultKey, []byte(jsonStr))
+		search_server.cache.SetItem(resultKey, []byte(jsonStr))
 	}
 
 	stream.Send(&searchpb.SearchDocumentsResponse{
@@ -404,9 +425,9 @@ func (self *server) SearchDocuments(rqst *searchpb.SearchDocumentsRequest, strea
 /**
  * Index the content of a dir and it content.
  */
-func (self *server) IndexDir(ctx context.Context, rqst *searchpb.IndexDirRequest) (*searchpb.IndexDirResponse, error) {
+func (search_server *server) IndexDir(ctx context.Context, rqst *searchpb.IndexDirRequest) (*searchpb.IndexDirResponse, error) {
 
-	err := self.search_engine.IndexDir(rqst.DbPath, rqst.DirPath, rqst.Language)
+	err := search_server.search_engine.IndexDir(rqst.DbPath, rqst.DirPath, rqst.Language)
 	if err != nil {
 		return nil, err
 	}
@@ -415,9 +436,9 @@ func (self *server) IndexDir(ctx context.Context, rqst *searchpb.IndexDirRequest
 }
 
 // Indexation of a text (docx, pdf,xlsx...) file.
-func (self *server) IndexFile(ctx context.Context, rqst *searchpb.IndexFileRequest) (*searchpb.IndexFileResponse, error) {
+func (search_server *server) IndexFile(ctx context.Context, rqst *searchpb.IndexFileRequest) (*searchpb.IndexFileResponse, error) {
 
-	err := self.search_engine.IndexFile(rqst.DbPath, rqst.FilePath, rqst.Language)
+	err := search_server.search_engine.IndexFile(rqst.DbPath, rqst.FilePath, rqst.Language)
 	if err != nil {
 		return nil, err
 	}
@@ -426,9 +447,9 @@ func (self *server) IndexFile(ctx context.Context, rqst *searchpb.IndexFileReque
 }
 
 // That function is use to index JSON object/array of object
-func (self *server) IndexJsonObject(ctx context.Context, rqst *searchpb.IndexJsonObjectRequest) (*searchpb.IndexJsonObjectResponse, error) {
+func (search_server *server) IndexJsonObject(ctx context.Context, rqst *searchpb.IndexJsonObjectRequest) (*searchpb.IndexJsonObjectResponse, error) {
 
-	err := self.search_engine.IndexJsonObject(rqst.Path, rqst.JsonStr, rqst.Language, rqst.Id, rqst.Indexs, rqst.Data)
+	err := search_server.search_engine.IndexJsonObject(rqst.Path, rqst.JsonStr, rqst.Language, rqst.Id, rqst.Indexs, rqst.Data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -464,7 +485,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-
+	s_impl.Dependencies = make([]string, 0)
 	// Create the new big cache.
 	s_impl.cache = storage_store.NewBigCache_store()
 	err := s_impl.cache.Open("")

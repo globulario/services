@@ -25,6 +25,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
+	"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -126,6 +127,10 @@ type Service interface {
 
 	GetPermissions() []interface{} // contains the action permission for the services.
 	SetPermissions([]interface{})
+
+	/** The list of requried service **/
+	SetDependency(string)
+	GetDependencies()[]string
 
 	/** Initialyse the service configuration **/
 	Init() error
@@ -432,6 +437,16 @@ func StartService(s Service, server *grpc.Server) error {
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 	fmt.Println(s.GetId() + " is now stopped!")
+	
+	service_config, err := config.GetServicesConfigurationsById(s.GetId())
+	if err == nil {
+		// save service configuration.
+		service_config["Process"] = -1
+		service_config["ProxyProcess"] = -1
+		service_config["State"] = "stopped"
+		config.SaveServiceConfiguration(service_config)
+	}
+
 	server.Stop() // I kill it but not softly...
 	return nil
 }

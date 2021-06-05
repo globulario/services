@@ -8,15 +8,14 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
-	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/admin/adminpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
-	
 )
 
 // The default values.
@@ -67,6 +66,8 @@ type server struct {
 	CertAuthorityTrust string
 
 	Permissions []interface{} // contains the action permission for the services.
+
+	Dependencies []string // The list of services needed by this services.
 
 	// Where application must be installed, default valus is /var/globular/webroot
 	WebRoot string
@@ -129,6 +130,26 @@ func (svr *server) SetDiscoveries(discoveries []string) {
 func (svr *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, svr)
+}
+
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency) {
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
 }
 
 func (svr *server) GetPlatform() string {
@@ -311,7 +332,6 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-
 var (
 	rbac_client_ *rbac_client.Rbac_Client
 )
@@ -319,7 +339,7 @@ var (
 /**
  * Get the rbac client.
  */
- func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
@@ -341,7 +361,6 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 }
 
 ///////////////////// event service functions ////////////////////////////////////
-
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -367,6 +386,7 @@ func main() {
 	s_impl.Keywords = []string{"Manager", "Administrator", "Admin"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = []string{"rbac.RbacService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WebRoot = "/var/globular/webroot"
 	s_impl.ApplicationsRoot = "/var/globular/data/files/applications"

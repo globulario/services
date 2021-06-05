@@ -86,7 +86,7 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 			err := client.run()
 			if err != nil && nb_try_connect == 0 {
 				fmt.Println("Fail to create event client: ", address, id, err)
-				return;
+				return
 			}
 			time.Sleep(500 * time.Millisecond) // wait five seconds.
 			nb_try_connect--
@@ -139,7 +139,7 @@ func (event_client *Event_Client) run() error {
 					}
 				}
 			} else if action["action"].(string) == "stop" {
-				event_client.isConnected = false;
+				event_client.isConnected = false
 				break
 			}
 		}
@@ -179,11 +179,11 @@ func (event_client *Event_Client) Close() {
 
 	// nothing to do if the client is not connected.
 	if !event_client.isConnected {
-		return 
+		return
 	}
-	
+
 	event_client.cc.Close()
-	
+
 	action := make(map[string]interface{})
 	action["action"] = "stop"
 	// set the action.
@@ -286,17 +286,17 @@ func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventp
 		return err
 	}
 
-	event_client.isConnected = true;
+	event_client.isConnected = true
 
 	// Run in it own goroutine.
 	go func() {
 		for {
 			msg, err := stream.Recv()
-			if err != nil || !event_client.isConnected || msg == nil{
+			if err != nil || !event_client.isConnected || msg == nil {
 				// end of stream...
 				event_client.Close()
-				stream.CloseSend();
-				return 
+				stream.CloseSend()
+				return
 			}
 
 			// Get the result...
@@ -315,7 +315,7 @@ func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventp
 func (event_client *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
 	registered := false
 
-	for nbTry := 5; !registered && nbTry > 0; nbTry-- {
+	for nbTry := 30; !registered && nbTry > 0; nbTry-- {
 		err := event_client.subscribe(name, uuid, fct)
 		if err == nil {
 			log.Println("subscription to ", name, " succeed!")

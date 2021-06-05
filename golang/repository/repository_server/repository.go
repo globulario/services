@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
 	"time"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/repository/repositorypb"

@@ -72,6 +72,8 @@ type server struct {
 
 	Permissions []interface{} // contains the action permission for the services.
 
+	Dependencies []string // The list of services needed by this services.
+
 	// The grpc server.
 	grpcServer *grpc.Server
 }
@@ -127,6 +129,27 @@ func (server *server) SetDiscoveries(discoveries []string) {
 func (server *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, server)
+}
+
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
 }
 
 func (server *server) GetPlatform() string {
@@ -510,6 +533,7 @@ func main() {
 	s_impl.Keywords = []string{"Discovery", "Package", "Service", "Application"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = []string{"rbac.RbacService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
 
 	s_impl.AllowAllOrigins = allow_all_origins

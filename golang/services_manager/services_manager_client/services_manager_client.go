@@ -2,7 +2,6 @@ package service_manager_client
 
 import (
 	"strconv"
-	"log"
 	"context"
 	//"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"

@@ -74,6 +74,8 @@ type server struct {
 	// Contain the list of service use by the catalog server.
 	Services    map[string]interface{}
 	Permissions []interface{}
+	Dependencies []string // The list of services needed by this services.
+
 
 	// Here I will create client to services use by the catalog server.
 	persistenceClient *persistence_client.Persistence_Client
@@ -120,6 +122,28 @@ func (self *server) SetKeywords(keywords []string) {
 func (self *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, self)
+}
+
+
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
 }
 
 func (self *server) GetPlatform() string {
@@ -1495,7 +1519,7 @@ func (self *server) GetSupplierPackages(ctx context.Context, rqst *catalogpb.Get
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	results := make([]map[string]interface{})
+	results := make([]map[string]interface{}, 0)
 	err = json.Unmarshal([]byte(jsonStr), &results)
 
 	if err != nil {
@@ -1961,7 +1985,7 @@ func (self *server) GetManufacturer(ctx context.Context, rqst *catalogpb.GetManu
 }
 
 func (self *server) getOptionsString(options string) (string, error) {
-	options_ := make([]map[string]interface{})
+	options_ := make([]map[string]interface{}, 0)
 	if len(options) > 0 {
 		err := json.Unmarshal([]byte(options), &options_)
 		if err != nil {
@@ -2403,7 +2427,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-
+	s_impl.Dependencies = make([]string, 0)
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

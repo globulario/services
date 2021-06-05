@@ -79,6 +79,7 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies []string // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -140,6 +141,26 @@ func (self *server) SetKeywords(keywords []string) {
 func (self *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, self)
+}
+
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
 }
 
 func (self *server) GetPlatform() string {
@@ -635,6 +656,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = make([]string, 0)
 	s_impl.Connections = make(map[string]connection)
 	s_impl.DbIpV4 = "0.0.0.0:27017" // default mongodb port.
 

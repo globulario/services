@@ -76,6 +76,8 @@ type server struct {
 
 	Permissions []interface{} // contains the action permission for the services.
 
+	Dependencies []string // The list of services needed by this services.
+
 	// The backend infos.
 	Backend_address  string
 	Backend_port     int64
@@ -144,6 +146,27 @@ func (svr *server) SetDiscoveries(discoveries []string) {
 func (svr *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, svr)
+}
+
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
 }
 
 func (svr *server) GetPlatform() string {
@@ -878,6 +901,7 @@ func main() {
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = make([]string, 0)
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

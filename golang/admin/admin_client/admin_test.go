@@ -6,172 +6,47 @@ import (
 	"testing"
 
 	//"time"
-	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/authentication/authentication_client"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 )
 
 var (
 	// Connect to the admin client.
-	client, _   = NewAdminService_Client("globular.cloud", "admin.AdminService")
-	resource, _ = resource_client.NewResourceService_Client("globular.cloud", "resource.ResourceService")
+	domain = "globular.cloud"
+	client, _   = NewAdminService_Client(domain, "admin.AdminService")
+	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
+	log_client_ ,_ = log_client.NewLogService_Client(domain, "log.LogService")
 )
 
-// Test various function here.
-/*
-func TestGetConfig(t *testing.T) {
-	config, err := client.GetConfig()
-	if err != nil {
-		log.Println(err)
-		t.FailNow()
-	}
-	log.Println("Get Config succeed!", config)
-}
-*/
-
-func TestGetFullConfig(t *testing.T) {
-	log.Println("----------> get token...", resource)
-	token, err := resource.Authenticate("sa", "adminadmin")
-	if err != nil {
-		log.Println("Fail to authenticate")
-		log.Println(err.Error())
-		return
-	}
-	log.Println(token)
-	config, err := client.GetFullConfig()
-	if err != nil {
-		log.Println(err)
-		t.FailNow()
-	}
-	log.Println(config)
-	log.Println("GetFullConfig succeed!")
-}
-
-// Test modify the config...
-/*func TestSaveConfig(t *testing.T) {
-	log.Println("---> test get config.")
-
-	configStr, err := client.GetFullConfig()
-	if err != nil {
-		log.Println("---> ", err)
-	}
-
-	// So here I will use a map to intialyse config...
-	config := make(map[string]interface{})
-	err = json.Unmarshal([]byte(configStr), &config)
-	if err != nil {
-		log.Println("---> ", err)
-	}
-
-	// Print the services configuration here.
-	config["IdleTimeout"] = 220
-
-	configStr_, _ := json.Marshal(config)
-
-	// Here I will save the configuration directly...
-	err = client.SaveConfig(string(configStr_))
-	if err != nil {
-		log.Println("---> ", err)
-	}
-
-	// Now I will try to save a single service.
-	serviceConfig := config["Services"].(map[string]interface{})["echo_server"].(map[string]interface{})
-	serviceConfig["Port"] = 10029 // set new port number.
-	serviceConfigStr_, _ := json.Marshal(serviceConfig)
-	err = client.SaveConfig(string(serviceConfigStr_))
-	if err != nil {
-		log.Println("---> ", err)
-	}
-}*/
-/*
-func TestInstallService(t *testing.T) {
-	err := client.InstallService("localhost", "globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b")
-	if err != nil {
-		log.Panicln(err)
-	}
-	time.Sleep(time.Second * 5)
-}
-*/
-/*
-func TestStartService(t *testing.T) {
-	log.Println("---> test get config.")
-
-	service_pid, proxy_pid, err := client.StartService("file.FileService")
-	if err != nil {
-
-		log.Println("---> ", err)
-	}
-	log.Println("service pid:", service_pid, " proxy pid:", proxy_pid)
-
-}
-*/
-/*
-func TestStopService(t *testing.T) {
-	token, err := resource.Authenticate("sa", "adminadmin")
-	if err != nil {
-		log.Println("Fail to authenticate to globular.cloud")
-		log.Println(err.Error())
-		return
-	}
-	log.Println(token)
-	err = client.StopService("file.FileService")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Println("---> stop service succeeded")
-}
-*/
-/*
-func TestUninstallService(t *testing.T) {
-	err := client.UninstallService("globulario", "b94d0011-39a0-4bdb-9a5c-7e9abc23b26b", "0.0.1")
-	if err != nil {
-		log.Panicln(err)
-	}
-}
-*/
-/*
-func TestRestartServices(t *testing.T) {
-	err := client.RestartServices()
-	if err != nil {
-		log.Println(err)
-		t.FailNow()
-	}
-	log.Println("RestartServices succeed!")
-}
-*/
-
-/*func TestPublishService(t *testing.T) {
-	err := client.PublishService("echo_server", "localhost:8080", "localhost:8080", "Echo is the simplest serive of all.", []string{"test", "echo"})
-	if err != nil {
-		log.Panicln(err)
-	}
-}
-*/
 
 func TestRunCmd(t *testing.T) {
-	var err error
-	client_, err := resource_client.NewResourceService_Client("globular.cloud", "resource.ResourceService")
-	if err != nil {
-		log.Println("----> fail to connect with error ", err)
-		return
-	}
-	token, err := client_.Authenticate("sa", "adminadmin")
+	log.Println("call authenticate")
+	token, err := authentication_client_.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("---> ", err)
 	} else {
 		log.Println("---> ", token)
 	}
 
+	// Ther's various kind of command that can be run by this command...
 	// results, err := client.RunCmd(token, "cmd", []string{"/C", "dir", "C:\\"}, true)
-	results, err := client.RunCmd(token, "taskkill", []string{"/F", "/PID", "15024"}, true)
+	// results, err := client.RunCmd(token, "taskkill", []string{"/F", "/PID", "15024"}, true)
 	// results, err := client.RunCmd(token, "set", []string{"PATH=%PATH%;C:/applications_services/exec/ffmpeg-N-101994-g84ac1440b2-win64-gpl-shared/bin"}, true)
 	// results, err := client.RunCmd(token, "setx", []string{"/M", "PATH ", "C:/applications_services/exec/ffmpeg-N-101994-g84ac1440b2-win64-gpl-shared/bin"}, true)
-	//results, err := client.RunCmd(token, "ffmpeg", []string{"-version"}, true)
-	//results, err := client.RunCmd(token, "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe", []string{"-command", `"Restart-Service SLS-Globular -Force"`}, true)
+	// results, err := client.RunCmd(token, "ffmpeg", []string{"-version"}, true)
+
+	// Here I will get the content of the tmp directory.
+	results, err := client.RunCmd(token, "ls", []string{"-a", "/tmp"}, true)
 
 	if err != nil {
 		log.Println(err)
+		log_client_.Log("admin_test", "test", "TestRunCmd", logpb.LogLevel_ERROR_MESSAGE, err.Error())
 		t.FailNow()
 	}
+
+	// So here I will set message into the logger...
+	log_client_.Log("admin_test", "test", "TestRunCmd", logpb.LogLevel_DEBUG_MESSAGE, "This is a test... ")
 	log.Println(results)
 }
 

@@ -70,6 +70,8 @@ type server struct {
 
 	Permissions []interface{} // contains the action permission for the services.
 
+	Dependencies []string // The list of services needed by this services.
+
 	// The grpc server.
 	grpcServer *grpc.Server
 
@@ -128,6 +130,26 @@ func (svr *server) SetDiscoveries(discoveries []string) {
 func (svr *server) Dist(path string) (string, error) {
 
 	return globular.Dist(path, svr)
+}
+
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency) {
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
 }
 
 func (svr *server) GetPlatform() string {
@@ -311,9 +333,9 @@ func (svr *server) StopService() error {
 }
 
 var (
-	resourceClient *resource_client.Resource_Client
+	resourceClient  *resource_client.Resource_Client
 	discoveryClient *discovery_client.Dicovery_Client
-	event_client_ *event_client.Event_Client
+	event_client_   *event_client.Event_Client
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -338,7 +360,7 @@ func (svr *server) deleteApplication(applicationId string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return resourceClient.DeleteApplication(applicationId)
 }
 
@@ -348,7 +370,7 @@ func (svr *server) createApplication(id, password, path, publisherId, version, d
 		return err
 	}
 
-	return resourceClient.CreateApplication(id, password, path, publisherId, version, description, alias, icon, actions, keywords);
+	return resourceClient.CreateApplication(id, password, path, publisherId, version, description, alias, icon, actions, keywords)
 
 }
 
@@ -364,7 +386,7 @@ func (svr *server) getApplicationVersion(id string) (string, error) {
 func (svr *server) createRole(id, name string, actions []string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	return resourceClient.CreateRole(id, name, actions)
@@ -373,7 +395,7 @@ func (svr *server) createRole(id, name string, actions []string) error {
 func (svr *server) createGroup(id, name string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
-		return  err
+		return err
 	}
 
 	return resourceClient.CreateGroup(id, name)
@@ -394,8 +416,8 @@ func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, erro
 }
 
 func (server *server) publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
-	discoveryClient, err :=  server.getDsicoveryClient()
-	
+	discoveryClient, err := server.getDsicoveryClient()
+
 	if err != nil {
 		return err
 	}
@@ -426,7 +448,6 @@ func (svr *server) publish(event string, data []byte) error {
 	return eventClient.Publish(event, data)
 }
 
-
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -451,6 +472,7 @@ func main() {
 	s_impl.Keywords = []string{"Install, Uninstall, Deploy applications"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WebRoot = "/var/globular/webroot"
 

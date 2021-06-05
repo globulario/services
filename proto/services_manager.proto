@@ -1,19 +1,8 @@
 syntax = "proto3";
 package services_manager;
 
-import "google/protobuf/struct.proto";
-
 option go_package="services_manager/services_managerpb";
 
-message UploadServicePackageRequest{
-	string user = 1;
-	string organization = 2;
-	bytes data = 3;
-}
-
-message UploadServicePackageResponse{
-	string path = 1;
-}
 
 message InstallServiceRequest{
 	string dicorveryId = 1;
@@ -62,31 +51,6 @@ message RestartAllServicesRequest {
 message RestartAllServicesResponse {
 }
 
-message GetServicesConfigRequest {
-  
-}
-
-message GetServicesConfigResponse {
-  repeated google.protobuf.Struct configs = 1;
-}
-
-message GetServiceConfigRequest {
-  string serviceId = 1;
-}
-
-message GetServiceConfigResponse {
-  google.protobuf.Struct config = 1;
-}
-
-message SaveServiceConfigRequest {
-  google.protobuf.Struct config = 1;
-}
-
-message SaveServiceConfigResponse {
-  
-}
-
-
 service ServicesManagerService {
 
   // Install a service...
@@ -101,15 +65,8 @@ service ServicesManagerService {
   // Start a service
   rpc StartServiceInstance(StartServiceInstanceRequest) returns (StartServiceInstanceResponse);
 
-  // Restart all Services also the http(s)
+  // Restart all Services
   rpc RestartAllServices(RestartAllServicesRequest) returns (RestartAllServicesResponse);
 
-  // Return the list of services configurations.
-  rpc GetServicesConfig(GetServicesConfigRequest) returns (GetServicesConfigResponse);
-  
-  // Return the config of a particular service from it id.
-  rpc GetServiceConfig(GetServiceConfigRequest) returns (GetServiceConfigResponse);
 
-  // Save a service config.
-  rpc SaveServiceConfig(SaveServiceConfigRequest) returns (SaveServiceConfigResponse);
 }

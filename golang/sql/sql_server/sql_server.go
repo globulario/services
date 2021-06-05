@@ -146,6 +146,7 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies []string // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -156,200 +157,220 @@ type server struct {
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (self *server) GetId() string {
-	return self.Id
+func (sql_server *server) GetId() string {
+	return sql_server.Id
 }
-func (self *server) SetId(id string) {
-	self.Id = id
+func (sql_server *server) SetId(id string) {
+	sql_server.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (self *server) GetName() string {
-	return self.Name
+func (sql_server *server) GetName() string {
+	return sql_server.Name
 }
-func (self *server) SetName(name string) {
-	self.Name = name
+func (sql_server *server) SetName(name string) {
+	sql_server.Name = name
 }
 
 // The description of the service
-func (self *server) GetDescription() string {
-	return self.Description
+func (sql_server *server) GetDescription() string {
+	return sql_server.Description
 }
-func (self *server) SetDescription(description string) {
-	self.Description = description
-}
-
-func (self *server) GetRepositories() []string {
-	return self.Repositories
-}
-func (self *server) SetRepositories(repositories []string) {
-	self.Repositories = repositories
+func (sql_server *server) SetDescription(description string) {
+	sql_server.Description = description
 }
 
-func (self *server) GetDiscoveries() []string {
-	return self.Discoveries
+func (sql_server *server) GetRepositories() []string {
+	return sql_server.Repositories
 }
-func (self *server) SetDiscoveries(discoveries []string) {
-	self.Discoveries = discoveries
+func (sql_server *server) SetRepositories(repositories []string) {
+	sql_server.Repositories = repositories
+}
+
+func (sql_server *server) GetDiscoveries() []string {
+	return sql_server.Discoveries
+}
+func (sql_server *server) SetDiscoveries(discoveries []string) {
+	sql_server.Discoveries = discoveries
 }
 
 // The list of keywords of the services.
-func (self *server) GetKeywords() []string {
-	return self.Keywords
+func (sql_server *server) GetKeywords() []string {
+	return sql_server.Keywords
 }
-func (self *server) SetKeywords(keywords []string) {
-	self.Keywords = keywords
+func (sql_server *server) SetKeywords(keywords []string) {
+	sql_server.Keywords = keywords
 }
 
 // Dist
-func (self *server) Dist(path string) (string, error) {
+func (sql_server *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, self)
+	return globular.Dist(path, sql_server)
 }
 
-func (self *server) GetPlatform() string {
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
+}
+
+func (sql_server *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
 // The path of the executable.
-func (self *server) GetPath() string {
-	return self.Path
+func (sql_server *server) GetPath() string {
+	return sql_server.Path
 }
-func (self *server) SetPath(path string) {
-	self.Path = path
+func (sql_server *server) SetPath(path string) {
+	sql_server.Path = path
 }
 
 // The path of the .proto file.
-func (self *server) GetProto() string {
-	return self.Proto
+func (sql_server *server) GetProto() string {
+	return sql_server.Proto
 }
-func (self *server) SetProto(proto string) {
-	self.Proto = proto
+func (sql_server *server) SetProto(proto string) {
+	sql_server.Proto = proto
 }
 
 // The gRpc port.
-func (self *server) GetPort() int {
-	return self.Port
+func (sql_server *server) GetPort() int {
+	return sql_server.Port
 }
-func (self *server) SetPort(port int) {
-	self.Port = port
+func (sql_server *server) SetPort(port int) {
+	sql_server.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (self *server) GetProxy() int {
-	return self.Proxy
+func (sql_server *server) GetProxy() int {
+	return sql_server.Proxy
 }
-func (self *server) SetProxy(proxy int) {
-	self.Proxy = proxy
+func (sql_server *server) SetProxy(proxy int) {
+	sql_server.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (self *server) GetProtocol() string {
-	return self.Protocol
+func (sql_server *server) GetProtocol() string {
+	return sql_server.Protocol
 }
-func (self *server) SetProtocol(protocol string) {
-	self.Protocol = protocol
+func (sql_server *server) SetProtocol(protocol string) {
+	sql_server.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (self *server) GetAllowAllOrigins() bool {
-	return self.AllowAllOrigins
+func (sql_server *server) GetAllowAllOrigins() bool {
+	return sql_server.AllowAllOrigins
 }
-func (self *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	self.AllowAllOrigins = allowAllOrigins
+func (sql_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	sql_server.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (self *server) GetAllowedOrigins() string {
-	return self.AllowedOrigins
+func (sql_server *server) GetAllowedOrigins() string {
+	return sql_server.AllowedOrigins
 }
 
-func (self *server) SetAllowedOrigins(allowedOrigins string) {
-	self.AllowedOrigins = allowedOrigins
+func (sql_server *server) SetAllowedOrigins(allowedOrigins string) {
+	sql_server.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (self *server) GetDomain() string {
-	return self.Domain
+func (sql_server *server) GetDomain() string {
+	return sql_server.Domain
 }
-func (self *server) SetDomain(domain string) {
-	self.Domain = domain
+func (sql_server *server) SetDomain(domain string) {
+	sql_server.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (self *server) GetTls() bool {
-	return self.TLS
+func (sql_server *server) GetTls() bool {
+	return sql_server.TLS
 }
-func (self *server) SetTls(hasTls bool) {
-	self.TLS = hasTls
+func (sql_server *server) SetTls(hasTls bool) {
+	sql_server.TLS = hasTls
 }
 
 // The certificate authority file
-func (self *server) GetCertAuthorityTrust() string {
-	return self.CertAuthorityTrust
+func (sql_server *server) GetCertAuthorityTrust() string {
+	return sql_server.CertAuthorityTrust
 }
-func (self *server) SetCertAuthorityTrust(ca string) {
-	self.CertAuthorityTrust = ca
+func (sql_server *server) SetCertAuthorityTrust(ca string) {
+	sql_server.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (self *server) GetCertFile() string {
-	return self.CertFile
+func (sql_server *server) GetCertFile() string {
+	return sql_server.CertFile
 }
-func (self *server) SetCertFile(certFile string) {
-	self.CertFile = certFile
+func (sql_server *server) SetCertFile(certFile string) {
+	sql_server.CertFile = certFile
 }
 
 // The key file.
-func (self *server) GetKeyFile() string {
-	return self.KeyFile
+func (sql_server *server) GetKeyFile() string {
+	return sql_server.KeyFile
 }
-func (self *server) SetKeyFile(keyFile string) {
-	self.KeyFile = keyFile
+func (sql_server *server) SetKeyFile(keyFile string) {
+	sql_server.KeyFile = keyFile
 }
 
 // The service version
-func (self *server) GetVersion() string {
-	return self.Version
+func (sql_server *server) GetVersion() string {
+	return sql_server.Version
 }
-func (self *server) SetVersion(version string) {
-	self.Version = version
+func (sql_server *server) SetVersion(version string) {
+	sql_server.Version = version
 }
 
 // The publisher id.
-func (self *server) GetPublisherId() string {
-	return self.PublisherId
+func (sql_server *server) GetPublisherId() string {
+	return sql_server.PublisherId
 }
-func (self *server) SetPublisherId(publisherId string) {
-	self.PublisherId = publisherId
-}
-
-func (self *server) GetKeepUpToDate() bool {
-	return self.KeepUpToDate
-}
-func (self *server) SetKeepUptoDate(val bool) {
-	self.KeepUpToDate = val
+func (sql_server *server) SetPublisherId(publisherId string) {
+	sql_server.PublisherId = publisherId
 }
 
-func (self *server) GetKeepAlive() bool {
-	return self.KeepAlive
+func (sql_server *server) GetKeepUpToDate() bool {
+	return sql_server.KeepUpToDate
 }
-func (self *server) SetKeepAlive(val bool) {
-	self.KeepAlive = val
+func (sql_server *server) SetKeepUptoDate(val bool) {
+	sql_server.KeepUpToDate = val
 }
 
-func (self *server) GetPermissions() []interface{} {
-	return self.Permissions
+func (sql_server *server) GetKeepAlive() bool {
+	return sql_server.KeepAlive
 }
-func (self *server) SetPermissions(permissions []interface{}) {
-	self.Permissions = permissions
+func (sql_server *server) SetKeepAlive(val bool) {
+	sql_server.KeepAlive = val
+}
+
+func (sql_server *server) GetPermissions() []interface{} {
+	return sql_server.Permissions
+}
+func (sql_server *server) SetPermissions(permissions []interface{}) {
+	sql_server.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (self *server) Init() error {
+func (sql_server *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewSqlService_Client", sql_client.NewSqlService_Client)
@@ -357,13 +378,13 @@ func (self *server) Init() error {
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-	err := globular.InitService(dir+"/config.json", self)
+	err := globular.InitService(dir+"/config.json", sql_server)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	sql_server.grpcServer, err = globular.InitGrpcServer(sql_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -373,29 +394,29 @@ func (self *server) Init() error {
 }
 
 // Save the configuration values.
-func (self *server) Save() error {
+func (sql_server *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", self)
+	return globular.SaveService(dir+"/config.json", sql_server)
 }
 
-func (self *server) StartService() error {
-	return globular.StartService(self, self.grpcServer)
+func (sql_server *server) StartService() error {
+	return globular.StartService(sql_server, sql_server.grpcServer)
 }
 
-func (self *server) StopService() error {
-	return globular.StopService(self, self.grpcServer)
+func (sql_server *server) StopService() error {
+	return globular.StopService(sql_server, sql_server.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.StopResponse, error) {
-	return &sqlpb.StopResponse{}, self.StopService()
+func (sql_server *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.StopResponse, error) {
+	return &sqlpb.StopResponse{}, sql_server.StopService()
 }
 
 //////////////////////// SQL Specific services /////////////////////////////////
 
 // Create a new SQL connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (self *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
+func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
 	// sqlpb
 	fmt.Println("Try to create a new connection")
 	var c connection
@@ -423,10 +444,10 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConn
 	defer db.Close()
 
 	// set or update the connection and save it in json file.
-	self.Connections[c.Id] = c
+	sql_server.Connections[c.Id] = c
 
 	// In that case I will save it in file.
-	err = self.Save()
+	err = sql_server.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -434,10 +455,10 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConn
 	}
 
 	// Update the globule configuration.
-	globular.UpdateServiceConfig(self)
+	globular.UpdateServiceConfig(sql_server)
 
 	// test if the connection is reacheable.
-	_, err = self.ping(ctx, c.Id)
+	_, err = sql_server.ping(ctx, c.Id)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -452,18 +473,18 @@ func (self *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConn
 }
 
 // Remove a connection from the map and the file.
-func (self *server) DeleteConnection(ctx context.Context, rqst *sqlpb.DeleteConnectionRqst) (*sqlpb.DeleteConnectionRsp, error) {
+func (sql_server *server) DeleteConnection(ctx context.Context, rqst *sqlpb.DeleteConnectionRqst) (*sqlpb.DeleteConnectionRsp, error) {
 	id := rqst.GetId()
-	if _, ok := self.Connections[id]; !ok {
+	if _, ok := sql_server.Connections[id]; !ok {
 		return &sqlpb.DeleteConnectionRsp{
 			Result: true,
 		}, nil
 	}
 
-	delete(self.Connections, id)
+	delete(sql_server.Connections, id)
 
 	// In that case I will save it in file.
-	err := self.Save()
+	err := sql_server.Save()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -477,12 +498,12 @@ func (self *server) DeleteConnection(ctx context.Context, rqst *sqlpb.DeleteConn
 }
 
 // local implementation.
-func (self *server) ping(ctx context.Context, id string) (string, error) {
-	if _, ok := self.Connections[id]; !ok {
+func (sql_server *server) ping(ctx context.Context, id string) (string, error) {
+	if _, ok := sql_server.Connections[id]; !ok {
 		return "", errors.New("connection with id " + id + " dosent exist.")
 	}
 
-	c := self.Connections[id]
+	c := sql_server.Connections[id]
 
 	// First of all I will try to
 	db, err := sql.Open(c.Driver, c.getConnectionString())
@@ -506,8 +527,8 @@ func (self *server) ping(ctx context.Context, id string) (string, error) {
 }
 
 // Ping a sql connection.
-func (self *server) Ping(ctx context.Context, rsqt *sqlpb.PingConnectionRqst) (*sqlpb.PingConnectionRsp, error) {
-	pong, err := self.ping(ctx, rsqt.GetId())
+func (sql_server *server) Ping(ctx context.Context, rsqt *sqlpb.PingConnectionRqst) (*sqlpb.PingConnectionRsp, error) {
+	pong, err := sql_server.ping(ctx, rsqt.GetId())
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -526,16 +547,16 @@ func (self *server) Ping(ctx context.Context, rsqt *sqlpb.PingConnectionRqst) (*
 var maxSize = uint(16000) // Value in bytes...
 
 // Now the execute query.
-func (self *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlService_QueryContextServer) error {
+func (sql_server *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlService_QueryContextServer) error {
 
 	// Be sure the connection is there.
-	if _, ok := self.Connections[rqst.Query.ConnectionId]; !ok {
+	if _, ok := sql_server.Connections[rqst.Query.ConnectionId]; !ok {
 
 		return errors.New("connection with id " + rqst.Query.ConnectionId + " dosent exist.")
 	}
 
 	// Now I will open the connection.
-	c := self.Connections[rqst.Query.ConnectionId]
+	c := sql_server.Connections[rqst.Query.ConnectionId]
 
 	// First of all I will try to
 	db, err := sql.Open(c.Driver, c.getConnectionString())
@@ -692,15 +713,15 @@ func (self *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlS
 
 // Exec Query SQL CREATE and INSERT. Return the affected rows.
 // Now the execute query.
-func (self *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst) (*sqlpb.ExecContextRsp, error) {
+func (sql_server *server) ExecContext(ctx context.Context, rqst *sqlpb.ExecContextRqst) (*sqlpb.ExecContextRsp, error) {
 
 	// Be sure the connection is there.
-	if _, ok := self.Connections[rqst.Query.ConnectionId]; !ok {
+	if _, ok := sql_server.Connections[rqst.Query.ConnectionId]; !ok {
 		return nil, errors.New("connection with id " + rqst.Query.ConnectionId + " dosent exist.")
 	}
 
 	// Now I will open the connection.
-	c := self.Connections[rqst.Query.ConnectionId]
+	c := sql_server.Connections[rqst.Query.ConnectionId]
 
 	// First of all I will try to
 	db, err := sql.Open(c.Driver, c.getConnectionString())
@@ -808,7 +829,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-
+	s_impl.Dependencies = make([]string, 0)
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

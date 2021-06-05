@@ -3,10 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"log"
 	"strings"
-	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/interceptors"
@@ -19,65 +16,6 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // Api
 ////////////////////////////////////////////////////////////////////////////////
-
-func (server *server) logServiceInfo(service string, message string) error {
-
-	// Here I will use event to publish log information...
-	info := new(logpb.LogInfo)
-	info.Application = ""
-	info.UserId = "globular"
-	info.UserName = "globular"
-	info.Method = service
-	info.Date = time.Now().Unix()
-	info.Message = message
-	info.Level = logpb.LogLevel_INFO_MESSAGE // not necessarely errors..
-	server.log(info)
-
-	return nil
-}
-
-func (server *server) logServiceError(service string, message string) error {
-
-	// Here I will use event to publish log information...
-	info := new(logpb.LogInfo)
-	info.Application = ""
-	info.UserId = "globular"
-	info.UserName = "globular"
-	info.Method = service
-	info.Date = time.Now().Unix()
-	info.Message = message
-	info.Level = logpb.LogLevel_ERROR_MESSAGE
-	server.log(info)
-
-	return nil
-}
-
-// Log err and info...
-func (server *server) logInfo(application string, method string, token string, err_ error) error {
-
-	// Remove cyclic calls
-	if method == "/resource.LogService/Log" {
-		return errors.New("Method " + method + " cannot not be log because it will cause a circular call to itself!")
-	}
-
-	// Here I will use event to publish log information...
-	info := new(logpb.LogInfo)
-	info.Application = application
-	info.UserId = token
-	info.UserName = token
-	info.Method = method
-	info.Date = time.Now().Unix()
-	if err_ != nil {
-		info.Message = err_.Error()
-		info.Level = logpb.LogLevel_ERROR_MESSAGE
-	} else {
-		info.Level = logpb.LogLevel_INFO_MESSAGE
-	}
-
-	server.log(info)
-
-	return nil
-}
 
 func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, string, error) {
 	marshaler := new(jsonpb.Marshaler)
@@ -142,16 +80,17 @@ func (server *server) log(info *logpb.LogInfo) error {
 		return nil
 	}
 
+	// Return the log information.
 	key, jsonStr, err := server.getLogInfoKeyValue(info)
 	if err != nil {
 		return err
 	}
 
-	// Append the error in leveldb
+	// Append the log in leveldb
 	server.logs.SetItem(key, []byte(jsonStr))
 
 	// That must be use to keep all logger upto date...
-	server.publish("new_error_log_evt", []byte(jsonStr))
+	server.publish("new_log_evt", []byte(jsonStr))
 
 	return nil
 }

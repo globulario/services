@@ -5,7 +5,6 @@ import (
 
 	// "io/ioutil"
 	"io/ioutil"
-	"log"
 	"time"
 
 	b64 "encoding/base64"

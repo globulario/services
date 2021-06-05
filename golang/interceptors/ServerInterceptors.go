@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -314,7 +313,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/log.LogService/Log" ||
 		method == "/log.LogService/DeleteLog" ||
 		method == "/log.LogService/GetLog" ||
-		method == "/log.LogService/ClearAllLog" {
+		method == "/log.LogService/ClearAllLog" ||
+		method == "/event.EventService/Subscribe" ||
+		method == "/event.EventService/Publish" {
 		hasAccess = true
 	}
 

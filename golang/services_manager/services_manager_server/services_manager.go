@@ -6,21 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
-
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/resource/resource_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/repository/repository_client"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
+	"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Uninstall a service...
@@ -55,7 +52,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 		if err == nil {
 
-			previous := server.getService(descriptor.Id)
+			previous, _ := config.GetServicesConfigurationsById(descriptor.Id)
 			if previous != nil {
 				// Uninstall the previous version...
 				server.uninstallService(descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
@@ -64,12 +61,16 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			// Create the file.
 			r := bytes.NewReader(bundle.Binairies)
 			_extracted_path_, err := Utility.ExtractTarGz(r)
+			if err != nil {
+				return err
+			}
+
 			defer os.RemoveAll(_extracted_path_)
 
 			// I will save the binairy in file...
 			Utility.CreateDirIfNotExist(server.Root + "/services/")
-
 			err = Utility.CopyDir(_extracted_path_+"/"+descriptor.PublisherId, server.Root+"/services/")
+
 			if err != nil {
 				return err
 			}
@@ -93,7 +94,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 				return errors.New("no configuration file was found")
 			}
 
-			s := make(map[string]interface{}, 0)
+			s := make(map[string]interface{})
 			data, err := ioutil.ReadFile(configs[0])
 			if err != nil {
 				return err
@@ -115,8 +116,8 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 			// Here I will get previous service values...
 			if previous != nil {
-				s["KeepAlive"] = getBoolVal(previous, "KeepAlive")
-				s["KeepUpToDate"] = getBoolVal(previous, "KeepUpToDate")
+				s["KeepAlive"] = previous["KeepAlive"].(bool)
+				s["KeepUpToDate"] =previous["KeepUpToDate"].(bool)
 			}
 
 			err = os.Chmod(s["Path"].(string), 0755)
@@ -126,20 +127,6 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 			jsonStr, _ := Utility.ToJson(s)
 			ioutil.WriteFile(configs[0], []byte(jsonStr), 0644)
-
-			// set the service in the map.
-			s_ := new(sync.Map)
-			setValues(s_, s)
-
-			// initialyse the new service.
-			err = server.initService(s_)
-			if err != nil {
-				return err
-			}
-
-			// Here I will set the service method...
-			server.setServiceMethods(s["Name"].(string), s["Proto"].(string))
-			server.registerMethods()
 
 			// Append to the list of service discoveries.
 			needSave := false
@@ -161,8 +148,8 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			}
 
 			if needSave {
-				//server.saveConfig()
-				// TODO publish update service event here...
+				// save the service manager configuration itself.
+				server.Save()
 			}
 
 			break
@@ -172,7 +159,6 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 	}
 
 	return nil
-
 }
 
 // Install/Update a service on globular instance.
@@ -212,7 +198,13 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 // Stop a service
 func (server *server) StopServiceInstance(ctx context.Context, rqst *services_managerpb.StopServiceInstanceRequest) (*services_managerpb.StopServiceInstanceResponse, error) {
 
-	s := server.getService(rqst.ServiceId)
+	s, err := config.GetServicesConfigurationsById(rqst.ServiceId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
 	if s != nil {
 		err := server.stopService(s)
 		if err != nil {
@@ -222,16 +214,29 @@ func (server *server) StopServiceInstance(ctx context.Context, rqst *services_ma
 		}
 	} else {
 		// Close all services with a given name.
-		services := server.getServiceConfigByName(rqst.ServiceId)
+		services, err := config.GetServicesConfigurationsByName(rqst.ServiceId)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
 		for i := 0; i < len(services); i++ {
 			serviceId := services[i]["Id"].(string)
-			s := server.getService(serviceId)
+			s, err := config.GetServicesConfigurationsById(serviceId)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
 			if s == nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No service found with id "+serviceId)))
 			}
-			err := server.stopService(s)
+
+			err = server.stopService(s)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -242,54 +247,6 @@ func (server *server) StopServiceInstance(ctx context.Context, rqst *services_ma
 
 	return &services_managerpb.StopServiceInstanceResponse{
 		Result: true,
-	}, nil
-}
-
-// Return the list of services configurations.
-func (server *server) GetServicesConfig(ctx context.Context, rqst *services_managerpb.GetServicesConfigRequest) (*services_managerpb.GetServicesConfigResponse, error) {
-	configs := server.getServicesConfig()
-	configs_ := make([]*structpb.Struct, 0)
-	for i := 0; i < len(configs); i++ {
-		config, err := structpb.NewStruct(configs[i])
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-		configs_ = append(configs_, config)
-	}
-
-	return &services_managerpb.GetServicesConfigResponse{
-		Configs: configs_,
-	}, nil
-}
-
-// Return the config of a particular service from it id.
-func (server *server) GetServiceConfig(ctx context.Context, rqst *services_managerpb.GetServiceConfigRequest) (*services_managerpb.GetServiceConfigResponse, error) {
-	return nil, errors.New("not implemented")
-}
-
-// Save a service config.
-func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_managerpb.SaveServiceConfigRequest) (*services_managerpb.SaveServiceConfigResponse, error) {
-	if rqst.Config == nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no service configuration to save")))
-
-	}
-
-	// TODO
-
-	// - 1 test if the service is local
-
-	// if is not local dispatch the request to it service manager
-
-	// if is local
-	//  init the service with it new configuration.
-
-	// Save the configuration...
-	return &services_managerpb.SaveServiceConfigResponse{
-		/** Nothing here **/
 	}, nil
 }
 

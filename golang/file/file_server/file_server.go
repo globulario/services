@@ -81,6 +81,7 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
+	Dependencies []string // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -94,200 +95,220 @@ type server struct {
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (self *server) GetId() string {
-	return self.Id
+func (file_server *server) GetId() string {
+	return file_server.Id
 }
-func (self *server) SetId(id string) {
-	self.Id = id
+func (file_server *server) SetId(id string) {
+	file_server.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (self *server) GetName() string {
-	return self.Name
+func (file_server *server) GetName() string {
+	return file_server.Name
 }
-func (self *server) SetName(name string) {
-	self.Name = name
+func (file_server *server) SetName(name string) {
+	file_server.Name = name
 }
 
 // The description of the service
-func (self *server) GetDescription() string {
-	return self.Description
+func (file_server *server) GetDescription() string {
+	return file_server.Description
 }
-func (self *server) SetDescription(description string) {
-	self.Description = description
+func (file_server *server) SetDescription(description string) {
+	file_server.Description = description
 }
 
 // The list of keywords of the services.
-func (self *server) GetKeywords() []string {
-	return self.Keywords
+func (file_server *server) GetKeywords() []string {
+	return file_server.Keywords
 }
-func (self *server) SetKeywords(keywords []string) {
-	self.Keywords = keywords
-}
-
-func (self *server) GetRepositories() []string {
-	return self.Repositories
-}
-func (self *server) SetRepositories(repositories []string) {
-	self.Repositories = repositories
+func (file_server *server) SetKeywords(keywords []string) {
+	file_server.Keywords = keywords
 }
 
-func (self *server) GetDiscoveries() []string {
-	return self.Discoveries
+func (file_server *server) GetRepositories() []string {
+	return file_server.Repositories
 }
-func (self *server) SetDiscoveries(discoveries []string) {
-	self.Discoveries = discoveries
+func (file_server *server) SetRepositories(repositories []string) {
+	file_server.Repositories = repositories
+}
+
+func (file_server *server) GetDiscoveries() []string {
+	return file_server.Discoveries
+}
+func (file_server *server) SetDiscoveries(discoveries []string) {
+	file_server.Discoveries = discoveries
 }
 
 // Dist
-func (self *server) Dist(path string) (string, error) {
+func (file_server *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, self)
+	return globular.Dist(path, file_server)
 }
 
-func (self *server) GetPlatform() string {
+func (server *server) GetDependencies() []string {
+
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+
+	return server.Dependencies
+}
+
+func (server *server) SetDependency(dependency string) {
+	if server.Dependencies == nil {
+		server.Dependencies = make([]string, 0)
+	}
+	
+	// Append the depency to the list.
+	if !Utility.Contains(server.Dependencies, dependency){
+		server.Dependencies = append(server.Dependencies, dependency)
+	}
+}
+
+func (file_server *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
 // The path of the executable.
-func (self *server) GetPath() string {
-	return self.Path
+func (file_server *server) GetPath() string {
+	return file_server.Path
 }
-func (self *server) SetPath(path string) {
-	self.Path = path
+func (file_server *server) SetPath(path string) {
+	file_server.Path = path
 }
 
 // The path of the .proto file.
-func (self *server) GetProto() string {
-	return self.Proto
+func (file_server *server) GetProto() string {
+	return file_server.Proto
 }
-func (self *server) SetProto(proto string) {
-	self.Proto = proto
+func (file_server *server) SetProto(proto string) {
+	file_server.Proto = proto
 }
 
 // The gRpc port.
-func (self *server) GetPort() int {
-	return self.Port
+func (file_server *server) GetPort() int {
+	return file_server.Port
 }
-func (self *server) SetPort(port int) {
-	self.Port = port
+func (file_server *server) SetPort(port int) {
+	file_server.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (self *server) GetProxy() int {
-	return self.Proxy
+func (file_server *server) GetProxy() int {
+	return file_server.Proxy
 }
-func (self *server) SetProxy(proxy int) {
-	self.Proxy = proxy
+func (file_server *server) SetProxy(proxy int) {
+	file_server.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (self *server) GetProtocol() string {
-	return self.Protocol
+func (file_server *server) GetProtocol() string {
+	return file_server.Protocol
 }
-func (self *server) SetProtocol(protocol string) {
-	self.Protocol = protocol
+func (file_server *server) SetProtocol(protocol string) {
+	file_server.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (self *server) GetAllowAllOrigins() bool {
-	return self.AllowAllOrigins
+func (file_server *server) GetAllowAllOrigins() bool {
+	return file_server.AllowAllOrigins
 }
-func (self *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	self.AllowAllOrigins = allowAllOrigins
+func (file_server *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	file_server.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (self *server) GetAllowedOrigins() string {
-	return self.AllowedOrigins
+func (file_server *server) GetAllowedOrigins() string {
+	return file_server.AllowedOrigins
 }
 
-func (self *server) SetAllowedOrigins(allowedOrigins string) {
-	self.AllowedOrigins = allowedOrigins
+func (file_server *server) SetAllowedOrigins(allowedOrigins string) {
+	file_server.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (self *server) GetDomain() string {
-	return self.Domain
+func (file_server *server) GetDomain() string {
+	return file_server.Domain
 }
-func (self *server) SetDomain(domain string) {
-	self.Domain = domain
+func (file_server *server) SetDomain(domain string) {
+	file_server.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (self *server) GetTls() bool {
-	return self.TLS
+func (file_server *server) GetTls() bool {
+	return file_server.TLS
 }
-func (self *server) SetTls(hasTls bool) {
-	self.TLS = hasTls
+func (file_server *server) SetTls(hasTls bool) {
+	file_server.TLS = hasTls
 }
 
 // The certificate authority file
-func (self *server) GetCertAuthorityTrust() string {
-	return self.CertAuthorityTrust
+func (file_server *server) GetCertAuthorityTrust() string {
+	return file_server.CertAuthorityTrust
 }
-func (self *server) SetCertAuthorityTrust(ca string) {
-	self.CertAuthorityTrust = ca
+func (file_server *server) SetCertAuthorityTrust(ca string) {
+	file_server.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (self *server) GetCertFile() string {
-	return self.CertFile
+func (file_server *server) GetCertFile() string {
+	return file_server.CertFile
 }
-func (self *server) SetCertFile(certFile string) {
-	self.CertFile = certFile
+func (file_server *server) SetCertFile(certFile string) {
+	file_server.CertFile = certFile
 }
 
 // The key file.
-func (self *server) GetKeyFile() string {
-	return self.KeyFile
+func (file_server *server) GetKeyFile() string {
+	return file_server.KeyFile
 }
-func (self *server) SetKeyFile(keyFile string) {
-	self.KeyFile = keyFile
+func (file_server *server) SetKeyFile(keyFile string) {
+	file_server.KeyFile = keyFile
 }
 
 // The service version
-func (self *server) GetVersion() string {
-	return self.Version
+func (file_server *server) GetVersion() string {
+	return file_server.Version
 }
-func (self *server) SetVersion(version string) {
-	self.Version = version
+func (file_server *server) SetVersion(version string) {
+	file_server.Version = version
 }
 
 // The publisher id.
-func (self *server) GetPublisherId() string {
-	return self.PublisherId
+func (file_server *server) GetPublisherId() string {
+	return file_server.PublisherId
 }
-func (self *server) SetPublisherId(publisherId string) {
-	self.PublisherId = publisherId
-}
-
-func (self *server) GetKeepUpToDate() bool {
-	return self.KeepUpToDate
-}
-func (self *server) SetKeepUptoDate(val bool) {
-	self.KeepUpToDate = val
+func (file_server *server) SetPublisherId(publisherId string) {
+	file_server.PublisherId = publisherId
 }
 
-func (self *server) GetKeepAlive() bool {
-	return self.KeepAlive
+func (file_server *server) GetKeepUpToDate() bool {
+	return file_server.KeepUpToDate
 }
-func (self *server) SetKeepAlive(val bool) {
-	self.KeepAlive = val
+func (file_server *server) SetKeepUptoDate(val bool) {
+	file_server.KeepUpToDate = val
 }
 
-func (self *server) GetPermissions() []interface{} {
-	return self.Permissions
+func (file_server *server) GetKeepAlive() bool {
+	return file_server.KeepAlive
 }
-func (self *server) SetPermissions(permissions []interface{}) {
-	self.Permissions = permissions
+func (file_server *server) SetKeepAlive(val bool) {
+	file_server.KeepAlive = val
+}
+
+func (file_server *server) GetPermissions() []interface{} {
+	return file_server.Permissions
+}
+func (file_server *server) SetPermissions(permissions []interface{}) {
+	file_server.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (self *server) Init() error {
+func (file_server *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
@@ -295,13 +316,13 @@ func (self *server) Init() error {
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-	err := globular.InitService(dir+"/config.json", self)
+	err := globular.InitService(dir+"/config.json", file_server)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	file_server.grpcServer, err = globular.InitGrpcServer(file_server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
@@ -311,22 +332,22 @@ func (self *server) Init() error {
 }
 
 // Save the configuration values.
-func (self *server) Save() error {
+func (file_server *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", self)
+	return globular.SaveService(dir+"/config.json", file_server)
 }
 
-func (self *server) StartService() error {
-	return globular.StartService(self, self.grpcServer)
+func (file_server *server) StartService() error {
+	return globular.StartService(file_server, file_server.grpcServer)
 }
 
-func (self *server) StopService() error {
-	return globular.StopService(self, self.grpcServer)
+func (file_server *server) StopService() error {
+	return globular.StopService(file_server, file_server.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopResponse, error) {
-	return &filepb.StopResponse{}, self.StopService()
+func (file_server *server) Stop(context.Context, *filepb.StopRequest) (*filepb.StopResponse, error) {
+	return &filepb.StopResponse{}, file_server.StopService()
 }
 
 /**
@@ -486,7 +507,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	if err != nil {
 		return nil, err
 	}
-	if info.IsDir == false {
+	if !info.IsDir {
 		return nil, errors.New(path + " is a directory")
 	}
 
@@ -498,7 +519,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	for _, f := range files {
 
 		if f.IsDir() {
-			if recursive || f.Name() == ".hidden" || strings.Index(path, ".hidden") != -1 {
+			if recursive || f.Name() == ".hidden" || strings.Contains(path, ".hidden") {
 				info_, err := readDir(s, path+string(os.PathSeparator)+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
 				if err != nil {
 					return nil, err
@@ -514,15 +535,18 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		} else if readFiles {
 
 			info_, err := getFileInfo(s, path+string(os.PathSeparator)+f.Name())
-
-			f_, err := os.Open(path + string(os.PathSeparator) + f.Name())
-			defer f_.Close()
-
 			if err != nil {
 				return nil, err
 			}
 
-			if strings.Index(f.Name(), ".") != -1 {
+			f_, err := os.Open(path + string(os.PathSeparator) + f.Name())
+			if err != nil {
+				return nil, err
+			}
+
+			defer f_.Close()
+
+			if strings.Contains(f.Name(), ".") {
 				fileExtension := f.Name()[strings.LastIndex(f.Name(), "."):]
 				info_.Mime = mime.TypeByExtension(fileExtension)
 			} else {
@@ -530,7 +554,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			}
 
 			// Create thumbnail if the path is not in hidden file...
-			if strings.Index(path, ".hidden") == -1 {
+			if !strings.Contains(path, ".hidden") {
 				if strings.HasPrefix(info_.Mime, "image/") {
 					if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 						info_.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
@@ -547,7 +571,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						}
 					}
 
-				} else if strings.Index(info_.Mime, "/") != -1 {
+				} else if strings.Contains(info_.Mime, "/") {
 
 					// In that case I will get read image from png file and create a
 					// thumbnail with it...
@@ -580,19 +604,19 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	return info, err
 }
 
-func (self *server) formatPath(path string) string {
+func (file_server *server) formatPath(path string) string {
 	path = strings.ReplaceAll(path, "\\", "//")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
-				path = self.Root + path
+				path = file_server.Root + path
 			} else if !strings.HasSuffix(path, "/") {
-				path = self.Root + path
+				path = file_server.Root + path
 			} else {
-				path = self.Root + "/" + path
+				path = file_server.Root + "/" + path
 			}
 		} else {
-			path = self.Root
+			path = file_server.Root
 		}
 	}
 	return path
@@ -601,11 +625,11 @@ func (self *server) formatPath(path string) string {
 ////////////////////////////////////////////////////////////////////////////////
 // Directory operations
 ////////////////////////////////////////////////////////////////////////////////
-func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
+func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
-	path := self.formatPath(rqst.GetPath())
+	path := file_server.formatPath(rqst.GetPath())
 
-	info, err := readDir(self, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true)
+	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true)
 	if err != nil {
 		return err
 	}
@@ -637,8 +661,8 @@ func (self *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileServi
 }
 
 // Create a new directory
-func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
-	path := self.formatPath(rqst.GetPath())
+func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
+	path := file_server.formatPath(rqst.GetPath())
 	err := Utility.CreateDirIfNotExist(path + string(os.PathSeparator) + rqst.GetName())
 	if err != nil {
 		return nil, status.Errorf(
@@ -646,7 +670,7 @@ func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetName())
+	file_server.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetName())
 	// The directory was successfuly created.
 	return &filepb.CreateDirResponse{
 		Result: true,
@@ -654,7 +678,7 @@ func (self *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest
 }
 
 // Create an archive from a given dir and set it with name.
-func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
+func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
 
 	var user string
 	var err error
@@ -674,7 +698,7 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No token was given!")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
 		}
 	}
 
@@ -683,9 +707,9 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 	createTempDir := true
 
 	if len(rqst.Paths) == 1 {
-		info, _ := os.Stat(self.Root + rqst.Paths[0])
+		info, _ := os.Stat(file_server.Root + rqst.Paths[0])
 		if info.IsDir() {
-			tmp = self.Root + rqst.Paths[0]
+			tmp = file_server.Root + rqst.Paths[0]
 			createTempDir = false
 		}
 	}
@@ -698,13 +722,13 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 		//defer os.Remove(tmp)
 		for i := 0; i < len(rqst.Paths); i++ {
 			// The file or directory must be in the path.
-			if Utility.Exists(self.Root + rqst.Paths[i]) {
-				info, _ := os.Stat(self.Root + rqst.Paths[i])
+			if Utility.Exists(file_server.Root + rqst.Paths[i]) {
+				info, _ := os.Stat(file_server.Root + rqst.Paths[i])
 				fileName := rqst.Paths[i][strings.LastIndex(rqst.Paths[i], "/"):]
 				if info.IsDir() {
-					Utility.CopyDir(self.Root+rqst.Paths[i], tmp+"/"+fileName)
+					Utility.CopyDir(file_server.Root+rqst.Paths[i], tmp+"/"+fileName)
 				} else {
-					Utility.CopyFile(self.Root+rqst.Paths[i], tmp+"/"+fileName)
+					Utility.CopyFile(file_server.Root+rqst.Paths[i], tmp+"/"+fileName)
 				}
 			}
 		}
@@ -716,10 +740,10 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 	dest := "/users/" + user + "/" + rqst.GetName() + ".tgz"
 
 	// Set user as owner.
-	self.createPermission(ctx, dest)
+	file_server.createPermission(ctx, dest)
 
 	// Now I will save the file to the destination.
-	err = ioutil.WriteFile(self.Root+dest, buf.Bytes(), 0644)
+	err = ioutil.WriteFile(file_server.Root+dest, buf.Bytes(), 0644)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -732,7 +756,7 @@ func (self *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchive
 
 }
 
-func (self *server) createPermission(ctx context.Context, path string) error {
+func (file_server *server) createPermission(ctx context.Context, path string) error {
 	var clientId string
 	var err error
 
@@ -745,7 +769,7 @@ func (self *server) createPermission(ctx context.Context, path string) error {
 				return err
 			}
 		} else {
-			errors.New("No token was given!")
+			errors.New("no token was given")
 		}
 	}
 
@@ -764,7 +788,7 @@ func (self *server) createPermission(ctx context.Context, path string) error {
 	}
 
 	// Set the owner of the conversation.
-	err = self.rbac_client_.SetResourcePermissions(path, permissions)
+	err = file_server.rbac_client_.SetResourcePermissions(path, permissions)
 
 	fmt.Println("Set permission to ", path, clientId)
 
@@ -776,8 +800,8 @@ func (self *server) createPermission(ctx context.Context, path string) error {
 }
 
 // Rename a file or a directory.
-func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*filepb.RenameResponse, error) {
-	path := self.formatPath(rqst.GetPath())
+func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*filepb.RenameResponse, error) {
+	path := file_server.formatPath(rqst.GetPath())
 	err := os.Rename(path+string(os.PathSeparator)+rqst.OldName, path+string(os.PathSeparator)+rqst.NewName)
 	if err != nil {
 		return nil, status.Errorf(
@@ -786,8 +810,8 @@ func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fi
 	}
 
 	// Remove the permission for the previous path.
-	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath() + "/" + rqst.GetOldName())
-	self.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetNewName())
+	file_server.rbac_client_.DeleteResourcePermissions(rqst.GetPath() + "/" + rqst.GetOldName())
+	file_server.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetNewName())
 
 	// Rename it .hidden file.
 	hiddenFolderFrom := path + "/.hidden/" + rqst.GetOldName()[strings.LastIndex(rqst.GetOldName(), "/")+1:strings.LastIndex(rqst.GetOldName(), ".")]
@@ -806,8 +830,8 @@ func (self *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*fi
 }
 
 // Delete a directory
-func (self *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest) (*filepb.DeleteDirResponse, error) {
-	path := self.formatPath(rqst.GetPath())
+func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest) (*filepb.DeleteDirResponse, error) {
+	path := file_server.formatPath(rqst.GetPath())
 	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -821,7 +845,7 @@ func (self *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
+	file_server.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
 	return &filepb.DeleteDirResponse{
 		Result: true,
@@ -834,13 +858,20 @@ func (self *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDirRequest
 
 // Get file info, can be use to get file thumbnail or knowing that a file exist
 // or not.
-func (self *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequest) (*filepb.GetFileInfoResponse, error) {
-	path := self.formatPath(rqst.GetPath())
+func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoRequest) (*filepb.GetFileInfoResponse, error) {
+	path := file_server.formatPath(rqst.GetPath())
 
-	info, err := getFileInfo(self, path)
+	info, err := getFileInfo(file_server, path)
+	if err != nil {
+		return nil, err
+	}
 
 	// the file
 	f_, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
 	defer f_.Close()
 
 	if err != nil {
@@ -880,8 +911,8 @@ func (self *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFileInfoReq
 }
 
 // Read file, can be use for small to medium file...
-func (self *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
-	path := self.formatPath(rqst.GetPath())
+func (file_server *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileService_ReadFileServer) error {
+	path := file_server.formatPath(rqst.GetPath())
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -911,7 +942,7 @@ func (self *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.FileSer
 }
 
 // Save a file on the server...
-func (self *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
+func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 	// Here I will receive the file
 	data := make([]byte, 0)
 	var path string
@@ -943,20 +974,18 @@ func (self *server) SaveFile(stream filepb.FileService_SaveFileServer) error {
 		switch msg := rqst.File.(type) {
 		case *filepb.SaveFileRequest_Path:
 			// The roo will be the Root specefied by the server.
-			path = self.formatPath(msg.Path)
+			path = file_server.formatPath(msg.Path)
 
 		case *filepb.SaveFileRequest_Data:
 			data = append(data, msg.Data...)
 		}
 	}
-
-	return nil
 }
 
 // Delete file
-func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
+func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
-	path := self.formatPath(rqst.GetPath())
+	path := file_server.formatPath(rqst.GetPath())
 	err := os.Remove(path)
 
 	if err != nil {
@@ -966,7 +995,7 @@ func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReque
 	}
 
 	// I will remove the permission from the db.
-	self.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
+	file_server.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
 	// Also delete informations from .hidden
 	path_ := path[0:strings.LastIndex(path, "/")]
@@ -988,7 +1017,7 @@ func (self *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileReque
 }
 
 // Convert html to pdf.
-func (self *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*filepb.HtmlToPdfResponse, error) {
+func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdfRqst) (*filepb.HtmlToPdfResponse, error) {
 	pdfg, err := wkhtml.NewPDFGenerator()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1052,6 +1081,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = []string {"rbac.RbacService"}
 
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.
@@ -1096,13 +1126,13 @@ func main() {
 }
 
 // Move a file/directory
-func (self *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
+func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
 
 	// So here I will call the function mv at repetition for each path...
 	for i := 0; i < len(rqst.Files); i++ {
-		path := self.Root + rqst.Files[i]
+		path := file_server.Root + rqst.Files[i]
 		if Utility.Exists(path) {
-			err := Utility.Move(path, self.Root+rqst.Path)
+			err := Utility.Move(path, file_server.Root+rqst.Path)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -1113,8 +1143,8 @@ func (self *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb
 			hiddenFolder := path_ + "/.hidden/" + fileName
 
 			if Utility.Exists(hiddenFolder) {
-				Utility.CreateDirIfNotExist(self.Root + rqst.Path + "/.hidden")
-				err := Utility.Move(hiddenFolder, self.Root+rqst.Path+"/.hidden")
+				Utility.CreateDirIfNotExist(file_server.Root + rqst.Path + "/.hidden")
+				err := Utility.Move(hiddenFolder, file_server.Root+rqst.Path+"/.hidden")
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -1126,19 +1156,19 @@ func (self *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb
 }
 
 // Copy a file/directory
-func (self *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
+func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
 	// So here I will call the function mv at repetition for each path...
 	for i := 0; i < len(rqst.Files); i++ {
-		f := self.Root + rqst.Files[i]
+		f := file_server.Root + rqst.Files[i]
 		if Utility.Exists(f) {
 			info, err := os.Stat(f)
 			if err == nil {
 				if info.IsDir() {
 					// Copy the directory
-					Utility.CopyDir(f, self.Root+rqst.Path)
+					Utility.CopyDir(f, file_server.Root+rqst.Path)
 				} else {
 					// Copy the file
-					Utility.CopyFile(f, self.Root+rqst.Path)
+					Utility.CopyFile(f, file_server.Root+rqst.Path)
 
 					// If hidden folder exist for it...
 					path_ := f[0:strings.LastIndex(f, "/")]
@@ -1146,7 +1176,7 @@ func (self *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb
 					hiddenFolder := path_ + "/.hidden/" + fileName
 
 					if Utility.Exists(hiddenFolder) {
-						err := Utility.CopyDir(hiddenFolder, self.Root+rqst.Path+"/.hidden")
+						err := Utility.CopyDir(hiddenFolder, file_server.Root+rqst.Path+"/.hidden")
 						if err != nil {
 							fmt.Println(err)
 						}
@@ -1166,17 +1196,17 @@ func (self *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb
 ////////////////////////////////////////////////////////////////////////////////
 
 // Return the list of thumbnail for a given directory...
-func (self *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
+func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
 	path := rqst.GetPath()
 
 	// The roo will be the Root specefied by the server.
 	if strings.HasPrefix(path, "/") {
-		path = self.Root + path
+		path = file_server.Root + path
 		// Set the path separator...
 		path = strings.Replace(path, "/", string(os.PathSeparator), -1)
 	}
 
-	info, err := readDir(self, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true)
+	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true)
 	if err != nil {
 		return err
 	}
@@ -1208,12 +1238,12 @@ func (self *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream file
 	return nil
 }
 
-func (self *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
+func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelFileRequest) (*filepb.WriteExcelFileResponse, error) {
 	path := rqst.GetPath()
 
 	// The root will be the Root specefied by the server.
 	if strings.HasPrefix(path, "/") {
-		path = self.Root + path
+		path = file_server.Root + path
 		// Set the path separator...
 		path = strings.Replace(path, "/", string(os.PathSeparator), -1)
 	}
@@ -1237,7 +1267,7 @@ func (self *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelF
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = self.writeExcelFile(path, sheets)
+	err = file_server.writeExcelFile(path, sheets)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -1254,7 +1284,7 @@ func (self *server) WriteExcelFile(ctx context.Context, rqst *filepb.WriteExcelF
  * Save excel file to a given destination.
  * The sheets must contain a with values map[pageName] [[], [], []] // 2D array.
  */
-func (self *server) writeExcelFile(path string, sheets map[string]interface{}) error {
+func (file_server *server) writeExcelFile(path string, sheets map[string]interface{}) error {
 
 	xlFile, err_ := xlsx.OpenFile(path)
 	var xlSheet *xlsx.Sheet
