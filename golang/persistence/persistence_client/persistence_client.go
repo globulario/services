@@ -275,29 +275,29 @@ func (client *Persistence_Client) Find(connectionId string, database string, col
 	}
 
 	stream, err := client.c.Find(globular.GetClientContext(client), rqst)
+	if err != nil {
+		return nil, err
+	}
 
 	// Here I will create the final array
 	var buffer bytes.Buffer
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF {
+		if err == io.EOF || len(msg.Data) == 0 {
 			// end of stream...
 			break
-		}
-		if err != nil {
+		} else if err != nil {
 			return nil, err
-		}
-
-		_, err = buffer.Write(msg.Data)
-		if err != nil {
-			return nil, err
+		} else {
+			_, err = buffer.Write(msg.Data)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	// The buffer that contain the
-	dec := json.NewDecoder(&buffer)
 	data := make([]interface{}, 0)
-	err = dec.Decode(data)
+	err = json.Unmarshal(buffer.Bytes(),&data)
 	if err != nil {
 		return nil, err
 	}

@@ -198,3 +198,37 @@ Value := `{"$set":{"state":"California"}}`
 
 err := client.Update(Id, Database, Collection, Query, Value, "")
 ```
+
+## Find One
+To find one object at time you can use _FindOne_. That function return an entity if it exist or an error if not.
+The _Query_ parameter is will depend of the backend, I the fowlling example the backend is _mongoDB_. Note that the entity size must not
+exeeded the gRPC message size limit, if so made use of _Find_ insetead.
+
+```go
+Id := "mongo_db_test_connection"
+Database := "TestMongoDB"
+Collection := "Employees"
+Query := `{"first_name": "Dave"}`
+
+values, err := client.FindOne(Id, Database, Collection, Query, "")
+if err != nil {
+    log.Fatalf("TestFind fail %v", err)
+}
+```
+
+## Find (Many)
+If you need to get more than one entity, _Find_ is the method to use. That method can also be use to find large entity, entity larger than
+the gRPC message size limit (4mb by default). It made use of a stream to return values so ther is no restriction on size.
+
+Here's an exemple of how to find all employe from _CA region_.
+```go
+Id := "mongo_db_test_connection"
+Database := "TestCreateAndDelete_DB"
+Collection := "Employees"
+Query := `{"region": "CA"}`
+
+values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"first_name":1}}]`)
+if err != nil {
+    log.Fatalf("fail to find entities with error %v", err)
+}
+```

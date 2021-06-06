@@ -138,6 +138,7 @@ func TestPersistMany(t *testing.T) {
 }
 */
 /** Test Replace One **/
+/*
 func TestReplaceOne(t *testing.T) {
 
 	Id := "mongo_db_test_connection"
@@ -160,7 +161,8 @@ func TestReplaceOne(t *testing.T) {
 		log.Fatalf("Fail to replace entity %v", err)
 	}
 }
-
+*/
+/*
 func TestUpdateOne(t *testing.T){
 	Id := "mongo_db_test_connection"
 	Database := "TestCreateAndDelete_DB"
@@ -171,7 +173,8 @@ func TestUpdateOne(t *testing.T){
 		log.Fatalf("Fail to update entity %v", err)
 	}
 }
-
+*/
+/*
 func TestUpdate(t *testing.T) {
 	Id := "mongo_db_test_connection"
 	Database := "TestCreateAndDelete_DB"
@@ -185,7 +188,7 @@ func TestUpdate(t *testing.T) {
 	}
 	log.Println("---> update success!")
 }
-
+*/
 /*
 func TestAggregate(t *testing.T) {
 	//fmt.Println("Aggregate")
@@ -212,28 +215,9 @@ func TestAggregate(t *testing.T) {
 
 /** Test find one **/
 
-/** Test find many **/
-/*func TestFind(t *testing.T) {
-	fmt.Println("Find many test.")
-
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
-	Collection := "Employees"
-	Query := `{"first_name": "Dave"}`
-
-	values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"first_name":1}}]`)
-	if err != nil {
-		log.Fatalf("TestFind fail %v", err)
-	}
-
-	log.Println(values)
-	log.Println("--> end of find!")
-
-}*/
-
 /** Test find one **/
-/*func TestFindOne(t *testing.T) {
-	fmt.Println("Find one test.")
+func TestFindOne(t *testing.T) {
+	log.Println("Find one test.")
 
 	Id := "mongo_db_test_connection"
 	Database := "TestMongoDB"
@@ -246,7 +230,25 @@ func TestAggregate(t *testing.T) {
 	}
 
 	log.Println(values)
-}*/
+}
+
+/** Test find many **/
+func TestFind(t *testing.T) {
+	log.Println("Find many test.")
+
+	Id := "mongo_db_test_connection"
+	Database := "TestCreateAndDelete_DB"
+	Collection := "Employees"
+	Query := `{"region": "CA"}`
+
+	values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"first_name":1}}]`)
+	if err != nil {
+		log.Fatalf("fail to find entities with error %v", err)
+	}
+
+	log.Println(values)
+
+}
 
 /** Test remove **/
 /*
