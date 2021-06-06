@@ -1,7 +1,7 @@
 # Persistence Service
-Create Read Update and Delete entities... Persistence service give you all require functionalities to make all your applications persistent.
+Create Read Update and Delete entities... Persistence service give you all required functionalities that make all your application entities persistent.
 That microservice define a generic datastore that can be implement by almost any storage technologie. At this time only mongoDB is available,
-but SQL is planned to be use to.
+but SQL is planned to be done next.
 
 ## Create a connection
 In order to be able to get data from the data store the first step is to create a connection with it.
@@ -47,6 +47,9 @@ if err != nil {
 That function can help to test if the backend is reachable and your connection setting's are correctly filled in. If ping 
 fail an error message will be given. Before pingning the datastore be sure your connection was open by calling the _Connect_ function.
 
+The parameters are,
+* The connection _id_
+
 _Go_
 ```go
 err := client.Ping("mongo_db_test_connection")
@@ -69,6 +72,7 @@ _Go_
 Id := "mongo_db_test_connection"
 Database := "TestMongoDB"
 Collection := "Employees"
+
 employe := map[string]interface{}{
     "hire_date": "2007-07-01", 
     "last_name": "Courtois", 
@@ -139,3 +143,5 @@ if err != nil {
     log.Fatalf("Fail to insert many entities whit error %v", err)
 }
 ```
+
+## 
