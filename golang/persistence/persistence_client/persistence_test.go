@@ -22,33 +22,33 @@ var (
 )
 
 // First test create a fresh new connection...
-/*
+
 func TestCreateConnection(t *testing.T) {
 
 	//log.Println(token)
-	log.Println(client.port)
-	fmt.Println("Connection creation test.")
+	log.Println("Connection creation test.")
 	user := "sa"
 	pwd := "adminadmin"
-	err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", domain, 27017, 0, user, pwd, 500, "", true)
+	err := client.CreateConnection("test_connection", "test_connection", domain, 27017, 0, user, pwd, 500, "", true)
 	if err != nil {
 		log.Println("fail to create connection! ", err)
 	}
-}*/
+}
 
-/* In case of mongoDB the Collection and Database is create at first insert.
-func TestCreateDatabase(t *testing.T){
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
+/* In case of mongoDB the Collection and Database is create at first insert.*/
+
+func TestCreateDatabase(t *testing.T) {
+	Id := "test_connection"
+	Database := "TestDB"
 	err := client.CreateDatabase(Id, Database)
 	if err != nil {
 		log.Println("fail to create database ", Database, err)
 	}
 }
-*/
+
 func TestConnect(t *testing.T) {
 
-	err := client.Connect("mongo_db_test_connection", "adminadmin")
+	err := client.Connect("test_connection", "adminadmin")
 	if err != nil {
 		log.Println("fail to connect to the backend with error ", err)
 	}
@@ -57,18 +57,18 @@ func TestConnect(t *testing.T) {
 
 func TestPingConnection(t *testing.T) {
 
-	err := client.Ping("mongo_db_test_connection")
+	err := client.Ping("test_connection")
 	if err != nil {
 		log.Fatalln("fail to ping the backend with error ", err)
 	}
 
-	log.Println("Ping mongo_db_test_connection successed!")
+	log.Println("Ping test_connection successed!")
 }
-/*
+
 func TestPersistOne(t *testing.T) {
 
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
 	employe := map[string]interface{}{
 		"hire_date":  "2007-07-01",
@@ -86,8 +86,7 @@ func TestPersistOne(t *testing.T) {
 
 	log.Println("Entity persist with id ", id)
 }
-*/
-/*
+
 func TestPersistMany(t *testing.T) {
 
 	entities :=
@@ -127,8 +126,8 @@ func TestPersistMany(t *testing.T) {
 			},
 		}
 
-	Id := "mongo_db_test_connection"
-	Database := "TestCreateAndDelete_DB"
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
 
 	err := client.InsertMany(Id, Database, Collection, entities, "")
@@ -136,13 +135,13 @@ func TestPersistMany(t *testing.T) {
 		log.Fatalf("Fail to insert many entities whit error %v", err)
 	}
 }
-*/
+
 /** Test Replace One **/
-/*
+
 func TestReplaceOne(t *testing.T) {
 
-	Id := "mongo_db_test_connection"
-	Database := "TestCreateAndDelete_DB"
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
 
 	entity := map[string]interface{}{
@@ -161,11 +160,10 @@ func TestReplaceOne(t *testing.T) {
 		log.Fatalf("Fail to replace entity %v", err)
 	}
 }
-*/
-/*
-func TestUpdateOne(t *testing.T){
-	Id := "mongo_db_test_connection"
-	Database := "TestCreateAndDelete_DB"
+
+func TestUpdateOne(t *testing.T) {
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
 
 	err := client.UpdateOne(Id, Database, Collection, `{"_id":"nirani"}`, `{ "$set":{"employeeCode":"E2.2"},"$set":{"phoneNumber":"408-1231234"}}`, "")
@@ -173,11 +171,10 @@ func TestUpdateOne(t *testing.T){
 		log.Fatalf("Fail to update entity %v", err)
 	}
 }
-*/
-/*
+
 func TestUpdate(t *testing.T) {
-	Id := "mongo_db_test_connection"
-	Database := "TestCreateAndDelete_DB"
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
 	Query := `{"region": "CA"}`
 	Value := `{"$set":{"state":"California"}}`
@@ -188,39 +185,13 @@ func TestUpdate(t *testing.T) {
 	}
 	log.Println("---> update success!")
 }
-*/
-/*
-func TestAggregate(t *testing.T) {
-	//fmt.Println("Aggregate")
-	/*user := "sa"
-	pwd := "adminadmin"
-	err := client.CreateConnection("mongo_db_test_connection", "local_resource", "localhost", 27017, 0, user, pwd, 500, "", true)
-	if err != nil {
-		log.Println("fail to create connection! ", err)
-	}
-
-	Id := "mongo_db_test_connection"
-	Database := "local_resource"
-	Collection := "Employees"
-
-	results, err := client.Aggregate(Id, Database, Collection, `[{"$count":"toto"}]`, "")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	log.Println("---> ", results)
-
-}
-*/
-
-/** Test find one **/
 
 /** Test find one **/
 func TestFindOne(t *testing.T) {
 	log.Println("Find one test.")
 
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
 	Query := `{"first_name": "Dave"}`
 
@@ -236,12 +207,12 @@ func TestFindOne(t *testing.T) {
 func TestFind(t *testing.T) {
 	log.Println("Find many test.")
 
-	Id := "mongo_db_test_connection"
-	Database := "TestCreateAndDelete_DB"
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
 	Query := `{"region": "CA"}`
 
-	values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"first_name":1}}]`)
+	values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"firstName":1}}]`)
 	if err != nil {
 		log.Fatalf("fail to find entities with error %v", err)
 	}
@@ -250,90 +221,86 @@ func TestFind(t *testing.T) {
 
 }
 
-/** Test remove **/
-/*
-func TestRemove(t *testing.T) {
-	fmt.Println("Test Remove")
+func TestAggregate(t *testing.T) {
+	//fmt.Println("Aggregate")
+	Id := "test_connection"
+	Database := "TestDB"
+	Collection := "Employees"
 
-	Id := "visualinspection_db"
-	Database := "visualinspection_db"
-	Collection := "Postits"
-	Query := `{"date": 1618952053013}`
+	results, err := client.Aggregate(Id, Database, Collection, `[{"$count":"region"}]`, "")
+	if err != nil {
+		log.Fatalf("fail to create aggregation with error %v", err)
+	}
+	log.Println("---> ", results)
+
+}
+
+/** Test remove **/
+
+func TestRemove(t *testing.T) {
+	log.Println("Test Remove")
+
+	Id := "test_connection"
+	Database := "TestDB"
+	Collection := "Employees"
+	Query := `{"_id":"nirani"}`
 
 	err := client.DeleteOne(Id, Database, Collection, Query, "")
 	if err != nil {
-		log.Fatalf("DeleteOne fail %v", err)
+		log.Fatalf("Fail to delete one entity with error %v", err)
 	}
 
 	log.Println("---> Delete success!")
 }
-*/
 
-/*
 func TestRemoveMany(t *testing.T) {
-	fmt.Println("Test Remove")
+	log.Println("Test Remove")
 
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
+	Id := "test_connection"
+	Database := "TestDB"
 	Collection := "Employees"
-	Query := `{"emp_no": 200000}`
+	Query := `{"region": "CA"}`
 
 	err := client.Delete(Id, Database, Collection, Query, "")
 	if err != nil {
-		log.Fatalf("DeleteOne fail %v", err)
+		log.Fatalf("Fail to remove entities %v", err)
 	}
-
 	log.Println("---> Delete success!")
-}*/
-
-// Test create a db, create a collection and remove it after...
-/*
-func TestCreateAndDelete(t *testing.T) {
-	fmt.Println("Test Create And Delete")
-
-	// Id := "mongo_db_test_connection"
-	Id := "local_resource"
-	Database := "local_resource"
-	Collection := "Employees"
-	JsonStr := `{"hire_date":"2007-07-01", "last_name":"Courtois", "first_name":"Dave", "birth_data":"1976-01-28", "emp_no":200000, "gender":"M"}`
-
-	id, err := client.InsertOne(Id, Database, Collection, JsonStr, "")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	var c int
-	c, err = client.Count(Id, Database, Collection, "{}", "")
-
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println("---> count is ", c)
-
-	// Test drop collection.
-	err = client.DeleteCollection(Id, Database, Collection)
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	err = client.DeleteDatabase(Id, Database)
-	if err != nil {
-		log.Panicln(err)
-	}
-
-	log.Println(id)
-
 }
-*/
 
-/*
-func TestDeleteConnection(t *testing.T) {
-	fmt.Println("Connection creation test.")
-	err := client.DeleteConnection("mongo_db_test_connection")
+func TestDeleteCollection(t *testing.T) {
+	log.Println("Delete collection test.")
+	Id := "test_connection"
+	Database := "TestDB"
+	Collection := "Employees"
+	err := client.DeleteCollection(Id, Database, Collection)
+	if err != nil {
+		log.Println("fail to delete collection! ", err)
+	}
+}
+
+func TestDeleteDatabase(t *testing.T) {
+	log.Println("Delete database test.")
+	Id := "test_connection"
+	Database := "TestDB"
+	err := client.DeleteDatabase(Id, Database)
+	if err != nil {
+		log.Println("fail to delete database! ", err)
+	}
+}
+
+func TestDisconnect(t *testing.T) {
+	log.Println("Disconnect test.")
+	err := client.Disconnect("test_connection")
 	if err != nil {
 		log.Println("fail to delete connection! ", err)
 	}
 }
-*/
+
+func TestDeleteConnection(t *testing.T) {
+	log.Println("Delete connection test.")
+	err := client.DeleteConnection("test_connection")
+	if err != nil {
+		log.Println("fail to delete connection! ", err)
+	}
+}

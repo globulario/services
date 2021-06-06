@@ -25,7 +25,7 @@ _Go_
 ```go Golang
 user := "sa"
 pwd := "adminadmin"
-err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", "localhost", 27017, 0, user, pwd, 500, "", true)
+err := client.CreateConnection("connection_id", "connection_id", "localhost", 27017, 0, user, pwd, 500, "", true)
 ```
 
 ## Connect
@@ -37,7 +37,7 @@ Here an exemple how to connect to the backend, The required parameters are,
 
 _Go_
 ```go
-err := client.Connect("mongo_db_test_connection", "adminadmin")
+err := client.Connect("connection_id", "adminadmin")
 if err != nil {
     log.Println("fail to connect to the backend with error ", err)
 }
@@ -52,7 +52,7 @@ The parameters are,
 
 _Go_
 ```go
-err := client.Ping("mongo_db_test_connection")
+err := client.Ping("connection_id")
 if err != nil {
     log.Fatalln("fail to ping the backend with error ", err)
 }
@@ -70,7 +70,7 @@ explicitly.
 
 _Go_
 ```go
-Id := "mongo_db_test_connection"
+Id := "connection_id"
 Database := "TestMongoDB"
 Collection := "Employees"
 
@@ -135,8 +135,8 @@ entities :=
         },
     }
 
-Id := "mongo_db_test_connection"
-Database := "TestCreateAndDelete_DB"
+Id := "connection_id"
+Database := "TestDB"
 Collection := "Employees"
 
 err := client.InsertMany(Id, Database, Collection, entities, "")
@@ -150,8 +150,8 @@ Instead of delete and entity and create it, you must use replace one. If you wan
 you must considere using _UpdateOne_ instead. You can also accomplish same thing with _InsertOne_ with the _upsert_ option set to true.
 
 ```go
-Id := "mongo_db_test_connection"
-Database := "TestCreateAndDelete_DB"
+Id := "connection_id"
+Database := "TestDB"
 Collection := "Employees"
 
 entity := map[string]interface{}{
@@ -175,8 +175,8 @@ if err != nil {
 This is the function to use to replace one or more entity attributes values. If you want to replace almost all values of an entity you must considere using _ReplaceOne_ method instead.
 
 ```go
-Id := "mongo_db_test_connection"
-Database := "TestCreateAndDelete_DB"
+Id := "connection_id"
+Database := "TestDB"
 Collection := "Employees"
 
 err := client.UpdateOne(Id, Database, Collection, `{"_id":"nirani"}`, `{ "$set":{"employeeCode":"E2.2"},"$set":{"phoneNumber":"408-1231234"}}`, "")
@@ -190,8 +190,8 @@ If you want to change property or properties of many entities at once _Update_ m
 
 Here for exemple I will append new attribute name _sate_ and set it value to _California_ for all employe with _region_ attribute with value _CA_.
 ```go
-Id := "mongo_db_test_connection"
-Database := "TestCreateAndDelete_DB"
+Id := "connection_id"
+Database := "TestDB"
 Collection := "Employees"
 Query := `{"region": "CA"}`
 Value := `{"$set":{"state":"California"}}`
@@ -205,8 +205,8 @@ The _Query_ parameter is will depend of the backend, I the fowlling example the 
 exeeded the gRPC message size limit, if so made use of _Find_ insetead.
 
 ```go
-Id := "mongo_db_test_connection"
-Database := "TestMongoDB"
+Id := "connection_id"
+Database := "TestDB"
 Collection := "Employees"
 Query := `{"first_name": "Dave"}`
 
@@ -222,13 +222,110 @@ the gRPC message size limit (4mb by default). It made use of a stream to return 
 
 Here's an exemple of how to find all employe from _CA region_.
 ```go
+Id := "connection_id"
+Database := "TestDB"
+Collection := "Employees"
+Query := `{"region": "CA"}`
+
+values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"firstName":1}}]`)
+if err != nil {
+    log.Fatalf("fail to find entities with error %v", err)
+}
+```
+
+## Aggregate
+If you need to transform data _Aggregate_ is the way to go. The way to make the aggragation will depend of 
+the datastore.
+
+```go
+Id := "connection_id"
+Database := "TestDB"
+Collection := "Employees"
+
+results, err := client.Aggregate(Id, Database, Collection, `[{"$count":"region"}]`, "")
+if err != nil {
+    log.Fatalf("fail to create aggregation with error %v", err)
+}
+```
+
+## Delete One
+To delete exactly one entity from the data store.
+
+```go
+Id := "mongo_db_test_connection"
+Database := "TestCreateAndDelete_DB"
+Collection := "Employees"
+Query := `{"_id":"nirani"}`
+
+err := client.DeleteOne(Id, Database, Collection, Query, "")
+if err != nil {
+    log.Fatalf("Fail to delete one entity with error %v", err)
+}
+
+```
+
+## Delete (Many)
+To delete more that one entity at time _Delete_ is the method to use.
+There's an example how to do it,
+
+```go
 Id := "mongo_db_test_connection"
 Database := "TestCreateAndDelete_DB"
 Collection := "Employees"
 Query := `{"region": "CA"}`
 
-values, err := client.Find(Id, Database, Collection, Query, `[{"Projection":{"first_name":1}}]`)
+err := client.Delete(Id, Database, Collection, Query, "")
 if err != nil {
-    log.Fatalf("fail to find entities with error %v", err)
+    log.Fatalf("Fail to remove entities %v", err)
+}
+```
+
+
+## Disconnect
+That method must be call to close a connection.
+
+Here an exemple how to connect to the backend, The required parameters are,
+* the _connection_id_
+
+_Go_
+```go
+err := client.Disconnect("connection_id")
+if err != nil {
+    log.Println("fail to disconnect from the backend with error ", err)
+}
+```
+
+## Delete Collection
+Here's the way to drop a collection
+
+```go
+Id := "test_connection"
+Database := "TestDB"
+Collection := "Employees"
+err := client.DeleteCollection(Id, Database, Collection)
+if err != nil {
+    log.Println("fail to delete collection! ", err)
+}
+```
+
+## Delete Database
+Here's the way to drop a database
+
+```go
+Id := "test_connection"
+Database := "TestDB"
+err := client.DeleteDatabase(Id, Database)
+if err != nil {
+    log.Println("fail to delete database! ", err)
+}
+```
+
+## Delete Connection
+There is how you can delete a connection. You can alson remove a connection 
+
+```go
+err := client.DeleteConnection("mongo_db_test_connection")
+if err != nil {
+    log.Println("fail to delete connection! ", err)
 }
 ```

@@ -297,7 +297,7 @@ func (client *Persistence_Client) Find(connectionId string, database string, col
 	}
 
 	data := make([]interface{}, 0)
-	err = json.Unmarshal(buffer.Bytes(),&data)
+	err = json.Unmarshal(buffer.Bytes(), &data)
 	if err != nil {
 		return nil, err
 	}
@@ -328,24 +328,23 @@ func (client *Persistence_Client) Aggregate(connectionId, database string, colle
 	var buffer bytes.Buffer
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF {
+		if err == io.EOF || len(msg.Data) == 0 {
 			// end of stream...
 			break
-		}
-		if err != nil {
+		} else if err != nil {
 			return nil, err
-		}
+		} else {
 
-		_, err = buffer.Write(msg.Data)
-		if err != nil {
-			return nil, err
+			_, err = buffer.Write(msg.Data)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	// The buffer that contain the
-	dec := json.NewDecoder(&buffer)
 	data := make([]interface{}, 0)
-	err = dec.Decode(data)
+	err = json.Unmarshal(buffer.Bytes(), &data)
 	if err != nil {
 		return nil, err
 	}
