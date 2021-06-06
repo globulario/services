@@ -3,7 +3,6 @@ package persistence_client
 import (
 	//"fmt"
 	//"io/ioutil"
-	"fmt"
 	"log"
 	"testing"
 
@@ -16,23 +15,114 @@ import (
 var (
 
 	// Connect to the plc client.
-	domain = "globular.cloud"
-	client, _ = NewPersistenceService_Client(domain, "persistence.PersistenceService")
+	domain                    = "globular.cloud"
+	client, _                 = NewPersistenceService_Client(domain, "persistence.PersistenceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
-	token, _ = authentication_client_.Authenticate("sa", "adminadmin")
+	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
 )
 
 // First test create a fresh new connection...
+/*
 func TestCreateConnection(t *testing.T) {
-	
-	log.Println(token)
 
-	//fmt.Println("Connection creation test.")
+	//log.Println(token)
+	log.Println(client.port)
+	fmt.Println("Connection creation test.")
 	user := "sa"
 	pwd := "adminadmin"
-	err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", "localhost", 27017, 0, user, pwd, 500, "", true)
+	err := client.CreateConnection("mongo_db_test_connection", "mongo_db_test_connection", domain, 27017, 0, user, pwd, 500, "", true)
 	if err != nil {
 		log.Println("fail to create connection! ", err)
+	}
+}*/
+
+func TestConnect(t *testing.T) {
+
+	err := client.Connect("mongo_db_test_connection", "adminadmin")
+	if err != nil {
+		log.Println("fail to connect to the backend with error ", err)
+	}
+
+}
+
+func TestPingConnection(t *testing.T) {
+
+	err := client.Ping("mongo_db_test_connection")
+	if err != nil {
+		log.Fatalln("fail to ping the backend with error ", err)
+	}
+
+	log.Println("Ping mongo_db_test_connection successed!")
+}
+
+func TestPersistOne(t *testing.T) {
+
+	Id := "mongo_db_test_connection"
+	Database := "TestMongoDB"
+	Collection := "Employees"
+	employe := map[string]interface{}{
+		"hire_date": "2007-07-01", 
+		"last_name": "Courtois", 
+		"first_name": "Dave", 
+		"birth_date": "1976-01-28", 
+		"emp_no": 200000, 
+		"gender": "M"}
+		
+	id, err := client.InsertOne(Id, Database, Collection, employe, "")
+
+	if err != nil {
+		log.Fatalf("fail to pesist entity with error %v", err)
+	}
+
+	log.Println("Entity persist with id ", id)
+}
+
+func TestPersistMany(t *testing.T) {
+
+	entities :=
+		[]interface{}{
+			map[string]interface{}{
+				"userId":            "rirani",
+				"jobTitleName":      "Developer",
+				"firstName":         "Romin",
+				"lastName":          "Irani",
+				"preferredFullName": "Romin Irani",
+				"employeeCode":      "E1",
+				"region":            "CA",
+				"phoneNumber":       "408-1234567",
+				"emailAddress":      "romin.k.irani@gmail.com",
+			},
+			map[string]interface{}{
+				"userId":            "nirani",
+				"jobTitleName":      "Developer",
+				"firstName":         "Neil",
+				"lastName":          "Irani",
+				"preferredFullName": "Neil Irani",
+				"employeeCode":      "E2",
+				"region":            "CA",
+				"phoneNumber":       "408-1111111",
+				"emailAddress":      "neilrirani@gmail.com",
+			},
+			map[string]interface{}{
+				"userId":            "thanks",
+				"jobTitleName":      "Program Directory",
+				"firstName":         "Tom",
+				"lastName":          "Hanks",
+				"preferredFullName": "Tom Hanks",
+				"employeeCode":      "E3",
+				"region":            "CA",
+				"phoneNumber":       "408-2222222",
+				"emailAddress":      "tomhanks@gmail.com",
+			},
+		}
+
+	Id := "mongo_db_test_connection"
+	Database := "TestCreateAndDelete_DB"
+	Collection := "Employees"
+
+	err := client.InsertMany(Id, Database, Collection, entities, "")
+	if err != nil {
+		log.Fatalf("Fail to insert many entities whit error %v", err)
 	}
 }
 
@@ -45,23 +135,10 @@ func TestCreateDatabase(t *testing.T){
 		log.Println("fail to create database ", Database, err)
 	}
 }
-
 */
-func TestPersistOne(t *testing.T) {
+/*
 
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
-	Collection := "Employees"
-	JsonStr := `{"hire_date":"2007-07-01", "last_name":"Courtois", "first_name":"Dave", "birth_date":"1976-01-28", "emp_no":200000, "gender":"M"}`
-	id, err := client.InsertOne(Id, Database, Collection, JsonStr, "")
-
-	if err != nil {
-		log.Fatalf("TestPersistOne fail %v", err)
-	}
-
-	log.Println("one entity persist with id ", id)
-}
-
+ */
 /*
 func TestAggregate(t *testing.T) {
 	//fmt.Println("Aggregate")
@@ -82,74 +159,14 @@ func TestAggregate(t *testing.T) {
 		return
 	}
 	log.Println("---> ", results)
-	
-}
-*/
-/*
-func TestPingConnection(t *testing.T) {
-	log.Println("Test ping connection")
 
-	err := client.Ping("mongo_db_test_connection")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	log.Println("Ping mongo_db_test_connection successed!")
 }
 */
 
 // First test create a fresh new connection...
-func TestPersistMany(t *testing.T) {
-	fmt.Println("Persist many test.")
+/*
 
-	str := `
-	[
-		{
-			"userId":"rirani",
-			"jobTitleName":"Developer",
-			"firstName":"Romin",
-			"lastName":"Irani",
-			"preferredFullName":"Romin Irani",
-			"employeeCode":"E1",
-			"region":"CA",
-			"phoneNumber":"408-1234567",
-			"emailAddress":"romin.k.irani@gmail.com"
-		},
-		{
-			"userId":"nirani",
-			"jobTitleName":"Developer",
-			"firstName":"Neil",
-			"lastName":"Irani",
-			"preferredFullName":"Neil Irani",
-			"employeeCode":"E2",
-			"region":"CA",
-			"phoneNumber":"408-1111111",
-			"emailAddress":"neilrirani@gmail.com"
-		},
-		{
-			"userId":"thanks",
-			"jobTitleName":"Program Directory",
-			"firstName":"Tom",
-			"lastName":"Hanks",
-			"preferredFullName":"Tom Hanks",
-			"employeeCode":"E3",
-			"region":"CA",
-			"phoneNumber":"408-2222222",
-			"emailAddress":"tomhanks@gmail.com"
-		}
-	]
-	`
-	Id := "mongo_db_test_connection"
-	Database := "TestCreateAndDelete_DB"
-	Collection := "Employees"
-
-	err := client.InsertMany(Id, Database, Collection, str, "")
-	if err != nil {
-		log.Fatalf("TestPersistMany fail %v", err)
-	}
-
-}
-
-
+ */
 
 /*
 func TestCreateConnection(t *testing.T) {
@@ -308,6 +325,7 @@ func TestCreateAndDelete(t *testing.T) {
 }
 */
 
+/*
 func TestDeleteConnection(t *testing.T) {
 	fmt.Println("Connection creation test.")
 	err := client.DeleteConnection("mongo_db_test_connection")
@@ -315,3 +333,4 @@ func TestDeleteConnection(t *testing.T) {
 		log.Println("fail to delete connection! ", err)
 	}
 }
+*/

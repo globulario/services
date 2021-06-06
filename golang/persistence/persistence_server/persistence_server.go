@@ -385,7 +385,7 @@ func (persistence_server *server) StopService() error {
 // Create a new Store connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
 func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
-	// sqlpb
+
 	var c connection
 	var err error
 
@@ -402,7 +402,7 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 		c.Host = rqst.Connection.Host
 		c.Port = rqst.Connection.Port
 		c.User = rqst.Connection.User
-		c.password = rqst.Connection.Password // The password must never be store here.
+		c.password = rqst.Connection.Password
 		c.Store = rqst.Connection.Store
 
 		if c.Store == persistencepb.StoreType_MONGO {
@@ -423,7 +423,7 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 		}
 
 		// If the connection need to save in the server configuration.
-		if rqst.Save == true {
+		if rqst.Save {
 			persistence_server.Connections[c.Id] = c
 			// In that case I will save it in file.
 			err = persistence_server.Save()
@@ -460,14 +460,17 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 }
 
 func (persistence_server *server) Connect(ctx context.Context, rqst *persistencepb.ConnectRqst) (*persistencepb.ConnectRsp, error) {
+
 	store := persistence_server.stores[rqst.GetConnectionId()]
-	if store != nil {
-		return &persistencepb.ConnectRsp{
-			Result: true,
-		}, nil
+	if store == nil {
+		err := errors.New("No store connection exist for id " + rqst.GetConnectionId())
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if c, ok := persistence_server.Connections[rqst.ConnectionId]; ok {
+	
 		// So here I will open the connection.
 		c.password = rqst.Password
 		if c.Store == persistencepb.StoreType_MONGO {
@@ -476,6 +479,7 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 
 			// Now I will try to connect...
 			err := s.Connect(c.Id, c.Host, c.Port, c.User, c.password, c.Name, c.Timeout, c.Options)
+				
 			if err != nil {
 				// codes.
 				return nil, status.Errorf(
@@ -616,14 +620,13 @@ func (persistence_server *server) DeleteCollection(ctx context.Context, rqst *pe
 func (persistence_server *server) Ping(ctx context.Context, rqst *persistencepb.PingConnectionRqst) (*persistencepb.PingConnectionRsp, error) {
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
-		err := errors.New("Ping No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
+		err := errors.New("ping No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	
 	err := store.Ping(ctx, strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
-
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -695,9 +698,14 @@ func (persistence_server *server) InsertOne(ctx context.Context, rqst *persisten
 }
 
 func (persistence_server *server) InsertMany(stream persistencepb.PersistenceService_InsertManyServer) error {
+
 	var buffer bytes.Buffer
 	var rqst *persistencepb.InsertManyRqst
 	var err error
+	var connectionId string
+	var database string
+	var collection string
+
 	for {
 		rqst, err = stream.Recv()
 		if err == io.EOF {
@@ -706,20 +714,33 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 			break
 		} else if err != nil {
 			return err
-		} else {
+		} else if len(rqst.Data) > 0{
+			if len(rqst.Collection) > 0 {
+				collection = rqst.Collection
+			}
+			if len(rqst.Id) > 0 {
+				connectionId = rqst.Id
+			}
+			if len(rqst.Database) > 0{
+				database = rqst.Database
+			}
 			buffer.Write(rqst.Data)
+		}else{
+			break
 		}
 	}
 
 	// The buffer that contain the
-	dec := json.NewDecoder(&buffer)
 	entities := make([]interface{}, 0)
-	err = dec.Decode(entities)
+	err = json.Unmarshal(buffer.Bytes(), &entities)
 	if err != nil {
 		return err
 	}
 
-	_, err = persistence_server.stores[rqst.Id].InsertMany(stream.Context(), strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, entities, rqst.Options)
+	connectionId = strings.ReplaceAll(strings.ReplaceAll(connectionId, "@", "_"), ".", "_")
+	database = strings.ReplaceAll(strings.ReplaceAll(database, "@", "_"), ".", "_")
+
+	_, err = persistence_server.stores[connectionId].InsertMany(stream.Context(), connectionId , database, collection, entities, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

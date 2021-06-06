@@ -157,14 +157,13 @@ func (server *server) GetDependencies() []string {
 	return server.Dependencies
 }
 
-
 func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
@@ -318,7 +317,7 @@ var (
 /**
  * Get the rbac client.
  */
- func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
@@ -337,9 +336,8 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 		return err
 	}
 
-	return rbac_client_.SetActionResourcesPermissions(permissions )
+	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
-
 
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
 
@@ -496,6 +494,8 @@ func (server *server) waitForMongo(timeout int, withAuth bool) error {
 		args = append(args, server.Backend_password)
 		args = append(args, "--authenticationDatabase")
 		args = append(args, "admin")
+		args = append(args, "--authenticationMechanisms")
+		args = append(args, "PLAIN")
 	}
 	args = append(args, "--eval")
 	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")

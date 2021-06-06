@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	//"log"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
@@ -375,15 +376,19 @@ func (client *Persistence_Client) Count(connectionId string, database string, co
 /**
  * Insert one value in the database.
  */
-func (client *Persistence_Client) InsertOne(connectionId string, database string, collection string, jsonStr string, options string) (string, error) {
+func (client *Persistence_Client) InsertOne(connectionId string, database string, collection string, entity interface{}, options string) (string, error) {
 
 	// Try to marshal object...
+	data, err := json.Marshal(entity)
+	if err != nil {
+		return "", err
+	}
 
 	rqst := &persistencepb.InsertOneRqst{
 		Id:         connectionId,
 		Database:   database,
 		Collection: collection,
-		Data:       jsonStr,
+		Data:       string(data),
 		Options:    options,
 	}
 
@@ -396,7 +401,7 @@ func (client *Persistence_Client) InsertOne(connectionId string, database string
 	return rsp.GetId(), err
 }
 
-func (client *Persistence_Client) InsertMany(connectionId string, database string, collection string, jsonStr string, options string) error {
+func (client *Persistence_Client) InsertMany(connectionId string, database string, collection string, entities []interface{}, options string) error {
 
 	stream, err := client.c.InsertMany(globular.GetClientContext(client))
 	if err != nil {
@@ -405,10 +410,11 @@ func (client *Persistence_Client) InsertMany(connectionId string, database strin
 
 	// here you must run the sql service test before runing this test in order
 	// to generate the file Employees.json
-	const BufferSize = 1024 * 5 // the chunck size.
+	const BufferSize = 1024 // the chunck size.
 	var buffer bytes.Buffer
 	enc := json.NewEncoder(&buffer) // Will write to network.
-	err = enc.Encode([]byte(jsonStr))
+	err = enc.Encode(entities)
+	
 	if err != nil {
 		return err
 	}
@@ -416,28 +422,31 @@ func (client *Persistence_Client) InsertMany(connectionId string, database strin
 	for {
 		var data [BufferSize]byte
 		bytesread, err := buffer.Read(data[0:BufferSize])
-		if bytesread > 0 {
-
-			rqst := &persistencepb.InsertManyRqst{
-				Id:         connectionId,
-				Database:   database,
-				Collection: collection,
-				Data:       data[0:bytesread],
-			}
-			// send the data to the server.
-			err = stream.Send(rqst)
-		}
-
 		if err == io.EOF {
 			err = nil
 			break
 		} else if err != nil {
 			return err
+		}else if bytesread > 0 {
+			rqst := &persistencepb.InsertManyRqst{
+				Id:         connectionId,
+				Database:   database,
+				Collection: collection,
+				Data:       data[0:bytesread],
+			}			
+			// send the data to the server.
+			err = stream.Send(rqst)
+			if err != nil {
+				break
+			}
+		}else{
+			break
 		}
+
 	}
 
 	_, err = stream.CloseAndRecv()
-	if err != nil {
+	if err != nil && err != io.EOF  {
 		return err
 	}
 
