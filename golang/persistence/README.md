@@ -329,3 +329,20 @@ if err != nil {
     log.Println("fail to delete connection! ", err)
 }
 ```
+
+## Run Admin Commnand
+Run admin command run a script on the datase server.
+
+There's an exemple of how to change a user password, the script will be run by _mongo_ command on the server.
+
+```go
+// Change the password...
+changePasswordScript := fmt.Sprintf(
+    "db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
+err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, changePasswordScript)
+if err != nil {
+    return nil, status.Errorf(
+        codes.Internal,
+        Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+}
+```

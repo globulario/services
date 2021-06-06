@@ -36,7 +36,6 @@ func TestCreateConnection(t *testing.T) {
 }
 
 /* In case of mongoDB the Collection and Database is create at first insert.*/
-
 func TestCreateDatabase(t *testing.T) {
 	Id := "test_connection"
 	Database := "TestDB"
