@@ -36,6 +36,16 @@ func TestCreateConnection(t *testing.T) {
 	}
 }*/
 
+/* In case of mongoDB the Collection and Database is create at first insert.
+func TestCreateDatabase(t *testing.T){
+	Id := "mongo_db_test_connection"
+	Database := "TestMongoDB"
+	err := client.CreateDatabase(Id, Database)
+	if err != nil {
+		log.Println("fail to create database ", Database, err)
+	}
+}
+*/
 func TestConnect(t *testing.T) {
 
 	err := client.Connect("mongo_db_test_connection", "adminadmin")
@@ -54,20 +64,20 @@ func TestPingConnection(t *testing.T) {
 
 	log.Println("Ping mongo_db_test_connection successed!")
 }
-
+/*
 func TestPersistOne(t *testing.T) {
 
 	Id := "mongo_db_test_connection"
 	Database := "TestMongoDB"
 	Collection := "Employees"
 	employe := map[string]interface{}{
-		"hire_date": "2007-07-01", 
-		"last_name": "Courtois", 
-		"first_name": "Dave", 
-		"birth_date": "1976-01-28", 
-		"emp_no": 200000, 
-		"gender": "M"}
-		
+		"hire_date":  "2007-07-01",
+		"last_name":  "Courtois",
+		"first_name": "Dave",
+		"birth_date": "1976-01-28",
+		"emp_no":     200000,
+		"gender":     "M"}
+
 	id, err := client.InsertOne(Id, Database, Collection, employe, "")
 
 	if err != nil {
@@ -76,13 +86,14 @@ func TestPersistOne(t *testing.T) {
 
 	log.Println("Entity persist with id ", id)
 }
-
+*/
+/*
 func TestPersistMany(t *testing.T) {
 
 	entities :=
 		[]interface{}{
 			map[string]interface{}{
-				"userId":            "rirani",
+				"_id":               "rirani",
 				"jobTitleName":      "Developer",
 				"firstName":         "Romin",
 				"lastName":          "Irani",
@@ -93,7 +104,7 @@ func TestPersistMany(t *testing.T) {
 				"emailAddress":      "romin.k.irani@gmail.com",
 			},
 			map[string]interface{}{
-				"userId":            "nirani",
+				"_id":               "nirani",
 				"jobTitleName":      "Developer",
 				"firstName":         "Neil",
 				"lastName":          "Irani",
@@ -104,7 +115,7 @@ func TestPersistMany(t *testing.T) {
 				"emailAddress":      "neilrirani@gmail.com",
 			},
 			map[string]interface{}{
-				"userId":            "thanks",
+				"_id":               "thanks",
 				"jobTitleName":      "Program Directory",
 				"firstName":         "Tom",
 				"lastName":          "Hanks",
@@ -125,20 +136,56 @@ func TestPersistMany(t *testing.T) {
 		log.Fatalf("Fail to insert many entities whit error %v", err)
 	}
 }
+*/
+/** Test Replace One **/
+func TestReplaceOne(t *testing.T) {
 
-/* In case of mongoDB the Collection and Database is create at first insert.
-func TestCreateDatabase(t *testing.T){
 	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
-	err := client.CreateDatabase(Id, Database)
+	Database := "TestCreateAndDelete_DB"
+	Collection := "Employees"
+
+	entity := map[string]interface{}{
+		"_id":               "nirani",
+		"jobTitleName":      "Full Stack Developper",
+		"firstName":         "Neil",
+		"lastName":          "Irani",
+		"preferredFullName": "Neil Irani",
+		"employeeCode":      "E2",
+		"region":            "CA",
+		"phoneNumber":       "408-1111111",
+		"emailAddress":      "neilrirani@gmail.com"}
+
+	err := client.ReplaceOne(Id, Database, Collection, `{"_id":"nirani"}`, entity, "")
 	if err != nil {
-		log.Println("fail to create database ", Database, err)
+		log.Fatalf("Fail to replace entity %v", err)
 	}
 }
-*/
-/*
 
- */
+func TestUpdateOne(t *testing.T){
+	Id := "mongo_db_test_connection"
+	Database := "TestCreateAndDelete_DB"
+	Collection := "Employees"
+
+	err := client.UpdateOne(Id, Database, Collection, `{"_id":"nirani"}`, `{ "$set":{"employeeCode":"E2.2"},"$set":{"phoneNumber":"408-1231234"}}`, "")
+	if err != nil {
+		log.Fatalf("Fail to update entity %v", err)
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	Id := "mongo_db_test_connection"
+	Database := "TestCreateAndDelete_DB"
+	Collection := "Employees"
+	Query := `{"region": "CA"}`
+	Value := `{"$set":{"state":"California"}}`
+
+	err := client.Update(Id, Database, Collection, Query, Value, "")
+	if err != nil {
+		log.Fatalf("TestUpdate fail %v", err)
+	}
+	log.Println("---> update success!")
+}
+
 /*
 func TestAggregate(t *testing.T) {
 	//fmt.Println("Aggregate")
@@ -163,53 +210,7 @@ func TestAggregate(t *testing.T) {
 }
 */
 
-// First test create a fresh new connection...
-/*
-
- */
-
-/*
-func TestCreateConnection(t *testing.T) {
-	fmt.Println("Connection creation test.")
-	user := "chitchat"
-	pwd := "8b6021d3-5e4a-38a0-9057-0e127754938b"
-	err := client.CreateConnection("chitchat_db", "chitchat_db", "localhost", 27017, 0, user, pwd, 500, "", true)
-	if err != nil {
-		log.Println("fail to create connection! ", err)
-	}
-}*/
-
-/*func TestPersistOne(t *testing.T) {
-
-	Id := "chitchat_db"
-	Database := "chitchat_db"
-	Collection := "Room"
-	JsonStr := `{"_id":"test"}`
-	id, err := client.InsertOne(Id, Database, Collection, JsonStr, "")
-
-	if err != nil {
-		log.Fatalf("TestPersistOne fail %v", err)
-	}
-
-	log.Println("one entity persist with id ", id)
-}*/
-
 /** Test find one **/
-/*func TestUpdate(t *testing.T) {
-	fmt.Println("Update test.")
-
-	Id := "mongo_db_test_connection"
-	Database := "TestMongoDB"
-	Collection := "Employees"
-	Query := `{"emp_no": 200000}`
-	Value := `{"$set":{"gender":"F"}}`
-
-	err := client.Update(Id, Database, Collection, Query, Value, "")
-	if err != nil {
-		log.Fatalf("TestUpdate fail %v", err)
-	}
-	log.Println("---> update success!")
-}*/
 
 /** Test find many **/
 /*func TestFind(t *testing.T) {

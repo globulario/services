@@ -61,7 +61,8 @@ if err != nil {
 ## Insert One
 With your connection opend and ready, you probably want to save some data. To store one entity at time, InsertOne must be use.
 Note that if your entity contain a large number of data you must considere using _InsertMany_, because gRPC frame are limited 
-in size and the serialized data can't be larger than that size.
+in size and the serialized data can't be larger than that size. It will return an error if already existing entity is present.
+You can use _upsert_ option to replace existing entity.
 
 Here an exemple how to persist employe data. If you made use of _mongoDB_ as backend, the database and the collection will
 be create automaticaly at first insertion, otherwise you must explicitly create it by calling _CreateDatabase_ and _CreateCollection_
@@ -81,7 +82,7 @@ employe := map[string]interface{}{
     "emp_no": 200000, 
     "gender": "M"}
     
-id, err := client.InsertOne(Id, Database, Collection, employe, "")
+id, err := client.InsertOne(Id, Database, Collection, employe, `[{"upsert":true}]`)
 
 if err != nil {
     log.Fatalf("fail to pesist entity with error %v", err)
@@ -144,4 +145,56 @@ if err != nil {
 }
 ```
 
-## 
+## Replace One
+Instead of delete and entity and create it, you must use replace one. If you want to change an object propertie
+you must considere using _UpdateOne_ instead. You can also accomplish same thing with _InsertOne_ with the _upsert_ option set to true.
+
+```go
+Id := "mongo_db_test_connection"
+Database := "TestCreateAndDelete_DB"
+Collection := "Employees"
+
+entity := map[string]interface{}{
+    "_id":               "nirani",
+    "jobTitleName":      "Full Stack Developper",
+    "firstName":         "Neil",
+    "lastName":          "Irani",
+    "preferredFullName": "Neil Irani",
+    "employeeCode":      "E2",
+    "region":            "CA",
+    "phoneNumber":       "408-1111111",
+    "emailAddress":      "neilrirani@gmail.com"}
+
+err := client.ReplaceOne(Id, Database, Collection, `{"_id":"nirani"}`, entity, "")
+if err != nil {
+    log.Fatalf("Fail to replace entity %v", err)
+}
+```
+
+## Update One
+This is the function to use to replace one or more entity attributes values. If you want to replace almost all values of an entity you must considere using _ReplaceOne_ method instead.
+
+```go
+Id := "mongo_db_test_connection"
+Database := "TestCreateAndDelete_DB"
+Collection := "Employees"
+
+err := client.UpdateOne(Id, Database, Collection, `{"_id":"nirani"}`, `{ "$set":{"employeeCode":"E2.2"},"$set":{"phoneNumber":"408-1231234"}}`, "")
+if err != nil {
+    log.Fatalf("Fail to update entity %v", err)
+}
+```
+
+## Update (Many)
+If you want to change property or properties of many entities at once _Update_ method is the way to do it. 
+
+Here for exemple I will append new attribute name _sate_ and set it value to _California_ for all employe with _region_ attribute with value _CA_.
+```go
+Id := "mongo_db_test_connection"
+Database := "TestCreateAndDelete_DB"
+Collection := "Employees"
+Query := `{"region": "CA"}`
+Value := `{"$set":{"state":"California"}}`
+
+err := client.Update(Id, Database, Collection, Query, Value, "")
+```

@@ -562,33 +562,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 /**
  * Crete a new role or Update existing one if it already exist.
  */
-
-/** TODO set the Updating part..
-
-role := roles[i]
-count, err := store.Count(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+role.Id+`"}`, "")
-if err != nil || count == 0 {
-	r := make(map[string]interface{}, 0)
-	r["_id"] = role.Id
-	r["name"] = role.Name
-	r["actions"] = role.Actions
-	r["members"] = []string{}
-	_, err := store.InsertOne(context.Background(), "local_resource", "local_resource", "Roles", r, "")
-	if err != nil {
-		return err
-	}
-} else {
-	actions_, err := Utility.ToJson(role.Actions)
-	if err != nil {
-		return err
-	}
-	err = store.UpdateOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+role.Id+`"}`, `{ "$set":{"name":"`+role.Name+`"}}, { "$set":{"actions":`+actions_+`}}`, "")
-	if err != nil {
-		return err
-	}
-}
-*/
-
+ 
 //* Create a role with given action list *
 func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
 	// That service made user of persistence service.

@@ -798,7 +798,7 @@ func (resource_server *server) createRole(id string, name string, actions []stri
 	}
 
 	// Here will create the new role.
-	role := make(map[string]interface{}, 0)
+	role := make(map[string]interface{})
 	role["_id"] = id
 	role["name"] = name
 	role["actions"] = actions

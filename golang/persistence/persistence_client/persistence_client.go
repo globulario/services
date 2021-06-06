@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"reflect"
+
 	//"log"
 	"strconv"
 
@@ -197,7 +199,7 @@ func (client *Persistence_Client) DeleteConnection(connectionId string) error {
 
 func (client *Persistence_Client) CreateDatabase(connectionId string, database string) error {
 	rqst := &persistencepb.CreateDatabaseRqst{
-		Id: connectionId,
+		Id:       connectionId,
 		Database: database,
 	}
 
@@ -414,7 +416,7 @@ func (client *Persistence_Client) InsertMany(connectionId string, database strin
 	var buffer bytes.Buffer
 	enc := json.NewEncoder(&buffer) // Will write to network.
 	err = enc.Encode(entities)
-	
+
 	if err != nil {
 		return err
 	}
@@ -427,26 +429,26 @@ func (client *Persistence_Client) InsertMany(connectionId string, database strin
 			break
 		} else if err != nil {
 			return err
-		}else if bytesread > 0 {
+		} else if bytesread > 0 {
 			rqst := &persistencepb.InsertManyRqst{
 				Id:         connectionId,
 				Database:   database,
 				Collection: collection,
 				Data:       data[0:bytesread],
-			}			
+			}
 			// send the data to the server.
 			err = stream.Send(rqst)
 			if err != nil {
 				break
 			}
-		}else{
+		} else {
 			break
 		}
 
 	}
 
 	_, err = stream.CloseAndRecv()
-	if err != nil && err != io.EOF  {
+	if err != nil && err != io.EOF {
 		return err
 	}
 
@@ -456,7 +458,18 @@ func (client *Persistence_Client) InsertMany(connectionId string, database strin
 /**
  * Insert one value in the database.
  */
-func (client *Persistence_Client) ReplaceOne(connectionId string, database string, collection string, query string, value string, options string) error {
+func (client *Persistence_Client) ReplaceOne(connectionId string, database string, collection string, query string, entity interface{}, options string) error {
+
+	var value string
+	if reflect.TypeOf(entity).Kind() == reflect.String {
+		value = entity.(string)
+	} else {
+		data, err := json.Marshal(entity)
+		if err != nil {
+			return err
+		}
+		value = string(data)
+	}
 
 	rqst := &persistencepb.ReplaceOneRqst{
 		Id:         connectionId,
@@ -472,7 +485,18 @@ func (client *Persistence_Client) ReplaceOne(connectionId string, database strin
 	return err
 }
 
-func (client *Persistence_Client) UpdateOne(connectionId string, database string, collection string, query string, value string, options string) error {
+func (client *Persistence_Client) UpdateOne(connectionId string, database string, collection string, query string, entity interface{}, options string) error {
+
+	var value string
+	if reflect.TypeOf(entity).Kind() == reflect.String {
+		value = entity.(string)
+	} else {
+		data, err := json.Marshal(entity)
+		if err != nil {
+			return err
+		}
+		value = string(data)
+	}
 
 	rqst := &persistencepb.UpdateOneRqst{
 		Id:         connectionId,
