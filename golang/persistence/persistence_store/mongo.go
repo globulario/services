@@ -6,9 +6,10 @@ import (
 
 	"encoding/json"
 	"errors"
-
+	"fmt"
 	"log"
-
+	"os"
+	"time"
 	"go.mongodb.org/mongo-driver/bson"
 
 	//"github.com/iancoleman/orderedmap"
@@ -16,6 +17,7 @@ import (
 	//"github.com/davecourtois/Utility"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/davecourtois/Utility"
 
 	// execute...
 	"os/exec"
@@ -27,10 +29,14 @@ import (
 type MongoStore struct {
 	// keep track of connection with mongo db.
 	clients map[string]*mongo.Client
+	DataPath string
+	Port int
+	Password string
+	User string // Must be the admin...
 }
 
 /**
- * Connect to the remote/local mongo server
+ * Connect to the remote/local mongo store
  * TODO add more connection options via the option_str and options package.
  */
 func (store *MongoStore) Connect(connectionId string, host string, port int32, user string, password string, database string, timeout int32, optionsStr string) error {
@@ -609,9 +615,139 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
 }
 
 /**
+ * Start the datastore.
+ */
+func (store  *MongoStore) Start(user, password string, port int) error{
+	return store.waitForMongo(60, true)
+}
+
+/**
+ * Stop the datastore.
+ */
+ func (store  *MongoStore) Stop() error{
+	return store.stopMongod()
+}
+
+/**
  * Create a role, privilege is a json sring describing the privilege.
  * privileges ex. [{ resource: { db: "mytest", collection: "col2"}, actions: ["find"]}], roles: []}
  */
 func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, role string, privileges string, options string) error {
 	return nil
+}
+
+
+/** Stop mongod process **/
+func (store *MongoStore) stopMongod() error {
+	closeCmd := exec.Command("mongo", "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
+	err := closeCmd.Run()
+	time.Sleep(1 * time.Second)
+	return err
+}
+
+/** Create the super administrator in the db. **/
+func (store *MongoStore) registerSa() error {
+	log.Println("register sa connection")
+	// Here I will test if mongo db exist on the store.
+	existMongo := exec.Command("mongod", "--version")
+	err := existMongo.Run()
+	if err != nil {
+		return err
+	}
+
+	// Here I will create super admin if it not already exist.
+	dataPath := store.DataPath + "/mongodb-data"
+
+	if !Utility.Exists(dataPath) {
+		// Kill mongo db store if the process already run...
+		store.stopMongod()
+
+		// Here I will create the directory
+		err := os.MkdirAll(dataPath, os.ModeDir)
+		if err != nil {
+			return err
+		}
+
+		// Now I will start the command
+		mongod := exec.Command("mongod", "--port", "27017", "--dbpath", dataPath)
+		err = mongod.Start()
+		if err != nil {
+			return err
+		}
+
+		store.waitForMongo(60, false)
+
+		// Now I will create a new user name sa and give it all admin write.
+		createSaScript := fmt.Sprintf(
+			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`, store.User, store.Password) // must be change...
+
+		createSaCmd := exec.Command("mongo", "--eval", createSaScript)
+		err = createSaCmd.Run()
+		if err != nil {
+			// remove the mongodb-data
+			os.RemoveAll(dataPath)
+			return err
+		}
+		store.stopMongod()
+	}
+
+	// Now I will start mongod with auth available.
+	mongod := exec.Command("mongod", "--auth", "--port", Utility.ToString(store.Port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath)
+
+	err = mongod.Start()
+	if err != nil {
+		return err
+	}
+
+	// wait 15 seconds that the store restart.
+	store.waitForMongo(60, true)
+
+	// Get the list of all services method.
+	return nil
+}
+
+func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
+
+	time.Sleep(1 * time.Second)
+
+	args := make([]string, 0)
+	if withAuth {
+		args = append(args, "-u")
+		args = append(args, store.User)
+		args = append(args, "-p")
+		args = append(args, store.Password)
+		args = append(args, "--authenticationDatabase")
+		args = append(args, "admin")
+	}
+
+	args = append(args, "--eval")
+	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
+	script := exec.Command("mongo", args...)
+	err := script.Run()
+	if err != nil {
+		if timeout == 0 {
+			return errors.New("mongod is not responding")
+		}
+		// call again.
+		timeout -= 1
+		log.Println("wait for mongdb ", timeout)
+		return store.waitForMongo(timeout, withAuth)
+	}
+
+/*
+	ids, err := Utility.GetProcessIdsByName("mongo")
+	if err == nil && len(ids) > 0{
+		log.Println("mongo process was found!")
+	}else{
+		if timeout == 0 {
+			return errors.New("mongod is not responding")
+		}
+		// call again.
+		timeout -= 1
+		log.Println("wait for mongdb ", timeout)
+		return store.waitForMongo(timeout, withAuth)
+	}
+*/
+	return nil
+
 }

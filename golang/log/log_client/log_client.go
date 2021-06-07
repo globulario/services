@@ -4,7 +4,9 @@ import (
 	//	"time"
 
 	"context"
+	"errors"
 	"io"
+	"log"
 	"strconv"
 	"time"
 
@@ -63,105 +65,109 @@ func NewLogService_Client(address string, id string) (*Log_Client, error) {
 	return client, nil
 }
 
-func (self *Log_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Log_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
 // Return the ipv4 address
 // Return the address
-func (self *Log_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (client *Log_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the domain
-func (self *Log_Client) GetDomain() string {
-	return self.domain
+func (client *Log_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the id of the service instance
-func (self *Log_Client) GetId() string {
-	return self.id
+func (client *Log_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (self *Log_Client) GetName() string {
-	return self.name
+func (client *Log_Client) GetName() string {
+	return client.name
 }
 
 // must be close when no more needed.
-func (self *Log_Client) Close() {
-	self.cc.Close()
+func (client *Log_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Log_Client) SetPort(port int) {
-	self.port = port
+func (client *Log_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client name.
-func (self *Log_Client) SetId(id string) {
-	self.id = id
+func (client *Log_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (self *Log_Client) SetName(name string) {
-	self.name = name
+func (client *Log_Client) SetName(name string) {
+	client.name = name
 }
 
 // Set the domain.
-func (self *Log_Client) SetDomain(domain string) {
-	self.domain = domain
+func (client *Log_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Log_Client) HasTLS() bool {
-	return self.hasTLS
+func (client *Log_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Log_Client) GetCertFile() string {
-	return self.certFile
+func (client *Log_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (self *Log_Client) GetKeyFile() string {
-	return self.keyFile
+func (client *Log_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Log_Client) GetCaFile() string {
-	return self.caFile
+func (client *Log_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Log_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (client *Log_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Log_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (client *Log_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Log_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (client *Log_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Log_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (client *Log_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Append a new log information.
-func (self *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string) error {
+func (client *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string, fileLine string, functionName string ) error {
+	// do not log itself.
+	if method == "/log.LogService/Log"{
+		return errors.New("recursive function call cycle")
+	}
 
 	// Here I set a log information.
 	rqst := new(logpb.LogRqst)
@@ -170,6 +176,8 @@ func (self *Log_Client) Log(application string, user string, method string, leve
 	info.Application = application
 	info.UserName = user
 	info.Method = method
+	info.FunctionName = functionName
+	info.Line = fileLine
 
 	info.Date = time.Now().Unix()
 	info.Level = level
@@ -177,7 +185,9 @@ func (self *Log_Client) Log(application string, user string, method string, leve
 
 	rqst.Info = info
 
-	_, err := self.c.Log(globular.GetClientContext(self), rqst)
+	_, err := client.c.Log(globular.GetClientContext(client), rqst)
+
+	log.Println(application, user, method, level, message)
 
 	return err
 }
@@ -185,12 +195,12 @@ func (self *Log_Client) Log(application string, user string, method string, leve
 /**
  * Return an array of log infos.
  */
-func (self *Log_Client) GetLog(query string) ([]*logpb.LogInfo, error) {
+func (client *Log_Client) GetLog(query string) ([]*logpb.LogInfo, error) {
 	rqst := &logpb.GetLogRqst{
 		Query: query,
 	}
 
-	stream, err := self.c.GetLog(globular.GetClientContext(self), rqst)
+	stream, err := client.c.GetLog(globular.GetClientContext(client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -218,12 +228,12 @@ func (self *Log_Client) GetLog(query string) ([]*logpb.LogInfo, error) {
 /**
  * Delete a given log.
  */
-func (self *Log_Client) DeleteLog(info *logpb.LogInfo) error {
+func (client *Log_Client) DeleteLog(info *logpb.LogInfo) error {
 	rqst := &logpb.DeleteLogRqst{
 		Log: info,
 	}
 
-	_, err := self.c.DeleteLog(globular.GetClientContext(self), rqst)
+	_, err := client.c.DeleteLog(globular.GetClientContext(client), rqst)
 
 	return err
 }
@@ -231,12 +241,12 @@ func (self *Log_Client) DeleteLog(info *logpb.LogInfo) error {
 /**
  * Clear all method
  */
-func (self *Log_Client) ClearLog(query string) error {
+func (client *Log_Client) ClearLog(query string) error {
 	rqst := &logpb.ClearAllLogRqst{
 		Query: query,
 	}
 
-	_, err := self.c.ClearAllLog(globular.GetClientContext(self), rqst)
+	_, err := client.c.ClearAllLog(globular.GetClientContext(client), rqst)
 
 	return err
 }

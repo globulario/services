@@ -20,7 +20,19 @@ var (
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
 )
+/*
+func TestCreateSaConnection(t *testing.T) {
 
+	//log.Println(token)
+	log.Println("Connection creation test.")
+	user := "sa"
+	pwd := "adminadmin"
+	err := client.CreateConnection("local_resource", "local_resource", domain, 27017, 0, user, pwd, 500, "", true)
+	if err != nil {
+		log.Println("fail to create connection! ", err)
+	}
+}
+*/
 // First test create a fresh new connection...
 
 func TestCreateConnection(t *testing.T) {

@@ -2,9 +2,6 @@ package process
 
 import (
 	"errors"
-	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
-	ps "github.com/mitchellh/go-ps"
 	"os"
 	"os/exec"
 	"runtime"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
+	ps "github.com/mitchellh/go-ps"
 )
 
 /**
@@ -62,15 +63,15 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	KillServiceProcess(s)
 
 	// Get the next available port.
-	port := Utility.ToInt(s["Port"])
+
 	var err error
-	if !config.IsPortAvailable(port, portsRange) {
-		port, err = config.GetNextAvailablePort(portsRange)
-		if err != nil {
-			return err
-		}
-		s["Port"] = port
+
+	port, err := config.GetNextAvailablePort(portsRange)
+	if err != nil {
+		return err
 	}
+
+	s["Port"] = port
 
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
@@ -97,17 +98,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate, portsRange string) error {
 
 	servicePort := Utility.ToInt(s["Port"])
-	proxyPort := Utility.ToInt(s["Proxy"])
-
-	// Test if the port is available.
-	if !config.IsPortAvailable(proxyPort, portsRange) {
-		port, err := config.GetNextAvailablePort(portsRange)
-		if err != nil {
-			return err
-		}
-		s["Proxy"] = port
-	}
-
 	pid := Utility.ToInt(s["ProxyProcess"])
 	if pid != -1 {
 		KillServiceProcess(s)
@@ -128,6 +118,12 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxyArgs = append(proxyArgs, "--allow_all_origins="+proxyAllowAllOrgins)
 	hasTls := s["TLS"].(bool)
 	creds := "/etc/globular/config/tls"
+	// Test if the port is available.
+	port, err := config.GetNextAvailablePort(portsRange)
+	if err != nil {
+		return err
+	}
+	s["Proxy"] = port
 
 	if hasTls {
 		certAuthorityTrust := creds + "/ca.crt"
@@ -141,7 +137,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		/* http2 parameters between the browser and the proxy.*/
 		proxyArgs = append(proxyArgs, "--run_http_server=false")
 		proxyArgs = append(proxyArgs, "--run_tls_server=true")
-		proxyArgs = append(proxyArgs, "--server_http_tls_port="+strconv.Itoa(proxyPort))
+		proxyArgs = append(proxyArgs, "--server_http_tls_port="+strconv.Itoa(port))
 
 		/* in case of public domain server files **/
 		proxyArgs = append(proxyArgs, "--server_tls_key_file="+creds+"/server.pem")
@@ -152,7 +148,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		// Now I will save the file with those new information in it.
 		proxyArgs = append(proxyArgs, "--run_http_server=true")
 		proxyArgs = append(proxyArgs, "--run_tls_server=false")
-		proxyArgs = append(proxyArgs, "--server_http_debug_port="+strconv.Itoa(proxyPort))
+		proxyArgs = append(proxyArgs, "--server_http_debug_port="+strconv.Itoa(port))
 		proxyArgs = append(proxyArgs, "--backend_tls=false")
 	}
 
@@ -175,8 +171,9 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 
-	err := proxyProcess.Start()
 
+
+	err = proxyProcess.Start()
 	if err != nil {
 		return err
 	}
@@ -244,7 +241,7 @@ func ManageServicesProcess(exit chan bool) {
 						}
 
 						state := "stopped"
-						if s["State"] != nil{
+						if s["State"] != nil {
 							state = s["State"].(string)
 						}
 

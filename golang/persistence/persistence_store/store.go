@@ -107,4 +107,14 @@ type Store interface {
 	 * Run an admin command on the server.
 	 */
 	RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error
+
+	/**
+	 * Start the data store.
+	 */
+	 Start(user, password string, port int) error;
+
+	 /**
+	  * Stop the server
+	  */
+	 Stop() error;
 }

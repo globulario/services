@@ -224,9 +224,11 @@ var (
  * Return the next available port.
  **/
 func GetNextAvailablePort(portRange_ string) (int, error) {
+	
 	portRange := strings.Split(portRange_, "-")
 	start := Utility.ToInt(portRange[0]) + 1 // The first port of the range will be reserve to http configuration handler.
 	end := Utility.ToInt(portRange[1])
+
 	for i := start; i < end; i++ {
 		if IsPortAvailable(i, portRange_) {
 			portsInUse = append(portsInUse, i)
@@ -248,14 +250,13 @@ func processIsRuning(pid int) bool {
 /**
  * Get the list of port in Use
  */
-func GetPortsInUse() []int {
+func getPortsInUse() []int {
 	services, _ := GetServicesConfigurations()
-	portsInUse = make([]int, 0)
+	_portsInUse_ := portsInUse
 
 	// I will test if the port is already taken by e services.
 	for i := 0; i < len(services); i++ {
 		s := services[i]
-		
 		pid := -1
 		if s["Process"] != nil {
 			s["Process"] = Utility.ToInt(pid)
@@ -264,7 +265,7 @@ func GetPortsInUse() []int {
 		if pid != -1 {
 			if processIsRuning(pid) {
 				port := Utility.ToInt(s["Port"])
-				portsInUse = append(portsInUse, port)
+				_portsInUse_ = append(_portsInUse_, port)
 			}
 		}
 
@@ -276,11 +277,11 @@ func GetPortsInUse() []int {
 		if proxyPid_ != -1 {
 			if processIsRuning(proxyPid_) {
 				port := Utility.ToInt(s["Proxy"])
-				portsInUse = append(portsInUse, port)
+				_portsInUse_ = append(_portsInUse_, port)
 			}
 		}
 	}
-	return portsInUse
+	return _portsInUse_
 }
 
 /**
@@ -295,15 +296,14 @@ func IsPortAvailable(port int, portRange_ string) bool {
 		return false
 	}
 
-	portsInUse := GetPortsInUse()
+	portsInUse := getPortsInUse()
 	for i := 0; i < len(portsInUse); i++ {
 		if portsInUse[i] == port {
 			return false
 		}
 	}
 
-	// wait before interogate the next port
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	l, err := net.Listen("tcp", "0.0.0.0:"+Utility.ToString(port))
 	if err == nil {
 		defer l.Close()

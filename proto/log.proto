@@ -25,6 +25,8 @@ message LogInfo{
 	string userName = 5;
 	string method = 6;
 	string message = 7;
+	string function_name = 8;
+	string line = 9;
 }
 
 message LogRqst{

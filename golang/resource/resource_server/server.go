@@ -11,9 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"os/exec"
-
 	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -384,73 +381,29 @@ func (svr *server) StopService() error {
 
 // MongoDB backend, it must reside on the same server as the resource server (at this time...)
 
-/** Stop mongod process **/
-func (server *server) stopMongod() error {
-	closeCmd := exec.Command("mongo", "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
-	err := closeCmd.Run()
-	time.Sleep(1 * time.Second)
-	return err
+/**
+ * Connection to mongo db local store.
+ */
+func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
+	// That service made user of persistence service.
+	if svr.store == nil {
+		svr.store = new(persistence_store.MongoStore)
+		// Start the store if is not already running...
+		err := svr.store.Start( svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)))
+		if err != nil {
+			// codes.
+			return nil, err
+		}
+		err = svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
+		if err != nil {
+			return nil, err
+		}
+	}
+	return svr.store, nil
 }
 
-/** Create the super administrator in the db. **/
-func (server *server) registerSa() error {
-
-	// Here I will test if mongo db exist on the server.
-	existMongo := exec.Command("mongod", "--version")
-	err := existMongo.Run()
-	if err != nil {
-		return err
-	}
-
-	// Here I will create super admin if it not already exist.
-	dataPath := server.DataPath + "/mongodb-data"
-
-	if !Utility.Exists(dataPath) {
-		// Kill mongo db server if the process already run...
-		server.stopMongod()
-
-		// Here I will create the directory
-		err := os.MkdirAll(dataPath, os.ModeDir)
-		if err != nil {
-			return err
-		}
-
-		// Now I will start the command
-		mongod := exec.Command("mongod", "--port", "27017", "--dbpath", dataPath)
-		err = mongod.Start()
-		if err != nil {
-			return err
-		}
-
-		server.waitForMongo(60, false)
-
-		// Now I will create a new user name sa and give it all admin write.
-		createSaScript := fmt.Sprintf(
-			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`, server.Backend_user, server.Backend_password) // must be change...
-
-		createSaCmd := exec.Command("mongo", "--eval", createSaScript)
-		err = createSaCmd.Run()
-		if err != nil {
-			// remove the mongodb-data
-			os.RemoveAll(dataPath)
-			return err
-		}
-		server.stopMongod()
-	}
-
-	// Now I will start mongod with auth available.
-	mongod := exec.Command("mongod", "--auth", "--port", Utility.ToString(server.Backend_port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath)
-
-	err = mongod.Start()
-	if err != nil {
-		return err
-	}
-
-	// wait 15 seconds that the server restart.
-	server.waitForMongo(60, true)
-
-	// Get the list of all services method.
-	return server.createRole("guest", "guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
+/*
+server.createRole("guest", "guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
 		"/services_manager.ServicesManagerServices/GetServiceConfig",
 		"/admin.AdminService/HasRunningProcess",
 		"/admin.AdminService/DownloadGlobular",
@@ -482,53 +435,7 @@ func (server *server) registerSa() error {
 		"/log.LogService/DeleteLog",
 		"/log.LogService/GetLog",
 		"/log.LogService/ClearAllLog"})
-}
-
-func (server *server) waitForMongo(timeout int, withAuth bool) error {
-	time.Sleep(1 * time.Second)
-	args := make([]string, 0)
-	if withAuth {
-		args = append(args, "-u")
-		args = append(args, server.Backend_user)
-		args = append(args, "-p")
-		args = append(args, server.Backend_password)
-		args = append(args, "--authenticationDatabase")
-		args = append(args, "admin")
-		args = append(args, "--authenticationMechanisms")
-		args = append(args, "PLAIN")
-	}
-	args = append(args, "--eval")
-	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
-
-	script := exec.Command("mongo", args...)
-	err := script.Run()
-	if err != nil {
-		if timeout == 0 {
-			return errors.New("mongod is not responding")
-		}
-		// call again.
-		timeout -= 1
-
-		return server.waitForMongo(timeout, withAuth)
-	}
-
-	return nil
-}
-
-/**
- * Connection to mongo db local store.
- */
-func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
-	// That service made user of persistence service.
-	if svr.store == nil {
-		svr.store = new(persistence_store.MongoStore)
-		err := svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
-		if err != nil {
-			return nil, err
-		}
-	}
-	return svr.store, nil
-}
+*/
 
 /**
  *  hashPassword return the bcrypt hash of the password.
@@ -571,7 +478,7 @@ func (resource_server *server) registerAccount(id string, name string, email str
 	}
 
 	// set the account object and set it basic roles.
-	account := make(map[string]interface{}, 0)
+	account := make(map[string]interface{})
 	account["_id"] = id
 	account["name"] = name
 	account["email"] = email
@@ -883,7 +790,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
+	log.Println("start service ressource manager")
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
@@ -929,9 +836,6 @@ func main() {
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
-
-	// Start mongo db...
-	s_impl.registerSa()
 
 	// Start the service.
 	s_impl.StartService()

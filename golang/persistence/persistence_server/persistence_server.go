@@ -61,7 +61,7 @@ type connection struct {
 	Port     int32
 	Timeout  int32
 	Options  string
-	password string
+	Password string
 }
 
 // Value need by Globular to start the services...
@@ -90,7 +90,9 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies []string // The list of services needed by this services.
+	Dependencies       []string      // The list of services needed by this services.
+
+
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -171,9 +173,9 @@ func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
@@ -327,7 +329,9 @@ func (persistence_server *server) Init() error {
 
 	// init the connections
 	persistence_server.connections = make(map[string]connection)
-	persistence_server.Connections = make(map[string]connection)
+
+	// initialyse store connection here.
+	persistence_server.stores = make(map[string]persistence_store.Store)
 
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
@@ -343,16 +347,16 @@ func (persistence_server *server) Init() error {
 		return err
 	}
 
-	// initialyse store connection here.
-	persistence_server.stores = make(map[string]persistence_store.Store)
+	log.Println("-----------> ", persistence_server.Connections)
 	// Here I will initialyse the connection.
 	for _, c := range persistence_server.Connections {
+
 		if c.Store == persistencepb.StoreType_MONGO {
 			// here I will create a new mongo data store.
 			s := new(persistence_store.MongoStore)
 
 			// Now I will try to connect...
-			err := s.Connect(c.Id, c.Host, c.Port, c.User, c.password, c.Name, c.Timeout, c.Options)
+			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 			// keep the store for futur call...
 			if err == nil {
 				persistence_server.stores[c.Id] = s
@@ -402,7 +406,7 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 		c.Host = rqst.Connection.Host
 		c.Port = rqst.Connection.Port
 		c.User = rqst.Connection.User
-		c.password = rqst.Connection.Password
+		c.Password = rqst.Connection.Password
 		c.Store = rqst.Connection.Store
 
 		if c.Store == persistencepb.StoreType_MONGO {
@@ -410,7 +414,7 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 			s := new(persistence_store.MongoStore)
 
 			// Now I will try to connect...
-			err := s.Connect(c.Id, c.Host, c.Port, c.User, c.password, c.Name, c.Timeout, c.Options)
+			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 			if err != nil {
 				// codes.
 				return nil, status.Errorf(
@@ -470,16 +474,17 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 	}
 
 	if c, ok := persistence_server.Connections[rqst.ConnectionId]; ok {
-	
+
 		// So here I will open the connection.
-		c.password = rqst.Password
+		c.Password = rqst.Password
 		if c.Store == persistencepb.StoreType_MONGO {
 			// here I will create a new mongo data store.
 			s := new(persistence_store.MongoStore)
 
+
 			// Now I will try to connect...
-			err := s.Connect(c.Id, c.Host, c.Port, c.User, c.password, c.Name, c.Timeout, c.Options)
-				
+			err := s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
+
 			if err != nil {
 				// codes.
 				return nil, status.Errorf(
@@ -625,7 +630,7 @@ func (persistence_server *server) Ping(ctx context.Context, rqst *persistencepb.
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
+
 	err := store.Ping(ctx, strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
 	if err != nil {
 		return nil, status.Errorf(
@@ -714,18 +719,18 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 			break
 		} else if err != nil {
 			return err
-		} else if len(rqst.Data) > 0{
+		} else if len(rqst.Data) > 0 {
 			if len(rqst.Collection) > 0 {
 				collection = rqst.Collection
 			}
 			if len(rqst.Id) > 0 {
 				connectionId = rqst.Id
 			}
-			if len(rqst.Database) > 0{
+			if len(rqst.Database) > 0 {
 				database = rqst.Database
 			}
 			buffer.Write(rqst.Data)
-		}else{
+		} else {
 			break
 		}
 	}
@@ -740,7 +745,7 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 	connectionId = strings.ReplaceAll(strings.ReplaceAll(connectionId, "@", "_"), ".", "_")
 	database = strings.ReplaceAll(strings.ReplaceAll(database, "@", "_"), ".", "_")
 
-	_, err = persistence_server.stores[connectionId].InsertMany(stream.Context(), connectionId , database, collection, entities, rqst.Options)
+	_, err = persistence_server.stores[connectionId].InsertMany(stream.Context(), connectionId, database, collection, entities, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

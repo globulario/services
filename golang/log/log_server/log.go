@@ -73,11 +73,6 @@ func (server *server) log(info *logpb.LogInfo) error {
 
 		info.UserId = id
 		info.UserName = name // keep only the user name
-		if info.UserId == "sa" {
-			return nil // not log sa activities...
-		}
-	} else {
-		return nil
 	}
 
 	// Return the log information.
@@ -91,6 +86,7 @@ func (server *server) log(info *logpb.LogInfo) error {
 
 	// That must be use to keep all logger upto date...
 	server.publish("new_log_evt", []byte(jsonStr))
+
 
 	return nil
 }

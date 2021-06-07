@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	//"log"
 	"strings"
 	"sync"
 	"time"
@@ -332,6 +333,14 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
+	// Test send debug value...
+	
+	logger, err := GetLogClient(domain)
+	if err == nil {
+		logger.Log(application, clientId, method, logpb.LogLevel_DEBUG_MESSAGE, "This is a test!", Utility.FileLine(), Utility.FunctionName())
+	}
+	
+
 	// Test if peer has access
 	if !hasAccess && len(clientId) > 0 {
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
@@ -385,7 +394,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		if err != nil {
 			logger, err_ := GetLogClient(domain)
 			if err_ == nil {
-				logger.Log(application, clientId, method, logpb.LogLevel_ERROR_MESSAGE, err.Error())
+				logger.Log(application, clientId, method, logpb.LogLevel_ERROR_MESSAGE, err.Error(),  Utility.FileLine(), Utility.FunctionName())
 			}
 		}
 	}
@@ -551,7 +560,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if len(application) > 0 && len(clientId) > 0 && clientId != "sa" && err != nil {
 		logger, err_ := GetLogClient(domain)
 		if err_ == nil {
-			logger.Log(application, clientId, method, logpb.LogLevel_ERROR_MESSAGE, err.Error())
+			logger.Log(application, clientId, method, logpb.LogLevel_ERROR_MESSAGE, err.Error(), Utility.FileLine(), Utility.FunctionName())
 		}
 	}
 
