@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	//"log"
 	"strings"
 	"sync"
@@ -233,6 +234,14 @@ func validateActionRequest(token string, application string, organization string
 	return hasAccess, nil
 }
 
+// Log the error...
+func log(domain, application, user, method, fileLine, functionName string, msg string, level logpb.LogLevel) {
+	logger, _ := GetLogClient(domain)
+	if logger != nil {
+		logger.Log(application, user, method, level, msg, fileLine, functionName)
+	}
+}
+
 // That interceptor is use by all services except the resource service who has
 // it own interceptor.
 func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
@@ -267,6 +276,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if Utility.IsLocal(p.Addr.String()) {
 		domain = "localhost"
 	}
+
+	// log(domain, application, "", method, Utility.FileLine(), Utility.FunctionName(), "debug test",  logpb.LogLevel_DEBUG_MESSAGE)
 
 	if len(domain) == 0 {
 		if strings.Index(p.Addr.String(), ":") != 0 {
@@ -311,12 +322,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/rbac.RbacService/ValidateAccess" ||
 		method == "/rbac.RbacService/GetResourcePermissions" ||
 		method == "/rbac.RbacService/GetResourcePermission" ||
-		method == "/log.LogService/Log" ||
-		method == "/log.LogService/DeleteLog" ||
-		method == "/log.LogService/GetLog" ||
-		method == "/log.LogService/ClearAllLog" ||
-		method == "/event.EventService/Subscribe" ||
-		method == "/event.EventService/Publish" {
+		strings.HasPrefix(method, "/log.LogService/") ||
+		strings.HasPrefix(method, "/authentication.AuthenticationService/") ||
+		strings.HasPrefix(method, "/event.EventService/") {
 		hasAccess = true
 	}
 
@@ -333,14 +341,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-	// Test send debug value...
-	
-	logger, err := GetLogClient(domain)
-	if err == nil {
-		logger.Log(application, clientId, method, logpb.LogLevel_DEBUG_MESSAGE, "This is a test!", Utility.FileLine(), Utility.FunctionName())
-	}
-	
-
 	// Test if peer has access
 	if !hasAccess && len(clientId) > 0 {
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
@@ -356,10 +356,12 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	if !hasAccess {
 		err := errors.New("Permission denied to execute method " + method + " user:" + clientId + " domain:" + domain + " application:" + application)
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return nil, err
 	}
 
 	// So here the user has access to the ressource...
+	log(domain, application, "", method, Utility.FileLine(), Utility.FunctionName(), "debug test", logpb.LogLevel_DEBUG_MESSAGE)
 
 	// I will try to get the list of candidates for load balancing
 	if Utility.GetProperty(info.Server, "Port") != nil {
@@ -367,6 +369,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		// Here I will refresh the load balance of the server to keep track of real load.
 		lb_client, err := getLoadBalancingClient(domain, Utility.GetProperty(info.Server, "Id").(string), Utility.GetProperty(info.Server, "Name").(string), Utility.GetProperty(info.Server, "Domain").(string), int32(Utility.GetProperty(info.Server, "Port").(int)))
 		if err != nil {
+			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
 
@@ -390,13 +393,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	result, err = handler(ctx, rqst)
 
 	// Send log message.
-	if (len(application) > 0 && len(clientId) > 0 && clientId != "sa") || err != nil {
-		if err != nil {
-			logger, err_ := GetLogClient(domain)
-			if err_ == nil {
-				logger.Log(application, clientId, method, logpb.LogLevel_ERROR_MESSAGE, err.Error(),  Utility.FileLine(), Utility.FunctionName())
-			}
-		}
+	if err != nil {
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 
 	return result, err
@@ -557,11 +555,8 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	// Start streaming.
 	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, domain: domain, token: token, application: application, clientId: clientId, peer: domain})
 
-	if len(application) > 0 && len(clientId) > 0 && clientId != "sa" && err != nil {
-		logger, err_ := GetLogClient(domain)
-		if err_ == nil {
-			logger.Log(application, clientId, method, logpb.LogLevel_ERROR_MESSAGE, err.Error(), Utility.FileLine(), Utility.FunctionName())
-		}
+	if err != nil {
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
 
 	// Remove the uuid from the cache

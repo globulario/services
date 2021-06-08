@@ -13,7 +13,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
-	//"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/process"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -453,7 +453,6 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 /**
  * Get the log client.
  */
- /*
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
@@ -479,7 +478,7 @@ func (server *server) logServiceError(name string, infos string) {
 		return
 	}
 	log_client_.Log(server.Name, server.Domain, name, logpb.LogLevel_ERROR_MESSAGE, infos, Utility.FileLine(), Utility.FunctionName())
-}*/
+}
 
 ///////////////////////////// Service manager functions ///////////////////////////////////
 

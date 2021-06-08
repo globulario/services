@@ -7,10 +7,8 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -985,7 +983,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 				// from the account I will get the list of group.
 				account, err := rbac_server.getAccount(subject)
 				if err != nil {
-					return false, false, errors.New("No account named " + subject + " exist!")
+					return false, false, errors.New("no account named " + subject + " exist")
 				}
 
 				if account.Groups != nil {
@@ -993,7 +991,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 						groupId := account.Groups[i]
 						_, accessDenied_, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
 						if accessDenied_ {
-							return false, true, errors.New("Access denied for " + subjectStr + " " + subject + "!")
+							return false, true, errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path )
 						}
 					}
 				}
@@ -1004,7 +1002,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 						organizationId := account.Organizations[i]
 						_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
 						if accessDenied_ {
-							return false, true, errors.New("Access denied for " + subjectStr + " " + subject + "!")
+							return false, true, errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
 						}
 					}
 				}
@@ -1029,7 +1027,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 				// from the account I will get the list of group.
 				group, err := rbac_server.getGroup(subject)
 				if err != nil {
-					return false, false, errors.New("No account named " + subject + " exist!")
+					return false, false, errors.New("no account named " + subject + " exist")
 				}
 
 				if group.Organizations != nil {
@@ -1037,7 +1035,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 						organizationId := group.Organizations[i]
 						_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
 						if accessDenied_ {
-							return false, true, errors.New("Access denied for " + subjectStr + " " + organizationId + "!")
+							return false, true, errors.New("access denied for " + subjectStr + " " + organizationId + " " + name + " " + path)
 						}
 					}
 				}
@@ -1058,7 +1056,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	if accessDenied {
-		err := errors.New("Access denied for " + subjectStr + " " + subject + "!")
+		err := errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
 		return false, true, err
 	}
 
@@ -1163,7 +1161,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	if !hasAccess {
-		err := errors.New("Access denied for " + subjectStr + " " + subject + "!")
+		err := errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
 		return false, false, err
 	}
 
@@ -1260,9 +1258,13 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 
 	var actions []string
+	if strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService"){
+		return true, nil
+	}
 
 	// Validate the access for a given suject...
 	hasAccess := false
+	rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for "+subject)
 
 	// So first of all I will validate the actions itself...
 	if subjectType == rbacpb.SubjectType_APPLICATION {
@@ -1324,7 +1326,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	} else if subjectType == rbacpb.SubjectType_ROLE {
 		return true, nil
 	}
-	
+
 	// Now I will validate the resource access.
 	// infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)
@@ -1353,49 +1355,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.ValidateActionRqst) (*rbacpb.ValidateActionRsp, error) {
 
 	// So here From the context I will validate if the application can execute the action...
-	var clientId string
-	var application string
 	var err error
-
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		application = strings.Join(md["application"], "")
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			clientId, _, _, _, err = interceptors.ValidateToken(token)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-		} else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
-
-		}
-	}
-
-	// In the account must match the information in the token.
-	if rqst.Type == rbacpb.SubjectType_ACCOUNT {
-
-		if clientId != rqst.Subject {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Wrong account id your not authenticated as "+rqst.Subject)))
-		}
-	}
-
-	// Test if the action permission is at application level.
-	if len(application) > 0 {
-		hasAccess, err := rbac_server.validateAction(rqst.Action, application, rbacpb.SubjectType_APPLICATION, rqst.Infos)
-		if err == nil && hasAccess {
-			return &rbacpb.ValidateActionRsp{
-				Result: hasAccess,
-			}, nil
-		}
-	}
 
 	// If the address is local I will give the permission.
 	//log.Println("validate action ", rqst.Action, rqst.Subject, rqst.Type, rqst.Infos)

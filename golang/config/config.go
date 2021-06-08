@@ -303,7 +303,7 @@ func IsPortAvailable(port int, portRange_ string) bool {
 		}
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	l, err := net.Listen("tcp", "0.0.0.0:"+Utility.ToString(port))
 	if err == nil {
 		defer l.Close()

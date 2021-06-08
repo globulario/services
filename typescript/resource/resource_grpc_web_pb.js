@@ -1028,6 +1028,86 @@ proto.resource.ResourceServicePromiseClient.prototype.createGroup =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.UpdateGroupRqst,
+ *   !proto.resource.UpdateGroupRsp>}
+ */
+const methodDescriptor_ResourceService_UpdateGroup = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/UpdateGroup',
+  grpc.web.MethodType.UNARY,
+  proto.resource.UpdateGroupRqst,
+  proto.resource.UpdateGroupRsp,
+  /**
+   * @param {!proto.resource.UpdateGroupRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdateGroupRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.UpdateGroupRqst,
+ *   !proto.resource.UpdateGroupRsp>}
+ */
+const methodInfo_ResourceService_UpdateGroup = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.UpdateGroupRsp,
+  /**
+   * @param {!proto.resource.UpdateGroupRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdateGroupRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.UpdateGroupRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.UpdateGroupRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.UpdateGroupRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.updateGroup =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/UpdateGroup',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateGroup,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.UpdateGroupRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.UpdateGroupRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.updateGroup =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/UpdateGroup',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateGroup);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.GetGroupsRqst,
  *   !proto.resource.GetGroupsRsp>}
  */
@@ -2767,6 +2847,86 @@ proto.resource.ResourceServicePromiseClient.prototype.createApplication =
       request,
       metadata || {},
       methodDescriptor_ResourceService_CreateApplication);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.UpdateApplicationRqst,
+ *   !proto.resource.UpdateApplicationRsp>}
+ */
+const methodDescriptor_ResourceService_UpdateApplication = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/UpdateApplication',
+  grpc.web.MethodType.UNARY,
+  proto.resource.UpdateApplicationRqst,
+  proto.resource.UpdateApplicationRsp,
+  /**
+   * @param {!proto.resource.UpdateApplicationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdateApplicationRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.UpdateApplicationRqst,
+ *   !proto.resource.UpdateApplicationRsp>}
+ */
+const methodInfo_ResourceService_UpdateApplication = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.UpdateApplicationRsp,
+  /**
+   * @param {!proto.resource.UpdateApplicationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdateApplicationRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.UpdateApplicationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.UpdateApplicationRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.UpdateApplicationRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.updateApplication =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/UpdateApplication',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateApplication,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.UpdateApplicationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.UpdateApplicationRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.updateApplication =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/UpdateApplication',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateApplication);
 };
 
 

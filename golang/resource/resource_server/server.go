@@ -389,7 +389,7 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 	if svr.store == nil {
 		svr.store = new(persistence_store.MongoStore)
 		// Start the store if is not already running...
-		err := svr.store.Start( svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)))
+		err := svr.store.Start( svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)), svr.DataPath)
 		if err != nil {
 			// codes.
 			return nil, err
@@ -401,41 +401,6 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 	}
 	return svr.store, nil
 }
-
-/*
-server.createRole("guest", "guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
-		"/services_manager.ServicesManagerServices/GetServiceConfig",
-		"/admin.AdminService/HasRunningProcess",
-		"/admin.AdminService/DownloadGlobular",
-		"/admin.AdminService/GetCertificates",
-		"/authentication.AuthenticationService/Authenticate",
-		"/authentication.AuthenticationService/RefreshToken",
-		"/authentication.AuthenticationService/SetPassword",
-		"/authentication.AuthenticationService/SetRootPassword",
-		"/authentication.AuthenticationService/SetRootEmail",
-		"/discovery.PackageDiscovery/FindPackages",
-		"/discovery.PackageDiscovery/GetPackagesDescriptor",
-		"/discovery.PackageDiscovery/GetPackageDescriptor",
-		"/dns.DnsService/GetA",
-		"/dns.DnsService/GetAAAA",
-		"/resource.ResourceService/RegisterAccount",
-		"/resource.ResourceService/GetAccounts",
-		"/resource.ResourceService/GetAccount",
-		"/resource.ResourceService/RegisterPeer",
-		"/resource.ResourceService/GetPeers",
-		"/resource.ResourceService/AccountExist",
-		"/resource.ResourceService/GetAllApplicationsInfo",
-		"/resource.ResourceService/ValidateToken",
-		"/rbac.RbacService/GetActionResourceInfos",
-		"/rbac.RbacService/ValidateAction",
-		"/rbac.RbacService/ValidateAccess",
-		"/rbac.RbacService/GetResourcePermissions",
-		"/rbac.RbacService/GetResourcePermission",
-		"/log.LogService/Log",
-		"/log.LogService/DeleteLog",
-		"/log.LogService/GetLog",
-		"/log.LogService/ClearAllLog"})
-*/
 
 /**
  *  hashPassword return the bcrypt hash of the password.
@@ -701,7 +666,7 @@ func (resource_server *server) createRole(id string, name string, actions []stri
 	// I will not refresh that token.
 	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+id+`"}`, ``)
 	if err == nil {
-		return errors.New("Role named " + name + "already exist!")
+		return errors.New("Role named " + name + " already exist!")
 	}
 
 	// Here will create the new role.
@@ -836,6 +801,47 @@ func main() {
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+
+	// That will start the persistence store. 
+	_, err = s_impl.getPersistenceStore()
+	if err != nil {
+		log.Println("Fail to start mongo db with error ", err)
+		return
+	}
+
+	/** Regist the guest role **/
+	s_impl.createRole("guest", "guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
+		"/services_manager.ServicesManagerServices/GetServiceConfig",
+		"/admin.AdminService/HasRunningProcess",
+		"/admin.AdminService/DownloadGlobular",
+		"/admin.AdminService/GetCertificates",
+		"/authentication.AuthenticationService/Authenticate",
+		"/authentication.AuthenticationService/RefreshToken",
+		"/authentication.AuthenticationService/SetPassword",
+		"/authentication.AuthenticationService/SetRootPassword",
+		"/authentication.AuthenticationService/SetRootEmail",
+		"/discovery.PackageDiscovery/FindPackages",
+		"/discovery.PackageDiscovery/GetPackagesDescriptor",
+		"/discovery.PackageDiscovery/GetPackageDescriptor",
+		"/dns.DnsService/GetA",
+		"/dns.DnsService/GetAAAA",
+		"/resource.ResourceService/RegisterAccount",
+		"/resource.ResourceService/GetAccounts",
+		"/resource.ResourceService/GetAccount",
+		"/resource.ResourceService/RegisterPeer",
+		"/resource.ResourceService/GetPeers",
+		"/resource.ResourceService/AccountExist",
+		"/resource.ResourceService/GetAllApplicationsInfo",
+		"/resource.ResourceService/ValidateToken",
+		"/rbac.RbacService/GetActionResourceInfos",
+		"/rbac.RbacService/ValidateAction",
+		"/rbac.RbacService/ValidateAccess",
+		"/rbac.RbacService/GetResourcePermissions",
+		"/rbac.RbacService/GetResourcePermission",
+		"/log.LogService/Log",
+		"/log.LogService/DeleteLog",
+		"/log.LogService/GetLog",
+		"/log.LogService/ClearAllLog"})
 
 	// Start the service.
 	s_impl.StartService()

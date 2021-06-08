@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
-	"log"
 	"strings"
 	"time"
 
@@ -15,11 +13,13 @@ import (
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 var (
+	dataPath = "/var/globular/data"
 	configPath = "/etc/globular/config/config.json"
 	tokensPath = "/etc/globular/config/tokens"
 )
@@ -305,8 +305,6 @@ func (server *server) getKey() (string, error) {
 /* Authenticate a user */
 func (server *server) authenticate(accountId string, pwd string) (string, error) {
 
-	log.Println("try to authenticate ", accountId, pwd)
-
 	key, err := server.getKey()
 	if err != nil {
 		return "", status.Errorf(
@@ -314,7 +312,6 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	log.Println("317")
 	// If the user is the root...
 	if accountId == "sa" {
 		// The root password will be
@@ -365,17 +362,17 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 		}
 
 		// So here I will keep the token...
-		ioutil.WriteFile(tokensPath + "/" + server.Domain + "_token", []byte(tokenString), 0644)
+		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
 
 		return tokenString, nil
 	}
-	log.Println("372")
+
 	// Here I will get the account info.
 	account, err := server.getAccount(accountId)
 	if err != nil {
 		return "", err
 	}
-	log.Println("378")
+
 	// Now I will validate the password received with the one in the account
 	err = server.validatePassword(pwd, account.Password)
 	if err != nil {
@@ -387,30 +384,35 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 	session.AccountId = account.Id
 
 	// The token string
+
 	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), account.Id, account.Name, account.Email)
 	if err != nil {
 		return "", err
 	}
-	log.Println("394")
-	// get the expire time.
-	_, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
 
+	// get the expire time.
+	_, user, email, expireAt, _ := interceptors.ValidateToken(tokenString)
+	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 	session.Token = tokenString
 	session.ExpireAt = expireAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
-	log.Println("402")
 	err = server.updateSession(session)
 	if err != nil {
 		return "", err
 	}
-	log.Println("407")
+
+	// Create the user file directory.
+	path := "/users/" + user
+	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
+	server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
+
 	return tokenString, nil
 }
 
 //* Authenticate a user *
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
-
+	server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+rqst.Name+" try to connect")
 	tokenString, err := server.authenticate(rqst.Name, rqst.Password)
 	if err != nil {
 		return nil, status.Errorf(

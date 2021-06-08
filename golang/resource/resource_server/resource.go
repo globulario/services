@@ -19,9 +19,10 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
+	"io/ioutil"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io/ioutil"
 )
 
 var (
@@ -205,6 +206,26 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		}
 	}
 
+	if account["sessions"] != nil {
+		sessions := []interface{}(account["sessions"].(primitive.A))
+		if sessions != nil {
+			for i := 0; i < len(sessions); i++ {
+				sessionId := sessions[i].(map[string]interface{})["$id"].(string)
+				a.Sessions = append(a.Sessions, sessionId)
+			}
+		}
+	}
+
+	if account["notifications"] != nil {
+		notifications := []interface{}(account["notifications"].(primitive.A))
+		if notifications != nil {
+			for i := 0; i < len(notifications); i++ {
+				notificationId := notifications[i].(map[string]interface{})["$id"].(string)
+				a.Notifications = append(a.Notifications, notificationId)
+			}
+		}
+	}
+
 	return &resourcepb.GetAccountRsp{
 		Account: a, // Return the token string.
 	}, nil
@@ -283,7 +304,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		query = "{}"
 	}
 
-	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, ``)
+	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -562,7 +583,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 /**
  * Crete a new role or Update existing one if it already exist.
  */
- 
+
 //* Create a role with given action list *
 func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
 	// That service made user of persistence service.
@@ -600,7 +621,7 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 		query = "{}"
 	}
 
-	roles, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", query, ``)
+	roles, err := p.Find(context.Background(), "local_resource", "local_resource", "Roles", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -966,6 +987,9 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Application 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
 
 	p, err := resource_server.getPersistenceStore()
@@ -1021,13 +1045,6 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		/** TODO does I need to create connection here...
-		err = p.CreateConnection(name+"_db", name+"_db", address, float64(port), 0, name, application["password"].(string), 5000, "", false)
-		if err != nil {
-			return err
-		}
-		*/
-
 	} else {
 		actions_, _ := Utility.ToJson(rqst.Application.Actions)
 		keywords_, _ := Utility.ToJson(rqst.Application.Keywords)
@@ -1041,6 +1058,11 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 		}
 	}
 	return &resourcepb.CreateApplicationRsp{}, nil
+}
+
+//* Update application informations.
+func (resource_server *server) UpdateApplication(ctx context.Context, rqst *resourcepb.UpdateApplicationRqst) (*resourcepb.UpdateApplicationRsp, error) {
+	return nil, errors.New("not implemented")
 }
 
 //* Delete an application from the server. *
@@ -1311,7 +1333,7 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 	}
 
 	// So here I will get the list of retreived permission.
-	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications",query , "")
+	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1331,10 +1353,18 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 		}
 
 		// Set the date
-		creationDate :=  int64(Utility.ToInt(values_["creation_date"]))
+		creationDate := int64(Utility.ToInt(values_["creation_date"]))
 		lastDeployed := int64(Utility.ToInt(values_["last_deployed"]))
 
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string)}
+		// Here I will also append the list of actions.
+		actions := make([]string, 0)
+		actions_ :=[]interface{}(values_["actions"].(primitive.A))
+
+		for i:=0; i < len(actions_); i++{
+			actions = append(actions, actions_[i].(string))
+		}
+
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Actions: actions}
 
 		stream.Send(&resourcepb.GetApplicationsRsp{
 			Applications: []*resourcepb.Application{application},
@@ -1402,7 +1432,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 		query = "{}"
 	}
 
-	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, ``)
+	peers, err := p.Find(context.Background(), "local_resource", "local_resource", "Peers", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1721,7 +1751,7 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 		query = "{}"
 	}
 
-	organizations, err := p.Find(context.Background(), "local_resource", "local_resource", "Organizations", query, ``)
+	organizations, err := p.Find(context.Background(), "local_resource", "local_resource", "Organizations", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -2064,7 +2094,7 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 		query = "{}"
 	}
 
-	groups, err := p.Find(context.Background(), "local_resource", "local_resource", "Groups", query, ``)
+	groups, err := p.Find(context.Background(), "local_resource", "local_resource", "Groups", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -2601,6 +2631,14 @@ func (server *server) updateSession(accountId string, state int, token string, l
 		return err
 	}
 
+	/*p.DeleteOne(context.Background(), "local_resource", "local_resource", "Sessions", `{"_id":"`+accountId+`"}`, "")
+
+	// set reference to this session in the Account.
+	err = server.createReference(p, accountId, "Accounts", "sessions", accountId, "Sessions")
+	if err != nil {
+		return err
+	}*/
+
 	return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", `{"_id":"`+accountId+`"}`, jsonStr, `[{"upsert":true}]`)
 
 }
@@ -2647,7 +2685,7 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	sessions, err := p.Find(context.Background(), "local_resource", "local_resource", "Sessions", rqst.Query, ``)
+	sessions, err := p.Find(context.Background(), "local_resource", "local_resource", "Sessions", rqst.Query, rqst.Options)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2684,7 +2722,10 @@ func (server *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessio
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	session := session_.(map[string]interface{})
+	expireAt, _ := Utility.DateTimeFromString(session["expire_at"].(string), "2021-06-01T11:40:44+0000")
+	lastStateTime, _ := Utility.DateTimeFromString(session["last_state_time"].(string), "2021-06-01T11:40:44+0000")
+
 	return &resourcepb.GetSessionResponse{
-		Session: &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: session["expire_at"].(int64), LastStateTime: session["last_state_time"].(int64), State: resourcepb.SessionState(session["state"].(int)), Token: session["token"].(string)},
+		Session: &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: expireAt.Unix(), LastStateTime: lastStateTime.Unix(), State: resourcepb.SessionState(session["state"].(int32)), Token: session["token"].(string)},
 	}, nil
 }

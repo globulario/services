@@ -111,7 +111,7 @@ type Store interface {
 	/**
 	 * Start the data store.
 	 */
-	 Start(user, password string, port int) error;
+	 Start(user, password string, port int, dataPath string) error;
 
 	 /**
 	  * Stop the server

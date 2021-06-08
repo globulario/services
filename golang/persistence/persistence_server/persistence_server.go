@@ -92,8 +92,6 @@ type server struct {
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
 
-
-
 	// The grpc server.
 	grpcServer *grpc.Server
 
@@ -347,7 +345,6 @@ func (persistence_server *server) Init() error {
 		return err
 	}
 
-	log.Println("-----------> ", persistence_server.Connections)
 	// Here I will initialyse the connection.
 	for _, c := range persistence_server.Connections {
 
@@ -934,11 +931,13 @@ func (persistence_server *server) UpdateOne(ctx context.Context, rqst *persisten
 func (persistence_server *server) ReplaceOne(ctx context.Context, rqst *persistencepb.ReplaceOneRqst) (*persistencepb.ReplaceOneRsp, error) {
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
-		err := errors.New("ReplaceOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
+		err := errors.New("ReplaceOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_") + " collection: " + rqst.Collection + " query: " + rqst.Query)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	
 
 	err := store.ReplaceOne(ctx, strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Value, rqst.Options)
 	if err != nil {

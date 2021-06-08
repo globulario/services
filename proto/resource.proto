@@ -59,6 +59,8 @@ message Account {
 	repeated string organizations=6;
 	repeated string groups=7;
 	repeated string roles=8;
+	repeated string sessions = 9;
+	repeated string notifications = 10;
 }
 
 /** A role is simply a list of actions that an account can call **/
@@ -95,6 +97,7 @@ message AccountExistRsp{
  */
 message GetAccountsRqst{
 	string query = 1;
+	string options = 2;
 }
 
 message GetAccountsRsp{
@@ -186,6 +189,7 @@ message CreateRoleRsp{
  */
 message GetRolesRqst{
 	string query = 1;
+	string options = 2;
 }
 
 message GetRolesRsp{
@@ -226,6 +230,17 @@ message CreateApplicationRsp {
 	
 }
 
+// Update application
+message UpdateApplicationRqst{
+	string applicationId = 1;
+	string values = 2;
+}
+
+message UpdateApplicationRsp{
+	bool result = 1;
+}
+
+// Delete application
 message DeleteApplicationRqst{
 	string applicationId = 1;
 }
@@ -237,6 +252,7 @@ message DeleteApplicationRsp{
 // Retrun a json with applications informations.
 message GetApplicationsRqst{
 	string query = 1;
+	string options = 2;
 }
 
 message GetApplicationsRsp{
@@ -321,8 +337,22 @@ message CreateGroupRsp{
 /**
  * Return list of groups
  */
+message UpdateGroupRqst{
+	string groupId = 1; // filter...
+	string values = 2;
+}
+
+message UpdateGroupRsp{
+	bool result = 1;
+}
+
+
+/**
+ * Return list of groups
+ */
 message GetGroupsRqst{
 	string query = 1; // filter...
+	string options = 2;
 }
 
 message GetGroupsRsp{
@@ -390,6 +420,7 @@ message CreateOrganizationRsp{
  */
 message GetOrganizationsRqst{
 	string query = 1;
+	string options = 2;
 }
 
 message GetOrganizationsRsp{
@@ -434,6 +465,7 @@ message RegisterPeerRsp{
  */
 message GetPeersRqst{
 	string query = 1;
+	string options = 2;
 }
 
 message GetPeersRsp{
@@ -611,11 +643,11 @@ enum NotificationType {
 
 message Notification{
 	string id = 1;
-	int64 date = 2;
-	bytes message = 3;
-	string recipient = 4;
-	string sender = 5;
-	NotificationType notification_type = 6;
+	int64 date = 3;
+	bytes message = 4;
+	string recipient = 5;
+	string sender = 6;
+	NotificationType notification_type = 7;
 }
 
 message CreateNotificationRqst {
@@ -672,6 +704,7 @@ message GetPackageDescriptorResponse {
 
 message GetPackagesDescriptorRequest {
 	string query = 1;
+	string options = 2;
 }
 
 message GetPackagesDescriptorResponse {
@@ -706,7 +739,7 @@ message Session {
 	SessionState state = 2;
 	int64 last_state_time = 3; 
 	int64 expire_at = 4;
-	string token = 5; // The associated token.
+	string token = 5; // if token exist it will be store here.
 }
 
 message UpdateSessionRequest {
@@ -727,6 +760,7 @@ message RemoveSessionResponse {
 
 message GetSessionsRequest {
 	string query = 1;
+	string options = 2;
 }
 
 message GetSessionsResponse {
@@ -792,6 +826,9 @@ service ResourceService {
 	/** Register a new group */
 	rpc CreateGroup(CreateGroupRqst) returns (CreateGroupRsp);
 	
+	/** Update a group */
+	rpc UpdateGroup(UpdateGroupRqst) returns (UpdateGroupRsp);
+
 	/** Return the list of groups */
 	rpc GetGroups(GetGroupsRqst) returns(stream GetGroupsRsp);
 
@@ -871,6 +908,9 @@ service ResourceService {
 	/** Create an application **/
 	rpc CreateApplication(CreateApplicationRqst) returns(CreateApplicationRsp);
 
+	/** Update an applicaiton values*/
+	rpc UpdateApplication(UpdateApplicationRqst) returns(UpdateApplicationRsp);
+	
 	/** Return a json string with all applications informations **/
 	rpc GetApplications(GetApplicationsRqst) returns(stream GetApplicationsRsp);
 	

@@ -10,10 +10,14 @@ import (
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 
@@ -345,7 +349,65 @@ func (server *server) StopService() error {
 var (
 	resource_client_ *resource_client.Resource_Client
 	event_client_    *event_client.Event_Client
+	log_client_      *log_client.Log_Client
+	rbac_client_ *rbac_client.Rbac_Client
 )
+
+///////////////////////  RBAC Services functions ////////////////////////////////////////////////
+/**
+ * Get the rbac client.
+ */
+ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return rbac_client_, nil
+}
+
+func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+}
+
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
 
 ///////////////////// event service functions ////////////////////////////////////
 func (svr *server) getEventClient() (*event_client.Event_Client, error) {

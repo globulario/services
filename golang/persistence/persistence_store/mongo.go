@@ -7,17 +7,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
 	"log"
 	"os"
 	"time"
-	"go.mongodb.org/mongo-driver/bson"
 
 	//"github.com/iancoleman/orderedmap"
 
 	//"github.com/davecourtois/Utility"
+	"github.com/davecourtois/Utility"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/davecourtois/Utility"
 
 	// execute...
 	"os/exec"
@@ -28,11 +28,11 @@ import (
  */
 type MongoStore struct {
 	// keep track of connection with mongo db.
-	clients map[string]*mongo.Client
+	clients  map[string]*mongo.Client
 	DataPath string
-	Port int
+	Port     int
 	Password string
-	User string // Must be the admin...
+	User     string // Must be the admin...
 }
 
 /**
@@ -69,7 +69,7 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 			return err
 		}
 	} else {
-		
+
 		// basic connection string to begin with.
 		connectionStr := "mongodb://" + user + ":" + password + "@" + host + ":" + strconv.Itoa(int(port)) + "/" + database + "?authSource=admin&compressors=disabled&gssapiServiceName=mongodb"
 		var err error
@@ -617,14 +617,21 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
 /**
  * Start the datastore.
  */
-func (store  *MongoStore) Start(user, password string, port int) error{
-	return store.waitForMongo(60, true)
+func (store *MongoStore) Start(user, password string, port int, dataPath string) error {
+	
+	// Set store attributes.
+	store.User = user
+	store.Password =password
+	store.Port = port
+	store.DataPath = dataPath
+
+	return store.registerSa()
 }
 
 /**
  * Stop the datastore.
  */
- func (store  *MongoStore) Stop() error{
+func (store *MongoStore) Stop() error {
 	return store.stopMongod()
 }
 
@@ -635,7 +642,6 @@ func (store  *MongoStore) Start(user, password string, port int) error{
 func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, role string, privileges string, options string) error {
 	return nil
 }
-
 
 /** Stop mongod process **/
 func (store *MongoStore) stopMongod() error {
@@ -710,44 +716,46 @@ func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
 
 	time.Sleep(1 * time.Second)
 
-	args := make([]string, 0)
-	if withAuth {
-		args = append(args, "-u")
-		args = append(args, store.User)
-		args = append(args, "-p")
-		args = append(args, store.Password)
-		args = append(args, "--authenticationDatabase")
-		args = append(args, "admin")
-	}
 
-	args = append(args, "--eval")
-	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
-	script := exec.Command("mongo", args...)
-	err := script.Run()
-	if err != nil {
-		if timeout == 0 {
-			return errors.New("mongod is not responding")
-		}
-		// call again.
-		timeout -= 1
-		log.Println("wait for mongdb ", timeout)
-		return store.waitForMongo(timeout, withAuth)
-	}
-
-/*
 	ids, err := Utility.GetProcessIdsByName("mongo")
-	if err == nil && len(ids) > 0{
+	if err == nil && len(ids) > 0 {
 		log.Println("mongo process was found!")
-	}else{
+
+	} else {
 		if timeout == 0 {
 			return errors.New("mongod is not responding")
+		}
+
+		args := make([]string, 0)
+		if withAuth {
+			args = append(args, "-u")
+			args = append(args, store.User)
+			args = append(args, "-p")
+			args = append(args, store.Password)
+			args = append(args, "--authenticationDatabase")
+			args = append(args, "admin")
+		}
+
+		args = append(args, "--eval")
+		args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
+		script := exec.Command("mongo", args...)
+		err := script.Run()
+		log.Println("Try to start mongoDB with command: mongo -u " +  store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
+		if err != nil {
+			if timeout == 0 {
+				return errors.New("mongod is not responding")
+			}
+			// call again.
+			timeout -= 1
+			log.Println("wait for mongdb ", timeout)
+			return store.waitForMongo(timeout, withAuth)
 		}
 		// call again.
 		timeout -= 1
 		log.Println("wait for mongdb ", timeout)
 		return store.waitForMongo(timeout, withAuth)
 	}
-*/
+
 	return nil
 
 }

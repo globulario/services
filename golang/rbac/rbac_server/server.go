@@ -13,6 +13,8 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"google.golang.org/grpc"
 
@@ -293,7 +295,43 @@ func (server *server) SetKeepAlive(val bool) {
 // Singleton.
 var (
 	resourceClient *resource_client.Resource_Client
+	log_client_      *log_client.Log_Client
 )
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Logger function
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
@@ -363,6 +401,9 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 	if len(applications) == 0 {
 		return nil, errors.New("no application found wiht name or _id " + applicationId)
 	}
+
+	//str_, _ := Utility.ToJson(applications[0])
+	//server.logServiceInfo("getApplication", Utility.FileLine(), Utility.FunctionName(), str_ )
 
 	return applications[0], nil
 }
