@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson"
 	"log"
 	"os"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	//"github.com/iancoleman/orderedmap"
 
@@ -618,10 +619,10 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
  * Start the datastore.
  */
 func (store *MongoStore) Start(user, password string, port int, dataPath string) error {
-	
+
 	// Set store attributes.
 	store.User = user
-	store.Password =password
+	store.Password = password
 	store.Port = port
 	store.DataPath = dataPath
 
@@ -716,46 +717,37 @@ func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
 
 	time.Sleep(1 * time.Second)
 
+	if timeout == 0 {
+		return errors.New("mongod is not responding")
+	}
 
-	ids, err := Utility.GetProcessIdsByName("mongo")
-	if err == nil && len(ids) > 0 {
-		log.Println("mongo process was found!")
+	args := make([]string, 0)
+	if withAuth {
+		args = append(args, "-u")
+		args = append(args, store.User)
+		args = append(args, "-p")
+		args = append(args, store.Password)
+		args = append(args, "--authenticationDatabase")
+		args = append(args, "admin")
+	}
 
-	} else {
+	args = append(args, "--eval")
+	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
+	script := exec.Command("mongo", args...)
+	err := script.Run()
+	log.Println("Try to start mongoDB with command: mongo -u " + store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
+	if err != nil {
 		if timeout == 0 {
 			return errors.New("mongod is not responding")
-		}
-
-		args := make([]string, 0)
-		if withAuth {
-			args = append(args, "-u")
-			args = append(args, store.User)
-			args = append(args, "-p")
-			args = append(args, store.Password)
-			args = append(args, "--authenticationDatabase")
-			args = append(args, "admin")
-		}
-
-		args = append(args, "--eval")
-		args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
-		script := exec.Command("mongo", args...)
-		err := script.Run()
-		log.Println("Try to start mongoDB with command: mongo -u " +  store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
-		if err != nil {
-			if timeout == 0 {
-				return errors.New("mongod is not responding")
-			}
-			// call again.
-			timeout -= 1
-			log.Println("wait for mongdb ", timeout)
-			return store.waitForMongo(timeout, withAuth)
 		}
 		// call again.
 		timeout -= 1
 		log.Println("wait for mongdb ", timeout)
 		return store.waitForMongo(timeout, withAuth)
 	}
-
-	return nil
+	// call again.
+	timeout -= 1
+	log.Println("wait for mongdb ", timeout)
+	return store.waitForMongo(timeout, withAuth)
 
 }

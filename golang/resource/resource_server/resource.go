@@ -2045,6 +2045,36 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 /**
  * Create a group with a given name of update existing one.
  */
+ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb.UpdateGroupRqst) (*resourcepb.UpdateGroupRsp, error) {
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
+	// Get the persistence connection
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.GroupId+`"}`, "")
+		if err != nil || count == 0 {
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+
+			err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.GroupId+`"}`, rqst.Values, "")
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+
+	return &resourcepb.UpdateGroupRsp{
+		Result: true,
+	}, nil
+}
 /* TODO set the update part of the function.
  		count, err := store.Count(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+group.Id+`"}`, "")
 		if err != nil || count == 0 {

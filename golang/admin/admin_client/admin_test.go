@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	//"time"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
@@ -41,12 +42,11 @@ func TestRunCmd(t *testing.T) {
 
 	if err != nil {
 		log.Println(err)
-		log_client_.Log("admin_test", "test", "TestRunCmd", logpb.LogLevel_ERROR_MESSAGE, err.Error())
+		log_client_.Log("admin_test", "test", "TestRunCmd", logpb.LogLevel_ERROR_MESSAGE, err.Error(), Utility.FileLine(), Utility.FunctionName())
 		t.FailNow()
 	}
 
 	// So here I will set message into the logger...
-	log_client_.Log("admin_test", "test", "TestRunCmd", logpb.LogLevel_DEBUG_MESSAGE, "This is a test... ")
 	log.Println(results)
 }
 

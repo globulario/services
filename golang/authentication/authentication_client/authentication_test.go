@@ -26,14 +26,14 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	// Now I will test to authenticate the root...
-	token, err = client.Authenticate("sa", "adminadmin")
+	/*token, err = client.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
 	} else {
 		log.Println("Authenticate succeed", token)
-	}
+	}*/
 }
-
+/*
 
 func TestSetPassword(t *testing.T) {
 	token, err := client.SetPassword("dave", "400zm89Aaa", "400zm89Aaa")
@@ -52,4 +52,4 @@ func TestSetRootPassword(t *testing.T) {
 		log.Println("Password is updated ", token)
 	}
 }
-
+*/

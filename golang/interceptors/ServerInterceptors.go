@@ -322,6 +322,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/rbac.RbacService/ValidateAccess" ||
 		method == "/rbac.RbacService/GetResourcePermissions" ||
 		method == "/rbac.RbacService/GetResourcePermission" ||
+		strings.HasPrefix(method, "/lb.LoadBalancingService/") ||
 		strings.HasPrefix(method, "/log.LogService/") ||
 		strings.HasPrefix(method, "/authentication.AuthenticationService/") ||
 		strings.HasPrefix(method, "/event.EventService/") {
@@ -446,7 +447,8 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo" ||
 		l.method == "/admin.AdminService/DownloadGlobular" ||
 		l.method == "/repository.PackageRepository/DownloadBundle" ||
-		l.method == "/resource.ResourceService/GetApplications"
+		l.method == "/resource.ResourceService/GetApplications" ||
+		strings.HasPrefix(l.method, "/lb.LoadBalancingService/")
 
 	if hasAccess {
 		return nil

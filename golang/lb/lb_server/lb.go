@@ -6,10 +6,47 @@ import (
 	"sort"
 
 	"fmt"
-	"log"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/lb/lbpb"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 )
 
+var (
+	log_client_ ,_ = log_client.NewLogService_Client(domain, "log.LogService")
+)
+
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
 
 //*
 // Return the list of servers in order of availability (lower loaded at first).
@@ -43,6 +80,7 @@ func (server *server) ReportLoadInfo(stream lbpb.LoadBalancingService_ReportLoad
 
 			break
 		} else if err != nil {
+			server.logServiceError("ReportLoadInfo", Utility.FileLine(), Utility.FunctionName(), err.Error()) 
 			return err
 		} else {
 			// Here I will process the request.
@@ -99,7 +137,7 @@ func (server *server) startLoadBalancing() {
 		for {
 			select {
 			case <-server.lb_stop_channel:
-				log.Println("---> stop load balancer")
+				server.logServiceInfo("ReportLoadInfo", Utility.FileLine(), Utility.FunctionName(), "stop load balancer") 
 				server.lb_stop_channel <- true
 				return
 
@@ -132,9 +170,8 @@ func (server *server) startLoadBalancing() {
 				}
 			// Remove the server from the list of candidate.
 			case server_info := <-server.lb_remove_candidate_info_channel:
-				//log.Println("----> remove server from canditate list ", server_info)
+				server.logServiceInfo("ReportLoadInfo", Utility.FileLine(), Utility.FunctionName(), "remove candidate " + server_info.Id + " from the load balancer list") 
 				lst := make([]*lbpb.LoadInfo, 0)
-
 				// Here I will append all existing load info except the new one.
 				if loads[server_info.Name] != nil {
 					for i := 0; i < len(loads[server_info.Name]); i++ {

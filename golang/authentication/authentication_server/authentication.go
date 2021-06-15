@@ -12,14 +12,14 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 var (
-	dataPath = "/var/globular/data"
+	dataPath   = "/var/globular/data"
 	configPath = "/etc/globular/config/config.json"
 	tokensPath = "/etc/globular/config/tokens"
 )
@@ -59,23 +59,6 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	// Here I will test if a newer token exist for that user if it's the case
-	// I will not refresh that token.
-	session, err := server.getSession(id)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// That mean a newer token was already refresh.
-	if time.Unix(expireAt, 0).Before(time.Unix(session.ExpireAt, 0)) {
-		err := errors.New("that token cannot not be refresh because a newer one already exist. You need to re-authenticate in order to get a new token")
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	key, err := server.getKey()
 	if err != nil {
 		return nil, status.Errorf(
@@ -90,17 +73,41 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// get back the new expireAt
-	_, _, _, expireAt, _ = interceptors.ValidateToken(tokenString)
-	session.Token = tokenString
-	session.ExpireAt = expireAt
+	// Here I will refresh the existing token file.
+	if id == "sa" {
+		// So here I will keep the token...
+		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
+	} else {
 
-	// save the session in the backend.
-	err = server.updateSession(session)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		// Here I will test if a newer token exist for that user if it's the case
+		// I will not refresh that token.
+		session, err := server.getSession(id)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// That mean a newer token was already refresh.
+		if time.Unix(expireAt, 0).Before(time.Unix(session.ExpireAt, 0)) {
+			err := errors.New("that token cannot not be refresh because a newer one already exist. You need to re-authenticate in order to get a new token")
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// get back the new expireAt
+		_, _, _, expireAt, _ = interceptors.ValidateToken(tokenString)
+		session.Token = tokenString
+		session.ExpireAt = expireAt
+
+		// save the session in the backend.
+		err = server.updateSession(session)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	// return the token string.

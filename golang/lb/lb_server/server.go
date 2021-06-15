@@ -12,7 +12,6 @@ import (
 	"github.com/globulario/services/golang/lb/load_balancing_client"
 	"google.golang.org/grpc"
 
-	//"google.golang.org/grpc/grpclog"
 	"github.com/globulario/services/golang/lb/lbpb"
 	"google.golang.org/grpc/reflection"
 )
