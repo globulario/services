@@ -689,6 +689,7 @@ func (store *MongoStore) registerSa() error {
 			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`, store.User, store.Password) // must be change...
 
 		createSaCmd := exec.Command("mongo", "--eval", createSaScript)
+
 		err = createSaCmd.Run()
 		if err != nil {
 			// remove the mongodb-data
