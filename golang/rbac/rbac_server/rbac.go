@@ -1080,8 +1080,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 			if !hasAccess {
 
-				// Here I will test if a newer token exist for that user if it's the case
-				// I will not refresh that token.
 				account, err := rbac_server.getAccount(subject)
 				if err == nil {
 					// from the account I will get the list of group.
@@ -1119,8 +1117,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 
 			if !hasAccess {
-				// Here I will test if a newer token exist for that user if it's the case
-				// I will not refresh that token.
 				group, err := rbac_server.getGroup(subject)
 				if err == nil {
 					if group.Organizations != nil {

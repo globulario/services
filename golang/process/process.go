@@ -9,10 +9,14 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
+	"log"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	ps "github.com/mitchellh/go-ps"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 /**
@@ -57,15 +61,40 @@ func KillServiceProcess(s map[string]interface{}) error {
 	return config.SaveServiceConfiguration(s)
 }
 
+var (
+	log_client_ *log_client.Log_Client
+)
+/**
+ * Get the log client.
+ */
+ func getLogClient(domain string) (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+
+
+func logInfo(name, domain, fileLine, functionName,  message string, level logpb.LogLevel) {
+	log_client_, err := getLogClient(domain)
+	if err != nil {
+		return
+	}
+	log_client_.Log(name, domain, functionName, level, message, fileLine, functionName)
+}
+
 // Start a service process.
 func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	// I will kill the process if is running...
 	KillServiceProcess(s)
 
 	// Get the next available port.
-
 	var err error
-
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
 		return err
@@ -79,17 +108,57 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	}
 
 	p := exec.Command(s["Path"].(string), Utility.ToString(port))
-
-	err = p.Start()
+	stdout, err := p.StdoutPipe()
 	if err != nil {
-		s["State"] = "fail"
-		s["Process"] = -1
-		return err
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Set the process and it state.
-	s["Process"] = p.Process.Pid
-	s["State"] = "running"
+	output := make(chan string)
+	done := make(chan bool)
+
+	// Process message util the command is done.
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+
+			case info := <-output:
+				if p.Process != nil {
+					s["Process"] = p.Process.Pid
+					s["State"] = "running"
+				}
+				log.Println(info)
+				//logInfo(s["Name"].(string) + ":" + s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), result, logpb.LogLevel_INFO_MESSAGE)
+			}
+		}
+
+	}()
+
+	// so here I will start each service in it own go routine.
+	go func() {
+		// Start reading the output
+		go Utility.ReadOutput(output, stdout)
+		err := p.Run()
+		if err != nil {
+			s["State"] = "fail"
+			s["Process"] = -1
+			logInfo(s["Name"].(string) + ":" + s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			return
+		}
+
+		// wait the process to finish
+		err = p.Wait()
+		if err != nil {
+			logInfo(s["Name"].(string) + ":" + s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		}
+
+		// Close the output.
+		stdout.Close()
+		done <- true
+	}()
 
 	return config.SaveServiceConfiguration(s)
 }
@@ -170,8 +239,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
-
-
 
 	err = proxyProcess.Start()
 	if err != nil {

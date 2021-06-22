@@ -239,6 +239,9 @@ export class EventHub {
         rqst.setName(name)
         rqst.setUuid(this.uuid)
         this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
+          if(this.subscribers[name] == undefined){
+            this.subscribers[name] = {} // create if it not exist.
+          }
           this.subscribers[name][uuid] = { onsubscribe: onsubscribe, onevent: onevent, local: local }
           onsubscribe(uuid)
         })

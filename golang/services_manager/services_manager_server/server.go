@@ -562,7 +562,6 @@ func (server *server) registerMethods() error {
 	// Here I will persit the sa role if it dosent already exist.
 	err := server.setRoleActions("sa", server.methods)
 	if err != nil {
-		log.Println("---------> err ", err)
 		return err
 	}
 

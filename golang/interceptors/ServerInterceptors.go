@@ -362,7 +362,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	// So here the user has access to the ressource...
-	log(domain, application, "", method, Utility.FileLine(), Utility.FunctionName(), "debug test", logpb.LogLevel_DEBUG_MESSAGE)
+	//	log(domain, application, "", method, Utility.FileLine(), Utility.FunctionName(), "debug test", logpb.LogLevel_DEBUG_MESSAGE)
 
 	// I will try to get the list of candidates for load balancing
 	if Utility.GetProperty(info.Server, "Port") != nil {

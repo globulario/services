@@ -1978,160 +1978,80 @@ proto.resource.ResourceServicePromiseClient.prototype.removeAccountRole =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.resource.AddAccountContactRqst,
- *   !proto.resource.AddAccountContactRsp>}
+ *   !proto.resource.SetAccountContactRqst,
+ *   !proto.resource.SetAccountContactRsp>}
  */
-const methodDescriptor_ResourceService_AddAccountContact = new grpc.web.MethodDescriptor(
-  '/resource.ResourceService/AddAccountContact',
+const methodDescriptor_ResourceService_SetAccountContact = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/SetAccountContact',
   grpc.web.MethodType.UNARY,
-  proto.resource.AddAccountContactRqst,
-  proto.resource.AddAccountContactRsp,
+  proto.resource.SetAccountContactRqst,
+  proto.resource.SetAccountContactRsp,
   /**
-   * @param {!proto.resource.AddAccountContactRqst} request
+   * @param {!proto.resource.SetAccountContactRqst} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.resource.AddAccountContactRsp.deserializeBinary
+  proto.resource.SetAccountContactRsp.deserializeBinary
 );
 
 
 /**
  * @const
  * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.resource.AddAccountContactRqst,
- *   !proto.resource.AddAccountContactRsp>}
+ *   !proto.resource.SetAccountContactRqst,
+ *   !proto.resource.SetAccountContactRsp>}
  */
-const methodInfo_ResourceService_AddAccountContact = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.resource.AddAccountContactRsp,
+const methodInfo_ResourceService_SetAccountContact = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.SetAccountContactRsp,
   /**
-   * @param {!proto.resource.AddAccountContactRqst} request
+   * @param {!proto.resource.SetAccountContactRqst} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.resource.AddAccountContactRsp.deserializeBinary
+  proto.resource.SetAccountContactRsp.deserializeBinary
 );
 
 
 /**
- * @param {!proto.resource.AddAccountContactRqst} request The
+ * @param {!proto.resource.SetAccountContactRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.resource.AddAccountContactRsp)}
+ * @param {function(?grpc.web.Error, ?proto.resource.SetAccountContactRsp)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.resource.AddAccountContactRsp>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.SetAccountContactRsp>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.resource.ResourceServiceClient.prototype.addAccountContact =
+proto.resource.ResourceServiceClient.prototype.setAccountContact =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/resource.ResourceService/AddAccountContact',
+      '/resource.ResourceService/SetAccountContact',
       request,
       metadata || {},
-      methodDescriptor_ResourceService_AddAccountContact,
+      methodDescriptor_ResourceService_SetAccountContact,
       callback);
 };
 
 
 /**
- * @param {!proto.resource.AddAccountContactRqst} request The
+ * @param {!proto.resource.SetAccountContactRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.resource.AddAccountContactRsp>}
+ * @return {!Promise<!proto.resource.SetAccountContactRsp>}
  *     Promise that resolves to the response
  */
-proto.resource.ResourceServicePromiseClient.prototype.addAccountContact =
+proto.resource.ResourceServicePromiseClient.prototype.setAccountContact =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/resource.ResourceService/AddAccountContact',
+      '/resource.ResourceService/SetAccountContact',
       request,
       metadata || {},
-      methodDescriptor_ResourceService_AddAccountContact);
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.resource.RemoveAccountContactRqst,
- *   !proto.resource.RemoveAccountContactRsp>}
- */
-const methodDescriptor_ResourceService_RemoveAccountContact = new grpc.web.MethodDescriptor(
-  '/resource.ResourceService/RemoveAccountContact',
-  grpc.web.MethodType.UNARY,
-  proto.resource.RemoveAccountContactRqst,
-  proto.resource.RemoveAccountContactRsp,
-  /**
-   * @param {!proto.resource.RemoveAccountContactRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.resource.RemoveAccountContactRsp.deserializeBinary
-);
-
-
-/**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.resource.RemoveAccountContactRqst,
- *   !proto.resource.RemoveAccountContactRsp>}
- */
-const methodInfo_ResourceService_RemoveAccountContact = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.resource.RemoveAccountContactRsp,
-  /**
-   * @param {!proto.resource.RemoveAccountContactRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.resource.RemoveAccountContactRsp.deserializeBinary
-);
-
-
-/**
- * @param {!proto.resource.RemoveAccountContactRqst} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.Error, ?proto.resource.RemoveAccountContactRsp)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.resource.RemoveAccountContactRsp>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.resource.ResourceServiceClient.prototype.removeAccountContact =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/resource.ResourceService/RemoveAccountContact',
-      request,
-      metadata || {},
-      methodDescriptor_ResourceService_RemoveAccountContact,
-      callback);
-};
-
-
-/**
- * @param {!proto.resource.RemoveAccountContactRqst} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.resource.RemoveAccountContactRsp>}
- *     Promise that resolves to the response
- */
-proto.resource.ResourceServicePromiseClient.prototype.removeAccountContact =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/resource.ResourceService/RemoveAccountContact',
-      request,
-      metadata || {},
-      methodDescriptor_ResourceService_RemoveAccountContact);
+      methodDescriptor_ResourceService_SetAccountContact);
 };
 
 

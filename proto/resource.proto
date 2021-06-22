@@ -55,12 +55,9 @@ message Account {
 	string password =4;
 	
 	// References.
-	repeated string contacts=5;
 	repeated string organizations=6;
 	repeated string groups=7;
 	repeated string roles=8;
-	repeated string sessions = 9;
-	repeated string notifications = 10;
 }
 
 /** A role is simply a list of actions that an account can call **/
@@ -158,21 +155,18 @@ message RemoveAccountRoleRsp{
 	bool result = 1;
 }
 
-message AddAccountContactRqst{
+message Contact {
+	string id = 1;
+	int64 invitationTime = 2;
+	string status = 3;
+}
+
+message SetAccountContactRqst{
 	string accountId = 1;
-	string contactId = 2;
+	Contact contact = 2;
 }
 
-message AddAccountContactRsp{
-	bool result = 1;
-}
-
-message RemoveAccountContactRqst{
-	string accountId = 1;
-	string contactId = 2;
-}
-
-message RemoveAccountContactRsp{
+message SetAccountContactRsp{
 	bool result = 1;
 }
 
@@ -643,11 +637,11 @@ enum NotificationType {
 
 message Notification{
 	string id = 1;
-	int64 date = 3;
-	bytes message = 4;
-	string recipient = 5;
-	string sender = 6;
-	NotificationType notification_type = 7;
+	int64 date = 2;
+	string message = 3;
+	string recipient = 4;
+	string sender = 5;
+	NotificationType notification_type = 6;
 }
 
 message CreateNotificationRqst {
@@ -668,6 +662,7 @@ message GetNotificationsRsp {
 
 message DeleteNotificationRqst {
 	string id = 1;
+	string recipient = 2; // The id of the application or the user id.
 }
 
 message DeleteNotificationRsp {
@@ -739,7 +734,6 @@ message Session {
 	SessionState state = 2;
 	int64 last_state_time = 3; 
 	int64 expire_at = 4;
-	string token = 5; // if token exist it will be store here.
 }
 
 message UpdateSessionRequest {
@@ -866,11 +860,8 @@ service ResourceService {
 	/** Remove a role from a given account **/
 	rpc RemoveAccountRole(RemoveAccountRoleRqst) returns(RemoveAccountRoleRsp);
 	
-	/** Add contact to a given account **/
-	rpc AddAccountContact(AddAccountContactRqst) returns(AddAccountContactRsp);
-
-	/** Remove a contact from a given account **/
-	rpc RemoveAccountContact(RemoveAccountContactRqst) returns(RemoveAccountContactRsp);
+	/** Append a contact **/
+	rpc SetAccountContact(SetAccountContactRqst) returns(SetAccountContactRsp);
 
 	/** Set / Change the account email **/
 	rpc SetEmail(SetEmailRequest) returns(SetEmailResponse);

@@ -974,3 +974,16 @@ func (resource_client *Resource_Client) SetPackageBundle(checksum, platform stri
 
 	return nil
 }
+
+
+func (resource_client *Resource_Client) CreateNotification(notification *resourcepb.Notification) error {
+	rqst := &resourcepb.CreateNotificationRqst{}
+	rqst.Notification = notification
+
+	_, err := resource_client.c.CreateNotification(globular.GetClientContext(resource_client), rqst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

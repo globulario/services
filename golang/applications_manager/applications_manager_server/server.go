@@ -15,6 +15,8 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -336,6 +338,7 @@ var (
 	resourceClient  *resource_client.Resource_Client
 	discoveryClient *discovery_client.Dicovery_Client
 	event_client_   *event_client.Event_Client
+	log_client_ *log_client.Log_Client
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -401,6 +404,16 @@ func (svr *server) createGroup(id, name string) error {
 	return resourceClient.CreateGroup(id, name)
 }
 
+
+func (svr *server) createNotification(notification *resourcepb.Notification)error{
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+
+	return resourceClient.CreateNotification(notification);
+}
+
 //////////////////////// Package Repository services /////////////////////////////////
 func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, error) {
 	if discoveryClient != nil {
@@ -424,6 +437,38 @@ func (server *server) publishApplication(user, organization, path, name, domain,
 
 	// Publish the application...
 	return discoveryClient.PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
+}
+
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 ///////////////////// event service functions ////////////////////////////////////

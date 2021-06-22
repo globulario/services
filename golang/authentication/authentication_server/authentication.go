@@ -78,29 +78,19 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 		// So here I will keep the token...
 		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
 	} else {
-
-		// Here I will test if a newer token exist for that user if it's the case
-		// I will not refresh that token.
+		// get the active session.
 		session, err := server.getSession(id)
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		// That mean a newer token was already refresh.
-		if time.Unix(expireAt, 0).Before(time.Unix(session.ExpireAt, 0)) {
-			err := errors.New("that token cannot not be refresh because a newer one already exist. You need to re-authenticate in order to get a new token")
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			session = new(resourcepb.Session)
+			session.AccountId = id
+			session.State = resourcepb.SessionState_ONLINE
 		}
 
 		// get back the new expireAt
 		_, _, _, expireAt, _ = interceptors.ValidateToken(tokenString)
-		session.Token = tokenString
 		session.ExpireAt = expireAt
 
+		server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: " + time.Unix(expireAt, 0).Local().String() + " actual time is " + time.Now().Local().String())
 		// save the session in the backend.
 		err = server.updateSession(session)
 		if err != nil {
@@ -400,7 +390,6 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 	// get the expire time.
 	_, user, email, expireAt, _ := interceptors.ValidateToken(tokenString)
 	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
-	session.Token = tokenString
 	session.ExpireAt = expireAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()

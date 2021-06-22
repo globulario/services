@@ -11,9 +11,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
 	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -308,6 +311,7 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 
 var (
 	rbac_client_ *rbac_client.Rbac_Client
+	log_client_ *log_client.Log_Client
 )
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
@@ -377,6 +381,39 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
+
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
 ////////////////////////////////// Resource functions ///////////////////////////////////////////////
 
 // MongoDB backend, it must reside on the same server as the resource server (at this time...)
@@ -423,7 +460,7 @@ func (resource_server *server) validatePassword(password string, hash string) er
 /**
  * Register an Account.
  */
-func (resource_server *server) registerAccount(id string, name string, email string, password string, organizations []string, contacts []string, roles []string, groups []string) error {
+func (resource_server *server) registerAccount(id string, name string, email string, password string, organizations []string, roles []string, groups []string) error {
 
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -477,12 +514,6 @@ func (resource_server *server) registerAccount(id string, name string, email str
 	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
 	if err != nil {
 		return err
-	}
-
-	// Now I will set the reference for
-	// Contact...
-	for i := 0; i < len(contacts); i++ {
-		resource_server.addAccountContact(id, contacts[i])
 	}
 
 	// Organizations
@@ -604,21 +635,6 @@ func serialyseObject(obj map[string]interface{}) string {
 	return jsonStr
 }
 
-func (resource_server *server) addAccountContact(accountId string, contactId string) error {
-
-	p, err := resource_server.getPersistenceStore()
-	if err != nil {
-		return err
-	}
-
-	err = resource_server.createReference(p, accountId, "Accounts", "contacts", contactId, "Accounts")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (resource_server *server) createGroup(id, name string, members []string) error {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -662,8 +678,6 @@ func (resource_server *server) createRole(id string, name string, actions []stri
 		return err
 	}
 
-	// Here I will test if a newer token exist for that user if it's the case
-	// I will not refresh that token.
 	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+id+`"}`, ``)
 	if err == nil {
 		return errors.New("Role named " + name + " already exist!")
@@ -694,8 +708,6 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 		return err
 	}
 
-	// Here I will test if a newer token exist for that user if it's the case
-	// I will not refresh that token.
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+applicationId+`"}`, ``)
 	if err != nil {
 		return err

@@ -747,8 +747,13 @@ func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
 		return store.waitForMongo(timeout, withAuth)
 	}
 	// call again.
-	timeout -= 1
-	log.Println("wait for mongdb ", timeout)
-	return store.waitForMongo(timeout, withAuth)
+	pids, err := Utility.GetProcessIdsByName("mongod")
+	if pids != nil {
+		if len(pids) == 0 {
+			timeout -= 1
+			log.Println("wait for mongdb ", timeout)
+		}
+	}
 
+	return err
 }

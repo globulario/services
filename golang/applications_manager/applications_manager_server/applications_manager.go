@@ -14,7 +14,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
-
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -355,6 +355,8 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		return err
 	}
 
+	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of " +alias + " vesion " + version + " was publish")
+	
 	// If the version has change I will notify current users and undate the applications.
 	if previousVersion != version {
 
@@ -370,6 +372,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
             </div>
             `
 
+		
 		return server.sendApplicationNotification(name, message)
 	}
 	return nil
@@ -379,37 +382,27 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
  * Send a application notification.
  * That function will send notification to all connected user of that application.
  */
-func (svr *server) sendApplicationNotification(application string, message string) error {
+func (server *server) sendApplicationNotification(application string, message string) error {
 
 	// That service made user of persistence service.
+	notification := new(resourcepb.Notification)
+	notification.Id = Utility.RandomUUID()
+	notification.NotificationType = resourcepb.NotificationType_APPLICATION_NOTIFICATION
+	notification.Message = message
+	notification.Recipient = application
+	notification.Date = time.Now().Unix()
+	notification.Sender = ""
 
-	/** The notification object. */
-	/* TODO Create Notification from resource.pb....
-	notification := make(map[string]interface{})
-	id := time.Now().Unix()
-	notification["_id"] = id
-	notification["_type"] = 1
-	notification["_text"] = message
-	notification["_recipient"] = application
-	notification["_date"] = id
-
-	jsonStr, err := Utility.ToJson(data)
-	if err != nil {
-		return err
-	}
-	notification["_sender"] = jsonStr
-
-	_, err = p.InsertOne(context.Background(), "local_resource", application+"_db", "Notifications", notification, "")
+	err := server.createNotification(notification)
 	if err != nil {
 		return err
 	}
 
-	jsonStr, err = Utility.ToJson(notification)
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(notification)
 	if err != nil {
 		return err
 	}
 
-	return svr.publish(application+"_notification_event", []byte(jsonStr))
-	*/
-	return errors.New("not implemented")
+	return server.publish(application+"_notification_event", []byte(jsonStr))
 }
