@@ -944,37 +944,30 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Application
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
+func (resource_server *server) save_application(app *resourcepb.Application) error {
 
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
-	if rqst.Application == nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no application object was given in the request")))
+	if app == nil {
+		return errors.New("no application object was given in the request")
 	}
 
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.Application.Id+`"}`, "")
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+app.Id+`"}`, "")
 
 	application := make(map[string]interface{}, 0)
-	application["_id"] = rqst.Application.Id
-	application["password"] = Utility.GenerateUUID(rqst.Application.Id)
-	application["path"] = "/" + rqst.Application.Id // The path must be the same as the application name.
-	application["publisherid"] = rqst.Application.Publisherid
-	application["version"] = rqst.Application.Version
-	application["description"] = rqst.Application.Description
-	application["actions"] = rqst.Application.Actions
-	application["keywords"] = rqst.Application.Keywords
-	application["icon"] = rqst.Application.Icon
-	application["alias"] = rqst.Application.Alias
+	application["_id"] = app.Id
+	application["password"] = Utility.GenerateUUID(app.Id)
+	application["path"] = "/" + app.Id // The path must be the same as the application name.
+	application["publisherid"] = app.Publisherid
+	application["version"] = app.Version
+	application["description"] = app.Description
+	application["actions"] = app.Actions
+	application["keywords"] = app.Keywords
+	application["icon"] = app.Icon
+	application["alias"] = app.Alias
 
 	// Save the actual time.
 	application["last_deployed"] = time.Now().Unix() // save it as unix time.
@@ -985,41 +978,65 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 		// create the application database.
 		createApplicationUserDbScript := fmt.Sprintf(
 			"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});",
-			rqst.Application.Id, rqst.Application.Id, application["password"].(string), rqst.Application.Id)
+			app.Id, app.Id, application["password"].(string), app.Id)
 
 		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationUserDbScript)
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return err
 		}
 
 		application["creation_date"] = time.Now().Unix() // save it as unix time.
 		_, err := p.InsertOne(context.Background(), "local_resource", "local_resource", "Applications", application, "")
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return err
 		}
 
 	} else {
-		actions_, _ := Utility.ToJson(rqst.Application.Actions)
-		keywords_, _ := Utility.ToJson(rqst.Application.Keywords)
-
-		err := p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.Application.Id+`"}`, `{ "$set":{ "last_deployed":`+Utility.ToString(time.Now().Unix())+` }, "$set":{"keywords":`+keywords_+`}, "$set":{"actions":`+actions_+`},"$set":{"publisherid":"`+rqst.Application.Publisherid+`"},"$set":{"description":"`+rqst.Application.Description+`"},"$set":{"alias":"`+rqst.Application.Alias+`"},"$set":{"icon":"`+rqst.Application.Icon+`"}, "$set":{"version":"`+rqst.Application.Version+`"}}`, "")
+		actions_, _ := Utility.ToJson(app.Actions)
+		keywords_, _ := Utility.ToJson(app.Keywords)
+		err := p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+app.Id+`"}`, `{ "$set":{ "last_deployed":`+Utility.ToString(time.Now().Unix())+` }, "$set":{"keywords":`+keywords_+`}, "$set":{"actions":`+actions_+`},"$set":{"publisherid":"`+app.Publisherid+`"},"$set":{"description":"`+app.Description+`"},"$set":{"alias":"`+app.Alias+`"},"$set":{"icon":"`+app.Icon+`"}, "$set":{"version":"`+app.Version+`"}}`, "")
 
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return err
 		}
 	}
+
+	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Application
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
+
+	err := resource_server.save_application(rqst.Application)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	return &resourcepb.CreateApplicationRsp{}, nil
 }
 
 //* Update application informations.
 func (resource_server *server) UpdateApplication(ctx context.Context, rqst *resourcepb.UpdateApplicationRqst) (*resourcepb.UpdateApplicationRsp, error) {
-	return nil, errors.New("not implemented")
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.ApplicationId+`"}`, rqst.Values, "")
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.UpdateApplicationRsp{}, nil
 }
 
 //* Delete an application from the server. *
