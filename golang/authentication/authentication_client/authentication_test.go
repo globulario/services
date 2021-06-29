@@ -18,7 +18,7 @@ func Test(t *testing.T) {
 
 func TestAuthenticate(t *testing.T) {
 	log.Println("Test authethicate")
-	token, err := client.Authenticate("dave", "1234")
+	token, err := client.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
 	} else {

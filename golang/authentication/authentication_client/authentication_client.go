@@ -164,13 +164,10 @@ func (client *Authentication_Client) SetCaFile(caFile string) {
 func (client *Authentication_Client) Authenticate(name string, password string) (string, error) {
 	// In case of other domain than localhost I will rip off the token file
 	// before each authentication.
-	Utility.CreateDirIfNotExist(tokensPath);
+	Utility.CreateDirIfNotExist(tokensPath)
 
 	path := tokensPath + "/" + client.GetDomain() + "_token"
-	if !Utility.IsLocal(client.GetDomain()) {
-		// remove the file if it already exist.
-		os.Remove(path)
-	}
+
 
 	rqst := &authenticationpb.AuthenticateRqst{
 		Name:     name,
@@ -185,6 +182,14 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 	// Here I will save the token into the temporary directory the token will be valid for a given time (default is 15 minutes)
 	// it's the responsability of the client to keep it refresh... see Refresh token from the server...
 	if !Utility.IsLocal(client.GetDomain()) {
+		// remove the file if it already exist.
+		if Utility.Exists(path) {
+			err := os.Remove(path)
+			if err != nil {
+				return "", err
+			}
+		}
+		// create the new token for the domain.
 		err = ioutil.WriteFile(path, []byte(rsp.Token), 0644)
 		if err != nil {
 			return "", err
@@ -193,7 +198,6 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 
 	return rsp.Token, nil
 }
-
 
 /**
  *  Generate a new token from expired one.
@@ -213,12 +217,12 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 /**
  * Set account password.
  */
- func (client *Authentication_Client) SetPassword(user, old_password, new_password string) (string, error){
+func (client *Authentication_Client) SetPassword(user, old_password, new_password string) (string, error) {
 
-	rqst := new(authenticationpb.SetPasswordRequest);
-	rqst.OldPassword = old_password;
-	rqst.NewPassword = new_password;
-	rqst.AccountId = user;
+	rqst := new(authenticationpb.SetPasswordRequest)
+	rqst.OldPassword = old_password
+	rqst.NewPassword = new_password
+	rqst.AccountId = user
 
 	rsp, err := client.c.SetPassword(globular.GetClientContext(client), rqst)
 	if err != nil {
@@ -226,13 +230,13 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 	}
 
 	return rsp.Token, nil
- }
+}
 
- func (client *Authentication_Client) SetRootPassword(old_password, new_password string) (string, error){
+func (client *Authentication_Client) SetRootPassword(old_password, new_password string) (string, error) {
 
-	rqst := new(authenticationpb.SetRootPasswordRequest);
-	rqst.OldPassword = old_password;
-	rqst.NewPassword = new_password;
+	rqst := new(authenticationpb.SetRootPasswordRequest)
+	rqst.OldPassword = old_password
+	rqst.NewPassword = new_password
 
 	rsp, err := client.c.SetRootPassword(globular.GetClientContext(client), rqst)
 	if err != nil {
@@ -240,29 +244,29 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 	}
 
 	return rsp.Token, nil
- }
+}
 
- /**
-  * Set the Root email.
-  */
- func (client *Authentication_Client) SetRootEmail(oldEmail, newEmail string) error {
+/**
+ * Set the Root email.
+ */
+func (client *Authentication_Client) SetRootEmail(oldEmail, newEmail string) error {
 
-	rqst := new(authenticationpb.SetRootEmailRequest);
+	rqst := new(authenticationpb.SetRootEmailRequest)
 	rqst.NewEmail = newEmail
 	rqst.OldEmail = oldEmail
 
 	_, err := client.c.SetRootEmail(globular.GetClientContext(client), rqst)
 	if err != nil {
-		return   err
+		return err
 	}
 
-	return  nil
- }
+	return nil
+}
 
- /**
-  * Return an error if the token is not valid.
-  */
- func (client *Authentication_Client) ValidateToken(token string) error{
+/**
+ * Return an error if the token is not valid.
+ */
+func (client *Authentication_Client) ValidateToken(token string) error {
 	rqst := new(authenticationpb.ValidateTokenRqst)
 
 	rqst.Token = token
@@ -273,4 +277,4 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 	}
 
 	return nil
- }
+}

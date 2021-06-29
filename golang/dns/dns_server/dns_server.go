@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -17,6 +16,8 @@ import (
 	"github.com/globulario/services/golang/dns/dnspb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,8 +45,7 @@ var (
 	allowed_origins string = ""
 
 	// Thr IPV4 address
-	domain       string = "localhost"
-	connectionId string = "dns_service"
+	domain string = "localhost"
 
 	// pointer to the sever implementation.
 	s *server
@@ -68,8 +68,8 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	
-	// self-signed X.509 public keys for distribution
+
+	// server-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
 	KeyFile string
@@ -81,8 +81,7 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies []string // The list of services needed by this services.
-
+	Dependencies       []string      // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -105,43 +104,42 @@ type server struct {
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (self *server) GetId() string {
-	return self.Id
+func (server *server) GetId() string {
+	return server.Id
 }
-func (self *server) SetId(id string) {
-	self.Id = id
+func (server *server) SetId(id string) {
+	server.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (self *server) GetName() string {
-	return self.Name
+func (server *server) GetName() string {
+	return server.Name
 }
-func (self *server) SetName(name string) {
-	self.Name = name
+func (server *server) SetName(name string) {
+	server.Name = name
 }
 
 // The description of the service
-func (self *server) GetDescription() string {
-	return self.Description
+func (server *server) GetDescription() string {
+	return server.Description
 }
-func (self *server) SetDescription(description string) {
-	self.Description = description
+func (server *server) SetDescription(description string) {
+	server.Description = description
 }
 
 // The list of keywords of the services.
-func (self *server) GetKeywords() []string {
-	return self.Keywords
+func (server *server) GetKeywords() []string {
+	return server.Keywords
 }
-func (self *server) SetKeywords(keywords []string) {
-	self.Keywords = keywords
+func (server *server) SetKeywords(keywords []string) {
+	server.Keywords = keywords
 }
 
 // Dist
-func (self *server) Dist(path string) (string, error) {
+func (server *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, self)
+	return globular.Dist(path, server)
 }
-
 
 func (server *server) GetDependencies() []string {
 
@@ -152,175 +150,174 @@ func (server *server) GetDependencies() []string {
 	return server.Dependencies
 }
 
-
 func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
 
-func (self *server) GetPlatform() string {
+func (server *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
-func (self *server) GetRepositories() []string {
-	return self.Repositories
+func (server *server) GetRepositories() []string {
+	return server.Repositories
 }
-func (self *server) SetRepositories(repositories []string) {
-	self.Repositories = repositories
+func (server *server) SetRepositories(repositories []string) {
+	server.Repositories = repositories
 }
 
-func (self *server) GetDiscoveries() []string {
-	return self.Discoveries
+func (server *server) GetDiscoveries() []string {
+	return server.Discoveries
 }
-func (self *server) SetDiscoveries(discoveries []string) {
-	self.Discoveries = discoveries
+func (server *server) SetDiscoveries(discoveries []string) {
+	server.Discoveries = discoveries
 }
 
 // The path of the executable.
-func (self *server) GetPath() string {
-	return self.Path
+func (server *server) GetPath() string {
+	return server.Path
 }
-func (self *server) SetPath(path string) {
-	self.Path = path
+func (server *server) SetPath(path string) {
+	server.Path = path
 }
 
 // The path of the .proto file.
-func (self *server) GetProto() string {
-	return self.Proto
+func (server *server) GetProto() string {
+	return server.Proto
 }
-func (self *server) SetProto(proto string) {
-	self.Proto = proto
+func (server *server) SetProto(proto string) {
+	server.Proto = proto
 }
 
 // The gRpc port.
-func (self *server) GetPort() int {
-	return self.Port
+func (server *server) GetPort() int {
+	return server.Port
 }
-func (self *server) SetPort(port int) {
-	self.Port = port
+func (server *server) SetPort(port int) {
+	server.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (self *server) GetProxy() int {
-	return self.Proxy
+func (server *server) GetProxy() int {
+	return server.Proxy
 }
-func (self *server) SetProxy(proxy int) {
-	self.Proxy = proxy
+func (server *server) SetProxy(proxy int) {
+	server.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (self *server) GetProtocol() string {
-	return self.Protocol
+func (server *server) GetProtocol() string {
+	return server.Protocol
 }
-func (self *server) SetProtocol(protocol string) {
-	self.Protocol = protocol
+func (server *server) SetProtocol(protocol string) {
+	server.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (self *server) GetAllowAllOrigins() bool {
-	return self.AllowAllOrigins
+func (server *server) GetAllowAllOrigins() bool {
+	return server.AllowAllOrigins
 }
-func (self *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	self.AllowAllOrigins = allowAllOrigins
+func (server *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	server.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (self *server) GetAllowedOrigins() string {
-	return self.AllowedOrigins
+func (server *server) GetAllowedOrigins() string {
+	return server.AllowedOrigins
 }
 
-func (self *server) SetAllowedOrigins(allowedOrigins string) {
-	self.AllowedOrigins = allowedOrigins
+func (server *server) SetAllowedOrigins(allowedOrigins string) {
+	server.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (self *server) GetDomain() string {
-	return self.Domain
+func (server *server) GetDomain() string {
+	return server.Domain
 }
-func (self *server) SetDomain(domain string) {
-	self.Domain = domain
+func (server *server) SetDomain(domain string) {
+	server.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (self *server) GetTls() bool {
-	return self.TLS
+func (server *server) GetTls() bool {
+	return server.TLS
 }
-func (self *server) SetTls(hasTls bool) {
-	self.TLS = hasTls
+func (server *server) SetTls(hasTls bool) {
+	server.TLS = hasTls
 }
 
 // The certificate authority file
-func (self *server) GetCertAuthorityTrust() string {
-	return self.CertAuthorityTrust
+func (server *server) GetCertAuthorityTrust() string {
+	return server.CertAuthorityTrust
 }
-func (self *server) SetCertAuthorityTrust(ca string) {
-	self.CertAuthorityTrust = ca
+func (server *server) SetCertAuthorityTrust(ca string) {
+	server.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (self *server) GetCertFile() string {
-	return self.CertFile
+func (server *server) GetCertFile() string {
+	return server.CertFile
 }
-func (self *server) SetCertFile(certFile string) {
-	self.CertFile = certFile
+func (server *server) SetCertFile(certFile string) {
+	server.CertFile = certFile
 }
 
 // The key file.
-func (self *server) GetKeyFile() string {
-	return self.KeyFile
+func (server *server) GetKeyFile() string {
+	return server.KeyFile
 }
-func (self *server) SetKeyFile(keyFile string) {
-	self.KeyFile = keyFile
+func (server *server) SetKeyFile(keyFile string) {
+	server.KeyFile = keyFile
 }
 
 // The service version
-func (self *server) GetVersion() string {
-	return self.Version
+func (server *server) GetVersion() string {
+	return server.Version
 }
-func (self *server) SetVersion(version string) {
-	self.Version = version
+func (server *server) SetVersion(version string) {
+	server.Version = version
 }
 
 // The publisher id.
-func (self *server) GetPublisherId() string {
-	return self.PublisherId
+func (server *server) GetPublisherId() string {
+	return server.PublisherId
 }
-func (self *server) SetPublisherId(publisherId string) {
-	self.PublisherId = publisherId
-}
-
-func (self *server) GetKeepUpToDate() bool {
-	return self.KeepUpToDate
-}
-func (self *server) SetKeepUptoDate(val bool) {
-	self.KeepUpToDate = val
+func (server *server) SetPublisherId(publisherId string) {
+	server.PublisherId = publisherId
 }
 
-func (self *server) GetKeepAlive() bool {
-	return self.KeepAlive
+func (server *server) GetKeepUpToDate() bool {
+	return server.KeepUpToDate
 }
-func (self *server) SetKeepAlive(val bool) {
-	self.KeepAlive = val
+func (server *server) SetKeepUptoDate(val bool) {
+	server.KeepUpToDate = val
 }
 
-func (self *server) GetPermissions() []interface{} {
-	return self.Permissions
+func (server *server) GetKeepAlive() bool {
+	return server.KeepAlive
 }
-func (self *server) SetPermissions(permissions []interface{}) {
-	self.Permissions = permissions
+func (server *server) SetKeepAlive(val bool) {
+	server.KeepAlive = val
+}
+
+func (server *server) GetPermissions() []interface{} {
+	return server.Permissions
+}
+func (server *server) SetPermissions(permissions []interface{}) {
+	server.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (self *server) Init() error {
+func (server *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)
@@ -328,72 +325,72 @@ func (self *server) Init() error {
 	// Get the configuration path.
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
-	err := globular.InitService(dir+"/config.json", self)
+	err := globular.InitService(dir+"/config.json", server)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	self.grpcServer, err = globular.InitGrpcServer(self, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	server.grpcServer, err = globular.InitGrpcServer(server, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
 	if err != nil {
 		return err
 	}
 
-	if len(self.StorageDataPath) == 0 {
+	if len(server.StorageDataPath) == 0 {
 		fmt.Println("The value StorageDataPath in the configuration must be given. You can use /tmp (on linux) if you don't want to keep values indefilnely on the storage server.")
 	}
 
-	s = self
+	s = server
 
 	return nil
 
 }
 
 // Save the configuration values.
-func (self *server) Save() error {
+func (server *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", self)
+	return globular.SaveService(dir+"/config.json", server)
 }
 
-func (self *server) StartService() error {
-	return globular.StartService(self, self.grpcServer)
+func (server *server) StartService() error {
+	return globular.StartService(server, server.grpcServer)
 }
 
-func (self *server) StopService() error {
-	return globular.StopService(self, self.grpcServer)
+func (server *server) StopService() error {
+	return globular.StopService(server, server.grpcServer)
 }
 
-func (self *server) Stop(context.Context, *dnspb.StopRequest) (*dnspb.StopResponse, error) {
-	return &dnspb.StopResponse{}, self.StopService()
+func (server *server) Stop(context.Context, *dnspb.StopRequest) (*dnspb.StopResponse, error) {
+	return &dnspb.StopResponse{}, server.StopService()
 }
 
 //////////////////////////////// DNS Service specific //////////////////////////
 
 // Open the connection if it's close.
-func (self *server) openConnection() error {
-	if self.connection_is_open == true {
+func (server *server) openConnection() error {
+	if server.connection_is_open {
 		return nil
 	}
 
 	// Open store.
-	self.store = storage_store.NewLevelDB_store()
-	err := self.store.Open(`{"path":"` + self.StorageDataPath + `", "name":"dns_data_store"}`)
+	server.store = storage_store.NewLevelDB_store()
+	err := server.store.Open(`{"path":"` + server.StorageDataPath + `", "name":"dns_data_store"}`)
 	if err != nil {
 		return err
 	}
 
-	self.connection_is_open = true
+	server.connection_is_open = true
 
 	// Init the records with that connection.
-	self.initRecords()
+	server.initRecords()
 
 	return nil
 }
 
-func (self *server) isManaged(domain string) bool {
-	for i := 0; i < len(self.Domains); i++ {
-		if strings.HasSuffix(domain, self.Domains[i]) {
+func (server *server) isManaged(domain string) bool {
+	for i := 0; i < len(server.Domains); i++ {
+		if strings.HasSuffix(domain, server.Domains[i]) {
 			return true
 		}
 	}
@@ -401,20 +398,20 @@ func (self *server) isManaged(domain string) bool {
 }
 
 // Set a dns entry.
-func (self *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.SetAResponse, error) {
+func (server *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.SetAResponse, error) {
 
-	fmt.Println("Try set dns entry ", rqst.Domain)
-	if !self.isManaged(rqst.Domain) {
+	server.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "Try set dns entry "+rqst.Domain)
+
+	if !server.isManaged(rqst.Domain) {
 		err := errors.New("The domain " + rqst.Domain + " is not manage by this dns.")
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-
 	}
 
 	domain := strings.ToLower(rqst.Domain)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -422,7 +419,7 @@ func (self *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.S
 	}
 
 	uuid := Utility.GenerateUUID("A:" + domain)
-	err = self.store.SetItem(uuid, []byte(rqst.A))
+	err = server.store.SetItem(uuid, []byte(rqst.A))
 	if err != nil {
 
 		return nil, status.Errorf(
@@ -430,24 +427,26 @@ func (self *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	fmt.Println("domain: ", "A:"+domain, " with uuid", uuid, "is set with ipv4 address", rqst.A)
-	self.setTtl(uuid, rqst.Ttl)
+	server.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "domain: A:"+domain+" with uuid"+uuid+"is set with ipv4 address"+rqst.A)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetAResponse{
 		Message: domain, // return the full domain.
 	}, nil
 }
 
-func (self *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dnspb.RemoveAResponse, error) {
+func (server *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*dnspb.RemoveAResponse, error) {
 	fmt.Println("Try remove dns entry ", rqst.Domain)
-	if !self.isManaged(rqst.Domain) {
+	server.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "Try remove dns entry "+rqst.Domain)
+
+	if !server.isManaged(rqst.Domain) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("The domain "+rqst.Domain+" is not manage by this dns.")))
 	}
 
 	domain := strings.ToLower(rqst.Domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -455,7 +454,7 @@ func (self *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*d
 	}
 
 	uuid := Utility.GenerateUUID("A:" + domain)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -467,30 +466,30 @@ func (self *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (*d
 	}, nil
 }
 
-func (self *server) get_ipv4(domain string) (string, uint32, error) {
+func (server *server) get_ipv4(domain string) (string, uint32, error) {
 	domain = strings.ToLower(domain)
 	if strings.HasSuffix(domain, ".") {
 		domain = domain[:len(domain)-1]
 	}
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("A:" + domain)
-	ipv4, err := self.store.GetItem(uuid)
+	ipv4, err := server.store.GetItem(uuid)
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return string(ipv4), self.getTtl(uuid), nil
+	return string(ipv4), server.getTtl(uuid), nil
 }
 
-func (self *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.GetAResponse, error) {
-	err := self.openConnection()
+func (server *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.GetAResponse, error) {
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -498,23 +497,28 @@ func (self *server) GetA(ctx context.Context, rqst *dnspb.GetARequest) (*dnspb.G
 	}
 	domain := strings.ToLower(rqst.Domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
-	fmt.Println("GetA --> try to find value: ", "A:"+rqst.Domain)
-	ipv4, err := self.store.GetItem(uuid)
+	server.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "Try to get ipv4 address for "+rqst.Domain)
+
+	ipv4, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	fmt.Println("ipv4 for", domain, "is", string(ipv4))
+
+	server.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "ipv4 for "+domain+" is "+string(ipv4))
+
 	return &dnspb.GetAResponse{
 		A: string(ipv4), // return the full domain.
 	}, nil
 }
 
 // Set a dns entry.
-func (self *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dnspb.SetAAAAResponse, error) {
-	fmt.Println("Try set dns entry ", rqst.Domain)
-	if !self.isManaged(rqst.Domain) {
+func (server *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*dnspb.SetAAAAResponse, error) {
+
+	server.logServiceInfo("SetAAAA", Utility.FileLine(), Utility.FunctionName(), "Try set dns entry "+rqst.Domain)
+
+	if !server.isManaged(rqst.Domain) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("The domain "+rqst.Domain+" is not manage by this dns.")))
@@ -522,37 +526,38 @@ func (self *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (*d
 
 	domain := strings.ToLower(rqst.Domain)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
-	err = self.store.SetItem(uuid, []byte(rqst.Aaaa))
+
+	err = server.store.SetItem(uuid, []byte(rqst.Aaaa))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetAAAAResponse{
 		Message: domain, // return the full domain.
 	}, nil
 }
 
-func (self *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest) (*dnspb.RemoveAAAAResponse, error) {
+func (server *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequest) (*dnspb.RemoveAAAAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
 	fmt.Println("Try remove dns entry ", domain)
-	if !self.isManaged(rqst.Domain) {
+	if !server.isManaged(rqst.Domain) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("The domain "+rqst.Domain+" is not manage by this dns.")))
 	}
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -560,7 +565,7 @@ func (self *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAAReques
 	}
 
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -572,40 +577,40 @@ func (self *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAAReques
 	}, nil
 }
 
-func (self *server) get_ipv6(domain string) (string, uint32, error) {
+func (server *server) get_ipv6(domain string) (string, uint32, error) {
 	domain = strings.ToLower(domain)
 	if strings.HasSuffix(domain, ".") {
 		domain = domain[:len(domain)-1]
 	}
 	fmt.Println("Try get dns entry ", domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
-	address, err := self.store.GetItem(uuid)
+	address, err := server.store.GetItem(uuid)
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return string(address), self.getTtl(uuid), nil
+	return string(address), server.getTtl(uuid), nil
 }
 
-func (self *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dnspb.GetAAAAResponse, error) {
+func (server *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*dnspb.GetAAAAResponse, error) {
 	domain := strings.ToLower(rqst.Domain)
 	fmt.Println("Try get dns entry ", domain)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
-	ipv6, err := self.store.GetItem(uuid)
+	ipv6, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -618,10 +623,10 @@ func (self *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (*d
 }
 
 // Set a text entry.
-func (self *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
+func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
 	fmt.Println("Try set dns text ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -636,14 +641,14 @@ func (self *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*d
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("TXT:" + rqst.Id)
-	err = self.store.SetItem(uuid, values)
+	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetTextResponse{
 		Result: true, // return the full domain.
@@ -651,17 +656,18 @@ func (self *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*d
 }
 
 // return the text.
-func (self *server) getText(id string) ([]string, uint32, error) {
+func (server *server) getText(id string) ([]string, uint32, error) {
 	fmt.Println("Try get dns text ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("TXT:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
+		return nil, 0, err
 	}
 	values := make([]string, 0)
 
@@ -671,20 +677,20 @@ func (self *server) getText(id string) ([]string, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return values, self.getTtl(uuid), nil
+	return values, server.getTtl(uuid), nil
 }
 
 // Retreive a text value
-func (self *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
+func (server *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
 	fmt.Println("Try get dns text ", domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("TXT:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -705,17 +711,17 @@ func (self *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*d
 }
 
 // Remove a text entry
-func (self *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest) (*dnspb.RemoveTextResponse, error) {
+func (server *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequest) (*dnspb.RemoveTextResponse, error) {
 	fmt.Println("Try remove dns text ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("TXT:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -728,10 +734,10 @@ func (self *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextReques
 }
 
 // Set a NS entry.
-func (self *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.SetNsResponse, error) {
+func (server *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb.SetNsResponse, error) {
 	fmt.Println("Try set dns ns ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -739,14 +745,14 @@ func (self *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb
 	}
 
 	uuid := Utility.GenerateUUID("NS:" + rqst.Id)
-	err = self.store.SetItem(uuid, []byte(rqst.Ns))
+	err = server.store.SetItem(uuid, []byte(rqst.Ns))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetNsResponse{
 		Result: true, // return the full domain.
@@ -754,33 +760,33 @@ func (self *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dnspb
 }
 
 // return the text.
-func (self *server) getNs(id string) (string, uint32, error) {
+func (server *server) getNs(id string) (string, uint32, error) {
 	fmt.Println("Try get dns ns ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return "", 0, err
 	}
 	uuid := Utility.GenerateUUID("NS:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return string(data), self.getTtl(uuid), err
+	return string(data), server.getTtl(uuid), err
 }
 
 // Retreive a text value
-func (self *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.GetNsResponse, error) {
+func (server *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb.GetNsResponse, error) {
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("NS:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -793,17 +799,17 @@ func (self *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dnspb
 }
 
 // Remove a text entry
-func (self *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*dnspb.RemoveNsResponse, error) {
+func (server *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (*dnspb.RemoveNsResponse, error) {
 	fmt.Println("Try remove dns text ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("NS:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -816,10 +822,10 @@ func (self *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest) (
 }
 
 // Set a CName entry.
-func (self *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*dnspb.SetCNameResponse, error) {
+func (server *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (*dnspb.SetCNameResponse, error) {
 	fmt.Println("Try set dns CName ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -827,14 +833,14 @@ func (self *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (
 	}
 
 	uuid := Utility.GenerateUUID("CName:" + rqst.Id)
-	err = self.store.SetItem(uuid, []byte(rqst.Cname))
+	err = server.store.SetItem(uuid, []byte(rqst.Cname))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetCNameResponse{
 		Result: true, // return the full domain.
@@ -842,35 +848,35 @@ func (self *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest) (
 }
 
 // return the CName.
-func (self *server) getCName(id string) (string, uint32, error) {
+func (server *server) getCName(id string) (string, uint32, error) {
 	fmt.Println("Try get CName ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("CName:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return string(data), self.getTtl(uuid), err
+	return string(data), server.getTtl(uuid), err
 }
 
 // Retreive a CName value
-func (self *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*dnspb.GetCNameResponse, error) {
+func (server *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (*dnspb.GetCNameResponse, error) {
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("CName:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -883,17 +889,17 @@ func (self *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest) (
 }
 
 // Remove a text entry
-func (self *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRequest) (*dnspb.RemoveCNameResponse, error) {
+func (server *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRequest) (*dnspb.RemoveCNameResponse, error) {
 	fmt.Println("Try remove dns CName ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("CName:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -906,10 +912,10 @@ func (self *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRequ
 }
 
 // Set a text entry.
-func (self *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.SetMxResponse, error) {
+func (server *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb.SetMxResponse, error) {
 	fmt.Println("Try set dns mx ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -924,14 +930,14 @@ func (self *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb
 	}
 
 	uuid := Utility.GenerateUUID("MX:" + rqst.Id)
-	err = self.store.SetItem(uuid, values)
+	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetMxResponse{
 		Result: true, // return the full domain.
@@ -939,16 +945,16 @@ func (self *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dnspb
 }
 
 // return the text.
-func (self *server) getMx(id string) (map[string]interface{}, uint32, error) {
+func (server *server) getMx(id string) (map[string]interface{}, uint32, error) {
 	fmt.Println("Try get dns text ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("MX:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 
 	values := make(map[string]interface{}) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, &values)
@@ -957,20 +963,20 @@ func (self *server) getMx(id string) (map[string]interface{}, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return values, self.getTtl(uuid), nil
+	return values, server.getTtl(uuid), nil
 }
 
 // Retreive a text value
-func (self *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.GetMxResponse, error) {
+func (server *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.GetMxResponse, error) {
 	fmt.Println("Try get dns mx ", domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("MX:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -994,10 +1000,10 @@ func (self *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb
 }
 
 // Remove a text entry
-func (self *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*dnspb.RemoveMxResponse, error) {
+func (server *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (*dnspb.RemoveMxResponse, error) {
 	fmt.Println("Try remove dns text ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1005,7 +1011,7 @@ func (self *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (
 	}
 
 	uuid := Utility.GenerateUUID("MX:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1018,10 +1024,10 @@ func (self *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest) (
 }
 
 // Set a text entry.
-func (self *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnspb.SetSoaResponse, error) {
+func (server *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dnspb.SetSoaResponse, error) {
 	fmt.Println("Try set dns Soa ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1036,14 +1042,14 @@ func (self *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dns
 	}
 
 	uuid := Utility.GenerateUUID("SOA:" + rqst.Id)
-	err = self.store.SetItem(uuid, values)
+	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetSoaResponse{
 		Result: true, // return the full domain.
@@ -1051,16 +1057,16 @@ func (self *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*dns
 }
 
 // return the text.
-func (self *server) getSoa(id string) (*dnspb.SOA, uint32, error) {
+func (server *server) getSoa(id string) (*dnspb.SOA, uint32, error) {
 	fmt.Println("Try get dns soa ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("SOA:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 
 	soa := new(dnspb.SOA) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, soa)
@@ -1069,20 +1075,20 @@ func (self *server) getSoa(id string) (*dnspb.SOA, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return soa, self.getTtl(uuid), nil
+	return soa, server.getTtl(uuid), nil
 }
 
 // Retreive a text value
-func (self *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnspb.GetSoaResponse, error) {
+func (server *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnspb.GetSoaResponse, error) {
 	fmt.Println("Try get dns soa ", domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("SOA:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1103,10 +1109,10 @@ func (self *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dns
 }
 
 // Remove a text entry
-func (self *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) (*dnspb.RemoveSoaResponse, error) {
+func (server *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest) (*dnspb.RemoveSoaResponse, error) {
 	fmt.Println("Try remove dns text ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1114,7 +1120,7 @@ func (self *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest)
 	}
 
 	uuid := Utility.GenerateUUID("SOA:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1127,9 +1133,9 @@ func (self *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaRequest)
 }
 
 // Set a text entry.
-func (self *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnspb.SetUriResponse, error) {
+func (server *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dnspb.SetUriResponse, error) {
 	fmt.Println("Try set dns uri ", rqst.Id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1144,14 +1150,14 @@ func (self *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dns
 	}
 
 	uuid := Utility.GenerateUUID("URI:" + rqst.Id)
-	err = self.store.SetItem(uuid, values)
+	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetUriResponse{
 		Result: true, // return the full domain.
@@ -1159,16 +1165,16 @@ func (self *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*dns
 }
 
 // return the text.
-func (self *server) getUri(id string) (*dnspb.URI, uint32, error) {
+func (server *server) getUri(id string) (*dnspb.URI, uint32, error) {
 	fmt.Println("Try get dns uri ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("URI:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 
 	uri := new(dnspb.URI) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, uri)
@@ -1177,20 +1183,20 @@ func (self *server) getUri(id string) (*dnspb.URI, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return uri, self.getTtl(uuid), nil
+	return uri, server.getTtl(uuid), nil
 }
 
 // Retreive a text value
-func (self *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnspb.GetUriResponse, error) {
+func (server *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnspb.GetUriResponse, error) {
 	fmt.Println("Try get dns uri ", domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("URI:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1211,10 +1217,10 @@ func (self *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dns
 }
 
 // Remove AFSDB
-func (self *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) (*dnspb.RemoveUriResponse, error) {
+func (server *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest) (*dnspb.RemoveUriResponse, error) {
 	fmt.Println("Try remove dns uri ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1222,7 +1228,7 @@ func (self *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest)
 	}
 
 	uuid := Utility.GenerateUUID("URI:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1235,9 +1241,9 @@ func (self *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriRequest)
 }
 
 // Set a AFSDB entry.
-func (self *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*dnspb.SetAfsdbResponse, error) {
+func (server *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (*dnspb.SetAfsdbResponse, error) {
 	fmt.Println("Try set dns afsdb ", rqst.Id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1252,14 +1258,14 @@ func (self *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (
 	}
 
 	uuid := Utility.GenerateUUID("AFSDB:" + rqst.Id)
-	err = self.store.SetItem(uuid, values)
+	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetAfsdbResponse{
 		Result: true, // return the full domain.
@@ -1267,16 +1273,16 @@ func (self *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest) (
 }
 
 // return the AFSDB.
-func (self *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
+func (server *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 	fmt.Println("Try get dns AFSDB ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 
 	afsdb := new(dnspb.AFSDB) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, afsdb)
@@ -1285,13 +1291,13 @@ func (self *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return afsdb, self.getTtl(uuid), nil
+	return afsdb, server.getTtl(uuid), nil
 }
 
 // Retreive a AFSDB value
-func (self *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*dnspb.GetAfsdbResponse, error) {
+func (server *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*dnspb.GetAfsdbResponse, error) {
 	fmt.Println("Try get dns AFSDB ", domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1299,7 +1305,7 @@ func (self *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (
 	}
 
 	uuid := Utility.GenerateUUID("AFSDB:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1320,10 +1326,10 @@ func (self *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (
 }
 
 // Remove AFSDB
-func (self *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRequest) (*dnspb.RemoveAfsdbResponse, error) {
+func (server *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRequest) (*dnspb.RemoveAfsdbResponse, error) {
 	fmt.Println("Try remove dns Afsdb ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1331,7 +1337,7 @@ func (self *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRequ
 	}
 
 	uuid := Utility.GenerateUUID("AFSDB:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1344,9 +1350,9 @@ func (self *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRequ
 }
 
 // Set a CAA entry.
-func (self *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnspb.SetCaaResponse, error) {
+func (server *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dnspb.SetCaaResponse, error) {
 	fmt.Println("Try set dns caa ", rqst.Id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1361,14 +1367,14 @@ func (self *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dns
 	}
 
 	uuid := Utility.GenerateUUID("CAA:" + rqst.Id)
-	err = self.store.SetItem(uuid, values)
+	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	self.setTtl(uuid, rqst.Ttl)
+	server.setTtl(uuid, rqst.Ttl)
 
 	return &dnspb.SetCaaResponse{
 		Result: true, // return the full domain.
@@ -1376,16 +1382,16 @@ func (self *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*dns
 }
 
 // return the CAA.
-func (self *server) getCaa(id string) (*dnspb.CAA, uint32, error) {
+func (server *server) getCaa(id string) (*dnspb.CAA, uint32, error) {
 	fmt.Println("Try get dns CAA ", id)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, 0, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	uuid := Utility.GenerateUUID("CAA:" + id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 
 	caa := new(dnspb.CAA) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, caa)
@@ -1394,13 +1400,13 @@ func (self *server) getCaa(id string) (*dnspb.CAA, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return caa, self.getTtl(uuid), nil
+	return caa, server.getTtl(uuid), nil
 }
 
 // Retreive a AFSDB value
-func (self *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnspb.GetCaaResponse, error) {
+func (server *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnspb.GetCaaResponse, error) {
 	fmt.Println("Try get dns CAA ", domain)
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1408,7 +1414,7 @@ func (self *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dns
 	}
 
 	uuid := Utility.GenerateUUID("CAA:" + rqst.Id)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1429,10 +1435,10 @@ func (self *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dns
 }
 
 // Remove CAA
-func (self *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) (*dnspb.RemoveCaaResponse, error) {
+func (server *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest) (*dnspb.RemoveCaaResponse, error) {
 	fmt.Println("Try remove dns Afsdb ", rqst.Id)
 
-	err := self.openConnection()
+	err := server.openConnection()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1440,7 +1446,7 @@ func (self *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest)
 	}
 
 	uuid := Utility.GenerateUUID("CAA:" + rqst.Id)
-	err = self.store.RemoveItem(uuid)
+	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1455,10 +1461,11 @@ func (self *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaRequest)
 /////////////////////// DNS Specific service //////////////////////
 type handler struct{}
 
-func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	msg := dns.Msg{}
 	msg.SetReply(r)
 	fmt.Println("-----> dns resquest receive... ", msg)
+
 	switch r.Question[0].Qtype {
 	case dns.TypeA:
 		domain := msg.Question[0].Name
@@ -1612,40 +1619,43 @@ func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(&msg)
 }
 
-func ServeDns(port int) {
+func ServeDns(port int) error {
 	// Now I will start the dns server.
 	srv := &dns.Server{Addr: ":" + strconv.Itoa(port), Net: "udp"}
 	srv.Handler = &handler{}
 	if err := srv.ListenAndServe(); err != nil {
 		fmt.Println("Failed to set udp listener", err.Error())
+		return err
 	}
+
+	return nil
 }
 
-func (self *server) initStringRecords(recordType string, ttl uint32, record map[string]interface{}) error {
+func (server *server) initStringRecords(recordType string, ttl uint32, record map[string]interface{}) error {
 	uuid := Utility.GenerateUUID(recordType + ":" + record["Id"].(string))
-	err := self.setTtl(uuid, ttl)
+	err := server.setTtl(uuid, ttl)
 	if err != nil {
 		return err
 	}
-	return self.store.SetItem(uuid, []byte(record["Value"].(string)))
+	return server.store.SetItem(uuid, []byte(record["Value"].(string)))
 }
 
-func (self *server) initSructRecords(recordType string, ttl uint32, record map[string]interface{}) error {
+func (server *server) initSructRecords(recordType string, ttl uint32, record map[string]interface{}) error {
 
 	data, err := json.Marshal(record["Value"].(map[string]interface{}))
 	if err != nil {
 		return err
 	}
 	uuid := Utility.GenerateUUID(recordType + ":" + record["Id"].(string))
-	err = self.store.SetItem(uuid, data)
+	err = server.store.SetItem(uuid, data)
 	if err != nil {
 		return err
 	}
 
-	return self.setTtl(uuid, ttl)
+	return server.setTtl(uuid, ttl)
 }
 
-func (self *server) initArrayRecords(recordType string, ttl uint32, record map[string]interface{}) error {
+func (server *server) initArrayRecords(recordType string, ttl uint32, record map[string]interface{}) error {
 
 	data, err := json.Marshal(record["Value"].([]interface{}))
 	if err != nil {
@@ -1654,25 +1664,25 @@ func (self *server) initArrayRecords(recordType string, ttl uint32, record map[s
 
 	uuid := Utility.GenerateUUID(recordType + ":" + record["Id"].(string))
 
-	err = self.store.SetItem(uuid, data)
+	err = server.store.SetItem(uuid, data)
 	if err != nil {
 		return err
 	}
 
-	return self.setTtl(uuid, ttl)
+	return server.setTtl(uuid, ttl)
 }
 
-func (self *server) setTtl(uuid string, ttl uint32) error {
+func (server *server) setTtl(uuid string, ttl uint32) error {
 	data := make([]byte, 4)
 	binary.LittleEndian.PutUint32(data, ttl)
 	uuid = Utility.GenerateUUID("TTL:" + uuid)
-	err := self.store.SetItem(uuid, data)
+	err := server.store.SetItem(uuid, data)
 	return err
 }
 
-func (self *server) getTtl(uuid string) uint32 {
+func (server *server) getTtl(uuid string) uint32 {
 	uuid = Utility.GenerateUUID("TTL:" + uuid)
-	data, err := self.store.GetItem(uuid)
+	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return 60 // the default value
 	}
@@ -1680,12 +1690,12 @@ func (self *server) getTtl(uuid string) uint32 {
 }
 
 // Initialyse all the records from the configuration.
-func (self *server) initRecords() error {
-	if self.Records == nil {
+func (server *server) initRecords() error {
+	if server.Records == nil {
 		return nil
 	}
 
-	for name, records := range self.Records {
+	for name, records := range server.Records {
 		for i := 0; i < len(records); i++ {
 			var record = records[i].(map[string]interface{})
 			var ttl uint32
@@ -1696,25 +1706,25 @@ func (self *server) initRecords() error {
 			}
 			var err error
 			if name == "A" {
-				err = self.initStringRecords("A", ttl, record)
+				err = server.initStringRecords("A", ttl, record)
 			} else if name == "AAAA" {
-				err = self.initSructRecords("AAAA", ttl, record)
+				err = server.initSructRecords("AAAA", ttl, record)
 			} else if name == "AFSDB" {
-				err = self.initSructRecords("AFSDB", ttl, record)
+				err = server.initSructRecords("AFSDB", ttl, record)
 			} else if name == "CAA" {
-				err = self.initSructRecords("CAA", ttl, record)
+				err = server.initSructRecords("CAA", ttl, record)
 			} else if name == "CNAME" {
-				err = self.initStringRecords("CNAME", ttl, record)
+				err = server.initStringRecords("CNAME", ttl, record)
 			} else if name == "MX" {
-				err = self.initSructRecords("MX", ttl, record)
+				err = server.initSructRecords("MX", ttl, record)
 			} else if name == "SOA" {
-				err = self.initSructRecords("SOA", ttl, record)
+				err = server.initSructRecords("SOA", ttl, record)
 			} else if name == "TXT" {
-				err = self.initArrayRecords("TXT", ttl, record)
+				err = server.initArrayRecords("TXT", ttl, record)
 			} else if name == "URI" {
-				err = self.initSructRecords("URI", ttl, record)
+				err = server.initSructRecords("URI", ttl, record)
 			} else if name == "NS" {
-				err = self.initStringRecords("NS", ttl, record)
+				err = server.initStringRecords("NS", ttl, record)
 			} else {
 				return errors.New("No ns record with type" + name + "exist!")
 			}
@@ -1727,6 +1737,41 @@ func (self *server) initRecords() error {
 	return nil
 }
 
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+var (
+	log_client_ *log_client.Log_Client
+)
+
+/**
+ * Get the log client.
+ */
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -1735,7 +1780,6 @@ func main() {
 	// grpclog.SetLogger(log.New(os.Stdout, "dns_service: ", log.LstdFlags))
 
 	// Set the log information in case of crash...
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// The actual server implementation.
 	s_impl := new(server)
@@ -1747,6 +1791,8 @@ func main() {
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
 	s_impl.Version = "0.0.1"
+	s_impl.DnsPort = 53 // The default dns port.
+	s_impl.StorageDataPath = os.TempDir() + "/dns"
 	s_impl.PublisherId = "globulario" // value by default.
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.AllowAllOrigins = allow_all_origins
@@ -1758,11 +1804,17 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		fmt.Printf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
+
+	// Start dns services
+	go func() {
+
+		ServeDns(s_impl.DnsPort)
+	}()
 
 	// Register the echo services
 	dnspb.RegisterDnsServiceServer(s_impl.grpcServer, s_impl)

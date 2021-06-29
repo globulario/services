@@ -38,8 +38,6 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	// the configuration file.
 	serverConfig, err = getLocalConfig()
 
-   
-
 	isLocal := true
 	if err == nil {
 		if serverConfig["Domain"] != address {
@@ -48,10 +46,11 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	} else {
 		isLocal = false
 	}
-
+	
 	if !isLocal {
 		// First I will retreive the server configuration.
 		serverConfig, err = getRemoteConfig(address, port)
+		
 		if err != nil {
 			return nil, err
 		}
@@ -108,11 +107,13 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		}
 
 		if !isLocal {
-
+log.Println("---------> 110")
 			keyPath, certPath, caPath, err := getCredentialConfig(path, serverConfig["Domain"].(string), country, state, city, organization, alternateDomains, port)
 			if err != nil {
+				log.Println("---------> 113", err)
 				return nil, err
 			}
+			
 			// set the credential function here
 			config["KeyFile"] = keyPath
 			config["CertFile"] = certPath
@@ -309,7 +310,11 @@ func getCredentialConfig(basePath string, address string, country string, state 
 		}
 	}
 
-	Utility.CreateDirIfNotExist(creds)
+	err = Utility.CreateDirIfNotExist(creds)
+	if err != nil {
+		log.Println(err)
+		return "", "", "", err
+	}
 
 	// I will connect to the certificate authority of the server where the application must
 	// be deployed. Certificate autority run wihtout tls.

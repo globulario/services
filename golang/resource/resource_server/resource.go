@@ -2730,9 +2730,10 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 func (server *server) updateSession(accountId string, state resourcepb.SessionState, last_session_time, expire_at int64) error {
 	expiration := time.Unix(expire_at, 0)
 	delay := time.Until(expiration)
-
-	if expiration.Before(time.Now()) {
-		return errors.New("session is already expired " + expiration.Local().String() + " " + Utility.ToString(math.Floor(delay.Minutes())) + ` minutes ago`)
+	if state != resourcepb.SessionState_OFFLINE {
+		if expiration.Before(time.Now()) {
+			return errors.New("session is already expired " + expiration.Local().String() + " " + Utility.ToString(math.Floor(delay.Minutes())) + ` minutes ago`)
+		}
 	}
 
 	p, err := server.getPersistenceStore()
