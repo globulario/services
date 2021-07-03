@@ -3,6 +3,7 @@ package authentication_client
 import (
 	"context"
 	"io/ioutil"
+	"log"
 	"os"
 	"strconv"
 
@@ -164,18 +165,24 @@ func (client *Authentication_Client) SetCaFile(caFile string) {
 func (client *Authentication_Client) Authenticate(name string, password string) (string, error) {
 	// In case of other domain than localhost I will rip off the token file
 	// before each authentication.
-	Utility.CreateDirIfNotExist(tokensPath)
-
+	err := Utility.CreateDirIfNotExist(tokensPath)
+	if err != nil {
+		log.Println("fail to create dir ", tokensPath, " with error ", err)
+		return "",  err
+	}
+	
 	path := tokensPath + "/" + client.GetDomain() + "_token"
-
 
 	rqst := &authenticationpb.AuthenticateRqst{
 		Name:     name,
 		Password: password,
 	}
 
+	log.Println("Authenticate", name," on domain ", client.GetDomain() )
+
 	rsp, err := client.c.Authenticate(globular.GetClientContext(client), rqst)
 	if err != nil {
+		log.Println("fail to authenticate!")
 		return "", err
 	}
 

@@ -6,6 +6,9 @@ import (
 	"crypto/x509"
 	"errors"
 	"io/ioutil"
+	"log"
+
+	//"log"
 	"os"
 	"reflect"
 	"strings"
@@ -155,13 +158,17 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	if cc == nil {
 		address := client.GetAddress()
 		if client.HasTLS() {
-
+			
 			// Setup the login/pass simple test...
 			if len(client.GetKeyFile()) == 0 {
-				return nil, errors.New("no key file is available for client ")
+				err := errors.New("no key file is available for client ")
+				log.Println(err)
+				return nil, err
 			}
 
 			if len(client.GetCertFile()) == 0 {
+				err = errors.New("no certificate file is available for client")
+				log.Println(err)
 				return nil, errors.New("no certificate file is available for client")
 			}
 
@@ -175,12 +182,16 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 			ca, err := ioutil.ReadFile(client.GetCaFile())
 			if err != nil {
+				err = errors.New("fail to read ca certificate")
+				log.Println(err)
 				return nil, err
 			}
 
 			// Append the certificates from the CA
 			if ok := certPool.AppendCertsFromPEM(ca); !ok {
-				return nil, errors.New("failed to append ca certs")
+				err =  errors.New("failed to append ca certs")
+				log.Println(err)
+				return nil,err
 			}
 
 			creds := credentials.NewTLS(&tls.Config{
@@ -195,6 +206,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds))
 
 			if err != nil {
+				log.Println("fail to dial address ", err)
 				return nil, err
 			}
 		} else {
@@ -204,7 +216,6 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			}
 		}
 	}
-
 	return cc, nil
 }
 
@@ -217,11 +228,13 @@ func GetClientContext(client Client) context.Context {
 	// if the address is local.
 	address := client.GetDomain()
 
-	Utility.CreateDirIfNotExist(tokensPath)
+	err := Utility.CreateDirIfNotExist(tokensPath)
+	if err != nil {
+		log.Panicln("fail to create token dir ", tokensPath)
+	}
 	
 	// Get the token for that domain if it exist
 	path := tokensPath + "/" + client.GetDomain() + "_token"
-
 	token, err := ioutil.ReadFile(path)
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
@@ -231,7 +244,6 @@ func GetClientContext(client Client) context.Context {
 
 	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
-
 	return ctx
 
 }

@@ -107,10 +107,9 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		}
 
 		if !isLocal {
-log.Println("---------> 110")
 			keyPath, certPath, caPath, err := getCredentialConfig(path, serverConfig["Domain"].(string), country, state, city, organization, alternateDomains, port)
 			if err != nil {
-				log.Println("---------> 113", err)
+				log.Println("Fail to retreive credential configuration with error ", err)
 				return nil, err
 			}
 			

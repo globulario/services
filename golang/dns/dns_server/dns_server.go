@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -93,11 +94,6 @@ type server struct {
 	StorageDataPath string
 
 	store *storage_store.LevelDB_store
-
-	// The dns records... https://en.wikipedia.org/wiki/List_of_DNS_record_types
-	// see the wikipedia page to know exactly what are the values that can
-	// be use here.
-	Records map[string][]interface{}
 
 	connection_is_open bool
 }
@@ -382,9 +378,6 @@ func (server *server) openConnection() error {
 
 	server.connection_is_open = true
 
-	// Init the records with that connection.
-	server.initRecords()
-
 	return nil
 }
 
@@ -417,7 +410,7 @@ func (server *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
 	err = server.store.SetItem(uuid, []byte(rqst.A))
 	if err != nil {
@@ -452,7 +445,7 @@ func (server *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
@@ -477,6 +470,7 @@ func (server *server) get_ipv4(domain string) (string, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
 	ipv4, err := server.store.GetItem(uuid)
 	if err != nil {
@@ -532,6 +526,7 @@ func (server *server) SetAAAA(ctx context.Context, rqst *dnspb.SetAAAARequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 
 	err = server.store.SetItem(uuid, []byte(rqst.Aaaa))
@@ -563,7 +558,7 @@ func (server *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequ
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
@@ -589,6 +584,7 @@ func (server *server) get_ipv6(domain string) (string, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	address, err := server.store.GetItem(uuid)
 	if err != nil {
@@ -609,6 +605,8 @@ func (server *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	ipv6, err := server.store.GetItem(uuid)
 	if err != nil {
@@ -616,6 +614,7 @@ func (server *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	fmt.Println("ipv6 for", domain, "is", string(ipv6))
 	return &dnspb.GetAAAAResponse{
 		Aaaa: string(ipv6), // return the full domain.
@@ -640,7 +639,8 @@ func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("TXT:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("TXT:" + id)
 	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
@@ -664,6 +664,7 @@ func (server *server) getText(id string) ([]string, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
@@ -677,19 +678,24 @@ func (server *server) getText(id string) ([]string, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	fmt.Println("values retreive: ", values)
+	
 	return values, server.getTtl(uuid), nil
 }
 
 // Retreive a text value
 func (server *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (*dnspb.GetTextResponse, error) {
-	fmt.Println("Try get dns text ", domain)
+	fmt.Println("Try get dns text ", rqst.Id)
 	err := server.openConnection()
 	if err != nil {
-		return nil, status.Errorf(
+		return nil, status.Errorf( 
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("TXT:" + rqst.Id)
+
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("TXT:" +id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -720,7 +726,8 @@ func (server *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequ
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("TXT:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("TXT:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -743,8 +750,8 @@ func (server *server) SetNs(ctx context.Context, rqst *dnspb.SetNsRequest) (*dns
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("NS:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("NS:" + id)
 	err = server.store.SetItem(uuid, []byte(rqst.Ns))
 	if err != nil {
 		return nil, status.Errorf(
@@ -766,6 +773,7 @@ func (server *server) getNs(id string) (string, uint32, error) {
 	if err != nil {
 		return "", 0, err
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("NS:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
@@ -785,7 +793,8 @@ func (server *server) GetNs(ctx context.Context, rqst *dnspb.GetNsRequest) (*dns
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("NS:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("NS:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -808,7 +817,8 @@ func (server *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest)
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("NS:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("NS:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -831,8 +841,8 @@ func (server *server) SetCName(ctx context.Context, rqst *dnspb.SetCNameRequest)
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("CName:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("CName:" + id)
 	err = server.store.SetItem(uuid, []byte(rqst.Cname))
 	if err != nil {
 		return nil, status.Errorf(
@@ -856,6 +866,7 @@ func (server *server) getCName(id string) (string, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("CName:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
@@ -875,7 +886,8 @@ func (server *server) GetCName(ctx context.Context, rqst *dnspb.GetCNameRequest)
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("CName:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("CName:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -898,7 +910,8 @@ func (server *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRe
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("CName:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("CName:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -928,8 +941,8 @@ func (server *server) SetMx(ctx context.Context, rqst *dnspb.SetMxRequest) (*dns
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("MX:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("MX:" + id)
 	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
@@ -953,8 +966,12 @@ func (server *server) getMx(id string) (map[string]interface{}, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("MX:" + id)
 	data, err := server.store.GetItem(uuid)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	values := make(map[string]interface{}) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, &values)
@@ -975,7 +992,8 @@ func (server *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dns
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("MX:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("MX:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1010,7 +1028,8 @@ func (server *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest)
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	uuid := Utility.GenerateUUID("MX:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("MX:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1040,8 +1059,8 @@ func (server *server) SetSoa(ctx context.Context, rqst *dnspb.SetSoaRequest) (*d
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("SOA:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("SOA:" + id)
 	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1065,8 +1084,12 @@ func (server *server) getSoa(id string) (*dnspb.SOA, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("SOA:" + id)
 	data, err := server.store.GetItem(uuid)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	soa := new(dnspb.SOA) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, soa)
@@ -1087,7 +1110,8 @@ func (server *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*d
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("SOA:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("SOA:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1118,8 +1142,8 @@ func (server *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaReques
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("SOA:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("SOA:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1148,8 +1172,8 @@ func (server *server) SetUri(ctx context.Context, rqst *dnspb.SetUriRequest) (*d
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("URI:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("URI:" + id)
 	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1173,8 +1197,12 @@ func (server *server) getUri(id string) (*dnspb.URI, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("URI:" + id)
 	data, err := server.store.GetItem(uuid)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	uri := new(dnspb.URI) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, uri)
@@ -1195,7 +1223,8 @@ func (server *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*d
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	uuid := Utility.GenerateUUID("URI:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("URI:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1226,8 +1255,8 @@ func (server *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriReques
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("URI:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("URI:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1256,8 +1285,8 @@ func (server *server) SetAfsdb(ctx context.Context, rqst *dnspb.SetAfsdbRequest)
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("AFSDB:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1281,8 +1310,12 @@ func (server *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	data, err := server.store.GetItem(uuid)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	afsdb := new(dnspb.AFSDB) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, afsdb)
@@ -1303,8 +1336,8 @@ func (server *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest)
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("AFSDB:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1335,8 +1368,8 @@ func (server *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRe
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("AFSDB:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("AFSDB:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1365,8 +1398,8 @@ func (server *server) SetCaa(ctx context.Context, rqst *dnspb.SetCaaRequest) (*d
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("CAA:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("CAA:" + id)
 	err = server.store.SetItem(uuid, values)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1390,8 +1423,12 @@ func (server *server) getCaa(id string) (*dnspb.CAA, uint32, error) {
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	id = strings.ToLower(id)
 	uuid := Utility.GenerateUUID("CAA:" + id)
 	data, err := server.store.GetItem(uuid)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	caa := new(dnspb.CAA) // use a map instead of Mx struct.
 	err = json.Unmarshal(data, caa)
@@ -1412,8 +1449,8 @@ func (server *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*d
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("CAA:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("CAA:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1444,8 +1481,8 @@ func (server *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaReques
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	uuid := Utility.GenerateUUID("CAA:" + rqst.Id)
+	id := strings.ToLower(rqst.Id)
+	uuid := Utility.GenerateUUID("CAA:" + id)
 	err = server.store.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1552,6 +1589,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				Hdr: dns.RR_Header{Name: id, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: ttl},
 				Txt: values,
 			})
+			log.Println("txt values found ", values)
 		} else {
 			fmt.Println("fail to retreive txt!", err)
 		}
@@ -1631,47 +1669,6 @@ func ServeDns(port int) error {
 	return nil
 }
 
-func (server *server) initStringRecords(recordType string, ttl uint32, record map[string]interface{}) error {
-	uuid := Utility.GenerateUUID(recordType + ":" + record["Id"].(string))
-	err := server.setTtl(uuid, ttl)
-	if err != nil {
-		return err
-	}
-	return server.store.SetItem(uuid, []byte(record["Value"].(string)))
-}
-
-func (server *server) initSructRecords(recordType string, ttl uint32, record map[string]interface{}) error {
-
-	data, err := json.Marshal(record["Value"].(map[string]interface{}))
-	if err != nil {
-		return err
-	}
-	uuid := Utility.GenerateUUID(recordType + ":" + record["Id"].(string))
-	err = server.store.SetItem(uuid, data)
-	if err != nil {
-		return err
-	}
-
-	return server.setTtl(uuid, ttl)
-}
-
-func (server *server) initArrayRecords(recordType string, ttl uint32, record map[string]interface{}) error {
-
-	data, err := json.Marshal(record["Value"].([]interface{}))
-	if err != nil {
-		return err
-	}
-
-	uuid := Utility.GenerateUUID(recordType + ":" + record["Id"].(string))
-
-	err = server.store.SetItem(uuid, data)
-	if err != nil {
-		return err
-	}
-
-	return server.setTtl(uuid, ttl)
-}
-
 func (server *server) setTtl(uuid string, ttl uint32) error {
 	data := make([]byte, 4)
 	binary.LittleEndian.PutUint32(data, ttl)
@@ -1689,53 +1686,6 @@ func (server *server) getTtl(uuid string) uint32 {
 	return binary.LittleEndian.Uint32(data)
 }
 
-// Initialyse all the records from the configuration.
-func (server *server) initRecords() error {
-	if server.Records == nil {
-		return nil
-	}
-
-	for name, records := range server.Records {
-		for i := 0; i < len(records); i++ {
-			var record = records[i].(map[string]interface{})
-			var ttl uint32
-			if record["ttl"] != nil {
-				ttl = uint32(record["ttl"].(float64))
-			} else {
-				ttl = 60 // default value of time to live.
-			}
-			var err error
-			if name == "A" {
-				err = server.initStringRecords("A", ttl, record)
-			} else if name == "AAAA" {
-				err = server.initSructRecords("AAAA", ttl, record)
-			} else if name == "AFSDB" {
-				err = server.initSructRecords("AFSDB", ttl, record)
-			} else if name == "CAA" {
-				err = server.initSructRecords("CAA", ttl, record)
-			} else if name == "CNAME" {
-				err = server.initStringRecords("CNAME", ttl, record)
-			} else if name == "MX" {
-				err = server.initSructRecords("MX", ttl, record)
-			} else if name == "SOA" {
-				err = server.initSructRecords("SOA", ttl, record)
-			} else if name == "TXT" {
-				err = server.initArrayRecords("TXT", ttl, record)
-			} else if name == "URI" {
-				err = server.initSructRecords("URI", ttl, record)
-			} else if name == "NS" {
-				err = server.initStringRecords("NS", ttl, record)
-			} else {
-				return errors.New("No ns record with type" + name + "exist!")
-			}
-			if err != nil {
-				fmt.Println("---> ", err)
-				return err
-			}
-		}
-	}
-	return nil
-}
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 var (

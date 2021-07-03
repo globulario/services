@@ -439,8 +439,13 @@ message DeleteOrganizationRsp{
 
 /** a globular server **/
 message Peer {
-	string domain = 1; // must be unique on the network.
-	repeated string actions=2;
+	string name = 1;
+	string domain = 2; // must be unique on the network.
+	string address = 3; // the ip address, can be local network addresse.
+	string mac = 4; // The mac address
+
+	// The list of actions.
+	repeated string actions=5;
 }
 
 /**

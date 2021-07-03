@@ -15229,7 +15229,7 @@ proto.resource.DeleteOrganizationRsp.prototype.setResult = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Peer.repeatedFields_ = [2];
+proto.resource.Peer.repeatedFields_ = [5];
 
 
 
@@ -15262,8 +15262,11 @@ proto.resource.Peer.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Peer.toObject = function(includeInstance, msg) {
   var f, obj = {
-    domain: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
+    name: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    address: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    mac: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    actionsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -15302,9 +15305,21 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDomain(value);
+      msg.setName(value);
       break;
     case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDomain(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAddress(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
+      break;
+    case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.addActions(value);
       break;
@@ -15337,17 +15352,38 @@ proto.resource.Peer.prototype.serializeBinary = function() {
  */
 proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getDomain();
+  f = message.getName();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
+  f = message.getDomain();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getAddress();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
   f = message.getActionsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      2,
+      5,
       f
     );
   }
@@ -15355,10 +15391,10 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
 
 
 /**
- * optional string domain = 1;
+ * optional string name = 1;
  * @return {string}
  */
-proto.resource.Peer.prototype.getDomain = function() {
+proto.resource.Peer.prototype.getName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -15367,17 +15403,71 @@ proto.resource.Peer.prototype.getDomain = function() {
  * @param {string} value
  * @return {!proto.resource.Peer} returns this
  */
-proto.resource.Peer.prototype.setDomain = function(value) {
+proto.resource.Peer.prototype.setName = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * repeated string actions = 2;
+ * optional string domain = 2;
+ * @return {string}
+ */
+proto.resource.Peer.prototype.getDomain = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Peer} returns this
+ */
+proto.resource.Peer.prototype.setDomain = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string address = 3;
+ * @return {string}
+ */
+proto.resource.Peer.prototype.getAddress = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Peer} returns this
+ */
+proto.resource.Peer.prototype.setAddress = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string mac = 4;
+ * @return {string}
+ */
+proto.resource.Peer.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Peer} returns this
+ */
+proto.resource.Peer.prototype.setMac = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * repeated string actions = 5;
  * @return {!Array<string>}
  */
 proto.resource.Peer.prototype.getActionsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
 };
 
 
@@ -15386,7 +15476,7 @@ proto.resource.Peer.prototype.getActionsList = function() {
  * @return {!proto.resource.Peer} returns this
  */
 proto.resource.Peer.prototype.setActionsList = function(value) {
-  return jspb.Message.setField(this, 2, value || []);
+  return jspb.Message.setField(this, 5, value || []);
 };
 
 
@@ -15396,7 +15486,7 @@ proto.resource.Peer.prototype.setActionsList = function(value) {
  * @return {!proto.resource.Peer} returns this
  */
 proto.resource.Peer.prototype.addActions = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
 };
 
 

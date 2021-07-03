@@ -210,17 +210,27 @@ func (dns_client *DNS_Client) SetA(token, domain, subdomain, ipv4 string, ttl ui
 	if err != nil {
 		return "", err
 	}
-	
+
 	return rsp.Message, nil
 }
 
-func (dns_client *DNS_Client) RemoveA(domain string) error {
-	
+func (dns_client *DNS_Client) RemoveA(token, domain string) error {
+
 	rqst := &dnspb.RemoveARequest{
 		Domain: domain,
 	}
 
-	_, err := dns_client.c.RemoveA(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveA(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -240,7 +250,7 @@ func (dns_client *DNS_Client) GetAAAA(domain string) (string, error) {
 	return rsp.Aaaa, nil
 }
 
-func (dns_client *DNS_Client) SetAAAA(domain string, ipv6 string, ttl uint32) (string, error) {
+func (dns_client *DNS_Client) SetAAAA(token, domain string, ipv6 string, ttl uint32) (string, error) {
 
 	rqst := &dnspb.SetAAAARequest{
 		Domain: domain,
@@ -248,27 +258,47 @@ func (dns_client *DNS_Client) SetAAAA(domain string, ipv6 string, ttl uint32) (s
 		Ttl:    ttl,
 	}
 
-	rsp, err := dns_client.c.SetAAAA(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	rsp, err := dns_client.c.SetAAAA(ctx, rqst)
 	if err != nil {
 		return "", err
 	}
 	return rsp.Message, nil
 }
 
-func (dns_client *DNS_Client) RemoveAAAA(domain string) error {
+func (dns_client *DNS_Client) RemoveAAAA(token, domain string) error {
 
 	rqst := &dnspb.RemoveAAAARequest{
 		Domain: domain,
 	}
 
-	_, err := dns_client.c.RemoveAAAA(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveAAAA(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetText(domain string, id string) ([]string, error) {
+func (dns_client *DNS_Client) GetText(id string) ([]string, error) {
 
 	rqst := &dnspb.GetTextRequest{
 		Id: id,
@@ -282,7 +312,7 @@ func (dns_client *DNS_Client) GetText(domain string, id string) ([]string, error
 	return rsp.GetValues(), nil
 }
 
-func (dns_client *DNS_Client) SetText(domain string, id string, values []string, ttl uint32) error {
+func (dns_client *DNS_Client) SetText(token, id string, values []string, ttl uint32) error {
 
 	rqst := &dnspb.SetTextRequest{
 		Id:     id,
@@ -290,24 +320,44 @@ func (dns_client *DNS_Client) SetText(domain string, id string, values []string,
 		Ttl:    ttl,
 	}
 
-	_, err := dns_client.c.SetText(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.SetText(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveText(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveText(token, id string) error {
 
 	rqst := &dnspb.RemoveTextRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveText(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveText(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetNs(domain string, id string) (string, error) {
+func (dns_client *DNS_Client) GetNs(id string) (string, error) {
 
 	rqst := &dnspb.GetNsRequest{
 		Id: id,
@@ -321,7 +371,7 @@ func (dns_client *DNS_Client) GetNs(domain string, id string) (string, error) {
 	return rsp.GetNs(), nil
 }
 
-func (dns_client *DNS_Client) SetNs(domain string, id string, ns string, ttl uint32) error {
+func (dns_client *DNS_Client) SetNs(token, id string, ns string, ttl uint32) error {
 
 	rqst := &dnspb.SetNsRequest{
 		Id:  id,
@@ -329,24 +379,44 @@ func (dns_client *DNS_Client) SetNs(domain string, id string, ns string, ttl uin
 		Ttl: ttl,
 	}
 
-	_, err := dns_client.c.SetNs(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.SetNs(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveNs(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveNs(token, id string) error {
 
 	rqst := &dnspb.RemoveNsRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveNs(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveNs(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetCName(domain string, id string) (string, error) {
+func (dns_client *DNS_Client) GetCName(id string) (string, error) {
 
 	rqst := &dnspb.GetCNameRequest{
 		Id: id,
@@ -360,32 +430,50 @@ func (dns_client *DNS_Client) GetCName(domain string, id string) (string, error)
 	return rsp.GetCname(), nil
 }
 
-func (dns_client *DNS_Client) SetCName(domain string, id string, cname string, ttl uint32) error {
+func (dns_client *DNS_Client) SetCName(token, id string, cname string, ttl uint32) error {
 
 	rqst := &dnspb.SetCNameRequest{
 		Id:    id,
 		Cname: cname,
 		Ttl:   ttl,
 	}
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
 
-	_, err := dns_client.c.SetCName(globular.GetClientContext(dns_client), rqst)
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	_, err := dns_client.c.SetCName(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveCName(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveCName(token, id string) error {
 
 	rqst := &dnspb.RemoveCNameRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveCName(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveCName(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetMx(domain string, id string) (map[string]interface{}, error) {
+func (dns_client *DNS_Client) GetMx(token, id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetMxRequest{
 		Id: id,
@@ -403,7 +491,7 @@ func (dns_client *DNS_Client) GetMx(domain string, id string) (map[string]interf
 	return mx, nil
 }
 
-func (dns_client *DNS_Client) SetMx(domain string, id string, preference uint16, mx string, ttl uint32) error {
+func (dns_client *DNS_Client) SetMx(token, id string, preference uint16, mx string, ttl uint32) error {
 
 	rqst := &dnspb.SetMxRequest{
 		Id: id,
@@ -414,24 +502,44 @@ func (dns_client *DNS_Client) SetMx(domain string, id string, preference uint16,
 		Ttl: ttl,
 	}
 
-	_, err := dns_client.c.SetMx(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.SetMx(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveMx(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveMx(token, id string) error {
 
 	rqst := &dnspb.RemoveMxRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveMx(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveMx(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetSoa(domain string, id string) (map[string]interface{}, error) {
+func (dns_client *DNS_Client) GetSoa(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetSoaRequest{
 		Id: id,
@@ -454,7 +562,7 @@ func (dns_client *DNS_Client) GetSoa(domain string, id string) (map[string]inter
 	return soa, nil
 }
 
-func (dns_client *DNS_Client) SetSoa(domain string, id string, ns string, mbox string, serial uint32, refresh uint32, retry uint32, expire uint32, minttl uint32, ttl uint32) error {
+func (dns_client *DNS_Client) SetSoa(token, id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32) error {
 
 	rqst := &dnspb.SetSoaRequest{
 		Id: id,
@@ -470,24 +578,44 @@ func (dns_client *DNS_Client) SetSoa(domain string, id string, ns string, mbox s
 		Ttl: ttl,
 	}
 
-	_, err := dns_client.c.SetSoa(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.SetSoa(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveSoa(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveSoa(token, id string) error {
 
 	rqst := &dnspb.RemoveSoaRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveSoa(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveSoa(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetUri(domain string, id string) (map[string]interface{}, error) {
+func (dns_client *DNS_Client) GetUri(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetUriRequest{
 		Id: id,
@@ -506,7 +634,7 @@ func (dns_client *DNS_Client) GetUri(domain string, id string) (map[string]inter
 	return uri, nil
 }
 
-func (dns_client *DNS_Client) SetUri(domain string, id string, priority uint32, weight uint32, target string, ttl uint32) error {
+func (dns_client *DNS_Client) SetUri(token, id string, priority, weight uint32, target string, ttl uint32) error {
 
 	rqst := &dnspb.SetUriRequest{
 		Id: id,
@@ -518,24 +646,44 @@ func (dns_client *DNS_Client) SetUri(domain string, id string, priority uint32, 
 		Ttl: ttl,
 	}
 
-	_, err := dns_client.c.SetUri(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.SetUri(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveUri(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveUri(token, id string) error {
 
 	rqst := &dnspb.RemoveUriRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveUri(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveUri(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetCaa(domain string, id string) (map[string]interface{}, error) {
+func (dns_client *DNS_Client) GetCaa(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetCaaRequest{
 		Id: id,
@@ -554,7 +702,7 @@ func (dns_client *DNS_Client) GetCaa(domain string, id string) (map[string]inter
 	return caa, nil
 }
 
-func (dns_client *DNS_Client) SetCaa(domain string, id string, flag uint32, tag string, value string, ttl uint32) error {
+func (dns_client *DNS_Client) SetCaa(token, id string, flag uint32, tag string, value string, ttl uint32) error {
 
 	rqst := &dnspb.SetCaaRequest{
 		Id: id,
@@ -566,24 +714,44 @@ func (dns_client *DNS_Client) SetCaa(domain string, id string, flag uint32, tag 
 		Ttl: ttl,
 	}
 
-	_, err := dns_client.c.SetCaa(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.SetCaa(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveCaa(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveCaa(token, id string) error {
 
 	rqst := &dnspb.RemoveCaaRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveCaa(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveCaa(ctx, rqst)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (dns_client *DNS_Client) GetAfsdb(domain string, id string) (map[string]interface{}, error) {
+func (dns_client *DNS_Client) GetAfsdb(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetAfsdbRequest{
 		Id: id,
@@ -601,7 +769,7 @@ func (dns_client *DNS_Client) GetAfsdb(domain string, id string) (map[string]int
 	return afsdb, nil
 }
 
-func (dns_client *DNS_Client) SetAfsdb(domain string, id string, subtype uint32, hostname string, ttl uint32) error {
+func (dns_client *DNS_Client) SetAfsdb(token, id string, subtype uint32, hostname string, ttl uint32) error {
 
 	rqst := &dnspb.SetAfsdbRequest{
 		Id: id,
@@ -612,17 +780,36 @@ func (dns_client *DNS_Client) SetAfsdb(domain string, id string, subtype uint32,
 		Ttl: ttl,
 	}
 
-	_, err := dns_client.c.SetAfsdb(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	_, err := dns_client.c.SetAfsdb(ctx, rqst)
 	return err
 }
 
-func (dns_client *DNS_Client) RemoveAfsdb(domain string, id string) error {
+func (dns_client *DNS_Client) RemoveAfsdb(token, id string) error {
 
 	rqst := &dnspb.RemoveAfsdbRequest{
 		Id: id,
 	}
 
-	_, err := dns_client.c.RemoveAfsdb(globular.GetClientContext(dns_client), rqst)
+	ctx := globular.GetClientContext(dns_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := dns_client.c.RemoveAfsdb(ctx, rqst)
 	if err != nil {
 		return err
 	}

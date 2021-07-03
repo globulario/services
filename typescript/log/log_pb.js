@@ -249,7 +249,9 @@ proto.log.LogInfo.toObject = function(includeInstance, msg) {
     userid: jspb.Message.getFieldWithDefault(msg, 4, ""),
     username: jspb.Message.getFieldWithDefault(msg, 5, ""),
     method: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    message: jspb.Message.getFieldWithDefault(msg, 7, "")
+    message: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    functionName: jspb.Message.getFieldWithDefault(msg, 8, ""),
+    line: jspb.Message.getFieldWithDefault(msg, 9, "")
   };
 
   if (includeInstance) {
@@ -313,6 +315,14 @@ proto.log.LogInfo.deserializeBinaryFromReader = function(msg, reader) {
     case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.setMessage(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFunctionName(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setLine(value);
       break;
     default:
       reader.skipField();
@@ -389,6 +399,20 @@ proto.log.LogInfo.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       7,
+      f
+    );
+  }
+  f = message.getFunctionName();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getLine();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
       f
     );
   }
@@ -518,6 +542,42 @@ proto.log.LogInfo.prototype.getMessage = function() {
  */
 proto.log.LogInfo.prototype.setMessage = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string function_name = 8;
+ * @return {string}
+ */
+proto.log.LogInfo.prototype.getFunctionName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.log.LogInfo} returns this
+ */
+proto.log.LogInfo.prototype.setFunctionName = function(value) {
+  return jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string line = 9;
+ * @return {string}
+ */
+proto.log.LogInfo.prototype.getLine = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.log.LogInfo} returns this
+ */
+proto.log.LogInfo.prototype.setLine = function(value) {
+  return jspb.Message.setProto3StringField(this, 9, value);
 };
 
 

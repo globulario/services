@@ -223,6 +223,7 @@ func (client *Applications_Manager_Client) UninstallApplication(token string, do
  * Deploy the content of an application with a given name to the server.
  */
 func (client *Applications_Manager_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
+	log.Println("deploy application", name)
 	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
@@ -234,7 +235,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 
 	// Now I will open the data and create a archive from it.
 	var buffer bytes.Buffer
-	err = Utility.CompressDir(path, &buffer)
+	total, err := Utility.CompressDir(path, &buffer)
 	if err != nil {
 		return -1, err
 	}
@@ -257,8 +258,12 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	packageConfig := make(map[string]interface{})
+	log.Println("read file from", absolutePath)
+	data, err := ioutil.ReadFile(absolutePath)
+	if err != nil {
+		return -1, err
+	}
 
-	data, _ := ioutil.ReadFile(absolutePath)
 	err = json.Unmarshal(data, &packageConfig)
 	if err != nil {
 		return -1, err
@@ -282,6 +287,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 
 	// Now The application is deploy I will set application actions from the
 	// package.json file.
+	log.Println("set actions")
 	actions := make([]string, 0)
 	if packageConfig["actions"] != nil {
 		for i := 0; i < len(packageConfig["actions"].([]interface{})); i++ {
@@ -291,6 +297,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	// Create roles.
+	log.Println("create roles")
 	roles := make([]*resourcepb.Role, 0)
 	if packageConfig["roles"] != nil {
 		// Here I will create the roles require by the applications.
@@ -309,6 +316,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	// Create groups.
+	log.Println("create groups")
 	groups := make([]*resourcepb.Group, 0)
 	if packageConfig["groups"] != nil {
 		groups_ := packageConfig["groups"].([]interface{})
@@ -356,12 +364,12 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 		return -1, err
 	}
 
-	const BufferSize = 1024 * 5 // the chunck size.
+	const BufferSize = 1024 * 25 // the chunck size.
 	var size int
-
 	for {
 		var data [BufferSize]byte
 		bytesread, err := buffer.Read(data[0:BufferSize])
+
 		if bytesread > 0 {
 			rqst := &applications_managerpb.DeployApplicationRequest{
 				Data:         data[0:bytesread],
@@ -388,6 +396,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 			}
 		}
 		size += bytesread
+		log.Println("transfert ",size, "of", total, " ", int(float64(size)/ float64(total) * 100), "%")
 		if err == io.EOF {
 			err = nil
 			break
