@@ -836,7 +836,10 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-// Peer key generation.
+// Peer key generation. Diffie-Hellman
+//
+// https://www.youtube.com/watch?v=NmM9HA2MQGI&ab_channel=Computerphile
+//
 ////////////////////////////////////////////////////////////////////////////////////
 
 // Encode / Decode
@@ -903,12 +906,12 @@ func GetPeerKey(id, path string) ([]byte, error) {
 
 	// If the token issuer is not the actual globule but another peer
 	// I will use it public key and my private one to generate the correct key.
-	puba, err := decodePublicKey(path+"/"+id+"_public")
+	puba, err := decodePublicKey(path + "/" + id + "_public")
 	if err != nil {
 		return nil, err
 	}
 
-	privb, err := decodePrivateKey(path+"/"+Utility.MyMacAddr()+"_public")
+	privb, err := decodePrivateKey(path + "/" + Utility.MyMacAddr() + "_public")
 	if err != nil {
 		return nil, err
 	}
@@ -922,11 +925,11 @@ func GetPeerKey(id, path string) ([]byte, error) {
 /**
  * The key must be formated as pem.
  */
-func SetPeerPublicKey(id, path, encPub string) error{
+func SetPeerPublicKey(id, path, encPub string) error {
 	err := ioutil.WriteFile(path+"/"+id+"_public", []byte(encPub), 0644)
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
