@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"log"
+	"fmt"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
@@ -130,8 +130,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 					s["Process"] = p.Process.Pid
 					s["State"] = "running"
 				}
-				log.Println(info)
-				//logInfo(s["Name"].(string) + ":" + s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), result, logpb.LogLevel_INFO_MESSAGE)
+				fmt.Println(info)
 			}
 		}
 

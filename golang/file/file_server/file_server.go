@@ -81,7 +81,7 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies []string // The list of services needed by this services.
+	Dependencies       []string      // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -159,9 +159,9 @@ func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
@@ -434,7 +434,6 @@ func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbna
 	// Save the thumbnail into a file to not having to recreate-it each time...
 	ioutil.WriteFile(_path, []byte(thumbnail), 0644)
 
-
 	return thumbnail
 }
 
@@ -687,7 +686,6 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-
 			user, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
@@ -1081,7 +1079,7 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string {"rbac.RbacService"}
+	s_impl.Dependencies = []string{"rbac.RbacService"}
 
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.

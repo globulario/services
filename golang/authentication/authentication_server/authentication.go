@@ -14,6 +14,7 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -22,10 +23,12 @@ var (
 	dataPath   = "/var/globular/data"
 	configPath = "/etc/globular/config/config.json"
 	tokensPath = "/etc/globular/config/tokens"
+	keyPath    = "/etc/globular/config/keys"
 )
 
 //* Validate a token *
 func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
+
 	id, _, _, expireAt, err := interceptors.ValidateToken(rqst.Token)
 	if err != nil {
 		return nil, status.Errorf(
@@ -59,14 +62,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	key, err := server.getKey()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), id, name, email)
+	tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), id, name, email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -90,7 +86,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 		_, _, _, expireAt, _ = interceptors.ValidateToken(tokenString)
 		session.ExpireAt = expireAt
 
-		server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: " + time.Unix(expireAt, 0).Local().String() + " actual time is " + time.Now().Local().String())
+		server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
 		// save the session in the backend.
 		err = server.updateSession(session)
 		if err != nil {
@@ -108,6 +104,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 
 //* Set the account password *
 func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
+
 	// Here I will get the account info.
 	account, err := server.getAccount(rqst.AccountId)
 	if err != nil {
@@ -206,15 +203,8 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	key, err := server.getKey()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// The token string
-	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -281,33 +271,29 @@ func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.S
 }
 
 /**
- * Set the secret key that will be use to validate token. That key will be generate each time the server will be
- * restarted and all token generated with previous key will be automatically invalidated...
+ * This will set peer private and public key. The keys will by save 
+ * in the keypath.
  */
-func (server *server) setKey() error {
-	return ioutil.WriteFile(keyPath+"/globular_key", []byte(Utility.RandomUUID()), 0644)
-}
+func (server *server) setKey(mac string) error {
 
-/**
- * Get the key from the file.
- */
-func (server *server) getKey() (string, error) {
-	data, err := ioutil.ReadFile(keyPath + "/globular_key")
+	// First of all i will create the keys directory if it not already exist.
+	err := Utility.CreateDirIfNotExist(keyPath)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return string(data), nil
+
+	// Now I will generate keys if not already exist.
+	if Utility.MyMacAddr() == mac {
+		if !Utility.Exists(keyPath + "/" + mac + "_public") {
+			return security.GeneratePeerKeys(mac, keyPath)
+		}
+	}
+
+	return nil
 }
 
 /* Authenticate a user */
-func (server *server) authenticate(accountId string, pwd string) (string, error) {
-
-	key, err := server.getKey()
-	if err != nil {
-		return "", status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+func (server *server) authenticate(accountId, pwd string) (string, error) {
 
 	// If the user is the root...
 	if accountId == "sa" {
@@ -351,7 +337,7 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 			}
 		}
 
-		tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), "sa", "sa", config["AdminEmail"].(string))
+		tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -381,8 +367,7 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 	session.AccountId = account.Id
 
 	// The token string
-
-	tokenString, err := interceptors.GenerateToken([]byte(key), time.Duration(server.SessionTimeout), account.Id, account.Name, account.Email)
+	tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), account.Id, account.Name, account.Email)
 	if err != nil {
 		return "", err
 	}
@@ -409,6 +394,7 @@ func (server *server) authenticate(accountId string, pwd string) (string, error)
 //* Authenticate a user *
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 	server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+rqst.Name+" try to connect")
+
 	tokenString, err := server.authenticate(rqst.Name, rqst.Password)
 	if err != nil {
 		return nil, status.Errorf(

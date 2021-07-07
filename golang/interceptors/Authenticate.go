@@ -3,10 +3,10 @@ package interceptors
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/globulario/services/golang/security"
 )
 
 // TODO made use of a key store...
@@ -42,24 +42,37 @@ type Claims struct {
 }
 
 // Generate a token for a ginven user.
-func GenerateToken(jwtKey []byte, timeout time.Duration, id string, userName string, email string) (string, error) {
+func GenerateToken(timeout time.Duration, issuer, userId, userName, email string) (string, error) {
 
 	// Declare the expiration time of the token
-	expirationTime := time.Now().Add(timeout * time.Millisecond)
+	now := time.Now()
+	expirationTime := now.Add(timeout * time.Millisecond)
 
 	// Create the JWT claims, which includes the username and expiry time
 	claims := &Claims{
-		ID:       id,
+		ID:       userId,
 		Username: userName,
 		Email:    email,
 		StandardClaims: jwt.StandardClaims{
 			// In JWT, the expiry time is expressed as unix milliseconds
+			Id: userId,
 			ExpiresAt: expirationTime.Unix(),
+			Subject: userName,
+			Issuer: issuer,
+			IssuedAt: now.Unix(),
 		},
 	}
 
 	// Declare the token with the algorithm used for signing, and the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	var jwtKey []byte
+	var err error
+
+	// Get the jwt key...
+	jwtKey, err = security.GetPeerKey(issuer, keyPath)
+	if err != nil {
+		return "", err
+	}
 
 	// Create the JWT string
 	tokenString, err := token.SignedString(jwtKey)
@@ -81,11 +94,11 @@ func ValidateToken(token string) (string, string, string, int64, error) {
 	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
 	// or if the signature does not match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-		
 		// Get the jwt key from file.
-		jwtKey, err := ioutil.ReadFile(keyPath + "/globular_key")
+		jwtKey, err := security.GetPeerKey(claims.Issuer, keyPath)
 		return jwtKey, err
 	})
+
 
 	if err != nil {
 		return claims.ID, claims.Username, claims.Email, claims.ExpiresAt, err

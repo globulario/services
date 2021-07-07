@@ -178,9 +178,9 @@ func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
@@ -633,12 +633,10 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-
 			clientId, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return nil, err
 			}
-
 		} else {
 			return nil, errors.New("no token was given")
 		}
@@ -655,7 +653,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	// Validate the clientId is the owner of the conversation.
 	isOwner, _, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 
-	if err != nil  {
+	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1053,7 +1051,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	hasAccess,_, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
+	hasAccess, _, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

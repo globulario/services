@@ -1,8 +1,13 @@
 package security
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -46,11 +51,11 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	} else {
 		isLocal = false
 	}
-	
+
 	if !isLocal {
 		// First I will retreive the server configuration.
 		serverConfig, err = getRemoteConfig(address, port)
-		
+
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +117,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 				log.Println("Fail to retreive credential configuration with error ", err)
 				return nil, err
 			}
-			
+
 			// set the credential function here
 			config["KeyFile"] = keyPath
 			config["CertFile"] = certPath
@@ -272,7 +277,7 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 /**
  * Return the credential configuration.
  */
-func getCredentialConfig(basePath string, address string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
+func getCredentialConfig(basePath string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
@@ -281,14 +286,14 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	path := basePath + "/config/tls"
 
 	// must have write access of file.
-	_, err = ioutil.ReadFile(path + "/" + address + "/client.pem")
+	_, err = ioutil.ReadFile(path + "/" + domain + "/client.pem")
 	if err != nil {
 		path = basePath + "/config/tls"
 		err = nil
 	}
 
 	// Create a new directory to put the credential.
-	creds := path + "/" + address
+	creds := path + "/" + domain
 
 	// Return the existing paths...
 	if Utility.Exists(creds) &&
@@ -319,7 +324,7 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	// be deployed. Certificate autority run wihtout tls.
 
 	// Get the ca.crt certificate.
-	ca_crt, err := getCaCertificate(address, port)
+	ca_crt, err := getCaCertificate(domain, port)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -338,19 +343,18 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	}
 
 	alternateDomains_ := make([]string, 0)
-	alternateDomains_ = append(alternateDomains_, address)
 	for i := 0; i < len(alternateDomains); i++ {
 		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
 	}
 
 	// generate the SAN file
-	err = GenerateSanConfig(creds, country, state, city, organization, alternateDomains_)
+	err = GenerateSanConfig(domain, creds, country, state, city, organization, alternateDomains_)
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// Step 2: Generate the client signing request.
-	err = GenerateClientCertificateSigningRequest(creds, pwd, address)
+	err = GenerateClientCertificateSigningRequest(creds, pwd, domain)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -362,7 +366,7 @@ func getCredentialConfig(basePath string, address string, country string, state 
 	}
 
 	// Sign the certificate from the server ca...
-	client_crt, err := signCaCertificate(address, string(client_csr), Utility.ToInt(port))
+	client_crt, err := signCaCertificate(domain, string(client_csr), Utility.ToInt(port))
 	if err != nil {
 		return "", "", "", err
 	}
@@ -603,7 +607,7 @@ func GenerateSignedClientCertificate(path string, pwd string, expiration_delay i
 	return nil
 }
 
-func GenerateSanConfig(path string, country string, state string, city string, organization string, domains []string) error {
+func GenerateSanConfig(domain, path, country, state, city, organization string, alternateDomains []string) error {
 
 	config := fmt.Sprintf(`
 [req]
@@ -625,11 +629,15 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment
 subjectAltName = @alt_names
 
 [alt_names]
-`, country, state, city, organization, domains[0])
+`, country, state, city, organization, domain)
+	// TODO filter wild card domains here ...
+	if !Utility.Contains(alternateDomains, domain) {
+		alternateDomains = append(alternateDomains, domain)
+	}
 
 	// set alternate domain
-	for i := 0; i < len(domains); i++ {
-		config += fmt.Sprintf("DNS.%d = %s \n", i, domains[i])
+	for i := 0; i < len(alternateDomains); i++ {
+		config += fmt.Sprintf("DNS.%d = %s \n", i, alternateDomains[i])
 	}
 
 	if Utility.Exists(path + "/san.conf") {
@@ -763,74 +771,162 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 	if Utility.Exists(path + "/client.crt") {
 		return nil // certificate are already created.
 	}
-
-	alternateDomains_ := make([]string, len(alternateDomains))
+	alternateDomains_ := make([]string, 0)
 	for i := 0; i < len(alternateDomains); i++ {
-		alternateDomains_[i] = alternateDomains[i].(string)
-	}
-
-	// Alternate domain must contain the domain (CN=domain)...
-	if !Utility.Contains(alternateDomains_, domain) {
-		alternateDomains_ = append([]string{domain}, alternateDomains_...)
+		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
 	}
 
 	// Generate the SAN configuration.
-	err := GenerateSanConfig(path, country, state, city, organization, alternateDomains_)
+	err := GenerateSanConfig(domain, path, country, state, city, organization, alternateDomains_)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateAuthorityPrivateKey(path, pwd)
 	if err != nil {
-
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateAuthorityTrustCertificate(path, pwd, expiration_delay, domain)
 	if err != nil {
-
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateSeverPrivateKey(path, pwd)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateServerCertificateSigningRequest(path, pwd, domain)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateSignedServerCertificate(path, pwd, expiration_delay)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = KeyToPem("server", path, pwd)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateClientPrivateKey(path, pwd)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateClientCertificateSigningRequest(path, pwd, domain)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = GenerateSignedClientCertificate(path, pwd, expiration_delay)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
-
 	err = KeyToPem("client", path, pwd)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Peer key generation.
+////////////////////////////////////////////////////////////////////////////////////
+
+// Encode / Decode
+func encodePrivateKey(privateKey *ecdsa.PrivateKey) string {
+	x509Encoded, _ := x509.MarshalECPrivateKey(privateKey)
+	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded})
+	return string(pemEncoded)
+}
+
+func encodePublicKey(publicKey *ecdsa.PublicKey) string {
+	x509EncodedPub, _ := x509.MarshalPKIXPublicKey(publicKey)
+	pemEncodedPub := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
+	return string(pemEncodedPub)
+}
+
+func decodePrivateKey(pemEncoded string) (*ecdsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(pemEncoded))
+	x509Encoded := block.Bytes
+	return x509.ParseECPrivateKey(x509Encoded)
+}
+
+func decodePublicKey(pemEncodedPub string) (*ecdsa.PublicKey, error) {
+	blockPub, _ := pem.Decode([]byte(pemEncodedPub))
+	x509EncodedPub := blockPub.Bytes
+	genericPublicKey, err := x509.ParsePKIXPublicKey(x509EncodedPub)
+	if err != nil {
+		return nil, err
+	}
+	publicKey := genericPublicKey.(*ecdsa.PublicKey)
+	return publicKey, nil
+}
+
+/**
+ * Generate keys and save it at given path.
+ */
+func GeneratePeerKeys(id, path string) error {
+	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	publicKey := &privateKey.PublicKey
+
+	encPriv := encodePrivateKey(privateKey)
+	err := ioutil.WriteFile(path+"/"+id+"_private", []byte(encPriv), 0644)
 	if err != nil {
 		return err
 	}
 
+	encPub := encodePublicKey(publicKey)
+	err = ioutil.WriteFile(path+"/"+id+"_public", []byte(encPub), 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+/**
+ * Return a jwt token key for a given peer id (mac address)
+ */
+func GetPeerKey(id, path string) ([]byte, error) {
+	if id == Utility.MyMacAddr() {
+		// In that case the public key will be use as a token key...
+		// That token will be valid on the peer itself.
+		return ioutil.ReadFile(path + "/" + id + "_public")
+	}
+
+	// If the token issuer is not the actual globule but another peer
+	// I will use it public key and my private one to generate the correct key.
+	puba, err := decodePublicKey(path+"/"+id+"_public")
+	if err != nil {
+		return nil, err
+	}
+
+	privb, err := decodePrivateKey(path+"/"+Utility.MyMacAddr()+"_public")
+	if err != nil {
+		return nil, err
+	}
+
+	a, _ := puba.Curve.ScalarMult(puba.X, puba.Y, privb.D.Bytes())
+
+	// The same value will be generated other peers...
+	return a.Bytes(), nil
+}
+
+/**
+ * The key must be formated as pem.
+ */
+func SetPeerPublicKey(id, path, encPub string) error{
+	err := ioutil.WriteFile(path+"/"+id+"_public", []byte(encPub), 0644)
+	if err != nil {
+		return err
+	}
+	
 	return nil
 }

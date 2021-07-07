@@ -16,18 +16,17 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 
 	"github.com/golang/protobuf/jsonpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	// "go.mongodb.org/mongo-driver/x/mongo/driver/session"
-
-	"io/ioutil"
-
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+// Need to register peers
 var (
 	keyPath = "/etc/globular/config/keys"
 )
@@ -121,15 +120,8 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	data, err := ioutil.ReadFile(keyPath + "/globular_key")
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Generate a token to identify the user.
-	tokenString, err := interceptors.GenerateToken([]byte(data), resource_server.SessionTimeout, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	tokenString, err := interceptors.GenerateToken(resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
 	id, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
 
 	if err != nil {
@@ -1027,7 +1019,7 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
+
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+rqst.ApplicationId+`"}`, rqst.Values, "")
 
 	if err != nil {
@@ -1351,9 +1343,8 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 // Peer's Authorization and Authentication code.
 ////////////////////////////////////////////////////////////////////////////////
 
-//* Register a new Peer on the network *
+//* Connect to peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
-	// A peer want to be part of the network.
 
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -1363,7 +1354,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
-	_id := Utility.GenerateUUID(rqst.Peer.Domain)
+	_id := Utility.GenerateUUID(rqst.Peer.Mac) // The peer mac address will be use as peers id
 
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, "")
 	if count > 0 {
@@ -1377,6 +1368,8 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer := make(map[string]interface{}, 0)
 	peer["_id"] = _id
 	peer["domain"] = rqst.Peer.Domain
+	peer["mac"] = rqst.Peer.Mac
+	peer["address"] = rqst.Peer.Address
 	peer["actions"] = make([]interface{}, 0)
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
@@ -1386,8 +1379,31 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Here I wiil save the public key in the keys directory.
+	err = security.SetPeerPublicKey(rqst.Peer.Mac, keyPath, rqst.PublicKey)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will return peers actual informations.
+	peer_ := new(resourcepb.Peer)
+	peer_.Domain = resource_server.Domain
+	peer_.Address = Utility.MyIP()
+	peer_.Mac = Utility.MyMacAddr()
+
+	// actions will need to be set by admin latter...
+	pubKey, err := security.GetPeerKey(Utility.MyMacAddr(), keyPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	return &resourcepb.RegisterPeerRsp{
-		Result: true,
+		Peer: peer_,
+		PublicKey: string(pubKey),
 	}, nil
 }
 
@@ -1416,7 +1432,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	values := make([]*resourcepb.Peer, 0)
 
 	for i := 0; i < len(peers); i++ {
-		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), Actions: make([]string, 0)}
+		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), Address:  peers[i].(map[string]interface{})["address"].(string), Mac:  peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0)}
 		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
 		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
 			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))

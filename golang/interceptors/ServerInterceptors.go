@@ -10,8 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	//"log"
 	"strings"
 	"sync"
 	"time"
@@ -269,23 +267,12 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	// Get the peer information.
-	p, _ := peer.FromContext(ctx)
+	peer_, _ := peer.FromContext(ctx)
+	address := peer_.Addr.String()
+	address = address[0:strings.Index(address, ":")]
 
 	// Here I will test if the
 	method := info.FullMethod
-	if Utility.IsLocal(p.Addr.String()) {
-		domain = "localhost"
-	}
-
-	// log(domain, application, "", method, Utility.FileLine(), Utility.FunctionName(), "debug test",  logpb.LogLevel_DEBUG_MESSAGE)
-
-	if len(domain) == 0 {
-		if strings.Index(p.Addr.String(), ":") != 0 {
-			domain = p.Addr.String()[0:strings.Index(p.Addr.String(), ":")]
-		} else {
-			domain = p.Addr.String()
-		}
-	}
 
 	// If the call come from a local client it has hasAccess
 	hasAccess := false
@@ -352,7 +339,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if !hasAccess {
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, p.Addr.String(), rbacpb.SubjectType_PEER, domain)
+		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, address, rbacpb.SubjectType_PEER, domain)
 	}
 
 	if !hasAccess {
@@ -515,6 +502,13 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	peer_, _ := peer.FromContext(stream.Context())
 	address := peer_.Addr.String()
 	address = address[0:strings.Index(address, ":")]
+
+	// In case of a local call...
+	if Utility.IsLocal(address) {
+		domain = "localhost"
+	}
+
+	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
 		clientId, _, _, _, err = ValidateToken(token)
 		if err != nil {

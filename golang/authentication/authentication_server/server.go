@@ -10,14 +10,14 @@ import (
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/event/event_client"
-	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/rbac/rbac_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 
@@ -40,9 +40,6 @@ var (
 	allowed_origins string = ""
 
 	domain string = "localhost"
-
-	// Where the key is writting.
-	keyPath = "/etc/globular/config/keys"
 )
 
 // Value need by Globular to start the services...
@@ -154,14 +151,13 @@ func (server *server) GetDependencies() []string {
 	return server.Dependencies
 }
 
-
 func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
@@ -350,14 +346,14 @@ var (
 	resource_client_ *resource_client.Resource_Client
 	event_client_    *event_client.Event_Client
 	log_client_      *log_client.Log_Client
-	rbac_client_ *rbac_client.Rbac_Client
+	rbac_client_     *rbac_client.Rbac_Client
 )
 
 ///////////////////////  RBAC Services functions ////////////////////////////////////////////////
 /**
  * Get the rbac client.
  */
- func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
@@ -382,7 +378,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 /**
  * Get the log client.
  */
- func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
 		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
@@ -398,7 +394,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	if err != nil {
 		return
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
 func (server *server) logServiceError(method, fileLine, functionName, infos string) {
@@ -606,14 +602,11 @@ func main() {
 
 	s_impl.removeExpiredSessions()
 
-	if !Utility.Exists(keyPath) {
-		log.Println("create configuration file...")
-		Utility.CreateDirIfNotExist(keyPath)
-
-		err := s_impl.setKey()
-		if err != nil {
-			log.Fatalln(err)
-		}
+	// That function will set the value to be eable to create symetric encryption keys.
+	// So peer will be able to generate valid jwt token by themself.
+	err = s_impl.setKey(Utility.MyMacAddr())
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	// Start the service.

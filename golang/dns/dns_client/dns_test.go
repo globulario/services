@@ -4,15 +4,15 @@ import (
 	//"encoding/json"
 	"log"
 	"testing"
-	"github.com/davecourtois/Utility"
+
 	"github.com/globulario/services/golang/authentication/authentication_client"
 )
 
 var (
 	// Try to connect to a nameserver.
-	token = ""
-	domain = "ns1.mycelius.com"
-	client, _ = NewDnsService_Client(domain, "dns.DnsService")
+	token                     = ""
+	domain                    = "ns1.mycelius.com"
+	client, _                 = NewDnsService_Client(domain, "dns.DnsService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 )
 
@@ -28,7 +28,7 @@ func TestSetA(t *testing.T) {
 	}
 
 	// Set ip address
-	domain, err := client.SetA(token, "cargowebserver.com", "cargowebserver.com", Utility.MyIP(), 60)
+	domain, err := client.SetA(token, "globular.io", "peer2.globular.io", "52.26.136.219", 60)
 	if err == nil {
 		log.Println(err)
 	}
@@ -40,7 +40,7 @@ func TestSetA(t *testing.T) {
 
 	// Connect to the plc client.
 	log.Println("---> test resolve A")
-	ipv4, err := client.GetA("peer0.globular.app")
+	ipv4, err := client.GetA("peer0.globular.io.")
 	if err == nil {
 		log.Println("--> your ip is ", ipv4)
 	} else {
@@ -59,7 +59,7 @@ func TestSetA(t *testing.T) {
 		log.Panicln(err)
 	}
 }*/
-
+/*
 func TestTextValue(t *testing.T) {
 	// Connect to the plc client.
 	log.Println("---> test set text")
@@ -75,22 +75,22 @@ func TestTextValue(t *testing.T) {
 	}
 
 	log.Println("--> values retreive: ", values)
-/*
+
 	log.Println("---> test remove text")
 	err = client.RemoveText(token, "toto")
 	if err != nil {
 		log.Panicln(err)
 	}
-*/
-}
 
+}
+*/
 func TestNsValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
-	id := "peer0.cargowebserver.com."
-	ns:= "ns1.mycelius.com."
+	id := "globular.io."
+	ns := "ns1.mycelius.com."
 	ttl := uint32(11200)
 
-	err:= client.SetNs(token, id, ns, ttl)
+	err := client.SetNs(token, id, ns, ttl)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -98,16 +98,16 @@ func TestNsValue(t *testing.T) {
 
 func TestSoaValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
-	id := "peer0.cargowebserver.com."
-	ns:= "ns1.mycelius.com."
-	mbox:= "admin.cargowebserver.com."
+	id := "globular.io."
+	ns := "ns1.mycelius.com."
+	mbox := "admin.cargowebserver.com."
 	serial := uint32(1111111111)
 	refresh := uint32(86400)
 	retry := uint32(7200)
-	expire:= uint32(4000000)
+	expire := uint32(4000000)
 	ttl := uint32(11200)
 
-	err:= client.SetSoa(token, id, ns, mbox, serial, refresh, retry, expire, ttl, ttl)
+	err := client.SetSoa(token, id, ns, mbox, serial, refresh, retry, expire, ttl, ttl)
 	if err != nil {
 		log.Panicln(err)
 	}

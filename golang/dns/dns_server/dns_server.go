@@ -623,7 +623,7 @@ func (server *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (
 
 // Set a text entry.
 func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
-	fmt.Println("Try set dns text ", rqst.Id)
+	fmt.Println("Try set dns TXT with key: ", rqst.Id, " and values: ", rqst.Values )
 
 	err := server.openConnection()
 	if err != nil {
@@ -631,7 +631,14 @@ func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+/*
+	_, _, err = server.getText(rqst.Id)
+	if err == nil {
+		return &dnspb.SetTextResponse{
+			Result: true, // return the full domain.
+		}, nil
+	}
+*/
 	values, err := json.Marshal(rqst.Values)
 
 	if err != nil {
@@ -639,6 +646,7 @@ func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	id := strings.ToLower(rqst.Id)
 	uuid := Utility.GenerateUUID("TXT:" + id)
 	err = server.store.SetItem(uuid, values)
