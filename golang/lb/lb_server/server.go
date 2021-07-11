@@ -34,6 +34,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id              string
+	Mac string
 	Name            string
 	Domain          string
 	Path            string
@@ -102,6 +103,15 @@ func (svr *server) SetDescription(description string) {
 	svr.Description = description
 }
 
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
+}
+
+
 // The list of keywords of the services.
 func (svr *server) GetKeywords() []string {
 	return svr.Keywords
@@ -139,14 +149,13 @@ func (server *server) GetDependencies() []string {
 	return server.Dependencies
 }
 
-
 func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }

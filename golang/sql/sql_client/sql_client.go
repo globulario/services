@@ -22,6 +22,9 @@ type SQL_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -87,6 +90,10 @@ func (sql_client *SQL_Client) GetName() string {
 	return sql_client.name
 }
 
+func (sql_client *SQL_Client) GetMac() string {
+	return sql_client.mac
+}
+
 // must be close when no more needed.
 func (sql_client *SQL_Client) Close() {
 	sql_client.cc.Close()
@@ -101,6 +108,11 @@ func (sql_client *SQL_Client) SetPort(port int) {
 func (sql_client *SQL_Client) SetName(name string) {
 	sql_client.name = name
 }
+
+func (sql_client *SQL_Client) SetMac(mac string) {
+	sql_client.mac = mac
+}
+
 
 // Set the client service instance id.
 func (sql_client *SQL_Client) SetId(id string) {

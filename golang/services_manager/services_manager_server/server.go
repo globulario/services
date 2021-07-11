@@ -9,6 +9,8 @@ import (
 
 	"github.com/davecourtois/Utility"
 
+	"sync"
+
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -20,7 +22,6 @@ import (
 	service_manager_client "github.com/globulario/services/golang/services_manager/services_manager_client"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc"
-	"sync"
 
 	"google.golang.org/grpc/reflection"
 )
@@ -44,6 +45,7 @@ type server struct {
 	// The global attribute of the services.
 	Id              string
 	Name            string
+	Mac             string
 	Domain          string
 	Path            string
 	Proto           string
@@ -126,6 +128,15 @@ func (server *server) GetName() string {
 func (server *server) SetName(name string) {
 	server.Name = name
 }
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
+}
+
 
 // The description of the service
 func (server *server) GetDescription() string {
@@ -469,7 +480,7 @@ func (server *server) logServiceInfo(name string, infos string) {
 	if err != nil {
 		return
 	}
-	log_client_.Log(server.Name, server.Domain, name, logpb.LogLevel_INFO_MESSAGE, infos,Utility.FileLine(), Utility.FunctionName())
+	log_client_.Log(server.Name, server.Domain, name, logpb.LogLevel_INFO_MESSAGE, infos, Utility.FileLine(), Utility.FunctionName())
 }
 
 func (server *server) logServiceError(name string, infos string) {

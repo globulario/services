@@ -23,6 +23,9 @@ type Storage_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -61,108 +64,118 @@ func NewStorageService_Client(address string, id string) (*Storage_Client, error
 	return client, nil
 }
 
-func (self *Storage_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (storage_client *Storage_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(storage_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(storage_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *Storage_Client) GetDomain() string {
-	return self.domain
+func (storage_client *Storage_Client) GetDomain() string {
+	return storage_client.domain
 }
 
 // Return the address
-func (self *Storage_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (storage_client *Storage_Client) GetAddress() string {
+	return storage_client.domain + ":" + strconv.Itoa(storage_client.port)
+}
+
+// Return the mac address
+func (storage_client *Storage_Client) GetMac() string {
+	return storage_client.mac
 }
 
 // Return the id of the service instance
-func (self *Storage_Client) GetId() string {
-	return self.id
+func (storage_client *Storage_Client) GetId() string {
+	return storage_client.id
 }
 
 // Return the name of the service
-func (self *Storage_Client) GetName() string {
-	return self.name
+func (storage_client *Storage_Client) GetName() string {
+	return storage_client.name
 }
 
 // must be close when no more needed.
-func (self *Storage_Client) Close() {
-	self.cc.Close()
+func (storage_client *Storage_Client) Close() {
+	storage_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Storage_Client) SetPort(port int) {
-	self.port = port
+func (storage_client *Storage_Client) SetPort(port int) {
+	storage_client.port = port
 }
 
 // Set the client instance sevice id.
-func (self *Storage_Client) SetId(id string) {
-	self.id = id
+func (storage_client *Storage_Client) SetId(id string) {
+	storage_client.id = id
 }
 
 // Set the client name.
-func (self *Storage_Client) SetName(name string) {
-	self.name = name
+func (storage_client *Storage_Client) SetName(name string) {
+	storage_client.name = name
 }
 
+func (storage_client *Storage_Client) SetMac(mac string) {
+	storage_client.mac = mac
+}
+
+
 // Set the domain.
-func (self *Storage_Client) SetDomain(domain string) {
-	self.domain = domain
+func (storage_client *Storage_Client) SetDomain(domain string) {
+	storage_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Storage_Client) HasTLS() bool {
-	return self.hasTLS
+func (storage_client *Storage_Client) HasTLS() bool {
+	return storage_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Storage_Client) GetCertFile() string {
-	return self.certFile
+func (storage_client *Storage_Client) GetCertFile() string {
+	return storage_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Storage_Client) GetKeyFile() string {
-	return self.keyFile
+func (storage_client *Storage_Client) GetKeyFile() string {
+	return storage_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Storage_Client) GetCaFile() string {
-	return self.caFile
+func (storage_client *Storage_Client) GetCaFile() string {
+	return storage_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Storage_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (storage_client *Storage_Client) SetTLS(hasTls bool) {
+	storage_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Storage_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (storage_client *Storage_Client) SetCertFile(certFile string) {
+	storage_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Storage_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (storage_client *Storage_Client) SetKeyFile(keyFile string) {
+	storage_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Storage_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (storage_client *Storage_Client) SetCaFile(caFile string) {
+	storage_client.caFile = caFile
 }
 
 ////////////////// Service functionnality //////////////////////
 
 // Stop the service.
-func (self *Storage_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &storagepb.StopRequest{})
+func (storage_client *Storage_Client) StopService() {
+	storage_client.c.Stop(globular.GetClientContext(storage_client), &storagepb.StopRequest{})
 }
 
-func (self *Storage_Client) CreateConnection(id string, name string, connectionType float64) error {
+func (storage_client *Storage_Client) CreateConnection(id string, name string, connectionType float64) error {
 
 	rqst := &storagepb.CreateConnectionRqst{
 		Connection: &storagepb.Connection{
@@ -172,12 +185,12 @@ func (self *Storage_Client) CreateConnection(id string, name string, connectionT
 		},
 	}
 
-	_, err := self.c.CreateConnection(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.CreateConnection(globular.GetClientContext(storage_client), rqst)
 
 	return err
 }
 
-func (self *Storage_Client) OpenConnection(id string, options string) error {
+func (storage_client *Storage_Client) OpenConnection(id string, options string) error {
 
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.OpenRqst{
@@ -185,12 +198,12 @@ func (self *Storage_Client) OpenConnection(id string, options string) error {
 		Options: options,
 	}
 
-	_, err := self.c.Open(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.Open(globular.GetClientContext(storage_client), rqst)
 
 	return err
 }
 
-func (self *Storage_Client) SetItem(connectionId string, key string, data []byte) error {
+func (storage_client *Storage_Client) SetItem(connectionId string, key string, data []byte) error {
 
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.SetItemRequest{
@@ -199,14 +212,14 @@ func (self *Storage_Client) SetItem(connectionId string, key string, data []byte
 		Value: data,
 	}
 
-	_, err := self.c.SetItem(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.SetItem(globular.GetClientContext(storage_client), rqst)
 	return err
 }
 
-func (self *Storage_Client) SetLargeItem(connectionId string, key string, value []byte) error {
+func (storage_client *Storage_Client) SetLargeItem(connectionId string, key string, value []byte) error {
 
 	// Open the stream...
-	stream, err := self.c.SetLargeItem(globular.GetClientContext(self))
+	stream, err := storage_client.c.SetLargeItem(globular.GetClientContext(storage_client))
 	if err != nil {
 		return err
 	}
@@ -243,14 +256,14 @@ func (self *Storage_Client) SetLargeItem(connectionId string, key string, value 
 	return nil
 }
 
-func (self *Storage_Client) GetItem(connectionId string, key string) ([]byte, error) {
+func (storage_client *Storage_Client) GetItem(connectionId string, key string) ([]byte, error) {
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.GetItemRequest{
 		Id:  connectionId,
 		Key: key,
 	}
 
-	stream, err := self.c.GetItem(globular.GetClientContext(self), rqst)
+	stream, err := storage_client.c.GetItem(globular.GetClientContext(storage_client), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -277,57 +290,57 @@ func (self *Storage_Client) GetItem(connectionId string, key string) ([]byte, er
 
 }
 
-func (self *Storage_Client) RemoveItem(connectionId string, key string) error {
+func (storage_client *Storage_Client) RemoveItem(connectionId string, key string) error {
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.RemoveItemRequest{
 		Id:  connectionId,
 		Key: key,
 	}
 
-	_, err := self.c.RemoveItem(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.RemoveItem(globular.GetClientContext(storage_client), rqst)
 	return err
 }
 
-func (self *Storage_Client) Clear(connectionId string) error {
+func (storage_client *Storage_Client) Clear(connectionId string) error {
 
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.ClearRequest{
 		Id: connectionId,
 	}
 
-	_, err := self.c.Clear(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.Clear(globular.GetClientContext(storage_client), rqst)
 	return err
 }
 
-func (self *Storage_Client) Drop(connectionId string) error {
+func (storage_client *Storage_Client) Drop(connectionId string) error {
 
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.DropRequest{
 		Id: connectionId,
 	}
 
-	_, err := self.c.Drop(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.Drop(globular.GetClientContext(storage_client), rqst)
 	return err
 }
 
-func (self *Storage_Client) CloseConnection(connectionId string) error {
+func (storage_client *Storage_Client) CloseConnection(connectionId string) error {
 
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.CloseRqst{
 		Id: connectionId,
 	}
 
-	_, err := self.c.Close(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.Close(globular.GetClientContext(storage_client), rqst)
 	return err
 }
 
-func (self *Storage_Client) DeleteConnection(connectionId string) error {
+func (storage_client *Storage_Client) DeleteConnection(connectionId string) error {
 
 	// I will execute a simple ldap search here...
 	rqst := &storagepb.DeleteConnectionRqst{
 		Id: connectionId,
 	}
 
-	_, err := self.c.DeleteConnection(globular.GetClientContext(self), rqst)
+	_, err := storage_client.c.DeleteConnection(globular.GetClientContext(storage_client), rqst)
 	return err
 }

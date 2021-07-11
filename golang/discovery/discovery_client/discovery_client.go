@@ -31,6 +31,9 @@ type Dicovery_Client struct {
 	// The name of the service
 	name string
 
+	// The mac address of the server
+	mac string
+
 	// The client domain
 	domain string
 
@@ -95,6 +98,10 @@ func (client *Dicovery_Client) GetName() string {
 	return client.name
 }
 
+func (client *Dicovery_Client) GetMac() string {
+	return client.mac
+}
+
 // must be close when no more needed.
 func (client *Dicovery_Client) Close() {
 	client.cc.Close()
@@ -113,6 +120,10 @@ func (client *Dicovery_Client) SetId(id string) {
 // Set the client name.
 func (client *Dicovery_Client) SetName(name string) {
 	client.name = name
+}
+
+func (client *Dicovery_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.

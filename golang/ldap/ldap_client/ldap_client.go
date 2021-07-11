@@ -25,6 +25,9 @@ type LDAP_Client struct {
 	// The id of the service on the server.
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -66,106 +69,114 @@ func NewLdapService_Client(address string, id string) (*LDAP_Client, error) {
 	return client, nil
 }
 
-func (self *LDAP_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (ldap_client *LDAP_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(ldap_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(ldap_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *LDAP_Client) GetDomain() string {
-	return self.domain
+func (ldap_client *LDAP_Client) GetDomain() string {
+	return ldap_client.domain
 }
 
-func (self *LDAP_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (ldap_client *LDAP_Client) GetAddress() string {
+	return ldap_client.domain + ":" + strconv.Itoa(ldap_client.port)
 }
 
 // Return the id of the service
-func (self *LDAP_Client) GetId() string {
-	return self.id
+func (ldap_client *LDAP_Client) GetId() string {
+	return ldap_client.id
 }
 
 // Return the name of the service
-func (self *LDAP_Client) GetName() string {
-	return self.name
+func (ldap_client *LDAP_Client) GetName() string {
+	return ldap_client.name
+}
+
+func (ldap_client *LDAP_Client) GetMac() string {
+	return ldap_client.mac
 }
 
 // must be close when no more needed.
-func (self *LDAP_Client) Close() {
-	self.cc.Close()
+func (ldap_client *LDAP_Client) Close() {
+	ldap_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *LDAP_Client) SetPort(port int) {
-	self.port = port
+func (ldap_client *LDAP_Client) SetPort(port int) {
+	ldap_client.port = port
 }
 
 // Set the client id.
-func (self *LDAP_Client) SetId(id string) {
-	self.id = id
+func (ldap_client *LDAP_Client) SetId(id string) {
+	ldap_client.id = id
+}
+
+func (ldap_client *LDAP_Client) SetMac(mac string) {
+	ldap_client.mac = mac
 }
 
 // Set the client name.
-func (self *LDAP_Client) SetName(name string) {
-	self.name = name
+func (ldap_client *LDAP_Client) SetName(name string) {
+	ldap_client.name = name
 }
 
 // Set the domain.
-func (self *LDAP_Client) SetDomain(domain string) {
-	self.domain = domain
+func (ldap_client *LDAP_Client) SetDomain(domain string) {
+	ldap_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *LDAP_Client) HasTLS() bool {
-	return self.hasTLS
+func (ldap_client *LDAP_Client) HasTLS() bool {
+	return ldap_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *LDAP_Client) GetCertFile() string {
-	return self.certFile
+func (ldap_client *LDAP_Client) GetCertFile() string {
+	return ldap_client.certFile
 }
 
 // Get the TLS key file path
-func (self *LDAP_Client) GetKeyFile() string {
-	return self.keyFile
+func (ldap_client *LDAP_Client) GetKeyFile() string {
+	return ldap_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *LDAP_Client) GetCaFile() string {
-	return self.caFile
+func (ldap_client *LDAP_Client) GetCaFile() string {
+	return ldap_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *LDAP_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (ldap_client *LDAP_Client) SetTLS(hasTls bool) {
+	ldap_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *LDAP_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (ldap_client *LDAP_Client) SetCertFile(certFile string) {
+	ldap_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *LDAP_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (ldap_client *LDAP_Client) SetKeyFile(keyFile string) {
+	ldap_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *LDAP_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (ldap_client *LDAP_Client) SetCaFile(caFile string) {
+	ldap_client.caFile = caFile
 }
 
 ////////////////////////// LDAP ////////////////////////////////////////////////
 // Stop the service.
-func (self *LDAP_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &ldappb.StopRequest{})
+func (ldap_client *LDAP_Client) StopService() {
+	ldap_client.c.Stop(globular.GetClientContext(ldap_client), &ldappb.StopRequest{})
 }
 
-func (self *LDAP_Client) CreateConnection(connectionId string, user string, password string, host string, port int32) error {
+func (ldap_client *LDAP_Client) CreateConnection(connectionId string, user string, password string, host string, port int32) error {
 	// Create a new connection
 	rqst := &ldappb.CreateConnectionRqst{
 		Connection: &ldappb.Connection{
@@ -177,23 +188,23 @@ func (self *LDAP_Client) CreateConnection(connectionId string, user string, pass
 		},
 	}
 
-	_, err := self.c.CreateConnection(globular.GetClientContext(self), rqst)
+	_, err := ldap_client.c.CreateConnection(globular.GetClientContext(ldap_client), rqst)
 
 	return err
 }
 
-func (self *LDAP_Client) DeleteConnection(connectionId string) error {
+func (ldap_client *LDAP_Client) DeleteConnection(connectionId string) error {
 
 	rqst := &ldappb.DeleteConnectionRqst{
 		Id: connectionId,
 	}
 
-	_, err := self.c.DeleteConnection(globular.GetClientContext(self), rqst)
+	_, err := ldap_client.c.DeleteConnection(globular.GetClientContext(ldap_client), rqst)
 
 	return err
 }
 
-func (self *LDAP_Client) Authenticate(connectionId string, userId string, password string) error {
+func (ldap_client *LDAP_Client) Authenticate(connectionId string, userId string, password string) error {
 
 	rqst := &ldappb.AuthenticateRqst{
 		Id:    connectionId,
@@ -201,11 +212,11 @@ func (self *LDAP_Client) Authenticate(connectionId string, userId string, passwo
 		Pwd:   password,
 	}
 
-	_, err := self.c.Authenticate(globular.GetClientContext(self), rqst)
+	_, err := ldap_client.c.Authenticate(globular.GetClientContext(ldap_client), rqst)
 	return err
 }
 
-func (self *LDAP_Client) Search(connectionId string, BaseDN string, Filter string, Attributes []string) ([][]interface{}, error) {
+func (ldap_client *LDAP_Client) Search(connectionId string, BaseDN string, Filter string, Attributes []string) ([][]interface{}, error) {
 
 	// I will execute a simple ldap search here...
 	rqst := &ldappb.SearchRqst{
@@ -217,7 +228,7 @@ func (self *LDAP_Client) Search(connectionId string, BaseDN string, Filter strin
 		},
 	}
 
-	rsp, err := self.c.Search(globular.GetClientContext(self), rqst)
+	rsp, err := ldap_client.c.Search(globular.GetClientContext(ldap_client), rqst)
 	if err != nil {
 		return nil, err
 	}

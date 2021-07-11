@@ -59,6 +59,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id                 string
+	Mac string
 	Name               string
 	Path               string
 	Proto              string
@@ -116,6 +117,14 @@ func (file_server *server) GetDescription() string {
 }
 func (file_server *server) SetDescription(description string) {
 	file_server.Description = description
+}
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
 }
 
 // The list of keywords of the services.

@@ -56,6 +56,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id              string
+	Mac             string
 	Name            string
 	Path            string
 	Proto           string
@@ -114,6 +115,15 @@ func (server *server) GetName() string {
 func (server *server) SetName(name string) {
 	server.Name = name
 }
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
+}
+
 
 // The description of the service
 func (server *server) GetDescription() string {
@@ -623,7 +633,7 @@ func (server *server) GetAAAA(ctx context.Context, rqst *dnspb.GetAAAARequest) (
 
 // Set a text entry.
 func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (*dnspb.SetTextResponse, error) {
-	fmt.Println("Try set dns TXT with key: ", rqst.Id, " and values: ", rqst.Values )
+	fmt.Println("Try set dns TXT with key: ", rqst.Id, " and values: ", rqst.Values)
 
 	err := server.openConnection()
 	if err != nil {
@@ -631,14 +641,14 @@ func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-/*
-	_, _, err = server.getText(rqst.Id)
-	if err == nil {
-		return &dnspb.SetTextResponse{
-			Result: true, // return the full domain.
-		}, nil
-	}
-*/
+	/*
+		_, _, err = server.getText(rqst.Id)
+		if err == nil {
+			return &dnspb.SetTextResponse{
+				Result: true, // return the full domain.
+			}, nil
+		}
+	*/
 	values, err := json.Marshal(rqst.Values)
 
 	if err != nil {
@@ -688,7 +698,7 @@ func (server *server) getText(id string) ([]string, uint32, error) {
 	}
 
 	fmt.Println("values retreive: ", values)
-	
+
 	return values, server.getTtl(uuid), nil
 }
 
@@ -697,13 +707,13 @@ func (server *server) GetText(ctx context.Context, rqst *dnspb.GetTextRequest) (
 	fmt.Println("Try get dns text ", rqst.Id)
 	err := server.openConnection()
 	if err != nil {
-		return nil, status.Errorf( 
+		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	id := strings.ToLower(rqst.Id)
-	uuid := Utility.GenerateUUID("TXT:" +id)
+	uuid := Utility.GenerateUUID("TXT:" + id)
 	data, err := server.store.GetItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1693,7 +1703,6 @@ func (server *server) getTtl(uuid string) uint32 {
 	}
 	return binary.LittleEndian.Uint32(data)
 }
-
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 var (

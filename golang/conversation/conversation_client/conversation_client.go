@@ -30,6 +30,9 @@ type Conversation_Client struct {
 	// The name of the service
 	name string
 
+	// The mac address of the server
+	mac string
+
 	// The client domain
 	domain string
 
@@ -170,6 +173,10 @@ func (converstion_client *Conversation_Client) GetName() string {
 	return converstion_client.name
 }
 
+func (converstion_client *Conversation_Client) GetMac() string {
+	return converstion_client.mac
+}
+
 // must be close when no more needed.
 func (converstion_client *Conversation_Client) Close() {
 	converstion_client.cc.Close()
@@ -188,6 +195,10 @@ func (converstion_client *Conversation_Client) SetId(id string) {
 // Set the client name.
 func (converstion_client *Conversation_Client) SetName(name string) {
 	converstion_client.name = name
+}
+
+func (converstion_client *Conversation_Client) SetMac(mac string) {
+	converstion_client.mac = mac
 }
 
 // Set the domain.

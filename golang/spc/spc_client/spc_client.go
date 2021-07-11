@@ -19,6 +19,9 @@ type SPC_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -57,101 +60,110 @@ func NewSpcService_Client(address string, id string) (*SPC_Client, error) {
 	return client, nil
 }
 
-func (self *SPC_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (spc_client *SPC_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(spc_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(spc_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *SPC_Client) GetDomain() string {
-	return self.domain
+func (spc_client *SPC_Client) GetDomain() string {
+	return spc_client.domain
 }
 
 // Return the address
-func (self *SPC_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (spc_client *SPC_Client) GetAddress() string {
+	return spc_client.domain + ":" + strconv.Itoa(spc_client.port)
 }
 
 // Return the id of the service instance
-func (self *SPC_Client) GetId() string {
-	return self.id
+func (spc_client *SPC_Client) GetId() string {
+	return spc_client.id
 }
 
 // Return the name of the service
-func (self *SPC_Client) GetName() string {
-	return self.name
+func (spc_client *SPC_Client) GetName() string {
+	return spc_client.name
+}
+
+func (spc_client *SPC_Client) GetMac() string {
+	return spc_client.mac
 }
 
 // must be close when no more needed.
-func (self *SPC_Client) Close() {
-	self.cc.Close()
+func (spc_client *SPC_Client) Close() {
+	spc_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *SPC_Client) SetPort(port int) {
-	self.port = port
+func (spc_client *SPC_Client) SetPort(port int) {
+	spc_client.port = port
 }
 
 // Set the service instance id
-func (self *SPC_Client) SetId(id string) {
-	self.id = id
+func (spc_client *SPC_Client) SetId(id string) {
+	spc_client.id = id
 }
 
 // Set the client name.
-func (self *SPC_Client) SetName(name string) {
-	self.name = name
+func (spc_client *SPC_Client) SetName(name string) {
+	spc_client.name = name
 }
 
+func (spc_client *SPC_Client) SetMac(mac string) {
+	spc_client.mac = mac
+}
+
+
 // Set the domain.
-func (self *SPC_Client) SetDomain(domain string) {
-	self.domain = domain
+func (spc_client *SPC_Client) SetDomain(domain string) {
+	spc_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *SPC_Client) HasTLS() bool {
-	return self.hasTLS
+func (spc_client *SPC_Client) HasTLS() bool {
+	return spc_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *SPC_Client) GetCertFile() string {
-	return self.certFile
+func (spc_client *SPC_Client) GetCertFile() string {
+	return spc_client.certFile
 }
 
 // Get the TLS key file path
-func (self *SPC_Client) GetKeyFile() string {
-	return self.keyFile
+func (spc_client *SPC_Client) GetKeyFile() string {
+	return spc_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *SPC_Client) GetCaFile() string {
-	return self.caFile
+func (spc_client *SPC_Client) GetCaFile() string {
+	return spc_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *SPC_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (spc_client *SPC_Client) SetTLS(hasTls bool) {
+	spc_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *SPC_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (spc_client *SPC_Client) SetCertFile(certFile string) {
+	spc_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *SPC_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (spc_client *SPC_Client) SetKeyFile(keyFile string) {
+	spc_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *SPC_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (spc_client *SPC_Client) SetCaFile(caFile string) {
+	spc_client.caFile = caFile
 }
 
 // Stop the service.
-func (self *SPC_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &spcpb.StopRequest{})
+func (spc_client *SPC_Client) StopService() {
+	spc_client.c.Stop(globular.GetClientContext(spc_client), &spcpb.StopRequest{})
 }

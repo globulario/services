@@ -13,10 +13,10 @@ import (
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -41,6 +41,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id              string
+	Mac             string
 	Name            string
 	Domain          string
 	Path            string
@@ -96,6 +97,14 @@ func (svr *server) GetName() string {
 }
 func (svr *server) SetName(name string) {
 	svr.Name = name
+}
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
 }
 
 // The description of the service
@@ -338,7 +347,7 @@ var (
 	resourceClient  *resource_client.Resource_Client
 	discoveryClient *discovery_client.Dicovery_Client
 	event_client_   *event_client.Event_Client
-	log_client_ *log_client.Log_Client
+	log_client_     *log_client.Log_Client
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -404,14 +413,13 @@ func (svr *server) createGroup(id, name string) error {
 	return resourceClient.CreateGroup(id, name)
 }
 
-
-func (svr *server) createNotification(notification *resourcepb.Notification)error{
+func (svr *server) createNotification(notification *resourcepb.Notification) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
 
-	return resourceClient.CreateNotification(notification);
+	return resourceClient.CreateNotification(notification)
 }
 
 //////////////////////// Package Repository services /////////////////////////////////
@@ -444,7 +452,7 @@ func (server *server) publishApplication(user, organization, path, name, domain,
 /**
  * Get the log client.
  */
- func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
 		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
@@ -460,7 +468,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	if err != nil {
 		return
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
 func (server *server) logServiceError(method, fileLine, functionName, infos string) {

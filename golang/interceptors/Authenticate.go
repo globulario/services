@@ -71,6 +71,7 @@ func GenerateToken(timeout time.Duration, issuer, userId, userName, email string
 	// Get the jwt key...
 	jwtKey, err = security.GetPeerKey(issuer, keyPath)
 	if err != nil {
+		fmt.Println(err)
 		return "", err
 	}
 

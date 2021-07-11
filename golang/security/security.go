@@ -31,6 +31,7 @@ var (
 // That function will be access via http so event server or client will be able
 // to get particular service configuration.
 func GetClientConfig(address string, name string, port int, path string) (map[string]interface{}, error) {
+
 	var serverConfig map[string]interface{}
 	var config map[string]interface{}
 	var err error
@@ -42,10 +43,17 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	// In case of local service I will get the service value directly from
 	// the configuration file.
 	serverConfig, err = getLocalConfig()
+	domain := serverConfig["Domain"].(string)
+	if len(serverConfig["Name"].(string)) > 0 {
+		domain = serverConfig["Name"].(string) + "." + domain
+	}
+	
+	log.Println("get client configuration for ", name, domain)
+
 
 	isLocal := true
 	if err == nil {
-		if serverConfig["Domain"] != address {
+		if domain != address {
 			isLocal = false
 		}
 	} else {
@@ -54,6 +62,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 
 	if !isLocal {
 		// First I will retreive the server configuration.
+		log.Println("get remote client configuration for ", address, port)
 		serverConfig, err = getRemoteConfig(address, port)
 
 		if err != nil {
@@ -112,7 +121,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		}
 
 		if !isLocal {
-			keyPath, certPath, caPath, err := getCredentialConfig(path, serverConfig["Domain"].(string), country, state, city, organization, alternateDomains, port)
+			keyPath, certPath, caPath, err := getCredentialConfig(path, domain , country, state, city, organization, alternateDomains, port)
 			if err != nil {
 				log.Println("Fail to retreive credential configuration with error ", err)
 				return nil, err
@@ -279,6 +288,7 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
  */
 func getCredentialConfig(basePath string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
+	log.Println("get credential config for domain ", domain)
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 
@@ -842,51 +852,62 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
-// Encode / Decode
-func encodePrivateKey(privateKey *ecdsa.PrivateKey) string {
-	x509Encoded, _ := x509.MarshalECPrivateKey(privateKey)
-	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509Encoded})
-	return string(pemEncoded)
-}
-
-func encodePublicKey(publicKey *ecdsa.PublicKey) string {
-	x509EncodedPub, _ := x509.MarshalPKIXPublicKey(publicKey)
-	pemEncodedPub := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: x509EncodedPub})
-	return string(pemEncodedPub)
-}
-
-func decodePrivateKey(pemEncoded string) (*ecdsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(pemEncoded))
-	x509Encoded := block.Bytes
-	return x509.ParseECPrivateKey(x509Encoded)
-}
-
-func decodePublicKey(pemEncodedPub string) (*ecdsa.PublicKey, error) {
-	blockPub, _ := pem.Decode([]byte(pemEncodedPub))
-	x509EncodedPub := blockPub.Bytes
-	genericPublicKey, err := x509.ParsePKIXPublicKey(x509EncodedPub)
-	if err != nil {
-		return nil, err
-	}
-	publicKey := genericPublicKey.(*ecdsa.PublicKey)
-	return publicKey, nil
-}
-
 /**
  * Generate keys and save it at given path.
  */
 func GeneratePeerKeys(id, path string) error {
-	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	publicKey := &privateKey.PublicKey
 
-	encPriv := encodePrivateKey(privateKey)
-	err := ioutil.WriteFile(path+"/"+id+"_private", []byte(encPriv), 0644)
+	// Use ecdsa to generate a key pair
+	privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
 		return err
 	}
 
-	encPub := encodePublicKey(publicKey)
-	err = ioutil.WriteFile(path+"/"+id+"_public", []byte(encPub), 0644)
+	// Use 509
+	private, err := x509.MarshalECPrivateKey(privateKey) //here
+	if err != nil {
+		return err
+	}
+
+	//pem
+	block := pem.Block{
+		Type:  "esdsa private key",
+		Bytes: private,
+	}
+
+	file, err := os.Create(path + "/" + id + "_private")
+	if err != nil {
+		return err
+	}
+	err = pem.Encode(file, &block)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	// Handle the public key
+	public := privateKey.PublicKey
+
+	//x509 serialization
+	publicKey, err := x509.MarshalPKIXPublicKey(&public)
+	if err != nil {
+		return err
+	}
+
+	//pem
+	public_block := pem.Block{
+		Type:  "ecdsa public key",
+		Bytes: publicKey,
+	}
+
+	file, err = os.Create(path + "/" + id + "_public")
+	if err != nil {
+		return err
+	}
+
+	//pem encoding
+	err = pem.Encode(file, &public_block)
 	if err != nil {
 		return err
 	}
@@ -904,28 +925,78 @@ func GetPeerKey(id, path string) ([]byte, error) {
 		return ioutil.ReadFile(path + "/" + id + "_public")
 	}
 
+	fmt.Println("Get peer key, ", path+"/"+id+"_public")
+
 	// If the token issuer is not the actual globule but another peer
 	// I will use it public key and my private one to generate the correct key.
-	puba, err := decodePublicKey(path + "/" + id + "_public")
+
+	// Read the public key file
+	file, err := os.Open(path + "/" + id + "_public")
 	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 
-	privb, err := decodePrivateKey(path + "/" + Utility.MyMacAddr() + "_public")
+	defer file.Close()
+
+	info, err := file.Stat()
 	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	buf := make([]byte, info.Size())
+	file.Read(buf)
+	//pem decoding
+	block, _ := pem.Decode(buf)
+
+	//x509
+	publicStream, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	// Interface converted to public key
+	puba := publicStream.(*ecdsa.PublicKey)
+
+	//1, open the private key file and read the content
+	file, err = os.Open(path + "/" + Utility.MyMacAddr() + "_private")
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	info, err = file.Stat()
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	buf = make([]byte, info.Size())
+	file.Read(buf)
+
+	//2, pem decryption
+	block, _ = pem.Decode(buf)
+
+	//x509 decryption
+	privb, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		fmt.Println(err)
 		return nil, err
 	}
 
 	a, _ := puba.Curve.ScalarMult(puba.X, puba.Y, privb.D.Bytes())
-
+	
+	fmt.Println("key is ", a.String())
 	// The same value will be generated other peers...
-	return a.Bytes(), nil
+	return []byte(a.String()), nil
 }
 
 /**
  * The key must be formated as pem.
  */
 func SetPeerPublicKey(id, path, encPub string) error {
+	fmt.Println("save file ", path+"/"+id+"_public")
 	err := ioutil.WriteFile(path+"/"+id+"_public", []byte(encPub), 0644)
 	if err != nil {
 		return err

@@ -45,6 +45,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id              string
+	Mac             string
 	Name            string
 	Domain          string
 	Path            string
@@ -110,6 +111,14 @@ func (svr *server) GetName() string {
 }
 func (svr *server) SetName(name string) {
 	svr.Name = name
+}
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
 }
 
 // The description of the service
@@ -311,7 +320,7 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 
 var (
 	rbac_client_ *rbac_client.Rbac_Client
-	log_client_ *log_client.Log_Client
+	log_client_  *log_client.Log_Client
 )
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
@@ -381,13 +390,12 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 
 /**
  * Get the log client.
  */
- func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
 		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
@@ -403,7 +411,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	if err != nil {
 		return
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
 func (server *server) logServiceError(method, fileLine, functionName, infos string) {
@@ -426,7 +434,7 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 	if svr.store == nil {
 		svr.store = new(persistence_store.MongoStore)
 		// Start the store if is not already running...
-		err := svr.store.Start( svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)), svr.DataPath)
+		err := svr.store.Start(svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)), svr.DataPath)
 		if err != nil {
 			// codes.
 			return nil, err
@@ -814,7 +822,7 @@ func main() {
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 
-	// That will start the persistence store. 
+	// That will start the persistence store.
 	_, err = s_impl.getPersistenceStore()
 	if err != nil {
 		log.Println("Fail to start mongo db with error ", err)

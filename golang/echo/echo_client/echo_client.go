@@ -29,6 +29,9 @@ type Echo_Client struct {
 	// The client domain
 	domain string
 
+	// The mac address of the server
+	mac string
+
 	// The port
 	port int
 
@@ -88,6 +91,10 @@ func (echo_client *Echo_Client) GetName() string {
 	return echo_client.name
 }
 
+func (echo_client *Echo_Client) GetMac() string {
+	return echo_client.mac
+}
+
 // must be close when no more needed.
 func (echo_client *Echo_Client) Close() {
 	echo_client.cc.Close()
@@ -106,6 +113,10 @@ func (echo_client *Echo_Client) SetId(id string) {
 // Set the client name.
 func (echo_client *Echo_Client) SetName(name string) {
 	echo_client.name = name
+}
+
+func (echo_client *Echo_Client) SetMac(mac string) {
+	echo_client.mac = mac
 }
 
 // Set the domain.

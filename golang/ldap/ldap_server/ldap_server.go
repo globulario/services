@@ -53,6 +53,7 @@ type server struct {
 
 	// The global attribute of the services.
 	Id                 string
+	Mac                string
 	Name               string
 	Path               string
 	Proto              string
@@ -75,7 +76,7 @@ type server struct {
 	KeepUpToDate       bool
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
-	Dependencies []string // The list of services needed by this services.
+	Dependencies       []string      // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -107,6 +108,14 @@ func (server *server) GetDescription() string {
 }
 func (server *server) SetDescription(description string) {
 	server.Description = description
+}
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
 }
 
 // The list of keywords of the services.
@@ -150,9 +159,9 @@ func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }

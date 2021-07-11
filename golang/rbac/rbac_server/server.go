@@ -10,11 +10,11 @@ import (
 	"github.com/davecourtois/Utility"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"google.golang.org/grpc"
 
@@ -41,6 +41,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id              string
+	Mac             string
 	Name            string
 	Domain          string
 	Path            string
@@ -102,6 +103,14 @@ func (server *server) SetName(name string) {
 	server.Name = name
 }
 
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
+}
+
 // The description of the service
 func (server *server) GetDescription() string {
 	return server.Description
@@ -146,14 +155,13 @@ func (server *server) GetDependencies() []string {
 	return server.Dependencies
 }
 
-
 func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
@@ -295,7 +303,7 @@ func (server *server) SetKeepAlive(val bool) {
 // Singleton.
 var (
 	resourceClient *resource_client.Resource_Client
-	log_client_      *log_client.Log_Client
+	log_client_    *log_client.Log_Client
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +312,7 @@ var (
 /**
  * Get the log client.
  */
- func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
 		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
@@ -320,7 +328,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	if err != nil {
 		return
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos,fileLine, functionName)
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
 func (server *server) logServiceError(method, fileLine, functionName, infos string) {
@@ -331,13 +339,11 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 ////////////////////////////////////////////////////////////////////////////////////////
 func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	
+
 	var err error
 	if resourceClient != nil {
 		return resourceClient, nil

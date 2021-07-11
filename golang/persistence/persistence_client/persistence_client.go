@@ -26,6 +26,9 @@ type Persistence_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -91,6 +94,10 @@ func (client *Persistence_Client) GetName() string {
 	return client.name
 }
 
+func (client *Persistence_Client) GetMac() string {
+	return client.mac
+}
+
 // must be close when no more needed.
 func (client *Persistence_Client) Close() {
 	if client.cc != nil {
@@ -111,6 +118,10 @@ func (client *Persistence_Client) SetId(id string) {
 // Set the client name.
 func (client *Persistence_Client) SetName(name string) {
 	client.name = name
+}
+
+func (client *Persistence_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.

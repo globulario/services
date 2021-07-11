@@ -32,6 +32,9 @@ type Admin_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -95,6 +98,11 @@ func (admin_client *Admin_Client) GetId() string {
 	return admin_client.id
 }
 
+// Return the mac address
+func (admin_client *Admin_Client) GetMac() string {
+	return admin_client.mac
+}
+
 // Return the name of the service
 func (admin_client *Admin_Client) GetName() string {
 	return admin_client.name
@@ -118,6 +126,10 @@ func (admin_client *Admin_Client) SetId(id string) {
 // Set the client name.
 func (admin_client *Admin_Client) SetName(name string) {
 	admin_client.name = name
+}
+
+func (admin_client *Admin_Client) SetMac(mac string) {
+	admin_client.mac = mac
 }
 
 // Set the domain.

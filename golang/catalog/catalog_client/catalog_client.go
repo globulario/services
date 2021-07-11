@@ -26,6 +26,9 @@ type Catalog_Client struct {
 	// The name of the service
 	name string
 
+	// The mac address of the server
+	mac string
+
 	// The client domain
 	domain string
 
@@ -62,107 +65,115 @@ func NewCatalogService_Client(address string, id string) (*Catalog_Client, error
 	return client, nil
 }
 
-func (self *Catalog_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (catalog_client *Catalog_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(catalog_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(catalog_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *Catalog_Client) GetDomain() string {
-	return self.domain
+func (catalog_client *Catalog_Client) GetDomain() string {
+	return catalog_client.domain
 }
 
-func (self *Catalog_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (catalog_client *Catalog_Client) GetAddress() string {
+	return catalog_client.domain + ":" + strconv.Itoa(catalog_client.port)
 }
 
 // Return the id of the service instance
-func (self *Catalog_Client) GetId() string {
-	return self.id
+func (catalog_client *Catalog_Client) GetId() string {
+	return catalog_client.id
 }
 
 // Return the name of the service
-func (self *Catalog_Client) GetName() string {
-	return self.name
+func (catalog_client *Catalog_Client) GetName() string {
+	return catalog_client.name
+}
+
+func (catalog_client *Catalog_Client) GetMac() string {
+	return catalog_client.mac
 }
 
 // must be close when no more needed.
-func (self *Catalog_Client) Close() {
-	self.cc.Close()
+func (catalog_client *Catalog_Client) Close() {
+	catalog_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Catalog_Client) SetPort(port int) {
-	self.port = port
+func (catalog_client *Catalog_Client) SetPort(port int) {
+	catalog_client.port = port
 }
 
 // Set the client instance id.
-func (self *Catalog_Client) SetId(id string) {
-	self.id = id
+func (catalog_client *Catalog_Client) SetId(id string) {
+	catalog_client.id = id
 }
 
 // Set the client name.
-func (self *Catalog_Client) SetName(name string) {
-	self.name = name
+func (catalog_client *Catalog_Client) SetName(name string) {
+	catalog_client.name = name
+}
+
+func (catalog_client *Catalog_Client) SetMac(mac string) {
+	catalog_client.mac = mac
 }
 
 // Set the domain.
-func (self *Catalog_Client) SetDomain(domain string) {
-	self.domain = domain
+func (catalog_client *Catalog_Client) SetDomain(domain string) {
+	catalog_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Catalog_Client) HasTLS() bool {
-	return self.hasTLS
+func (catalog_client *Catalog_Client) HasTLS() bool {
+	return catalog_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Catalog_Client) GetCertFile() string {
-	return self.certFile
+func (catalog_client *Catalog_Client) GetCertFile() string {
+	return catalog_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Catalog_Client) GetKeyFile() string {
-	return self.keyFile
+func (catalog_client *Catalog_Client) GetKeyFile() string {
+	return catalog_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Catalog_Client) GetCaFile() string {
-	return self.caFile
+func (catalog_client *Catalog_Client) GetCaFile() string {
+	return catalog_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Catalog_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (catalog_client *Catalog_Client) SetTLS(hasTls bool) {
+	catalog_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Catalog_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (catalog_client *Catalog_Client) SetCertFile(certFile string) {
+	catalog_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Catalog_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (catalog_client *Catalog_Client) SetKeyFile(keyFile string) {
+	catalog_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Catalog_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (catalog_client *Catalog_Client) SetCaFile(caFile string) {
+	catalog_client.caFile = caFile
 }
 
 ////////////////////////// API ////////////////////////
 // Stop the service.
-func (self *Catalog_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &catalogpb.StopRequest{})
+func (catalog_client *Catalog_Client) StopService() {
+	catalog_client.c.Stop(globular.GetClientContext(catalog_client), &catalogpb.StopRequest{})
 }
 
 // Create a new datastore connection.
-func (self *Catalog_Client) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string) error {
+func (catalog_client *Catalog_Client) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string) error {
 	rqst := &catalogpb.CreateConnectionRqst{
 		Connection: &catalogpb.Connection{
 			Id:       connectionId,
@@ -177,14 +188,14 @@ func (self *Catalog_Client) CreateConnection(connectionId string, name string, h
 		},
 	}
 
-	_, err := self.c.CreateConnection(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.CreateConnection(globular.GetClientContext(catalog_client), rqst)
 	return err
 }
 
 /**
  * Create a new unit of measure
  */
-func (self *Catalog_Client) SaveUnitOfMesure(connectionId string, id string, languageCode string, name string, abreviation string, description string) error {
+func (catalog_client *Catalog_Client) SaveUnitOfMesure(connectionId string, id string, languageCode string, name string, abreviation string, description string) error {
 	rqst := &catalogpb.SaveUnitOfMeasureRequest{
 		ConnectionId: connectionId,
 		UnitOfMeasure: &catalogpb.UnitOfMeasure{
@@ -196,7 +207,7 @@ func (self *Catalog_Client) SaveUnitOfMesure(connectionId string, id string, lan
 		},
 	}
 
-	_, err := self.c.SaveUnitOfMeasure(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SaveUnitOfMeasure(globular.GetClientContext(catalog_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -207,7 +218,7 @@ func (self *Catalog_Client) SaveUnitOfMesure(connectionId string, id string, lan
 /**
  * Save item property definition.
  */
-func (self *Catalog_Client) SavePropertyDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, valueType float64) error {
+func (catalog_client *Catalog_Client) SavePropertyDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, valueType float64) error {
 	rqst := &catalogpb.SavePropertyDefinitionRequest{
 		ConnectionId: connectionId,
 		PropertyDefinition: &catalogpb.PropertyDefinition{
@@ -220,7 +231,7 @@ func (self *Catalog_Client) SavePropertyDefinition(connectionId string, id strin
 		},
 	}
 
-	_, err := self.c.SavePropertyDefinition(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SavePropertyDefinition(globular.GetClientContext(catalog_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -231,7 +242,7 @@ func (self *Catalog_Client) SavePropertyDefinition(connectionId string, id strin
 /**
  * Save item property definition.
  */
-func (self *Catalog_Client) SaveItemDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, properties_str string, properties_ids_str string) error {
+func (catalog_client *Catalog_Client) SaveItemDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, properties_str string, properties_ids_str string) error {
 
 	properties := new(catalogpb.References)
 
@@ -250,7 +261,7 @@ func (self *Catalog_Client) SaveItemDefinition(connectionId string, id string, l
 		},
 	}
 
-	_, err := self.c.SaveItemDefinition(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SaveItemDefinition(globular.GetClientContext(catalog_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -261,7 +272,7 @@ func (self *Catalog_Client) SaveItemDefinition(connectionId string, id string, l
 /**
  * Save item property definition.
  */
-func (self *Catalog_Client) SaveItemInstance(connectionId string, jsonStr string) error {
+func (catalog_client *Catalog_Client) SaveItemInstance(connectionId string, jsonStr string) error {
 
 	instance := new(catalogpb.ItemInstance)
 
@@ -275,7 +286,7 @@ func (self *Catalog_Client) SaveItemInstance(connectionId string, jsonStr string
 		ConnectionId: connectionId,
 	}
 
-	_, err = self.c.SaveItemInstance(globular.GetClientContext(self), rqst)
+	_, err = catalog_client.c.SaveItemInstance(globular.GetClientContext(catalog_client), rqst)
 	if err != nil {
 		return err
 	}
@@ -286,7 +297,7 @@ func (self *Catalog_Client) SaveItemInstance(connectionId string, jsonStr string
 /**
  * Save a Manufacturer whitout item.
  */
-func (self *Catalog_Client) SaveManufacturer(connectionId string, id string, name string) error {
+func (catalog_client *Catalog_Client) SaveManufacturer(connectionId string, id string, name string) error {
 	rqst := &catalogpb.SaveManufacturerRequest{
 		ConnectionId: connectionId,
 		Manufacturer: &catalogpb.Manufacturer{
@@ -295,7 +306,7 @@ func (self *Catalog_Client) SaveManufacturer(connectionId string, id string, nam
 		},
 	}
 
-	_, err := self.c.SaveManufacturer(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SaveManufacturer(globular.GetClientContext(catalog_client), rqst)
 
 	return err
 }
@@ -304,7 +315,7 @@ func (self *Catalog_Client) SaveManufacturer(connectionId string, id string, nam
  * Save package, create it if it not already exist.
  * TODO append subPackage param and itemInstance...
  */
-func (self *Catalog_Client) SavePackage(connectionId string, id string, name string, languageCode string, description string, inventories []*catalogpb.Inventory) error {
+func (catalog_client *Catalog_Client) SavePackage(connectionId string, id string, name string, languageCode string, description string, inventories []*catalogpb.Inventory) error {
 
 	// The request.
 	rqst := &catalogpb.SavePackageRequest{
@@ -319,7 +330,7 @@ func (self *Catalog_Client) SavePackage(connectionId string, id string, name str
 		ConnectionId: connectionId,
 	}
 
-	_, err := self.c.SavePackage(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SavePackage(globular.GetClientContext(catalog_client), rqst)
 
 	return err
 }
@@ -327,7 +338,7 @@ func (self *Catalog_Client) SavePackage(connectionId string, id string, name str
 /**
  * Save a supplier.
  */
-func (self *Catalog_Client) SaveSupplier(connectionId string, id string, name string) error {
+func (catalog_client *Catalog_Client) SaveSupplier(connectionId string, id string, name string) error {
 	rqst := &catalogpb.SaveSupplierRequest{
 		ConnectionId: connectionId,
 		Supplier: &catalogpb.Supplier{
@@ -336,7 +347,7 @@ func (self *Catalog_Client) SaveSupplier(connectionId string, id string, name st
 		},
 	}
 
-	_, err := self.c.SaveSupplier(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SaveSupplier(globular.GetClientContext(catalog_client), rqst)
 
 	return err
 }
@@ -344,7 +355,7 @@ func (self *Catalog_Client) SaveSupplier(connectionId string, id string, name st
 /**
  * Save package supplier.
  */
-func (self *Catalog_Client) SavePackageSupplier(connectionId string, id string, supplier_ref_str string, packege_ref_str string, price_str string, date int64, qty int64) error {
+func (catalog_client *Catalog_Client) SavePackageSupplier(connectionId string, id string, supplier_ref_str string, packege_ref_str string, price_str string, date int64, qty int64) error {
 
 	// Supplier Ref.
 	supplierRef := new(catalogpb.Reference)
@@ -370,14 +381,14 @@ func (self *Catalog_Client) SavePackageSupplier(connectionId string, id string, 
 	rqst.ConnectionId = connectionId
 	rqst.PackageSupplier = &catalogpb.PackageSupplier{Id: id, Supplier: supplierRef, Package: packageRef, Price: price, Date: date, Quantity: qty}
 
-	_, err = self.c.SavePackageSupplier(globular.GetClientContext(self), rqst)
+	_, err = catalog_client.c.SavePackageSupplier(globular.GetClientContext(catalog_client), rqst)
 	return err
 }
 
 /**
  * Save Item Manufacturer.
  */
-func (self *Catalog_Client) SaveItemManufacturer(connectionId string, id string, manufacturer_ref_str string, item_ref_str string) error {
+func (catalog_client *Catalog_Client) SaveItemManufacturer(connectionId string, id string, manufacturer_ref_str string, item_ref_str string) error {
 
 	// Supplier Ref.
 	manufacturerRef := new(catalogpb.Reference)
@@ -397,14 +408,14 @@ func (self *Catalog_Client) SaveItemManufacturer(connectionId string, id string,
 	rqst.ConnectionId = connectionId
 	rqst.ItemManafacturer = &catalogpb.ItemManufacturer{Id: id, Manufacturer: manufacturerRef, Item: itemRef}
 
-	_, err = self.c.SaveItemManufacturer(globular.GetClientContext(self), rqst)
+	_, err = catalog_client.c.SaveItemManufacturer(globular.GetClientContext(catalog_client), rqst)
 	return err
 }
 
 /**
  * Save Item Manufacturer.
  */
-func (self *Catalog_Client) SaveCategory(connectionId string, id string, name string, languageCode string, categories_str string) error {
+func (catalog_client *Catalog_Client) SaveCategory(connectionId string, id string, name string, languageCode string, categories_str string) error {
 	categories := new(catalogpb.References)
 	jsonpb.UnmarshalString(categories_str, categories)
 
@@ -418,14 +429,14 @@ func (self *Catalog_Client) SaveCategory(connectionId string, id string, name st
 		},
 	}
 
-	_, err := self.c.SaveCategory(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SaveCategory(globular.GetClientContext(catalog_client), rqst)
 	return err
 }
 
 /**
  * Appen item defintion category.
  */
-func (self *Catalog_Client) AppendItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
+func (catalog_client *Catalog_Client) AppendItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
 	// The item definition reference.
 	itemDefinitionRef := new(catalogpb.Reference)
 	err := jsonpb.UnmarshalString(item_definition_ref_str, itemDefinitionRef)
@@ -446,7 +457,7 @@ func (self *Catalog_Client) AppendItemDefinitionCategory(connectionId string, it
 		Category:       categoryRef,
 	}
 
-	_, err = self.c.AppendItemDefinitionCategory(globular.GetClientContext(self), rqst)
+	_, err = catalog_client.c.AppendItemDefinitionCategory(globular.GetClientContext(catalog_client), rqst)
 
 	return err
 }
@@ -454,7 +465,7 @@ func (self *Catalog_Client) AppendItemDefinitionCategory(connectionId string, it
 /**
  * Remove item defintion category.
  */
-func (self *Catalog_Client) RemoveItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
+func (catalog_client *Catalog_Client) RemoveItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
 	// The item definition reference.
 	itemDefinitionRef := new(catalogpb.Reference)
 	err := jsonpb.UnmarshalString(item_definition_ref_str, itemDefinitionRef)
@@ -475,7 +486,7 @@ func (self *Catalog_Client) RemoveItemDefinitionCategory(connectionId string, it
 		Category:       categoryRef,
 	}
 
-	_, err = self.c.RemoveItemDefinitionCategory(globular.GetClientContext(self), rqst)
+	_, err = catalog_client.c.RemoveItemDefinitionCategory(globular.GetClientContext(catalog_client), rqst)
 
 	return err
 }
@@ -483,13 +494,13 @@ func (self *Catalog_Client) RemoveItemDefinitionCategory(connectionId string, it
 /**
  * Save Item Localisation.
  */
-func (self *Catalog_Client) SaveLocalisation(connectionId string, localisation *catalogpb.Localisation) error {
+func (catalog_client *Catalog_Client) SaveLocalisation(connectionId string, localisation *catalogpb.Localisation) error {
 
 	rqst := &catalogpb.SaveLocalisationRequest{
 		ConnectionId: connectionId,
 		Localisation: localisation,
 	}
 
-	_, err := self.c.SaveLocalisation(globular.GetClientContext(self), rqst)
+	_, err := catalog_client.c.SaveLocalisation(globular.GetClientContext(catalog_client), rqst)
 	return err
 }

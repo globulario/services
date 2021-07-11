@@ -9,7 +9,7 @@
   "CertFile": "/etc/globular/config/tls/client.crt",
   "Description": "Resource manager service. Resources are Group, Account, Role, Organization and Peer.",
   "Discoveries": [],
-  "Domain": "localhost",
+  "Domain": "peer0.globular.cloud",
   "Id": "1f8e8d42-809e-4a0b-8fd9-8b577b5b91e9",
   "KeepAlive": false,
   "KeepUpToDate": false,
@@ -25,12 +25,12 @@
   "Proto": "/home/dave/go/src/github.com/globulario/services/proto/resource.proto",
   "Protocol": "grpc",
   "Proxy": 10030,
-  "ProxyProcess": 705990,
+  "ProxyProcess": 552914,
   "PublisherId": "globulario",
   "Repositories": [],
   "SessionTimeout": 1800000,
   "State": "failed",
-  "TLS": false,
+  "TLS": true,
   "Version": "0.0.1",
   "configPath": "/home/dave/go/src/github.com/globulario/services/golang/resource/resource_server/config.json"
 }

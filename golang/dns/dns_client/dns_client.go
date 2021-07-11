@@ -24,6 +24,9 @@ type DNS_Client struct {
 	// The name of the service
 	name string
 
+	// The mac address of the server
+	mac string
+
 	// The client domain
 	domain string
 
@@ -88,6 +91,11 @@ func (dns_client *DNS_Client) GetName() string {
 	return dns_client.name
 }
 
+func (dns_client *DNS_Client) GetMac() string {
+	return dns_client.mac
+}
+
+
 // must be close when no more needed.
 func (dns_client *DNS_Client) Close() {
 	dns_client.cc.Close()
@@ -106,6 +114,10 @@ func (dns_client *DNS_Client) SetId(id string) {
 // Set the client name.
 func (dns_client *DNS_Client) SetName(name string) {
 	dns_client.name = name
+}
+
+func (dns_client *DNS_Client) SetMac(mac string) {
+	dns_client.mac = mac
 }
 
 // Set the domain.

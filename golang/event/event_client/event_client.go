@@ -33,6 +33,9 @@ type Event_Client struct {
 	// The client domain
 	domain string
 
+	// The mac address of the server
+	mac string
+
 	// The port
 	port int
 
@@ -174,6 +177,10 @@ func (event_client *Event_Client) GetName() string {
 	return event_client.name
 }
 
+func (event_client *Event_Client) GetMac() string {
+	return event_client.mac
+}
+
 // must be close when no more needed.
 func (event_client *Event_Client) Close() {
 
@@ -203,6 +210,10 @@ func (event_client *Event_Client) SetId(id string) {
 // Set the client name.
 func (event_client *Event_Client) SetName(name string) {
 	event_client.name = name
+}
+
+func (event_client *Event_Client) SetMac(mac string) {
+	event_client.mac = mac
 }
 
 // Set the domain.

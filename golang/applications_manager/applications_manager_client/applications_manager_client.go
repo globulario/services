@@ -33,6 +33,9 @@ type Applications_Manager_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -98,6 +101,10 @@ func (Applications_Manager_Client *Applications_Manager_Client) GetName() string
 	return Applications_Manager_Client.name
 }
 
+func (Applications_Manager_Client *Applications_Manager_Client) GetMac() string {
+	return Applications_Manager_Client.mac
+}
+
 // must be close when no more needed.
 func (Applications_Manager_Client *Applications_Manager_Client) Close() {
 	Applications_Manager_Client.cc.Close()
@@ -117,6 +124,11 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetId(id string)
 func (Applications_Manager_Client *Applications_Manager_Client) SetName(name string) {
 	Applications_Manager_Client.name = name
 }
+
+func (Applications_Manager_Client *Applications_Manager_Client) SetMac(mac string) {
+	Applications_Manager_Client.mac = mac
+}
+
 
 // Set the domain.
 func (Applications_Manager_Client *Applications_Manager_Client) SetDomain(domain string) {

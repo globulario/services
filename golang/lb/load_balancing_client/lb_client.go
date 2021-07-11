@@ -24,6 +24,9 @@ type Lb_Client struct {
 	// The name of the service
 	name string
 
+	// The mac address of the server
+	mac string
+
 	// The port
 	port int
 
@@ -98,6 +101,11 @@ func (client *Lb_Client) GetName() string {
 	return client.name
 }
 
+func (client *Lb_Client) GetMac() string {
+	return client.mac
+}
+
+
 // must be close when no more needed.
 func (client *Lb_Client) Close() {
 	// Close the load report loop.
@@ -115,9 +123,13 @@ func (client *Lb_Client) SetId(id string) {
 	client.id = id
 }
 
-// Set the client name.
 func (client *Lb_Client) SetName(name string) {
 	client.name = name
+}
+
+// Set the client name.
+func (client *Lb_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.

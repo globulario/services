@@ -22,6 +22,9 @@ type Log_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -93,6 +96,10 @@ func (client *Log_Client) GetName() string {
 	return client.name
 }
 
+func (client *Log_Client) GetMac() string {
+	return client.mac
+}
+
 // must be close when no more needed.
 func (client *Log_Client) Close() {
 	client.cc.Close()
@@ -111,6 +118,10 @@ func (client *Log_Client) SetId(id string) {
 // Set the client name.
 func (client *Log_Client) SetName(name string) {
 	client.name = name
+}
+
+func (client *Log_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.

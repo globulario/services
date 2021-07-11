@@ -43,6 +43,10 @@ type Service interface {
 	GetName() string
 	SetName(string)
 
+	// Return the server mac address
+	GetMac() string
+	SetMac(string)
+
 	// The description of the services.
 	GetDescription() string
 	SetDescription(string)
@@ -130,7 +134,7 @@ type Service interface {
 
 	/** The list of requried service **/
 	SetDependency(string)
-	GetDependencies()[]string
+	GetDependencies() []string
 
 	/** Initialyse the service configuration **/
 	Init() error
@@ -166,6 +170,8 @@ func InitService(path string, s Service) error {
 			// Generate random id for the server instance.
 			s.SetId(Utility.RandomUUID())
 		}
+
+		s.SetMac(Utility.MyMacAddr())
 
 		execPath, _ := os.Executable()
 		execPath = strings.ReplaceAll(execPath, "\\", "/")
@@ -391,8 +397,8 @@ func UpdateServiceConfig(s Service) error {
 		return err
 	}
 	return admin_client_.SaveConfig(str)*/
-	
-	return errors.New("not implemented") 
+
+	return errors.New("not implemented")
 }
 
 /**
@@ -437,7 +443,7 @@ func StartService(s Service, server *grpc.Server) error {
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 	fmt.Println(s.GetId() + " is now stopped!")
-	
+
 	service_config, err := config.GetServicesConfigurationsById(s.GetId())
 	if err == nil {
 		// save service configuration.

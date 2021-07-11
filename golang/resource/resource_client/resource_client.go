@@ -3,11 +3,12 @@ package resource_client
 import (
 	"context"
 	"io"
+	"log"
 	"strconv"
-
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +21,9 @@ type Resource_Client struct {
 
 	// The id of the service
 	id string
+
+	// The mac address of the server
+	mac string
 
 	// The name of the service
 	name string
@@ -55,6 +59,7 @@ func NewResourceService_Client(address string, id string) (*Resource_Client, err
 
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
+
 		return nil, err
 	}
 
@@ -91,6 +96,11 @@ func (resource_client *Resource_Client) GetName() string {
 	return resource_client.name
 }
 
+func (resource_client *Resource_Client) GetMac() string {
+	return resource_client.mac
+}
+
+
 // must be close when no more needed.
 func (resource_client *Resource_Client) Close() {
 	resource_client.cc.Close()
@@ -109,6 +119,10 @@ func (resource_client *Resource_Client) SetId(id string) {
 // Set the client name.
 func (resource_client *Resource_Client) SetName(name string) {
 	resource_client.name = name
+}
+
+func (resource_client *Resource_Client) SetMac(mac string) {
+	resource_client.mac = mac
 }
 
 // Set the domain.
@@ -651,38 +665,80 @@ func (resource_client *Resource_Client) GetRoles(query string) ([]*resourcepb.Ro
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a peer with a given name and mac address.
-func (resource_client *Resource_Client) RegisterPeer(domain string) error {
+func (resource_client *Resource_Client) RegisterPeer(token, mac, domain, address, key, secret string) (*resourcepb.Peer, string, error) {
+	log.Println("Register peer ", domain)
 	rqst := &resourcepb.RegisterPeerRqst{
 		Peer: &resourcepb.Peer{
-			Domain: domain,
+			Domain:  domain,
+			Mac:     mac,
+			Address: address,
 		},
+		PublicKey: string(key),
+		Secret: secret,
 	}
 
-	_, err := resource_client.c.RegisterPeer(globular.GetClientContext(resource_client), rqst)
-	return err
+	ctx := globular.GetClientContext(resource_client)
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	rsp, err := resource_client.c.RegisterPeer(ctx, rqst)
+	if err != nil {
+		log.Println(err)
+		return nil, "", err
+	}
+
+	return rsp.Peer, rsp.PublicKey, err
 
 }
 
 // Delete a peer
-func (resource_client *Resource_Client) DeletePeer(domain string) error {
+func (resource_client *Resource_Client) DeletePeer(token, domain string) error {
 	rqst := &resourcepb.DeletePeerRqst{
 		Peer: &resourcepb.Peer{
 			Domain: domain,
 		},
 	}
-	_, err := resource_client.c.DeletePeer(globular.GetClientContext(resource_client), rqst)
+
+	ctx := globular.GetClientContext(resource_client)
+	if len(token) > 0 {
+
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := resource_client.c.DeletePeer(ctx, rqst)
 	return err
 }
 
 /**
  * Add a action to a given peer.
  */
-func (resource_client *Resource_Client) AddPeerActions(domain string, actions []string) error {
+func (resource_client *Resource_Client) AddPeerActions(token, domain string, actions []string) error {
 	rqst := &resourcepb.AddPeerActionsRqst{
 		Domain:  domain,
 		Actions: actions,
 	}
-	_, err := resource_client.c.AddPeerActions(globular.GetClientContext(resource_client), rqst)
+
+	ctx := globular.GetClientContext(resource_client)
+	if len(token) > 0 {
+
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	_, err := resource_client.c.AddPeerActions(ctx, rqst)
 
 	return err
 }
@@ -690,12 +746,24 @@ func (resource_client *Resource_Client) AddPeerActions(domain string, actions []
 /**
  * Remove action from a given peer.
  */
-func (resource_client *Resource_Client) RemovePeerAction(domain string, action string) error {
+func (resource_client *Resource_Client) RemovePeerAction(token, domain, action string) error {
 	rqst := &resourcepb.RemovePeerActionRqst{
 		Domain: domain,
 		Action: action,
 	}
-	_, err := resource_client.c.RemovePeerAction(globular.GetClientContext(resource_client), rqst)
+
+	ctx := globular.GetClientContext(resource_client)
+	if len(token) > 0 {
+
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := resource_client.c.RemovePeerAction(ctx, rqst)
 
 	return err
 }
@@ -703,11 +771,23 @@ func (resource_client *Resource_Client) RemovePeerAction(domain string, action s
 /**
  * Remove action from all peer's.
  */
-func (resource_client *Resource_Client) RemovePeersAction(action string) error {
+func (resource_client *Resource_Client) RemovePeersAction(token, action string) error {
 	rqst := &resourcepb.RemovePeersActionRqst{
 		Action: action,
 	}
-	_, err := resource_client.c.RemovePeersAction(globular.GetClientContext(resource_client), rqst)
+
+	ctx := globular.GetClientContext(resource_client)
+	if len(token) > 0 {
+
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := resource_client.c.RemovePeersAction(ctx, rqst)
 
 	return err
 }
@@ -916,7 +996,7 @@ func (resource_client *Resource_Client) GetApplicationAlias(id string) (string, 
 
 func (resource_client *Resource_Client) GetPackageDescriptor(pacakageId, publisherId, version string) (*resourcepb.PackageDescriptor, error) {
 	rqst := &resourcepb.GetPackageDescriptorRequest{
-		ServiceId: pacakageId,
+		ServiceId:   pacakageId,
 		PublisherId: publisherId,
 	}
 
@@ -924,7 +1004,7 @@ func (resource_client *Resource_Client) GetPackageDescriptor(pacakageId, publish
 	if err != nil {
 		return nil, err
 	}
-	
+
 	descriptors := rsp.Results
 	descriptor := descriptors[0]
 	for i := 0; i < len(descriptors); i++ {
@@ -974,7 +1054,6 @@ func (resource_client *Resource_Client) SetPackageBundle(checksum, platform stri
 
 	return nil
 }
-
 
 func (resource_client *Resource_Client) CreateNotification(notification *resourcepb.Notification) error {
 	rqst := &resourcepb.CreateNotificationRqst{}

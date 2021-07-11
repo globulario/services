@@ -27,6 +27,9 @@ type Authentication_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -92,6 +95,11 @@ func (client *Authentication_Client) GetName() string {
 	return client.name
 }
 
+func (client *Authentication_Client) GetMac() string {
+	return client.mac
+}
+
+
 // must be close when no more needed.
 func (client *Authentication_Client) Close() {
 	client.cc.Close()
@@ -111,6 +119,11 @@ func (client *Authentication_Client) SetId(id string) {
 func (client *Authentication_Client) SetName(name string) {
 	client.name = name
 }
+
+func (client *Authentication_Client) SetMac(mac string) {
+	client.mac = mac
+}
+
 
 // Set the domain.
 func (client *Authentication_Client) SetDomain(domain string) {

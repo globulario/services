@@ -35,6 +35,9 @@ type Client interface {
 	// Return the id of the service.
 	GetId() string
 
+	// Return the mac address of a client.
+	GetMac() string
+
 	// Return the name of the service.
 	GetName() string
 
@@ -48,6 +51,9 @@ type Client interface {
 
 	// Set the id of the client
 	SetId(string)
+
+	// Set the mac address
+	SetMac(string)
 
 	// Set the name of the client
 	SetName(string)
@@ -89,7 +95,7 @@ type Client interface {
  * Initialyse the client security and set it port to
  */
 func InitClient(client Client, address string, id string) error {
-
+	log.Println("init client: ", id, address)
 	// Set the domain and the name from the incomming...
 	address_ := strings.Split(address, ":")
 
@@ -123,6 +129,11 @@ func InitClient(client Client, address string, id string) error {
 	if config["Name"] != nil {
 		client.SetName(config["Name"].(string))
 	}
+
+	if config["Mac"] != nil {
+		client.SetMac(config["Mac"].(string))
+	}
+
 	client.SetPort(port)
 
 	if config["Domain"] != nil {

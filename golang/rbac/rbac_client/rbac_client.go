@@ -24,6 +24,9 @@ type Rbac_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -89,6 +92,11 @@ func (client *Rbac_Client) GetName() string {
 	return client.name
 }
 
+func (client *Rbac_Client) GetMac() string {
+	return client.mac
+}
+
+
 // must be close when no more needed.
 func (client *Rbac_Client) Close() {
 	client.cc.Close()
@@ -108,6 +116,11 @@ func (client *Rbac_Client) SetId(id string) {
 func (client *Rbac_Client) SetName(name string) {
 	client.name = name
 }
+
+func (client *Rbac_Client) SetMac(mac string) {
+	client.mac = mac
+}
+
 
 // Set the domain.
 func (client *Rbac_Client) SetDomain(domain string) {

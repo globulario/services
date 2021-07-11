@@ -36,6 +36,9 @@ type Repository_Service_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -101,6 +104,10 @@ func (client *Repository_Service_Client) GetName() string {
 	return client.name
 }
 
+func (client *Repository_Service_Client) GetMac() string {
+	return client.mac
+}
+
 // must be close when no more needed.
 func (client *Repository_Service_Client) Close() {
 	client.cc.Close()
@@ -119,6 +126,10 @@ func (client *Repository_Service_Client) SetId(id string) {
 // Set the client name.
 func (client *Repository_Service_Client) SetName(name string) {
 	client.name = name
+}
+
+func (client *Repository_Service_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.

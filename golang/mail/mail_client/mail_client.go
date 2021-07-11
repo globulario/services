@@ -27,6 +27,9 @@ type Mail_Client struct {
 	// The name of the service
 	name string
 
+	// The mac address of the server
+	mac string
+
 	// The client domain
 	domain string
 
@@ -62,111 +65,120 @@ func NewMailService_Client(address string, id string) (*Mail_Client, error) {
 	return client, nil
 }
 
-func (self *Mail_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (mail_client *Mail_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(self)
+		ctx = globular.GetClientContext(mail_client)
 	}
-	return globular.InvokeClientRequest(self.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(mail_client.c, ctx, method, rqst)
 }
 
 // Return the domain
-func (self *Mail_Client) GetDomain() string {
-	return self.domain
+func (mail_client *Mail_Client) GetDomain() string {
+	return mail_client.domain
 }
 
 // Return the address
-func (self *Mail_Client) GetAddress() string {
-	return self.domain + ":" + strconv.Itoa(self.port)
+func (mail_client *Mail_Client) GetAddress() string {
+	return mail_client.domain + ":" + strconv.Itoa(mail_client.port)
 }
 
 // Return the id of the service instance
-func (self *Mail_Client) GetId() string {
-	return self.id
+func (mail_client *Mail_Client) GetId() string {
+	return mail_client.id
 }
 
 // Return the name of the service
-func (self *Mail_Client) GetName() string {
-	return self.name
+func (mail_client *Mail_Client) GetName() string {
+	return mail_client.name
+}
+
+func (mail_client *Mail_Client) GetMac() string {
+	return mail_client.mac
 }
 
 // must be close when no more needed.
-func (self *Mail_Client) Close() {
-	self.cc.Close()
+func (mail_client *Mail_Client) Close() {
+	mail_client.cc.Close()
 }
 
 // Set grpc_service port.
-func (self *Mail_Client) SetPort(port int) {
-	self.port = port
+func (mail_client *Mail_Client) SetPort(port int) {
+	mail_client.port = port
 }
 
 // Set the client name.
-func (self *Mail_Client) SetName(name string) {
-	self.name = name
+func (mail_client *Mail_Client) SetName(name string) {
+	mail_client.name = name
 }
 
+func (mail_client *Mail_Client) SetMac(mac string) {
+	mail_client.mac = mac
+}
+
+
 // Set the service instance id
-func (self *Mail_Client) SetId(id string) {
-	self.id = id
+func (mail_client *Mail_Client) SetId(id string) {
+	mail_client.id = id
 }
 
 // Set the domain.
-func (self *Mail_Client) SetDomain(domain string) {
-	self.domain = domain
+func (mail_client *Mail_Client) SetDomain(domain string) {
+	mail_client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (self *Mail_Client) HasTLS() bool {
-	return self.hasTLS
+func (mail_client *Mail_Client) HasTLS() bool {
+	return mail_client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (self *Mail_Client) GetCertFile() string {
-	return self.certFile
+func (mail_client *Mail_Client) GetCertFile() string {
+	return mail_client.certFile
 }
 
 // Get the TLS key file path
-func (self *Mail_Client) GetKeyFile() string {
-	return self.keyFile
+func (mail_client *Mail_Client) GetKeyFile() string {
+	return mail_client.keyFile
 }
 
 // Get the TLS key file path
-func (self *Mail_Client) GetCaFile() string {
-	return self.caFile
+func (mail_client *Mail_Client) GetCaFile() string {
+	return mail_client.caFile
 }
 
 // Set the client is a secure client.
-func (self *Mail_Client) SetTLS(hasTls bool) {
-	self.hasTLS = hasTls
+func (mail_client *Mail_Client) SetTLS(hasTls bool) {
+	mail_client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (self *Mail_Client) SetCertFile(certFile string) {
-	self.certFile = certFile
+func (mail_client *Mail_Client) SetCertFile(certFile string) {
+	mail_client.certFile = certFile
 }
 
 // Set TLS key file path
-func (self *Mail_Client) SetKeyFile(keyFile string) {
-	self.keyFile = keyFile
+func (mail_client *Mail_Client) SetKeyFile(keyFile string) {
+	mail_client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (self *Mail_Client) SetCaFile(caFile string) {
-	self.caFile = caFile
+func (mail_client *Mail_Client) SetCaFile(caFile string) {
+	mail_client.caFile = caFile
 }
 
 //////////////////////////////// Api ////////////////////////////////
 
 // Stop the service.
-func (self *Mail_Client) StopService() {
-	self.c.Stop(globular.GetClientContext(self), &mailpb.StopRequest{})
+func (mail_client *Mail_Client) StopService() {
+	mail_client.c.Stop(globular.GetClientContext(mail_client), &mailpb.StopRequest{})
 }
 
 /**
  * Create a connection with a mail server.
  */
-func (self *Mail_Client) CreateConnection(id string, user string, pwd string, port int, host string) error {
+func (mail_client *Mail_Client) CreateConnection(id string, user string, pwd string, port int, host string) error {
 	rqst := &mailpb.CreateConnectionRqst{
 		Connection: &mailpb.Connection{
 			Id:       id,
@@ -177,7 +189,7 @@ func (self *Mail_Client) CreateConnection(id string, user string, pwd string, po
 		},
 	}
 
-	_, err := self.c.CreateConnection(globular.GetClientContext(self), rqst)
+	_, err := mail_client.c.CreateConnection(globular.GetClientContext(mail_client), rqst)
 
 	return err
 }
@@ -185,19 +197,19 @@ func (self *Mail_Client) CreateConnection(id string, user string, pwd string, po
 /**
  * Delete a connection with a mail server.
  */
-func (self *Mail_Client) DeleteConnection(id string) error {
+func (mail_client *Mail_Client) DeleteConnection(id string) error {
 
 	rqst := &mailpb.DeleteConnectionRqst{
 		Id: id,
 	}
-	_, err := self.c.DeleteConnection(globular.GetClientContext(self), rqst)
+	_, err := mail_client.c.DeleteConnection(globular.GetClientContext(mail_client), rqst)
 	return err
 }
 
 /**
  * Send email whiout files.
  */
-func (self *Mail_Client) SendEmail(id string, from string, to []string, cc []*mailpb.CarbonCopy, subject string, body string, bodyType int32) error {
+func (mail_client *Mail_Client) SendEmail(id string, from string, to []string, cc []*mailpb.CarbonCopy, subject string, body string, bodyType int32) error {
 
 	rqst := &mailpb.SendEmailRqst{
 		Id: id,
@@ -211,7 +223,7 @@ func (self *Mail_Client) SendEmail(id string, from string, to []string, cc []*ma
 		},
 	}
 
-	_, err := self.c.SendEmail(globular.GetClientContext(self), rqst)
+	_, err := mail_client.c.SendEmail(globular.GetClientContext(mail_client), rqst)
 
 	return err
 }
@@ -262,10 +274,10 @@ func sendFile(id string, path string, stream mailpb.MailService_SendEmailWithAtt
 /**
  * Test send email whit attachements.
  */
-func (self *Mail_Client) SendEmailWithAttachements(id string, from string, to []string, cc []*mailpb.CarbonCopy, subject string, body string, bodyType int32, files []string) error {
+func (mail_client *Mail_Client) SendEmailWithAttachements(id string, from string, to []string, cc []*mailpb.CarbonCopy, subject string, body string, bodyType int32, files []string) error {
 
 	// Open the stream...
-	stream, err := self.c.SendEmailWithAttachements(globular.GetClientContext(self))
+	stream, err := mail_client.c.SendEmailWithAttachements(globular.GetClientContext(mail_client))
 	if err != nil {
 		log.Fatalf("error while TestSendEmailWithAttachements: %v", err)
 	}

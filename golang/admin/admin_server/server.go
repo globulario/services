@@ -36,6 +36,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id              string
+	Mac             string
 	Name            string
 	Domain          string
 	Path            string
@@ -94,6 +95,15 @@ func (svr *server) GetName() string {
 }
 func (svr *server) SetName(name string) {
 	svr.Name = name
+}
+
+// The name of a service, must be the gRpc Service name.
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
 }
 
 // The description of the service

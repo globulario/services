@@ -68,6 +68,7 @@ type connection struct {
 type server struct {
 	// The global attribute of the services.
 	Id                 string
+	Mac                string
 	Name               string
 	Path               string
 	Port               int
@@ -120,6 +121,14 @@ func (persistence_server *server) GetName() string {
 }
 func (persistence_server *server) SetName(name string) {
 	persistence_server.Name = name
+}
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
 }
 
 // The description of the service
@@ -477,7 +486,6 @@ func (persistence_server *server) Connect(ctx context.Context, rqst *persistence
 		if c.Store == persistencepb.StoreType_MONGO {
 			// here I will create a new mongo data store.
 			s := new(persistence_store.MongoStore)
-
 
 			// Now I will try to connect...
 			err := s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
@@ -936,8 +944,6 @@ func (persistence_server *server) ReplaceOne(ctx context.Context, rqst *persiste
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	
 
 	err := store.ReplaceOne(ctx, strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Value, rqst.Options)
 	if err != nil {

@@ -37,6 +37,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id              string
+	Mac             string
 	Name            string
 	Domain          string
 	Path            string
@@ -94,6 +95,15 @@ func (server *server) SetName(name string) {
 	server.Name = name
 }
 
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
+}
+
+
 // The description of the service
 func (server *server) GetDescription() string {
 	return server.Description
@@ -139,14 +149,13 @@ func (server *server) GetDependencies() []string {
 	return server.Dependencies
 }
 
-
 func (server *server) SetDependency(dependency string) {
 	if server.Dependencies == nil {
 		server.Dependencies = make([]string, 0)
 	}
-	
+
 	// Append the depency to the list.
-	if !Utility.Contains(server.Dependencies, dependency){
+	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
@@ -339,7 +348,7 @@ var (
 // Resource manager function
 ////////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	var err error	
+	var err error
 	if resourceClient != nil {
 		return resourceClient, nil
 	}

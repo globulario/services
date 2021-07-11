@@ -21,6 +21,9 @@ type Services_Manager_Client struct {
 	// The id of the service
 	id string
 
+	// The mac address of the server
+	mac string
+
 	// The name of the service
 	name string
 
@@ -86,6 +89,11 @@ func (client *Services_Manager_Client) GetName() string {
 	return client.name
 }
 
+func (client *Services_Manager_Client) GetMac() string {
+	return client.mac
+}
+
+
 // must be close when no more needed.
 func (client *Services_Manager_Client) Close() {
 	client.cc.Close()
@@ -104,6 +112,10 @@ func (client *Services_Manager_Client) SetId(id string) {
 // Set the client name.
 func (client *Services_Manager_Client) SetName(name string) {
 	client.name = name
+}
+
+func (client *Services_Manager_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.

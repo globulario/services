@@ -55,6 +55,7 @@ type server struct {
 	// The global attribute of the services.
 	Id              string
 	Name            string
+	Mac             string
 	Domain          string
 	Path            string
 	Proto           string
@@ -127,6 +128,14 @@ func (svr *server) GetName() string {
 }
 func (svr *server) SetName(name string) {
 	svr.Name = name
+}
+
+func (svr *server) GetMac() string {
+	return svr.Mac
+}
+
+func (svr *server) SetMac(mac string) {
+	svr.Mac = mac
 }
 
 // The description of the service
