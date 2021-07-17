@@ -423,7 +423,7 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
 		return nil, err
 	}
 
-	peers, err := resourceClient.GetPeers(`{"$or":[{"_id":"` + peerId + `"},{"name":"` + peerId + `"} ]}`)
+	peers, err := resourceClient.GetPeers(`{"$or":[{"domain":"` + peerId + `"},{"mac":"` + peerId + `"} ]}`)
 	if err != nil {
 		return nil, err
 	}

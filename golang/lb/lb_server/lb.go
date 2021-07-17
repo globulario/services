@@ -32,6 +32,7 @@ var (
 	}
 	return log_client_, nil
 }
+
 func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
 	log_client_, err := server.GetLogClient()
 	if err != nil {

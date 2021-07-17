@@ -9,11 +9,6 @@ import (
 	"github.com/globulario/services/golang/security"
 )
 
-// TODO made use of a key store...
-var (
-	keyPath = "/etc/globular/config/keys"
-)
-
 // Authentication holds the login/password
 type Authentication struct {
 	Token string
@@ -42,7 +37,7 @@ type Claims struct {
 }
 
 // Generate a token for a ginven user.
-func GenerateToken(timeout time.Duration, issuer, userId, userName, email string) (string, error) {
+func GenerateToken(jwtKey []byte, timeout time.Duration, issuer, userId, userName, email string) (string, error) {
 
 	// Declare the expiration time of the token
 	now := time.Now()
@@ -55,25 +50,16 @@ func GenerateToken(timeout time.Duration, issuer, userId, userName, email string
 		Email:    email,
 		StandardClaims: jwt.StandardClaims{
 			// In JWT, the expiry time is expressed as unix milliseconds
-			Id: userId,
+			Id:        userId,
 			ExpiresAt: expirationTime.Unix(),
-			Subject: userName,
-			Issuer: issuer,
-			IssuedAt: now.Unix(),
+			Subject:   userName,
+			Issuer:    issuer,
+			IssuedAt:  now.Unix() - 1000,
 		},
 	}
 
 	// Declare the token with the algorithm used for signing, and the claims
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	var jwtKey []byte
-	var err error
-
-	// Get the jwt key...
-	jwtKey, err = security.GetPeerKey(issuer, keyPath)
-	if err != nil {
-		fmt.Println(err)
-		return "", err
-	}
 
 	// Create the JWT string
 	tokenString, err := token.SignedString(jwtKey)
@@ -85,7 +71,7 @@ func GenerateToken(timeout time.Duration, issuer, userId, userName, email string
 }
 
 /** Validate a Token **/
-func ValidateToken(token string) (string, string, string, int64, error) {
+func ValidateToken(token string) (string, string, string, string, int64, error) {
 
 	// Initialize a new instance of `Claims`
 	claims := &Claims{}
@@ -95,19 +81,20 @@ func ValidateToken(token string) (string, string, string, int64, error) {
 	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
 	// or if the signature does not match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+
 		// Get the jwt key from file.
-		jwtKey, err := security.GetPeerKey(claims.Issuer, keyPath)
+		jwtKey, err := security.GetPeerKey(claims.Issuer)
+
 		return jwtKey, err
 	})
 
-
 	if err != nil {
-		return claims.ID, claims.Username, claims.Email, claims.ExpiresAt, err
+		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, err
 	}
 
 	if !tkn.Valid {
-		return claims.ID, claims.Username, claims.Email, claims.ExpiresAt, fmt.Errorf("invalid token!")
+		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, fmt.Errorf("invalid token!")
 	}
 
-	return claims.ID, claims.Username, claims.Email, claims.ExpiresAt, nil
+	return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, nil
 }

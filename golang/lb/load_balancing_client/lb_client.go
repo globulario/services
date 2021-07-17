@@ -210,9 +210,9 @@ func (client *Lb_Client) startReportLoadInfo() error {
 	}
 
 	// Close the stream.
-	//, err = stream.CloseAndRecv()
+	_, err = stream.CloseAndRecv()
 
-	//return err
+	return err
 
 }
 

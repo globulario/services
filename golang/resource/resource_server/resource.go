@@ -120,9 +120,16 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	key, err := security.GetLocalKey()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// Generate a token to identify the user.
-	tokenString, err := interceptors.GenerateToken(resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
-	id, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
+	tokenString, err := interceptors.GenerateToken(key, resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	id, _, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -1322,12 +1329,13 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 
 		// Here I will also append the list of actions.
 		actions := make([]string, 0)
-		actions_ := []interface{}(values_["actions"].(primitive.A))
+		if values_["actions"] != nil {
+			actions_ := []interface{}(values_["actions"].(primitive.A))
 
-		for i := 0; i < len(actions_); i++ {
-			actions = append(actions, actions_[i].(string))
+			for i := 0; i < len(actions_); i++ {
+				actions = append(actions, actions_[i].(string))
+			}
 		}
-
 		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Actions: actions}
 
 		stream.Send(&resourcepb.GetApplicationsRsp{
@@ -1380,7 +1388,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	// Here I wiil save the public key in the keys directory.
-	err = security.SetPeerPublicKey(rqst.Peer.Mac, keyPath, rqst.PublicKey)
+	err = security.SetPeerPublicKey(rqst.Peer.Mac, rqst.PublicKey)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1394,7 +1402,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer_.Mac = Utility.MyMacAddr()
 
 	// actions will need to be set by admin latter...
-	pubKey, err := security.GetPeerKey(Utility.MyMacAddr(), keyPath)
+	pubKey, err := security.GetPeerKey(Utility.MyMacAddr())
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1402,7 +1410,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	return &resourcepb.RegisterPeerRsp{
-		Peer: peer_,
+		Peer:      peer_,
 		PublicKey: string(pubKey),
 	}, nil
 }
@@ -1432,7 +1440,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	values := make([]*resourcepb.Peer, 0)
 
 	for i := 0; i < len(peers); i++ {
-		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), Address:  peers[i].(map[string]interface{})["address"].(string), Mac:  peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0)}
+		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), Address: peers[i].(map[string]interface{})["address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0)}
 		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
 		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
 			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))

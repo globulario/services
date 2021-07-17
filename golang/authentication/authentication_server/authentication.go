@@ -23,13 +23,12 @@ var (
 	dataPath   = "/var/globular/data"
 	configPath = "/etc/globular/config/config.json"
 	tokensPath = "/etc/globular/config/tokens"
-	keyPath    = "/etc/globular/config/keys"
 )
 
 //* Validate a token *
 func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 
-	id, _, _, expireAt, err := interceptors.ValidateToken(rqst.Token)
+	id, _, _, _, expireAt, err := interceptors.ValidateToken(rqst.Token)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -45,7 +44,7 @@ func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.
 func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
 
 	// first of all I will validate the current token.
-	id, name, email, expireAt, err := interceptors.ValidateToken(rqst.Token)
+	id, name, email, issuer, expireAt, err := interceptors.ValidateToken(rqst.Token)
 
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "token is expired") {
@@ -62,7 +61,14 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), id, name, email)
+	key, err := security.GetPeerKey(issuer)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), id, name, email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -83,7 +89,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 		}
 
 		// get back the new expireAt
-		_, _, _, expireAt, _ = interceptors.ValidateToken(tokenString)
+		_, _, _, _, expireAt, _ = interceptors.ValidateToken(tokenString)
 		session.ExpireAt = expireAt
 
 		server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
@@ -203,8 +209,15 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	key, err := security.GetLocalKey()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// The token string
-	tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -271,22 +284,16 @@ func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.S
 }
 
 /**
- * This will set peer private and public key. The keys will by save 
+ * This will set peer private and public key. The keys will by save
  * in the keypath.
  */
 func (server *server) setKey(mac string) error {
 
-	// First of all i will create the keys directory if it not already exist.
-	err := Utility.CreateDirIfNotExist(keyPath)
-	if err != nil {
-		return err
-	}
-
 	// Now I will generate keys if not already exist.
 	if Utility.MyMacAddr() == mac {
-		if !Utility.Exists(keyPath + "/" + mac + "_public") {
-			return security.GeneratePeerKeys(mac, keyPath)
-		}
+
+		return security.GeneratePeerKeys(mac)
+
 	}
 
 	return nil
@@ -294,6 +301,12 @@ func (server *server) setKey(mac string) error {
 
 /* Authenticate a user */
 func (server *server) authenticate(accountId, pwd string) (string, error) {
+	key, err := security.GetLocalKey()
+	if err != nil {
+		return "", status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// If the user is the root...
 	if accountId == "sa" {
@@ -337,7 +350,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 			}
 		}
 
-		tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+		tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -367,13 +380,13 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	session.AccountId = account.Id
 
 	// The token string
-	tokenString, err := interceptors.GenerateToken(time.Duration(server.SessionTimeout), Utility.MyMacAddr(), account.Id, account.Name, account.Email)
+	tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), account.Id, account.Name, account.Email)
 	if err != nil {
 		return "", err
 	}
 
 	// get the expire time.
-	_, user, email, expireAt, _ := interceptors.ValidateToken(tokenString)
+	_, user, email,_,  expireAt, _ := interceptors.ValidateToken(tokenString)
 	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 	session.ExpireAt = expireAt
 	session.State = resourcepb.SessionState_ONLINE

@@ -25,7 +25,6 @@ import (
 	"github.com/shirou/gopsutil/load"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -169,10 +168,9 @@ func validateAction(token string, application string, domain string, organizatio
 
 	// generate a uuid for the action and it's ressource permissions.
 	uuid := Utility.GenerateUUID(id)
-
 	item, err := getCache().GetItem(uuid)
-	if err == nil {
 
+	if err == nil {
 		// Here I will test if the permission has expired...
 		hasAccess_ := make(map[string]interface{})
 		err := json.Unmarshal(item, &hasAccess_)
@@ -187,14 +185,17 @@ func validateAction(token string, application string, domain string, organizatio
 	if err != nil {
 		return false, err
 	}
+
 	hasAccess, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
+		fmt.Println("---> 193 ", domain, method, subject, subjectType, infos, err)
 		return false, err
 	}
 
 	// Here I will set the access in the cache.
 	hasAccess_, _ := json.Marshal(map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
 	getCache().SetItem(uuid, hasAccess_)
+	fmt.Println("---> 201 ", hasAccess)
 	return hasAccess, nil
 
 }
@@ -266,17 +267,13 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-	// Get the peer information.
-	peer_, _ := peer.FromContext(ctx)
-	address := peer_.Addr.String()
-	address = address[0:strings.Index(address, ":")]
 
 	// Here I will test if the
 	method := info.FullMethod
 
 	// If the call come from a local client it has hasAccess
 	hasAccess := false
-
+	//fmt.Println("---> method 280 ", method, " call")
 	// needed to get access to the system.
 	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" ||
 		method == "/services_manager.ServicesManagerServices/GetServiceConfig" ||
@@ -295,12 +292,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/dns.DnsService/GetAAAA" ||
 		method == "/resource.ResourceService/UpdateSession" ||
 		method == "/resource.ResourceService/GetSession" ||
-		method == "/resource.ResourceService/GetSessions" ||
 		method == "/resource.ResourceService/RemoveSession" ||
-		method == "/resource.ResourceService/GetAccounts" ||
 		method == "/resource.ResourceService/GetAccount" ||
 		method == "/resource.ResourceService/RegisterPeer" ||
-		method == "/resource.ResourceService/GetPeers" ||
 		method == "/resource.ResourceService/AccountExist" ||
 		method == "/resource.ResourceService/SetAccountPassword" ||
 		method == "/resource.ResourceService/RegisterAccount" ||
@@ -318,10 +312,12 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	var clientId string
 	var err error
+	var issuer string
 
 	if len(token) > 0 {
-		clientId, _, _, _, err = ValidateToken(token)
+		clientId, _, _, issuer, _, err = ValidateToken(token)
 		if err != nil && !hasAccess {
+			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
 		if clientId == "sa" {
@@ -331,15 +327,18 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Test if peer has access
 	if !hasAccess && len(clientId) > 0 {
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  account "+clientId+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
 	}
 
 	if !hasAccess && len(application) > 0 {
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for application "+application+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, domain)
 	}
 
-	if !hasAccess {
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, address, rbacpb.SubjectType_PEER, domain)
+	if !hasAccess && len(issuer) > 0 {
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for peer "+issuer+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
+		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, domain)
 	}
 
 	if !hasAccess {
@@ -352,30 +351,33 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	//	log(domain, application, "", method, Utility.FileLine(), Utility.FunctionName(), "debug test", logpb.LogLevel_DEBUG_MESSAGE)
 
 	// I will try to get the list of candidates for load balancing
-	if Utility.GetProperty(info.Server, "Port") != nil {
+	// TODO debug load balancing.
+	/*
+		if Utility.GetProperty(info.Server, "Port") != nil {
 
-		// Here I will refresh the load balance of the server to keep track of real load.
-		lb_client, err := getLoadBalancingClient(domain, Utility.GetProperty(info.Server, "Id").(string), Utility.GetProperty(info.Server, "Name").(string), Utility.GetProperty(info.Server, "Domain").(string), int32(Utility.GetProperty(info.Server, "Port").(int)))
-		if err != nil {
-			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-			return nil, err
-		}
+			// Here I will refresh the load balance of the server to keep track of real load.
+			lb_client, err := getLoadBalancingClient(domain, Utility.GetProperty(info.Server, "Id").(string), Utility.GetProperty(info.Server, "Name").(string), Utility.GetProperty(info.Server, "Domain").(string), int32(Utility.GetProperty(info.Server, "Port").(int)))
+			if err != nil {
+				log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+				return nil, err
+			}
 
-		// At each call I will report the load of the server.
-		stats, _ := load.Avg()
-		load_info := &lbpb.LoadInfo{
-			ServerInfo: &lbpb.ServerInfo{
-				Id:     Utility.GetProperty(info.Server, "Id").(string),
-				Name:   Utility.GetProperty(info.Server, "Name").(string),
-				Domain: Utility.GetProperty(info.Server, "Domain").(string),
-				Port:   int32(Utility.GetProperty(info.Server, "Port").(int)),
-			},
-			Load1:  stats.Load1,
-			Load5:  stats.Load5,
-			Load15: stats.Load15,
+			// At each call I will report the load of the server.
+			stats, _ := load.Avg()
+			load_info := &lbpb.LoadInfo{
+				ServerInfo: &lbpb.ServerInfo{
+					Id:     Utility.GetProperty(info.Server, "Id").(string),
+					Name:   Utility.GetProperty(info.Server, "Name").(string),
+					Domain: Utility.GetProperty(info.Server, "Domain").(string),
+					Port:   int32(Utility.GetProperty(info.Server, "Port").(int)),
+				},
+				Load1:  stats.Load1,
+				Load5:  stats.Load5,
+				Load15: stats.Load15,
+			}
+			lb_client.ReportLoadInfo(load_info)
 		}
-		lb_client.ReportLoadInfo(load_info)
-	}
+	*/
 
 	var result interface{}
 	result, err = handler(ctx, rqst)
@@ -435,15 +437,23 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/admin.AdminService/DownloadGlobular" ||
 		l.method == "/repository.PackageRepository/DownloadBundle" ||
 		l.method == "/resource.ResourceService/GetApplications" ||
+		l.method == "/resource.ResourceService/GetSessions" ||
+		l.method == "/resource.ResourceService/GetAccounts" ||
+		l.method == "/resource.ResourceService/GetPeers" ||
+		l.method == "/resource.ResourceService/GetRoles" ||
+		l.method == "/resource.ResourceService/GetGroups" ||
+		l.method == "/resource.ResourceService/GetNotifications" ||
 		strings.HasPrefix(l.method, "/lb.LoadBalancingService/")
 
 	if hasAccess {
+		fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
 		return nil
 	}
 
 	// if the cache contain the uuid it means permission is allowed
 	_, err := getCache().GetItem(l.uuid)
 	if err == nil {
+		fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
 		return nil
 	}
 
@@ -466,9 +476,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	}
 
 	// set empty item to set haAccess.
-	getCache().SetItem(l.uuid, []byte{})
-
-	return nil
+	return getCache().SetItem(l.uuid, []byte{})
 }
 
 // Stream interceptor.
@@ -496,27 +504,21 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	}
 
 	method := info.FullMethod
-
 	var clientId string
+	var issuer string
 	var err error
-	peer_, _ := peer.FromContext(stream.Context())
-	address := peer_.Addr.String()
-	address = address[0:strings.Index(address, ":")]
-
-	// In case of a local call...
-	if Utility.IsLocal(address) {
-		domain = "localhost"
-	}
 
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
-		clientId, _, _, _, err = ValidateToken(token)
+		clientId, _, _, issuer, _, err = ValidateToken(token)
 		if err != nil {
+			fmt.Println("---> method 526", method, err)
 			return err
 		}
 	}
 
-	if Utility.GetProperty(srv, "Id") != nil {
+	// TODO debug report Load Info (deadlock)
+	/*if Utility.GetProperty(srv, "Id") != nil {
 		serverId := Utility.GetProperty(srv, "Id").(string)
 		serverName := Utility.GetProperty(srv, "Name").(string)
 		serverDomain := Utility.GetProperty(srv, "Domain").(string)
@@ -543,13 +545,13 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 		}
 
 		lb_client.ReportLoadInfo(load_info)
-	}
+	}*/
 
 	// The uuid will be use to set hasAccess into the cache.
 	uuid := Utility.RandomUUID()
 
 	// Start streaming.
-	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, domain: domain, token: token, application: application, clientId: clientId, peer: domain})
+	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, domain: domain, token: token, application: application, clientId: clientId, peer: issuer})
 
 	if err != nil {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
@@ -558,9 +560,5 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	// Remove the uuid from the cache
 	getCache().RemoveItem(uuid)
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

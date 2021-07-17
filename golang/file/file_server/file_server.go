@@ -695,7 +695,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			user, _, _, _, err = interceptors.ValidateToken(token)
+			user, _, _,_,  _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -771,7 +771,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _,_,  _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return err
 			}

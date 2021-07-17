@@ -26,12 +26,14 @@ import (
 var (
 	Root       = "/usr/local/share/globular"
 	ConfigPath = "/etc/globular/config/config.json"
+	keyPath    = "/etc/globular/config/keys"
 )
 
 // That function will be access via http so event server or client will be able
 // to get particular service configuration.
 func GetClientConfig(address string, name string, port int, path string) (map[string]interface{}, error) {
 
+	log.Println("get client configuration for ", name, address)
 	var serverConfig map[string]interface{}
 	var config map[string]interface{}
 	var err error
@@ -43,16 +45,12 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	// In case of local service I will get the service value directly from
 	// the configuration file.
 	serverConfig, err = getLocalConfig()
-	domain := serverConfig["Domain"].(string)
-	if len(serverConfig["Name"].(string)) > 0 {
-		domain = serverConfig["Name"].(string) + "." + domain
-	}
-	
-	log.Println("get client configuration for ", name, domain)
-
-
 	isLocal := true
 	if err == nil {
+		domain := serverConfig["Domain"].(string)
+		if len(serverConfig["Name"].(string)) > 0 {
+			domain = serverConfig["Name"].(string) + "." + domain
+		}
 		if domain != address {
 			isLocal = false
 		}
@@ -64,7 +62,6 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		// First I will retreive the server configuration.
 		log.Println("get remote client configuration for ", address, port)
 		serverConfig, err = getRemoteConfig(address, port)
-
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +118,11 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		}
 
 		if !isLocal {
-			keyPath, certPath, caPath, err := getCredentialConfig(path, domain , country, state, city, organization, alternateDomains, port)
+			domain := serverConfig["Domain"].(string)
+			if len(serverConfig["Name"].(string)) > 0 {
+				domain = serverConfig["Name"].(string) + "." + domain
+			}
+			keyPath, certPath, caPath, err := getCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
 			if err != nil {
 				log.Println("Fail to retreive credential configuration with error ", err)
 				return nil, err
@@ -294,7 +295,6 @@ func getCredentialConfig(basePath string, domain string, country string, state s
 
 	// use the temp dir to store the certificate in that case.
 	path := basePath + "/config/tls"
-
 	// must have write access of file.
 	_, err = ioutil.ReadFile(path + "/" + domain + "/client.pem")
 	if err != nil {
@@ -855,7 +855,10 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 /**
  * Generate keys and save it at given path.
  */
-func GeneratePeerKeys(id, path string) error {
+func GeneratePeerKeys(id string) error {
+	if Utility.Exists(keyPath + "/" + id + "_private") {
+		return nil // not realy an error the key already exist.
+	}
 
 	// Use ecdsa to generate a key pair
 	privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
@@ -875,7 +878,12 @@ func GeneratePeerKeys(id, path string) error {
 		Bytes: private,
 	}
 
-	file, err := os.Create(path + "/" + id + "_private")
+	err = Utility.CreateDirIfNotExist(keyPath)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.Create(keyPath + "/" + id + "_private")
 	if err != nil {
 		return err
 	}
@@ -901,7 +909,7 @@ func GeneratePeerKeys(id, path string) error {
 		Bytes: publicKey,
 	}
 
-	file, err = os.Create(path + "/" + id + "_public")
+	file, err = os.Create(keyPath + "/" + id + "_public")
 	if err != nil {
 		return err
 	}
@@ -916,22 +924,34 @@ func GeneratePeerKeys(id, path string) error {
 }
 
 /**
+ * Return the local jwt key
+ */
+func GetLocalKey() ([]byte, error) {
+	// In that case the public key will be use as a token key...
+	// That token will be valid on the peer itself.
+	return ioutil.ReadFile(keyPath + "/" + Utility.MyMacAddr() + "_public")
+}
+
+/**
  * Return a jwt token key for a given peer id (mac address)
  */
-func GetPeerKey(id, path string) ([]byte, error) {
+func GetPeerKey(id string) ([]byte, error) {
+
 	if id == Utility.MyMacAddr() {
-		// In that case the public key will be use as a token key...
-		// That token will be valid on the peer itself.
-		return ioutil.ReadFile(path + "/" + id + "_public")
+		return GetLocalKey()
 	}
 
-	fmt.Println("Get peer key, ", path+"/"+id+"_public")
+	fmt.Println("Get peer key, ", keyPath+"/"+id+"_public")
 
 	// If the token issuer is not the actual globule but another peer
 	// I will use it public key and my private one to generate the correct key.
+	err := Utility.CreateDirIfNotExist(keyPath)
+	if err != nil {
+		return nil, err
+	}
 
 	// Read the public key file
-	file, err := os.Open(path + "/" + id + "_public")
+	file, err := os.Open(keyPath + "/" + id + "_public")
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -960,7 +980,7 @@ func GetPeerKey(id, path string) ([]byte, error) {
 	puba := publicStream.(*ecdsa.PublicKey)
 
 	//1, open the private key file and read the content
-	file, err = os.Open(path + "/" + Utility.MyMacAddr() + "_private")
+	file, err = os.Open(keyPath + "/" + Utility.MyMacAddr() + "_private")
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -986,7 +1006,7 @@ func GetPeerKey(id, path string) ([]byte, error) {
 	}
 
 	a, _ := puba.Curve.ScalarMult(puba.X, puba.Y, privb.D.Bytes())
-	
+
 	fmt.Println("key is ", a.String())
 	// The same value will be generated other peers...
 	return []byte(a.String()), nil
@@ -995,9 +1015,9 @@ func GetPeerKey(id, path string) ([]byte, error) {
 /**
  * The key must be formated as pem.
  */
-func SetPeerPublicKey(id, path, encPub string) error {
-	fmt.Println("save file ", path+"/"+id+"_public")
-	err := ioutil.WriteFile(path+"/"+id+"_public", []byte(encPub), 0644)
+func SetPeerPublicKey(id, encPub string) error {
+	fmt.Println("save file ", keyPath+"/"+id+"_public")
+	err := ioutil.WriteFile(keyPath+"/"+id+"_public", []byte(encPub), 0644)
 	if err != nil {
 		return err
 	}

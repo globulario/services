@@ -136,10 +136,6 @@ func InitClient(client Client, address string, id string) error {
 
 	client.SetPort(port)
 
-	if config["Domain"] != nil {
-		client.SetDomain(config["Domain"].(string))
-	}
-
 	// Set security values.
 	if config["TLS"] != nil {
 		

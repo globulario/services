@@ -5,21 +5,21 @@ import (
 	"testing"
 	"log"
 
-	"github.com/globulario/services/golang/rbac/rbac_client"
-	// "github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/authentication/authentication_client"
 )
 
 var (
 	// Connect to the plc client.
-	client, _       = NewResourceService_Client("localhost", "resource.ResourceService")
-	rbac_client_, _ = rbac_client.NewRbacService_Client("localhost", "resource.RbacService")
-
-	//token string // the token use by test.
+	domain = "globular.cloud"
+	client, _       = NewResourceService_Client(domain, "resource.ResourceService")
+	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
+	//token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
 )
 
 /** Test create account **/
 /** Test create Organization */
 func TestCreateOrganization(t *testing.T) {
+	authentication_client_.Authenticate("sa", "adminadmin")
 	log.Println("---> test create organisation.")
 	err := client.CreateOrganization("globulario", "globulario")
 	if err != nil {
@@ -130,6 +130,11 @@ func TestAddAccountRole(t *testing.T) {
 	if err != nil {
 		log.Println("---> ", err)
 	}
+
+	err = client.AddAccountRole("dave", "globular_user")
+	if err != nil {
+		log.Println("---> ", err)
+	}
 }
 
 func TestValidateAction(t *testing.T) {
@@ -198,7 +203,7 @@ func TestDeleteRole(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-
+/*
 // Remove an account.
 func TestDeleteAccount(t *testing.T) {
 	log.Println("---> test remove existing account.")
@@ -207,7 +212,8 @@ func TestDeleteAccount(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-
+*/
+/*
 func TestDeleteOrganization(t *testing.T) {
 	log.Println("---> test delete organization")
 	err := client.DeleteOrganization("globulario")
@@ -215,4 +221,4 @@ func TestDeleteOrganization(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-
+*/

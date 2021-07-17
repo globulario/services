@@ -65,7 +65,7 @@ func (server *server) log(info *logpb.LogInfo) error {
 
 	// The userId can be a single string or a JWT token.
 	if len(info.UserId) > 0 {
-		id, name, _, _, err := interceptors.ValidateToken(info.UserId)
+		id, name, _, _, _, err := interceptors.ValidateToken(info.UserId)
 		if err == nil {
 			info.UserId = id
 		}

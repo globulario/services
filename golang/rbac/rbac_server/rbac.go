@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -1260,29 +1261,35 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 	// Validate the access for a given suject...
 	hasAccess := false
-	rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for "+subject)
+	
 
 	// So first of all I will validate the actions itself...
 	if subjectType == rbacpb.SubjectType_APPLICATION {
+		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for application "+subject)
 		application, err := rbac_server.getApplication(subject)
 		if err != nil {
 			return false, err
 		}
 		actions = application.Actions
 	} else if subjectType == rbacpb.SubjectType_PEER {
+		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
 		peer, err := rbac_server.getPeer(subject)
 		if err != nil {
+			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, err
 		}
 		actions = peer.Actions
+		fmt.Println("----> actions found for peer: ", actions)
 	} else if subjectType == rbacpb.SubjectType_ROLE {
+		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
 		role, err := rbac_server.getRole(subject)
 		if err != nil {
+			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, err
 		}
 		actions = role.Actions
 	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
-
+		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for accout "+subject)
 		// If the user is the super admin i will return true.
 		if subject == "sa" {
 			return true, nil
@@ -1290,6 +1297,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 		account, err := rbac_server.getAccount(subject)
 		if err != nil {
+			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, err
 		}
 
@@ -1323,6 +1331,8 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		return true, nil
 	}
 
+
+
 	// Now I will validate the resource access.
 	// infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)
@@ -1338,12 +1348,14 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 					err := errors.New("subject " + subject + " can call the method '" + action + "' but has not the permission to " + resources[i].Permission + " resource '" + resources[i].Path + "'")
 					return false, err
 				} else if hasAccess {
+					
+					rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject " + subject + " can call the method '" + action + "' and has permission to " + resources[i].Permission + " resource '" + resources[i].Path + "'")
 					return true, nil
 				}
 			}
 		}
 	}
-
+	rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(),"subject " + subject + " can call the method '" + action);
 	return true, nil
 }
 
@@ -1352,6 +1364,11 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 
 	// So here From the context I will validate if the application can execute the action...
 	var err error
+	if len(rqst.Action) == 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no action was given to validate")))
+	}
 
 	// If the address is local I will give the permission.
 	//log.Println("validate action ", rqst.Action, rqst.Subject, rqst.Type, rqst.Infos)
