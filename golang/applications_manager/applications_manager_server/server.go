@@ -528,7 +528,10 @@ func main() {
 	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WebRoot = "/var/globular/webroot"
-
+	folderPath := "/Program Files"
+	if Utility.Exists(folderPath){
+		s_impl.WebRoot = folderPath + "/Globular" + s_impl.WebRoot
+	}
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

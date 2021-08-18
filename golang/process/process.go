@@ -186,6 +186,13 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	proxyArgs = append(proxyArgs, "--allow_all_origins="+proxyAllowAllOrgins)
 	hasTls := s["TLS"].(bool)
 	creds := "/etc/globular/config/tls"
+
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		creds = folderPath + creds
+	}
+
+
 	// Test if the port is available.
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {

@@ -401,6 +401,13 @@ func main() {
 	s_impl.WebRoot = "/var/globular/webroot"
 	s_impl.ApplicationsRoot = "/var/globular/data/files/applications"
 
+	folderPath := "/Program Files"
+	if Utility.Exists(folderPath){
+		s_impl.WebRoot = folderPath + "/Globular" + s_impl.WebRoot
+		s_impl.ApplicationsRoot = folderPath + "/Globular" + s_impl.ApplicationsRoot
+	}
+
+
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

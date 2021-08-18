@@ -804,6 +804,11 @@ func main() {
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
 	s_impl.DataPath = "/var/globular/data"
+	folderPath := "/Program Files"
+
+	if Utility.Exists(folderPath){
+		s_impl.DataPath = folderPath + "/Globular" +s_impl.DataPath
+	}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

@@ -145,6 +145,10 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  * Return the server local configuration if one exist.
  */
 func getLocalConfig() (map[string]interface{}, error) {
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		ConfigPath = folderPath + ConfigPath
+	}
 
 	if !Utility.Exists(ConfigPath) {
 		return nil, errors.New("no local Globular configuration found")
@@ -856,6 +860,11 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
  * Generate keys and save it at given path.
  */
 func GeneratePeerKeys(id string) error {
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		keyPath = folderPath + keyPath
+	}
+
 	if Utility.Exists(keyPath + "/" + id + "_private") {
 		return nil // not realy an error the key already exist.
 	}
@@ -927,6 +936,10 @@ func GeneratePeerKeys(id string) error {
  * Return the local jwt key
  */
 func GetLocalKey() ([]byte, error) {
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		keyPath = folderPath + keyPath
+	}
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
 	return ioutil.ReadFile(keyPath + "/" + Utility.MyMacAddr() + "_public")
@@ -939,6 +952,11 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	if id == Utility.MyMacAddr() {
 		return GetLocalKey()
+	}
+
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		keyPath = folderPath + keyPath
 	}
 
 	fmt.Println("Get peer key, ", keyPath+"/"+id+"_public")
@@ -1016,6 +1034,11 @@ func GetPeerKey(id string) ([]byte, error) {
  * The key must be formated as pem.
  */
 func SetPeerPublicKey(id, encPub string) error {
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		keyPath = folderPath + keyPath
+	}
+	
 	fmt.Println("save file ", keyPath+"/"+id+"_public")
 	err := ioutil.WriteFile(keyPath+"/"+id+"_public", []byte(encPub), 0644)
 	if err != nil {

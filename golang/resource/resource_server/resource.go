@@ -26,10 +26,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Need to register peers
-var (
-	keyPath = "/etc/globular/config/keys"
-)
 
 // Set the root password
 func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {

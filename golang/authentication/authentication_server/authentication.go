@@ -75,6 +75,12 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		configPath = folderPath + configPath
+		tokensPath = folderPath + tokensPath
+	}
+
 	// Here I will refresh the existing token file.
 	if id == "sa" {
 		// So here I will keep the token...
@@ -151,6 +157,10 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 
 // Set the root password, the root password will be save in the configuration file.
 func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationpb.SetRootPasswordRequest) (*authenticationpb.SetRootPasswordResponse, error) {
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		configPath = folderPath + configPath
+	}
 
 	// The root password will be
 	if !Utility.Exists(configPath) {
@@ -233,6 +243,11 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 //Set the root email
 func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
 
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		configPath = folderPath + configPath
+	}
+
 	// The root password will be
 	if !Utility.Exists(configPath) {
 		return nil, status.Errorf(
@@ -306,6 +321,12 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 		return "", status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		configPath = folderPath + configPath
+		dataPath = folderPath + dataPath
 	}
 
 	// If the user is the root...

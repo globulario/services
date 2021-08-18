@@ -178,6 +178,11 @@ func (client *Authentication_Client) SetCaFile(caFile string) {
 func (client *Authentication_Client) Authenticate(name string, password string) (string, error) {
 	// In case of other domain than localhost I will rip off the token file
 	// before each authentication.
+	folderPath := "/Program Files/Globular"
+	if Utility.Exists(folderPath) {
+		tokensPath = folderPath + tokensPath
+	}
+
 	err := Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
 		log.Println("fail to create dir ", tokensPath, " with error ", err)
