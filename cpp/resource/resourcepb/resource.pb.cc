@@ -1970,8 +1970,9 @@ static void InitDefaultsscc_info_RegisterPeerRsp_resource_2eproto() {
   ::resource::RegisterPeerRsp::InitAsDefaultInstance();
 }
 
-::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<0> scc_info_RegisterPeerRsp_resource_2eproto =
-    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 0, 0, InitDefaultsscc_info_RegisterPeerRsp_resource_2eproto}, {}};
+::PROTOBUF_NAMESPACE_ID::internal::SCCInfo<1> scc_info_RegisterPeerRsp_resource_2eproto =
+    {{ATOMIC_VAR_INIT(::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase::kUninitialized), 1, 0, InitDefaultsscc_info_RegisterPeerRsp_resource_2eproto}, {
+      &scc_info_Peer_resource_2eproto.base,}};
 
 static void InitDefaultsscc_info_RemoveAccountRoleRqst_resource_2eproto() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -3100,7 +3101,6 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::Peer, name_),
   PROTOBUF_FIELD_OFFSET(::resource::Peer, domain_),
   PROTOBUF_FIELD_OFFSET(::resource::Peer, address_),
   PROTOBUF_FIELD_OFFSET(::resource::Peer, mac_),
@@ -3111,12 +3111,15 @@ const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_resource_2eproto::offsets[] PR
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
   PROTOBUF_FIELD_OFFSET(::resource::RegisterPeerRqst, peer_),
+  PROTOBUF_FIELD_OFFSET(::resource::RegisterPeerRqst, public_key_),
+  PROTOBUF_FIELD_OFFSET(::resource::RegisterPeerRqst, secret_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::RegisterPeerRsp, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::resource::RegisterPeerRsp, result_),
+  PROTOBUF_FIELD_OFFSET(::resource::RegisterPeerRsp, peer_),
+  PROTOBUF_FIELD_OFFSET(::resource::RegisterPeerRsp, public_key_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::resource::GetPeersRqst, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -3610,74 +3613,74 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 485, -1, sizeof(::resource::DeleteOrganizationRqst)},
   { 491, -1, sizeof(::resource::DeleteOrganizationRsp)},
   { 497, -1, sizeof(::resource::Peer)},
-  { 507, -1, sizeof(::resource::RegisterPeerRqst)},
-  { 513, -1, sizeof(::resource::RegisterPeerRsp)},
-  { 519, -1, sizeof(::resource::GetPeersRqst)},
-  { 526, -1, sizeof(::resource::GetPeersRsp)},
-  { 532, -1, sizeof(::resource::DeletePeerRqst)},
-  { 538, -1, sizeof(::resource::DeletePeerRsp)},
-  { 544, -1, sizeof(::resource::AddRoleActionsRqst)},
-  { 551, -1, sizeof(::resource::AddRoleActionsRsp)},
-  { 557, -1, sizeof(::resource::RemoveRoleActionRqst)},
-  { 564, -1, sizeof(::resource::RemoveRoleActionRsp)},
-  { 570, -1, sizeof(::resource::RemoveRolesActionRqst)},
-  { 576, -1, sizeof(::resource::RemoveRolesActionRsp)},
-  { 582, -1, sizeof(::resource::AddApplicationActionsRqst)},
-  { 589, -1, sizeof(::resource::AddApplicationActionsRsp)},
-  { 595, -1, sizeof(::resource::RemoveApplicationActionRqst)},
-  { 602, -1, sizeof(::resource::RemoveApplicationActionRsp)},
-  { 608, -1, sizeof(::resource::RemoveApplicationsActionRqst)},
-  { 614, -1, sizeof(::resource::RemoveApplicationsActionRsp)},
-  { 620, -1, sizeof(::resource::AddPeerActionsRqst)},
-  { 627, -1, sizeof(::resource::AddPeerActionsRsp)},
-  { 633, -1, sizeof(::resource::RemovePeerActionRqst)},
-  { 640, -1, sizeof(::resource::RemovePeerActionRsp)},
-  { 646, -1, sizeof(::resource::RemovePeersActionRqst)},
-  { 652, -1, sizeof(::resource::RemovePeersActionRsp)},
-  { 658, -1, sizeof(::resource::AddOrganizationAccountRqst)},
-  { 665, -1, sizeof(::resource::AddOrganizationAccountRsp)},
-  { 671, -1, sizeof(::resource::AddOrganizationGroupRqst)},
-  { 678, -1, sizeof(::resource::AddOrganizationGroupRsp)},
-  { 684, -1, sizeof(::resource::AddOrganizationRoleRqst)},
-  { 691, -1, sizeof(::resource::AddOrganizationRoleRsp)},
-  { 697, -1, sizeof(::resource::AddOrganizationApplicationRqst)},
-  { 704, -1, sizeof(::resource::AddOrganizationApplicationRsp)},
-  { 710, -1, sizeof(::resource::RemoveOrganizationGroupRqst)},
-  { 717, -1, sizeof(::resource::RemoveOrganizationGroupRsp)},
-  { 723, -1, sizeof(::resource::RemoveOrganizationRoleRqst)},
-  { 730, -1, sizeof(::resource::RemoveOrganizationRoleRsp)},
-  { 736, -1, sizeof(::resource::RemoveOrganizationApplicationRqst)},
-  { 743, -1, sizeof(::resource::RemoveOrganizationApplicationRsp)},
-  { 749, -1, sizeof(::resource::RemoveOrganizationAccountRqst)},
-  { 756, -1, sizeof(::resource::RemoveOrganizationAccountRsp)},
-  { 762, -1, sizeof(::resource::Notification)},
-  { 773, -1, sizeof(::resource::CreateNotificationRqst)},
-  { 779, -1, sizeof(::resource::CreateNotificationRsp)},
-  { 784, -1, sizeof(::resource::GetNotificationsRqst)},
-  { 790, -1, sizeof(::resource::GetNotificationsRsp)},
-  { 796, -1, sizeof(::resource::DeleteNotificationRqst)},
-  { 803, -1, sizeof(::resource::DeleteNotificationRsp)},
-  { 808, -1, sizeof(::resource::ClearAllNotificationsRqst)},
-  { 814, -1, sizeof(::resource::ClearAllNotificationsRsp)},
-  { 819, -1, sizeof(::resource::ClearNotificationsByTypeRqst)},
-  { 826, -1, sizeof(::resource::ClearNotificationsByTypeRsp)},
-  { 831, -1, sizeof(::resource::GetPackageDescriptorRequest)},
-  { 838, -1, sizeof(::resource::GetPackageDescriptorResponse)},
-  { 844, -1, sizeof(::resource::GetPackagesDescriptorRequest)},
-  { 851, -1, sizeof(::resource::GetPackagesDescriptorResponse)},
-  { 857, -1, sizeof(::resource::SetPackageDescriptorRequest)},
-  { 863, -1, sizeof(::resource::SetPackageDescriptorResponse)},
-  { 869, -1, sizeof(::resource::FindPackagesDescriptorRequest)},
-  { 875, -1, sizeof(::resource::FindPackagesDescriptorResponse)},
-  { 881, -1, sizeof(::resource::Session)},
-  { 890, -1, sizeof(::resource::UpdateSessionRequest)},
-  { 896, -1, sizeof(::resource::UpdateSessionResponse)},
-  { 901, -1, sizeof(::resource::RemoveSessionRequest)},
-  { 907, -1, sizeof(::resource::RemoveSessionResponse)},
-  { 912, -1, sizeof(::resource::GetSessionsRequest)},
-  { 919, -1, sizeof(::resource::GetSessionsResponse)},
-  { 925, -1, sizeof(::resource::GetSessionRequest)},
-  { 931, -1, sizeof(::resource::GetSessionResponse)},
+  { 506, -1, sizeof(::resource::RegisterPeerRqst)},
+  { 514, -1, sizeof(::resource::RegisterPeerRsp)},
+  { 521, -1, sizeof(::resource::GetPeersRqst)},
+  { 528, -1, sizeof(::resource::GetPeersRsp)},
+  { 534, -1, sizeof(::resource::DeletePeerRqst)},
+  { 540, -1, sizeof(::resource::DeletePeerRsp)},
+  { 546, -1, sizeof(::resource::AddRoleActionsRqst)},
+  { 553, -1, sizeof(::resource::AddRoleActionsRsp)},
+  { 559, -1, sizeof(::resource::RemoveRoleActionRqst)},
+  { 566, -1, sizeof(::resource::RemoveRoleActionRsp)},
+  { 572, -1, sizeof(::resource::RemoveRolesActionRqst)},
+  { 578, -1, sizeof(::resource::RemoveRolesActionRsp)},
+  { 584, -1, sizeof(::resource::AddApplicationActionsRqst)},
+  { 591, -1, sizeof(::resource::AddApplicationActionsRsp)},
+  { 597, -1, sizeof(::resource::RemoveApplicationActionRqst)},
+  { 604, -1, sizeof(::resource::RemoveApplicationActionRsp)},
+  { 610, -1, sizeof(::resource::RemoveApplicationsActionRqst)},
+  { 616, -1, sizeof(::resource::RemoveApplicationsActionRsp)},
+  { 622, -1, sizeof(::resource::AddPeerActionsRqst)},
+  { 629, -1, sizeof(::resource::AddPeerActionsRsp)},
+  { 635, -1, sizeof(::resource::RemovePeerActionRqst)},
+  { 642, -1, sizeof(::resource::RemovePeerActionRsp)},
+  { 648, -1, sizeof(::resource::RemovePeersActionRqst)},
+  { 654, -1, sizeof(::resource::RemovePeersActionRsp)},
+  { 660, -1, sizeof(::resource::AddOrganizationAccountRqst)},
+  { 667, -1, sizeof(::resource::AddOrganizationAccountRsp)},
+  { 673, -1, sizeof(::resource::AddOrganizationGroupRqst)},
+  { 680, -1, sizeof(::resource::AddOrganizationGroupRsp)},
+  { 686, -1, sizeof(::resource::AddOrganizationRoleRqst)},
+  { 693, -1, sizeof(::resource::AddOrganizationRoleRsp)},
+  { 699, -1, sizeof(::resource::AddOrganizationApplicationRqst)},
+  { 706, -1, sizeof(::resource::AddOrganizationApplicationRsp)},
+  { 712, -1, sizeof(::resource::RemoveOrganizationGroupRqst)},
+  { 719, -1, sizeof(::resource::RemoveOrganizationGroupRsp)},
+  { 725, -1, sizeof(::resource::RemoveOrganizationRoleRqst)},
+  { 732, -1, sizeof(::resource::RemoveOrganizationRoleRsp)},
+  { 738, -1, sizeof(::resource::RemoveOrganizationApplicationRqst)},
+  { 745, -1, sizeof(::resource::RemoveOrganizationApplicationRsp)},
+  { 751, -1, sizeof(::resource::RemoveOrganizationAccountRqst)},
+  { 758, -1, sizeof(::resource::RemoveOrganizationAccountRsp)},
+  { 764, -1, sizeof(::resource::Notification)},
+  { 775, -1, sizeof(::resource::CreateNotificationRqst)},
+  { 781, -1, sizeof(::resource::CreateNotificationRsp)},
+  { 786, -1, sizeof(::resource::GetNotificationsRqst)},
+  { 792, -1, sizeof(::resource::GetNotificationsRsp)},
+  { 798, -1, sizeof(::resource::DeleteNotificationRqst)},
+  { 805, -1, sizeof(::resource::DeleteNotificationRsp)},
+  { 810, -1, sizeof(::resource::ClearAllNotificationsRqst)},
+  { 816, -1, sizeof(::resource::ClearAllNotificationsRsp)},
+  { 821, -1, sizeof(::resource::ClearNotificationsByTypeRqst)},
+  { 828, -1, sizeof(::resource::ClearNotificationsByTypeRsp)},
+  { 833, -1, sizeof(::resource::GetPackageDescriptorRequest)},
+  { 840, -1, sizeof(::resource::GetPackageDescriptorResponse)},
+  { 846, -1, sizeof(::resource::GetPackagesDescriptorRequest)},
+  { 853, -1, sizeof(::resource::GetPackagesDescriptorResponse)},
+  { 859, -1, sizeof(::resource::SetPackageDescriptorRequest)},
+  { 865, -1, sizeof(::resource::SetPackageDescriptorResponse)},
+  { 871, -1, sizeof(::resource::FindPackagesDescriptorRequest)},
+  { 877, -1, sizeof(::resource::FindPackagesDescriptorResponse)},
+  { 883, -1, sizeof(::resource::Session)},
+  { 892, -1, sizeof(::resource::UpdateSessionRequest)},
+  { 898, -1, sizeof(::resource::UpdateSessionResponse)},
+  { 903, -1, sizeof(::resource::RemoveSessionRequest)},
+  { 909, -1, sizeof(::resource::RemoveSessionResponse)},
+  { 914, -1, sizeof(::resource::GetSessionsRequest)},
+  { 921, -1, sizeof(::resource::GetSessionsResponse)},
+  { 927, -1, sizeof(::resource::GetSessionRequest)},
+  { 933, -1, sizeof(::resource::GetSessionResponse)},
 };
 
 static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
@@ -3932,249 +3935,251 @@ const char descriptor_table_protodef_resource_2eproto[] PROTOBUF_SECTION_VARIABL
   "ganizations\030\001 \003(\0132\026.resource.Organizatio"
   "n\".\n\026DeleteOrganizationRqst\022\024\n\014organizat"
   "ion\030\001 \001(\t\"\'\n\025DeleteOrganizationRsp\022\016\n\006re"
-  "sult\030\001 \001(\010\"S\n\004Peer\022\014\n\004name\030\001 \001(\t\022\016\n\006doma"
-  "in\030\002 \001(\t\022\017\n\007address\030\003 \001(\t\022\013\n\003mac\030\004 \001(\t\022\017"
-  "\n\007actions\030\005 \003(\t\"0\n\020RegisterPeerRqst\022\034\n\004p"
-  "eer\030\001 \001(\0132\016.resource.Peer\"!\n\017RegisterPee"
-  "rRsp\022\016\n\006result\030\001 \001(\010\".\n\014GetPeersRqst\022\r\n\005"
-  "query\030\001 \001(\t\022\017\n\007options\030\002 \001(\t\",\n\013GetPeers"
-  "Rsp\022\035\n\005peers\030\001 \003(\0132\016.resource.Peer\".\n\016De"
-  "letePeerRqst\022\034\n\004peer\030\001 \001(\0132\016.resource.Pe"
-  "er\"\037\n\rDeletePeerRsp\022\016\n\006result\030\001 \001(\010\"5\n\022A"
-  "ddRoleActionsRqst\022\016\n\006roleId\030\001 \001(\t\022\017\n\007act"
-  "ions\030\002 \003(\t\"#\n\021AddRoleActionsRsp\022\016\n\006resul"
-  "t\030\001 \001(\010\"6\n\024RemoveRoleActionRqst\022\016\n\006roleI"
-  "d\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"%\n\023RemoveRoleAct"
-  "ionRsp\022\016\n\006result\030\001 \001(\010\"\'\n\025RemoveRolesAct"
-  "ionRqst\022\016\n\006action\030\002 \001(\t\"&\n\024RemoveRolesAc"
-  "tionRsp\022\016\n\006result\030\001 \001(\010\"C\n\031AddApplicatio"
-  "nActionsRqst\022\025\n\rapplicationId\030\001 \001(\t\022\017\n\007a"
-  "ctions\030\002 \003(\t\"*\n\030AddApplicationActionsRsp"
-  "\022\016\n\006result\030\001 \001(\010\"D\n\033RemoveApplicationAct"
-  "ionRqst\022\025\n\rapplicationId\030\001 \001(\t\022\016\n\006action"
-  "\030\002 \001(\t\",\n\032RemoveApplicationActionRsp\022\016\n\006"
-  "result\030\001 \001(\010\".\n\034RemoveApplicationsAction"
-  "Rqst\022\016\n\006action\030\002 \001(\t\"-\n\033RemoveApplicatio"
-  "nsActionRsp\022\016\n\006result\030\001 \001(\010\"5\n\022AddPeerAc"
-  "tionsRqst\022\016\n\006domain\030\001 \001(\t\022\017\n\007actions\030\002 \003"
-  "(\t\"#\n\021AddPeerActionsRsp\022\016\n\006result\030\001 \001(\010\""
-  "6\n\024RemovePeerActionRqst\022\016\n\006domain\030\001 \001(\t\022"
-  "\016\n\006action\030\002 \001(\t\"%\n\023RemovePeerActionRsp\022\016"
-  "\n\006result\030\001 \001(\010\"\'\n\025RemovePeersActionRqst\022"
-  "\016\n\006action\030\002 \001(\t\"&\n\024RemovePeersActionRsp\022"
-  "\016\n\006result\030\001 \001(\010\"G\n\032AddOrganizationAccoun"
-  "tRqst\022\026\n\016organizationId\030\001 \001(\t\022\021\n\taccount"
-  "Id\030\002 \001(\t\"+\n\031AddOrganizationAccountRsp\022\016\n"
-  "\006result\030\001 \001(\010\"C\n\030AddOrganizationGroupRqs"
-  "t\022\026\n\016organizationId\030\001 \001(\t\022\017\n\007groupId\030\002 \001"
-  "(\t\")\n\027AddOrganizationGroupRsp\022\016\n\006result\030"
-  "\001 \001(\010\"A\n\027AddOrganizationRoleRqst\022\026\n\016orga"
-  "nizationId\030\001 \001(\t\022\016\n\006roleId\030\002 \001(\t\"(\n\026AddO"
-  "rganizationRoleRsp\022\016\n\006result\030\001 \001(\010\"O\n\036Ad"
-  "dOrganizationApplicationRqst\022\026\n\016organiza"
-  "tionId\030\001 \001(\t\022\025\n\rapplicationId\030\002 \001(\t\"/\n\035A"
-  "ddOrganizationApplicationRsp\022\016\n\006result\030\001"
-  " \001(\010\"F\n\033RemoveOrganizationGroupRqst\022\026\n\016o"
-  "rganizationId\030\001 \001(\t\022\017\n\007groupId\030\002 \001(\t\",\n\032"
-  "RemoveOrganizationGroupRsp\022\016\n\006result\030\001 \001"
-  "(\010\"D\n\032RemoveOrganizationRoleRqst\022\026\n\016orga"
-  "nizationId\030\001 \001(\t\022\016\n\006roleId\030\002 \001(\t\"+\n\031Remo"
-  "veOrganizationRoleRsp\022\016\n\006result\030\001 \001(\010\"R\n"
-  "!RemoveOrganizationApplicationRqst\022\026\n\016or"
-  "ganizationId\030\001 \001(\t\022\025\n\rapplicationId\030\002 \001("
-  "\t\"2\n RemoveOrganizationApplicationRsp\022\016\n"
-  "\006result\030\001 \001(\010\"J\n\035RemoveOrganizationAccou"
-  "ntRqst\022\026\n\016organizationId\030\001 \001(\t\022\021\n\taccoun"
-  "tId\030\002 \001(\t\".\n\034RemoveOrganizationAccountRs"
-  "p\022\016\n\006result\030\001 \001(\010\"\223\001\n\014Notification\022\n\n\002id"
-  "\030\001 \001(\t\022\014\n\004date\030\002 \001(\003\022\017\n\007message\030\003 \001(\t\022\021\n"
-  "\trecipient\030\004 \001(\t\022\016\n\006sender\030\005 \001(\t\0225\n\021noti"
-  "fication_type\030\006 \001(\0162\032.resource.Notificat"
-  "ionType\"F\n\026CreateNotificationRqst\022,\n\014not"
-  "ification\030\001 \001(\0132\026.resource.Notification\""
-  "\027\n\025CreateNotificationRsp\")\n\024GetNotificat"
-  "ionsRqst\022\021\n\trecipient\030\001 \001(\t\"D\n\023GetNotifi"
-  "cationsRsp\022-\n\rnotifications\030\001 \003(\0132\026.reso"
-  "urce.Notification\"7\n\026DeleteNotificationR"
-  "qst\022\n\n\002id\030\001 \001(\t\022\021\n\trecipient\030\002 \001(\t\"\027\n\025De"
-  "leteNotificationRsp\".\n\031ClearAllNotificat"
-  "ionsRqst\022\021\n\trecipient\030\001 \001(\t\"\032\n\030ClearAllN"
-  "otificationsRsp\"h\n\034ClearNotificationsByT"
-  "ypeRqst\022\021\n\trecipient\030\001 \001(\t\0225\n\021notificati"
-  "on_type\030\002 \001(\0162\032.resource.NotificationTyp"
-  "e\"\035\n\033ClearNotificationsByTypeRsp\"E\n\033GetP"
-  "ackageDescriptorRequest\022\021\n\tserviceId\030\001 \001"
-  "(\t\022\023\n\013publisherId\030\002 \001(\t\"L\n\034GetPackageDes"
-  "criptorResponse\022,\n\007results\030\001 \003(\0132\033.resou"
-  "rce.PackageDescriptor\">\n\034GetPackagesDesc"
-  "riptorRequest\022\r\n\005query\030\001 \001(\t\022\017\n\007options\030"
-  "\002 \001(\t\"M\n\035GetPackagesDescriptorResponse\022,"
-  "\n\007results\030\001 \003(\0132\033.resource.PackageDescri"
-  "ptor\"N\n\033SetPackageDescriptorRequest\022/\n\nd"
-  "escriptor\030\001 \001(\0132\033.resource.PackageDescri"
-  "ptor\".\n\034SetPackageDescriptorResponse\022\016\n\006"
-  "result\030\001 \001(\010\"1\n\035FindPackagesDescriptorRe"
-  "quest\022\020\n\010keywords\030\001 \003(\t\"N\n\036FindPackagesD"
-  "escriptorResponse\022,\n\007results\030\001 \003(\0132\033.res"
-  "ource.PackageDescriptor\"o\n\007Session\022\021\n\tac"
-  "countId\030\001 \001(\t\022%\n\005state\030\002 \001(\0162\026.resource."
-  "SessionState\022\027\n\017last_state_time\030\003 \001(\003\022\021\n"
-  "\texpire_at\030\004 \001(\003\":\n\024UpdateSessionRequest"
-  "\022\"\n\007session\030\001 \001(\0132\021.resource.Session\"\027\n\025"
-  "UpdateSessionResponse\")\n\024RemoveSessionRe"
-  "quest\022\021\n\taccountId\030\001 \001(\t\"\027\n\025RemoveSessio"
-  "nResponse\"4\n\022GetSessionsRequest\022\r\n\005query"
-  "\030\001 \001(\t\022\017\n\007options\030\002 \001(\t\":\n\023GetSessionsRe"
-  "sponse\022#\n\010sessions\030\001 \003(\0132\021.resource.Sess"
-  "ion\"&\n\021GetSessionRequest\022\021\n\taccountId\030\001 "
-  "\001(\t\"8\n\022GetSessionResponse\022\"\n\007session\030\001 \001"
-  "(\0132\021.resource.Session*F\n\013PackageType\022\017\n\013"
-  "UNKNOW_TYPE\020\000\022\020\n\014SERVICE_TYPE\020\001\022\024\n\020APPLI"
-  "CATION_TYPE\020\002*`\n\020NotificationType\022\025\n\021USE"
-  "R_NOTIFICATION\020\000\022\034\n\030APPLICATION_NOTIFICA"
-  "TION\020\001\022\027\n\023SYSTEM_NOTIFICATION\020\002*1\n\014Sessi"
-  "onState\022\n\n\006ONLINE\020\000\022\013\n\007OFFLINE\020\001\022\010\n\004AWAY"
-  "\020\0022\327+\n\017ResourceService\022W\n\022CreateOrganiza"
-  "tion\022 .resource.CreateOrganizationRqst\032\037"
-  ".resource.CreateOrganizationRsp\022S\n\020GetOr"
-  "ganizations\022\036.resource.GetOrganizationsR"
-  "qst\032\035.resource.GetOrganizationsRsp0\001\022W\n\022"
-  "DeleteOrganization\022 .resource.DeleteOrga"
-  "nizationRqst\032\037.resource.DeleteOrganizati"
-  "onRsp\022c\n\026AddOrganizationAccount\022$.resour"
-  "ce.AddOrganizationAccountRqst\032#.resource"
-  ".AddOrganizationAccountRsp\022]\n\024AddOrganiz"
-  "ationGroup\022\".resource.AddOrganizationGro"
-  "upRqst\032!.resource.AddOrganizationGroupRs"
-  "p\022Z\n\023AddOrganizationRole\022!.resource.AddO"
-  "rganizationRoleRqst\032 .resource.AddOrgani"
-  "zationRoleRsp\022o\n\032AddOrganizationApplicat"
-  "ion\022(.resource.AddOrganizationApplicatio"
-  "nRqst\032\'.resource.AddOrganizationApplicat"
-  "ionRsp\022l\n\031RemoveOrganizationAccount\022\'.re"
-  "source.RemoveOrganizationAccountRqst\032&.r"
-  "esource.RemoveOrganizationAccountRsp\022f\n\027"
-  "RemoveOrganizationGroup\022%.resource.Remov"
-  "eOrganizationGroupRqst\032$.resource.Remove"
-  "OrganizationGroupRsp\022c\n\026RemoveOrganizati"
-  "onRole\022$.resource.RemoveOrganizationRole"
-  "Rqst\032#.resource.RemoveOrganizationRoleRs"
-  "p\022x\n\035RemoveOrganizationApplication\022+.res"
-  "ource.RemoveOrganizationApplicationRqst\032"
-  "*.resource.RemoveOrganizationApplication"
-  "Rsp\022B\n\013CreateGroup\022\031.resource.CreateGrou"
-  "pRqst\032\030.resource.CreateGroupRsp\022B\n\013Updat"
-  "eGroup\022\031.resource.UpdateGroupRqst\032\030.reso"
-  "urce.UpdateGroupRsp\022>\n\tGetGroups\022\027.resou"
-  "rce.GetGroupsRqst\032\026.resource.GetGroupsRs"
-  "p0\001\022B\n\013DeleteGroup\022\031.resource.DeleteGrou"
-  "pRqst\032\030.resource.DeleteGroupRsp\022`\n\025AddGr"
-  "oupMemberAccount\022#.resource.AddGroupMemb"
-  "erAccountRqst\032\".resource.AddGroupMemberA"
-  "ccountRsp\022i\n\030RemoveGroupMemberAccount\022&."
-  "resource.RemoveGroupMemberAccountRqst\032%."
-  "resource.RemoveGroupMemberAccountRsp\022N\n\017"
-  "RegisterAccount\022\035.resource.RegisterAccou"
-  "ntRqst\032\034.resource.RegisterAccountRsp\022H\n\r"
-  "DeleteAccount\022\033.resource.DeleteAccountRq"
-  "st\032\032.resource.DeleteAccountRsp\022\?\n\nGetAcc"
-  "ount\022\030.resource.GetAccountRqst\032\027.resourc"
-  "e.GetAccountRsp\022W\n\022SetAccountPassword\022 ."
-  "resource.SetAccountPasswordRqst\032\037.resour"
-  "ce.SetAccountPasswordRsp\022D\n\013GetAccounts\022"
-  "\031.resource.GetAccountsRqst\032\030.resource.Ge"
-  "tAccountsRsp0\001\022K\n\016AddAccountRole\022\034.resou"
-  "rce.AddAccountRoleRqst\032\033.resource.AddAcc"
-  "ountRoleRsp\022T\n\021RemoveAccountRole\022\037.resou"
-  "rce.RemoveAccountRoleRqst\032\036.resource.Rem"
-  "oveAccountRoleRsp\022T\n\021SetAccountContact\022\037"
-  ".resource.SetAccountContactRqst\032\036.resour"
-  "ce.SetAccountContactRsp\022A\n\010SetEmail\022\031.re"
-  "source.SetEmailRequest\032\032.resource.SetEma"
-  "ilResponse\022`\n\025IsOrgnanizationMember\022#.re"
-  "source.IsOrgnanizationMemberRqst\032\".resou"
-  "rce.IsOrgnanizationMemberRsp\022\?\n\nCreateRo"
-  "le\022\030.resource.CreateRoleRqst\032\027.resource."
-  "CreateRoleRsp\022;\n\010GetRoles\022\026.resource.Get"
-  "RolesRqst\032\025.resource.GetRolesRsp0\001\022\?\n\nDe"
-  "leteRole\022\030.resource.DeleteRoleRqst\032\027.res"
-  "ource.DeleteRoleRsp\022K\n\016AddRoleActions\022\034."
-  "resource.AddRoleActionsRqst\032\033.resource.A"
-  "ddRoleActionsRsp\022Q\n\020RemoveRoleAction\022\036.r"
-  "esource.RemoveRoleActionRqst\032\035.resource."
-  "RemoveRoleActionRsp\022T\n\021RemoveRolesAction"
-  "\022\037.resource.RemoveRolesActionRqst\032\036.reso"
-  "urce.RemoveRolesActionRsp\022T\n\021CreateAppli"
-  "cation\022\037.resource.CreateApplicationRqst\032"
-  "\036.resource.CreateApplicationRsp\022T\n\021Updat"
-  "eApplication\022\037.resource.UpdateApplicatio"
-  "nRqst\032\036.resource.UpdateApplicationRsp\022P\n"
-  "\017GetApplications\022\035.resource.GetApplicati"
-  "onsRqst\032\034.resource.GetApplicationsRsp0\001\022"
-  "T\n\021DeleteApplication\022\037.resource.DeleteAp"
-  "plicationRqst\032\036.resource.DeleteApplicati"
-  "onRsp\022`\n\025AddApplicationActions\022#.resourc"
-  "e.AddApplicationActionsRqst\032\".resource.A"
-  "ddApplicationActionsRsp\022f\n\027RemoveApplica"
-  "tionAction\022%.resource.RemoveApplicationA"
-  "ctionRqst\032$.resource.RemoveApplicationAc"
-  "tionRsp\022i\n\030RemoveApplicationsAction\022&.re"
-  "source.RemoveApplicationsActionRqst\032%.re"
-  "source.RemoveApplicationsActionRsp\022`\n\025Ge"
-  "tApplicationVersion\022#.resource.GetApplic"
-  "ationVersionRqst\032\".resource.GetApplicati"
-  "onVersionRsp\022Z\n\023GetApplicationAlias\022!.re"
-  "source.GetApplicationAliasRqst\032 .resourc"
-  "e.GetApplicationAliasRsp\022W\n\022GetApplicati"
-  "onIcon\022 .resource.GetApplicationIconRqst"
-  "\032\037.resource.GetApplicationIconRsp\022E\n\014Reg"
-  "isterPeer\022\032.resource.RegisterPeerRqst\032\031."
-  "resource.RegisterPeerRsp\022;\n\010GetPeers\022\026.r"
-  "esource.GetPeersRqst\032\025.resource.GetPeers"
-  "Rsp0\001\022\?\n\nDeletePeer\022\030.resource.DeletePee"
-  "rRqst\032\027.resource.DeletePeerRsp\022K\n\016AddPee"
-  "rActions\022\034.resource.AddPeerActionsRqst\032\033"
-  ".resource.AddPeerActionsRsp\022Q\n\020RemovePee"
-  "rAction\022\036.resource.RemovePeerActionRqst\032"
-  "\035.resource.RemovePeerActionRsp\022T\n\021Remove"
-  "PeersAction\022\037.resource.RemovePeersAction"
-  "Rqst\032\036.resource.RemovePeersActionRsp\022W\n\022"
-  "CreateNotification\022 .resource.CreateNoti"
-  "ficationRqst\032\037.resource.CreateNotificati"
-  "onRsp\022S\n\020GetNotifications\022\036.resource.Get"
-  "NotificationsRqst\032\035.resource.GetNotifica"
-  "tionsRsp0\001\022W\n\022DeleteNotification\022 .resou"
-  "rce.DeleteNotificationRqst\032\037.resource.De"
-  "leteNotificationRsp\022`\n\025ClearAllNotificat"
-  "ions\022#.resource.ClearAllNotificationsRqs"
-  "t\032\".resource.ClearAllNotificationsRsp\022i\n"
-  "\030ClearNotificationsByType\022&.resource.Cle"
-  "arNotificationsByTypeRqst\032%.resource.Cle"
-  "arNotificationsByTypeRsp\022a\n\014FindPackages"
-  "\022\'.resource.FindPackagesDescriptorReques"
-  "t\032(.resource.FindPackagesDescriptorRespo"
-  "nse\022e\n\024GetPackageDescriptor\022%.resource.G"
-  "etPackageDescriptorRequest\032&.resource.Ge"
-  "tPackageDescriptorResponse\022j\n\025GetPackage"
-  "sDescriptor\022&.resource.GetPackagesDescri"
-  "ptorRequest\032\'.resource.GetPackagesDescri"
-  "ptorResponse0\001\022e\n\024SetPackageDescriptor\022%"
-  ".resource.SetPackageDescriptorRequest\032&."
-  "resource.SetPackageDescriptorResponse\022Y\n"
-  "\020SetPackageBundle\022!.resource.SetPackageB"
-  "undleRequest\032\".resource.SetPackageBundle"
-  "Response\022q\n\030GetPackageBundleChecksum\022).r"
-  "esource.GetPackageBundleChecksumRequest\032"
-  "*.resource.GetPackageBundleChecksumRespo"
-  "nse\022P\n\rUpdateSession\022\036.resource.UpdateSe"
-  "ssionRequest\032\037.resource.UpdateSessionRes"
-  "ponse\022J\n\013GetSessions\022\034.resource.GetSessi"
-  "onsRequest\032\035.resource.GetSessionsRespons"
-  "e\022P\n\rRemoveSession\022\036.resource.RemoveSess"
-  "ionRequest\032\037.resource.RemoveSessionRespo"
-  "nse\022G\n\nGetSession\022\033.resource.GetSessionR"
-  "equest\032\034.resource.GetSessionResponseB\025Z\023"
-  "resource/resourcepbb\006proto3"
+  "sult\030\001 \001(\010\"E\n\004Peer\022\016\n\006domain\030\001 \001(\t\022\017\n\007ad"
+  "dress\030\002 \001(\t\022\013\n\003mac\030\003 \001(\t\022\017\n\007actions\030\004 \003("
+  "\t\"T\n\020RegisterPeerRqst\022\034\n\004peer\030\001 \001(\0132\016.re"
+  "source.Peer\022\022\n\npublic_key\030\002 \001(\t\022\016\n\006secre"
+  "t\030\003 \001(\t\"C\n\017RegisterPeerRsp\022\034\n\004peer\030\001 \001(\013"
+  "2\016.resource.Peer\022\022\n\npublic_key\030\002 \001(\t\".\n\014"
+  "GetPeersRqst\022\r\n\005query\030\001 \001(\t\022\017\n\007options\030\002"
+  " \001(\t\",\n\013GetPeersRsp\022\035\n\005peers\030\001 \003(\0132\016.res"
+  "ource.Peer\".\n\016DeletePeerRqst\022\034\n\004peer\030\001 \001"
+  "(\0132\016.resource.Peer\"\037\n\rDeletePeerRsp\022\016\n\006r"
+  "esult\030\001 \001(\010\"5\n\022AddRoleActionsRqst\022\016\n\006rol"
+  "eId\030\001 \001(\t\022\017\n\007actions\030\002 \003(\t\"#\n\021AddRoleAct"
+  "ionsRsp\022\016\n\006result\030\001 \001(\010\"6\n\024RemoveRoleAct"
+  "ionRqst\022\016\n\006roleId\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\""
+  "%\n\023RemoveRoleActionRsp\022\016\n\006result\030\001 \001(\010\"\'"
+  "\n\025RemoveRolesActionRqst\022\016\n\006action\030\002 \001(\t\""
+  "&\n\024RemoveRolesActionRsp\022\016\n\006result\030\001 \001(\010\""
+  "C\n\031AddApplicationActionsRqst\022\025\n\rapplicat"
+  "ionId\030\001 \001(\t\022\017\n\007actions\030\002 \003(\t\"*\n\030AddAppli"
+  "cationActionsRsp\022\016\n\006result\030\001 \001(\010\"D\n\033Remo"
+  "veApplicationActionRqst\022\025\n\rapplicationId"
+  "\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\",\n\032RemoveApplicat"
+  "ionActionRsp\022\016\n\006result\030\001 \001(\010\".\n\034RemoveAp"
+  "plicationsActionRqst\022\016\n\006action\030\002 \001(\t\"-\n\033"
+  "RemoveApplicationsActionRsp\022\016\n\006result\030\001 "
+  "\001(\010\"5\n\022AddPeerActionsRqst\022\016\n\006domain\030\001 \001("
+  "\t\022\017\n\007actions\030\002 \003(\t\"#\n\021AddPeerActionsRsp\022"
+  "\016\n\006result\030\001 \001(\010\"6\n\024RemovePeerActionRqst\022"
+  "\016\n\006domain\030\001 \001(\t\022\016\n\006action\030\002 \001(\t\"%\n\023Remov"
+  "ePeerActionRsp\022\016\n\006result\030\001 \001(\010\"\'\n\025Remove"
+  "PeersActionRqst\022\016\n\006action\030\002 \001(\t\"&\n\024Remov"
+  "ePeersActionRsp\022\016\n\006result\030\001 \001(\010\"G\n\032AddOr"
+  "ganizationAccountRqst\022\026\n\016organizationId\030"
+  "\001 \001(\t\022\021\n\taccountId\030\002 \001(\t\"+\n\031AddOrganizat"
+  "ionAccountRsp\022\016\n\006result\030\001 \001(\010\"C\n\030AddOrga"
+  "nizationGroupRqst\022\026\n\016organizationId\030\001 \001("
+  "\t\022\017\n\007groupId\030\002 \001(\t\")\n\027AddOrganizationGro"
+  "upRsp\022\016\n\006result\030\001 \001(\010\"A\n\027AddOrganization"
+  "RoleRqst\022\026\n\016organizationId\030\001 \001(\t\022\016\n\006role"
+  "Id\030\002 \001(\t\"(\n\026AddOrganizationRoleRsp\022\016\n\006re"
+  "sult\030\001 \001(\010\"O\n\036AddOrganizationApplication"
+  "Rqst\022\026\n\016organizationId\030\001 \001(\t\022\025\n\rapplicat"
+  "ionId\030\002 \001(\t\"/\n\035AddOrganizationApplicatio"
+  "nRsp\022\016\n\006result\030\001 \001(\010\"F\n\033RemoveOrganizati"
+  "onGroupRqst\022\026\n\016organizationId\030\001 \001(\t\022\017\n\007g"
+  "roupId\030\002 \001(\t\",\n\032RemoveOrganizationGroupR"
+  "sp\022\016\n\006result\030\001 \001(\010\"D\n\032RemoveOrganization"
+  "RoleRqst\022\026\n\016organizationId\030\001 \001(\t\022\016\n\006role"
+  "Id\030\002 \001(\t\"+\n\031RemoveOrganizationRoleRsp\022\016\n"
+  "\006result\030\001 \001(\010\"R\n!RemoveOrganizationAppli"
+  "cationRqst\022\026\n\016organizationId\030\001 \001(\t\022\025\n\rap"
+  "plicationId\030\002 \001(\t\"2\n RemoveOrganizationA"
+  "pplicationRsp\022\016\n\006result\030\001 \001(\010\"J\n\035RemoveO"
+  "rganizationAccountRqst\022\026\n\016organizationId"
+  "\030\001 \001(\t\022\021\n\taccountId\030\002 \001(\t\".\n\034RemoveOrgan"
+  "izationAccountRsp\022\016\n\006result\030\001 \001(\010\"\223\001\n\014No"
+  "tification\022\n\n\002id\030\001 \001(\t\022\014\n\004date\030\002 \001(\003\022\017\n\007"
+  "message\030\003 \001(\t\022\021\n\trecipient\030\004 \001(\t\022\016\n\006send"
+  "er\030\005 \001(\t\0225\n\021notification_type\030\006 \001(\0162\032.re"
+  "source.NotificationType\"F\n\026CreateNotific"
+  "ationRqst\022,\n\014notification\030\001 \001(\0132\026.resour"
+  "ce.Notification\"\027\n\025CreateNotificationRsp"
+  "\")\n\024GetNotificationsRqst\022\021\n\trecipient\030\001 "
+  "\001(\t\"D\n\023GetNotificationsRsp\022-\n\rnotificati"
+  "ons\030\001 \003(\0132\026.resource.Notification\"7\n\026Del"
+  "eteNotificationRqst\022\n\n\002id\030\001 \001(\t\022\021\n\trecip"
+  "ient\030\002 \001(\t\"\027\n\025DeleteNotificationRsp\".\n\031C"
+  "learAllNotificationsRqst\022\021\n\trecipient\030\001 "
+  "\001(\t\"\032\n\030ClearAllNotificationsRsp\"h\n\034Clear"
+  "NotificationsByTypeRqst\022\021\n\trecipient\030\001 \001"
+  "(\t\0225\n\021notification_type\030\002 \001(\0162\032.resource"
+  ".NotificationType\"\035\n\033ClearNotificationsB"
+  "yTypeRsp\"E\n\033GetPackageDescriptorRequest\022"
+  "\021\n\tserviceId\030\001 \001(\t\022\023\n\013publisherId\030\002 \001(\t\""
+  "L\n\034GetPackageDescriptorResponse\022,\n\007resul"
+  "ts\030\001 \003(\0132\033.resource.PackageDescriptor\">\n"
+  "\034GetPackagesDescriptorRequest\022\r\n\005query\030\001"
+  " \001(\t\022\017\n\007options\030\002 \001(\t\"M\n\035GetPackagesDesc"
+  "riptorResponse\022,\n\007results\030\001 \003(\0132\033.resour"
+  "ce.PackageDescriptor\"N\n\033SetPackageDescri"
+  "ptorRequest\022/\n\ndescriptor\030\001 \001(\0132\033.resour"
+  "ce.PackageDescriptor\".\n\034SetPackageDescri"
+  "ptorResponse\022\016\n\006result\030\001 \001(\010\"1\n\035FindPack"
+  "agesDescriptorRequest\022\020\n\010keywords\030\001 \003(\t\""
+  "N\n\036FindPackagesDescriptorResponse\022,\n\007res"
+  "ults\030\001 \003(\0132\033.resource.PackageDescriptor\""
+  "o\n\007Session\022\021\n\taccountId\030\001 \001(\t\022%\n\005state\030\002"
+  " \001(\0162\026.resource.SessionState\022\027\n\017last_sta"
+  "te_time\030\003 \001(\003\022\021\n\texpire_at\030\004 \001(\003\":\n\024Upda"
+  "teSessionRequest\022\"\n\007session\030\001 \001(\0132\021.reso"
+  "urce.Session\"\027\n\025UpdateSessionResponse\")\n"
+  "\024RemoveSessionRequest\022\021\n\taccountId\030\001 \001(\t"
+  "\"\027\n\025RemoveSessionResponse\"4\n\022GetSessions"
+  "Request\022\r\n\005query\030\001 \001(\t\022\017\n\007options\030\002 \001(\t\""
+  ":\n\023GetSessionsResponse\022#\n\010sessions\030\001 \003(\013"
+  "2\021.resource.Session\"&\n\021GetSessionRequest"
+  "\022\021\n\taccountId\030\001 \001(\t\"8\n\022GetSessionRespons"
+  "e\022\"\n\007session\030\001 \001(\0132\021.resource.Session*F\n"
+  "\013PackageType\022\017\n\013UNKNOW_TYPE\020\000\022\020\n\014SERVICE"
+  "_TYPE\020\001\022\024\n\020APPLICATION_TYPE\020\002*`\n\020Notific"
+  "ationType\022\025\n\021USER_NOTIFICATION\020\000\022\034\n\030APPL"
+  "ICATION_NOTIFICATION\020\001\022\027\n\023SYSTEM_NOTIFIC"
+  "ATION\020\002*1\n\014SessionState\022\n\n\006ONLINE\020\000\022\013\n\007O"
+  "FFLINE\020\001\022\010\n\004AWAY\020\0022\327+\n\017ResourceService\022W"
+  "\n\022CreateOrganization\022 .resource.CreateOr"
+  "ganizationRqst\032\037.resource.CreateOrganiza"
+  "tionRsp\022S\n\020GetOrganizations\022\036.resource.G"
+  "etOrganizationsRqst\032\035.resource.GetOrgani"
+  "zationsRsp0\001\022W\n\022DeleteOrganization\022 .res"
+  "ource.DeleteOrganizationRqst\032\037.resource."
+  "DeleteOrganizationRsp\022c\n\026AddOrganization"
+  "Account\022$.resource.AddOrganizationAccoun"
+  "tRqst\032#.resource.AddOrganizationAccountR"
+  "sp\022]\n\024AddOrganizationGroup\022\".resource.Ad"
+  "dOrganizationGroupRqst\032!.resource.AddOrg"
+  "anizationGroupRsp\022Z\n\023AddOrganizationRole"
+  "\022!.resource.AddOrganizationRoleRqst\032 .re"
+  "source.AddOrganizationRoleRsp\022o\n\032AddOrga"
+  "nizationApplication\022(.resource.AddOrgani"
+  "zationApplicationRqst\032\'.resource.AddOrga"
+  "nizationApplicationRsp\022l\n\031RemoveOrganiza"
+  "tionAccount\022\'.resource.RemoveOrganizatio"
+  "nAccountRqst\032&.resource.RemoveOrganizati"
+  "onAccountRsp\022f\n\027RemoveOrganizationGroup\022"
+  "%.resource.RemoveOrganizationGroupRqst\032$"
+  ".resource.RemoveOrganizationGroupRsp\022c\n\026"
+  "RemoveOrganizationRole\022$.resource.Remove"
+  "OrganizationRoleRqst\032#.resource.RemoveOr"
+  "ganizationRoleRsp\022x\n\035RemoveOrganizationA"
+  "pplication\022+.resource.RemoveOrganization"
+  "ApplicationRqst\032*.resource.RemoveOrganiz"
+  "ationApplicationRsp\022B\n\013CreateGroup\022\031.res"
+  "ource.CreateGroupRqst\032\030.resource.CreateG"
+  "roupRsp\022B\n\013UpdateGroup\022\031.resource.Update"
+  "GroupRqst\032\030.resource.UpdateGroupRsp\022>\n\tG"
+  "etGroups\022\027.resource.GetGroupsRqst\032\026.reso"
+  "urce.GetGroupsRsp0\001\022B\n\013DeleteGroup\022\031.res"
+  "ource.DeleteGroupRqst\032\030.resource.DeleteG"
+  "roupRsp\022`\n\025AddGroupMemberAccount\022#.resou"
+  "rce.AddGroupMemberAccountRqst\032\".resource"
+  ".AddGroupMemberAccountRsp\022i\n\030RemoveGroup"
+  "MemberAccount\022&.resource.RemoveGroupMemb"
+  "erAccountRqst\032%.resource.RemoveGroupMemb"
+  "erAccountRsp\022N\n\017RegisterAccount\022\035.resour"
+  "ce.RegisterAccountRqst\032\034.resource.Regist"
+  "erAccountRsp\022H\n\rDeleteAccount\022\033.resource"
+  ".DeleteAccountRqst\032\032.resource.DeleteAcco"
+  "untRsp\022\?\n\nGetAccount\022\030.resource.GetAccou"
+  "ntRqst\032\027.resource.GetAccountRsp\022W\n\022SetAc"
+  "countPassword\022 .resource.SetAccountPassw"
+  "ordRqst\032\037.resource.SetAccountPasswordRsp"
+  "\022D\n\013GetAccounts\022\031.resource.GetAccountsRq"
+  "st\032\030.resource.GetAccountsRsp0\001\022K\n\016AddAcc"
+  "ountRole\022\034.resource.AddAccountRoleRqst\032\033"
+  ".resource.AddAccountRoleRsp\022T\n\021RemoveAcc"
+  "ountRole\022\037.resource.RemoveAccountRoleRqs"
+  "t\032\036.resource.RemoveAccountRoleRsp\022T\n\021Set"
+  "AccountContact\022\037.resource.SetAccountCont"
+  "actRqst\032\036.resource.SetAccountContactRsp\022"
+  "A\n\010SetEmail\022\031.resource.SetEmailRequest\032\032"
+  ".resource.SetEmailResponse\022`\n\025IsOrgnaniz"
+  "ationMember\022#.resource.IsOrgnanizationMe"
+  "mberRqst\032\".resource.IsOrgnanizationMembe"
+  "rRsp\022\?\n\nCreateRole\022\030.resource.CreateRole"
+  "Rqst\032\027.resource.CreateRoleRsp\022;\n\010GetRole"
+  "s\022\026.resource.GetRolesRqst\032\025.resource.Get"
+  "RolesRsp0\001\022\?\n\nDeleteRole\022\030.resource.Dele"
+  "teRoleRqst\032\027.resource.DeleteRoleRsp\022K\n\016A"
+  "ddRoleActions\022\034.resource.AddRoleActionsR"
+  "qst\032\033.resource.AddRoleActionsRsp\022Q\n\020Remo"
+  "veRoleAction\022\036.resource.RemoveRoleAction"
+  "Rqst\032\035.resource.RemoveRoleActionRsp\022T\n\021R"
+  "emoveRolesAction\022\037.resource.RemoveRolesA"
+  "ctionRqst\032\036.resource.RemoveRolesActionRs"
+  "p\022T\n\021CreateApplication\022\037.resource.Create"
+  "ApplicationRqst\032\036.resource.CreateApplica"
+  "tionRsp\022T\n\021UpdateApplication\022\037.resource."
+  "UpdateApplicationRqst\032\036.resource.UpdateA"
+  "pplicationRsp\022P\n\017GetApplications\022\035.resou"
+  "rce.GetApplicationsRqst\032\034.resource.GetAp"
+  "plicationsRsp0\001\022T\n\021DeleteApplication\022\037.r"
+  "esource.DeleteApplicationRqst\032\036.resource"
+  ".DeleteApplicationRsp\022`\n\025AddApplicationA"
+  "ctions\022#.resource.AddApplicationActionsR"
+  "qst\032\".resource.AddApplicationActionsRsp\022"
+  "f\n\027RemoveApplicationAction\022%.resource.Re"
+  "moveApplicationActionRqst\032$.resource.Rem"
+  "oveApplicationActionRsp\022i\n\030RemoveApplica"
+  "tionsAction\022&.resource.RemoveApplication"
+  "sActionRqst\032%.resource.RemoveApplication"
+  "sActionRsp\022`\n\025GetApplicationVersion\022#.re"
+  "source.GetApplicationVersionRqst\032\".resou"
+  "rce.GetApplicationVersionRsp\022Z\n\023GetAppli"
+  "cationAlias\022!.resource.GetApplicationAli"
+  "asRqst\032 .resource.GetApplicationAliasRsp"
+  "\022W\n\022GetApplicationIcon\022 .resource.GetApp"
+  "licationIconRqst\032\037.resource.GetApplicati"
+  "onIconRsp\022E\n\014RegisterPeer\022\032.resource.Reg"
+  "isterPeerRqst\032\031.resource.RegisterPeerRsp"
+  "\022;\n\010GetPeers\022\026.resource.GetPeersRqst\032\025.r"
+  "esource.GetPeersRsp0\001\022\?\n\nDeletePeer\022\030.re"
+  "source.DeletePeerRqst\032\027.resource.DeleteP"
+  "eerRsp\022K\n\016AddPeerActions\022\034.resource.AddP"
+  "eerActionsRqst\032\033.resource.AddPeerActions"
+  "Rsp\022Q\n\020RemovePeerAction\022\036.resource.Remov"
+  "ePeerActionRqst\032\035.resource.RemovePeerAct"
+  "ionRsp\022T\n\021RemovePeersAction\022\037.resource.R"
+  "emovePeersActionRqst\032\036.resource.RemovePe"
+  "ersActionRsp\022W\n\022CreateNotification\022 .res"
+  "ource.CreateNotificationRqst\032\037.resource."
+  "CreateNotificationRsp\022S\n\020GetNotification"
+  "s\022\036.resource.GetNotificationsRqst\032\035.reso"
+  "urce.GetNotificationsRsp0\001\022W\n\022DeleteNoti"
+  "fication\022 .resource.DeleteNotificationRq"
+  "st\032\037.resource.DeleteNotificationRsp\022`\n\025C"
+  "learAllNotifications\022#.resource.ClearAll"
+  "NotificationsRqst\032\".resource.ClearAllNot"
+  "ificationsRsp\022i\n\030ClearNotificationsByTyp"
+  "e\022&.resource.ClearNotificationsByTypeRqs"
+  "t\032%.resource.ClearNotificationsByTypeRsp"
+  "\022a\n\014FindPackages\022\'.resource.FindPackages"
+  "DescriptorRequest\032(.resource.FindPackage"
+  "sDescriptorResponse\022e\n\024GetPackageDescrip"
+  "tor\022%.resource.GetPackageDescriptorReque"
+  "st\032&.resource.GetPackageDescriptorRespon"
+  "se\022j\n\025GetPackagesDescriptor\022&.resource.G"
+  "etPackagesDescriptorRequest\032\'.resource.G"
+  "etPackagesDescriptorResponse0\001\022e\n\024SetPac"
+  "kageDescriptor\022%.resource.SetPackageDesc"
+  "riptorRequest\032&.resource.SetPackageDescr"
+  "iptorResponse\022Y\n\020SetPackageBundle\022!.reso"
+  "urce.SetPackageBundleRequest\032\".resource."
+  "SetPackageBundleResponse\022q\n\030GetPackageBu"
+  "ndleChecksum\022).resource.GetPackageBundle"
+  "ChecksumRequest\032*.resource.GetPackageBun"
+  "dleChecksumResponse\022P\n\rUpdateSession\022\036.r"
+  "esource.UpdateSessionRequest\032\037.resource."
+  "UpdateSessionResponse\022J\n\013GetSessions\022\034.r"
+  "esource.GetSessionsRequest\032\035.resource.Ge"
+  "tSessionsResponse\022P\n\rRemoveSession\022\036.res"
+  "ource.RemoveSessionRequest\032\037.resource.Re"
+  "moveSessionResponse\022G\n\nGetSession\022\033.reso"
+  "urce.GetSessionRequest\032\034.resource.GetSes"
+  "sionResponseB\025Z\023resource/resourcepbb\006pro"
+  "to3"
   ;
 static const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable*const descriptor_table_resource_2eproto_deps[1] = {
 };
@@ -4323,7 +4328,7 @@ static ::PROTOBUF_NAMESPACE_ID::internal::SCCInfoBase*const descriptor_table_res
 };
 static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_resource_2eproto_once;
 const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_resource_2eproto = {
-  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 13987,
+  false, false, descriptor_table_protodef_resource_2eproto, "resource.proto", 14043,
   &descriptor_table_resource_2eproto_once, descriptor_table_resource_2eproto_sccs, descriptor_table_resource_2eproto_deps, 141, 0,
   schemas, file_default_instances, TableStruct_resource_2eproto::offsets,
   file_level_metadata_resource_2eproto, 141, file_level_enum_descriptors_resource_2eproto, file_level_service_descriptors_resource_2eproto,
@@ -21595,11 +21600,6 @@ Peer::Peer(const Peer& from)
   : ::PROTOBUF_NAMESPACE_ID::Message(),
       actions_(from.actions_) {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  name_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_name().empty()) {
-    name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_name(),
-      GetArena());
-  }
   domain_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (!from._internal_domain().empty()) {
     domain_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_domain(),
@@ -21620,7 +21620,6 @@ Peer::Peer(const Peer& from)
 
 void Peer::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_Peer_resource_2eproto.base);
-  name_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   domain_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   address_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   mac_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
@@ -21634,7 +21633,6 @@ Peer::~Peer() {
 
 void Peer::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
-  name_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   domain_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   address_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   mac_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
@@ -21662,7 +21660,6 @@ void Peer::Clear() {
   (void) cached_has_bits;
 
   actions_.Clear();
-  name_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   domain_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   address_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   mac_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
@@ -21677,45 +21674,36 @@ const char* Peer::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::inter
     ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
     CHK_(ptr);
     switch (tag >> 3) {
-      // string name = 1;
+      // string domain = 1;
       case 1:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_name();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Peer.name"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
-      // string domain = 2;
-      case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
           auto str = _internal_mutable_domain();
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Peer.domain"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // string address = 3;
-      case 3:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
+      // string address = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
           auto str = _internal_mutable_address();
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Peer.address"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // string mac = 4;
-      case 4:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 34)) {
+      // string mac = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
           auto str = _internal_mutable_mac();
           ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Peer.mac"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
-      // repeated string actions = 5;
-      case 5:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 42)) {
+      // repeated string actions = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 34)) {
           ptr -= 1;
           do {
             ptr += 1;
@@ -21724,7 +21712,7 @@ const char* Peer::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::inter
             CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.Peer.actions"));
             CHK_(ptr);
             if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<42>(ptr));
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<34>(ptr));
         } else goto handle_unusual;
         continue;
       default: {
@@ -21755,54 +21743,44 @@ failure:
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  // string name = 1;
-  if (this->name().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_name().data(), static_cast<int>(this->_internal_name().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
-      "resource.Peer.name");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_name(), target);
-  }
-
-  // string domain = 2;
+  // string domain = 1;
   if (this->domain().size() > 0) {
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       this->_internal_domain().data(), static_cast<int>(this->_internal_domain().length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
       "resource.Peer.domain");
     target = stream->WriteStringMaybeAliased(
-        2, this->_internal_domain(), target);
+        1, this->_internal_domain(), target);
   }
 
-  // string address = 3;
+  // string address = 2;
   if (this->address().size() > 0) {
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       this->_internal_address().data(), static_cast<int>(this->_internal_address().length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
       "resource.Peer.address");
     target = stream->WriteStringMaybeAliased(
-        3, this->_internal_address(), target);
+        2, this->_internal_address(), target);
   }
 
-  // string mac = 4;
+  // string mac = 3;
   if (this->mac().size() > 0) {
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       this->_internal_mac().data(), static_cast<int>(this->_internal_mac().length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
       "resource.Peer.mac");
     target = stream->WriteStringMaybeAliased(
-        4, this->_internal_mac(), target);
+        3, this->_internal_mac(), target);
   }
 
-  // repeated string actions = 5;
+  // repeated string actions = 4;
   for (int i = 0, n = this->_internal_actions_size(); i < n; i++) {
     const auto& s = this->_internal_actions(i);
     ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
       s.data(), static_cast<int>(s.length()),
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
       "resource.Peer.actions");
-    target = stream->WriteString(5, s, target);
+    target = stream->WriteString(4, s, target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -21821,7 +21799,7 @@ size_t Peer::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // repeated string actions = 5;
+  // repeated string actions = 4;
   total_size += 1 *
       ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(actions_.size());
   for (int i = 0, n = actions_.size(); i < n; i++) {
@@ -21829,28 +21807,21 @@ size_t Peer::ByteSizeLong() const {
       actions_.Get(i));
   }
 
-  // string name = 1;
-  if (this->name().size() > 0) {
-    total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_name());
-  }
-
-  // string domain = 2;
+  // string domain = 1;
   if (this->domain().size() > 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_domain());
   }
 
-  // string address = 3;
+  // string address = 2;
   if (this->address().size() > 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_address());
   }
 
-  // string mac = 4;
+  // string mac = 3;
   if (this->mac().size() > 0) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
@@ -21889,9 +21860,6 @@ void Peer::MergeFrom(const Peer& from) {
   (void) cached_has_bits;
 
   actions_.MergeFrom(from.actions_);
-  if (from.name().size() > 0) {
-    _internal_set_name(from._internal_name());
-  }
   if (from.domain().size() > 0) {
     _internal_set_domain(from._internal_domain());
   }
@@ -21925,7 +21893,6 @@ void Peer::InternalSwap(Peer* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
   actions_.InternalSwap(&other->actions_);
-  name_.Swap(&other->name_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   domain_.Swap(&other->domain_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   address_.Swap(&other->address_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   mac_.Swap(&other->mac_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
@@ -21960,6 +21927,16 @@ RegisterPeerRqst::RegisterPeerRqst(::PROTOBUF_NAMESPACE_ID::Arena* arena)
 RegisterPeerRqst::RegisterPeerRqst(const RegisterPeerRqst& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  public_key_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_public_key().empty()) {
+    public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_public_key(),
+      GetArena());
+  }
+  secret_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_secret().empty()) {
+    secret_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_secret(),
+      GetArena());
+  }
   if (from._internal_has_peer()) {
     peer_ = new ::resource::Peer(*from.peer_);
   } else {
@@ -21970,6 +21947,8 @@ RegisterPeerRqst::RegisterPeerRqst(const RegisterPeerRqst& from)
 
 void RegisterPeerRqst::SharedCtor() {
   ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_RegisterPeerRqst_resource_2eproto.base);
+  public_key_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  secret_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   peer_ = nullptr;
 }
 
@@ -21981,6 +21960,8 @@ RegisterPeerRqst::~RegisterPeerRqst() {
 
 void RegisterPeerRqst::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
+  public_key_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  secret_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
   if (this != internal_default_instance()) delete peer_;
 }
 
@@ -22005,6 +21986,8 @@ void RegisterPeerRqst::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  public_key_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  secret_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   if (GetArena() == nullptr && peer_ != nullptr) {
     delete peer_;
   }
@@ -22024,6 +22007,24 @@ const char* RegisterPeerRqst::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPA
       case 1:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
           ptr = ctx->ParseMessage(_internal_mutable_peer(), ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // string public_key = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
+          auto str = _internal_mutable_public_key();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.RegisterPeerRqst.public_key"));
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // string secret = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 26)) {
+          auto str = _internal_mutable_secret();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.RegisterPeerRqst.secret"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -22063,6 +22064,26 @@ failure:
         1, _Internal::peer(this), target, stream);
   }
 
+  // string public_key = 2;
+  if (this->public_key().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_public_key().data(), static_cast<int>(this->_internal_public_key().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.RegisterPeerRqst.public_key");
+    target = stream->WriteStringMaybeAliased(
+        2, this->_internal_public_key(), target);
+  }
+
+  // string secret = 3;
+  if (this->secret().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_secret().data(), static_cast<int>(this->_internal_secret().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.RegisterPeerRqst.secret");
+    target = stream->WriteStringMaybeAliased(
+        3, this->_internal_secret(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -22078,6 +22099,20 @@ size_t RegisterPeerRqst::ByteSizeLong() const {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
+
+  // string public_key = 2;
+  if (this->public_key().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_public_key());
+  }
+
+  // string secret = 3;
+  if (this->secret().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_secret());
+  }
 
   // .resource.Peer peer = 1;
   if (this->has_peer()) {
@@ -22117,6 +22152,12 @@ void RegisterPeerRqst::MergeFrom(const RegisterPeerRqst& from) {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
+  if (from.public_key().size() > 0) {
+    _internal_set_public_key(from._internal_public_key());
+  }
+  if (from.secret().size() > 0) {
+    _internal_set_secret(from._internal_secret());
+  }
   if (from.has_peer()) {
     _internal_mutable_peer()->::resource::Peer::MergeFrom(from._internal_peer());
   }
@@ -22143,6 +22184,8 @@ bool RegisterPeerRqst::IsInitialized() const {
 void RegisterPeerRqst::InternalSwap(RegisterPeerRqst* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  public_key_.Swap(&other->public_key_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  secret_.Swap(&other->secret_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
   swap(peer_, other->peer_);
 }
 
@@ -22154,11 +22197,18 @@ void RegisterPeerRqst::InternalSwap(RegisterPeerRqst* other) {
 // ===================================================================
 
 void RegisterPeerRsp::InitAsDefaultInstance() {
+  ::resource::_RegisterPeerRsp_default_instance_._instance.get_mutable()->peer_ = const_cast< ::resource::Peer*>(
+      ::resource::Peer::internal_default_instance());
 }
 class RegisterPeerRsp::_Internal {
  public:
+  static const ::resource::Peer& peer(const RegisterPeerRsp* msg);
 };
 
+const ::resource::Peer&
+RegisterPeerRsp::_Internal::peer(const RegisterPeerRsp* msg) {
+  return *msg->peer_;
+}
 RegisterPeerRsp::RegisterPeerRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
   SharedCtor();
@@ -22168,12 +22218,23 @@ RegisterPeerRsp::RegisterPeerRsp(::PROTOBUF_NAMESPACE_ID::Arena* arena)
 RegisterPeerRsp::RegisterPeerRsp(const RegisterPeerRsp& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  result_ = from.result_;
+  public_key_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (!from._internal_public_key().empty()) {
+    public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), from._internal_public_key(),
+      GetArena());
+  }
+  if (from._internal_has_peer()) {
+    peer_ = new ::resource::Peer(*from.peer_);
+  } else {
+    peer_ = nullptr;
+  }
   // @@protoc_insertion_point(copy_constructor:resource.RegisterPeerRsp)
 }
 
 void RegisterPeerRsp::SharedCtor() {
-  result_ = false;
+  ::PROTOBUF_NAMESPACE_ID::internal::InitSCC(&scc_info_RegisterPeerRsp_resource_2eproto.base);
+  public_key_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  peer_ = nullptr;
 }
 
 RegisterPeerRsp::~RegisterPeerRsp() {
@@ -22184,6 +22245,8 @@ RegisterPeerRsp::~RegisterPeerRsp() {
 
 void RegisterPeerRsp::SharedDtor() {
   GOOGLE_DCHECK(GetArena() == nullptr);
+  public_key_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  if (this != internal_default_instance()) delete peer_;
 }
 
 void RegisterPeerRsp::ArenaDtor(void* object) {
@@ -22207,7 +22270,11 @@ void RegisterPeerRsp::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  result_ = false;
+  public_key_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  if (GetArena() == nullptr && peer_ != nullptr) {
+    delete peer_;
+  }
+  peer_ = nullptr;
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -22219,10 +22286,19 @@ const char* RegisterPeerRsp::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPAC
     ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
     CHK_(ptr);
     switch (tag >> 3) {
-      // bool result = 1;
+      // .resource.Peer peer = 1;
       case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 8)) {
-          result_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
+          ptr = ctx->ParseMessage(_internal_mutable_peer(), ptr);
+          CHK_(ptr);
+        } else goto handle_unusual;
+        continue;
+      // string public_key = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 18)) {
+          auto str = _internal_mutable_public_key();
+          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "resource.RegisterPeerRsp.public_key"));
           CHK_(ptr);
         } else goto handle_unusual;
         continue;
@@ -22254,10 +22330,22 @@ failure:
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  // bool result = 1;
-  if (this->result() != 0) {
+  // .resource.Peer peer = 1;
+  if (this->has_peer()) {
     target = stream->EnsureSpace(target);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::WriteBoolToArray(1, this->_internal_result(), target);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(
+        1, _Internal::peer(this), target, stream);
+  }
+
+  // string public_key = 2;
+  if (this->public_key().size() > 0) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_public_key().data(), static_cast<int>(this->_internal_public_key().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "resource.RegisterPeerRsp.public_key");
+    target = stream->WriteStringMaybeAliased(
+        2, this->_internal_public_key(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -22276,9 +22364,18 @@ size_t RegisterPeerRsp::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // bool result = 1;
-  if (this->result() != 0) {
-    total_size += 1 + 1;
+  // string public_key = 2;
+  if (this->public_key().size() > 0) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_public_key());
+  }
+
+  // .resource.Peer peer = 1;
+  if (this->has_peer()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+        *peer_);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -22312,8 +22409,11 @@ void RegisterPeerRsp::MergeFrom(const RegisterPeerRsp& from) {
   ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (from.result() != 0) {
-    _internal_set_result(from._internal_result());
+  if (from.public_key().size() > 0) {
+    _internal_set_public_key(from._internal_public_key());
+  }
+  if (from.has_peer()) {
+    _internal_mutable_peer()->::resource::Peer::MergeFrom(from._internal_peer());
   }
 }
 
@@ -22338,7 +22438,8 @@ bool RegisterPeerRsp::IsInitialized() const {
 void RegisterPeerRsp::InternalSwap(RegisterPeerRsp* other) {
   using std::swap;
   _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  swap(result_, other->result_);
+  public_key_.Swap(&other->public_key_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  swap(peer_, other->peer_);
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata RegisterPeerRsp::GetMetadata() const {

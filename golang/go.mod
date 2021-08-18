@@ -2,7 +2,7 @@ module github.com/globulario/services/golang
 
 go 1.16
 
-replace github.com/davecourtois/Utility => ../../../davecourtois/Utility
+replace github.com/davecourtois/Utility => ../../Utility
 
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.7.0
@@ -31,13 +31,12 @@ require (
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7
 	github.com/prometheus/client_golang v1.10.0
 	github.com/shirou/gopsutil v3.21.4+incompatible
-	github.com/struCoder/pidusage v0.1.3
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
 	go.mongodb.org/mongo-driver v1.5.2
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
-	google.golang.org/genproto v0.0.0-20210524171403-669157292da3
+	google.golang.org/genproto v0.0.0-20210524171403-669157292da3 // indirect
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect

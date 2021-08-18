@@ -12365,13 +12365,12 @@ class Peer PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kActionsFieldNumber = 5,
-    kNameFieldNumber = 1,
-    kDomainFieldNumber = 2,
-    kAddressFieldNumber = 3,
-    kMacFieldNumber = 4,
+    kActionsFieldNumber = 4,
+    kDomainFieldNumber = 1,
+    kAddressFieldNumber = 2,
+    kMacFieldNumber = 3,
   };
-  // repeated string actions = 5;
+  // repeated string actions = 4;
   int actions_size() const;
   private:
   int _internal_actions_size() const;
@@ -12395,23 +12394,7 @@ class Peer PROTOBUF_FINAL :
   std::string* _internal_add_actions();
   public:
 
-  // string name = 1;
-  void clear_name();
-  const std::string& name() const;
-  void set_name(const std::string& value);
-  void set_name(std::string&& value);
-  void set_name(const char* value);
-  void set_name(const char* value, size_t size);
-  std::string* mutable_name();
-  std::string* release_name();
-  void set_allocated_name(std::string* name);
-  private:
-  const std::string& _internal_name() const;
-  void _internal_set_name(const std::string& value);
-  std::string* _internal_mutable_name();
-  public:
-
-  // string domain = 2;
+  // string domain = 1;
   void clear_domain();
   const std::string& domain() const;
   void set_domain(const std::string& value);
@@ -12427,7 +12410,7 @@ class Peer PROTOBUF_FINAL :
   std::string* _internal_mutable_domain();
   public:
 
-  // string address = 3;
+  // string address = 2;
   void clear_address();
   const std::string& address() const;
   void set_address(const std::string& value);
@@ -12443,7 +12426,7 @@ class Peer PROTOBUF_FINAL :
   std::string* _internal_mutable_address();
   public:
 
-  // string mac = 4;
+  // string mac = 3;
   void clear_mac();
   const std::string& mac() const;
   void set_mac(const std::string& value);
@@ -12467,7 +12450,6 @@ class Peer PROTOBUF_FINAL :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> actions_;
-  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr name_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr domain_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr address_;
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr mac_;
@@ -12589,8 +12571,42 @@ class RegisterPeerRqst PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
+    kPublicKeyFieldNumber = 2,
+    kSecretFieldNumber = 3,
     kPeerFieldNumber = 1,
   };
+  // string public_key = 2;
+  void clear_public_key();
+  const std::string& public_key() const;
+  void set_public_key(const std::string& value);
+  void set_public_key(std::string&& value);
+  void set_public_key(const char* value);
+  void set_public_key(const char* value, size_t size);
+  std::string* mutable_public_key();
+  std::string* release_public_key();
+  void set_allocated_public_key(std::string* public_key);
+  private:
+  const std::string& _internal_public_key() const;
+  void _internal_set_public_key(const std::string& value);
+  std::string* _internal_mutable_public_key();
+  public:
+
+  // string secret = 3;
+  void clear_secret();
+  const std::string& secret() const;
+  void set_secret(const std::string& value);
+  void set_secret(std::string&& value);
+  void set_secret(const char* value);
+  void set_secret(const char* value, size_t size);
+  std::string* mutable_secret();
+  std::string* release_secret();
+  void set_allocated_secret(std::string* secret);
+  private:
+  const std::string& _internal_secret() const;
+  void _internal_set_secret(const std::string& value);
+  std::string* _internal_mutable_secret();
+  public:
+
   // .resource.Peer peer = 1;
   bool has_peer() const;
   private:
@@ -12616,6 +12632,8 @@ class RegisterPeerRqst PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr public_key_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr secret_;
   ::resource::Peer* peer_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
@@ -12735,16 +12753,42 @@ class RegisterPeerRsp PROTOBUF_FINAL :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kResultFieldNumber = 1,
+    kPublicKeyFieldNumber = 2,
+    kPeerFieldNumber = 1,
   };
-  // bool result = 1;
-  void clear_result();
-  bool result() const;
-  void set_result(bool value);
+  // string public_key = 2;
+  void clear_public_key();
+  const std::string& public_key() const;
+  void set_public_key(const std::string& value);
+  void set_public_key(std::string&& value);
+  void set_public_key(const char* value);
+  void set_public_key(const char* value, size_t size);
+  std::string* mutable_public_key();
+  std::string* release_public_key();
+  void set_allocated_public_key(std::string* public_key);
   private:
-  bool _internal_result() const;
-  void _internal_set_result(bool value);
+  const std::string& _internal_public_key() const;
+  void _internal_set_public_key(const std::string& value);
+  std::string* _internal_mutable_public_key();
   public:
+
+  // .resource.Peer peer = 1;
+  bool has_peer() const;
+  private:
+  bool _internal_has_peer() const;
+  public:
+  void clear_peer();
+  const ::resource::Peer& peer() const;
+  ::resource::Peer* release_peer();
+  ::resource::Peer* mutable_peer();
+  void set_allocated_peer(::resource::Peer* peer);
+  private:
+  const ::resource::Peer& _internal_peer() const;
+  ::resource::Peer* _internal_mutable_peer();
+  public:
+  void unsafe_arena_set_allocated_peer(
+      ::resource::Peer* peer);
+  ::resource::Peer* unsafe_arena_release_peer();
 
   // @@protoc_insertion_point(class_scope:resource.RegisterPeerRsp)
  private:
@@ -12753,7 +12797,8 @@ class RegisterPeerRsp PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  bool result_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr public_key_;
+  ::resource::Peer* peer_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_resource_2eproto;
 };
@@ -30595,69 +30640,7 @@ inline void DeleteOrganizationRsp::set_result(bool value) {
 
 // Peer
 
-// string name = 1;
-inline void Peer::clear_name() {
-  name_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline const std::string& Peer::name() const {
-  // @@protoc_insertion_point(field_get:resource.Peer.name)
-  return _internal_name();
-}
-inline void Peer::set_name(const std::string& value) {
-  _internal_set_name(value);
-  // @@protoc_insertion_point(field_set:resource.Peer.name)
-}
-inline std::string* Peer::mutable_name() {
-  // @@protoc_insertion_point(field_mutable:resource.Peer.name)
-  return _internal_mutable_name();
-}
-inline const std::string& Peer::_internal_name() const {
-  return name_.Get();
-}
-inline void Peer::_internal_set_name(const std::string& value) {
-  
-  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
-}
-inline void Peer::set_name(std::string&& value) {
-  
-  name_.Set(
-    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
-  // @@protoc_insertion_point(field_set_rvalue:resource.Peer.name)
-}
-inline void Peer::set_name(const char* value) {
-  GOOGLE_DCHECK(value != nullptr);
-  
-  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
-              GetArena());
-  // @@protoc_insertion_point(field_set_char:resource.Peer.name)
-}
-inline void Peer::set_name(const char* value,
-    size_t size) {
-  
-  name_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
-      reinterpret_cast<const char*>(value), size), GetArena());
-  // @@protoc_insertion_point(field_set_pointer:resource.Peer.name)
-}
-inline std::string* Peer::_internal_mutable_name() {
-  
-  return name_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline std::string* Peer::release_name() {
-  // @@protoc_insertion_point(field_release:resource.Peer.name)
-  return name_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
-}
-inline void Peer::set_allocated_name(std::string* name) {
-  if (name != nullptr) {
-    
-  } else {
-    
-  }
-  name_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), name,
-      GetArena());
-  // @@protoc_insertion_point(field_set_allocated:resource.Peer.name)
-}
-
-// string domain = 2;
+// string domain = 1;
 inline void Peer::clear_domain() {
   domain_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
@@ -30719,7 +30702,7 @@ inline void Peer::set_allocated_domain(std::string* domain) {
   // @@protoc_insertion_point(field_set_allocated:resource.Peer.domain)
 }
 
-// string address = 3;
+// string address = 2;
 inline void Peer::clear_address() {
   address_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
@@ -30781,7 +30764,7 @@ inline void Peer::set_allocated_address(std::string* address) {
   // @@protoc_insertion_point(field_set_allocated:resource.Peer.address)
 }
 
-// string mac = 4;
+// string mac = 3;
 inline void Peer::clear_mac() {
   mac_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
 }
@@ -30843,7 +30826,7 @@ inline void Peer::set_allocated_mac(std::string* mac) {
   // @@protoc_insertion_point(field_set_allocated:resource.Peer.mac)
 }
 
-// repeated string actions = 5;
+// repeated string actions = 4;
 inline int Peer::_internal_actions_size() const {
   return actions_.size();
 }
@@ -31004,28 +30987,277 @@ inline void RegisterPeerRqst::set_allocated_peer(::resource::Peer* peer) {
   // @@protoc_insertion_point(field_set_allocated:resource.RegisterPeerRqst.peer)
 }
 
+// string public_key = 2;
+inline void RegisterPeerRqst::clear_public_key() {
+  public_key_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RegisterPeerRqst::public_key() const {
+  // @@protoc_insertion_point(field_get:resource.RegisterPeerRqst.public_key)
+  return _internal_public_key();
+}
+inline void RegisterPeerRqst::set_public_key(const std::string& value) {
+  _internal_set_public_key(value);
+  // @@protoc_insertion_point(field_set:resource.RegisterPeerRqst.public_key)
+}
+inline std::string* RegisterPeerRqst::mutable_public_key() {
+  // @@protoc_insertion_point(field_mutable:resource.RegisterPeerRqst.public_key)
+  return _internal_mutable_public_key();
+}
+inline const std::string& RegisterPeerRqst::_internal_public_key() const {
+  return public_key_.Get();
+}
+inline void RegisterPeerRqst::_internal_set_public_key(const std::string& value) {
+  
+  public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RegisterPeerRqst::set_public_key(std::string&& value) {
+  
+  public_key_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RegisterPeerRqst.public_key)
+}
+inline void RegisterPeerRqst::set_public_key(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RegisterPeerRqst.public_key)
+}
+inline void RegisterPeerRqst::set_public_key(const char* value,
+    size_t size) {
+  
+  public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RegisterPeerRqst.public_key)
+}
+inline std::string* RegisterPeerRqst::_internal_mutable_public_key() {
+  
+  return public_key_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RegisterPeerRqst::release_public_key() {
+  // @@protoc_insertion_point(field_release:resource.RegisterPeerRqst.public_key)
+  return public_key_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RegisterPeerRqst::set_allocated_public_key(std::string* public_key) {
+  if (public_key != nullptr) {
+    
+  } else {
+    
+  }
+  public_key_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), public_key,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RegisterPeerRqst.public_key)
+}
+
+// string secret = 3;
+inline void RegisterPeerRqst::clear_secret() {
+  secret_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RegisterPeerRqst::secret() const {
+  // @@protoc_insertion_point(field_get:resource.RegisterPeerRqst.secret)
+  return _internal_secret();
+}
+inline void RegisterPeerRqst::set_secret(const std::string& value) {
+  _internal_set_secret(value);
+  // @@protoc_insertion_point(field_set:resource.RegisterPeerRqst.secret)
+}
+inline std::string* RegisterPeerRqst::mutable_secret() {
+  // @@protoc_insertion_point(field_mutable:resource.RegisterPeerRqst.secret)
+  return _internal_mutable_secret();
+}
+inline const std::string& RegisterPeerRqst::_internal_secret() const {
+  return secret_.Get();
+}
+inline void RegisterPeerRqst::_internal_set_secret(const std::string& value) {
+  
+  secret_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RegisterPeerRqst::set_secret(std::string&& value) {
+  
+  secret_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RegisterPeerRqst.secret)
+}
+inline void RegisterPeerRqst::set_secret(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  secret_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RegisterPeerRqst.secret)
+}
+inline void RegisterPeerRqst::set_secret(const char* value,
+    size_t size) {
+  
+  secret_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RegisterPeerRqst.secret)
+}
+inline std::string* RegisterPeerRqst::_internal_mutable_secret() {
+  
+  return secret_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RegisterPeerRqst::release_secret() {
+  // @@protoc_insertion_point(field_release:resource.RegisterPeerRqst.secret)
+  return secret_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RegisterPeerRqst::set_allocated_secret(std::string* secret) {
+  if (secret != nullptr) {
+    
+  } else {
+    
+  }
+  secret_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), secret,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RegisterPeerRqst.secret)
+}
+
 // -------------------------------------------------------------------
 
 // RegisterPeerRsp
 
-// bool result = 1;
-inline void RegisterPeerRsp::clear_result() {
-  result_ = false;
+// .resource.Peer peer = 1;
+inline bool RegisterPeerRsp::_internal_has_peer() const {
+  return this != internal_default_instance() && peer_ != nullptr;
 }
-inline bool RegisterPeerRsp::_internal_result() const {
-  return result_;
+inline bool RegisterPeerRsp::has_peer() const {
+  return _internal_has_peer();
 }
-inline bool RegisterPeerRsp::result() const {
-  // @@protoc_insertion_point(field_get:resource.RegisterPeerRsp.result)
-  return _internal_result();
+inline void RegisterPeerRsp::clear_peer() {
+  if (GetArena() == nullptr && peer_ != nullptr) {
+    delete peer_;
+  }
+  peer_ = nullptr;
 }
-inline void RegisterPeerRsp::_internal_set_result(bool value) {
+inline const ::resource::Peer& RegisterPeerRsp::_internal_peer() const {
+  const ::resource::Peer* p = peer_;
+  return p != nullptr ? *p : *reinterpret_cast<const ::resource::Peer*>(
+      &::resource::_Peer_default_instance_);
+}
+inline const ::resource::Peer& RegisterPeerRsp::peer() const {
+  // @@protoc_insertion_point(field_get:resource.RegisterPeerRsp.peer)
+  return _internal_peer();
+}
+inline void RegisterPeerRsp::unsafe_arena_set_allocated_peer(
+    ::resource::Peer* peer) {
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(peer_);
+  }
+  peer_ = peer;
+  if (peer) {
+    
+  } else {
+    
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:resource.RegisterPeerRsp.peer)
+}
+inline ::resource::Peer* RegisterPeerRsp::release_peer() {
   
-  result_ = value;
+  ::resource::Peer* temp = peer_;
+  peer_ = nullptr;
+  if (GetArena() != nullptr) {
+    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
+  }
+  return temp;
 }
-inline void RegisterPeerRsp::set_result(bool value) {
-  _internal_set_result(value);
-  // @@protoc_insertion_point(field_set:resource.RegisterPeerRsp.result)
+inline ::resource::Peer* RegisterPeerRsp::unsafe_arena_release_peer() {
+  // @@protoc_insertion_point(field_release:resource.RegisterPeerRsp.peer)
+  
+  ::resource::Peer* temp = peer_;
+  peer_ = nullptr;
+  return temp;
+}
+inline ::resource::Peer* RegisterPeerRsp::_internal_mutable_peer() {
+  
+  if (peer_ == nullptr) {
+    auto* p = CreateMaybeMessage<::resource::Peer>(GetArena());
+    peer_ = p;
+  }
+  return peer_;
+}
+inline ::resource::Peer* RegisterPeerRsp::mutable_peer() {
+  // @@protoc_insertion_point(field_mutable:resource.RegisterPeerRsp.peer)
+  return _internal_mutable_peer();
+}
+inline void RegisterPeerRsp::set_allocated_peer(::resource::Peer* peer) {
+  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
+  if (message_arena == nullptr) {
+    delete peer_;
+  }
+  if (peer) {
+    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
+      ::PROTOBUF_NAMESPACE_ID::Arena::GetArena(peer);
+    if (message_arena != submessage_arena) {
+      peer = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
+          message_arena, peer, submessage_arena);
+    }
+    
+  } else {
+    
+  }
+  peer_ = peer;
+  // @@protoc_insertion_point(field_set_allocated:resource.RegisterPeerRsp.peer)
+}
+
+// string public_key = 2;
+inline void RegisterPeerRsp::clear_public_key() {
+  public_key_.ClearToEmpty(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline const std::string& RegisterPeerRsp::public_key() const {
+  // @@protoc_insertion_point(field_get:resource.RegisterPeerRsp.public_key)
+  return _internal_public_key();
+}
+inline void RegisterPeerRsp::set_public_key(const std::string& value) {
+  _internal_set_public_key(value);
+  // @@protoc_insertion_point(field_set:resource.RegisterPeerRsp.public_key)
+}
+inline std::string* RegisterPeerRsp::mutable_public_key() {
+  // @@protoc_insertion_point(field_mutable:resource.RegisterPeerRsp.public_key)
+  return _internal_mutable_public_key();
+}
+inline const std::string& RegisterPeerRsp::_internal_public_key() const {
+  return public_key_.Get();
+}
+inline void RegisterPeerRsp::_internal_set_public_key(const std::string& value) {
+  
+  public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), value, GetArena());
+}
+inline void RegisterPeerRsp::set_public_key(std::string&& value) {
+  
+  public_key_.Set(
+    &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::move(value), GetArena());
+  // @@protoc_insertion_point(field_set_rvalue:resource.RegisterPeerRsp.public_key)
+}
+inline void RegisterPeerRsp::set_public_key(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  
+  public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(value),
+              GetArena());
+  // @@protoc_insertion_point(field_set_char:resource.RegisterPeerRsp.public_key)
+}
+inline void RegisterPeerRsp::set_public_key(const char* value,
+    size_t size) {
+  
+  public_key_.Set(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), ::std::string(
+      reinterpret_cast<const char*>(value), size), GetArena());
+  // @@protoc_insertion_point(field_set_pointer:resource.RegisterPeerRsp.public_key)
+}
+inline std::string* RegisterPeerRsp::_internal_mutable_public_key() {
+  
+  return public_key_.Mutable(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline std::string* RegisterPeerRsp::release_public_key() {
+  // @@protoc_insertion_point(field_release:resource.RegisterPeerRsp.public_key)
+  return public_key_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void RegisterPeerRsp::set_allocated_public_key(std::string* public_key) {
+  if (public_key != nullptr) {
+    
+  } else {
+    
+  }
+  public_key_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), public_key,
+      GetArena());
+  // @@protoc_insertion_point(field_set_allocated:resource.RegisterPeerRsp.public_key)
 }
 
 // -------------------------------------------------------------------

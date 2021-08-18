@@ -24,28 +24,29 @@ namespace Log {
     static LogReflection() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
-            "Cg9wcm90by9sb2cucHJvdG8SA2xvZyKNAQoHTG9nSW5mbxIMCgRkYXRlGAEg",
+            "Cg9wcm90by9sb2cucHJvdG8SA2xvZyKyAQoHTG9nSW5mbxIMCgRkYXRlGAEg",
             "ASgDEhwKBWxldmVsGAIgASgOMg0ubG9nLkxvZ0xldmVsEhMKC2FwcGxpY2F0",
             "aW9uGAMgASgJEg4KBnVzZXJJZBgEIAEoCRIQCgh1c2VyTmFtZRgFIAEoCRIO",
-            "CgZtZXRob2QYBiABKAkSDwoHbWVzc2FnZRgHIAEoCSIlCgdMb2dScXN0EhoK",
-            "BGluZm8YASABKAsyDC5sb2cuTG9nSW5mbyIYCgZMb2dSc3ASDgoGcmVzdWx0",
-            "GAEgASgIIioKDURlbGV0ZUxvZ1Jxc3QSGQoDbG9nGAEgASgLMgwubG9nLkxv",
-            "Z0luZm8iHgoMRGVsZXRlTG9nUnNwEg4KBnJlc3VsdBgBIAEoCCIbCgpHZXRM",
-            "b2dScXN0Eg0KBXF1ZXJ5GAEgASgJIigKCUdldExvZ1JzcBIbCgVpbmZvcxgB",
-            "IAMoCzIMLmxvZy5Mb2dJbmZvIiAKD0NsZWFyQWxsTG9nUnFzdBINCgVxdWVy",
-            "eRgBIAEoCSIgCg5DbGVhckFsbExvZ1JzcBIOCgZyZXN1bHQYASABKAgqegoI",
-            "TG9nTGV2ZWwSEQoNRkFUQUxfTUVTU0FHRRAAEhEKDUVSUk9SX01FU1NBR0UQ",
-            "ARIQCgxXQVJOX01FU1NBR0UQAhIQCgxJTkZPX01FU1NBR0UQAxIRCg1ERUJV",
-            "R19NRVNTQUdFEAQSEQoNVFJBQ0VfTUVTU0FHRRAFMskBCgpMb2dTZXJ2aWNl",
-            "EiAKA0xvZxIMLmxvZy5Mb2dScXN0GgsubG9nLkxvZ1JzcBIrCgZHZXRMb2cS",
-            "Dy5sb2cuR2V0TG9nUnFzdBoOLmxvZy5HZXRMb2dSc3AwARIyCglEZWxldGVM",
-            "b2cSEi5sb2cuRGVsZXRlTG9nUnFzdBoRLmxvZy5EZWxldGVMb2dSc3ASOAoL",
-            "Q2xlYXJBbGxMb2cSFC5sb2cuQ2xlYXJBbGxMb2dScXN0GhMubG9nLkNsZWFy",
-            "QWxsTG9nUnNwQgtaCWxvZy9sb2dwYmIGcHJvdG8z"));
+            "CgZtZXRob2QYBiABKAkSDwoHbWVzc2FnZRgHIAEoCRIVCg1mdW5jdGlvbl9u",
+            "YW1lGAggASgJEgwKBGxpbmUYCSABKAkiJQoHTG9nUnFzdBIaCgRpbmZvGAEg",
+            "ASgLMgwubG9nLkxvZ0luZm8iGAoGTG9nUnNwEg4KBnJlc3VsdBgBIAEoCCIq",
+            "Cg1EZWxldGVMb2dScXN0EhkKA2xvZxgBIAEoCzIMLmxvZy5Mb2dJbmZvIh4K",
+            "DERlbGV0ZUxvZ1JzcBIOCgZyZXN1bHQYASABKAgiGwoKR2V0TG9nUnFzdBIN",
+            "CgVxdWVyeRgBIAEoCSIoCglHZXRMb2dSc3ASGwoFaW5mb3MYASADKAsyDC5s",
+            "b2cuTG9nSW5mbyIgCg9DbGVhckFsbExvZ1Jxc3QSDQoFcXVlcnkYASABKAki",
+            "IAoOQ2xlYXJBbGxMb2dSc3ASDgoGcmVzdWx0GAEgASgIKnoKCExvZ0xldmVs",
+            "EhEKDUZBVEFMX01FU1NBR0UQABIRCg1FUlJPUl9NRVNTQUdFEAESEAoMV0FS",
+            "Tl9NRVNTQUdFEAISEAoMSU5GT19NRVNTQUdFEAMSEQoNREVCVUdfTUVTU0FH",
+            "RRAEEhEKDVRSQUNFX01FU1NBR0UQBTLJAQoKTG9nU2VydmljZRIgCgNMb2cS",
+            "DC5sb2cuTG9nUnFzdBoLLmxvZy5Mb2dSc3ASKwoGR2V0TG9nEg8ubG9nLkdl",
+            "dExvZ1Jxc3QaDi5sb2cuR2V0TG9nUnNwMAESMgoJRGVsZXRlTG9nEhIubG9n",
+            "LkRlbGV0ZUxvZ1Jxc3QaES5sb2cuRGVsZXRlTG9nUnNwEjgKC0NsZWFyQWxs",
+            "TG9nEhQubG9nLkNsZWFyQWxsTG9nUnFzdBoTLmxvZy5DbGVhckFsbExvZ1Jz",
+            "cEILWglsb2cvbG9ncGJiBnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
           new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Log.LogLevel), }, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogInfo), global::Log.LogInfo.Parser, new[]{ "Date", "Level", "Application", "UserId", "UserName", "Method", "Message" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogInfo), global::Log.LogInfo.Parser, new[]{ "Date", "Level", "Application", "UserId", "UserName", "Method", "Message", "FunctionName", "Line" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogRqst), global::Log.LogRqst.Parser, new[]{ "Info" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.LogRsp), global::Log.LogRsp.Parser, new[]{ "Result" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Log.DeleteLogRqst), global::Log.DeleteLogRqst.Parser, new[]{ "Log" }, null, null, null, null),
@@ -108,6 +109,8 @@ namespace Log {
       userName_ = other.userName_;
       method_ = other.method_;
       message_ = other.message_;
+      functionName_ = other.functionName_;
+      line_ = other.line_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -193,6 +196,28 @@ namespace Log {
       }
     }
 
+    /// <summary>Field number for the "function_name" field.</summary>
+    public const int FunctionNameFieldNumber = 8;
+    private string functionName_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    public string FunctionName {
+      get { return functionName_; }
+      set {
+        functionName_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
+    /// <summary>Field number for the "line" field.</summary>
+    public const int LineFieldNumber = 9;
+    private string line_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    public string Line {
+      get { return line_; }
+      set {
+        line_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     public override bool Equals(object other) {
       return Equals(other as LogInfo);
@@ -213,6 +238,8 @@ namespace Log {
       if (UserName != other.UserName) return false;
       if (Method != other.Method) return false;
       if (Message != other.Message) return false;
+      if (FunctionName != other.FunctionName) return false;
+      if (Line != other.Line) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -226,6 +253,8 @@ namespace Log {
       if (UserName.Length != 0) hash ^= UserName.GetHashCode();
       if (Method.Length != 0) hash ^= Method.GetHashCode();
       if (Message.Length != 0) hash ^= Message.GetHashCode();
+      if (FunctionName.Length != 0) hash ^= FunctionName.GetHashCode();
+      if (Line.Length != 0) hash ^= Line.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -270,6 +299,14 @@ namespace Log {
         output.WriteRawTag(58);
         output.WriteString(Message);
       }
+      if (FunctionName.Length != 0) {
+        output.WriteRawTag(66);
+        output.WriteString(FunctionName);
+      }
+      if (Line.Length != 0) {
+        output.WriteRawTag(74);
+        output.WriteString(Line);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -307,6 +344,14 @@ namespace Log {
         output.WriteRawTag(58);
         output.WriteString(Message);
       }
+      if (FunctionName.Length != 0) {
+        output.WriteRawTag(66);
+        output.WriteString(FunctionName);
+      }
+      if (Line.Length != 0) {
+        output.WriteRawTag(74);
+        output.WriteString(Line);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -336,6 +381,12 @@ namespace Log {
       }
       if (Message.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Message);
+      }
+      if (FunctionName.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(FunctionName);
+      }
+      if (Line.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Line);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -368,6 +419,12 @@ namespace Log {
       }
       if (other.Message.Length != 0) {
         Message = other.Message;
+      }
+      if (other.FunctionName.Length != 0) {
+        FunctionName = other.FunctionName;
+      }
+      if (other.Line.Length != 0) {
+        Line = other.Line;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -411,6 +468,14 @@ namespace Log {
             Message = input.ReadString();
             break;
           }
+          case 66: {
+            FunctionName = input.ReadString();
+            break;
+          }
+          case 74: {
+            Line = input.ReadString();
+            break;
+          }
         }
       }
     #endif
@@ -451,6 +516,14 @@ namespace Log {
           }
           case 58: {
             Message = input.ReadString();
+            break;
+          }
+          case 66: {
+            FunctionName = input.ReadString();
+            break;
+          }
+          case 74: {
+            Line = input.ReadString();
             break;
           }
         }
