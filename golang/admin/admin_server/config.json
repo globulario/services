@@ -31,7 +31,7 @@
   "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
-  "State": "stopped",
+  "State": "failed",
   "TLS": true,
   "Version": "0.0.1",
   "WebRoot": "/var/globular/webroot",

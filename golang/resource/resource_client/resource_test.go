@@ -31,7 +31,7 @@ func TestCreateOrganization(t *testing.T) {
 
 /** Test create account **/
 func TestCreateAccount(t *testing.T) {
-	err := client.RegisterAccount("dave", "dave@globular.io", "400zm89Aaa", "400zm89Aaa")
+	err := client.RegisterAccount("dave", "dave@globular.io", "1234", "1234")
 	if err != nil {
 		log.Println("---> create account fail! ", err)
 	} else {
@@ -212,8 +212,8 @@ func TestDeleteAccount(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
-*/
-/*
+
+
 func TestDeleteOrganization(t *testing.T) {
 	log.Println("---> test delete organization")
 	err := client.DeleteOrganization("globulario")

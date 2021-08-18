@@ -24,7 +24,7 @@
   "Path": "/home/dave/go/src/github.com/globulario/services/golang/log/log_server/log_server",
   "Permissions": [],
   "Port": 10019,
-  "Process": 377347,
+  "Process": -1,
   "Proto": "/home/dave/go/src/github.com/globulario/services/proto/log.proto",
   "Protocol": "grpc",
   "Proxy": 10020,

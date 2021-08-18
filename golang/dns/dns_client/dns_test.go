@@ -28,7 +28,7 @@ func TestSetA(t *testing.T) {
 	}
 
 	// Set ip address
-	domain, err := client.SetA(token, "globular.io", "peer2.globular.io", "52.26.136.219", 60)
+	domain, err := client.SetA(token, "globular.cloud", "peer0.globular.cloud", "70.55.95.217", 60)
 	if err == nil {
 		log.Println(err)
 	}
@@ -36,17 +36,17 @@ func TestSetA(t *testing.T) {
 	log.Println("domain ", domain, "was register!")
 }
 
-/*func TestResolve(t *testing.T) {
+func TestResolve(t *testing.T) {
 
 	// Connect to the plc client.
 	log.Println("---> test resolve A")
-	ipv4, err := client.GetA("peer0.globular.io.")
+	ipv4, err := client.GetA("peer0.globular.cloud")
 	if err == nil {
 		log.Println("--> your ip is ", ipv4)
 	} else {
 		log.Panicln(err)
 	}
-}*/
+}
 
 /*func TestRemoveA(t *testing.T) {
 

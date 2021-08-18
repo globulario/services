@@ -32,7 +32,7 @@
   "PublisherId": "globulario",
   "Repositories": [],
   "Root": "",
-  "State": "stopped",
+  "State": "failed",
   "TLS": true,
   "Version": "0.0.1",
   "configPath": "/home/dave/go/src/github.com/globulario/services/golang/rbac/rbac_server/config.json"

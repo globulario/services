@@ -28,7 +28,7 @@
   "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
-  "State": "stopped",
+  "State": "failed",
   "TLS": true,
   "Version": "0.0.1",
   "configPath": "/home/dave/go/src/github.com/globulario/services/golang/lb/lb_server/config.json"
