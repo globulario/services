@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"runtime"
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
@@ -26,6 +27,9 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceDir) == 0 {
 		serviceDir = "/usr/local/share/globular/services"
+		if runtime.GOOS == "windows" {
+			serviceDir = "/Program Files/Globular" + serviceDir
+		}
 	}
 
 	// I will try to get configuration from services.

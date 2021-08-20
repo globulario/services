@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"runtime"
 	"time"
 
 	"github.com/davecourtois/Utility"
@@ -172,6 +173,9 @@ func getLocalConfig() (map[string]interface{}, error) {
 	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceDir) == 0 {
 		serviceDir = Root
+		if runtime.GOOS == "windows" {
+			serviceDir = "/Program Files/Globular" + serviceDir
+		}
 	}
 
 	filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {

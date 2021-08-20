@@ -239,6 +239,9 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		proxyPath = serviceDir + proxyPath
 	} else {
 		proxyPath = "/usr/local/share/globular" + proxyPath
+		if runtime.GOOS == "windows" {
+			proxyPath = "/Program Files/Globular" + proxyPath
+		}
 	}
 
 	proxyProcess := exec.Command(proxyPath, proxyArgs...)
