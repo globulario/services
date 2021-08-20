@@ -1,8 +1,8 @@
 {
   "AllowAllOrigins": true,
   "AllowedOrigins": "",
-  "CertAuthorityTrust": "",
-  "CertFile": "",
+  "CertAuthorityTrust": "/etc/globular/config/tls/ca.crt",
+  "CertFile": "/etc/globular/config/tls/client.crt",
   "Dependencies": [
     "event.EventService"
   ],
@@ -12,22 +12,22 @@
   "Id": "e726896a-a54a-402b-9c2a-b81388f93112",
   "KeepAlive": false,
   "KeepUpToDate": false,
-  "KeyFile": "",
+  "KeyFile": "/etc/globular/config/tls/client.pem",
   "Keywords": [
     "Example",
     "Echo",
     "Test",
     "Service"
   ],
-  "Mac": "d8:3b:bf:1e:4b:e6",
+  "Mac": "00:1f:c6:9c:d3:34",
   "Name": "log.LogService",
-  "Path": "C:/Users/mm006819/Documents/globulario/services/golang/log/log_server/log_server.exe",
+  "Path": "/home/dave/go/src/github.com/globulario/services/golang/log/log_server//log_server.exe",
   "Permissions": [],
-  "Port": 10022,
-  "Process": 1688,
-  "Proto": "C:\\Users\\mm006819\\Documents\\globulario\\services/proto/log.proto",
+  "Port": 10019,
+  "Process": -1,
+  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/log.proto",
   "Protocol": "grpc",
-  "Proxy": 10023,
+  "Proxy": 10020,
   "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
@@ -35,5 +35,5 @@
   "State": "failed",
   "TLS": false,
   "Version": "0.0.1",
-  "configPath": "C:/Users/mm006819/Documents/globulario/services/golang/log/log_server/config.json"
+  "configPath": "/home/dave/go/src/github.com/globulario/services/golang/log/log_server/config.json"
 }

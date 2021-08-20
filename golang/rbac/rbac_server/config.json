@@ -1,8 +1,8 @@
 {
   "AllowAllOrigins": true,
   "AllowedOrigins": "",
-  "CertAuthorityTrust": "",
-  "CertFile": "",
+  "CertAuthorityTrust": "/etc/globular/config/tls/ca.crt",
+  "CertFile": "/etc/globular/config/tls/client.crt",
   "Dependencies": [
     "resource.ResourceService"
   ],
@@ -12,22 +12,22 @@
   "Id": "8a5608db-91b6-4916-b9d8-a8da83341e1e",
   "KeepAlive": false,
   "KeepUpToDate": false,
-  "KeyFile": "",
+  "KeyFile": "/etc/globular/config/tls/client.pem",
   "Keywords": [
     "Example",
     "rbac",
     "Test",
     "Service"
   ],
-  "Mac": "d8:3b:bf:1e:4b:e6",
+  "Mac": "00:1f:c6:9c:d3:34",
   "Name": "rbac.RbacService",
-  "Path": "C:/Users/mm006819/Documents/globulario/services/golang/rbac/rbac_server/rbac_server.exe",
+  "Path": "/home/dave/go/src/github.com/globulario/services/golang/rbac/rbac_server//rbac_server.exe",
   "Permissions": [],
-  "Port": 10030,
-  "Process": 9488,
-  "Proto": "C:\\Users\\mm006819\\Documents\\globulario\\services/proto/rbac.proto",
+  "Port": 10025,
+  "Process": -1,
+  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/rbac.proto",
   "Protocol": "grpc",
-  "Proxy": 10031,
+  "Proxy": 10026,
   "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
@@ -35,5 +35,5 @@
   "State": "failed",
   "TLS": false,
   "Version": "0.0.1",
-  "configPath": "C:/Users/mm006819/Documents/globulario/services/golang/rbac/rbac_server/config.json"
+  "configPath": "/home/dave/go/src/github.com/globulario/services/golang/rbac/rbac_server/config.json"
 }

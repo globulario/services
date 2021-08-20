@@ -2,8 +2,8 @@
   "AllowAllOrigins": true,
   "AllowedOrigins": "",
   "ApplicationsRoot": "/Program Files/Globular/var/globular/data/files/applications",
-  "CertAuthorityTrust": "",
-  "CertFile": "",
+  "CertAuthorityTrust": "/etc/globular/config/tls/ca.crt",
+  "CertFile": "/etc/globular/config/tls/client.crt",
   "Dependencies": [
     "rbac.RbacService"
   ],
@@ -13,27 +13,27 @@
   "Id": "43502c3a-d98a-4581-b366-b801b486a21e",
   "KeepAlive": false,
   "KeepUpToDate": false,
-  "KeyFile": "",
+  "KeyFile": "/etc/globular/config/tls/client.pem",
   "Keywords": [
     "Manager",
     "Administrator",
     "Admin"
   ],
-  "Mac": "d8:3b:bf:1e:4b:e6",
+  "Mac": "00:1f:c6:9c:d3:34",
   "Name": "admin.AdminService",
-  "Path": "C:/Users/mm006819/Documents/globulario/services/golang/admin/admin_server/admin_server.exe",
+  "Path": "/home/dave/go/src/github.com/globulario/services/golang/admin/admin_server//admin_server.exe",
   "Permissions": [],
-  "Port": 10002,
+  "Port": 10001,
   "Process": -1,
-  "Proto": "C:\\Users\\mm006819\\Documents\\globulario\\services/proto/admin.proto",
+  "Proto": "/home/dave/go/src/github.com/globulario/services/proto/admin.proto",
   "Protocol": "grpc",
-  "Proxy": 10005,
+  "Proxy": 10002,
   "ProxyProcess": -1,
   "PublisherId": "globulario",
   "Repositories": [],
-  "State": "stopped",
+  "State": "failed",
   "TLS": false,
   "Version": "0.0.1",
   "WebRoot": "/Program Files/Globular/var/globular/webroot",
-  "configPath": "C:/Users/mm006819/Documents/globulario/services/golang/admin/admin_server/config.json"
+  "configPath": "/home/dave/go/src/github.com/globulario/services/golang/admin/admin_server/config.json"
 }
