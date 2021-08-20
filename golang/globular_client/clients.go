@@ -234,10 +234,6 @@ func GetClientContext(client Client) context.Context {
 
 	// if the address is local.
 	address := client.GetDomain()
-	folderPath := "/Program Files/Globular"
-	if Utility.Exists(folderPath) {
-		tokensPath = folderPath + tokensPath
-	}
 
 	err := Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {

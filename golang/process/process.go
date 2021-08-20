@@ -187,12 +187,6 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	hasTls := s["TLS"].(bool)
 	creds := "/etc/globular/config/tls"
 
-	folderPath := "/Program Files/Globular"
-	if Utility.Exists(folderPath) {
-		creds = folderPath + creds
-	}
-
-
 	// Test if the port is available.
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
@@ -237,13 +231,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceDir) > 0 {
 		proxyPath = serviceDir + proxyPath
-	} else {
-		proxyPath = "/usr/local/share/globular" + proxyPath
-		if runtime.GOOS == "windows" {
-			proxyPath = "/Program Files/Globular" + proxyPath
-		}
 	}
-
 	proxyProcess := exec.Command(proxyPath, proxyArgs...)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,

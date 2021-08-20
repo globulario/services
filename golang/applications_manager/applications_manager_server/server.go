@@ -443,6 +443,8 @@ func (server *server) publishApplication(user, organization, path, name, domain,
 		return err
 	}
 
+	log.Println("Publish application... ", path)
+
 	// Publish the application...
 	return discoveryClient.PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 }
@@ -528,10 +530,6 @@ func main() {
 	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WebRoot = "/var/globular/webroot"
-	folderPath := "/Program Files"
-	if Utility.Exists(folderPath){
-		s_impl.WebRoot = folderPath + "/Globular" + s_impl.WebRoot
-	}
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

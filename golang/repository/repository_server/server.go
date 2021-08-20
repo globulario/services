@@ -413,10 +413,7 @@ func main() {
 
 	// The default path where the data can be found.
 	s_impl.Root = "/var/globular/data"
-	folderPath := "/Program Files"
-	if Utility.Exists(folderPath){
-		s_impl.Root = folderPath + "/Globular" +s_impl.Root
-	}
+
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

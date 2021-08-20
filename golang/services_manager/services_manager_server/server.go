@@ -620,15 +620,6 @@ func main() {
 	s_impl.ConfigPath = "/etc/globular/config"
 	s_impl.Creds = "/etc/globular/config/tls"
 
-	// On windows
-	folderPath := "/Program Files/Globular"
-	if Utility.Exists(folderPath) {
-		s_impl.Root = folderPath + s_impl.Root
-		s_impl.DataPath = folderPath + s_impl.DataPath
-		s_impl.ConfigPath = folderPath + s_impl.ConfigPath
-		s_impl.Creds = folderPath + s_impl.Creds
-	}
-
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
