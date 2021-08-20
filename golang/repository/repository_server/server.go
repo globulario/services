@@ -12,7 +12,9 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -373,14 +375,53 @@ func (server *server) getPackageBundleChecksum(id string) (string, error) {
 	return resourceClient.GetPackageBundleChecksum(id)
 }
 
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+var (
+	log_client_  *log_client.Log_Client
+)
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
 /////////////////////// Repositiory specific function /////////////////////////////////
 func (server *server) setPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
+		server.logServiceError("setPackageBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 		return err
 	}
-
-	return resourceClient.SetPackageBundle(checksum, platform, size, modified, descriptor)
+	err = resourceClient.SetPackageBundle(checksum, platform, size, modified, descriptor)
+	if err != nil {
+		server.logServiceError("setPackageBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
+		return err
+	}
+	return nil
 }
 
 // That service is use to give access to SQL.

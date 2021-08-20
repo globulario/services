@@ -2723,6 +2723,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 
 	p, err := server.getPersistenceStore()
 	if err != nil {
+		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2730,17 +2731,21 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.Descriptor_.PublisherId + "%" + bundle.Descriptor_.Name + "%" + bundle.Descriptor_.Version + "%" + bundle.Descriptor_.Id + "%" + bundle.Plaform)
-
+	
 	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.Descriptor_.PublisherId, "servicename": bundle.Descriptor_.Name, "serviceid": bundle.Descriptor_.Id, "modified": bundle.Modified, "size": bundle.Size})
 	if err != nil {
+		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Bundles", `{"_id":"`+id+`"}`, jsonStr, `[{"upsert": true}]`)
-
-	return nil, err
+	if err!=nil {
+		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
+		return nil, err
+	}
+	return &resourcepb.SetPackageBundleResponse{Result: true}, nil
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

@@ -325,9 +325,10 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		return err
 	}
 
+	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of " +alias + " vesion " + version + " was publish")
+	
 	// Publish application...
 	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
-
 	if err != nil {
 		return err
 	}
@@ -349,14 +350,13 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	}
 
 	// Read bytes and extract it in the current directory.
+	server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
 	r := bytes.NewReader(buffer.Bytes())
 	err = server.installApplication(domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
 	if err != nil {
 		return err
 	}
 
-	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of " +alias + " vesion " + version + " was publish")
-	
 	// If the version has change I will notify current users and undate the applications.
 	if previousVersion != version {
 
