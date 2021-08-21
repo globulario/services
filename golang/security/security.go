@@ -21,12 +21,13 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 )
 
 var (
-	Root       = "/usr/local/share/globular"
-	ConfigPath = "/etc/globular/config/config.json"
-	keyPath    = "/etc/globular/config/keys"
+	Root       = config.GetRootDir()
+	ConfigPath = config.GetConfigDir() + "/config.json"
+	keyPath    = config.GetConfigDir() + "/keys"
 )
 
 // That function will be access via http so event server or client will be able

@@ -7,14 +7,15 @@ import (
 	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -453,7 +454,7 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 
 	// The default path where the data can be found.
-	s_impl.Root = "/var/globular/data"
+	s_impl.Root = config.GetDataDir()
 
 
 	// Here I will retreive the list of connections from file if there are some...

@@ -9,11 +9,62 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"runtime"
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
+
+// Those function are use to get the correct
+// directory where globular must be installed.
+func GetRootDir() string{
+	if runtime.GOOS == "windows" {
+		if runtime.GOARCH == "386" {
+			return "/Program Files (x86)/globular"
+		}else{
+			return "/Program Files/globular"
+		}
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/usr/local/share/globular"
+	}
+
+	return "/globular"
+}
+
+func GetServicesDir() string{
+	return GetRootDir() + "/services"
+}
+
+func GetConfigDir() string{
+	if runtime.GOOS == "windows" {
+		return GetRootDir() + "/config"
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/etc/globular/config"
+	}
+
+	return "/globular/config"
+}
+
+func GetDataDir() string{
+	if runtime.GOOS == "windows" {
+		return GetRootDir() + "/data"
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/var/globular/data"
+	}
+
+	return "/globular/data"
+}
+
+func GetWebRootDir() string{
+	if runtime.GOOS == "windows" {
+		return GetRootDir() + "/webroot"
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/var/globular/webroot"
+	}
+
+	return "/globular/webroot"
+}
 
 /**
  * Return the list of services all installed serverices on a server.

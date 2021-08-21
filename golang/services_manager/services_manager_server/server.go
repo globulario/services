@@ -613,12 +613,12 @@ func main() {
 	s_impl.PortsRange = "10000-10100"
 
 	// The server root...
-	s_impl.Root = "/usr/local/share/globular"
+	s_impl.Root = config.GetRootDir()
 
 	// Set the paths
-	s_impl.DataPath = "/var/globular/data"
-	s_impl.ConfigPath = "/etc/globular/config"
-	s_impl.Creds = "/etc/globular/config/tls"
+	s_impl.DataPath =  config.GetDataDir()
+	s_impl.ConfigPath = config.GetConfigDir()
+	s_impl.Creds = config.GetConfigDir() + "/tls"
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

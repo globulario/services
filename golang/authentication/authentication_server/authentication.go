@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -20,9 +21,9 @@ import (
 )
 
 var (
-	dataPath   = "/var/globular/data"
-	configPath = "/etc/globular/config/config.json"
-	tokensPath = "/etc/globular/config/tokens"
+	dataPath   = config.GetDataDir()
+	configPath = config.GetConfigDir() + "/config.json"
+	tokensPath = config.GetConfigDir() + "/tokens"
 )
 
 //* Validate a token *

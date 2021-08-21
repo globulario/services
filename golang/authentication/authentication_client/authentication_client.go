@@ -9,6 +9,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_client"
 	"google.golang.org/grpc"
 )
@@ -17,7 +18,7 @@ import (
 // Authentication  Client Service
 ////////////////////////////////////////////////////////////////////////////////
 var (
-	tokensPath = "/etc/globular/config/tokens"
+	tokensPath = config.GetConfigDir() + "/tokens"
 )
 
 type Authentication_Client struct {

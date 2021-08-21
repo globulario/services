@@ -9,6 +9,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_manager_client"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discovery_client"
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -529,7 +530,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
-	s_impl.WebRoot = "/var/globular/webroot"
+	s_impl.WebRoot = config.GetWebRootDir()
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 
