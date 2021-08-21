@@ -76,7 +76,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	// admin, resource, ca and services.
 	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceDir) == 0 {
-		serviceDir = "/usr/local/share/globular/services"
+		serviceDir = GetServicesDir()
 	}
 
 	// I will try to get configuration from services.
