@@ -384,20 +384,5 @@ func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveCo
 		return nil, err
 	}
 
-	// Now I will simply stop the globular exec and restart it...
-	Utility.KillProcessByName("Globular")
-
-	// Now I will start a new process...
-	args := append(os.Args, "--detached")
-	cmd := exec.Command("Globular", args[1:]...)
-	cmd.Dir = config.GetRootDir()
-
-	err = cmd.Start()
-	if err != nil {
-		return nil, err
-	}
-
-	cmd.Process.Release()
-
 	return &adminpb.SaveConfigRequest{}, nil
 }
