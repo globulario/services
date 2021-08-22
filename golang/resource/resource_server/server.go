@@ -830,6 +830,9 @@ func main() {
 		return
 	}
 
+	/** Can do anything */
+	s_impl.createRole("admin", "admin", []string{})
+
 	/** Regist the guest role **/
 	s_impl.createRole("guest", "guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",
 		"/services_manager.ServicesManagerServices/GetServiceConfig",

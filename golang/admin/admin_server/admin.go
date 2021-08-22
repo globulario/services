@@ -10,10 +10,12 @@ import (
 	"log"
 	"os"
 	"runtime"
+
 	// "golang.org/x/sys/windows/registry"
+	"os/exec"
 	"path/filepath"
 
-	"os/exec"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 
 	"github.com/davecourtois/Utility"
@@ -46,8 +48,6 @@ func (admin_server *server) HasRunningProcess(ctx context.Context, rqst *adminpb
 		Result: true,
 	}, nil
 }
-
-
 
 /**
  * Update Globular itself with a new version.
@@ -224,8 +224,6 @@ func (admin_server *server) GetPids(ctx context.Context, rqst *adminpb.GetPidsRe
 	}, nil
 }
 
-
-
 // Run an external command must be use with care.
 func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.AdminService_RunCmdServer) error {
 
@@ -376,4 +374,30 @@ func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.G
 		Cert:    cert,
 		Cacert:  ca,
 	}, nil
+}
+
+// Save Globular configuration.
+func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveConfigRequest) (*adminpb.SaveConfigRequest, error) {
+	configPath := config.GetConfigDir() + "/config.json"
+	err := ioutil.WriteFile(configPath, []byte(rqst.Config), 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now I will simply stop the globular exec and restart it...
+	Utility.KillProcessByName("Globular")
+
+	// Now I will start a new process...
+	args := append(os.Args, "--detached")
+	cmd := exec.Command("Globular", args[1:]...)
+	cmd.Dir = config.GetRootDir()
+
+	err = cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+
+	cmd.Process.Release()
+
+	return &adminpb.SaveConfigRequest{}, nil
 }

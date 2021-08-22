@@ -117,6 +117,14 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 							// Keep the configuration path in the object...
 							s["configPath"] = path
 
+							if s["Root"] != nil {
+								if s["Name"] == "file.FileService" {
+									s["Root"] = GetDataDir() + "/files"
+								} else if s["Name"] == "conversation.ConversationService" {
+									s["Root"] = GetDataDir()
+								}
+							}
+
 							services = append(services, s)
 						}
 					}

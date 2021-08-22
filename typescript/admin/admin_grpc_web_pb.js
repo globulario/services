@@ -860,5 +860,85 @@ proto.admin.AdminServicePromiseClient.prototype.getPids =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.SaveConfigRequest,
+ *   !proto.admin.SaveConfigRequest>}
+ */
+const methodDescriptor_AdminService_SaveConfig = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/SaveConfig',
+  grpc.web.MethodType.UNARY,
+  proto.admin.SaveConfigRequest,
+  proto.admin.SaveConfigRequest,
+  /**
+   * @param {!proto.admin.SaveConfigRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.SaveConfigRequest.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.admin.SaveConfigRequest,
+ *   !proto.admin.SaveConfigRequest>}
+ */
+const methodInfo_AdminService_SaveConfig = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.admin.SaveConfigRequest,
+  /**
+   * @param {!proto.admin.SaveConfigRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.SaveConfigRequest.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.SaveConfigRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.admin.SaveConfigRequest)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.SaveConfigRequest>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.saveConfig =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/SaveConfig',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_SaveConfig,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.SaveConfigRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.SaveConfigRequest>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.saveConfig =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/SaveConfig',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_SaveConfig);
+};
+
+
 module.exports = proto.admin;
 

@@ -2830,8 +2830,8 @@ func (server *server) GetSessions(ctx context.Context, rqst *resourcepb.GetSessi
 	sessions_ := make([]*resourcepb.Session, 0)
 	for i := 0; i < len(sessions); i++ {
 		session := sessions[i].(map[string]interface{})
-		expireAt := session["expire_at"].(int32)
-		lastStateTime := session["last_state_time"].(int32)
+		expireAt := Utility.ToInt(session["expire_at"])
+		lastStateTime := Utility.ToInt(session["last_state_time"])
 		sessions_ = append(sessions_, &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: resourcepb.SessionState(session["state"].(int32))})
 	}
 
@@ -2854,8 +2854,8 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 
 	session := session_.(map[string]interface{})
 
-	expireAt := session["expire_at"].(int32)
-	lastStateTime := session["last_state_time"].(int32)
+	expireAt := Utility.ToInt(session["expire_at"])
+	lastStateTime := Utility.ToInt(session["last_state_time"])
 
 	if expireAt == 0 || lastStateTime == 0 {
 		return nil, errors.New("invalid session with id " + accountId + " expire_at has value " + time.Unix(int64(expireAt), 0).Local().String() + " last_state_time " + time.Unix(int64(lastStateTime), 0).Local().String())

@@ -106,6 +106,14 @@ message DownloadGlobularResponse {
 	bytes data = 1;
 }
 
+message SaveConfigRequest {
+   string config = 1;
+}
+
+message SaveConfigResponse {
+
+}
+
 service AdminService {
   /** Root informations*/
 
@@ -144,5 +152,8 @@ service AdminService {
 
   // Return the list of process id with a given name.
   rpc GetPids(GetPidsRequest) returns(GetPidsResponse);
+
+  // Save Globular configuration.
+  rpc SaveConfig(SaveConfigRequest) returns(SaveConfigRequest);
 
 }
