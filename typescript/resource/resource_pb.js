@@ -3149,7 +3149,7 @@ proto.resource.PackageBundle.prototype.toObject = function(opt_includeInstance) 
  */
 proto.resource.PackageBundle.toObject = function(includeInstance, msg) {
   var f, obj = {
-    descriptor: (f = msg.getDescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f),
+    packagedescriptor: (f = msg.getPackagedescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f),
     checksum: jspb.Message.getFieldWithDefault(msg, 2, ""),
     plaform: jspb.Message.getFieldWithDefault(msg, 3, ""),
     size: jspb.Message.getFieldWithDefault(msg, 4, 0),
@@ -3194,7 +3194,7 @@ proto.resource.PackageBundle.deserializeBinaryFromReader = function(msg, reader)
     case 1:
       var value = new proto.resource.PackageDescriptor;
       reader.readMessage(value,proto.resource.PackageDescriptor.deserializeBinaryFromReader);
-      msg.setDescriptor(value);
+      msg.setPackagedescriptor(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
@@ -3245,7 +3245,7 @@ proto.resource.PackageBundle.prototype.serializeBinary = function() {
  */
 proto.resource.PackageBundle.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getDescriptor();
+  f = message.getPackagedescriptor();
   if (f != null) {
     writer.writeMessage(
       1,
@@ -3292,10 +3292,10 @@ proto.resource.PackageBundle.serializeBinaryToWriter = function(message, writer)
 
 
 /**
- * optional PackageDescriptor descriptor = 1;
+ * optional PackageDescriptor packageDescriptor = 1;
  * @return {?proto.resource.PackageDescriptor}
  */
-proto.resource.PackageBundle.prototype.getDescriptor = function() {
+proto.resource.PackageBundle.prototype.getPackagedescriptor = function() {
   return /** @type{?proto.resource.PackageDescriptor} */ (
     jspb.Message.getWrapperField(this, proto.resource.PackageDescriptor, 1));
 };
@@ -3305,7 +3305,7 @@ proto.resource.PackageBundle.prototype.getDescriptor = function() {
  * @param {?proto.resource.PackageDescriptor|undefined} value
  * @return {!proto.resource.PackageBundle} returns this
 */
-proto.resource.PackageBundle.prototype.setDescriptor = function(value) {
+proto.resource.PackageBundle.prototype.setPackagedescriptor = function(value) {
   return jspb.Message.setWrapperField(this, 1, value);
 };
 
@@ -3314,8 +3314,8 @@ proto.resource.PackageBundle.prototype.setDescriptor = function(value) {
  * Clears the message field making it undefined.
  * @return {!proto.resource.PackageBundle} returns this
  */
-proto.resource.PackageBundle.prototype.clearDescriptor = function() {
-  return this.setDescriptor(undefined);
+proto.resource.PackageBundle.prototype.clearPackagedescriptor = function() {
+  return this.setPackagedescriptor(undefined);
 };
 
 
@@ -3323,7 +3323,7 @@ proto.resource.PackageBundle.prototype.clearDescriptor = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.resource.PackageBundle.prototype.hasDescriptor = function() {
+proto.resource.PackageBundle.prototype.hasPackagedescriptor = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
@@ -23627,7 +23627,7 @@ proto.resource.SetPackageDescriptorRequest.prototype.toObject = function(opt_inc
  */
 proto.resource.SetPackageDescriptorRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    descriptor: (f = msg.getDescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f)
+    packagedescriptor: (f = msg.getPackagedescriptor()) && proto.resource.PackageDescriptor.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -23667,7 +23667,7 @@ proto.resource.SetPackageDescriptorRequest.deserializeBinaryFromReader = functio
     case 1:
       var value = new proto.resource.PackageDescriptor;
       reader.readMessage(value,proto.resource.PackageDescriptor.deserializeBinaryFromReader);
-      msg.setDescriptor(value);
+      msg.setPackagedescriptor(value);
       break;
     default:
       reader.skipField();
@@ -23698,7 +23698,7 @@ proto.resource.SetPackageDescriptorRequest.prototype.serializeBinary = function(
  */
 proto.resource.SetPackageDescriptorRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getDescriptor();
+  f = message.getPackagedescriptor();
   if (f != null) {
     writer.writeMessage(
       1,
@@ -23710,10 +23710,10 @@ proto.resource.SetPackageDescriptorRequest.serializeBinaryToWriter = function(me
 
 
 /**
- * optional PackageDescriptor descriptor = 1;
+ * optional PackageDescriptor packageDescriptor = 1;
  * @return {?proto.resource.PackageDescriptor}
  */
-proto.resource.SetPackageDescriptorRequest.prototype.getDescriptor = function() {
+proto.resource.SetPackageDescriptorRequest.prototype.getPackagedescriptor = function() {
   return /** @type{?proto.resource.PackageDescriptor} */ (
     jspb.Message.getWrapperField(this, proto.resource.PackageDescriptor, 1));
 };
@@ -23723,7 +23723,7 @@ proto.resource.SetPackageDescriptorRequest.prototype.getDescriptor = function() 
  * @param {?proto.resource.PackageDescriptor|undefined} value
  * @return {!proto.resource.SetPackageDescriptorRequest} returns this
 */
-proto.resource.SetPackageDescriptorRequest.prototype.setDescriptor = function(value) {
+proto.resource.SetPackageDescriptorRequest.prototype.setPackagedescriptor = function(value) {
   return jspb.Message.setWrapperField(this, 1, value);
 };
 
@@ -23732,8 +23732,8 @@ proto.resource.SetPackageDescriptorRequest.prototype.setDescriptor = function(va
  * Clears the message field making it undefined.
  * @return {!proto.resource.SetPackageDescriptorRequest} returns this
  */
-proto.resource.SetPackageDescriptorRequest.prototype.clearDescriptor = function() {
-  return this.setDescriptor(undefined);
+proto.resource.SetPackageDescriptorRequest.prototype.clearPackagedescriptor = function() {
+  return this.setPackagedescriptor(undefined);
 };
 
 
@@ -23741,7 +23741,7 @@ proto.resource.SetPackageDescriptorRequest.prototype.clearDescriptor = function(
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.resource.SetPackageDescriptorRequest.prototype.hasDescriptor = function() {
+proto.resource.SetPackageDescriptorRequest.prototype.hasPackagedescriptor = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
