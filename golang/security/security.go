@@ -858,6 +858,7 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
  */
 func GeneratePeerKeys(id string) error {
 
+	id = strings.ReplaceAll(id, ":", "_")
 
 	if Utility.Exists(keyPath + "/" + id + "_private") {
 		return nil // not realy an error the key already exist.
@@ -932,17 +933,20 @@ func GeneratePeerKeys(id string) error {
 func GetLocalKey() ([]byte, error) {
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
-	return ioutil.ReadFile(keyPath + "/" + Utility.MyMacAddr() + "_public")
+	id := strings.ReplaceAll(Utility.MyMacAddr(), ":", "_")
+	return ioutil.ReadFile(keyPath + "/" + id + "_public")
 }
 
 /**
  * Return a jwt token key for a given peer id (mac address)
  */
 func GetPeerKey(id string) ([]byte, error) {
+	id = strings.ReplaceAll(id, ":", "_")
 
-	if id == Utility.MyMacAddr() {
+	if id == strings.ReplaceAll(Utility.MyMacAddr(), ":", "_"){
 		return GetLocalKey()
 	}
+
 
 	fmt.Println("Get peer key, ", keyPath+"/"+id+"_public")
 
@@ -1019,7 +1023,7 @@ func GetPeerKey(id string) ([]byte, error) {
  * The key must be formated as pem.
  */
 func SetPeerPublicKey(id, encPub string) error {
-	
+	id = strings.ReplaceAll(id, ":", "_")
 	fmt.Println("save file ", keyPath+"/"+id+"_public")
 	err := ioutil.WriteFile(keyPath+"/"+id+"_public", []byte(encPub), 0644)
 	if err != nil {

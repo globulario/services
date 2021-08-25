@@ -1,0 +1,12 @@
+debug/globularclient.o
+debug/globularserver.o
+debug/globularResourceclient.o
+debug/resource.grpc.pb.o
+debug/resource.pb.o
+debug/spc.grpc.pb.o
+debug/spc.pb.o
+debug/AnalyseurCSP.o
+debug/DonneesAnalyse.o
+debug/Erreur.o
+debug/main.o
+debug/SousGroupe.o

@@ -1,5 +1,4 @@
 #include "globularclient.h"
-#include "HTTPRequest.hpp"
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -8,9 +7,11 @@
 #include <stdexcept>
 #include <string>
 #include <array>
-#include <filesystem>
+#include <filesystem> // C++17 standard header file name
 
 //  https://github.com/nlohmann/json
+#include "HTTPRequest.hpp"
+
 #include "json.hpp"
 #include "Base64.h"
 #include <grpc/grpc.h>
@@ -53,6 +54,7 @@ std::string readAllText(std::string path){
 std::string getTempDir(){
     // std::filesystem::temp_directory_path()
     return std::filesystem::temp_directory_path().string();
+
 }
 
 bool exists(std::string path){
@@ -125,15 +127,6 @@ void Globular::Client::init(unsigned int configurationPort=80){
 void Globular::Client::initServiceConfig(unsigned int configurationPort=80){
 
     std::stringstream ss;
-    /* TODO read https instead of http.
-    ss << "http://" << this->config->Domain << ":" << configurationPort << "/config";
-    std::cout << "get configuration from " << ss.str() << std::endl;
-    http::Request request(ss.str());
-    const http::Response response = request.send("GET");
-    ss.flush();
-    ss << std::string(response.body.begin(), response.body.end()) << '\n'; // print the result
-    */
-
     std::ifstream t("config.json");
     std::string jsonStr((std::istreambuf_iterator<char>(t)),std::istreambuf_iterator<char>());
     //std::string jsonStr = ss.str();
@@ -303,7 +296,7 @@ void Globular::Client::getClientContext(ClientContext& context, std::string toke
         context.AddMetadata("path", path);
     }
 }
-
+/*
 std::string exec(const char* cmd) {
     std::array<char, 128> buffer;
     std::string result;
@@ -316,7 +309,7 @@ std::string exec(const char* cmd) {
     }
     return result;
 }
-
+*/
 std::string Globular::Client::getCaCertificate(std::string domain, unsigned int configurationPort){
     std::stringstream ss;
     ss << "http://" << domain << ":" << configurationPort << "/get_ca_certificate";

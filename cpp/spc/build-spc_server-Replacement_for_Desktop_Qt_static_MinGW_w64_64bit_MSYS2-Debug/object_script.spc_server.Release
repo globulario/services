@@ -1,0 +1,12 @@
+release/globularclient.o
+release/globularserver.o
+release/globularResourceclient.o
+release/resource.grpc.pb.o
+release/resource.pb.o
+release/spc.grpc.pb.o
+release/spc.pb.o
+release/AnalyseurCSP.o
+release/DonneesAnalyse.o
+release/Erreur.o
+release/main.o
+release/SousGroupe.o

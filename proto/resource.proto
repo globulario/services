@@ -10,7 +10,7 @@ option go_package = "resource/resourcepb";
 /** That message will contain the information to update a service on a node. **/
 message PackageBundle {
 
-	PackageDescriptor descriptor = 1;
+	PackageDescriptor packageDescriptor = 1;
 
 	/** additionnal informations not found in the descriptor **/
 	string checksum = 2;
@@ -713,7 +713,7 @@ message GetPackagesDescriptorResponse {
 }
 
 message SetPackageDescriptorRequest {
-	PackageDescriptor descriptor = 1;
+	PackageDescriptor packageDescriptor = 1;
 }
 
 message SetPackageDescriptorResponse {
@@ -976,6 +976,7 @@ service ResourceService {
 	////////////////////////////////////////////////////////////////////////////
 	// Package's
 	////////////////////////////////////////////////////////////////////////////
+	
 	
 	// Descriptor
 
