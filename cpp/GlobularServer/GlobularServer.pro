@@ -17,17 +17,17 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    ../../api/cpp/GlobularClient/globularclient.cpp \
-    ../../ressource/cpp/GlobularRessourceClient/globularressourceclient.cpp \
-    ../../ressource/cpp/GlobularRessourceClient/ressource/ressource.grpc.pb.cc \
-    ../../ressource/cpp/GlobularRessourceClient/ressource/ressource.pb.cc \
+    ../GlobularClient/globularclient.cpp \
+    ../resource/GlobularResourceClient/globularresourceclient.cpp \
+    ../resource/resourcepb/resource.grpc.pb.cc \
+    ../resource/resourcepb/resource.pb.cc \
     globularserver.cpp
 
 HEADERS += \
-    ../../api/cpp/GlobularClient/globularclient.h \
-    ../../ressource/cpp/GlobularRessourceClient/globularressourceclient.h \
-    ../../ressource/cpp/GlobularRessourceClient/ressource/ressource.grpc.pb.h \
-    ../../ressource/cpp/GlobularRessourceClient/ressource/ressource.pb.h \
+    ../GlobularClient/globularclient.h \
+    ../resource/GlobularResourceClient/globularresourceclient.h \
+    ../resource/resourcepb/resource.grpc.pb.h \
+    ../resource/resourcepb/resource.pb.h \
     globularserver.h \
     json.hpp
 
@@ -37,5 +37,4 @@ unix {
 }
 !isEmpty(target.path): INSTALLS += target
 
-INCLUDEPATH += $$PWD/../../ressource/cpp/GlobularRessourceClient $$PWD/../../api/cpp/GlobularClient ../../cpp
-
+INCLUDEPATH += $$PWD/../resource/GlobularResourceClient $$PWD/../GlobularClient ../

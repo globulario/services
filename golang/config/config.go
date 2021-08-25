@@ -9,11 +9,62 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"runtime"
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
+
+// Those function are use to get the correct
+// directory where globular must be installed.
+func GetRootDir() string{
+	if runtime.GOOS == "windows" {
+		if runtime.GOARCH == "386" {
+			return "/Program Files (x86)/globular"
+		}else{
+			return "/Program Files/globular"
+		}
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/usr/local/share/globular"
+	}
+
+	return "/globular"
+}
+
+func GetServicesDir() string{
+	return GetRootDir() + "/services"
+}
+
+func GetConfigDir() string{
+	if runtime.GOOS == "windows" {
+		return GetRootDir() + "/config"
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/etc/globular/config"
+	}
+
+	return "/globular/config"
+}
+
+func GetDataDir() string{
+	if runtime.GOOS == "windows" {
+		return GetRootDir() + "/data"
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/var/globular/data"
+	}
+
+	return "/globular/data"
+}
+
+func GetWebRootDir() string{
+	if runtime.GOOS == "windows" {
+		return GetRootDir() + "/webroot"
+	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+		return "/var/globular/webroot"
+	}
+
+	return "/globular/webroot"
+}
 
 /**
  * Return the list of services all installed serverices on a server.
@@ -25,7 +76,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	// admin, resource, ca and services.
 	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceDir) == 0 {
-		serviceDir = "/usr/local/share/globular/services"
+		serviceDir = GetServicesDir()
 	}
 
 	// I will try to get configuration from services.
@@ -65,6 +116,14 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 							// Keep the configuration path in the object...
 							s["configPath"] = path
+
+							if s["Root"] != nil {
+								if s["Name"] == "file.FileService" {
+									s["Root"] = GetDataDir() + "/files"
+								} else if s["Name"] == "conversation.ConversationService" {
+									s["Root"] = GetDataDir()
+								}
+							}
 
 							services = append(services, s)
 						}

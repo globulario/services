@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -109,7 +110,7 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 	}
 
 	// Set the path of the directory where the application can store files.
-	Utility.CreateDirIfNotExist("/var/globular/data/files/applications/" + rqst.Name)
+	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + rqst.Name)
 	err = server.addResourceOwner("/applications/"+rqst.Name, rqst.Name, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return nil, status.Errorf(

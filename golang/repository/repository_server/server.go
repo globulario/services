@@ -7,8 +7,11 @@ import (
 	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -373,14 +376,53 @@ func (server *server) getPackageBundleChecksum(id string) (string, error) {
 	return resourceClient.GetPackageBundleChecksum(id)
 }
 
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+var (
+	log_client_  *log_client.Log_Client
+)
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
 /////////////////////// Repositiory specific function /////////////////////////////////
 func (server *server) setPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
+		server.logServiceError("setPackageBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 		return err
 	}
-
-	return resourceClient.SetPackageBundle(checksum, platform, size, modified, descriptor)
+	err = resourceClient.SetPackageBundle(checksum, platform, size, modified, descriptor)
+	if err != nil {
+		server.logServiceError("setPackageBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
+		return err
+	}
+	return nil
 }
 
 // That service is use to give access to SQL.
@@ -412,7 +454,7 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 
 	// The default path where the data can be found.
-	s_impl.Root = "/var/globular/data"
+	s_impl.Root = config.GetDataDir()
 
 
 	// Here I will retreive the list of connections from file if there are some...

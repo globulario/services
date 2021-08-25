@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -20,9 +21,9 @@ import (
 )
 
 var (
-	dataPath   = "/var/globular/data"
-	configPath = "/etc/globular/config/config.json"
-	tokensPath = "/etc/globular/config/tokens"
+	dataPath   = config.GetDataDir()
+	configPath = config.GetConfigDir() + "/config.json"
+	tokensPath = config.GetConfigDir() + "/tokens"
 )
 
 //* Validate a token *
@@ -386,8 +387,14 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	}
 
 	// get the expire time.
-	_, user, email,_,  expireAt, _ := interceptors.ValidateToken(tokenString)
+	_, user, email, _, expireAt, _ := interceptors.ValidateToken(tokenString)
 	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
+	
+	// Create the user file directory.
+	path := "/users/" + user
+	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
+	server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
+
 	session.ExpireAt = expireAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
@@ -395,11 +402,6 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	// Create the user file directory.
-	path := "/users/" + user
-	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-	server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
 
 	return tokenString, nil
 }

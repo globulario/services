@@ -72,7 +72,7 @@ func (server *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, s
 
 /** Upload a service to a service directory **/
 func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadBundleServer) error {
-
+	
 	// The bundle will cantain the necessary information to install the service.
 	var buffer bytes.Buffer
 	for {
@@ -84,6 +84,7 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 			err = nil
 			break
 		} else if err != nil {
+			server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 			return err
 		} else if len(msg.Data) == 0 {
 			break
@@ -97,6 +98,7 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 	bundle := new(resourcepb.PackageBundle)
 	err := dec.Decode(bundle)
 	if err != nil {
+		server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 		return err
 	}
 
@@ -108,10 +110,14 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 
 	// the file must be a zipped archive that contain a .proto, .config and executable.
 	err = ioutil.WriteFile(path+"/"+id+".tar.gz", bundle.Binairies, 0644)
+
 	if err != nil {
+		server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 		return err
 	}
 
+	server.logServiceInfo("UploadBundle", Utility.FileLine(),Utility.FunctionName(),"bundle was save at path "+ path+"/"+id+".tar.gz")
+	
 	bundle.Checksum = string(Utility.CreateDataChecksum(bundle.Binairies))
 	bundle.Size = int32(len(bundle.Binairies))
 	bundle.Modified = time.Now().Unix()

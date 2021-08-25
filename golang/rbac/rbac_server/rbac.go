@@ -446,6 +446,8 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	fmt.Println("---------> path ", path, " permission: ", string(data))
+
 	permissions := new(rbacpb.Permissions)
 	err = json.Unmarshal(data, &permissions)
 	if err != nil {
@@ -890,7 +892,9 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-
+	if len(path) == 0 {
+		return false, false, errors.New("no path was given to validate access for suject " + subject)
+	}
 	// first I will test if permissions is define
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
@@ -1169,7 +1173,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 //* Validate if a account can get access to a given ressource for a given operation (read, write...) That function is recursive. *
 func (rbac_server *server) ValidateAccess(ctx context.Context, rqst *rbacpb.ValidateAccessRqst) (*rbacpb.ValidateAccessRsp, error) {
 	// Here I will get information from context.
-
+	fmt.Println("-----------> validate access for ", rqst.Subject, rqst.Path)
 	hasAccess, accessDenied, err := rbac_server.validateAccess(rqst.Subject, rqst.Type, rqst.Permission, rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(

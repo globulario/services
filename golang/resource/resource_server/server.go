@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -803,7 +804,7 @@ func main() {
 	s_impl.Backend_port = 27017
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
-	s_impl.DataPath = "/var/globular/data"
+	s_impl.DataPath = config.GetDataDir()
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
@@ -828,6 +829,9 @@ func main() {
 		log.Println("Fail to start mongo db with error ", err)
 		return
 	}
+
+	/** Can do anything */
+	s_impl.createRole("admin", "admin", []string{})
 
 	/** Regist the guest role **/
 	s_impl.createRole("guest", "guest", []string{"/services_manager.ServicesManagerServices/GetServicesConfig",

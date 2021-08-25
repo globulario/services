@@ -188,14 +188,12 @@ func validateAction(token string, application string, domain string, organizatio
 
 	hasAccess, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
-		fmt.Println("---> 193 ", domain, method, subject, subjectType, infos, err)
 		return false, err
 	}
 
 	// Here I will set the access in the cache.
 	hasAccess_, _ := json.Marshal(map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
 	getCache().SetItem(uuid, hasAccess_)
-	fmt.Println("---> 201 ", hasAccess)
 	return hasAccess, nil
 
 }
@@ -223,7 +221,6 @@ func validateActionRequest(token string, application string, organization string
 	}
 
 	// TODO keep to value in cache for keep speed.
-
 	hasAccess, err = validateAction(token, application, domain, organization, method, subject, subjectType, infos)
 	if err != nil {
 		return false, err
@@ -446,14 +443,14 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		strings.HasPrefix(l.method, "/lb.LoadBalancingService/")
 
 	if hasAccess {
-		fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
+		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
 		return nil
 	}
 
 	// if the cache contain the uuid it means permission is allowed
 	_, err := getCache().GetItem(l.uuid)
 	if err == nil {
-		fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
+		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
 		return nil
 	}
 

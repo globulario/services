@@ -17,14 +17,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    globularressourceclient.cpp \
-    ressource/ressource.grpc.pb.cc \
-    ressource/ressource.pb.cc
+    globularresourceclient.cpp \
+    resource/resource.grpc.pb.cc \
+    resource/resource.pb.cc
 
 HEADERS += \
-    globularressourceclient.h \
-    ressource/ressource.grpc.pb.h \
-    ressource/ressource.pb.h
+    globularresourceclient.h \
+    resource/resource.grpc.pb.h \
+    resource/resource.pb.h
 
 # Default rules for deployment.
 unix {
@@ -32,5 +32,5 @@ unix {
 }
 !isEmpty(target.path): INSTALLS += target
 
-INCLUDEPATH += $$PWD/../../../api/cpp/GlobularClient C:\Users\mm006819\grpc\include C:\Users\mm006819\grpc\third_party\protobuf\src
+INCLUDEPATH += $$PWD/../GlobularClient
 win32: LIBS += -L$$PWD/../../api/cpp/build-GlobularClient-Desktop_Qt_static_MinGW_w64_64bit_MSYS2/release -lGlobularClient

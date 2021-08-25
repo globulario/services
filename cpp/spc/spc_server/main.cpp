@@ -6,6 +6,8 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
+#define _WIN32_WINNT 0x600
+
 // The rpc service.
 #include <grpcpp/grpcpp.h>
 #include "spc/spcpb/spc.pb.h"

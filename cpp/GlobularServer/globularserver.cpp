@@ -121,8 +121,6 @@ Globular::GlobularService::GlobularService(std::string id,
         this->tls = j["TLS"];
         this->protocol = j["Protocol"];
 
-
-
         // can be a list of string
         this->allowed_origins = j["AllowedOrigins"];
     }else {

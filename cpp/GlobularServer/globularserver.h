@@ -9,7 +9,7 @@
 // gRpc stuff...
 #include <grpc++/grpc++.h>
 #include <grpcpp/support/server_interceptor.h>
-#include "globularresourceclient.h"
+#include "../resource/GlobularResourceClient/globularresourceclient.h"
 using grpc::Service;
 using grpc::Server;
 

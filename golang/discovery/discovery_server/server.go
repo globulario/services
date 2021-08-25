@@ -16,7 +16,9 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -434,10 +436,45 @@ func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDes
 	return resourceClient.SetPackageDescriptor(descriptor)
 }
 
+///////////////////////  Log Services functions ////////////////////////////////////////////////
+var (
+	log_client_  *log_client.Log_Client
+)
+/**
+ * Get the log client.
+ */
+ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
 /////////////////////// Discovery specific function /////////////////////////////////
 
 // Publish a package, the package can contain an application or a services.
 func (server *server) publishPackage(user string, organization string, discovery string, repository string, platform string, path string, descriptor *resourcepb.PackageDescriptor) error {
+
 
 	// Ladies and Gentlemans After one year after tow years services as resource!
 	path_ := descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Id + "/" + descriptor.Version
@@ -512,8 +549,8 @@ func (server *server) publishPackage(user string, organization string, discovery
 	}
 
 	// UploadBundle
-	log.Println("Upload package bundle ", discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
-
+	server.logServiceInfo(Utility.FunctionName(), Utility.FileLine(), "Upload package bundle ", discovery + " " + descriptor.Id + " " + descriptor.PublisherId+ " "  + descriptor.Version + " " + platform+ " "  + path)
+	
 	// Upload the package bundle to the repository.
 	return services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
 }

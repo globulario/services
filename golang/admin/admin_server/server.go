@@ -9,6 +9,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
 	"github.com/globulario/services/golang/admin/adminpb"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbac_client"
@@ -70,7 +71,7 @@ type server struct {
 
 	Dependencies []string // The list of services needed by this services.
 
-	// Where application must be installed, default valus is /var/globular/webroot
+	// Where application must be installed
 	WebRoot string
 
 	// Where application data are store.
@@ -398,9 +399,8 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"rbac.RbacService"}
 	s_impl.Permissions = make([]interface{}, 0)
-	s_impl.WebRoot = "/var/globular/webroot"
-	s_impl.ApplicationsRoot = "/var/globular/data/files/applications"
-
+	s_impl.WebRoot = config.GetRootDir()
+	s_impl.ApplicationsRoot = config.GetDataDir() + "/files/applications"
 
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

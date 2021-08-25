@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -21,7 +22,7 @@ import (
 )
 
 var (
-	tokensPath = "/etc/globular/config/tokens"
+	tokensPath = config.GetConfigDir() +"/tokens"
 )
 
 // The client service interface.
