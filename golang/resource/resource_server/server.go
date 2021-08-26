@@ -344,10 +344,13 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 	var err error
 	rbac_client_, err = GetRbacClient(svr.Domain)
 	if err != nil {
+		
 		return err
 	}
-
-	return rbac_client_.SetActionResourcesPermissions(permissions)
+	
+	err  = rbac_client_.SetActionResourcesPermissions(permissions)
+	
+	return err
 }
 
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
@@ -815,6 +818,7 @@ func main() {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
+	log.Println("818 ---> RegisterResourceServiceServer")
 	// Register the resource services
 	resourcepb.RegisterResourceServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
@@ -823,6 +827,7 @@ func main() {
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 
+	log.Println("827 ---> RegisterResourceServiceServer")
 	// That will start the persistence store.
 	_, err = s_impl.getPersistenceStore()
 	if err != nil {

@@ -42,11 +42,13 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		err := errors.New("no address was given for service name " + name)
 		return nil, err
 	}
+	
 
 	// In case of local service I will get the service value directly from
 	// the configuration file.
 	serverConfig, err = getLocalConfig()
 	isLocal := true
+
 	if err == nil {
 		domain := serverConfig["Domain"].(string)
 		if len(serverConfig["Name"].(string)) > 0 {
@@ -55,6 +57,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		if domain != address {
 			isLocal = false
 		}
+
 	} else {
 		isLocal = false
 	}
@@ -135,6 +138,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 			config["CertAuthorityTrust"] = caPath
 		}
 	}
+
 	return config, nil
 }
 
