@@ -181,7 +181,7 @@ func (resource_client *Resource_Client) SetPackageDescriptor(descriptor *resourc
 
 	// Create a new Organization.
 	rqst := &resourcepb.SetPackageDescriptorRequest{
-		Descriptor_: descriptor,
+		PackageDescriptor: descriptor,
 	}
 
 	_, err := resource_client.c.SetPackageDescriptor(globular.GetClientContext(resource_client), rqst)
@@ -1039,7 +1039,7 @@ func (resource_client *Resource_Client) GetPackageBundleChecksum(id string) (str
 func (resource_client *Resource_Client) SetPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
 	rqst := &resourcepb.SetPackageBundleRequest{
 		Bundle: &resourcepb.PackageBundle{
-			Descriptor_: descriptor,
+			PackageDescriptor: descriptor,
 			Checksum:    checksum,
 			Plaform:     platform,
 			Size:        size,

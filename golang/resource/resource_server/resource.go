@@ -2671,7 +2671,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 
 	var marshaler jsonpb.Marshaler
 
-	jsonStr, err := marshaler.MarshalToString(rqst.Descriptor_)
+	jsonStr, err := marshaler.MarshalToString(rqst.PackageDescriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2682,7 +2682,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	jsonStr = strings.ReplaceAll(jsonStr, "publisherId", "publisherid")
 
 	// Always create a new if not already exist.
-	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", `{"id":"`+rqst.Descriptor_.Id+`", "publisherid":"`+rqst.Descriptor_.PublisherId+`", "version":"`+rqst.Descriptor_.Version+`"}`, jsonStr, `[{"upsert": true}]`)
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Packages", `{"id":"`+rqst.PackageDescriptor.Id+`", "publisherid":"`+rqst.PackageDescriptor.PublisherId+`", "version":"`+rqst.PackageDescriptor.Version+`"}`, jsonStr, `[{"upsert": true}]`)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2730,9 +2730,9 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 	}
 
 	// Generate the bundle id....
-	id := Utility.GenerateUUID(bundle.Descriptor_.PublisherId + "%" + bundle.Descriptor_.Name + "%" + bundle.Descriptor_.Version + "%" + bundle.Descriptor_.Id + "%" + bundle.Plaform)
+	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
 	
-	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.Descriptor_.PublisherId, "servicename": bundle.Descriptor_.Name, "serviceid": bundle.Descriptor_.Id, "modified": bundle.Modified, "size": bundle.Size})
+	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.PackageDescriptor.PublisherId, "servicename": bundle.PackageDescriptor.Name, "serviceid": bundle.PackageDescriptor.Id, "modified": bundle.Modified, "size": bundle.Size})
 	if err != nil {
 		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, status.Errorf(

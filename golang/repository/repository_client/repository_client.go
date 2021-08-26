@@ -245,7 +245,7 @@ func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, pu
 		return err
 	}
 	
-	bundle.Descriptor_ = descriptor
+	bundle.PackageDescriptor = descriptor
 	if !Utility.Exists(packagePath) {
 		return errors.New("No package found at path " + packagePath)
 	}

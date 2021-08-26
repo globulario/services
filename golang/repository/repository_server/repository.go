@@ -17,10 +17,10 @@ import (
 func (server *server) DownloadBundle(rqst *repositorypb.DownloadBundleRequest, stream repositorypb.PackageRepository_DownloadBundleServer) error {
 	bundle := new(resourcepb.PackageBundle)
 	bundle.Plaform = rqst.Plaform
-	bundle.Descriptor_ = rqst.Descriptor_
+	bundle.PackageDescriptor = rqst.Descriptor_
 
 	// Generate the bundle id....
-	id := Utility.GenerateUUID(bundle.Descriptor_.PublisherId + "%" + bundle.Descriptor_.Name + "%" + bundle.Descriptor_.Version + "%" + bundle.Descriptor_.Id + "%" + rqst.Plaform)
+	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + rqst.Plaform)
 
 	path := server.Root + "/packages-repository"
 
@@ -103,7 +103,7 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 	}
 
 	// Generate the bundle id....
-	id := bundle.Descriptor_.PublisherId + "%" + bundle.Descriptor_.Name + "%" + bundle.Descriptor_.Version + "%" + bundle.Descriptor_.Id + "%" + bundle.Plaform
+	id := bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform
 
 	path := server.Root + "/packages-repository"
 	Utility.CreateDirIfNotExist(path)
@@ -123,5 +123,5 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 	bundle.Modified = time.Now().Unix()
 
 	// Save the bundle info...
-	return server.setPackageBundle(bundle.Checksum, bundle.Plaform, bundle.Size, bundle.Modified , bundle.Descriptor_)
+	return server.setPackageBundle(bundle.Checksum, bundle.Plaform, bundle.Size, bundle.Modified , bundle.PackageDescriptor)
 }
