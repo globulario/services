@@ -350,6 +350,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 		iconPath := strings.ReplaceAll(absolutePath, "\\", "/")
 		lastIndex := strings.LastIndex(iconPath, "/")
 		iconPath = iconPath[0:lastIndex] + "/" + packageConfig["icon"].(string)
+		log.Println("--------> icon path ", iconPath)
 		if Utility.Exists(iconPath) {
 			// Convert to png before creating the data url.
 			if strings.HasSuffix(strings.ToLower(iconPath), ".svg") {
