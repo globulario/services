@@ -18,6 +18,9 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/persistence/persistencepb"
@@ -390,30 +393,87 @@ func (persistence_server *server) StopService() error {
 	return globular.StopService(persistence_server, persistence_server.grpcServer)
 }
 
-////////////////////////// Persistence specific functions //////////////////////
 
-// Create a new Store connection and store it for futur use. If the connection already
-// exist it will be replace by the new one.
-func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
+// Singleton.
+var (
+	resourceClient *resource_client.Resource_Client
+	log_client_    *log_client.Log_Client
+)
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Logger function
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Get the log client.
+ */
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Resource manager function
+////////////////////////////////////////////////////////////////////////////////////////
+func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
+
+	var err error
+	if resourceClient != nil {
+		return resourceClient, nil
+	}
+
+	resourceClient, err = resource_client.NewResourceService_Client(server.Domain, "resource.ResourceService")
+	if err != nil {
+		return nil, err
+	}
+
+	return resourceClient, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Resource manager function
+////////////////////////////////////////////////////////////////////////////////////////
+func (persistence_server *server) createConnection(ctx context.Context,user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool ) error {
 
 	var c connection
 	var err error
 
 	// use existing connection as we can.
-	if _, ok := persistence_server.connections[rqst.Connection.Id]; ok {
-		c = persistence_server.connections[rqst.Connection.Id]
-	} else if _, ok := persistence_server.Connections[rqst.Connection.Id]; ok {
-		c = persistence_server.Connections[rqst.Connection.Id]
+	if _, ok := persistence_server.connections[id]; ok {
+		c = persistence_server.connections[id]
+	} else if _, ok := persistence_server.Connections[id]; ok {
+		c = persistence_server.Connections[id]
 	} else {
 
 		// Set the connection info from the request.
-		c.Id = rqst.Connection.Id
-		c.Name = rqst.Connection.Name
-		c.Host = rqst.Connection.Host
-		c.Port = rqst.Connection.Port
-		c.User = rqst.Connection.User
-		c.Password = rqst.Connection.Password
-		c.Store = rqst.Connection.Store
+		c.Id = id
+		c.Name =name
+		c.Host = host
+		c.Port = port
+		c.User = user
+		c.Password = password
+		c.Store = store
 
 		if c.Store == persistencepb.StoreType_MONGO {
 			// here I will create a new mongo data store.
@@ -423,9 +483,7 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
 			if err != nil {
 				// codes.
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return err
 			}
 
 			// keep the store for futur call...
@@ -433,14 +491,15 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 		}
 
 		// If the connection need to save in the server configuration.
-		if rqst.Save {
+		if save {
+			if persistence_server.Connections == nil {
+				persistence_server.Connections = make(map[string]connection)
+			}
 			persistence_server.Connections[c.Id] = c
 			// In that case I will save it in file.
 			err = persistence_server.Save()
 			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return err
 			}
 			globular.UpdateServiceConfig(persistence_server)
 		} else {
@@ -453,11 +512,25 @@ func (persistence_server *server) CreateConnection(ctx context.Context, rqst *pe
 
 	if err != nil {
 		persistence_server.stores[c.Id].Disconnect(c.Id)
-		if _, ok := persistence_server.connections[rqst.Connection.Id]; ok {
-			delete(persistence_server.connections, rqst.Connection.Id)
-		} else if _, ok := persistence_server.Connections[rqst.Connection.Id]; ok {
-			delete(persistence_server.Connections, rqst.Connection.Id)
+		if _, ok := persistence_server.connections[id]; ok {
+			delete(persistence_server.connections, id)
+		} else if _, ok := persistence_server.Connections[id]; ok {
+			delete(persistence_server.Connections, id)
 		}
+		return err
+	}
+
+	// Print the success message here.
+	return nil
+}
+
+// Create a new Store connection and store it for futur use. If the connection already
+// exist it will be replace by the new one.
+func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
+
+	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save)
+	if err != nil {
+		// codes.
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

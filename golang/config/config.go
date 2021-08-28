@@ -21,9 +21,9 @@ import (
 func GetRootDir() string{
 	if runtime.GOOS == "windows" {
 		if runtime.GOARCH == "386" {
-			return "/Program Files (x86)/globular"
+			return "C:/Program Files (x86)/globular"
 		}else{
-			return "/Program Files/globular"
+			return "C:/Program Files/globular"
 		}
 	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
 		return "/usr/local/share/globular"

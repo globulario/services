@@ -15,7 +15,7 @@ import (
 var (
 
 	// Connect to the plc client.
-	domain                    = "globular.cloud"
+	domain                    = "localhost"
 	client, _                 = NewPersistenceService_Client(domain, "persistence.PersistenceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
