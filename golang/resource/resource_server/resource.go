@@ -954,7 +954,6 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 
 	application := make(map[string]interface{}, 0)
 	application["_id"] = app.Id
-	application["password"] = Utility.GenerateUUID(app.Id)
 	application["path"] = "/" + app.Id // The path must be the same as the application name.
 	application["publisherid"] = app.Publisherid
 	application["version"] = app.Version
@@ -963,6 +962,11 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	application["keywords"] = app.Keywords
 	application["icon"] = app.Icon
 	application["alias"] = app.Alias
+	application["password"] = app.Password
+	if len(application["password"].(string) ) == 0{
+		application["password"] = app.Id
+	}
+	application["store"] = p.GetStoreType()
 
 	// Save the actual time.
 	application["last_deployed"] = time.Now().Unix() // save it as unix time.
@@ -973,7 +977,7 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 		// create the application database.
 		createApplicationUserDbScript := fmt.Sprintf(
 			"db=db.getSiblingDB('%s_db');db.createCollection('application_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});",
-			app.Id, app.Id, application["password"].(string), app.Id)
+			app.Id, app.Id, app.Id, app.Id)
 
 		err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createApplicationUserDbScript)
 		if err != nil {
@@ -1333,6 +1337,10 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 			}
 		}
 		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Actions: actions}
+
+		// TODO validate token...
+		application.Password = values_["password"].(string)
+
 
 		stream.Send(&resourcepb.GetApplicationsRsp{
 			Applications: []*resourcepb.Application{application},

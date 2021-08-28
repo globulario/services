@@ -99,6 +99,11 @@ type Store interface {
 	 */
 	DeleteOne(ctx context.Context, connectionId string, database string, collection string, query string, options string) error
 
+	/**
+	 * Return the store type...
+	 */
+	GetStoreType() string
+
 	////////////////////////////////////////////////////////////////////////////
 	// Resource management functionality.
 	////////////////////////////////////////////////////////////////////////////
