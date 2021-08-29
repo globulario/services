@@ -20,7 +20,6 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
-	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/persistence/persistencepb"
@@ -396,7 +395,6 @@ func (persistence_server *server) StopService() error {
 
 // Singleton.
 var (
-	resourceClient *resource_client.Resource_Client
 	log_client_    *log_client.Log_Client
 )
 
@@ -431,24 +429,6 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 		return
 	}
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
-}
-
-////////////////////////////////////////////////////////////////////////////////////////
-// Resource manager function
-////////////////////////////////////////////////////////////////////////////////////////
-func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
-
-	var err error
-	if resourceClient != nil {
-		return resourceClient, nil
-	}
-
-	resourceClient, err = resource_client.NewResourceService_Client(server.Domain, "resource.ResourceService")
-	if err != nil {
-		return nil, err
-	}
-
-	return resourceClient, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -1140,7 +1120,8 @@ func main() {
 	s_impl.Keywords = make([]string, 0)
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = make([]string, 0)
+	s_impl.Dependencies = []string{"log.LogService"}
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

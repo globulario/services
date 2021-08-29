@@ -344,12 +344,12 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 	var err error
 	rbac_client_, err = GetRbacClient(svr.Domain)
 	if err != nil {
-		
+
 		return err
 	}
-	
-	err  = rbac_client_.SetActionResourcesPermissions(permissions)
-	
+
+	err = rbac_client_.SetActionResourcesPermissions(permissions)
+
 	return err
 }
 
@@ -797,7 +797,7 @@ func main() {
 	s_impl.Keywords = []string{"Resource"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = make([]string, 0)
+	s_impl.Dependencies = []string{"log.LogService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

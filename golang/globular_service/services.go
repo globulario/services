@@ -417,6 +417,7 @@ func SaveService(path string, s Service) error {
 }
 
 func StartService(s Service, server *grpc.Server) error {
+
 	// First of all I will creat a listener.
 	// Create the channel to listen on
 	lis, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
@@ -426,16 +427,27 @@ func StartService(s Service, server *grpc.Server) error {
 		return err_
 	}
 
+	service_config, err := config.GetServicesConfigurationsById(s.GetId())
+
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
-
+		service_config["State"] = "running"
+		service_config["Process"] = os.Getpid()
+		config.SaveServiceConfiguration(service_config)
 		// no web-rpc server.
 		fmt.Println(s.GetName()+" grpc service is starting at port ", s.GetPort(), " and proxy ", s.GetProxy())
 		if err := server.Serve(lis); err != nil {
 			if err.Error() == "signal: killed" {
 				fmt.Println("service ", s.GetId(), s.GetName(), " was stop!")
+				service_config["State"] = "killed"
+			} else {
+				service_config["State"] = "failed"
 			}
+			service_config["last_error"] = err.Error()
+		} else {
+			service_config["State"] = "stopped"
 		}
+		config.SaveServiceConfiguration(service_config)
 	}()
 
 	// Wait for signal to stop.
@@ -444,15 +456,18 @@ func StartService(s Service, server *grpc.Server) error {
 	<-ch
 	fmt.Println(s.GetId() + " is now stopped!")
 
-	service_config, err := config.GetServicesConfigurationsById(s.GetId())
+	service_config["Process"] = -1
+	service_config["ProxyProcess"] = -1
+
 	if err == nil {
 		// save service configuration.
-		service_config["Process"] = -1
-		service_config["ProxyProcess"] = -1
 		service_config["State"] = "stopped"
-		config.SaveServiceConfiguration(service_config)
+	} else {
+		service_config["State"] = "failed"
+		service_config["last_error"] = err.Error()
 	}
 
+	config.SaveServiceConfiguration(service_config)
 	server.Stop() // I kill it but not softly...
 	return nil
 }

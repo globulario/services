@@ -2,6 +2,7 @@ package process
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
@@ -9,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"fmt"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
@@ -51,9 +52,10 @@ func KillServiceProcess(s map[string]interface{}) error {
 		err := process.Kill()
 		if err == nil {
 			s["Process"] = -1
-
+			s["State"] = "killed"
 		} else {
 			s["State"] = "failed"
+			s["last_error"] = err.Error()
 		}
 	}
 
@@ -64,10 +66,11 @@ func KillServiceProcess(s map[string]interface{}) error {
 var (
 	log_client_ *log_client.Log_Client
 )
+
 /**
  * Get the log client.
  */
- func getLogClient(domain string) (*log_client.Log_Client, error) {
+func getLogClient(domain string) (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
 		log_client_, err = log_client.NewLogService_Client(domain, "log.LogService")
@@ -79,8 +82,7 @@ var (
 	return log_client_, nil
 }
 
-
-func logInfo(name, domain, fileLine, functionName,  message string, level logpb.LogLevel) {
+func logInfo(name, domain, fileLine, functionName, message string, level logpb.LogLevel) {
 	log_client_, err := getLogClient(domain)
 	if err != nil {
 		return
@@ -115,6 +117,11 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	s["State"] = "running"
+	if p.Process != nil {
+		s["Process"] = p.Process.Pid
+	}
+
 	output := make(chan string)
 	done := make(chan bool)
 
@@ -126,10 +133,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 				return
 
 			case info := <-output:
-				if p.Process != nil {
-					s["Process"] = p.Process.Pid
-					s["State"] = "running"
-				}
 				fmt.Println(info)
 			}
 		}
@@ -141,22 +144,33 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 		// Start reading the output
 		go Utility.ReadOutput(output, stdout)
 		err := p.Run()
+
 		if err != nil {
-			s["State"] = "fail"
+			s["State"] = "failed"
 			s["Process"] = -1
-			logInfo(s["Name"].(string) + ":" + s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			s["last_error"] = err.Error()
+			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return
+		}
+
+		s["State"] = "running"
+		if p.Process != nil {
+			s["Process"] = p.Process.Pid
 		}
 
 		// wait the process to finish
 		err = p.Wait()
 		if err != nil {
-			logInfo(s["Name"].(string) + ":" + s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			s["State"] = "failed"
+			s["last_error"] = err.Error()
+			s["Process"] = -1
 		}
 
 		// Close the output.
 		stdout.Close()
 		done <- true
+		s["State"] = "stopped"
 	}()
 
 	return config.SaveServiceConfiguration(s)
