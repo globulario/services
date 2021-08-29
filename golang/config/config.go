@@ -67,6 +67,34 @@ func GetWebRootDir() string{
 }
 
 /**
+ * Insert an object to an array at a given index
+ */
+ func insertObject(array []map[string]interface{}, value map[string]interface{}, index int) []map[string]interface{} {
+	return append(array[:index], append([]map[string]interface{}{value}, array[index:]...)...)
+}
+
+func removeObject(array []map[string]interface{}, index int) []map[string]interface{} {
+	return append(array[:index], array[index+1:]...)
+}
+
+func moveObject(array []map[string]interface{}, srcIndex int, dstIndex int) []map[string]interface{} {
+	value := array[srcIndex]
+	return insertObject(removeObject(array, srcIndex), value, dstIndex)
+}
+
+/**
+ * Return the services index in a slice.
+ */
+ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
+	for i := 0; i < len(objects); i++ {
+		if objects[i][name].(string) == value {
+			return i
+		}
+	}
+	return -1
+}
+
+/**
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
@@ -138,6 +166,29 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		return nil
 	})
 
+	// Now I will order the services in a way required service will start first...
+	servicesNames := make([]string, len(services))
+	for i := 0; i < len(services); i++ {
+		servicesNames[i] = services[i]["Name"].(string)
+	}
+
+	// Now I will move the services below all it dependencie in the array...
+	for i := 0; i < len(servicesNames); i++ {
+		index := getObjectIndex(servicesNames[i], "Name", services)
+		if services[index]["Dependencies"] != nil {
+			dependencies := services[index]["Dependencies"].([]interface{})
+
+			for j := 0; j < len(dependencies); j++ {
+				index_ := getObjectIndex(dependencies[j].(string), "Name", services)
+				if index_ != -1 {
+					if index < index_ {
+						// move the services in the array...
+						services = moveObject(services, index_, index)
+					}
+				}
+			}
+		}
+	}
 	// return the services configuration.
 	return services, nil
 }

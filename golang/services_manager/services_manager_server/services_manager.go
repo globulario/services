@@ -6,18 +6,21 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/process"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
-	"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Uninstall a service...
@@ -117,7 +120,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			// Here I will get previous service values...
 			if previous != nil {
 				s["KeepAlive"] = previous["KeepAlive"].(bool)
-				s["KeepUpToDate"] =previous["KeepUpToDate"].(bool)
+				s["KeepUpToDate"] = previous["KeepUpToDate"].(bool)
 			}
 
 			err = os.Chmod(s["Path"].(string), 0755)
@@ -195,54 +198,56 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 
 }
 
-// Stop a service
-func (server *server) StopServiceInstance(ctx context.Context, rqst *services_managerpb.StopServiceInstanceRequest) (*services_managerpb.StopServiceInstanceResponse, error) {
-
-	s, err := config.GetServicesConfigurationsById(rqst.ServiceId)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+func (server *server) stopServiceInstance(serviceId string) error {
+	if serviceId == server.GetId() {
+		return errors.New("The service manager could not stop itself!")
 	}
-	
+	s, err := config.GetServicesConfigurationsById(serviceId)
+	if err != nil {
+		return err
+	}
+
 	if s != nil {
 		err := server.stopService(s)
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return err
 		}
 	} else {
 		// Close all services with a given name.
-		services, err := config.GetServicesConfigurationsByName(rqst.ServiceId)
+		services, err := config.GetServicesConfigurationsByName(serviceId)
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return err
 		}
 
 		for i := 0; i < len(services); i++ {
 			serviceId := services[i]["Id"].(string)
 			s, err := config.GetServicesConfigurationsById(serviceId)
 			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return err
 			}
 
 			if s == nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No service found with id "+serviceId)))
+				return errors.New("No service found with id " + serviceId)
 			}
 
 			err = server.stopService(s)
 			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				return err
 			}
 		}
+	}
+
+	return nil
+}
+
+// Stop a service
+func (server *server) StopServiceInstance(ctx context.Context, rqst *services_managerpb.StopServiceInstanceRequest) (*services_managerpb.StopServiceInstanceResponse, error) {
+
+	err := server.stopServiceInstance(rqst.ServiceId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &services_managerpb.StopServiceInstanceResponse{
@@ -250,12 +255,104 @@ func (server *server) StopServiceInstance(ctx context.Context, rqst *services_ma
 	}, nil
 }
 
+func (server *server) startServiceInstance(serviceId string) error {
+	if serviceId == server.GetId() {
+		return errors.New("The service manager could not start itself!")
+	}
+
+	service, err := config.GetServicesConfigurationsById(serviceId)
+	if err != nil {
+		return err
+	}
+
+	// here I will read the server configuration file...
+	globular := make(map[string]interface{})
+	file, err := ioutil.ReadFile(config.GetConfigDir() + "/config.json")
+	// Init the service with the default port address
+	if err == nil {
+		err := json.Unmarshal(file, &globular)
+		if err != nil {
+			return err
+		}
+	} else {
+		return err
+	}
+
+	err = process.StartServiceProcess(service, globular["PortsRange"].(string))
+	if err == nil {
+		err = process.StartServiceProxyProcess(service, globular["CertificateAuthorityBundle"].(string), globular["Certificate"].(string), globular["PortsRange"].(string))
+		if err != nil {
+			return errors.New("fail to start proxy for service " + service["Name"].(string) + " with error " + err.Error())
+		}
+	}
+
+	return nil
+}
+
 // Start a service
 func (server *server) StartServiceInstance(ctx context.Context, rqst *services_managerpb.StartServiceInstanceRequest) (*services_managerpb.StartServiceInstanceResponse, error) {
-	return nil, errors.New("not implemented")
+	err := server.startServiceInstance(rqst.ServiceId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &services_managerpb.StartServiceInstanceResponse{}, nil
 }
 
 // Restart all Services also the http(s)
 func (server *server) RestartAllServices(ctx context.Context, rqst *services_managerpb.RestartAllServicesRequest) (*services_managerpb.RestartAllServicesResponse, error) {
-	return nil, errors.New("not implemented")
+	services, err := config.GetServicesConfigurations()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// stop all serives...
+	for i := 0; i < len(services); i++ {
+		if services[i]["Id"].(string) != server.GetId() {
+			err := server.stopServiceInstance(services[i]["Id"].(string))
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+	}
+
+	for i := 0; i < len(services); i++ {
+		if services[i]["Id"].(string) != server.GetId() {
+			log.Println("-----> start service ",services[i]["Name"].(string),  services[i]["Id"].(string))
+			err := server.startServiceInstance(services[i]["Id"].(string))
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+	}
+
+	return &services_managerpb.RestartAllServicesResponse{}, nil
+}
+
+func (server *server) GetServicesConfiguration(ctx context.Context, rqst *services_managerpb.GetServicesConfigurationRequest) (*services_managerpb.GetServicesConfigurationResponse, error) {
+	services, err := config.GetServicesConfigurations()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	rsp := &services_managerpb.GetServicesConfigurationResponse{}
+
+	rsp.Services = make([]*structpb.Struct, len(services))
+
+	// Now I will set the value in the results array...
+	for i := 0; i < len(services); i++ {
+		rsp.Services[i], _ = structpb.NewStruct(services[i])
+	}
+
+	return rsp, nil
 }

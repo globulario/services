@@ -2,6 +2,7 @@ syntax = "proto3";
 package services_manager;
 
 option go_package="services_manager/services_managerpb";
+import "google/protobuf/struct.proto";
 
 
 message InstallServiceRequest{
@@ -51,6 +52,15 @@ message RestartAllServicesRequest {
 message RestartAllServicesResponse {
 }
 
+// Get the services configuration for that server.
+message GetServicesConfigurationRequest{
+
+}
+
+message GetServicesConfigurationResponse{
+  repeated google.protobuf.Struct services = 1;
+}
+
 service ServicesManagerService {
 
   // Install a service...
@@ -68,5 +78,7 @@ service ServicesManagerService {
   // Restart all Services
   rpc RestartAllServices(RestartAllServicesRequest) returns (RestartAllServicesResponse);
 
+  // Get services configurations...
+  rpc GetServicesConfiguration(GetServicesConfigurationRequest) returns (GetServicesConfigurationResponse);
 
 }

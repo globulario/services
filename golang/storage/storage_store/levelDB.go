@@ -22,29 +22,29 @@ type LevelDB_store struct {
 }
 
 // Manage the concurent access of the db.
-func (self *LevelDB_store) run() {
+func (store *LevelDB_store) run() {
 	for {
 		select {
-		case action := <-self.actions:
+		case action := <-store.actions:
 			if action["name"].(string) == "Open" {
-				action["result"].(chan error) <- self.open(action["path"].(string))
+				action["result"].(chan error) <- store.open(action["path"].(string))
 			} else if action["name"].(string) == "SetItem" {
 				if action["val"] != nil {
-					action["result"].(chan error) <- self.setItem(action["key"].(string), action["val"].([]byte))
+					action["result"].(chan error) <- store.setItem(action["key"].(string), action["val"].([]byte))
 				} else {
-					action["result"].(chan error) <- self.setItem(action["key"].(string), nil)
+					action["result"].(chan error) <- store.setItem(action["key"].(string), nil)
 				}
 			} else if action["name"].(string) == "GetItem" {
-				val, err := self.getItem(action["key"].(string))
+				val, err := store.getItem(action["key"].(string))
 				action["results"].(chan map[string]interface{}) <- map[string]interface{}{"val": val, "err": err}
 			} else if action["name"].(string) == "RemoveItem" {
-				action["result"].(chan error) <- self.removeItem(action["key"].(string))
+				action["result"].(chan error) <- store.removeItem(action["key"].(string))
 			} else if action["name"].(string) == "Clear" {
-				action["result"].(chan error) <- self.clear()
+				action["result"].(chan error) <- store.clear()
 			} else if action["name"].(string) == "Drop" {
-				action["result"].(chan error) <- self.drop()
+				action["result"].(chan error) <- store.drop()
 			} else if action["name"].(string) == "Close" {
-				action["result"].(chan error) <- self.close()
+				action["result"].(chan error) <- store.close()
 				break // exit here.
 			}
 
@@ -62,65 +62,85 @@ func NewLevelDB_store() *LevelDB_store {
 }
 
 // In that case the parameter contain the path.
-func (self *LevelDB_store) open(optionsStr string) error {
-	if self.isOpen == true {
+func (store *LevelDB_store) open(optionsStr string) error {
+	if store.isOpen {
 		return nil // the connection is already open.
 	}
 	fmt.Println("open store at path ", optionsStr)
-	self.options = optionsStr
-
-	var err error
-	if len(self.path) == 0 {
+	store.options = optionsStr
+	if len(store.path) == 0 {
 		if len(optionsStr) == 0 {
-			return errors.New("store path and store name must be given as options!")
+			return errors.New("store path and store name must be given as options")
 		}
 
 		options := make(map[string]interface{})
 		json.Unmarshal([]byte(optionsStr), &options)
 
 		if options["path"] == nil {
-			return errors.New("no store path was given in connection option!")
+			return errors.New("no store path was given in connection option")
 		}
 
 		if options["name"] == nil {
-			return errors.New("no store name was given in connection option!")
+			return errors.New("no store name was given in connection option")
 		}
 
-		self.path = options["path"].(string) + string(os.PathSeparator) + options["name"].(string)
+		store.path = options["path"].(string) + string(os.PathSeparator) + options["name"].(string)
 
 	}
-	fmt.Println("open file db at ", self.path)
-	// Open the store.
-	self.db, err = leveldb.OpenFile(self.path, nil)
-	if err != nil {
-		return err
-	}
-	fmt.Println("db is now open!")
-	self.isOpen = true
+	fmt.Println("open file db at ", store.path)
+	store.isOpen = true
 	return nil
 }
 
 // Close the store.
-func (self *LevelDB_store) close() error {
-	if self.isOpen == false {
+func (store *LevelDB_store) close() error {
+	if store.db == nil {
+		store.isOpen = false
 		return nil
 	}
-	self.isOpen = false
-	return self.db.Close()
+
+	if !store.isOpen {
+		return nil
+	}
+	store.isOpen = false
+	return nil
+}
+
+func (store *LevelDB_store) getDb() (*leveldb.DB, error) {
+	var err error
+	store.db, err = leveldb.OpenFile(store.path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return store.db, nil
 }
 
 // Set item
-func (self *LevelDB_store) setItem(key string, val []byte) error {
-	return self.db.Put([]byte(key), val, nil)
+func (store *LevelDB_store) setItem(key string, val []byte) error {
+
+	db, err := store.getDb()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	return db.Put([]byte(key), val, nil)
 }
 
 // Get item with a given key.
-func (self *LevelDB_store) getItem(key string) ([]byte, error) {
+func (store *LevelDB_store) getItem(key string) ([]byte, error) {
+	db, err := store.getDb()
+	defer db.Close()
+	if err != nil {
+		return nil, err
+	}
+
 	// Here I will make a little trick to give more flexibility to the tool...
 	if strings.HasSuffix(key, "*") {
 		// I will made use of iterator to ket the values
 		values := "["
-		iter := self.db.NewIterator(util.BytesPrefix([]byte(key[:len(key)-2])), nil)
+		iter := db.NewIterator(util.BytesPrefix([]byte(key[:len(key)-2])), nil)
 
 		for ok := iter.Last(); ok; ok = iter.Prev() {
 			if values != "[" {
@@ -136,73 +156,78 @@ func (self *LevelDB_store) getItem(key string) ([]byte, error) {
 
 	}
 
-	return self.db.Get([]byte(key), nil)
+	return db.Get([]byte(key), nil)
 }
 
 // Remove an item or a range of items whit same path
-func (self *LevelDB_store) removeItem(key string) error {
+func (store *LevelDB_store) removeItem(key string) error {
+	db, err := store.getDb()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 	if strings.HasSuffix(key, "*") {
 		// I will made use of iterator to ket the values
-		iter := self.db.NewIterator(util.BytesPrefix([]byte(key[:len(key)-1])), nil)
+		iter := db.NewIterator(util.BytesPrefix([]byte(key[:len(key)-1])), nil)
 		for ok := iter.Last(); ok; ok = iter.Prev() {
-			self.db.Delete([]byte(iter.Key()), nil)
+			db.Delete([]byte(iter.Key()), nil)
 		}
 		iter.Release()
 
 	}
-	return self.db.Delete([]byte(key), nil)
+	return db.Delete([]byte(key), nil)
 }
 
 // Clear the data store.
-func (self *LevelDB_store) clear() error {
-	err := self.Drop()
+func (store *LevelDB_store) clear() error {
+	err := store.Drop()
 	if err != nil {
 		return err
 	}
 
 	// Recreate the db files and connection.
-	return self.Open(self.path)
+	return nil
 }
 
 // Drop the data store.
-func (self *LevelDB_store) drop() error {
+func (store *LevelDB_store) drop() error {
 	// Close the db
-	err := self.Close()
+	err := store.Close()
 	if err != nil {
 		return err
 	}
-	return os.RemoveAll(self.path)
+	return os.RemoveAll(store.path)
 }
 
 //////////////////////// Synchronized LevelDB access ///////////////////////////
 
 // Open the store with a give file path.
-func (self *LevelDB_store) Open(path string) error {
+func (store *LevelDB_store) Open(path string) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 	action := map[string]interface{}{"name": "Open", "result": make(chan error), "path": path}
-	self.actions <- action
+	store.actions <- action
 	err := <-action["result"].(chan error)
 	return err
 }
 
 // Close the store.
-func (self *LevelDB_store) Close() error {
+func (store *LevelDB_store) Close() error {
 	action := map[string]interface{}{"name": "Close", "result": make(chan error)}
-	self.actions <- action
+	store.actions <- action
 	return <-action["result"].(chan error)
 }
 
 // Set item
-func (self *LevelDB_store) SetItem(key string, val []byte) error {
+func (store *LevelDB_store) SetItem(key string, val []byte) error {
 	action := map[string]interface{}{"name": "SetItem", "result": make(chan error), "key": key, "val": val}
-	self.actions <- action
+	store.actions <- action
 	return <-action["result"].(chan error)
 }
 
 // Get item with a given key.
-func (self *LevelDB_store) GetItem(key string) ([]byte, error) {
+func (store *LevelDB_store) GetItem(key string) ([]byte, error) {
 	action := map[string]interface{}{"name": "GetItem", "results": make(chan map[string]interface{}), "key": key}
-	self.actions <- action
+	store.actions <- action
 	results := <-action["results"].(chan map[string]interface{})
 	if results["err"] != nil {
 		return nil, results["err"].(error)
@@ -212,22 +237,22 @@ func (self *LevelDB_store) GetItem(key string) ([]byte, error) {
 }
 
 // Remove an item
-func (self *LevelDB_store) RemoveItem(key string) error {
+func (store *LevelDB_store) RemoveItem(key string) error {
 	action := map[string]interface{}{"name": "RemoveItem", "result": make(chan error), "key": key}
-	self.actions <- action
+	store.actions <- action
 	return <-action["result"].(chan error)
 }
 
 // Clear the data store.
-func (self *LevelDB_store) Clear() error {
+func (store *LevelDB_store) Clear() error {
 	action := map[string]interface{}{"name": "Clear", "result": make(chan error)}
-	self.actions <- action
+	store.actions <- action
 	return <-action["result"].(chan error)
 }
 
 // Drop the data store.
-func (self *LevelDB_store) Drop() error {
+func (store *LevelDB_store) Drop() error {
 	action := map[string]interface{}{"name": "Drop", "result": make(chan error)}
-	self.actions <- action
+	store.actions <- action
 	return <-action["result"].(chan error)
 }

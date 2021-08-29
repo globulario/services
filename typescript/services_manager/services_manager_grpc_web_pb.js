@@ -15,6 +15,8 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
+var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js')
 const proto = {};
 proto.services_manager = require('./services_manager_pb.js');
 
@@ -467,6 +469,86 @@ proto.services_manager.ServicesManagerServicePromiseClient.prototype.restartAllS
       request,
       metadata || {},
       methodDescriptor_ServicesManagerService_RestartAllServices);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.services_manager.GetServicesConfigurationRequest,
+ *   !proto.services_manager.GetServicesConfigurationResponse>}
+ */
+const methodDescriptor_ServicesManagerService_GetServicesConfiguration = new grpc.web.MethodDescriptor(
+  '/services_manager.ServicesManagerService/GetServicesConfiguration',
+  grpc.web.MethodType.UNARY,
+  proto.services_manager.GetServicesConfigurationRequest,
+  proto.services_manager.GetServicesConfigurationResponse,
+  /**
+   * @param {!proto.services_manager.GetServicesConfigurationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.services_manager.GetServicesConfigurationResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.services_manager.GetServicesConfigurationRequest,
+ *   !proto.services_manager.GetServicesConfigurationResponse>}
+ */
+const methodInfo_ServicesManagerService_GetServicesConfiguration = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.services_manager.GetServicesConfigurationResponse,
+  /**
+   * @param {!proto.services_manager.GetServicesConfigurationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.services_manager.GetServicesConfigurationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.services_manager.GetServicesConfigurationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.services_manager.GetServicesConfigurationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.services_manager.GetServicesConfigurationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.services_manager.ServicesManagerServiceClient.prototype.getServicesConfiguration =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/services_manager.ServicesManagerService/GetServicesConfiguration',
+      request,
+      metadata || {},
+      methodDescriptor_ServicesManagerService_GetServicesConfiguration,
+      callback);
+};
+
+
+/**
+ * @param {!proto.services_manager.GetServicesConfigurationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.services_manager.GetServicesConfigurationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.services_manager.ServicesManagerServicePromiseClient.prototype.getServicesConfiguration =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/services_manager.ServicesManagerService/GetServicesConfiguration',
+      request,
+      metadata || {},
+      methodDescriptor_ServicesManagerService_GetServicesConfiguration);
 };
 
 

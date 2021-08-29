@@ -422,7 +422,7 @@ func (server *server) removePeersAction(action string) error {
 		return err
 	}
 
-	return resourceClient.RemovePeersAction(action)
+	return resourceClient.RemovePeersAction("", action)
 }
 
 func (server *server) setRoleActions(roleId string, actions []string) error {
@@ -496,11 +496,15 @@ func (server *server) logServiceError(name string, infos string) {
 //  Stop a given service instance.
 func (server *server) stopService(s map[string]interface{}) error {
 	// Kill the service process
-	process.KillServiceProcess(s)
+	err := process.KillServiceProcess(s)
+	if err != nil {
+		return err
+	}
 
 	// Save it config...
-	jsonStr, _ := Utility.ToJson(s)
+	s["State"] = "killed"
 
+	jsonStr, _ := Utility.ToJson(s)
 	return ioutil.WriteFile(s["configPath"].(string), []byte(jsonStr), 0644)
 }
 

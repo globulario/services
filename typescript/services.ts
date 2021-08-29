@@ -21,6 +21,9 @@ import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from '.
 import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
 import { ConversationServicePromiseClient } from './conversation/conversation_grpc_web_pb';
+import { ServicesManagerServicePromiseClient } from './services_manager/services_manager_grpc_web_pb';
+import { ApplicationManagerServicePromiseClient } from './applications_manager/applications_manager_grpc_web_pb';
+
 
 /**
  * The service configuration information.
@@ -76,7 +79,7 @@ export interface IConfig {
   IndexApplication: string;
   Path: string;
   DataPath: string;
-  ConfigPath: string; 
+  ConfigPath: string;
 
   // The map of service object.
   Services: IServices;
@@ -239,7 +242,7 @@ export class EventHub {
         rqst.setName(name)
         rqst.setUuid(this.uuid)
         this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
-          if(this.subscribers[name] == undefined){
+          if (this.subscribers[name] == undefined) {
             this.subscribers[name] = {} // create if it not exist.
           }
           this.subscribers[name][uuid] = { onsubscribe: onsubscribe, onevent: onevent, local: local }
@@ -428,6 +431,50 @@ export class Globular {
       });
     }
     return this._adminService;
+  }
+
+  /** The services manager service */
+  private _servicesManagerService: ServicesManagerServicePromiseClient
+  public get servicesManagerService(): ServicesManagerServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._servicesManagerService == null) {
+      let configs = this.getConfigs('services_manager.ServicesManagerService')
+      configs.forEach((config: IServiceConfig) => {
+        this._servicesManagerService = new ServicesManagerServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._servicesManagerService
+      });
+    }
+    return this._servicesManagerService;
+  }
+
+  /** The application manager service */
+  private _applicationsManagerService: ApplicationManagerServicePromiseClient
+  public get applicationsManagerService(): ApplicationManagerServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._applicationsManagerService == null) {
+      let configs = this.getConfigs('applications_manager.ApplicationManagerService')
+      configs.forEach((config: IServiceConfig) => {
+        this._applicationsManagerService = new ApplicationManagerServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._applicationsManagerService
+      });
+    }
+    return this._applicationsManagerService;
   }
 
   /** The authentication services */
@@ -661,7 +708,8 @@ export class Globular {
           );
           this._services[config.Id] = this._echoService
         }
-      }); }
+      });
+    }
     return this._echoService;
   }
 
@@ -682,7 +730,8 @@ export class Globular {
           );
           this._services[config.Id] = this._eventService
         }
-      });}
+      });
+    }
     return this._eventService
   }
 
@@ -708,7 +757,8 @@ export class Globular {
           this._services[config.Id] = this._fileService
         }
 
-      })}
+      })
+    }
     return this._fileService;
   }
 
@@ -729,8 +779,9 @@ export class Globular {
           );
           this._services[config.Id] = this._ldapService
         }
-      })}
-      return this._ldapService
+      })
+    }
+    return this._ldapService
   }
 
   private _persistenceService: PersistenceServicePromiseClient

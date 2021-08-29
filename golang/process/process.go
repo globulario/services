@@ -94,24 +94,38 @@ func logInfo(name, domain, fileLine, functionName, message string, level logpb.L
 func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	// I will kill the process if is running...
 	KillServiceProcess(s)
+	s["State"] = "starting"
+	config.SaveServiceConfiguration(s)
 
 	// Get the next available port.
 	var err error
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
+		s["State"] = "failed"
+		s["last_error"] = err.Error()
+		config.SaveServiceConfiguration(s)
+		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return err
 	}
 
 	s["Port"] = port
-
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
+		s["State"] = "failed"
+		s["last_error"] = err.Error()
+		config.SaveServiceConfiguration(s)
+		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return err
 	}
 
 	p := exec.Command(s["Path"].(string), Utility.ToString(port))
 	stdout, err := p.StdoutPipe()
 	if err != nil {
+		s["State"] = "failed"
+		s["last_error"] = err.Error()
+		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		config.SaveServiceConfiguration(s)
+
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -120,6 +134,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	s["State"] = "running"
 	if p.Process != nil {
 		s["Process"] = p.Process.Pid
+		config.SaveServiceConfiguration(s)
 	}
 
 	output := make(chan string)
@@ -130,6 +145,9 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 		for {
 			select {
 			case <-done:
+				s["State"] = "stopped"
+				config.SaveServiceConfiguration(s)
+
 				return
 
 			case info := <-output:
@@ -150,27 +168,31 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 			s["Process"] = -1
 			s["last_error"] = err.Error()
 			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			config.SaveServiceConfiguration(s)
 			return
 		}
 
 		s["State"] = "running"
 		if p.Process != nil {
 			s["Process"] = p.Process.Pid
+			config.SaveServiceConfiguration(s)
 		}
 
 		// wait the process to finish
 		err = p.Wait()
 		if err != nil {
-			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			s["State"] = "failed"
 			s["last_error"] = err.Error()
 			s["Process"] = -1
+			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		}
 
 		// Close the output.
 		stdout.Close()
 		done <- true
 		s["State"] = "stopped"
+		// save the configuration...
+		config.SaveServiceConfiguration(s)
 	}()
 
 	return config.SaveServiceConfiguration(s)
