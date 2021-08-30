@@ -71,7 +71,11 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
-
+	Process	int
+	ProxyProcess int
+	ConfigPath string
+	LastError string
+	
 	// The grpc server.
 	grpcServer *grpc.Server
 

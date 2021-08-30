@@ -505,7 +505,7 @@ func (server *server) stopService(s map[string]interface{}) error {
 	s["State"] = "killed"
 
 	jsonStr, _ := Utility.ToJson(s)
-	return ioutil.WriteFile(s["configPath"].(string), []byte(jsonStr), 0644)
+	return ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
 }
 
 // uninstall service
@@ -606,7 +606,8 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"resource.ResourceService", "rbac.RbacService", "event.EventService"}
 	s_impl.Permissions = make([]interface{}, 0)
-
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.WatchUpdateDelay = 60 * 60 // validate service version at each hours...

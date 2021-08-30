@@ -69,6 +69,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
+	Process	int
+	ProxyProcess int
+	ConfigPath string
+	LastError string
 
 	// storage_server-signed X.509 public keys for distribution
 	CertFile string
@@ -410,8 +414,6 @@ func (storage_server *server) CreateConnection(ctx context.Context, rsqt *storag
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	globular.UpdateServiceConfig(storage_server)
-
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -749,6 +751,9 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
+	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

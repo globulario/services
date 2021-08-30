@@ -148,6 +148,10 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
+	Process	int
+	ProxyProcess int
+	ConfigPath string
+	LastError string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -427,7 +431,7 @@ func (sql_server *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.Stop
 // exist it will be replace by the new one.
 func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
 	// sqlpb
-	fmt.Println("Try to create a new connection")
+	fmt.Println("Try to create a new SQL connection")
 	var c connection
 
 	// Set the connection info from the request.
@@ -443,6 +447,7 @@ func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.Crea
 	db, err := sql.Open(c.Driver, c.getConnectionString())
 
 	if err != nil {
+		fmt.Println("fail to create connection with error ", err)
 		// codes.
 		return nil, status.Errorf(
 			codes.Internal,
@@ -458,13 +463,11 @@ func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.Crea
 	// In that case I will save it in file.
 	err = sql_server.Save()
 	if err != nil {
+		fmt.Println("fail to save connection ", err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// Update the globule configuration.
-	globular.UpdateServiceConfig(sql_server)
 
 	// test if the connection is reacheable.
 	_, err = sql_server.ping(ctx, c.Id)
@@ -476,6 +479,8 @@ func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.Crea
 
 	}
 
+	fmt.Println("Connection", c.Id, "was create successfully!")
+	
 	return &sqlpb.CreateConnectionRsp{
 		Result: true,
 	}, nil
@@ -839,6 +844,9 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
+	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

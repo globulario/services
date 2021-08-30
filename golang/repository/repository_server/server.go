@@ -58,6 +58,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
 
 	TLS bool
 
@@ -105,7 +109,6 @@ func (svr *server) GetMac() string {
 func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
-
 
 // The description of the service
 func (server *server) GetDescription() string {
@@ -378,12 +381,13 @@ func (server *server) getPackageBundleChecksum(id string) (string, error) {
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 var (
-	log_client_  *log_client.Log_Client
+	log_client_ *log_client.Log_Client
 )
+
 /**
  * Get the log client.
  */
- func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
 		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
@@ -452,10 +456,10 @@ func main() {
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	// The default path where the data can be found.
 	s_impl.Root = config.GetDataDir()
-
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

@@ -7,9 +7,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
-	"runtime"
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
@@ -18,48 +18,48 @@ import (
 
 // Those function are use to get the correct
 // directory where globular must be installed.
-func GetRootDir() string{
+func GetRootDir() string {
 	if runtime.GOOS == "windows" {
 		if runtime.GOARCH == "386" {
 			return "C:/Program Files (x86)/globular"
-		}else{
+		} else {
 			return "C:/Program Files/globular"
 		}
-	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/usr/local/share/globular"
 	}
 
 	return "/globular"
 }
 
-func GetServicesDir() string{
+func GetServicesDir() string {
 	return GetRootDir() + "/services"
 }
 
-func GetConfigDir() string{
+func GetConfigDir() string {
 	if runtime.GOOS == "windows" {
 		return GetRootDir() + "/config"
-	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/etc/globular/config"
 	}
 
 	return "/globular/config"
 }
 
-func GetDataDir() string{
+func GetDataDir() string {
 	if runtime.GOOS == "windows" {
 		return GetRootDir() + "/data"
-	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/var/globular/data"
 	}
 
 	return "/globular/data"
 }
 
-func GetWebRootDir() string{
+func GetWebRootDir() string {
 	if runtime.GOOS == "windows" {
 		return GetRootDir() + "/webroot"
-	}else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin"{
+	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/var/globular/webroot"
 	}
 
@@ -69,7 +69,7 @@ func GetWebRootDir() string{
 /**
  * Insert an object to an array at a given index
  */
- func insertObject(array []map[string]interface{}, value map[string]interface{}, index int) []map[string]interface{} {
+func insertObject(array []map[string]interface{}, value map[string]interface{}, index int) []map[string]interface{} {
 	return append(array[:index], append([]map[string]interface{}{value}, array[index:]...)...)
 }
 
@@ -85,7 +85,7 @@ func moveObject(array []map[string]interface{}, srcIndex int, dstIndex int) []ma
 /**
  * Return the services index in a slice.
  */
- func getObjectIndex(value, name string, objects []map[string]interface{}) int {
+func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 	for i := 0; i < len(objects); i++ {
 		if objects[i][name].(string) == value {
 			return i
@@ -143,7 +143,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 							}
 
 							// Keep the configuration path in the object...
-							s["configPath"] = path
+							s["ConfigPath"] = path
 
 							if s["Root"] != nil {
 								if s["Name"] == "file.FileService" {
@@ -239,8 +239,8 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	// Save it config...
 	jsonStr, _ := Utility.ToJson(s)
 
-	//log.Println("-----------> save configuration to ", s["configPath"].(string),s["Process"] )
-	return ioutil.WriteFile(s["configPath"].(string), []byte(jsonStr), 0644)
+	//log.Println("-----------> save configuration to ", s["ConfigPath"].(string),s["Process"] )
+	return ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
 }
 
 /**
@@ -257,7 +257,7 @@ func GetServiceMethods(name string, publisherId string, version string) ([]strin
 	path := ""
 	for i := 0; i < len(configs); i++ {
 		if configs[i]["PublisherId"] == publisherId && configs[i]["Version"] == version {
-			path = configs[i]["configPath"].(string)
+			path = configs[i]["ConfigPath"].(string)
 			break
 		}
 	}
@@ -335,7 +335,7 @@ var (
  * Return the next available port.
  **/
 func GetNextAvailablePort(portRange_ string) (int, error) {
-	
+
 	portRange := strings.Split(portRange_, "-")
 	start := Utility.ToInt(portRange[0]) + 1 // The first port of the range will be reserve to http configuration handler.
 	end := Utility.ToInt(portRange[1])
@@ -372,7 +372,7 @@ func getPortsInUse() []int {
 		if s["Process"] != nil {
 			s["Process"] = Utility.ToInt(pid)
 		}
-		
+
 		if pid != -1 {
 			if processIsRuning(pid) {
 				port := Utility.ToInt(s["Port"])
@@ -384,7 +384,7 @@ func getPortsInUse() []int {
 		if s["ProxyProcess"] != nil {
 			s["ProxyProcess"] = Utility.ToInt(pid)
 		}
-		
+
 		if proxyPid_ != -1 {
 			if processIsRuning(proxyPid_) {
 				port := Utility.ToInt(s["Proxy"])

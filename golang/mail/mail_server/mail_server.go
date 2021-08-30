@@ -81,6 +81,10 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
+	Process	int
+	ProxyProcess int
+	ConfigPath string
+	LastError string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -398,8 +402,6 @@ func (svr *server) CreateConnection(ctx context.Context, rsqt *mailpb.CreateConn
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	globular.UpdateServiceConfig(svr)
-
 	// test if the connection is reacheable.
 	// _, err = svr.ping(ctx, c.Id)
 
@@ -668,7 +670,8 @@ func main() {
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Connections = make(map[string]connection)
 	s_impl.DbIpV4 = "0.0.0.0:27017" // default mongodb port.
-
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	s_impl.Password = "adminadmin" // The default password for the admin.
 
 	// Here I will retreive the list of connections from file if there are some...

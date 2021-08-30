@@ -11,7 +11,7 @@ import (
 
 // Set the correct addresse here as needed.
 var (
-	client, _ = NewSqlService_Client("localhost:10000", "475f1bbb-42ca-44a8-9bfd-b6db1fadf2d9") // connect with the local service.
+	client, _ = NewSqlService_Client("localhost:8080", "78cdbe01-51f1-4f4f-beb7-a382848471d6") // connect with the local service.
 )
 
 /*

@@ -60,6 +60,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
+	Process	int
+	ProxyProcess int
+	ConfigPath string
+	LastError string
 
 	TLS bool
 
@@ -533,6 +537,8 @@ func main() {
 	s_impl.WebRoot = config.GetWebRootDir()
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

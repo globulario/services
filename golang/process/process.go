@@ -62,7 +62,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 			s["State"] = "killed"
 		} else {
 			s["State"] = "failed"
-			s["last_error"] = err.Error()
+			s["LastError"] = err.Error()
 		}
 	}
 
@@ -115,7 +115,7 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
 		s["State"] = "failed"
-		s["last_error"] = err.Error()
+		s["LastError"] = err.Error()
 		config.SaveServiceConfiguration(s)
 		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return err
@@ -125,7 +125,7 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
 		s["State"] = "failed"
-		s["last_error"] = err.Error()
+		s["LastError"] = err.Error()
 		config.SaveServiceConfiguration(s)
 		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		return err
@@ -135,7 +135,7 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 	stdout, err := p.StdoutPipe()
 	if err != nil {
 		s["State"] = "failed"
-		s["last_error"] = err.Error()
+		s["LastError"] = err.Error()
 		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 		config.SaveServiceConfiguration(s)
 
@@ -173,7 +173,7 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 		if err != nil {
 			service_config["State"] = "failed"
 			service_config["Process"] = -1
-			service_config["last_error"] = err.Error()
+			service_config["LastError"] = err.Error()
 			logInfo(service_config["Name"].(string)+":"+service_config["Id"].(string), service_config["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			config.SaveServiceConfiguration(s)
 			stdout.Close()
@@ -190,7 +190,7 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 		err = p.Wait()
 		if err != nil {
 			service_config["State"] = "failed"
-			service_config["last_error"] = err.Error()
+			service_config["LastError"] = err.Error()
 			service_config["Process"] = -1
 			logInfo(service_config["Name"].(string)+":"+service_config["Id"].(string), service_config["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			stdout.Close()

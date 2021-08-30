@@ -6,14 +6,13 @@ import (
 	"encoding/json"
 	"path/filepath"
 
-	//	"fmt"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"strconv"
 	"strings"
 
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -384,32 +383,37 @@ func getAdminClient(domain string) (*admin_client.Admin_Client, error) {
 /**
  * Save a globular service.
  */
-func UpdateServiceConfig(s Service) error {
-
-	// Create the file...
-	/*str, err := Utility.ToJson(s)
-	if err != nil {
-		return err
-	}
-	admin_client_, err := getAdminClient(s.GetDomain())
-	if err != nil {
-		return err
-	}
-	return admin_client_.SaveConfig(str)*/
-
-	return errors.New("not implemented")
-}
-
-/**
- * Save a globular service.
- */
 func SaveService(path string, s Service) error {
 
-	// Create the file...
-	str, err := Utility.ToJson(s)
+	// So here before I save the configuration I will get values that are not part
+	// of the services itself but use by globular.
+	config_ := make(map[string]interface{})
+	file, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
 	}
+
+	err = json.Unmarshal(file, &config_)
+	if err != nil {
+		return err
+	}
+
+	config, err := Utility.ToMap(s)
+	if err != nil {
+		return err
+	}
+
+	// Now I will set the values not found in the service object...
+	// ... nothing at that time...
+
+	// Create the file...
+	str, err := Utility.ToJson(config)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("service config: ")
+	fmt.Println(str)
 
 	ioutil.WriteFile(path, []byte(str), 0644)
 	return nil
