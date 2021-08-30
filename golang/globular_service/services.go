@@ -417,6 +417,12 @@ func SaveService(path string, s Service) error {
 }
 
 func StartService(s Service, server *grpc.Server) error {
+	service_config, err := config.GetServicesConfigurationsById(s.GetId())
+	if err != nil{
+		err_ := errors.New("no configuration found for service with id " + s.GetId())
+		log.Print(err_)
+		return err_
+	}
 
 	// First of all I will creat a listener.
 	// Create the channel to listen on
@@ -427,13 +433,10 @@ func StartService(s Service, server *grpc.Server) error {
 		return err_
 	}
 
-	service_config, err := config.GetServicesConfigurationsById(s.GetId())
 
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
-		service_config["State"] = "running"
-		service_config["Process"] = os.Getpid()
-		config.SaveServiceConfiguration(service_config)
+
 		// no web-rpc server.
 		fmt.Println(s.GetName()+" grpc service is starting at port ", s.GetPort(), " and proxy ", s.GetProxy())
 		if err := server.Serve(lis); err != nil {
@@ -447,6 +450,20 @@ func StartService(s Service, server *grpc.Server) error {
 		} else {
 			service_config["State"] = "stopped"
 		}
+
+		// kill it proxy process 
+		proxyProcessPid := Utility.ToInt(service_config["Process"])
+		if proxyProcessPid != -1 {
+			proxyProcess, err := os.FindProcess(proxyProcessPid)
+			if err == nil {
+				proxyProcess.Kill()
+				service_config["ProxyProcess"] = -1
+			}
+		}
+
+		// Set the process to -1
+		service_config["ProxyProcess"] = -1
+		service_config["Process"] = -1;
 		config.SaveServiceConfiguration(service_config)
 	}()
 

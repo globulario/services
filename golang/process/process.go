@@ -45,6 +45,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 		s["ProxyProcess"] = -1
 	}
 
+	fmt.Println("Kill process ", s["Name"], "with pid", pid, "and proxy", proxyProcessPid)
 	// kill it in the name of...
 	process, err := os.FindProcess(pid)
 	s["State"] = "stopped"
@@ -93,12 +94,16 @@ func logInfo(name, domain, fileLine, functionName, message string, level logpb.L
 // Start a service process.
 func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	// I will kill the process if is running...
-	KillServiceProcess(s)
+
+	err := KillServiceProcess(s)
+	if err != nil {
+		return err
+	}
+
 	s["State"] = "starting"
 	config.SaveServiceConfiguration(s)
 
 	// Get the next available port.
-	var err error
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
 		s["State"] = "failed"
@@ -131,12 +136,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	s["State"] = "running"
-	if p.Process != nil {
-		s["Process"] = p.Process.Pid
-		config.SaveServiceConfiguration(s)
-	}
-
 	output := make(chan string)
 	done := make(chan bool)
 
@@ -147,7 +146,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 			case <-done:
 				s["State"] = "stopped"
 				config.SaveServiceConfiguration(s)
-
 				return
 
 			case info := <-output:
@@ -161,7 +159,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	go func() {
 		// Start reading the output
 		go Utility.ReadOutput(output, stdout)
-		err := p.Run()
+		err := p.Start()
 
 		if err != nil {
 			s["State"] = "failed"
@@ -169,14 +167,15 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 			s["last_error"] = err.Error()
 			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			config.SaveServiceConfiguration(s)
+			stdout.Close()
+			done <- true
 			return
 		}
 
 		s["State"] = "running"
-		if p.Process != nil {
-			s["Process"] = p.Process.Pid
-			config.SaveServiceConfiguration(s)
-		}
+		s["Process"] = p.Process.Pid
+		config.SaveServiceConfiguration(s)
+		
 
 		// wait the process to finish
 		err = p.Wait()
@@ -185,6 +184,9 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 			s["last_error"] = err.Error()
 			s["Process"] = -1
 			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			stdout.Close()
+			done <- true
+			return
 		}
 
 		// Close the output.
@@ -353,7 +355,7 @@ func ManageServicesProcess(exit chan bool) {
 							}
 							runingProcess[name] = append(runingProcess[name], Utility.ToInt(s["Process"]))
 						} else if pid == -1 || p == nil {
-							if state == "failed" || state == "stopped" || state == "running" {
+							if state == "killed" || state == "failed" || state == "stopped" || state == "running" {
 								// make sure the process is no running...
 								if s["KeepAlive"].(bool) {
 									KillServiceProcess(s)
