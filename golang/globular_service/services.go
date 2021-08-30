@@ -404,7 +404,21 @@ func SaveService(path string, s Service) error {
 	}
 
 	// Now I will set the values not found in the service object...
-	// ... nothing at that time...
+	if config_["Process"] != nil {
+		config["Process"] = config_["Process"]
+	}
+
+	if config_["ProxyProcess"] != nil {
+		config["ProxyProcess"] = config_["ProxyProcess"]
+	}
+
+	if config_["LastError"] != nil {
+		config["LastError"] = config_["LastError"]
+	}
+
+	if config_["ConfigPath"] != nil {
+		config["ConfigPath"] = path
+	}
 
 	// Create the file...
 	str, err := Utility.ToJson(config)
