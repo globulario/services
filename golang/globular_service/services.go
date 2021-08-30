@@ -25,7 +25,6 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
-	"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -417,12 +416,6 @@ func SaveService(path string, s Service) error {
 }
 
 func StartService(s Service, server *grpc.Server) error {
-	service_config, err := config.GetServicesConfigurationsById(s.GetId())
-	if err != nil{
-		err_ := errors.New("no configuration found for service with id " + s.GetId())
-		log.Print(err_)
-		return err_
-	}
 
 	// First of all I will creat a listener.
 	// Create the channel to listen on
@@ -433,58 +426,24 @@ func StartService(s Service, server *grpc.Server) error {
 		return err_
 	}
 
-
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
-
+		//service_config, _ := config.GetServicesConfigurationsById(s.GetId())
 		// no web-rpc server.
 		fmt.Println(s.GetName()+" grpc service is starting at port ", s.GetPort(), " and proxy ", s.GetProxy())
 		if err := server.Serve(lis); err != nil {
-			if err.Error() == "signal: killed" {
-				fmt.Println("service ", s.GetId(), s.GetName(), " was stop!")
-				service_config["State"] = "killed"
-			} else {
-				service_config["State"] = "failed"
-			}
-			service_config["last_error"] = err.Error()
-		} else {
-			service_config["State"] = "stopped"
+			fmt.Println("service has error ", err)
 		}
 
-		// kill it proxy process 
-		proxyProcessPid := Utility.ToInt(service_config["Process"])
-		if proxyProcessPid != -1 {
-			proxyProcess, err := os.FindProcess(proxyProcessPid)
-			if err == nil {
-				proxyProcess.Kill()
-				service_config["ProxyProcess"] = -1
-			}
-		}
-
-		// Set the process to -1
-		service_config["ProxyProcess"] = -1
-		service_config["Process"] = -1;
-		config.SaveServiceConfiguration(service_config)
 	}()
 
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
 	<-ch
+
 	fmt.Println(s.GetId() + " is now stopped!")
 
-	service_config["Process"] = -1
-	service_config["ProxyProcess"] = -1
-
-	if err == nil {
-		// save service configuration.
-		service_config["State"] = "stopped"
-	} else {
-		service_config["State"] = "failed"
-		service_config["last_error"] = err.Error()
-	}
-
-	config.SaveServiceConfiguration(service_config)
 	server.Stop() // I kill it but not softly...
 	return nil
 }

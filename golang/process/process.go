@@ -38,6 +38,12 @@ func KillServiceProcess(s map[string]interface{}) error {
 	// Here I will set a variable that tell globular to not keep the service alive...
 	s["State"] = "terminated"
 
+	// nothing to do here...
+	if proxyProcessPid == -1 && pid == -1 {
+		config.SaveServiceConfiguration(s)
+		return nil
+	}
+
 	// also kill it proxy process if exist in that case.
 	proxyProcess, err := os.FindProcess(proxyProcessPid)
 	if err == nil {
@@ -92,16 +98,18 @@ func logInfo(name, domain, fileLine, functionName, message string, level logpb.L
 }
 
 // Start a service process.
-func StartServiceProcess(s map[string]interface{}, portsRange string) error {
-	// I will kill the process if is running...
+func StartServiceProcess(serviceId string, portsRange string) error {
 
-	err := KillServiceProcess(s)
+	s, err := config.GetServicesConfigurationsById(serviceId)
 	if err != nil {
 		return err
 	}
 
-	s["State"] = "starting"
-	config.SaveServiceConfiguration(s)
+	// I will kill the process if is running...
+	err = KillServiceProcess(s)
+	if err != nil {
+		return err
+	}
 
 	// Get the next available port.
 	port, err := config.GetNextAvailablePort(portsRange)
@@ -144,8 +152,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 		for {
 			select {
 			case <-done:
-				s["State"] = "stopped"
-				config.SaveServiceConfiguration(s)
 				return
 
 			case info := <-output:
@@ -156,34 +162,37 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 	}()
 
 	// so here I will start each service in it own go routine.
-	go func() {
+	go func(serviceId string) {
+
+		service_config, _ := config.GetServicesConfigurationsById(serviceId)
+
 		// Start reading the output
 		go Utility.ReadOutput(output, stdout)
 		err := p.Start()
 
 		if err != nil {
-			s["State"] = "failed"
-			s["Process"] = -1
-			s["last_error"] = err.Error()
-			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			service_config["State"] = "failed"
+			service_config["Process"] = -1
+			service_config["last_error"] = err.Error()
+			logInfo(service_config["Name"].(string)+":"+service_config["Id"].(string), service_config["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			config.SaveServiceConfiguration(s)
 			stdout.Close()
 			done <- true
 			return
 		}
 
-		s["State"] = "running"
-		s["Process"] = p.Process.Pid
-		config.SaveServiceConfiguration(s)
+		service_config["State"] = "running"
+		service_config["Process"] = p.Process.Pid
+		config.SaveServiceConfiguration(service_config)
 		
 
 		// wait the process to finish
 		err = p.Wait()
 		if err != nil {
-			s["State"] = "failed"
-			s["last_error"] = err.Error()
-			s["Process"] = -1
-			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			service_config["State"] = "failed"
+			service_config["last_error"] = err.Error()
+			service_config["Process"] = -1
+			logInfo(service_config["Name"].(string)+":"+service_config["Id"].(string), service_config["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			stdout.Close()
 			done <- true
 			return
@@ -192,16 +201,36 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) error {
 		// Close the output.
 		stdout.Close()
 		done <- true
-		s["State"] = "stopped"
-		// save the configuration...
-		config.SaveServiceConfiguration(s)
-	}()
 
+		// kill it proxy process
+		proxyProcessPid := Utility.ToInt(service_config["Process"])
+		if proxyProcessPid != -1 {
+			proxyProcess, err := os.FindProcess(proxyProcessPid)
+			if err == nil {
+				proxyProcess.Kill()
+				service_config["ProxyProcess"] = -1
+			}
+		}
+
+		// Set the process to -1
+		service_config["ProxyProcess"] = -1
+		service_config["Process"] = -1
+		service_config["State"] = "stopped"
+
+		config.SaveServiceConfiguration(service_config)
+	}(s["Id"].(string))
+
+	s["State"] = "starting"
 	return config.SaveServiceConfiguration(s)
 }
 
 // Start a service process.
-func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate, portsRange string) error {
+func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string) error {
+
+	s, err := config.GetServicesConfigurationsById(serviceId)
+	if err != nil {
+		return err
+	}
 
 	servicePort := Utility.ToInt(s["Port"])
 	pid := Utility.ToInt(s["ProxyProcess"])
@@ -283,6 +312,11 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	// save service configuration.
 	s["ProxyProcess"] = proxyProcess.Process.Pid
 
+	// Get the process id...
+	s_, _ := config.GetServicesConfigurationsById(serviceId)
+	s["Process"] = s_["Process"]
+	s["State"] = s_["State"]
+	
 	return config.SaveServiceConfiguration(s)
 }
 
