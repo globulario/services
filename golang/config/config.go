@@ -20,10 +20,13 @@ import (
 // directory where globular must be installed.
 func GetRootDir() string {
 	if runtime.GOOS == "windows" {
+
 		if runtime.GOARCH == "386" {
-			return "C:/Program Files (x86)/globular"
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
+			return programFilePath + "/globular" // "C:/Program Files (x86)/globular"
 		} else {
-			return "C:/Program Files/globular"
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
+			return programFilePath + "/globular"  // "C:/Program Files/globular"
 		}
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/usr/local/share/globular"

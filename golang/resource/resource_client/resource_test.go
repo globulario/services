@@ -10,7 +10,7 @@ import (
 
 var (
 	// Connect to the plc client.
-	domain = "globular.cloud"
+	domain = "localhost"
 	client, _       = NewResourceService_Client(domain, "resource.ResourceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	//token, _                  = authentication_client_.Authenticate("sa", "adminadmin")

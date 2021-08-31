@@ -229,6 +229,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	s, err := config.GetServicesConfigurationsById(serviceId)
 	if err != nil {
+		fmt.Println("error at line 232 ", err)
 		return err
 	}
 
@@ -239,9 +240,14 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	}
 
 	// Now I will start the proxy that will be use by javascript client.
-	proxyPath := "/bin/grpcwebproxy"
+	proxyPath := config.GetRootDir() + "/bin/grpcwebproxy"
 	if !strings.HasSuffix(proxyPath, ".exe") && runtime.GOOS == "windows" {
 		proxyPath += ".exe" // in case of windows.
+	}
+
+	if !Utility.Exists(proxyPath){
+		fmt.Println("No grpcwebproxy found with pat" + proxyPath)
+		return errors.New("No grpcwebproxy found with pat" + proxyPath)
 	}
 
 	proxyBackendAddress := s["Domain"].(string) + ":" + strconv.Itoa(servicePort)
@@ -257,6 +263,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	// Test if the port is available.
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
+		fmt.Println("fail to start proxy with error, ", err)
 		return err
 	}
 	s["Proxy"] = port
@@ -295,10 +302,6 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	proxyArgs = append(proxyArgs, "--server_http_max_write_timeout=48h")
 
 	// start the proxy service one time
-	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	if len(serviceDir) > 0 {
-		proxyPath = serviceDir + proxyPath
-	}
 	proxyProcess := exec.Command(proxyPath, proxyArgs...)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
@@ -306,6 +309,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	err = proxyProcess.Start()
 	if err != nil {
+		fmt.Println("fail to start proxy with error, ", err)
 		return err
 	}
 
@@ -317,6 +321,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	s["Process"] = s_["Process"]
 	s["State"] = s_["State"]
 	
+	fmt.Println("gRpc proxy start successfully!")
 	return config.SaveServiceConfiguration(s)
 }
 

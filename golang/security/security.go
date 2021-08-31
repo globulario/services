@@ -15,19 +15,18 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
+	config_ "github.com/globulario/services/golang/config"
 )
 
 var (
-	Root       = config.GetRootDir()
-	ConfigPath = config.GetConfigDir() + "/config.json"
-	keyPath    = config.GetConfigDir() + "/keys"
+	Root       = config_.GetRootDir()
+	ConfigPath = config_.GetConfigDir() + "/config.json"
+	keyPath    = config_.GetConfigDir() + "/keys"
 )
 
 // That function will be access via http so event server or client will be able
@@ -167,34 +166,17 @@ func getLocalConfig() (map[string]interface{}, error) {
 	}
 
 	// Now I will read the services configurations...
-	config["Services"] = make(map[string]interface{})
-
-	// use the GLOBULAR_SERVICES_ROOT path if it set... or the Root (/usr/local/share/globular)
-	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	if len(serviceDir) == 0 {
-		serviceDir = Root
+	servicesConfig, err := config_.GetServicesConfigurations()
+	if err != nil {
+		return nil, err
 	}
 
-	filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {
-		path = strings.ReplaceAll(path, "\\", "/")
-		if info == nil {
-			return nil
-		}
+	config["Services"] = make(map[string]interface{})
 
-		if err == nil && info.Name() == "config.json" {
-			// So here I will read the content of the file.
-			s := make(map[string]interface{})
-			data, err := ioutil.ReadFile(path)
-			if err == nil {
-				// Read the config file.
-				err := json.Unmarshal(data, &s)
-				if err == nil {
-					config["Services"].(map[string]interface{})[s["Id"].(string)] = s
-				}
-			}
-		}
-		return nil
-	})
+	// convert to map...
+	for i:=0; i < len(servicesConfig); i++ {
+		config["Services"].(map[string]interface{})[servicesConfig[i]["Id"].(string)] = servicesConfig[i]
+	}
 
 	return config, nil
 }
@@ -991,7 +973,7 @@ func GetPeerKey(id string) ([]byte, error) {
 	puba := publicStream.(*ecdsa.PublicKey)
 
 	//1, open the private key file and read the content
-	file, err = os.Open(keyPath + "/" + Utility.MyMacAddr() + "_private")
+	file, err = os.Open(keyPath + "/" + strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") + "_private")
 	if err != nil {
 		fmt.Println(err)
 		return nil, err

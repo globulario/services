@@ -23,3 +23,4 @@ go build -o ./search/search_server ./search/search_server
 go build -o ./sql/sql_server ./sql/sql_server
 go build -o ./storage/storage_server ./storage/storage_server
 
+
