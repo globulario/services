@@ -239,7 +239,6 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	// Save it config...
 	jsonStr, _ := Utility.ToJson(s)
 
-	//log.Println("-----------> save configuration to ", s["ConfigPath"].(string),s["Process"] )
 	return ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
 }
 
