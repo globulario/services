@@ -184,10 +184,10 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 		service_config["State"] = "running"
 		service_config["Process"] = p.Process.Pid
 		config.SaveServiceConfiguration(service_config)
-		
 
 		// wait the process to finish
 		err = p.Wait()
+		
 		if err != nil {
 			service_config["State"] = "failed"
 			service_config["LastError"] = err.Error()
@@ -239,8 +239,10 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		KillServiceProcess(s)
 	}
 
+	dir, _ := os.Getwd()
+
 	// Now I will start the proxy that will be use by javascript client.
-	proxyPath := config.GetRootDir() + "/bin/grpcwebproxy"
+	proxyPath := dir + "/bin/grpcwebproxy"
 	if !strings.HasSuffix(proxyPath, ".exe") && runtime.GOOS == "windows" {
 		proxyPath += ".exe" // in case of windows.
 	}
@@ -266,8 +268,8 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		fmt.Println("fail to start proxy with error, ", err)
 		return err
 	}
-	s["Proxy"] = port
 
+	s["Proxy"] = port
 	if hasTls {
 		certAuthorityTrust := creds + "/ca.crt"
 
@@ -307,11 +309,34 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 
+	stdout, err := proxyProcess.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+
 	err = proxyProcess.Start()
 	if err != nil {
 		fmt.Println("fail to start proxy with error, ", err)
 		return err
 	}
+
+	output := make(chan string)
+	done := make(chan bool)
+
+	// Process message util the command is done.
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+
+			case info := <-output:
+				fmt.Println(info)
+			}
+		}
+
+	}()
 
 	// save service configuration.
 	s["ProxyProcess"] = proxyProcess.Process.Pid
@@ -321,8 +346,25 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	s["Process"] = s_["Process"]
 	s["State"] = s_["State"]
 	
-	fmt.Println("gRpc proxy start successfully!")
+	go func(){
+		err = proxyProcess.Wait()
+		if err != nil {
+			stdout.Close()
+			done <- true
+			// if the attach process in running I will keep the proxy alive.
+			_, err := Utility.GetProcessRunningStatus(Utility.ToInt(s["Process"]))
+			if err != nil {
+				StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange)
+			}
+			return
+		}
+		// Close the output.
+		stdout.Close()
+		done <- true
+	}()
 	
+	fmt.Println("gRpc proxy start successfully ", s["ProxyProcess"],  s["Name"])
+
 	return config.SaveServiceConfiguration(s)
 }
 
@@ -420,6 +462,7 @@ func ManageServicesProcess(exit chan bool) {
 					if proxy != -1 {
 						p, err := os.FindProcess(proxy)
 						if err == nil {
+							fmt.Println("try to kill proxy process pid ", p.Pid)
 							p.Kill()
 						}
 					}
@@ -441,6 +484,7 @@ func ManageServicesProcess(exit chan bool) {
 							if pid != -1 {
 								p, err := os.FindProcess(pid)
 								if err == nil {
+									fmt.Println("try to kill process pid ", p.Pid)
 									p.Kill()
 								}
 							}

@@ -187,7 +187,7 @@ func getLocalConfig() (map[string]interface{}, error) {
  * Return the server local configuration if one exist.
  */
  func getLocalConfig() (map[string]interface{}, error) {
-	log.Println("------------------> get local config")
+
 	if !Utility.Exists(ConfigPath) {
 		return nil, errors.New("no local Globular configuration found")
 	}

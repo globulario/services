@@ -160,10 +160,10 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 						}
 					}
 				} else {
-					log.Println("fail to unmarshal configuration ", err)
+					log.Println("fail to unmarshal configuration path:", path , err)
 				}
 			} else {
-				log.Println("Fail to read config file ", path, err)
+				log.Println("Fail to read config file path:", path, err)
 			}
 		}
 		return nil

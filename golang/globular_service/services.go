@@ -451,7 +451,10 @@ func StartService(s Service, server *grpc.Server) error {
 		fmt.Println(s.GetName()+" grpc service is starting at port ", s.GetPort(), " and proxy ", s.GetProxy())
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
+			return
 		}
+
+		fmt.Println(s.GetId() + " is now stopped!")
 
 	}()
 
