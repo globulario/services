@@ -226,7 +226,7 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 
 // Start a service process.
 func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string) error {
-
+	
 	s, err := config.GetServicesConfigurationsById(serviceId)
 	if err != nil {
 		fmt.Println("error at line 232 ", err)
