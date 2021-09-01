@@ -356,7 +356,6 @@ func (event_server *server) Stop(context.Context, *eventpb.StopRequest) (*eventp
 // That function process channel operation and run in it own go routine.
 func (event_server *server) run() {
 
-	fmt.Println("start event service")
 	channels := make(map[string][]string)
 	streams := make(map[string]eventpb.EventService_OnEventServer)
 	quits := make(map[string]chan bool)

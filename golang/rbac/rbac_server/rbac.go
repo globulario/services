@@ -1283,7 +1283,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			return false, err
 		}
 		actions = peer.Actions
-		fmt.Println("----> actions found for peer: ", actions)
 	} else if subjectType == rbacpb.SubjectType_ROLE {
 		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
 		role, err := rbac_server.getRole(subject)

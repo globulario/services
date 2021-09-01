@@ -4,10 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-
-	"log"
 	"time"
-
 	"context"
 
 	"github.com/davecourtois/Utility"
@@ -329,7 +326,6 @@ func (event_client *Event_Client) Subscribe(name string, uuid string, fct func(e
 	for nbTry := 30; !registered && nbTry > 0; nbTry-- {
 		err := event_client.subscribe(name, uuid, fct)
 		if err == nil {
-			log.Println("subscription to ", name, " succeed!")
 			registered = true
 		} else {
 			nbTry--

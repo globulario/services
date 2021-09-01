@@ -3,7 +3,6 @@ package storage_store
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -66,7 +65,7 @@ func (store *LevelDB_store) open(optionsStr string) error {
 	if store.isOpen {
 		return nil // the connection is already open.
 	}
-	fmt.Println("open store at path ", optionsStr)
+
 	store.options = optionsStr
 	if len(store.path) == 0 {
 		if len(optionsStr) == 0 {
@@ -87,7 +86,6 @@ func (store *LevelDB_store) open(optionsStr string) error {
 		store.path = options["path"].(string) + string(os.PathSeparator) + options["name"].(string)
 
 	}
-	fmt.Println("open file db at ", store.path)
 	store.isOpen = true
 	return nil
 }

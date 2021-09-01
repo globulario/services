@@ -50,7 +50,6 @@ namespace Globular
 
         private void run()
         {
-            System.Console.WriteLine("start event processing...");
 
             // Here I will start on event processing.
             var data_channel = Channel.CreateUnbounded<Event.Event>();

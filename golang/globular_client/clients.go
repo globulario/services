@@ -96,7 +96,7 @@ type Client interface {
  * Initialyse the client security and set it port to
  */
 func InitClient(client Client, address string, id string) error {
-	log.Println("init client: ", id, address)
+
 	// Set the domain and the name from the incomming...
 	address_ := strings.Split(address, ":")
 
