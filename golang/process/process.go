@@ -322,6 +322,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	s["State"] = s_["State"]
 	
 	fmt.Println("gRpc proxy start successfully!")
+	
 	return config.SaveServiceConfiguration(s)
 }
 
