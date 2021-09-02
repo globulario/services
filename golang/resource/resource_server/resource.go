@@ -1291,26 +1291,29 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 
 ///////////////////////  resource management. /////////////////
 func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
-
+	fmt.Println("Get Applications")
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("------> 1300")
 	query := rqst.Query
 	if len(query) == 0 {
 		query = "{}" // all
 	}
 
 	// So here I will get the list of retreived permission.
+	fmt.Println("------> 1307")
 	values, err := p.Find(context.Background(), "local_resource", "local_resource", "Applications", query, rqst.Options)
 	if err != nil {
+		fmt.Println("------> 1310 ", err)
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	fmt.Println("------> 1316 number of applications: ", len(values))
 	// Convert to Application.
 	for i := 0; i < len(values); i++ {
 		values_ := values[i].(map[string]interface{})
@@ -1341,12 +1344,16 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 		// TODO validate token...
 		application.Password = values_["password"].(string)
 
-
-		stream.Send(&resourcepb.GetApplicationsRsp{
+		fmt.Println("------> Application: ", values_["_id"].(string))
+		err := stream.Send(&resourcepb.GetApplicationsRsp{
 			Applications: []*resourcepb.Application{application},
 		})
+		if err != nil {
+			return err
+		}
 	}
 
+	fmt.Println("------> 1356")
 	return nil
 
 }

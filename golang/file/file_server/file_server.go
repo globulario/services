@@ -664,9 +664,12 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 		} else {
 			data = jsonStr[start:end]
 		}
-		stream.Send(&filepb.ReadDirResponse{
+		err = stream.Send(&filepb.ReadDirResponse{
 			Data: data,
 		})
+		if err != nil{
+			return err
+		}
 	}
 
 	return nil

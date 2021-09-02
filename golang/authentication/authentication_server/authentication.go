@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -302,6 +303,7 @@ func (server *server) setKey(mac string) error {
 
 /* Authenticate a user */
 func (server *server) authenticate(accountId, pwd string) (string, error) {
+	fmt.Println("server authenticate rqst ", time.Now().Unix())
 	key, err := security.GetLocalKey()
 	if err != nil {
 		return "", status.Errorf(
@@ -360,7 +362,8 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 
 		// So here I will keep the token...
 		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
-
+		fmt.Println("server authenticate response ", time.Now().Unix())
+		
 		return tokenString, nil
 	}
 
@@ -389,7 +392,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	// get the expire time.
 	_, user, email, _, expireAt, _ := interceptors.ValidateToken(tokenString)
 	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
-	
+
 	// Create the user file directory.
 	path := "/users/" + user
 	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
@@ -398,11 +401,13 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	session.ExpireAt = expireAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
+	fmt.Println("server authenticate response ", time.Now().Unix())
 	err = server.updateSession(session)
 	if err != nil {
 		return "", err
 	}
 
+	fmt.Println("server authenticate response ", time.Now().Unix())
 	return tokenString, nil
 }
 

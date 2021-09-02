@@ -1266,15 +1266,17 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	// Validate the access for a given suject...
 	hasAccess := false
 	
-
 	// So first of all I will validate the actions itself...
 	if subjectType == rbacpb.SubjectType_APPLICATION {
 		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for application "+subject)
 		application, err := rbac_server.getApplication(subject)
 		if err != nil {
+			rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application " + subject + " from the resource...")
 			return false, err
 		}
 		actions = application.Actions
+		//jsonStr, _ := Utility.ToJson(actions)
+		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "actions " + jsonStr)
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
 		peer, err := rbac_server.getPeer(subject)
