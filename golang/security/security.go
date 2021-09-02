@@ -981,14 +981,16 @@ func GetLocalKey() ([]byte, error) {
  * Return a jwt token key for a given peer id (mac address)
  */
 func GetPeerKey(id string) ([]byte, error) {
+
+	if len(id)== 0 {
+		return nil, errors.New("no peer id was given to get key")
+	}
+
 	id = strings.ReplaceAll(id, ":", "_")
 
 	if id == strings.ReplaceAll(Utility.MyMacAddr(), ":", "_"){
 		return GetLocalKey()
 	}
-
-
-	fmt.Println("Get peer key, ", keyPath+"/"+id+"_public")
 
 	// If the token issuer is not the actual globule but another peer
 	// I will use it public key and my private one to generate the correct key.
@@ -1054,7 +1056,6 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	a, _ := puba.Curve.ScalarMult(puba.X, puba.Y, privb.D.Bytes())
 
-	fmt.Println("key is ", a.String())
 	// The same value will be generated other peers...
 	return []byte(a.String()), nil
 }

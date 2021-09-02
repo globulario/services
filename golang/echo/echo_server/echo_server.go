@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/echo/echo_client"
@@ -15,7 +16,7 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-
+	
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
@@ -351,7 +352,7 @@ func (svr *server) Stop(context.Context, *echopb.StopRequest) (*echopb.StopRespo
 
 // Implementation of the Echo method.
 func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.EchoResponse, error) {
-	fmt.Println("Try echo a value")
+	fmt.Println("Try echo a value ", time.Now().Unix())
 
 	// In that case I will save it in file.
 	err := svr.Save()
@@ -360,6 +361,8 @@ func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	fmt.Println("Send back response", time.Now().Unix())
 
 	return &echopb.EchoResponse{
 		Message: rsqt.Message,

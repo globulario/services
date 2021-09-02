@@ -311,9 +311,12 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var err error
 	var issuer string
 
+	fmt.Println("---> method ", method, "clientId", clientId, "issuer", issuer, err)
+
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = ValidateToken(token)
 		if err != nil && !hasAccess {
+			
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
@@ -322,15 +325,17 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-	// Test if peer has access
-	if !hasAccess && len(clientId) > 0 {
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  account "+clientId+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
-	}
+	//log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),"function call... ", logpb.LogLevel_INFO_MESSAGE)
 
+	// Test if peer has access
 	if !hasAccess && len(application) > 0 {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for application "+application+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, domain)
+	}
+
+	if !hasAccess && len(clientId) > 0 {
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  account "+clientId+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
+		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
 	}
 
 	if !hasAccess && len(issuer) > 0 {
@@ -509,7 +514,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = ValidateToken(token)
 		if err != nil {
-			fmt.Println("---> method 526", method, err)
+			fmt.Println("---> method ", method, "clientId", clientId, "issuer", issuer, err)
 			return err
 		}
 	}

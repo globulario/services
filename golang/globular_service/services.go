@@ -426,9 +426,6 @@ func SaveService(path string, s Service) error {
 		return err
 	}
 
-	fmt.Println("service config: ")
-	fmt.Println(str)
-
 	ioutil.WriteFile(path, []byte(str), 0644)
 	return nil
 }
@@ -448,7 +445,7 @@ func StartService(s Service, server *grpc.Server) error {
 	go func() {
 
 		// no web-rpc server.
-		fmt.Println("Start Service name: "+ s.GetName()+ "		id:" + s.GetId())
+		fmt.Println("service name: "+ s.GetName()+ " id:" + s.GetId())
 
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)

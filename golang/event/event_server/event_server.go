@@ -15,6 +15,7 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/connectivity"
 )
 
 // TODO take care of TLS/https
@@ -364,22 +365,25 @@ func (event_server *server) run() {
 	event_server.actions = make(chan map[string]interface{})
 
 	for {
-
 		select {
 		case <-event_server.exit:
 			break
 		case a := <-event_server.actions:
 
 			action := a["action"].(string)
+			//fmt.Println("event server action received: ", action)
 
 			if action == "onevent" {
 				streams[a["uuid"].(string)] = a["stream"].(eventpb.EventService_OnEventServer)
 				quits[a["uuid"].(string)] = a["quit"].(chan bool)
 			} else if action == "subscribe" {
+
 				if channels[a["name"].(string)] == nil {
 					channels[a["name"].(string)] = make([]string, 0)
 				}
+
 				if !Utility.Contains(channels[a["name"].(string)], a["uuid"].(string)) {
+					fmt.Println("subscribe: ", a["name"].(string), a["uuid"].(string))
 					channels[a["name"].(string)] = append(channels[a["name"].(string)], a["uuid"].(string))
 				}
 			} else if action == "publish" {
@@ -471,9 +475,12 @@ func (event_server *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest)
 	}, nil
 }
 
+
 // Connect to an event channel or create it if it not already exist
 // and stay in that function until UnSubscribe is call.
 func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventService_OnEventServer) error {
+	fmt.Println("OnEvent call ", rqst.Uuid)
+
 	onevent := make(map[string]interface{})
 	onevent["action"] = "onevent"
 	onevent["stream"] = stream
@@ -484,6 +491,9 @@ func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb
 
 	// wait util unsbscribe or connection is close.
 	<-onevent["quit"].(chan bool)
+
+	fmt.Println("OnEvent quit ", rqst.Uuid)
+
 	return nil
 }
 

@@ -3,21 +3,36 @@ package authentication_client
 import (
 	"log"
 	"testing"
+	"fmt"
+	"time"
 )
 
 var (
 	// Connect to the plc client.
-	client, _ = NewAuthenticationService_Client("globular.cloud", "authentication.AuthenticationService")
+	client, _ = NewAuthenticationService_Client("localhost", "authentication.AuthenticationService")
 )
 
-// Test various function here.
-func Test(t *testing.T) {
+func BenchmarkAuthenticate(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		token, err := client.Authenticate("sa", "adminadmin")
+		if err != nil {
+			log.Println("Fail to authenticate with error ", err)
+		} else {
+			log.Println("Authenticate succeed", token)
+		}
+	}
 
-	t.Log("Test")
+	// Now I will test to authenticate the root...
+	/*token, err = client.Authenticate("sa", "adminadmin")
+	if err != nil {
+		log.Println("Fail to authenticate with error ", err)
+	} else {
+		log.Println("Authenticate succeed", token)
+	}*/
 }
 
 func TestAuthenticate(t *testing.T) {
-	log.Println("Test authethicate")
+	fmt.Println("client authenticate request ", time.Now().Unix())
 	token, err := client.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)
@@ -32,6 +47,7 @@ func TestAuthenticate(t *testing.T) {
 	} else {
 		log.Println("Authenticate succeed", token)
 	}*/
+	fmt.Println("client authenticate response ", time.Now().Unix())
 }
 /*
 
