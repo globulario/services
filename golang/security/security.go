@@ -34,7 +34,6 @@ var (
 // to get particular service configuration.
 func GetClientConfig(address string, name string, port int, path string) (map[string]interface{}, error) {
 
-	log.Println("get client configuration for ", name, address)
 	var serverConfig map[string]interface{}
 	var config map[string]interface{}
 	var err error
@@ -187,7 +186,7 @@ func getLocalConfig() (map[string]interface{}, error) {
  * Return the server local configuration if one exist.
  */
  func getLocalConfig() (map[string]interface{}, error) {
-	log.Println("------------------> get local config")
+
 	if !Utility.Exists(ConfigPath) {
 		return nil, errors.New("no local Globular configuration found")
 	}

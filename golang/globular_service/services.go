@@ -447,11 +447,13 @@ func StartService(s Service, server *grpc.Server) error {
 
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
-		//service_config, _ := config.GetServicesConfigurationsById(s.GetId())
+
 		// no web-rpc server.
-		fmt.Println(s.GetName()+" grpc service is starting at port ", s.GetPort(), " and proxy ", s.GetProxy())
+		fmt.Println("Start Service name: "+ s.GetName()+ "		id:" + s.GetId())
+
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
+			return
 		}
 
 	}()
@@ -460,8 +462,6 @@ func StartService(s Service, server *grpc.Server) error {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
 	<-ch
-
-	fmt.Println(s.GetId() + " is now stopped!")
 
 	server.Stop() // I kill it but not softly...
 	return nil

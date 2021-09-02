@@ -666,7 +666,6 @@ func (resource_client *Resource_Client) GetRoles(query string) ([]*resourcepb.Ro
 
 // Register a peer with a given name and mac address.
 func (resource_client *Resource_Client) RegisterPeer(token, mac, domain, address, key, secret string) (*resourcepb.Peer, string, error) {
-	log.Println("Register peer ", domain)
 	rqst := &resourcepb.RegisterPeerRqst{
 		Peer: &resourcepb.Peer{
 			Domain:  domain,
