@@ -157,12 +157,13 @@ type Service interface {
  * Initialise a globular service from it configuration file.
  */
 func InitService(path string, s Service) error {
-
+	log.Println("read config at path ", path)
 	// Here I will retreive the list of connections from file if there are some...
 	file, err := ioutil.ReadFile(path)
 	if err == nil {
 		return json.Unmarshal([]byte(file), s)
 	} else {
+		log.Println("create new configuration file...")
 		// Generate an id if none exist in the given configuration.
 		if len(s.GetId()) == 0 {
 			// Generate random id for the server instance.
@@ -177,6 +178,7 @@ func InitService(path string, s Service) error {
 
 		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 		if err != nil {
+			log.Println(err)
 			return err
 		}
 
@@ -190,6 +192,7 @@ func InitService(path string, s Service) error {
 			s.SetProto(path_ + "/globulario/services/" + s.GetProto())
 		}
 
+		log.Println("save new configuration...")
 		// save the service configuation.
 		return SaveService(path, s)
 	}
@@ -385,39 +388,37 @@ func getAdminClient(domain string) (*admin_client.Admin_Client, error) {
  */
 func SaveService(path string, s Service) error {
 
-	// So here before I save the configuration I will get values that are not part
-	// of the services itself but use by globular.
-	config_ := make(map[string]interface{})
-	file, err := ioutil.ReadFile(path)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(file, &config_)
-	if err != nil {
-		return err
-	}
-
 	config, err := Utility.ToMap(s)
 	if err != nil {
 		return err
 	}
 
-	// Now I will set the values not found in the service object...
-	if config_["Process"] != nil {
-		config["Process"] = config_["Process"]
-	}
+	// So here before I save the configuration I will get values that are not part
+	// of the services itself but use by globular.
+	config_ := make(map[string]interface{})
+	file, err := ioutil.ReadFile(path)
+	if err == nil {
+		err = json.Unmarshal(file, &config_)
+		if err != nil {
+			return err
+		}
 
-	if config_["ProxyProcess"] != nil {
-		config["ProxyProcess"] = config_["ProxyProcess"]
-	}
+		// Now I will set the values not found in the service object...
+		if config_["Process"] != nil {
+			config["Process"] = config_["Process"]
+		}
 
-	if config_["LastError"] != nil {
-		config["LastError"] = config_["LastError"]
-	}
+		if config_["ProxyProcess"] != nil {
+			config["ProxyProcess"] = config_["ProxyProcess"]
+		}
 
-	if config_["ConfigPath"] != nil {
-		config["ConfigPath"] = path
+		if config_["LastError"] != nil {
+			config["LastError"] = config_["LastError"]
+		}
+
+		if config_["ConfigPath"] != nil {
+			config["ConfigPath"] = path
+		}
 	}
 
 	// Create the file...
