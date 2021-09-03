@@ -15,7 +15,6 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/connectivity"
 )
 
 // TODO take care of TLS/https
