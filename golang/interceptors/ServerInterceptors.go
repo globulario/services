@@ -407,22 +407,27 @@ type ServerStreamInterceptorStream struct {
 }
 
 func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error {
+	fmt.Println("-------------------------> 410 ")
 	return l.inner.SetHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SendHeader(m metadata.MD) error {
+	fmt.Println("-------------------------> 414 ")
 	return l.inner.SendHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD) {
+	fmt.Println("-------------------------> 418 ")
 	l.inner.SetTrailer(m)
 }
 
 func (l ServerStreamInterceptorStream) Context() context.Context {
+	fmt.Println("-------------------------> 422 ")
 	return l.inner.Context()
 }
 
 func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
+	fmt.Println("-------------------------> 426 ")
 	return l.inner.SendMsg(rqst)
 }
 
@@ -432,6 +437,7 @@ func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
  */
 func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	// First of all i will get the message.
+	fmt.Println("-------------------------> 435 ", l.method)
 	l.inner.RecvMsg(rqst)
 
 	hasAccess := l.clientId == "sa" ||
