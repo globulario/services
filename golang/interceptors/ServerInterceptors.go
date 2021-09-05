@@ -270,7 +270,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// If the call come from a local client it has hasAccess
 	hasAccess := false
-	//fmt.Println("---> method 280 ", method, " call")
 	// needed to get access to the system.
 	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" ||
 		method == "/services_manager.ServicesManagerServices/GetServiceConfig" ||
@@ -311,8 +310,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var err error
 	var issuer string
 
-	fmt.Println("---> method ", method, "clientId", clientId, "issuer", issuer, err)
-
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = ValidateToken(token)
 		if err != nil && !hasAccess {
@@ -349,38 +346,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		return nil, err
 	}
 
-	// So here the user has access to the ressource...
-	//	log(domain, application, "", method, Utility.FileLine(), Utility.FunctionName(), "debug test", logpb.LogLevel_DEBUG_MESSAGE)
-
-	// I will try to get the list of candidates for load balancing
-	// TODO debug load balancing.
-	/*
-		if Utility.GetProperty(info.Server, "Port") != nil {
-
-			// Here I will refresh the load balance of the server to keep track of real load.
-			lb_client, err := getLoadBalancingClient(domain, Utility.GetProperty(info.Server, "Id").(string), Utility.GetProperty(info.Server, "Name").(string), Utility.GetProperty(info.Server, "Domain").(string), int32(Utility.GetProperty(info.Server, "Port").(int)))
-			if err != nil {
-				log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-				return nil, err
-			}
-
-			// At each call I will report the load of the server.
-			stats, _ := load.Avg()
-			load_info := &lbpb.LoadInfo{
-				ServerInfo: &lbpb.ServerInfo{
-					Id:     Utility.GetProperty(info.Server, "Id").(string),
-					Name:   Utility.GetProperty(info.Server, "Name").(string),
-					Domain: Utility.GetProperty(info.Server, "Domain").(string),
-					Port:   int32(Utility.GetProperty(info.Server, "Port").(int)),
-				},
-				Load1:  stats.Load1,
-				Load5:  stats.Load5,
-				Load15: stats.Load15,
-			}
-			lb_client.ReportLoadInfo(load_info)
-		}
-	*/
-
 	var result interface{}
 	result, err = handler(ctx, rqst)
 
@@ -407,27 +372,22 @@ type ServerStreamInterceptorStream struct {
 }
 
 func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error {
-	fmt.Println("-------------------------> 410 ")
 	return l.inner.SetHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SendHeader(m metadata.MD) error {
-	fmt.Println("-------------------------> 414 ")
 	return l.inner.SendHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD) {
-	fmt.Println("-------------------------> 418 ")
 	l.inner.SetTrailer(m)
 }
 
 func (l ServerStreamInterceptorStream) Context() context.Context {
-	fmt.Println("-------------------------> 422 ")
 	return l.inner.Context()
 }
 
 func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
-	fmt.Println("-------------------------> 426 ")
 	return l.inner.SendMsg(rqst)
 }
 
@@ -437,7 +397,6 @@ func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
  */
 func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	// First of all i will get the message.
-	fmt.Println("-------------------------> 435 ", l.method)
 	l.inner.RecvMsg(rqst)
 
 	hasAccess := l.clientId == "sa" ||
@@ -520,40 +479,9 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = ValidateToken(token)
 		if err != nil {
-			fmt.Println("---> method ", method, "clientId", clientId, "issuer", issuer, err)
 			return err
 		}
 	}
-
-	// TODO debug report Load Info (deadlock)
-	/*if Utility.GetProperty(srv, "Id") != nil {
-		serverId := Utility.GetProperty(srv, "Id").(string)
-		serverName := Utility.GetProperty(srv, "Name").(string)
-		serverDomain := Utility.GetProperty(srv, "Domain").(string)
-		serverPort := int32(Utility.GetProperty(srv, "Port").(int))
-
-		// Set load balancing informations.
-		lb_client, err := getLoadBalancingClient(domain, serverId, serverName, serverDomain, serverPort)
-		if err != nil {
-			return err
-		}
-
-		// At each call I will report the load of the server.
-		stats, _ := load.Avg()
-		load_info := &lbpb.LoadInfo{
-			ServerInfo: &lbpb.ServerInfo{
-				Id:     serverId,
-				Name:   serverName,
-				Domain: serverDomain,
-				Port:   serverPort,
-			},
-			Load1:  stats.Load1,
-			Load5:  stats.Load5,
-			Load15: stats.Load15,
-		}
-
-		lb_client.ReportLoadInfo(load_info)
-	}*/
 
 	// The uuid will be use to set hasAccess into the cache.
 	uuid := Utility.RandomUUID()

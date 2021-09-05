@@ -73,7 +73,6 @@ type server struct {
 	Repositories    []string
 	Discoveries     []string
 	Process	int
-	ProxyProcess int
 	ConfigPath string
 	LastError string
 
@@ -1874,7 +1873,6 @@ func main() {
 	s_impl.Dependencies = []string{"rbac.RbacService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

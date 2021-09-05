@@ -72,7 +72,6 @@ type server struct {
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
 	Process	int
-	ProxyProcess int
 	ConfigPath string
 	LastError string
 	

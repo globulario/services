@@ -82,7 +82,6 @@ type server struct {
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
 	Process	int
-	ProxyProcess int
 	ConfigPath string
 	LastError string
 
@@ -671,7 +670,6 @@ func main() {
 	s_impl.Connections = make(map[string]connection)
 	s_impl.DbIpV4 = "0.0.0.0:27017" // default mongodb port.
 	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
 	s_impl.Password = "adminadmin" // The default password for the admin.
 
 	// Here I will retreive the list of connections from file if there are some...
