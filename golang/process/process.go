@@ -30,22 +30,28 @@ func KillServiceProcess(s map[string]interface{}) error {
 	// Here I will set a variable that tell globular to not keep the service alive...
 	s["State"] = "terminated"
 
-	fmt.Println("Kill process ", s["Name"], "with pid", pid)
-
-	// kill it in the name of...
-	process, err := os.FindProcess(pid)
-	s["State"] = "stopped"
-	if err == nil {
-		err := process.Kill()
+	if pid != -1 {
+		
+		// kill it in the name of...
+		process, err := os.FindProcess(pid)
+		s["State"] = "stopped"
 		if err == nil {
+			fmt.Println("Kill process ", s["Name"], "with pid", pid)
+			err := process.Kill()
+			if err == nil {
+				s["Process"] = -1
+				s["State"] = "killed"
+			} else {
+				s["State"] = "failed"
+				s["LastError"] = err.Error()
+			}
+		}else{
 			s["Process"] = -1
-			s["State"] = "killed"
-		} else {
-			s["State"] = "failed"
-			s["LastError"] = err.Error()
+			s["State"] = "stopped"
 		}
+	}else{
+		s["State"] = "stopped"
 	}
-
 	// save the service configuration.
 	return config.SaveServiceConfiguration(s)
 }
@@ -167,7 +173,7 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 
 		// wait the process to finish
 		err = p.Wait()
-		
+
 		if err != nil {
 			service_config["State"] = "failed"
 			service_config["LastError"] = err.Error()
@@ -237,7 +243,7 @@ func ManageServicesProcess(exit chan bool) {
 				}
 
 				runingProcess := make(map[string][]int)
-				
+
 				// Fist of all I will get all services process...
 				for i := 0; i < len(services); i++ {
 					s := services[i]
