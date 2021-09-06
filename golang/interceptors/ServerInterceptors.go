@@ -15,14 +15,11 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/lb/lbpb"
-	"github.com/globulario/services/golang/lb/load_balancing_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/storage/storage_store"
-	"github.com/shirou/gopsutil/load"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -32,9 +29,6 @@ var (
 
 	// The rbac client
 	rbac_client_ *rbac_client.Rbac_Client
-
-	// The load balancer client.
-	lb_client_ *load_balancing_client.Lb_Client
 
 	// The logger.
 	log_client_ *log_client.Log_Client
@@ -72,49 +66,6 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 
 	}
 	return rbac_client_, nil
-}
-
-/**
- * Get a the local ressource client.
- */
-func getLoadBalancingClient(domain string, serverId string, serviceName string, serverDomain string, serverPort int32) (*load_balancing_client.Lb_Client, error) {
-
-	var err error
-	if lb_client_ == nil {
-		lb_client_, err = load_balancing_client.NewLbService_Client(domain, "lb.LoadBalancingService")
-		if err != nil {
-			return nil, err
-		}
-
-		// Now I will start reporting load at each minutes.
-		ticker := time.NewTicker(1 * time.Minute)
-		go func() {
-			for {
-				select {
-				case <-ticker.C:
-					stats, err := load.Avg()
-					if err != nil {
-						break
-					}
-					load_info := &lbpb.LoadInfo{
-						ServerInfo: &lbpb.ServerInfo{
-							Id:     serverId,
-							Name:   serviceName,
-							Domain: serverDomain,
-							Port:   serverPort,
-						},
-						Load1:  stats.Load1,
-						Load5:  stats.Load5,
-						Load15: stats.Load15,
-					}
-
-					lb_client_.ReportLoadInfo(load_info)
-				}
-			}
-		}()
-	}
-
-	return lb_client_, nil
 }
 
 /**
@@ -299,7 +250,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/rbac.RbacService/ValidateAccess" ||
 		method == "/rbac.RbacService/GetResourcePermissions" ||
 		method == "/rbac.RbacService/GetResourcePermission" ||
-		strings.HasPrefix(method, "/lb.LoadBalancingService/") ||
 		strings.HasPrefix(method, "/log.LogService/") ||
 		strings.HasPrefix(method, "/authentication.AuthenticationService/") ||
 		strings.HasPrefix(method, "/event.EventService/") {
@@ -409,8 +359,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/resource.ResourceService/GetPeers" ||
 		l.method == "/resource.ResourceService/GetRoles" ||
 		l.method == "/resource.ResourceService/GetGroups" ||
-		l.method == "/resource.ResourceService/GetNotifications" ||
-		strings.HasPrefix(l.method, "/lb.LoadBalancingService/")
+		l.method == "/resource.ResourceService/GetNotifications"
 
 	if hasAccess {
 		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
