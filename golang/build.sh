@@ -10,7 +10,6 @@ go build -o ./dns/dns_server ./dns/dns_server
 go build -o ./echo/echo_server ./echo/echo_server
 go build -o ./event/event_server ./event/event_server
 go build -o ./file/file_server ./file/file_server
-go build -o ./lb/lb_server ./lb/lb_server
 go build -o ./ldap/ldap_server ./ldap/ldap_server
 go build -o ./log/log_server ./log/log_server
 go build -o ./mail/mail_server ./mail/mail_server

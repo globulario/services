@@ -384,18 +384,6 @@ func getPortsInUse() []int {
 				_portsInUse_ = append(_portsInUse_, port)
 			}
 		}
-
-		proxyPid_ := -1
-		if s["ProxyProcess"] != nil {
-			s["ProxyProcess"] = Utility.ToInt(pid)
-		}
-
-		if proxyPid_ != -1 {
-			if processIsRuning(proxyPid_) {
-				port := Utility.ToInt(s["Proxy"])
-				_portsInUse_ = append(_portsInUse_, port)
-			}
-		}
 	}
 	return _portsInUse_
 }

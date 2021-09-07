@@ -79,7 +79,6 @@ type server struct {
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
 	Process	int
-	ProxyProcess int
 	ConfigPath string
 	LastError string
 
@@ -877,7 +876,6 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

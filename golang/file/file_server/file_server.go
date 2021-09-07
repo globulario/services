@@ -84,7 +84,6 @@ type server struct {
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
 	Process	int
-	ProxyProcess int
 	ConfigPath string
 	LastError string
 
@@ -1097,7 +1096,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"rbac.RbacService"}
 	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
+
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}

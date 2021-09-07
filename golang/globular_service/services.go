@@ -408,10 +408,6 @@ func SaveService(path string, s Service) error {
 			config["Process"] = config_["Process"]
 		}
 
-		if config_["ProxyProcess"] != nil {
-			config["ProxyProcess"] = config_["ProxyProcess"]
-		}
-
 		if config_["LastError"] != nil {
 			config["LastError"] = config_["LastError"]
 		}

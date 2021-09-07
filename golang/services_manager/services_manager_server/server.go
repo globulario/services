@@ -63,9 +63,14 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
+<<<<<<< HEAD
 	Process int
 	ProxyProcess int
 	LastError string
+=======
+	Process         int
+	LastError       string
+>>>>>>> 09138711736a4fb0adaa1b27455d52bc22e0dbd3
 
 	TLS bool
 
@@ -140,7 +145,6 @@ func (svr *server) GetMac() string {
 func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
-
 
 // The description of the service
 func (server *server) GetDescription() string {
@@ -611,7 +615,6 @@ func main() {
 	s_impl.Dependencies = []string{"resource.ResourceService", "rbac.RbacService", "event.EventService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.WatchUpdateDelay = 60 * 60 // validate service version at each hours...
@@ -625,7 +628,7 @@ func main() {
 	s_impl.Root = config.GetRootDir()
 
 	// Set the paths
-	s_impl.DataPath =  config.GetDataDir()
+	s_impl.DataPath = config.GetDataDir()
 	s_impl.ConfigPath = config.GetConfigDir()
 	s_impl.Creds = config.GetConfigDir() + "/tls"
 
