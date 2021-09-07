@@ -23,10 +23,10 @@ func GetRootDir() string {
 
 		if runtime.GOARCH == "386" {
 			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-			return programFilePath + "/globular" // "C:/Program Files (x86)/globular"
+			return strings.ReplaceAll(programFilePath, "\\", "/")+ "/globular" // "C:/Program Files (x86)/globular"
 		} else {
 			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
-			return programFilePath + "/globular"  // "C:/Program Files/globular"
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular"  // "C:/Program Files/globular"
 		}
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/usr/local/share/globular"
@@ -106,9 +106,12 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	// admin, resource, ca and services.
 	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	
 	if len(serviceDir) == 0 {
 		serviceDir = GetServicesDir()
 	}
+	
+	serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 
 	// I will try to get configuration from services.
 	filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {

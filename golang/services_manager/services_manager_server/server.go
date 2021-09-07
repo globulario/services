@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 
@@ -62,6 +63,9 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
+	Process int
+	ProxyProcess int
+	LastError string
 
 	TLS bool
 
@@ -627,9 +631,12 @@ func main() {
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
+
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
+	s_impl.Root = strings.ReplaceAll(s_impl.Root, "\\", "/")
+	
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}

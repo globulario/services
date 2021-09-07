@@ -384,6 +384,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var result interface{}
 	result, err = handler(ctx, rqst)
 
+	fmt.Print("rsp was sent ", method)
+	
 	// Send log message.
 	if err != nil {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
@@ -407,27 +409,22 @@ type ServerStreamInterceptorStream struct {
 }
 
 func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error {
-	fmt.Println("-------------------------> 410 ")
 	return l.inner.SetHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SendHeader(m metadata.MD) error {
-	fmt.Println("-------------------------> 414 ")
 	return l.inner.SendHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD) {
-	fmt.Println("-------------------------> 418 ")
 	l.inner.SetTrailer(m)
 }
 
 func (l ServerStreamInterceptorStream) Context() context.Context {
-	fmt.Println("-------------------------> 422 ")
 	return l.inner.Context()
 }
 
 func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
-	fmt.Println("-------------------------> 426 ")
 	return l.inner.SendMsg(rqst)
 }
 
@@ -437,7 +434,6 @@ func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
  */
 func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	// First of all i will get the message.
-	fmt.Println("-------------------------> 435 ", l.method)
 	l.inner.RecvMsg(rqst)
 
 	hasAccess := l.clientId == "sa" ||
@@ -560,7 +556,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// Start streaming.
 	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, domain: domain, token: token, application: application, clientId: clientId, peer: issuer})
-
+	fmt.Print("rsp was sent ", method)
 	if err != nil {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
