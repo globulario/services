@@ -13,6 +13,21 @@ using System.IdentityModel.Tokens.Jwt;
 // side.
 namespace Globular
 {
+    /** Globular server config. **/
+    public class ServerConfig
+    {
+        public string Domain { get; set; }
+        public string Name { get; set; }
+        public string Protocol { get; set; }
+        public string CertStableURL { get; set; }
+        public string CertURL { get; set; }
+        public int PortHttp { get; set; }
+        public int PortHttps { get; set; }
+        public string AdminEmail { get; set; }
+        public int SessionTimeout { get; set; }
+        public int CertExpirationDelay { get; set; }
+    }
+
 
     /// <summary>
     /// That class contain the basic service class. Globular service are 
@@ -40,16 +55,14 @@ namespace Globular
         public string[] Keywords { get; set; }
         public bool KeepUpToDate { get; set; }
         public bool KeepAlive { get; set; }
+        public string LastError { get; set; }
+        public int Process { get; set; }
 
         // globular specific variable.
         public int ConfigurationPort; // The configuration port of globular.
         public string Root; // The globular root.
 
-        private ResourceClient resourceClient;
-
         private RbacClient rbacClient;
-
-        private LoadBalancingClient loadBalancingClient;
 
         private LogClient logClient;
 
@@ -75,31 +88,31 @@ namespace Globular
             this.AllowedOrigins = "";
             this.Description = "";
             this.Keywords = new string[] { "Globular", "microservice", "csharp" };
+            this.Process = Environment.ProcessId;
+            this.LastError = "";
 
+            
             // Create the interceptor.
             System.Console.WriteLine("create new ServerUnaryInterceptor");
             this.interceptor = new Globular.ServerUnaryInterceptor(this);
 
+            // Set the service root...
+            this.Root = Environment.ExpandEnvironmentVariables("%GLOBULAR_SERVICES_ROOT%").Replace("\\", "/");
+
+       
+            // So here the configuration port will be found in the program file directory
+            string programFiles = Environment.ExpandEnvironmentVariables("%ProgramW6432%");
+
+            // So here I will get the configuration port number...
+            string configFile = programFiles + "/globular/config/config.json";
+            var jsonStr = File.ReadAllText(configFile);
+
+
             // Get the local globular server infomation.
-            System.Console.WriteLine("Try to read GLOBULAR_ROOT file from " + System.IO.Path.GetTempPath());
+            ServerConfig s=  JsonSerializer.Deserialize<ServerConfig>(jsonStr);
 
-            string path = System.IO.Path.GetTempPath() + "GLOBULAR_ROOT";
-            string text = System.IO.File.ReadAllText(path);
-            this.Root = text.Substring(0, text.LastIndexOf(":")).Replace("\\", "/");
-
-            this.ConfigurationPort = Int32.Parse(text.Substring(text.LastIndexOf(":") + 1));
-            System.Console.WriteLine("The service configuration port is " + this.ConfigurationPort);
-        }
-
-        protected ResourceClient getResourceClient(string address)
-        {
-            if (this.resourceClient == null)
-            {
-                // there must be a globular server runing in order to validate resources.
-                // TODO set the configuration port in a configuration file.
-                this.resourceClient = new ResourceClient("resource.ResourceService", address);
-            }
-            return this.resourceClient;
+            // set the http port
+            this.ConfigurationPort = s.PortHttp;
         }
 
         protected RbacClient getRbacClient(string address)
@@ -122,16 +135,6 @@ namespace Globular
             return this.eventClient;
         }
 
-        protected LoadBalancingClient getLoadBalancingClient(string address)
-        {
-            if (this.loadBalancingClient == null)
-            {
-                // there must be a globular server runing in order to validate resources.
-                this.loadBalancingClient = new LoadBalancingClient("lb.LoadBalancingService", address);
-            }
-            return this.loadBalancingClient;
-        }
-
         protected LogClient getLogClient(string address)
         {
             if (this.logClient == null)
@@ -143,6 +146,7 @@ namespace Globular
 
             return this.logClient;
         }
+
         private string getPath()
         {
             return Directory.GetCurrentDirectory();
@@ -151,10 +155,11 @@ namespace Globular
         private bool validateAction(string domain, string method, string subject, Rbac.SubjectType subjectType, Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> infos)
         {
             System.Console.WriteLine("Valdated access for Domain: " + domain + " Subject: " + subject + " Method: " + method);
+
             // Here I need to ge the ResourceInfos...
             var client = this.getRbacClient(domain);
 
-            return client.ValidateAction(subject, subjectType, infos);
+            return client.ValidateAction(subject, method, subjectType, infos);
         }
 
         public bool validateActionRequest(Google.Protobuf.IMessage rqst, string domain, string method, string subject, Rbac.SubjectType subjectType)
@@ -253,21 +258,24 @@ namespace Globular
         public object init(object server)
         {
             var configPath = this.getPath() + "/config.json";
+
             this.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
             this.Path = this.Path.Replace("\\", "/");
+
             // Here I will read the file that contain the object.
             if (File.Exists(configPath))
             {
                 var jsonStr = File.ReadAllText(configPath);
-                var s = JsonSerializer.Deserialize(jsonStr, server.GetType());
-                return s;
+                server = JsonSerializer.Deserialize(jsonStr, server.GetType());
             }
             else
             {
                 // Here I will complete the filepath with the Root value of the server.
                 this.Proto = this.Root + "/" + this.Proto;
             }
+
             this.save(server);
+ 
             return server;
         }
 

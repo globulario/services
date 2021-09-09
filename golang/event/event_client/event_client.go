@@ -1,11 +1,11 @@
 package event_client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
 	"time"
-	"context"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/event/eventpb"
@@ -47,6 +47,9 @@ type Event_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 
 	// the client uuid.
 	uuid string
@@ -101,13 +104,13 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
  * and the client. Local handler are kept in a map with a unique uuid, so many
  * handler can exist for a single event.
  */
-func (event_client *Event_Client) run() error {
+func (client *Event_Client) run() error {
 
 	// Create the channel.
 	data_channel := make(chan *eventpb.Event, 0)
 
 	// start listenting to events from the server...
-	err := event_client.onEvent(event_client.uuid, data_channel)
+	err := client.onEvent(client.uuid, data_channel)
 	if err != nil {
 		return err
 	}
@@ -124,7 +127,7 @@ func (event_client *Event_Client) run() error {
 				// Call the handler.
 				fct(evt)
 			}
-		case action := <-event_client.actions:
+		case action := <-client.actions:
 			if action["action"].(string) == "subscribe" {
 				if handlers[action["name"].(string)] == nil {
 					handlers[action["name"].(string)] = make(map[string]func(*eventpb.Event))
@@ -139,7 +142,7 @@ func (event_client *Event_Client) run() error {
 					}
 				}
 			} else if action["action"].(string) == "stop" {
-				event_client.isConnected = false
+				client.isConnected = false
 				break
 			}
 		}
@@ -147,127 +150,134 @@ func (event_client *Event_Client) run() error {
 
 }
 
-func (event_client *Event_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Event_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(event_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(event_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Event_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (event_client *Event_Client) GetDomain() string {
-	return event_client.domain
+func (client *Event_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (event_client *Event_Client) GetAddress() string {
-	return event_client.domain + ":" + strconv.Itoa(event_client.port)
+func (client *Event_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (event_client *Event_Client) GetId() string {
-	return event_client.id
+func (client *Event_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (event_client *Event_Client) GetName() string {
-	return event_client.name
+func (client *Event_Client) GetName() string {
+	return client.name
 }
 
-func (event_client *Event_Client) GetMac() string {
-	return event_client.mac
+func (client *Event_Client) GetMac() string {
+	return client.mac
 }
 
 // must be close when no more needed.
-func (event_client *Event_Client) Close() {
+func (client *Event_Client) Close() {
 
 	// nothing to do if the client is not connected.
-	if !event_client.isConnected {
+	if !client.isConnected {
 		return
 	}
 
-	event_client.cc.Close()
+	client.cc.Close()
 
 	action := make(map[string]interface{})
 	action["action"] = "stop"
 	// set the action.
-	event_client.actions <- action
+	client.actions <- action
 }
 
 // Set grpc_service port.
-func (event_client *Event_Client) SetPort(port int) {
-	event_client.port = port
+func (client *Event_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client instance id.
-func (event_client *Event_Client) SetId(id string) {
-	event_client.id = id
+func (client *Event_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (event_client *Event_Client) SetName(name string) {
-	event_client.name = name
+func (client *Event_Client) SetName(name string) {
+	client.name = name
 }
 
-func (event_client *Event_Client) SetMac(mac string) {
-	event_client.mac = mac
+func (client *Event_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.
-func (event_client *Event_Client) SetDomain(domain string) {
-	event_client.domain = domain
+func (client *Event_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (event_client *Event_Client) HasTLS() bool {
-	return event_client.hasTLS
+func (client *Event_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (event_client *Event_Client) GetCertFile() string {
-	return event_client.certFile
+func (client *Event_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (event_client *Event_Client) GetKeyFile() string {
-	return event_client.keyFile
+func (client *Event_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (event_client *Event_Client) GetCaFile() string {
-	return event_client.caFile
+func (client *Event_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (event_client *Event_Client) SetTLS(hasTls bool) {
-	event_client.hasTLS = hasTls
+func (client *Event_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (event_client *Event_Client) SetCertFile(certFile string) {
-	event_client.certFile = certFile
+func (client *Event_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (event_client *Event_Client) SetKeyFile(keyFile string) {
-	event_client.keyFile = keyFile
+func (client *Event_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (event_client *Event_Client) SetCaFile(caFile string) {
-	event_client.caFile = caFile
+func (client *Event_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ///////////////////// API ///////////////////////
 // Stop the service.
-func (event_client *Event_Client) StopService() {
-	event_client.c.Stop(globular.GetClientContext(event_client), &eventpb.StopRequest{})
+func (client *Event_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &eventpb.StopRequest{})
 }
 
 // Publish and event over the network
-func (event_client *Event_Client) Publish(name string, data interface{}) error {
+func (client *Event_Client) Publish(name string, data interface{}) error {
 	rqst := &eventpb.PublishRequest{
 		Evt: &eventpb.Event{
 			Name: name,
@@ -275,7 +285,7 @@ func (event_client *Event_Client) Publish(name string, data interface{}) error {
 		},
 	}
 
-	_, err := event_client.c.Publish(globular.GetClientContext(event_client), rqst)
+	_, err := client.c.Publish(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -283,26 +293,26 @@ func (event_client *Event_Client) Publish(name string, data interface{}) error {
 	return nil
 }
 
-func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event) error {
+func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Event) error {
 
 	rqst := &eventpb.OnEventRequest{
 		Uuid: uuid,
 	}
 
-	stream, err := event_client.c.OnEvent(globular.GetClientContext(event_client), rqst)
+	stream, err := client.c.OnEvent(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
 
-	event_client.isConnected = true
+	client.isConnected = true
 
 	// Run in it own goroutine.
 	go func() {
 		for {
 			msg, err := stream.Recv()
-			if err != nil || !event_client.isConnected || msg == nil {
+			if err != nil || !client.isConnected || msg == nil {
 				// end of stream...
-				event_client.Close()
+				client.Close()
 				stream.CloseSend()
 				return
 			}
@@ -320,11 +330,11 @@ func (event_client *Event_Client) onEvent(uuid string, data_channel chan *eventp
 /**
  * Maximize chance to connect with the event server...
  **/
-func (event_client *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
+func (client *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
 	registered := false
 
 	for nbTry := 30; !registered && nbTry > 0; nbTry-- {
-		err := event_client.subscribe(name, uuid, fct)
+		err := client.subscribe(name, uuid, fct)
 		if err == nil {
 			registered = true
 		} else {
@@ -342,13 +352,13 @@ func (event_client *Event_Client) Subscribe(name string, uuid string, fct func(e
 
 // Subscribe to an event it return it subscriber uuid. The uuid must be use
 // to unsubscribe from the channel. data_channel is use to get event data.
-func (event_client *Event_Client) subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
+func (client *Event_Client) subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
 	rqst := &eventpb.SubscribeRequest{
 		Name: name,
-		Uuid: event_client.uuid,
+		Uuid: client.uuid,
 	}
 
-	_, err := event_client.c.Subscribe(globular.GetClientContext(event_client), rqst)
+	_, err := client.c.Subscribe(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -360,21 +370,21 @@ func (event_client *Event_Client) subscribe(name string, uuid string, fct func(e
 	action["fct"] = fct
 
 	// set the action.
-	event_client.actions <- action
+	client.actions <- action
 
 	return nil
 }
 
 // Exit event channel.
-func (event_client *Event_Client) UnSubscribe(name string, uuid string) error {
+func (client *Event_Client) UnSubscribe(name string, uuid string) error {
 
 	// Unsubscribe from the event channel.
 	rqst := &eventpb.UnSubscribeRequest{
 		Name: name,
-		Uuid: event_client.uuid,
+		Uuid: client.uuid,
 	}
 
-	_, err := event_client.c.UnSubscribe(globular.GetClientContext(event_client), rqst)
+	_, err := client.c.UnSubscribe(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -385,7 +395,7 @@ func (event_client *Event_Client) UnSubscribe(name string, uuid string) error {
 	action["name"] = name
 
 	// set the action.
-	event_client.actions <- action
+	client.actions <- action
 
 	return nil
 }

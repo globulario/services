@@ -51,6 +51,9 @@ type LDAP_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -69,114 +72,121 @@ func NewLdapService_Client(address string, id string) (*LDAP_Client, error) {
 	return client, nil
 }
 
-func (ldap_client *LDAP_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *LDAP_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(ldap_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(ldap_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *LDAP_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (ldap_client *LDAP_Client) GetDomain() string {
-	return ldap_client.domain
+func (client *LDAP_Client) GetDomain() string {
+	return client.domain
 }
 
-func (ldap_client *LDAP_Client) GetAddress() string {
-	return ldap_client.domain + ":" + strconv.Itoa(ldap_client.port)
+func (client *LDAP_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service
-func (ldap_client *LDAP_Client) GetId() string {
-	return ldap_client.id
+func (client *LDAP_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (ldap_client *LDAP_Client) GetName() string {
-	return ldap_client.name
+func (client *LDAP_Client) GetName() string {
+	return client.name
 }
 
-func (ldap_client *LDAP_Client) GetMac() string {
-	return ldap_client.mac
+func (client *LDAP_Client) GetMac() string {
+	return client.mac
 }
 
 // must be close when no more needed.
-func (ldap_client *LDAP_Client) Close() {
-	ldap_client.cc.Close()
+func (client *LDAP_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (ldap_client *LDAP_Client) SetPort(port int) {
-	ldap_client.port = port
+func (client *LDAP_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client id.
-func (ldap_client *LDAP_Client) SetId(id string) {
-	ldap_client.id = id
+func (client *LDAP_Client) SetId(id string) {
+	client.id = id
 }
 
-func (ldap_client *LDAP_Client) SetMac(mac string) {
-	ldap_client.mac = mac
+func (client *LDAP_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the client name.
-func (ldap_client *LDAP_Client) SetName(name string) {
-	ldap_client.name = name
+func (client *LDAP_Client) SetName(name string) {
+	client.name = name
 }
 
 // Set the domain.
-func (ldap_client *LDAP_Client) SetDomain(domain string) {
-	ldap_client.domain = domain
+func (client *LDAP_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (ldap_client *LDAP_Client) HasTLS() bool {
-	return ldap_client.hasTLS
+func (client *LDAP_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (ldap_client *LDAP_Client) GetCertFile() string {
-	return ldap_client.certFile
+func (client *LDAP_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (ldap_client *LDAP_Client) GetKeyFile() string {
-	return ldap_client.keyFile
+func (client *LDAP_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (ldap_client *LDAP_Client) GetCaFile() string {
-	return ldap_client.caFile
+func (client *LDAP_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (ldap_client *LDAP_Client) SetTLS(hasTls bool) {
-	ldap_client.hasTLS = hasTls
+func (client *LDAP_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (ldap_client *LDAP_Client) SetCertFile(certFile string) {
-	ldap_client.certFile = certFile
+func (client *LDAP_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (ldap_client *LDAP_Client) SetKeyFile(keyFile string) {
-	ldap_client.keyFile = keyFile
+func (client *LDAP_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (ldap_client *LDAP_Client) SetCaFile(caFile string) {
-	ldap_client.caFile = caFile
+func (client *LDAP_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////////////// LDAP ////////////////////////////////////////////////
 // Stop the service.
-func (ldap_client *LDAP_Client) StopService() {
-	ldap_client.c.Stop(globular.GetClientContext(ldap_client), &ldappb.StopRequest{})
+func (client *LDAP_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &ldappb.StopRequest{})
 }
 
-func (ldap_client *LDAP_Client) CreateConnection(connectionId string, user string, password string, host string, port int32) error {
+func (client *LDAP_Client) CreateConnection(connectionId string, user string, password string, host string, port int32) error {
 	// Create a new connection
 	rqst := &ldappb.CreateConnectionRqst{
 		Connection: &ldappb.Connection{
@@ -188,23 +198,23 @@ func (ldap_client *LDAP_Client) CreateConnection(connectionId string, user strin
 		},
 	}
 
-	_, err := ldap_client.c.CreateConnection(globular.GetClientContext(ldap_client), rqst)
+	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 
 	return err
 }
 
-func (ldap_client *LDAP_Client) DeleteConnection(connectionId string) error {
+func (client *LDAP_Client) DeleteConnection(connectionId string) error {
 
 	rqst := &ldappb.DeleteConnectionRqst{
 		Id: connectionId,
 	}
 
-	_, err := ldap_client.c.DeleteConnection(globular.GetClientContext(ldap_client), rqst)
+	_, err := client.c.DeleteConnection(client.GetCtx(), rqst)
 
 	return err
 }
 
-func (ldap_client *LDAP_Client) Authenticate(connectionId string, userId string, password string) error {
+func (client *LDAP_Client) Authenticate(connectionId string, userId string, password string) error {
 
 	rqst := &ldappb.AuthenticateRqst{
 		Id:    connectionId,
@@ -212,11 +222,11 @@ func (ldap_client *LDAP_Client) Authenticate(connectionId string, userId string,
 		Pwd:   password,
 	}
 
-	_, err := ldap_client.c.Authenticate(globular.GetClientContext(ldap_client), rqst)
+	_, err := client.c.Authenticate(client.GetCtx(), rqst)
 	return err
 }
 
-func (ldap_client *LDAP_Client) Search(connectionId string, BaseDN string, Filter string, Attributes []string) ([][]interface{}, error) {
+func (client *LDAP_Client) Search(connectionId string, BaseDN string, Filter string, Attributes []string) ([][]interface{}, error) {
 
 	// I will execute a simple ldap search here...
 	rqst := &ldappb.SearchRqst{
@@ -228,7 +238,7 @@ func (ldap_client *LDAP_Client) Search(connectionId string, BaseDN string, Filte
 		},
 	}
 
-	rsp, err := ldap_client.c.Search(globular.GetClientContext(ldap_client), rqst)
+	rsp, err := client.c.Search(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}

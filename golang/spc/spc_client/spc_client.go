@@ -42,6 +42,9 @@ type SPC_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -62,9 +65,16 @@ func NewSpcService_Client(address string, id string) (*SPC_Client, error) {
 
 func (spc_client *SPC_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(spc_client)
+		ctx = spc_client.GetCtx()
 	}
 	return globular.InvokeClientRequest(spc_client.c, ctx, method, rqst)
+}
+
+func (client *SPC_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -114,7 +124,6 @@ func (spc_client *SPC_Client) SetName(name string) {
 func (spc_client *SPC_Client) SetMac(mac string) {
 	spc_client.mac = mac
 }
-
 
 // Set the domain.
 func (spc_client *SPC_Client) SetDomain(domain string) {

@@ -47,6 +47,9 @@ type Search_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -65,122 +68,129 @@ func NewSearchService_Client(address string, id string) (*Search_Client, error) 
 	return client, nil
 }
 
-func (search_client *Search_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Search_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(search_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(search_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Search_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (search_client *Search_Client) GetDomain() string {
-	return search_client.domain
+func (client *Search_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (search_client *Search_Client) GetAddress() string {
-	return search_client.domain + ":" + strconv.Itoa(search_client.port)
+func (client *Search_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (search_client *Search_Client) GetId() string {
-	return search_client.id
+func (client *Search_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (search_client *Search_Client) GetName() string {
-	return search_client.name
+func (client *Search_Client) GetName() string {
+	return client.name
 }
 
-func (search_client *Search_Client) GetMac() string {
-	return search_client.mac
+func (client *Search_Client) GetMac() string {
+	return client.mac
 }
 
 // must be close when no more needed.
-func (search_client *Search_Client) Close() {
-	search_client.cc.Close()
+func (client *Search_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (search_client *Search_Client) SetPort(port int) {
-	search_client.port = port
+func (client *Search_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client service id.
-func (search_client *Search_Client) SetId(id string) {
-	search_client.id = id
+func (client *Search_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (search_client *Search_Client) SetName(name string) {
-	search_client.name = name
+func (client *Search_Client) SetName(name string) {
+	client.name = name
 }
 
-func (search_client *Search_Client) SetMac(mac string) {
-	search_client.mac = mac
+func (client *Search_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.
-func (search_client *Search_Client) SetDomain(domain string) {
-	search_client.domain = domain
+func (client *Search_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (search_client *Search_Client) HasTLS() bool {
-	return search_client.hasTLS
+func (client *Search_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (search_client *Search_Client) GetCertFile() string {
-	return search_client.certFile
+func (client *Search_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (search_client *Search_Client) GetKeyFile() string {
-	return search_client.keyFile
+func (client *Search_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (search_client *Search_Client) GetCaFile() string {
-	return search_client.caFile
+func (client *Search_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (search_client *Search_Client) SetTLS(hasTls bool) {
-	search_client.hasTLS = hasTls
+func (client *Search_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (search_client *Search_Client) SetCertFile(certFile string) {
-	search_client.certFile = certFile
+func (client *Search_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (search_client *Search_Client) SetKeyFile(keyFile string) {
-	search_client.keyFile = keyFile
+func (client *Search_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (search_client *Search_Client) SetCaFile(caFile string) {
-	search_client.caFile = caFile
+func (client *Search_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////// Api //////////////////////
 // Stop the service.
-func (search_client *Search_Client) StopService() {
-	search_client.c.Stop(globular.GetClientContext(search_client), &searchpb.StopRequest{})
+func (client *Search_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &searchpb.StopRequest{})
 }
 
 /**
  * Return the version of the underlying search engine.
  */
-func (search_client *Search_Client) GetVersion() (string, error) {
+func (client *Search_Client) GetVersion() (string, error) {
 
 	rqst := &searchpb.GetEngineVersionRequest{}
-	ctx := globular.GetClientContext(search_client)
-	rsp, err := search_client.c.GetEngineVersion(ctx, rqst)
+	ctx := client.GetCtx()
+	rsp, err := client.c.GetEngineVersion(ctx, rqst)
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +200,7 @@ func (search_client *Search_Client) GetVersion() (string, error) {
 /**
  * Index a JSON object / array
  */
-func (search_client *Search_Client) IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error {
+func (client *Search_Client) IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error {
 	rqst := &searchpb.IndexJsonObjectRequest{
 		JsonStr:  jsonStr,
 		Language: language,
@@ -199,8 +209,8 @@ func (search_client *Search_Client) IndexJsonObject(path string, jsonStr string,
 		Data:     data,
 		Path:     path,
 	}
-	ctx := globular.GetClientContext(search_client)
-	_, err := search_client.c.IndexJsonObject(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.IndexJsonObject(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -212,15 +222,15 @@ func (search_client *Search_Client) IndexJsonObject(path string, jsonStr string,
  * -dbPath the database path.
  * -filePath the file path must be reachable from the server.
  */
-func (search_client *Search_Client) IndexFile(dbPath string, filePath string, language string) error {
+func (client *Search_Client) IndexFile(dbPath string, filePath string, language string) error {
 	rqst := &searchpb.IndexFileRequest{
 		DbPath:   dbPath,
 		FilePath: filePath,
 		Language: language,
 	}
 
-	ctx := globular.GetClientContext(search_client)
-	_, err := search_client.c.IndexFile(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.IndexFile(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -232,15 +242,15 @@ func (search_client *Search_Client) IndexFile(dbPath string, filePath string, la
  * -dbPath the database path.
  * -dirPath the file path must be reachable from the server.
  */
-func (search_client *Search_Client) IndexDir(dbPath string, dirPath string, language string) error {
+func (client *Search_Client) IndexDir(dbPath string, dirPath string, language string) error {
 	rqst := &searchpb.IndexDirRequest{
 		DbPath:   dbPath,
 		DirPath:  dirPath,
 		Language: language,
 	}
 
-	ctx := globular.GetClientContext(search_client)
-	_, err := search_client.c.IndexDir(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.IndexDir(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -257,7 +267,7 @@ func (search_client *Search_Client) IndexDir(dbPath string, dirPath string, lang
  *  -pageSize The number of result to be return.
  *  -snippetLength The length of the snippet.
  */
-func (search_client *Search_Client) SearchDocuments(paths []string, query string, language string, fields []string, offset int32, pageSize int32, snippetLength int32) ([]*searchpb.SearchResult, error) {
+func (client *Search_Client) SearchDocuments(paths []string, query string, language string, fields []string, offset int32, pageSize int32, snippetLength int32) ([]*searchpb.SearchResult, error) {
 	rqst := &searchpb.SearchDocumentsRequest{
 		Paths:         paths,
 		Query:         query,
@@ -268,8 +278,8 @@ func (search_client *Search_Client) SearchDocuments(paths []string, query string
 		SnippetLength: snippetLength,
 	}
 
-	ctx := globular.GetClientContext(search_client)
-	stream, err := search_client.c.SearchDocuments(ctx, rqst)
+	ctx := client.GetCtx()
+	stream, err := client.c.SearchDocuments(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -295,13 +305,13 @@ func (search_client *Search_Client) SearchDocuments(paths []string, query string
 /**
  * Count the number of document in a given database.
  */
-func (search_client *Search_Client) Count(path string) (int32, error) {
+func (client *Search_Client) Count(path string) (int32, error) {
 	rqst := &searchpb.CountRequest{
 		Path: path,
 	}
 
-	ctx := globular.GetClientContext(search_client)
-	rsp, err := search_client.c.Count(ctx, rqst)
+	ctx := client.GetCtx()
+	rsp, err := client.c.Count(ctx, rqst)
 
 	if err != nil {
 		return -1, err
@@ -313,14 +323,14 @@ func (search_client *Search_Client) Count(path string) (int32, error) {
 /**
  * Delete a docuement from the database.
  */
-func (search_client *Search_Client) DeleteDocument(path string, id string) error {
+func (client *Search_Client) DeleteDocument(path string, id string) error {
 	rqst := &searchpb.DeleteDocumentRequest{
 		Path: path,
 		Id:   id,
 	}
 
-	ctx := globular.GetClientContext(search_client)
-	_, err := search_client.c.DeleteDocument(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.DeleteDocument(ctx, rqst)
 
 	if err != nil {
 		return err

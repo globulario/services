@@ -7,7 +7,7 @@
     <Description>.Net gRPC base server base code for create a microservice manageable with Globular.</Description>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <projectUrl>https://www.globular.io</projectUrl>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>Dave Courtois</Authors>
     <Company>Globular</Company>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

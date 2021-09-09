@@ -46,6 +46,9 @@ type Echo_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -64,128 +67,135 @@ func NewEchoService_Client(address string, id string) (*Echo_Client, error) {
 	return client, nil
 }
 
-func (echo_client *Echo_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Echo_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(echo_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(echo_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Echo_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (echo_client *Echo_Client) GetDomain() string {
-	return echo_client.domain
+func (client *Echo_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (echo_client *Echo_Client) GetAddress() string {
-	return echo_client.domain + ":" + strconv.Itoa(echo_client.port)
+func (client *Echo_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (echo_client *Echo_Client) GetId() string {
-	return echo_client.id
+func (client *Echo_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (echo_client *Echo_Client) GetName() string {
-	return echo_client.name
+func (client *Echo_Client) GetName() string {
+	return client.name
 }
 
-func (echo_client *Echo_Client) GetMac() string {
-	return echo_client.mac
+func (client *Echo_Client) GetMac() string {
+	return client.mac
 }
 
 // must be close when no more needed.
-func (echo_client *Echo_Client) Close() {
-	echo_client.cc.Close()
+func (client *Echo_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (echo_client *Echo_Client) SetPort(port int) {
-	echo_client.port = port
+func (client *Echo_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client instance id.
-func (echo_client *Echo_Client) SetId(id string) {
-	echo_client.id = id
+func (client *Echo_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (echo_client *Echo_Client) SetName(name string) {
-	echo_client.name = name
+func (client *Echo_Client) SetName(name string) {
+	client.name = name
 }
 
-func (echo_client *Echo_Client) SetMac(mac string) {
-	echo_client.mac = mac
+func (client *Echo_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.
-func (echo_client *Echo_Client) SetDomain(domain string) {
-	echo_client.domain = domain
+func (client *Echo_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (echo_client *Echo_Client) HasTLS() bool {
-	return echo_client.hasTLS
+func (client *Echo_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (echo_client *Echo_Client) GetCertFile() string {
-	return echo_client.certFile
+func (client *Echo_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (echo_client *Echo_Client) GetKeyFile() string {
-	return echo_client.keyFile
+func (client *Echo_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (echo_client *Echo_Client) GetCaFile() string {
-	return echo_client.caFile
+func (client *Echo_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (echo_client *Echo_Client) SetTLS(hasTls bool) {
-	echo_client.hasTLS = hasTls
+func (client *Echo_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (echo_client *Echo_Client) SetCertFile(certFile string) {
-	echo_client.certFile = certFile
+func (client *Echo_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (echo_client *Echo_Client) SetKeyFile(keyFile string) {
-	echo_client.keyFile = keyFile
+func (client *Echo_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (echo_client *Echo_Client) SetCaFile(caFile string) {
-	echo_client.caFile = caFile
+func (client *Echo_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////// Api //////////////////////
 // Stop the service.
-func (echo_client *Echo_Client) StopService() {
-	echo_client.c.Stop(globular.GetClientContext(echo_client), &echopb.StopRequest{})
+func (client *Echo_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &echopb.StopRequest{})
 }
 
-func (echo_client *Echo_Client) Echo(token string, msg interface{}) (string, error) {
+func (client *Echo_Client) Echo(token string, msg interface{}) (string, error) {
 
 	rqst := &echopb.EchoRequest{
 		Message: Utility.ToString(msg),
 	}
 
-	ctx := globular.GetClientContext(echo_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		md.Append("token", string(token))
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := echo_client.c.Echo(ctx, rqst)
+	rsp, err := client.c.Echo(ctx, rqst)
 	if err != nil {
 		return "", err
 	}

@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "dgSpecHash": "AnIOzGpHBRXPi0yu/v+D+ZkMhU3movWmF8HggVcT74Snk+Y0MNIEo28A5Tf7RJLPbb3xX/iuzz/L4lnlBUXCbA==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\mm006819@ud6.uf6\\Documents\\globulario\\services\\csharp\\echo\\GlobularEchoClient\\GlobularEchoClient.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\google.protobuf\\3.14.0\\google.protobuf.3.14.0.nupkg.sha512",
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\grpc\\2.34.0\\grpc.2.34.0.nupkg.sha512",
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\grpc.core\\2.34.0\\grpc.core.2.34.0.nupkg.sha512",
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\grpc.core.api\\2.34.0\\grpc.core.api.2.34.0.nupkg.sha512",
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\system.memory\\4.5.3\\system.memory.4.5.3.nupkg.sha512",
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\4.5.2\\system.runtime.compilerservices.unsafe.4.5.2.nupkg.sha512",
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\system.text.json\\5.0.0\\system.text.json.5.0.0.nupkg.sha512",
+    "C:\\Users\\mm006819@ud6.uf6\\.nuget\\packages\\globularclient\\1.0.3\\globularclient.1.0.3.nupkg.sha512"
+  ],
+  "logs": []
+}

@@ -22,17 +22,18 @@ namespace Globular
             rqst.Type = subjectType;
             rqst.Permission = permission;
             rqst.Path = path;
-
+            
             var rsp = this.client.ValidateAccess(rqst, this.GetClientContext());
-
-            return rsp.Result;
+   
+            return rsp.HasAccess && !rsp.AccessDenied;
         }
 
-        public bool ValidateAction(string subject, Rbac.SubjectType subjectType, Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> infos){
+        public bool ValidateAction(string subject, string action, Rbac.SubjectType subjectType, Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> infos){
 
             var rqst = new Rbac.ValidateActionRqst();
             rqst.Subject = subject;
             rqst.Type = subjectType;
+            rqst.Action = action;
             rqst.Infos.Add(infos);
 
             var rsp = this.client.ValidateAction(rqst, this.GetClientContext());

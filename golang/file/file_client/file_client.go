@@ -49,6 +49,9 @@ type File_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The connection context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -67,119 +70,124 @@ func NewFileService_Client(address string, id string) (*File_Client, error) {
 	return client, nil
 }
 
-func (file_client *File_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *File_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(file_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(file_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *File_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = client.GetCtx()
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (file_client *File_Client) GetDomain() string {
-	return file_client.domain
+func (client *File_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (file_client *File_Client) GetAddress() string {
-	return file_client.domain + ":" + strconv.Itoa(file_client.port)
+func (client *File_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (file_client *File_Client) GetId() string {
-	return file_client.id
+func (client *File_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (file_client *File_Client) GetName() string {
-	return file_client.name
+func (client *File_Client) GetName() string {
+	return client.name
 }
 
-func (file_client *File_Client) GetMac() string {
-	return file_client.mac
+func (client *File_Client) GetMac() string {
+	return client.mac
 }
-
 
 // must be close when no more needed.
-func (file_client *File_Client) Close() {
-	file_client.cc.Close()
+func (client *File_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (file_client *File_Client) SetPort(port int) {
-	file_client.port = port
+func (client *File_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client instance id.
-func (file_client *File_Client) SetId(id string) {
-	file_client.id = id
+func (client *File_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (file_client *File_Client) SetName(name string) {
-	file_client.name = name
+func (client *File_Client) SetName(name string) {
+	client.name = name
 }
 
-func (file_client *File_Client) SetMac(mac string) {
-	file_client.name = mac
+func (client *File_Client) SetMac(mac string) {
+	client.name = mac
 }
-
 
 // Set the domain.
-func (file_client *File_Client) SetDomain(domain string) {
-	file_client.domain = domain
+func (client *File_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (file_client *File_Client) HasTLS() bool {
-	return file_client.hasTLS
+func (client *File_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (file_client *File_Client) GetCertFile() string {
-	return file_client.certFile
+func (client *File_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (file_client *File_Client) GetKeyFile() string {
-	return file_client.keyFile
+func (client *File_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (file_client *File_Client) GetCaFile() string {
-	return file_client.caFile
+func (client *File_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (file_client *File_Client) SetTLS(hasTls bool) {
-	file_client.hasTLS = hasTls
+func (client *File_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (file_client *File_Client) SetCertFile(certFile string) {
-	file_client.certFile = certFile
+func (client *File_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (file_client *File_Client) SetKeyFile(keyFile string) {
-	file_client.keyFile = keyFile
+func (client *File_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (file_client *File_Client) SetCaFile(caFile string) {
-	file_client.caFile = caFile
+func (client *File_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ///////////////////// API //////////////////////
 
 // Stop the service.
-func (file_client *File_Client) StopService() {
-	file_client.c.Stop(globular.GetClientContext(file_client), &filepb.StopRequest{})
+func (client *File_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &filepb.StopRequest{})
 }
 
 // Read the content of a dir and return it info.
-func (file_client *File_Client) ReadDir(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
+func (client *File_Client) ReadDir(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
 
 	// Create a new client service...
 	rqst := &filepb.ReadDirRequest{
@@ -189,7 +197,7 @@ func (file_client *File_Client) ReadDir(path interface{}, recursive interface{},
 		ThumnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
 
-	stream, err := file_client.c.ReadDir(globular.GetClientContext(file_client), rqst)
+	stream, err := client.c.ReadDir(client.GetCtx(), rqst)
 	if err != nil {
 		log.Println("---> 181 ", err)
 		return "", err
@@ -216,14 +224,14 @@ func (file_client *File_Client) ReadDir(path interface{}, recursive interface{},
 /**
  * Create a new directory on the server.
  */
-func (file_client *File_Client) CreateDir(path interface{}, name interface{}) error {
+func (client *File_Client) CreateDir(path interface{}, name interface{}) error {
 
 	rqst := &filepb.CreateDirRequest{
 		Path: Utility.ToString(path),
 		Name: Utility.ToString(name),
 	}
 
-	_, err := file_client.c.CreateDir(globular.GetClientContext(file_client), rqst)
+	_, err := client.c.CreateDir(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -234,13 +242,13 @@ func (file_client *File_Client) CreateDir(path interface{}, name interface{}) er
 /**
  * Read file data
  */
-func (file_client *File_Client) ReadFile(path interface{}) ([]byte, error) {
+func (client *File_Client) ReadFile(path interface{}) ([]byte, error) {
 
 	rqst := &filepb.ReadFileRequest{
 		Path: Utility.ToString(path),
 	}
 
-	stream, err := file_client.c.ReadFile(globular.GetClientContext(file_client), rqst)
+	stream, err := client.c.ReadFile(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +274,7 @@ func (file_client *File_Client) ReadFile(path interface{}) ([]byte, error) {
 /**
  * Rename a directory.
  */
-func (file_client *File_Client) RenameDir(path interface{}, oldname interface{}, newname interface{}) error {
+func (client *File_Client) RenameDir(path interface{}, oldname interface{}, newname interface{}) error {
 
 	rqst := &filepb.RenameRequest{
 		Path:    Utility.ToString(path),
@@ -274,7 +282,7 @@ func (file_client *File_Client) RenameDir(path interface{}, oldname interface{},
 		NewName: Utility.ToString(newname),
 	}
 
-	_, err := file_client.c.Rename(globular.GetClientContext(file_client), rqst)
+	_, err := client.c.Rename(client.GetCtx(), rqst)
 
 	return err
 }
@@ -282,19 +290,19 @@ func (file_client *File_Client) RenameDir(path interface{}, oldname interface{},
 /**
  * Delete a directory
  */
-func (file_client *File_Client) DeleteDir(path string) error {
+func (client *File_Client) DeleteDir(path string) error {
 	rqst := &filepb.DeleteDirRequest{
 		Path: Utility.ToString(path),
 	}
 
-	_, err := file_client.c.DeleteDir(globular.GetClientContext(file_client), rqst)
+	_, err := client.c.DeleteDir(client.GetCtx(), rqst)
 	return err
 }
 
 /**
  * Get a single file info.
  */
-func (file_client *File_Client) GetFileInfo(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
+func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
 
 	rqst := &filepb.GetFileInfoRequest{
 		Path:           Utility.ToString(path),
@@ -302,7 +310,7 @@ func (file_client *File_Client) GetFileInfo(path interface{}, recursive interfac
 		ThumnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
 
-	rsp, err := file_client.c.GetFileInfo(globular.GetClientContext(file_client), rqst)
+	rsp, err := client.c.GetFileInfo(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -313,10 +321,10 @@ func (file_client *File_Client) GetFileInfo(path interface{}, recursive interfac
 /**
  * That function move a file from a directory to another... (mv) in unix.
  */
-func (file_client *File_Client) MoveFile(path interface{}, dest interface{}) error {
+func (client *File_Client) MoveFile(path interface{}, dest interface{}) error {
 
 	// Open the stream...
-	stream, err := file_client.c.SaveFile(globular.GetClientContext(file_client))
+	stream, err := client.c.SaveFile(client.GetCtx())
 	if err != nil {
 		return err
 	}
@@ -372,13 +380,13 @@ func (file_client *File_Client) MoveFile(path interface{}, dest interface{}) err
 /**
  * Delete a file whit a given path.
  */
-func (file_client *File_Client) DeleteFile(path string) error {
+func (client *File_Client) DeleteFile(path string) error {
 
 	rqst := &filepb.DeleteFileRequest{
 		Path: Utility.ToString(path),
 	}
 
-	_, err := file_client.c.DeleteFile(globular.GetClientContext(file_client), rqst)
+	_, err := client.c.DeleteFile(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -387,7 +395,7 @@ func (file_client *File_Client) DeleteFile(path string) error {
 }
 
 // Read the content of a dir and return all images as thumbnails.
-func (file_client *File_Client) GetThumbnails(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
+func (client *File_Client) GetThumbnails(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
 
 	// Create a new client service...
 	rqst := &filepb.GetThumbnailsRequest{
@@ -397,7 +405,7 @@ func (file_client *File_Client) GetThumbnails(path interface{}, recursive interf
 		ThumnailWidth:  int32(Utility.ToInt(thumbnailWidth)),
 	}
 
-	stream, err := file_client.c.GetThumbnails(globular.GetClientContext(file_client), rqst)
+	stream, err := client.c.GetThumbnails(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -422,12 +430,12 @@ func (file_client *File_Client) GetThumbnails(path interface{}, recursive interf
 	return string(data), nil
 }
 
-func (file_client *File_Client) HtmlToPdf(html string) ([]byte, error) {
+func (client *File_Client) HtmlToPdf(html string) ([]byte, error) {
 	rqst := &filepb.HtmlToPdfRqst{
 		Html: html,
 	}
 
-	rsp, err := file_client.c.HtmlToPdf(globular.GetClientContext(file_client), rqst)
+	rsp, err := client.c.HtmlToPdf(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}

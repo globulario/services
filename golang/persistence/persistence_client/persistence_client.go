@@ -49,6 +49,9 @@ type Persistence_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -69,9 +72,16 @@ func NewPersistenceService_Client(address string, id string) (*Persistence_Clien
 
 func (client *Persistence_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(client)
+		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Persistence_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -175,7 +185,7 @@ func (client *Persistence_Client) SetCaFile(caFile string) {
 
 // Stop the service.
 func (client *Persistence_Client) StopService() {
-	client.c.Stop(globular.GetClientContext(client), &persistencepb.StopRequest{})
+	client.c.Stop(client.GetCtx(), &persistencepb.StopRequest{})
 }
 
 // Create a new datastore connection.
@@ -195,7 +205,7 @@ func (client *Persistence_Client) CreateConnection(connectionId string, name str
 		Save: save,
 	}
 
-	_, err := client.c.CreateConnection(globular.GetClientContext(client), rqst)
+	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 	return err
 }
 
@@ -204,7 +214,7 @@ func (client *Persistence_Client) DeleteConnection(connectionId string) error {
 		Id: connectionId,
 	}
 
-	_, err := client.c.DeleteConnection(globular.GetClientContext(client), rqst)
+	_, err := client.c.DeleteConnection(client.GetCtx(), rqst)
 	return err
 }
 
@@ -214,7 +224,7 @@ func (client *Persistence_Client) CreateDatabase(connectionId string, database s
 		Database: database,
 	}
 
-	_, err := client.c.CreateDatabase(globular.GetClientContext(client), rqst)
+	_, err := client.c.CreateDatabase(client.GetCtx(), rqst)
 	return err
 }
 
@@ -224,7 +234,7 @@ func (client *Persistence_Client) Connect(id string, password string) error {
 		Password:     password,
 	}
 
-	_, err := client.c.Connect(globular.GetClientContext(client), rqst)
+	_, err := client.c.Connect(client.GetCtx(), rqst)
 	return err
 }
 
@@ -234,7 +244,7 @@ func (client *Persistence_Client) Disconnect(connectionId string) error {
 		ConnectionId: connectionId,
 	}
 
-	_, err := client.c.Disconnect(globular.GetClientContext(client), rqst)
+	_, err := client.c.Disconnect(client.GetCtx(), rqst)
 
 	return err
 }
@@ -245,7 +255,7 @@ func (client *Persistence_Client) Ping(connectionId string) error {
 		Id: connectionId,
 	}
 
-	_, err := client.c.Ping(globular.GetClientContext(client), rqst)
+	_, err := client.c.Ping(client.GetCtx(), rqst)
 
 	return err
 }
@@ -261,7 +271,7 @@ func (client *Persistence_Client) FindOne(connectionId string, database string, 
 		Options:    options,
 	}
 
-	rsp, err := client.c.FindOne(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.FindOne(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +295,7 @@ func (client *Persistence_Client) Find(connectionId string, database string, col
 		Options:    options,
 	}
 
-	stream, err := client.c.Find(globular.GetClientContext(client), rqst)
+	stream, err := client.c.Find(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +339,7 @@ func (client *Persistence_Client) Aggregate(connectionId, database string, colle
 		Options:    options,
 	}
 
-	stream, err := client.c.Aggregate(globular.GetClientContext(client), rqst)
+	stream, err := client.c.Aggregate(client.GetCtx(), rqst)
 
 	if err != nil {
 		return nil, err
@@ -376,7 +386,7 @@ func (client *Persistence_Client) Count(connectionId string, database string, co
 		Options:    options,
 	}
 
-	rsp, err := client.c.Count(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.Count(client.GetCtx(), rqst)
 
 	if err != nil {
 		return 0, err
@@ -404,7 +414,7 @@ func (client *Persistence_Client) InsertOne(connectionId string, database string
 		Options:    options,
 	}
 
-	rsp, err := client.c.InsertOne(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.InsertOne(client.GetCtx(), rqst)
 
 	if err != nil {
 		return "", err
@@ -415,7 +425,7 @@ func (client *Persistence_Client) InsertOne(connectionId string, database string
 
 func (client *Persistence_Client) InsertMany(connectionId string, database string, collection string, entities []interface{}, options string) error {
 
-	stream, err := client.c.InsertMany(globular.GetClientContext(client))
+	stream, err := client.c.InsertMany(client.GetCtx())
 	if err != nil {
 		return err
 	}
@@ -490,7 +500,7 @@ func (client *Persistence_Client) ReplaceOne(connectionId string, database strin
 		Options:    options,
 	}
 
-	_, err := client.c.ReplaceOne(globular.GetClientContext(client), rqst)
+	_, err := client.c.ReplaceOne(client.GetCtx(), rqst)
 
 	return err
 }
@@ -517,7 +527,7 @@ func (client *Persistence_Client) UpdateOne(connectionId string, database string
 		Options:    options,
 	}
 
-	_, err := client.c.UpdateOne(globular.GetClientContext(client), rqst)
+	_, err := client.c.UpdateOne(client.GetCtx(), rqst)
 
 	return err
 }
@@ -536,7 +546,7 @@ func (client *Persistence_Client) Update(connectionId string, database string, c
 		Options:    options,
 	}
 
-	_, err := client.c.Update(globular.GetClientContext(client), rqst)
+	_, err := client.c.Update(client.GetCtx(), rqst)
 
 	return err
 }
@@ -554,7 +564,7 @@ func (client *Persistence_Client) DeleteOne(connectionId string, database string
 		Options:    options,
 	}
 
-	_, err := client.c.DeleteOne(globular.GetClientContext(client), rqst)
+	_, err := client.c.DeleteOne(client.GetCtx(), rqst)
 
 	if err != nil {
 		return err
@@ -576,7 +586,7 @@ func (client *Persistence_Client) Delete(connectionId string, database string, c
 		Options:    options,
 	}
 
-	_, err := client.c.Delete(globular.GetClientContext(client), rqst)
+	_, err := client.c.Delete(client.GetCtx(), rqst)
 
 	if err != nil {
 		return err
@@ -595,7 +605,7 @@ func (client *Persistence_Client) DeleteCollection(connectionId string, database
 		Database:   database,
 		Collection: collection,
 	}
-	_, err := client.c.DeleteCollection(globular.GetClientContext(client), rqst_drop_collection)
+	_, err := client.c.DeleteCollection(client.GetCtx(), rqst_drop_collection)
 
 	return err
 }
@@ -610,7 +620,7 @@ func (client *Persistence_Client) DeleteDatabase(connectionId string, database s
 		Database: database,
 	}
 
-	_, err := client.c.DeleteDatabase(globular.GetClientContext(client), rqst_drop_db)
+	_, err := client.c.DeleteDatabase(client.GetCtx(), rqst_drop_db)
 
 	return err
 }
@@ -627,7 +637,7 @@ func (client *Persistence_Client) RunAdminCmd(connectionId string, user string, 
 		Password:     pwd,
 	}
 
-	_, err := client.c.RunAdminCmd(globular.GetClientContext(client), rqst_drop_db)
+	_, err := client.c.RunAdminCmd(client.GetCtx(), rqst_drop_db)
 
 	return err
 }

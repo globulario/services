@@ -20,7 +20,6 @@
     <ProjectReference Include="..\..\GlobularServer\GlobularServer.csproj" />
   </ItemGroup-->
   <ItemGroup>
-    <PackageReference Include="GlobularServer" Version="1.0.1" />
     <PackageReference Include="Google.Protobuf" Version="3.14.0" />
     <PackageReference Include="Grpc" Version="2.34.0" />
     <PackageReference Include="Grpc.Core" Version="2.34.0" />
@@ -29,5 +28,6 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+     <ProjectReference Include="..\..\GlobularServer\GlobularServer.csproj" />
   </ItemGroup>
 </Project>

@@ -56,6 +56,9 @@ type Applications_Manager_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -76,9 +79,16 @@ func NewApplicationsManager_Client(address string, id string) (*Applications_Man
 
 func (Applications_Manager_Client *Applications_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(Applications_Manager_Client)
+		ctx = Applications_Manager_Client.GetCtx()
 	}
 	return globular.InvokeClientRequest(Applications_Manager_Client.c, ctx, method, rqst)
+}
+
+func (client *Applications_Manager_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -128,7 +138,6 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetName(name str
 func (Applications_Manager_Client *Applications_Manager_Client) SetMac(mac string) {
 	Applications_Manager_Client.mac = mac
 }
-
 
 // Set the domain.
 func (Applications_Manager_Client *Applications_Manager_Client) SetDomain(domain string) {
@@ -183,7 +192,7 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
  * Intall a new application or update an existing one.
  */
 func (client *Applications_Manager_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string, set_as_default bool) error {
-	
+
 	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
@@ -191,7 +200,7 @@ func (client *Applications_Manager_Client) InstallApplication(token string, doma
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
 	rqst.SetAsDefault = set_as_default
 
-	ctx := globular.GetClientContext(client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -211,13 +220,14 @@ func (client *Applications_Manager_Client) InstallApplication(token string, doma
  * be install.
  */
 func (client *Applications_Manager_Client) UninstallApplication(token string, domain string, user string, publisherId string, applicationId string, version string) error {
-	
+
 	rqst := new(applications_managerpb.UninstallApplicationRequest)
 	rqst.PublisherId = publisherId
 	rqst.ApplicationId = applicationId
 	rqst.Version = version
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
-	ctx := globular.GetClientContext(client)
+
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		if len(md.Get("token")) != 0 {
@@ -240,9 +250,9 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	if err != nil {
 		return -1, err
 	}
-	if !strings.HasPrefix(path, "/"){
+	if !strings.HasPrefix(path, "/") {
 		path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
-		
+
 	}
 
 	// Now I will open the data and create a archive from it.
@@ -408,7 +418,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 			}
 		}
 		size += bytesread
-		log.Println("transfert ",size, "of", total, " ", int(float64(size)/ float64(total) * 100), "%")
+		log.Println("transfert ", size, "of", total, " ", int(float64(size)/float64(total)*100), "%")
 		if err == io.EOF {
 			err = nil
 			break

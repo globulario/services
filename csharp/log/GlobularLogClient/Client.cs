@@ -32,8 +32,4 @@ namespace Globular
             this.client.Log(rqst, this.GetClientContext());
         }
     }
-
-
-
-
 }

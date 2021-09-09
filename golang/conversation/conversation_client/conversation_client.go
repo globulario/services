@@ -51,6 +51,9 @@ type Conversation_Client struct {
 	// certificate authority file
 	caFile string
 
+	// The client context
+	ctx context.Context
+
 	// The event channel.
 	actions chan map[string]interface{}
 
@@ -101,13 +104,13 @@ func NewConversationService_Client(address string, id string) (*Conversation_Cli
  * and the client. Local handler are kept in a map with a unique uuid, so many
  * handler can exist for a single event.
  */
-func (converstion_client *Conversation_Client) run() error {
+func (client *Conversation_Client) run() error {
 
 	// Create the channel.
 	data_channel := make(chan *conversationpb.Message)
 
 	// start listenting to events from the server...
-	err := converstion_client.connect(converstion_client.uuid, data_channel)
+	err := client.connect(client.uuid, data_channel)
 	if err != nil {
 		return err
 	}
@@ -125,7 +128,7 @@ func (converstion_client *Conversation_Client) run() error {
 				fct(msg)
 			}
 
-		case action := <-converstion_client.actions:
+		case action := <-client.actions:
 			if action["action"].(string) == "join" {
 				if handlers[action["name"].(string)] == nil {
 					handlers[action["name"].(string)] = make(map[string]func(*conversationpb.Message))
@@ -146,112 +149,119 @@ func (converstion_client *Conversation_Client) run() error {
 	}
 }
 
-func (converstion_client *Conversation_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Conversation_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(converstion_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(converstion_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Conversation_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (converstion_client *Conversation_Client) GetDomain() string {
-	return converstion_client.domain
+func (client *Conversation_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (converstion_client *Conversation_Client) GetAddress() string {
-	return converstion_client.domain + ":" + strconv.Itoa(converstion_client.port)
+func (client *Conversation_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (converstion_client *Conversation_Client) GetId() string {
-	return converstion_client.id
+func (client *Conversation_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (converstion_client *Conversation_Client) GetName() string {
-	return converstion_client.name
+func (client *Conversation_Client) GetName() string {
+	return client.name
 }
 
-func (converstion_client *Conversation_Client) GetMac() string {
-	return converstion_client.mac
+func (client *Conversation_Client) GetMac() string {
+	return client.mac
 }
 
 // must be close when no more needed.
-func (converstion_client *Conversation_Client) Close() {
-	converstion_client.cc.Close()
+func (client *Conversation_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (converstion_client *Conversation_Client) SetPort(port int) {
-	converstion_client.port = port
+func (client *Conversation_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client instance id.
-func (converstion_client *Conversation_Client) SetId(id string) {
-	converstion_client.id = id
+func (client *Conversation_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (converstion_client *Conversation_Client) SetName(name string) {
-	converstion_client.name = name
+func (client *Conversation_Client) SetName(name string) {
+	client.name = name
 }
 
-func (converstion_client *Conversation_Client) SetMac(mac string) {
-	converstion_client.mac = mac
+func (client *Conversation_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.
-func (converstion_client *Conversation_Client) SetDomain(domain string) {
-	converstion_client.domain = domain
+func (client *Conversation_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (converstion_client *Conversation_Client) HasTLS() bool {
-	return converstion_client.hasTLS
+func (client *Conversation_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (converstion_client *Conversation_Client) GetCertFile() string {
-	return converstion_client.certFile
+func (client *Conversation_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (converstion_client *Conversation_Client) GetKeyFile() string {
-	return converstion_client.keyFile
+func (client *Conversation_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (converstion_client *Conversation_Client) GetCaFile() string {
-	return converstion_client.caFile
+func (client *Conversation_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (converstion_client *Conversation_Client) SetTLS(hasTls bool) {
-	converstion_client.hasTLS = hasTls
+func (client *Conversation_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (converstion_client *Conversation_Client) SetCertFile(certFile string) {
-	converstion_client.certFile = certFile
+func (client *Conversation_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (converstion_client *Conversation_Client) SetKeyFile(keyFile string) {
-	converstion_client.keyFile = keyFile
+func (client *Conversation_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (converstion_client *Conversation_Client) SetCaFile(caFile string) {
-	converstion_client.caFile = caFile
+func (client *Conversation_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////// Api //////////////////////
 // Stop the service.
-func (converstion_client *Conversation_Client) StopService() {
-	converstion_client.c.Stop(globular.GetClientContext(converstion_client), &conversationpb.StopRequest{})
+func (client *Conversation_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &conversationpb.StopRequest{})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,14 +269,14 @@ func (converstion_client *Conversation_Client) StopService() {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new conversation with a given name and a list of keywords for retreive it latter.
-func (converstion_client *Conversation_Client) CreateConversation(token string, name string, keywords []string) (*conversationpb.Conversation, error) {
+func (client *Conversation_Client) CreateConversation(token string, name string, keywords []string) (*conversationpb.Conversation, error) {
 
 	rqst := &conversationpb.CreateConversationRequest{
 		Name:     name,
 		Keywords: keywords,
 	}
 
-	ctx := globular.GetClientContext(converstion_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -277,7 +287,7 @@ func (converstion_client *Conversation_Client) CreateConversation(token string, 
 	}
 
 	/** Create the conversation on the server side and get it uuid as response. */
-	rsp, err := converstion_client.c.CreateConversation(ctx, rqst)
+	rsp, err := client.c.CreateConversation(ctx, rqst)
 
 	if err != nil {
 		return nil, err
@@ -287,12 +297,12 @@ func (converstion_client *Conversation_Client) CreateConversation(token string, 
 }
 
 // Return the list of owned conversations.
-func (converstion_client *Conversation_Client) GetOwnedConversations(token string, creator string) (*conversationpb.Conversations, error) {
+func (client *Conversation_Client) GetOwnedConversations(token string, creator string) (*conversationpb.Conversations, error) {
 	rqst := &conversationpb.GetConversationsRequest{
 		Creator: creator,
 	}
 
-	ctx := globular.GetClientContext(converstion_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -302,7 +312,7 @@ func (converstion_client *Conversation_Client) GetOwnedConversations(token strin
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := converstion_client.c.GetConversations(ctx, rqst)
+	rsp, err := client.c.GetConversations(ctx, rqst)
 
 	if err != nil {
 		return nil, err
@@ -312,11 +322,11 @@ func (converstion_client *Conversation_Client) GetOwnedConversations(token strin
 }
 
 // Delete a conversation
-func (converstion_client *Conversation_Client) DeleteConversation(token string, conversationUuid string) error {
+func (client *Conversation_Client) DeleteConversation(token string, conversationUuid string) error {
 	rqst := new(conversationpb.DeleteConversationRequest)
 	rqst.ConversationUuid = conversationUuid
 
-	ctx := globular.GetClientContext(converstion_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -326,7 +336,7 @@ func (converstion_client *Conversation_Client) DeleteConversation(token string, 
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := converstion_client.c.DeleteConversation(ctx, rqst)
+	_, err := client.c.DeleteConversation(ctx, rqst)
 
 	if err != nil {
 		return err
@@ -338,7 +348,7 @@ func (converstion_client *Conversation_Client) DeleteConversation(token string, 
 /**
  * Find a conversations.
  */
-func (converstion_client *Conversation_Client) FindConversations(token string, query string, language string, offset int32, pageSize int32, snippetSize int32) ([]*conversationpb.Conversation, error) {
+func (client *Conversation_Client) FindConversations(token string, query string, language string, offset int32, pageSize int32, snippetSize int32) ([]*conversationpb.Conversation, error) {
 	rqst := new(conversationpb.FindConversationsRequest)
 	rqst.Query = query
 	rqst.Language = language
@@ -346,7 +356,7 @@ func (converstion_client *Conversation_Client) FindConversations(token string, q
 	rqst.PageSize = pageSize
 	rqst.SnippetSize = snippetSize
 
-	ctx := globular.GetClientContext(converstion_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -356,7 +366,7 @@ func (converstion_client *Conversation_Client) FindConversations(token string, q
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	results, err := converstion_client.c.FindConversations(ctx, rqst)
+	results, err := client.c.FindConversations(ctx, rqst)
 
 	if err != nil {
 		return nil, err
@@ -368,13 +378,13 @@ func (converstion_client *Conversation_Client) FindConversations(token string, q
 /**
  * Open a new connection with the conversation server.
  */
-func (converstion_client *Conversation_Client) connect(uuid string, data_channel chan *conversationpb.Message) error {
+func (client *Conversation_Client) connect(uuid string, data_channel chan *conversationpb.Message) error {
 
 	rqst := &conversationpb.ConnectRequest{
 		Uuid: uuid,
 	}
 
-	stream, err := converstion_client.c.Connect(globular.GetClientContext(converstion_client), rqst)
+	stream, err := client.c.Connect(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -400,14 +410,14 @@ func (converstion_client *Conversation_Client) connect(uuid string, data_channel
 	return nil
 }
 
-func (converstion_client *Conversation_Client) JoinConversation(conversation_uuid string, listener_uuid string, fct func(msg *conversationpb.Message)) (*conversationpb.Conversations, error) {
+func (client *Conversation_Client) JoinConversation(conversation_uuid string, listener_uuid string, fct func(msg *conversationpb.Message)) (*conversationpb.Conversations, error) {
 	/** Connect to a given conversation */
 	rqst := &conversationpb.JoinConversationRequest{
 		ConversationUuid: conversation_uuid,
-		ConnectionUuid:   converstion_client.uuid,
+		ConnectionUuid:   client.uuid,
 	}
 
-	stream, err := converstion_client.c.JoinConversation(globular.GetClientContext(converstion_client), rqst)
+	stream, err := client.c.JoinConversation(client.GetCtx(), rqst)
 	if err != nil {
 		fmt.Println("fail to join conversation ", conversation_uuid, err)
 		return nil, err
@@ -426,7 +436,7 @@ func (converstion_client *Conversation_Client) JoinConversation(conversation_uui
 	action["fct"] = fct
 
 	// set the action.
-	converstion_client.actions <- action
+	client.actions <- action
 
 	// Return the list of message already in the database...
 
@@ -434,15 +444,15 @@ func (converstion_client *Conversation_Client) JoinConversation(conversation_uui
 }
 
 // Exit event channel.
-func (converstion_client *Conversation_Client) Leave(conversation_uuid string, listener_uuid string) error {
+func (client *Conversation_Client) Leave(conversation_uuid string, listener_uuid string) error {
 
 	// Unsubscribe from the event channel.
 	rqst := &conversationpb.LeaveConversationRequest{
 		ConversationUuid: conversation_uuid,
-		ConnectionUuid:   converstion_client.uuid,
+		ConnectionUuid:   client.uuid,
 	}
 
-	_, err := converstion_client.c.LeaveConversation(globular.GetClientContext(converstion_client), rqst)
+	_, err := client.c.LeaveConversation(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -453,17 +463,17 @@ func (converstion_client *Conversation_Client) Leave(conversation_uuid string, l
 	action["name"] = conversation_uuid
 
 	// set the action.
-	converstion_client.actions <- action
+	client.actions <- action
 	return nil
 }
 
 // Publish and event over the network
-func (converstion_client *Conversation_Client) SendMessage(conversation_uuid string, msg *conversationpb.Message) error {
+func (client *Conversation_Client) SendMessage(conversation_uuid string, msg *conversationpb.Message) error {
 	rqst := &conversationpb.SendMessageRequest{
 		Msg: msg,
 	}
 
-	_, err := converstion_client.c.SendMessage(globular.GetClientContext(converstion_client), rqst)
+	_, err := client.c.SendMessage(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}

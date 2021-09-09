@@ -55,6 +55,9 @@ type Admin_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -76,113 +79,120 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 	return client, nil
 }
 
-func (admin_client *Admin_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Admin_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(admin_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(admin_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Admin_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the address
-func (admin_client *Admin_Client) GetAddress() string {
-	return admin_client.domain + ":" + strconv.Itoa(admin_client.port)
+func (client *Admin_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the domain
-func (admin_client *Admin_Client) GetDomain() string {
-	return admin_client.domain
+func (client *Admin_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the id of the service instance
-func (admin_client *Admin_Client) GetId() string {
-	return admin_client.id
+func (client *Admin_Client) GetId() string {
+	return client.id
 }
 
 // Return the mac address
-func (admin_client *Admin_Client) GetMac() string {
-	return admin_client.mac
+func (client *Admin_Client) GetMac() string {
+	return client.mac
 }
 
 // Return the name of the service
-func (admin_client *Admin_Client) GetName() string {
-	return admin_client.name
+func (client *Admin_Client) GetName() string {
+	return client.name
 }
 
 // must be close when no more needed.
-func (admin_client *Admin_Client) Close() {
-	admin_client.cc.Close()
+func (client *Admin_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (admin_client *Admin_Client) SetPort(port int) {
-	admin_client.port = port
+func (client *Admin_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client service instance id.
-func (admin_client *Admin_Client) SetId(id string) {
-	admin_client.id = id
+func (client *Admin_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (admin_client *Admin_Client) SetName(name string) {
-	admin_client.name = name
+func (client *Admin_Client) SetName(name string) {
+	client.name = name
 }
 
-func (admin_client *Admin_Client) SetMac(mac string) {
-	admin_client.mac = mac
+func (client *Admin_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.
-func (admin_client *Admin_Client) SetDomain(domain string) {
-	admin_client.domain = domain
+func (client *Admin_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (admin_client *Admin_Client) HasTLS() bool {
-	return admin_client.hasTLS
+func (client *Admin_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (admin_client *Admin_Client) GetCertFile() string {
-	return admin_client.certFile
+func (client *Admin_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (admin_client *Admin_Client) GetKeyFile() string {
-	return admin_client.keyFile
+func (client *Admin_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (admin_client *Admin_Client) GetCaFile() string {
-	return admin_client.caFile
+func (client *Admin_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (admin_client *Admin_Client) SetTLS(hasTls bool) {
-	admin_client.hasTLS = hasTls
+func (client *Admin_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (admin_client *Admin_Client) SetCertFile(certFile string) {
-	admin_client.certFile = certFile
+func (client *Admin_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (admin_client *Admin_Client) SetKeyFile(keyFile string) {
-	admin_client.keyFile = keyFile
+func (client *Admin_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (admin_client *Admin_Client) SetCaFile(caFile string) {
-	admin_client.caFile = caFile
+func (client *Admin_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 /////////////////////// API /////////////////////
 
 /** Create a service package **/
-func (admin_client *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
+func (client *Admin_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
 	// Take the information from the configuration...
 	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
 
@@ -214,7 +224,7 @@ func (admin_client *Admin_Client) createServicePackage(publisherId string, servi
  * to get the configuration (80 by default). The path is where the file will be
  * written. The return values are the path to tree certicate path.
  */
-func (admin_client *Admin_Client) GetCertificates(domain string, port int, path string) (string, string, string, error) {
+func (client *Admin_Client) GetCertificates(domain string, port int, path string) (string, string, string, error) {
 
 	rqst := &adminpb.GetCertificatesRequest{
 		Domain: domain,
@@ -222,7 +232,7 @@ func (admin_client *Admin_Client) GetCertificates(domain string, port int, path 
 		Port:   int32(port),
 	}
 
-	rsp, err := admin_client.c.GetCertificates(globular.GetClientContext(admin_client), rqst)
+	rsp, err := client.c.GetCertificates(client.GetCtx(), rqst)
 
 	if err != nil {
 		return "", "", "", err
@@ -234,14 +244,14 @@ func (admin_client *Admin_Client) GetCertificates(domain string, port int, path 
 /**
  * Push update to a give globular server.
  */
-func (admin_client *Admin_Client) Update(path string, platform string, token string, domain string) (int, error) {
+func (client *Admin_Client) Update(path string, platform string, token string, domain string) (int, error) {
 
 	// Set the token into the context and send the request.
 	md := metadata.New(map[string]string{"token": string(token), "domain": domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	// Open the stream...
-	stream, err := admin_client.c.Update(ctx)
+	stream, err := client.c.Update(ctx)
 	if err != nil {
 		return -1, err
 	}
@@ -292,7 +302,7 @@ func (admin_client *Admin_Client) Update(path string, platform string, token str
 /**
  * Download globular executable from a given source...
  */
-func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string) error {
+func (client *Admin_Client) DownloadGlobular(source, platform, path string) error {
 
 	// Retreive a single value...
 	rqst := &adminpb.DownloadGlobularRequest{
@@ -300,7 +310,7 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
 		Platform: platform,
 	}
 
-	stream, err := admin_client.c.DownloadGlobular(globular.GetClientContext(admin_client), rqst)
+	stream, err := client.c.DownloadGlobular(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -313,7 +323,7 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
 			// end of stream...
 			break
 		}
-		
+
 		if err != nil {
 			return err
 		}
@@ -338,13 +348,13 @@ func (admin_client *Admin_Client) DownloadGlobular(source, platform, path string
 /**
  * Set environement variable.
  */
-func (admin_client *Admin_Client) SetEnvironmentVariable(token, name, value string) error {
+func (client *Admin_Client) SetEnvironmentVariable(token, name, value string) error {
 	rqst := &adminpb.SetEnvironmentVariableRequest{
 		Name:  name,
 		Value: value,
 	}
 
-	ctx := globular.GetClientContext(admin_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -354,18 +364,18 @@ func (admin_client *Admin_Client) SetEnvironmentVariable(token, name, value stri
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := admin_client.c.SetEnvironmentVariable(ctx, rqst)
+	_, err := client.c.SetEnvironmentVariable(ctx, rqst)
 	return err
 
 }
 
 // UnsetEnvironement variable.
-func (admin_client *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
+func (client *Admin_Client) UnsetEnvironmentVariable(token, name string) error {
 	rqst := &adminpb.UnsetEnvironmentVariableRequest{
 		Name: name,
 	}
 
-	ctx := globular.GetClientContext(admin_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -374,16 +384,16 @@ func (admin_client *Admin_Client) UnsetEnvironmentVariable(token, name string) e
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	_, err := admin_client.c.UnsetEnvironmentVariable(ctx, rqst)
+	_, err := client.c.UnsetEnvironmentVariable(ctx, rqst)
 	return err
 }
 
-func (admin_client *Admin_Client) GetEnvironmentVariable(token, name string) (string, error) {
+func (client *Admin_Client) GetEnvironmentVariable(token, name string) (string, error) {
 	rqst := &adminpb.GetEnvironmentVariableRequest{
 		Name: name,
 	}
 
-	ctx := globular.GetClientContext(admin_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -392,7 +402,7 @@ func (admin_client *Admin_Client) GetEnvironmentVariable(token, name string) (st
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	rsp, err := admin_client.c.GetEnvironmentVariable(ctx, rqst)
+	rsp, err := client.c.GetEnvironmentVariable(ctx, rqst)
 	if err != nil {
 
 		return "", err
@@ -401,14 +411,14 @@ func (admin_client *Admin_Client) GetEnvironmentVariable(token, name string) (st
 }
 
 // Run a command.
-func (admin_client *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool) (string, error) {
+func (client *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool) (string, error) {
 	rqst := &adminpb.RunCmdRequest{
 		Cmd:      cmd,
 		Args:     args,
 		Blocking: blocking,
 	}
 
-	ctx := globular.GetClientContext(admin_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -418,7 +428,7 @@ func (admin_client *Admin_Client) RunCmd(token, cmd string, args []string, block
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	stream, err := admin_client.c.RunCmd(ctx, rqst)
+	stream, err := client.c.RunCmd(ctx, rqst)
 	if err != nil {
 		return "", err
 	}
@@ -445,12 +455,12 @@ func (admin_client *Admin_Client) RunCmd(token, cmd string, args []string, block
 
 }
 
-func (admin_client *Admin_Client) KillProcess(token string, pid int) error {
+func (client *Admin_Client) KillProcess(token string, pid int) error {
 	rqst := &adminpb.KillProcessRequest{
 		Pid: int64(pid),
 	}
 
-	ctx := globular.GetClientContext(admin_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -460,16 +470,16 @@ func (admin_client *Admin_Client) KillProcess(token string, pid int) error {
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := admin_client.c.KillProcess(ctx, rqst)
+	_, err := client.c.KillProcess(ctx, rqst)
 	return err
 }
 
-func (admin_client *Admin_Client) KillProcesses(token string, name string) error {
+func (client *Admin_Client) KillProcesses(token string, name string) error {
 	rqst := &adminpb.KillProcessesRequest{
 		Name: name,
 	}
 
-	ctx := globular.GetClientContext(admin_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -479,15 +489,15 @@ func (admin_client *Admin_Client) KillProcesses(token string, name string) error
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := admin_client.c.KillProcesses(ctx, rqst)
+	_, err := client.c.KillProcesses(ctx, rqst)
 	return err
 }
 
-func (admin_client *Admin_Client) GetPids(token string, name string) ([]int32, error) {
+func (client *Admin_Client) GetPids(token string, name string) ([]int32, error) {
 	rqst := &adminpb.GetPidsRequest{
 		Name: name,
 	}
-	ctx := globular.GetClientContext(admin_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -497,7 +507,7 @@ func (admin_client *Admin_Client) GetPids(token string, name string) ([]int32, e
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := admin_client.c.GetPids(ctx, rqst)
+	rsp, err := client.c.GetPids(ctx, rqst)
 	if err != nil {
 		return nil, err
 	}

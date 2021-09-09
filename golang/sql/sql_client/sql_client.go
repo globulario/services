@@ -45,6 +45,9 @@ type SQL_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -63,116 +66,122 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 	return client, nil
 }
 
-func (sql_client *SQL_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *SQL_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(sql_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(sql_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *SQL_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (sql_client *SQL_Client) GetDomain() string {
-	return sql_client.domain
+func (client *SQL_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (sql_client *SQL_Client) GetAddress() string {
-	return sql_client.domain + ":" + strconv.Itoa(sql_client.port)
+func (client *SQL_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (sql_client *SQL_Client) GetId() string {
-	return sql_client.id
+func (client *SQL_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (sql_client *SQL_Client) GetName() string {
-	return sql_client.name
+func (client *SQL_Client) GetName() string {
+	return client.name
 }
 
-func (sql_client *SQL_Client) GetMac() string {
-	return sql_client.mac
+func (client *SQL_Client) GetMac() string {
+	return client.mac
 }
 
 // must be close when no more needed.
-func (sql_client *SQL_Client) Close() {
-	sql_client.cc.Close()
+func (client *SQL_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (sql_client *SQL_Client) SetPort(port int) {
-	sql_client.port = port
+func (client *SQL_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client name.
-func (sql_client *SQL_Client) SetName(name string) {
-	sql_client.name = name
+func (client *SQL_Client) SetName(name string) {
+	client.name = name
 }
 
-func (sql_client *SQL_Client) SetMac(mac string) {
-	sql_client.mac = mac
+func (client *SQL_Client) SetMac(mac string) {
+	client.mac = mac
 }
-
 
 // Set the client service instance id.
-func (sql_client *SQL_Client) SetId(id string) {
-	sql_client.id = id
+func (client *SQL_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the domain.
-func (sql_client *SQL_Client) SetDomain(domain string) {
-	sql_client.domain = domain
+func (client *SQL_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (sql_client *SQL_Client) HasTLS() bool {
-	return sql_client.hasTLS
+func (client *SQL_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (sql_client *SQL_Client) GetCertFile() string {
-	return sql_client.certFile
+func (client *SQL_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (sql_client *SQL_Client) GetKeyFile() string {
-	return sql_client.keyFile
+func (client *SQL_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (sql_client *SQL_Client) GetCaFile() string {
-	return sql_client.caFile
+func (client *SQL_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (sql_client *SQL_Client) SetTLS(hasTls bool) {
-	sql_client.hasTLS = hasTls
+func (client *SQL_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (sql_client *SQL_Client) SetCertFile(certFile string) {
-	sql_client.certFile = certFile
+func (client *SQL_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (sql_client *SQL_Client) SetKeyFile(keyFile string) {
-	sql_client.keyFile = keyFile
+func (client *SQL_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (sql_client *SQL_Client) SetCaFile(caFile string) {
-	sql_client.caFile = caFile
+func (client *SQL_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////////////// API ////////////////////////////
 // Stop the service.
-func (sql_client *SQL_Client) StopService() {
-	sql_client.c.Stop(globular.GetClientContext(sql_client), &sqlpb.StopRequest{})
+func (client *SQL_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &sqlpb.StopRequest{})
 }
 
-func (sql_client *SQL_Client) CreateConnection(connectionId string, name string, driver string, user string, password string, host string, port int32, charset string) error {
+func (client *SQL_Client) CreateConnection(connectionId string, name string, driver string, user string, password string, host string, port int32, charset string) error {
 	// Create a new connection
 	rqst := &sqlpb.CreateConnectionRqst{
 		Connection: &sqlpb.Connection{
@@ -187,31 +196,31 @@ func (sql_client *SQL_Client) CreateConnection(connectionId string, name string,
 		},
 	}
 
-	_, err := sql_client.c.CreateConnection(globular.GetClientContext(sql_client), rqst)
+	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 
 	return err
 }
 
-func (sql_client *SQL_Client) DeleteConnection(connectionId string) error {
+func (client *SQL_Client) DeleteConnection(connectionId string) error {
 
 	rqst := &sqlpb.DeleteConnectionRqst{
 		Id: connectionId,
 	}
 
-	_, err := sql_client.c.DeleteConnection(globular.GetClientContext(sql_client), rqst)
+	_, err := client.c.DeleteConnection(client.GetCtx(), rqst)
 
 	return err
 }
 
 // Test if a connection is found
-func (sql_client *SQL_Client) Ping(connectionId interface{}) (string, error) {
+func (client *SQL_Client) Ping(connectionId interface{}) (string, error) {
 
 	// Here I will try to ping a non-existing connection.
 	rqst := &sqlpb.PingConnectionRqst{
 		Id: Utility.ToString(connectionId),
 	}
 
-	rsp, err := sql_client.c.Ping(globular.GetClientContext(sql_client), rqst)
+	rsp, err := client.c.Ping(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -220,7 +229,7 @@ func (sql_client *SQL_Client) Ping(connectionId interface{}) (string, error) {
 }
 
 // That function return the json string with all element in it.
-func (sql_client *SQL_Client) QueryContext(connectionId string, query string, parameters string) (string, error) {
+func (client *SQL_Client) QueryContext(connectionId string, query string, parameters string) (string, error) {
 
 	// The query and all it parameters.
 	rqst := &sqlpb.QueryContextRqst{
@@ -232,7 +241,7 @@ func (sql_client *SQL_Client) QueryContext(connectionId string, query string, pa
 	}
 
 	// Because number of values can be high I will use a stream.
-	stream, err := sql_client.c.QueryContext(globular.GetClientContext(sql_client), rqst)
+	stream, err := client.c.QueryContext(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -271,7 +280,7 @@ func (sql_client *SQL_Client) QueryContext(connectionId string, query string, pa
 	return string(resultStr), nil
 }
 
-func (sql_client *SQL_Client) ExecContext(connectionId interface{}, query interface{}, parameters string, tx interface{}) (string, error) {
+func (client *SQL_Client) ExecContext(connectionId interface{}, query interface{}, parameters string, tx interface{}) (string, error) {
 
 	if tx == nil {
 		tx = false
@@ -286,7 +295,7 @@ func (sql_client *SQL_Client) ExecContext(connectionId interface{}, query interf
 		Tx: Utility.ToBool(tx),
 	}
 
-	rsp, err := sql_client.c.ExecContext(globular.GetClientContext(sql_client), rqst)
+	rsp, err := client.c.ExecContext(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}

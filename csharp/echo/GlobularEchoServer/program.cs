@@ -33,14 +33,15 @@ namespace Echo
                 echoServer = echoServer.init();
 
                 // Here is an exemple how to set log message information.
-                echoServer.logMessage("Main", "The C# echo server was started!", Log.LogLevel.InfoMessage);
-
-                System.Console.WriteLine("the server is now initialysed!");
-
+                //echoServer.logMessage("Main", "The C# echo server was started!", Log.LogLevel.InfoMessage);
+                
+                // example on how to subscribe to event.
+                //echoServer.subscribe("on_echo_event", uuid.ToString(), new Action<Event.Event>(onEchoEvent));
+                
+                
                 // Now here I will try to connect the server to an event channel...(this is for test...)
                 var uuid = System.Guid.NewGuid();
-                echoServer.subscribe("on_echo_event", uuid.ToString(), new Action<Event.Event>(onEchoEvent));
-                
+
                 
                 if (echoServer.TLS == true)
                 {
@@ -68,8 +69,9 @@ namespace Echo
                     };
                 }
 
-                Console.WriteLine("Echo server listening on port " + echoServer.Port);
 
+                Console.WriteLine("Echo server listening on port " + echoServer.Port);
+               
                 // GRPC server.
                 server.Start();
             });

@@ -46,6 +46,9 @@ type Monitoring_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -64,118 +67,124 @@ func NewMonitoringService_Client(address string, id string) (*Monitoring_Client,
 	return client, nil
 }
 
-func (monitoring_client *Monitoring_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Monitoring_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(monitoring_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(monitoring_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Monitoring_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
-func (monitoring_client *Monitoring_Client) GetDomain() string {
-	return monitoring_client.domain
+func (client *Monitoring_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the address
-func (monitoring_client *Monitoring_Client) GetAddress() string {
-	return monitoring_client.domain + ":" + strconv.Itoa(monitoring_client.port)
+func (client *Monitoring_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (monitoring_client *Monitoring_Client) GetId() string {
-	return monitoring_client.id
+func (client *Monitoring_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (monitoring_client *Monitoring_Client) GetName() string {
-	return monitoring_client.name
+func (client *Monitoring_Client) GetName() string {
+	return client.name
 }
 
-func (monitoring_client *Monitoring_Client) GetMac() string {
-	return monitoring_client.mac
+func (client *Monitoring_Client) GetMac() string {
+	return client.mac
 }
-
 
 // must be close when no more needed.
-func (monitoring_client *Monitoring_Client) Close() {
-	monitoring_client.cc.Close()
+func (client *Monitoring_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (monitoring_client *Monitoring_Client) SetPort(port int) {
-	monitoring_client.port = port
+func (client *Monitoring_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client id.
-func (monitoring_client *Monitoring_Client) SetId(id string) {
-	monitoring_client.id = id
+func (client *Monitoring_Client) SetId(id string) {
+	client.id = id
 }
 
-func (monitoring_client *Monitoring_Client) SetMac(mac string) {
-	monitoring_client.name = mac
+func (client *Monitoring_Client) SetMac(mac string) {
+	client.name = mac
 }
 
 // Set the client name.
-func (monitoring_client *Monitoring_Client) SetName(name string) {
-	monitoring_client.name = name
+func (client *Monitoring_Client) SetName(name string) {
+	client.name = name
 }
 
 // Set the domain.
-func (monitoring_client *Monitoring_Client) SetDomain(domain string) {
-	monitoring_client.domain = domain
+func (client *Monitoring_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (monitoring_client *Monitoring_Client) HasTLS() bool {
-	return monitoring_client.hasTLS
+func (client *Monitoring_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (monitoring_client *Monitoring_Client) GetCertFile() string {
-	return monitoring_client.certFile
+func (client *Monitoring_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (monitoring_client *Monitoring_Client) GetKeyFile() string {
-	return monitoring_client.keyFile
+func (client *Monitoring_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (monitoring_client *Monitoring_Client) GetCaFile() string {
-	return monitoring_client.caFile
+func (client *Monitoring_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (monitoring_client *Monitoring_Client) SetTLS(hasTls bool) {
-	monitoring_client.hasTLS = hasTls
+func (client *Monitoring_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (monitoring_client *Monitoring_Client) SetCertFile(certFile string) {
-	monitoring_client.certFile = certFile
+func (client *Monitoring_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (monitoring_client *Monitoring_Client) SetKeyFile(keyFile string) {
-	monitoring_client.keyFile = keyFile
+func (client *Monitoring_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (monitoring_client *Monitoring_Client) SetCaFile(caFile string) {
-	monitoring_client.caFile = caFile
+func (client *Monitoring_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////////// Connections management functions //////////////////////////
 
 // Stop the service.
-func (monitoring_client *Monitoring_Client) StopService() {
-	monitoring_client.c.Stop(globular.GetClientContext(monitoring_client), &monitoringpb.StopRequest{})
+func (client *Monitoring_Client) StopService() {
+	client.c.Stop(client.GetCtx(), &monitoringpb.StopRequest{})
 }
 
 // Create a new connection.
-func (monitoring_client *Monitoring_Client) CreateConnection(id string, host string, storeType float64, port float64) error {
+func (client *Monitoring_Client) CreateConnection(id string, host string, storeType float64, port float64) error {
 	rqst := &monitoringpb.CreateConnectionRqst{
 		Connection: &monitoringpb.Connection{
 			Id:    id,
@@ -185,29 +194,29 @@ func (monitoring_client *Monitoring_Client) CreateConnection(id string, host str
 		},
 	}
 
-	_, err := monitoring_client.c.CreateConnection(globular.GetClientContext(monitoring_client), rqst)
+	_, err := client.c.CreateConnection(client.GetCtx(), rqst)
 
 	return err
 }
 
 // Delete a connection.
-func (monitoring_client *Monitoring_Client) DeleteConnection(id string) error {
+func (client *Monitoring_Client) DeleteConnection(id string) error {
 	rqst := &monitoringpb.DeleteConnectionRqst{
 		Id: id,
 	}
 
-	_, err := monitoring_client.c.DeleteConnection(globular.GetClientContext(monitoring_client), rqst)
+	_, err := client.c.DeleteConnection(client.GetCtx(), rqst)
 
 	return err
 }
 
 // Config returns the current Prometheus configuration.
-func (monitoring_client *Monitoring_Client) Config(connectionId string) (string, error) {
+func (client *Monitoring_Client) Config(connectionId string) (string, error) {
 	rqst := &monitoringpb.ConfigRequest{
 		ConnectionId: connectionId,
 	}
 
-	rsp, err := monitoring_client.c.Config(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Config(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -216,12 +225,12 @@ func (monitoring_client *Monitoring_Client) Config(connectionId string) (string,
 }
 
 // Alerts returns a list of all active alerts.
-func (monitoring_client *Monitoring_Client) Alerts(connectionId string) (string, error) {
+func (client *Monitoring_Client) Alerts(connectionId string) (string, error) {
 	rqst := &monitoringpb.AlertsRequest{
 		ConnectionId: connectionId,
 	}
 
-	rsp, err := monitoring_client.c.Alerts(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Alerts(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -230,12 +239,12 @@ func (monitoring_client *Monitoring_Client) Alerts(connectionId string) (string,
 }
 
 // AlertManagers returns an overview of the current state of the Prometheus alert manager discovery.
-func (monitoring_client *Monitoring_Client) AlertManagers(connectionId string) (string, error) {
+func (client *Monitoring_Client) AlertManagers(connectionId string) (string, error) {
 	rqst := &monitoringpb.AlertManagersRequest{
 		ConnectionId: connectionId,
 	}
 
-	rsp, err := monitoring_client.c.AlertManagers(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.AlertManagers(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -244,12 +253,12 @@ func (monitoring_client *Monitoring_Client) AlertManagers(connectionId string) (
 }
 
 // CleanTombstones removes the deleted data from disk and cleans up the existing tombstones.
-func (monitoring_client *Monitoring_Client) CleanTombstones(connectionId string) error {
+func (client *Monitoring_Client) CleanTombstones(connectionId string) error {
 	rqst := &monitoringpb.CleanTombstonesRequest{
 		ConnectionId: connectionId,
 	}
 
-	_, err := monitoring_client.c.CleanTombstones(globular.GetClientContext(monitoring_client), rqst)
+	_, err := client.c.CleanTombstones(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -258,7 +267,7 @@ func (monitoring_client *Monitoring_Client) CleanTombstones(connectionId string)
 }
 
 // DeleteSeries deletes data for a selection of series in a time range.
-func (monitoring_client *Monitoring_Client) DeleteSeries(connectionId string, matches []string, startTime float64, endTime float64) error {
+func (client *Monitoring_Client) DeleteSeries(connectionId string, matches []string, startTime float64, endTime float64) error {
 	rqst := &monitoringpb.DeleteSeriesRequest{
 		ConnectionId: connectionId,
 		Matches:      matches,
@@ -266,7 +275,7 @@ func (monitoring_client *Monitoring_Client) DeleteSeries(connectionId string, ma
 		EndTime:      endTime,
 	}
 
-	_, err := monitoring_client.c.DeleteSeries(globular.GetClientContext(monitoring_client), rqst)
+	_, err := client.c.DeleteSeries(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -274,12 +283,12 @@ func (monitoring_client *Monitoring_Client) DeleteSeries(connectionId string, ma
 }
 
 // Flags returns the flag values that Prometheus was launched with.
-func (monitoring_client *Monitoring_Client) Flags(connectionId string) (string, error) {
+func (client *Monitoring_Client) Flags(connectionId string) (string, error) {
 	rqst := &monitoringpb.FlagsRequest{
 		ConnectionId: connectionId,
 	}
 
-	rsp, err := monitoring_client.c.Flags(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Flags(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -288,12 +297,12 @@ func (monitoring_client *Monitoring_Client) Flags(connectionId string) (string, 
 }
 
 // LabelNames returns all the unique label names present in the block in sorted order.
-func (monitoring_client *Monitoring_Client) LabelNames(connectionId string) ([]string, string, error) {
+func (client *Monitoring_Client) LabelNames(connectionId string) ([]string, string, error) {
 	rqst := &monitoringpb.LabelNamesRequest{
 		ConnectionId: connectionId,
 	}
 
-	rsp, err := monitoring_client.c.LabelNames(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.LabelNames(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, "", err
 	}
@@ -302,13 +311,13 @@ func (monitoring_client *Monitoring_Client) LabelNames(connectionId string) ([]s
 }
 
 // LabelValues performs a query for the values of the given label.
-func (monitoring_client *Monitoring_Client) LabelValues(connectionId string, label string) (string, string, error) {
+func (client *Monitoring_Client) LabelValues(connectionId string, label string) (string, string, error) {
 	rqst := &monitoringpb.LabelValuesRequest{
 		ConnectionId: connectionId,
 		Label:        label,
 	}
 
-	rsp, err := monitoring_client.c.LabelValues(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.LabelValues(client.GetCtx(), rqst)
 	if err != nil {
 		return "", "", err
 	}
@@ -317,14 +326,14 @@ func (monitoring_client *Monitoring_Client) LabelValues(connectionId string, lab
 }
 
 // Query performs a query for the given time.
-func (monitoring_client *Monitoring_Client) Query(connectionId string, query string, ts float64) (string, string, error) {
+func (client *Monitoring_Client) Query(connectionId string, query string, ts float64) (string, string, error) {
 	rqst := &monitoringpb.QueryRequest{
 		ConnectionId: connectionId,
 		Query:        query,
 		Ts:           ts,
 	}
 
-	rsp, err := monitoring_client.c.Query(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Query(client.GetCtx(), rqst)
 	if err != nil {
 		return "", "", err
 	}
@@ -333,7 +342,7 @@ func (monitoring_client *Monitoring_Client) Query(connectionId string, query str
 }
 
 // QueryRange performs a query for the given range.
-func (monitoring_client *Monitoring_Client) QueryRange(connectionId string, query string, startTime float64, endTime float64, step float64) (string, string, error) {
+func (client *Monitoring_Client) QueryRange(connectionId string, query string, startTime float64, endTime float64, step float64) (string, string, error) {
 	rqst := &monitoringpb.QueryRangeRequest{
 		ConnectionId: connectionId,
 		Query:        query,
@@ -344,7 +353,7 @@ func (monitoring_client *Monitoring_Client) QueryRange(connectionId string, quer
 
 	var value string
 	var warning string
-	stream, err := monitoring_client.c.QueryRange(globular.GetClientContext(monitoring_client), rqst)
+	stream, err := client.c.QueryRange(client.GetCtx(), rqst)
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
@@ -368,7 +377,7 @@ func (monitoring_client *Monitoring_Client) QueryRange(connectionId string, quer
 }
 
 // Series finds series by label matchers.
-func (monitoring_client *Monitoring_Client) Series(connectionId string, matches []string, startTime float64, endTime float64) (string, string, error) {
+func (client *Monitoring_Client) Series(connectionId string, matches []string, startTime float64, endTime float64) (string, string, error) {
 	rqst := &monitoringpb.SeriesRequest{
 		ConnectionId: connectionId,
 		Matches:      matches,
@@ -376,7 +385,7 @@ func (monitoring_client *Monitoring_Client) Series(connectionId string, matches 
 		EndTime:      endTime,
 	}
 
-	rsp, err := monitoring_client.c.Series(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Series(client.GetCtx(), rqst)
 	if err != nil {
 		return "", "", err
 	}
@@ -386,13 +395,13 @@ func (monitoring_client *Monitoring_Client) Series(connectionId string, matches 
 
 // Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 // under the TSDB's data directory and returns the directory as response.
-func (monitoring_client *Monitoring_Client) Snapshot(connectionId string, skipHead bool) (string, error) {
+func (client *Monitoring_Client) Snapshot(connectionId string, skipHead bool) (string, error) {
 	rqst := &monitoringpb.SnapshotRequest{
 		ConnectionId: connectionId,
 		SkipHead:     skipHead,
 	}
 
-	rsp, err := monitoring_client.c.Snapshot(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Snapshot(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -401,12 +410,12 @@ func (monitoring_client *Monitoring_Client) Snapshot(connectionId string, skipHe
 }
 
 // Rules returns a list of alerting and recording rules that are currently loaded.
-func (monitoring_client *Monitoring_Client) Rules(connectionId string) (string, error) {
+func (client *Monitoring_Client) Rules(connectionId string) (string, error) {
 	rqst := &monitoringpb.RulesRequest{
 		ConnectionId: connectionId,
 	}
 
-	rsp, err := monitoring_client.c.Rules(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Rules(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -415,12 +424,12 @@ func (monitoring_client *Monitoring_Client) Rules(connectionId string) (string, 
 }
 
 // Targets returns an overview of the current state of the Prometheus target discovery.
-func (monitoring_client *Monitoring_Client) Targets(connectionId string) (string, error) {
+func (client *Monitoring_Client) Targets(connectionId string) (string, error) {
 	rqst := &monitoringpb.TargetsRequest{
 		ConnectionId: connectionId,
 	}
 
-	rsp, err := monitoring_client.c.Targets(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.Targets(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -429,7 +438,7 @@ func (monitoring_client *Monitoring_Client) Targets(connectionId string) (string
 }
 
 // TargetsMetadata returns metadata about metrics currently scraped by the target.
-func (monitoring_client *Monitoring_Client) TargetsMetadata(connectionId string, matchTarget string, metric string, limit string) (string, error) {
+func (client *Monitoring_Client) TargetsMetadata(connectionId string, matchTarget string, metric string, limit string) (string, error) {
 	rqst := &monitoringpb.TargetsMetadataRequest{
 		ConnectionId: connectionId,
 		MatchTarget:  matchTarget,
@@ -437,7 +446,7 @@ func (monitoring_client *Monitoring_Client) TargetsMetadata(connectionId string,
 		Limit:        limit,
 	}
 
-	rsp, err := monitoring_client.c.TargetsMetadata(globular.GetClientContext(monitoring_client), rqst)
+	rsp, err := client.c.TargetsMetadata(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}

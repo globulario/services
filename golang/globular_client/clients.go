@@ -218,10 +218,12 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 				return nil, err
 			}
 		} else {
+			log.Println("try onnect to server at address: ", address)
 			cc, err = grpc.Dial(address, grpc.WithInsecure())
 			if err != nil {
 				return nil, err
 			}
+			log.Println("connected")
 		}
 	}
 	return cc, nil
@@ -236,6 +238,8 @@ func GetClientContext(client Client) context.Context {
 	// if the address is local.
 	address := client.GetDomain()
 
+	log.Println("get client context")
+
 	err := Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
 		log.Panicln("fail to create token dir ", tokensPath)
@@ -244,13 +248,16 @@ func GetClientContext(client Client) context.Context {
 	// Get the token for that domain if it exist
 	path := tokensPath + "/" + client.GetDomain() + "_token"
 	token, err := ioutil.ReadFile(path)
+
+	myIP := Utility.MyIP()
+
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": myIP})
 		ctx := metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr(), "ip": Utility.MyIP()})
+	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr(), "ip": myIP})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 	return ctx
 

@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v5.0": {
-      "GlobularRbacClient/1.0.0": {
+      "GlobularRbacClient/1.0.2": {
         "dependencies": {
           "GlobularClient": "1.0.3",
           "Google.Protobuf": "3.14.0",
@@ -94,7 +94,7 @@
     }
   },
   "libraries": {
-    "GlobularRbacClient/1.0.0": {
+    "GlobularRbacClient/1.0.2": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

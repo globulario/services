@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"strconv"
+
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
@@ -45,6 +46,9 @@ type Resource_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -68,108 +72,114 @@ func NewResourceService_Client(address string, id string) (*Resource_Client, err
 	return client, nil
 }
 
-func (resource_client *Resource_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Resource_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(resource_client)
+		ctx = client.GetCtx()
 	}
-	return globular.InvokeClientRequest(resource_client.c, ctx, method, rqst)
+	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Resource_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the ipv4 address
 // Return the address
-func (resource_client *Resource_Client) GetAddress() string {
-	return resource_client.domain + ":" + strconv.Itoa(resource_client.port)
+func (client *Resource_Client) GetAddress() string {
+	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the domain
-func (resource_client *Resource_Client) GetDomain() string {
-	return resource_client.domain
+func (client *Resource_Client) GetDomain() string {
+	return client.domain
 }
 
 // Return the id of the service instance
-func (resource_client *Resource_Client) GetId() string {
-	return resource_client.id
+func (client *Resource_Client) GetId() string {
+	return client.id
 }
 
 // Return the name of the service
-func (resource_client *Resource_Client) GetName() string {
-	return resource_client.name
+func (client *Resource_Client) GetName() string {
+	return client.name
 }
 
-func (resource_client *Resource_Client) GetMac() string {
-	return resource_client.mac
+func (client *Resource_Client) GetMac() string {
+	return client.mac
 }
-
 
 // must be close when no more needed.
-func (resource_client *Resource_Client) Close() {
-	resource_client.cc.Close()
+func (client *Resource_Client) Close() {
+	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (resource_client *Resource_Client) SetPort(port int) {
-	resource_client.port = port
+func (client *Resource_Client) SetPort(port int) {
+	client.port = port
 }
 
 // Set the client name.
-func (resource_client *Resource_Client) SetId(id string) {
-	resource_client.id = id
+func (client *Resource_Client) SetId(id string) {
+	client.id = id
 }
 
 // Set the client name.
-func (resource_client *Resource_Client) SetName(name string) {
-	resource_client.name = name
+func (client *Resource_Client) SetName(name string) {
+	client.name = name
 }
 
-func (resource_client *Resource_Client) SetMac(mac string) {
-	resource_client.mac = mac
+func (client *Resource_Client) SetMac(mac string) {
+	client.mac = mac
 }
 
 // Set the domain.
-func (resource_client *Resource_Client) SetDomain(domain string) {
-	resource_client.domain = domain
+func (client *Resource_Client) SetDomain(domain string) {
+	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (resource_client *Resource_Client) HasTLS() bool {
-	return resource_client.hasTLS
+func (client *Resource_Client) HasTLS() bool {
+	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (resource_client *Resource_Client) GetCertFile() string {
-	return resource_client.certFile
+func (client *Resource_Client) GetCertFile() string {
+	return client.certFile
 }
 
 // Get the TLS key file path
-func (resource_client *Resource_Client) GetKeyFile() string {
-	return resource_client.keyFile
+func (client *Resource_Client) GetKeyFile() string {
+	return client.keyFile
 }
 
 // Get the TLS key file path
-func (resource_client *Resource_Client) GetCaFile() string {
-	return resource_client.caFile
+func (client *Resource_Client) GetCaFile() string {
+	return client.caFile
 }
 
 // Set the client is a secure client.
-func (resource_client *Resource_Client) SetTLS(hasTls bool) {
-	resource_client.hasTLS = hasTls
+func (client *Resource_Client) SetTLS(hasTls bool) {
+	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (resource_client *Resource_Client) SetCertFile(certFile string) {
-	resource_client.certFile = certFile
+func (client *Resource_Client) SetCertFile(certFile string) {
+	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (resource_client *Resource_Client) SetKeyFile(keyFile string) {
-	resource_client.keyFile = keyFile
+func (client *Resource_Client) SetKeyFile(keyFile string) {
+	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (resource_client *Resource_Client) SetCaFile(caFile string) {
-	resource_client.caFile = caFile
+func (client *Resource_Client) SetCaFile(caFile string) {
+	client.caFile = caFile
 }
 
 ////////////// API ////////////////
@@ -177,14 +187,14 @@ func (resource_client *Resource_Client) SetCaFile(caFile string) {
 ////////////////////////////////////////////////////////////////////////////////
 // Package Descriptor
 ////////////////////////////////////////////////////////////////////////////////
-func (resource_client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {
+func (client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.SetPackageDescriptorRequest{
 		PackageDescriptor: descriptor,
 	}
 
-	_, err := resource_client.c.SetPackageDescriptor(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.SetPackageDescriptor(client.GetCtx(), rqst)
 	return err
 
 }
@@ -194,7 +204,7 @@ func (resource_client *Resource_Client) SetPackageDescriptor(descriptor *resourc
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new Organization
-func (resource_client *Resource_Client) CreateOrganization(id string, name string) error {
+func (client *Resource_Client) CreateOrganization(id string, name string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.CreateOrganizationRqst{
@@ -204,26 +214,26 @@ func (resource_client *Resource_Client) CreateOrganization(id string, name strin
 		},
 	}
 
-	_, err := resource_client.c.CreateOrganization(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.CreateOrganization(client.GetCtx(), rqst)
 	return err
 
 }
 
 // Create a new Organization
-func (resource_client *Resource_Client) DeleteOrganization(id string) error {
+func (client *Resource_Client) DeleteOrganization(id string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.DeleteOrganizationRqst{
 		Organization: id,
 	}
 
-	_, err := resource_client.c.DeleteOrganization(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.DeleteOrganization(client.GetCtx(), rqst)
 	return err
 
 }
 
 // Add to Organisation...
-func (resource_client *Resource_Client) AddOrganizationAccount(organisationId string, accountId string) error {
+func (client *Resource_Client) AddOrganizationAccount(organisationId string, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationAccountRqst{
@@ -231,11 +241,11 @@ func (resource_client *Resource_Client) AddOrganizationAccount(organisationId st
 		AccountId:      accountId,
 	}
 
-	_, err := resource_client.c.AddOrganizationAccount(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.AddOrganizationAccount(client.GetCtx(), rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) AddOrganizationRole(organisationId string, roleId string) error {
+func (client *Resource_Client) AddOrganizationRole(organisationId string, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationRoleRqst{
@@ -243,11 +253,11 @@ func (resource_client *Resource_Client) AddOrganizationRole(organisationId strin
 		RoleId:         roleId,
 	}
 
-	_, err := resource_client.c.AddOrganizationRole(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.AddOrganizationRole(client.GetCtx(), rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) AddOrganizationGroup(organisationId string, groupId string) error {
+func (client *Resource_Client) AddOrganizationGroup(organisationId string, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationGroupRqst{
@@ -255,11 +265,11 @@ func (resource_client *Resource_Client) AddOrganizationGroup(organisationId stri
 		GroupId:        groupId,
 	}
 
-	_, err := resource_client.c.AddOrganizationGroup(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.AddOrganizationGroup(client.GetCtx(), rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) AddOrganizationApplication(organisationId string, applicationId string) error {
+func (client *Resource_Client) AddOrganizationApplication(organisationId string, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationApplicationRqst{
@@ -267,13 +277,13 @@ func (resource_client *Resource_Client) AddOrganizationApplication(organisationI
 		ApplicationId:  applicationId,
 	}
 
-	_, err := resource_client.c.AddOrganizationApplication(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.AddOrganizationApplication(client.GetCtx(), rqst)
 	return err
 }
 
 // Remove from organization
 
-func (resource_client *Resource_Client) RemoveOrganizationAccount(organisationId string, accountId string) error {
+func (client *Resource_Client) RemoveOrganizationAccount(organisationId string, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationAccountRqst{
@@ -281,11 +291,11 @@ func (resource_client *Resource_Client) RemoveOrganizationAccount(organisationId
 		AccountId:      accountId,
 	}
 
-	_, err := resource_client.c.RemoveOrganizationAccount(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveOrganizationAccount(client.GetCtx(), rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) RemoveOrganizationRole(organisationId string, roleId string) error {
+func (client *Resource_Client) RemoveOrganizationRole(organisationId string, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationRoleRqst{
@@ -293,11 +303,11 @@ func (resource_client *Resource_Client) RemoveOrganizationRole(organisationId st
 		RoleId:         roleId,
 	}
 
-	_, err := resource_client.c.RemoveOrganizationRole(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveOrganizationRole(client.GetCtx(), rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) RemoveOrganizationGroup(organisationId string, groupId string) error {
+func (client *Resource_Client) RemoveOrganizationGroup(organisationId string, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationGroupRqst{
@@ -305,11 +315,11 @@ func (resource_client *Resource_Client) RemoveOrganizationGroup(organisationId s
 		GroupId:        groupId,
 	}
 
-	_, err := resource_client.c.RemoveOrganizationGroup(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveOrganizationGroup(client.GetCtx(), rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) RemoveOrganizationApplication(organisationId string, applicationId string) error {
+func (client *Resource_Client) RemoveOrganizationApplication(organisationId string, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationApplicationRqst{
@@ -317,17 +327,17 @@ func (resource_client *Resource_Client) RemoveOrganizationApplication(organisati
 		ApplicationId:  applicationId,
 	}
 
-	_, err := resource_client.c.RemoveOrganizationApplication(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveOrganizationApplication(client.GetCtx(), rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) IsOrganizationMemeber(user, organization string) (bool, error) {
+func (client *Resource_Client) IsOrganizationMemeber(user, organization string) (bool, error) {
 	rqst := &resourcepb.IsOrgnanizationMemberRqst{
 		AccountId:      user,
 		OrganizationId: organization,
 	}
 
-	rsp, err := resource_client.c.IsOrgnanizationMember(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.IsOrgnanizationMember(client.GetCtx(), rqst)
 
 	if err != nil {
 		return false, err
@@ -341,7 +351,7 @@ func (resource_client *Resource_Client) IsOrganizationMemeber(user, organization
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a new Account.
-func (resource_client *Resource_Client) RegisterAccount(name string, email string, password string, confirmation_password string) error {
+func (client *Resource_Client) RegisterAccount(name string, email string, password string, confirmation_password string) error {
 	rqst := &resourcepb.RegisterAccountRqst{
 		Account: &resourcepb.Account{
 			Name:     name,
@@ -351,16 +361,16 @@ func (resource_client *Resource_Client) RegisterAccount(name string, email strin
 		ConfirmPassword: confirmation_password,
 	}
 
-	_, err := resource_client.c.RegisterAccount(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RegisterAccount(client.GetCtx(), rqst)
 	return err
 }
 
 // Get account with a given id/name
-func (resource_client *Resource_Client) GetAccount(id string) (*resourcepb.Account, error) {
+func (client *Resource_Client) GetAccount(id string) (*resourcepb.Account, error) {
 	rqst := &resourcepb.GetAccountRqst{
 		AccountId: id,
 	}
-	rsp, err := resource_client.c.GetAccount(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetAccount(client.GetCtx(), rqst)
 
 	if err != nil {
 		return nil, err
@@ -370,14 +380,14 @@ func (resource_client *Resource_Client) GetAccount(id string) (*resourcepb.Accou
 }
 
 // Set the new password.
-func (resource_client *Resource_Client) SetAccountPassword(accountId, oldPassword, newPassword string) error {
+func (client *Resource_Client) SetAccountPassword(accountId, oldPassword, newPassword string) error {
 	rqst := &resourcepb.SetAccountPasswordRqst{
 		AccountId:   accountId,
 		OldPassword: oldPassword,
 		NewPassword: newPassword,
 	}
 
-	_, err := resource_client.c.SetAccountPassword(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.SetAccountPassword(client.GetCtx(), rqst)
 
 	if err != nil {
 		return err
@@ -386,24 +396,24 @@ func (resource_client *Resource_Client) SetAccountPassword(accountId, oldPasswor
 }
 
 // Delete an account.
-func (resource_client *Resource_Client) DeleteAccount(id string) error {
+func (client *Resource_Client) DeleteAccount(id string) error {
 	rqst := &resourcepb.DeleteAccountRqst{
 		Id: id,
 	}
 
-	_, err := resource_client.c.DeleteAccount(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.DeleteAccount(client.GetCtx(), rqst)
 	return err
 }
 
 /**
  * Set role to a account
  */
-func (resource_client *Resource_Client) AddAccountRole(accountId string, roleId string) error {
+func (client *Resource_Client) AddAccountRole(accountId string, roleId string) error {
 	rqst := &resourcepb.AddAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
 	}
-	_, err := resource_client.c.AddAccountRole(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.AddAccountRole(client.GetCtx(), rqst)
 
 	return err
 }
@@ -411,12 +421,12 @@ func (resource_client *Resource_Client) AddAccountRole(accountId string, roleId 
 /**
  * Remove role from an account
  */
-func (resource_client *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
+func (client *Resource_Client) RemoveAccountRole(accountId string, roleId string) error {
 	rqst := &resourcepb.RemoveAccountRoleRqst{
 		AccountId: accountId,
 		RoleId:    roleId,
 	}
-	_, err := resource_client.c.RemoveAccountRole(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveAccountRole(client.GetCtx(), rqst)
 
 	return err
 }
@@ -428,11 +438,11 @@ func (resource_client *Resource_Client) RemoveAccountRole(accountId string, role
 /**
  * Return a given session
  */
-func (resource_client *Resource_Client) GetSession(accountId string) (*resourcepb.Session, error) {
+func (client *Resource_Client) GetSession(accountId string) (*resourcepb.Session, error) {
 	rqst := &resourcepb.GetSessionRequest{
 		AccountId: accountId,
 	}
-	rsp, err := resource_client.c.GetSession(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetSession(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -443,10 +453,10 @@ func (resource_client *Resource_Client) GetSession(accountId string) (*resourcep
 /**
  * Return the list of all active sessions on the server.
  */
-func (resource_client *Resource_Client) GetSessions(query string) ([]*resourcepb.Session, error) {
+func (client *Resource_Client) GetSessions(query string) ([]*resourcepb.Session, error) {
 	rqst := &resourcepb.GetSessionsRequest{}
 	rqst.Query = query
-	rsp, err := resource_client.c.GetSessions(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetSessions(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -457,11 +467,11 @@ func (resource_client *Resource_Client) GetSessions(query string) ([]*resourcepb
 /**
  * Remove a session
  */
-func (resource_client *Resource_Client) RemoveSession(accountId string) error {
+func (client *Resource_Client) RemoveSession(accountId string) error {
 	rqst := &resourcepb.RemoveSessionRequest{
 		AccountId: accountId,
 	}
-	_, err := resource_client.c.RemoveSession(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveSession(client.GetCtx(), rqst)
 
 	return err
 }
@@ -469,12 +479,12 @@ func (resource_client *Resource_Client) RemoveSession(accountId string) error {
 /**
  * Update/Create a session.
  */
-func (resource_client *Resource_Client) UpdateSession(session *resourcepb.Session) error {
+func (client *Resource_Client) UpdateSession(session *resourcepb.Session) error {
 	rqst := &resourcepb.UpdateSessionRequest{
 		Session: session,
 	}
 
-	_, err := resource_client.c.UpdateSession(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.UpdateSession(client.GetCtx(), rqst)
 
 	return err
 }
@@ -486,48 +496,48 @@ func (resource_client *Resource_Client) UpdateSession(session *resourcepb.Sessio
 /**
  * Create a new group.
  */
-func (resource_client *Resource_Client) CreateGroup(id string, name string) error {
+func (client *Resource_Client) CreateGroup(id string, name string) error {
 	rqst := new(resourcepb.CreateGroupRqst)
 	g := new(resourcepb.Group)
 	g.Name = name
 	g.Id = id
 	rqst.Group = g
-	ctx := globular.GetClientContext(resource_client)
-	_, err := resource_client.c.CreateGroup(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.CreateGroup(ctx, rqst)
 
 	return err
 }
 
-func (resource_client *Resource_Client) AddGroupMemberAccount(groupId string, accountId string) error {
+func (client *Resource_Client) AddGroupMemberAccount(groupId string, accountId string) error {
 	rqst := new(resourcepb.AddGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
 
-	ctx := globular.GetClientContext(resource_client)
-	_, err := resource_client.c.AddGroupMemberAccount(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.AddGroupMemberAccount(ctx, rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) DeleteGroup(groupId string) error {
+func (client *Resource_Client) DeleteGroup(groupId string) error {
 	rqst := new(resourcepb.DeleteGroupRqst)
 	rqst.Group = groupId
 
-	ctx := globular.GetClientContext(resource_client)
-	_, err := resource_client.c.DeleteGroup(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.DeleteGroup(ctx, rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) RemoveGroupMemberAccount(groupId string, accountId string) error {
+func (client *Resource_Client) RemoveGroupMemberAccount(groupId string, accountId string) error {
 	rqst := new(resourcepb.RemoveGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
 
-	ctx := globular.GetClientContext(resource_client)
-	_, err := resource_client.c.RemoveGroupMemberAccount(ctx, rqst)
+	ctx := client.GetCtx()
+	_, err := client.c.RemoveGroupMemberAccount(ctx, rqst)
 	return err
 }
 
-func (resource_client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error) {
+func (client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, error) {
 
 	// Open the stream...
 	groups := make([]*resourcepb.Group, 0)
@@ -535,7 +545,7 @@ func (resource_client *Resource_Client) GetGroups(query string) ([]*resourcepb.G
 	rqst := new(resourcepb.GetGroupsRqst)
 	rqst.Query = query
 
-	stream, err := resource_client.c.GetGroups(globular.GetClientContext(resource_client), rqst)
+	stream, err := client.c.GetGroups(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -569,23 +579,23 @@ func (resource_client *Resource_Client) GetGroups(query string) ([]*resourcepb.G
 /**
  * Create a new role with given action list.
  */
-func (resource_client *Resource_Client) CreateRole(id string, name string, actions []string) error {
+func (client *Resource_Client) CreateRole(id string, name string, actions []string) error {
 	rqst := new(resourcepb.CreateRoleRqst)
 	role := new(resourcepb.Role)
 	role.Id = id
 	role.Name = name
 	role.Actions = actions
 	rqst.Role = role
-	_, err := resource_client.c.CreateRole(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.CreateRole(client.GetCtx(), rqst)
 
 	return err
 }
 
-func (resource_client *Resource_Client) DeleteRole(name string) error {
+func (client *Resource_Client) DeleteRole(name string) error {
 	rqst := new(resourcepb.DeleteRoleRqst)
 	rqst.RoleId = name
 
-	_, err := resource_client.c.DeleteRole(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.DeleteRole(client.GetCtx(), rqst)
 
 	return err
 }
@@ -593,12 +603,12 @@ func (resource_client *Resource_Client) DeleteRole(name string) error {
 /**
  * Add a action to a given role.
  */
-func (resource_client *Resource_Client) AddRoleActions(roleId string, actions []string) error {
+func (client *Resource_Client) AddRoleActions(roleId string, actions []string) error {
 	rqst := &resourcepb.AddRoleActionsRqst{
 		RoleId:  roleId,
 		Actions: actions,
 	}
-	_, err := resource_client.c.AddRoleActions(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.AddRoleActions(client.GetCtx(), rqst)
 
 	return err
 }
@@ -606,12 +616,12 @@ func (resource_client *Resource_Client) AddRoleActions(roleId string, actions []
 /**
  * Remove action from a given role.
  */
-func (resource_client *Resource_Client) RemoveRoleAction(roleId string, action string) error {
+func (client *Resource_Client) RemoveRoleAction(roleId string, action string) error {
 	rqst := &resourcepb.RemoveRoleActionRqst{
 		RoleId: roleId,
 		Action: action,
 	}
-	_, err := resource_client.c.RemoveRoleAction(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveRoleAction(client.GetCtx(), rqst)
 
 	return err
 }
@@ -619,11 +629,11 @@ func (resource_client *Resource_Client) RemoveRoleAction(roleId string, action s
 /**
  * Remove an action from all roles.
  */
-func (resource_client *Resource_Client) RemoveRolesAction(action string) error {
+func (client *Resource_Client) RemoveRolesAction(action string) error {
 	rqst := &resourcepb.RemoveRolesActionRqst{
 		Action: action,
 	}
-	_, err := resource_client.c.RemoveRolesAction(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveRolesAction(client.GetCtx(), rqst)
 
 	return err
 }
@@ -631,12 +641,12 @@ func (resource_client *Resource_Client) RemoveRolesAction(action string) error {
 /**
  * Remove action from a given application.
  */
-func (resource_client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error) {
+func (client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error) {
 	rqst := &resourcepb.GetRolesRqst{
 		Query: query,
 	}
 
-	stream, err := resource_client.c.GetRoles(globular.GetClientContext(resource_client), rqst)
+	stream, err := client.c.GetRoles(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -665,7 +675,7 @@ func (resource_client *Resource_Client) GetRoles(query string) ([]*resourcepb.Ro
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a peer with a given name and mac address.
-func (resource_client *Resource_Client) RegisterPeer(token, mac, domain, address, key, secret string) (*resourcepb.Peer, string, error) {
+func (client *Resource_Client) RegisterPeer(token, mac, domain, address, key, secret string) (*resourcepb.Peer, string, error) {
 	rqst := &resourcepb.RegisterPeerRqst{
 		Peer: &resourcepb.Peer{
 			Domain:  domain,
@@ -673,10 +683,10 @@ func (resource_client *Resource_Client) RegisterPeer(token, mac, domain, address
 			Address: address,
 		},
 		PublicKey: string(key),
-		Secret: secret,
+		Secret:    secret,
 	}
 
-	ctx := globular.GetClientContext(resource_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		if len(md.Get("token")) != 0 {
@@ -685,7 +695,7 @@ func (resource_client *Resource_Client) RegisterPeer(token, mac, domain, address
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	rsp, err := resource_client.c.RegisterPeer(ctx, rqst)
+	rsp, err := client.c.RegisterPeer(ctx, rqst)
 	if err != nil {
 		log.Println(err)
 		return nil, "", err
@@ -696,14 +706,14 @@ func (resource_client *Resource_Client) RegisterPeer(token, mac, domain, address
 }
 
 // Delete a peer
-func (resource_client *Resource_Client) DeletePeer(token, domain string) error {
+func (client *Resource_Client) DeletePeer(token, domain string) error {
 	rqst := &resourcepb.DeletePeerRqst{
 		Peer: &resourcepb.Peer{
 			Domain: domain,
 		},
 	}
 
-	ctx := globular.GetClientContext(resource_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 
 		md, _ := metadata.FromOutgoingContext(ctx)
@@ -714,20 +724,20 @@ func (resource_client *Resource_Client) DeletePeer(token, domain string) error {
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := resource_client.c.DeletePeer(ctx, rqst)
+	_, err := client.c.DeletePeer(ctx, rqst)
 	return err
 }
 
 /**
  * Add a action to a given peer.
  */
-func (resource_client *Resource_Client) AddPeerActions(token, domain string, actions []string) error {
+func (client *Resource_Client) AddPeerActions(token, domain string, actions []string) error {
 	rqst := &resourcepb.AddPeerActionsRqst{
 		Domain:  domain,
 		Actions: actions,
 	}
 
-	ctx := globular.GetClientContext(resource_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 
 		md, _ := metadata.FromOutgoingContext(ctx)
@@ -737,7 +747,7 @@ func (resource_client *Resource_Client) AddPeerActions(token, domain string, act
 		}
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	_, err := resource_client.c.AddPeerActions(ctx, rqst)
+	_, err := client.c.AddPeerActions(ctx, rqst)
 
 	return err
 }
@@ -745,13 +755,13 @@ func (resource_client *Resource_Client) AddPeerActions(token, domain string, act
 /**
  * Remove action from a given peer.
  */
-func (resource_client *Resource_Client) RemovePeerAction(token, domain, action string) error {
+func (client *Resource_Client) RemovePeerAction(token, domain, action string) error {
 	rqst := &resourcepb.RemovePeerActionRqst{
 		Domain: domain,
 		Action: action,
 	}
 
-	ctx := globular.GetClientContext(resource_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 
 		md, _ := metadata.FromOutgoingContext(ctx)
@@ -762,7 +772,7 @@ func (resource_client *Resource_Client) RemovePeerAction(token, domain, action s
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := resource_client.c.RemovePeerAction(ctx, rqst)
+	_, err := client.c.RemovePeerAction(ctx, rqst)
 
 	return err
 }
@@ -770,12 +780,12 @@ func (resource_client *Resource_Client) RemovePeerAction(token, domain, action s
 /**
  * Remove action from all peer's.
  */
-func (resource_client *Resource_Client) RemovePeersAction(token, action string) error {
+func (client *Resource_Client) RemovePeersAction(token, action string) error {
 	rqst := &resourcepb.RemovePeersActionRqst{
 		Action: action,
 	}
 
-	ctx := globular.GetClientContext(resource_client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 
 		md, _ := metadata.FromOutgoingContext(ctx)
@@ -786,7 +796,7 @@ func (resource_client *Resource_Client) RemovePeersAction(token, action string) 
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	_, err := resource_client.c.RemovePeersAction(ctx, rqst)
+	_, err := client.c.RemovePeersAction(ctx, rqst)
 
 	return err
 }
@@ -794,12 +804,12 @@ func (resource_client *Resource_Client) RemovePeersAction(token, action string) 
 /**
  * Remove action from a given application.
  */
-func (resource_client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error) {
+func (client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error) {
 	rqst := &resourcepb.GetPeersRqst{
 		Query: query,
 	}
 
-	stream, err := resource_client.c.GetPeers(globular.GetClientContext(resource_client), rqst)
+	stream, err := client.c.GetPeers(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -829,12 +839,12 @@ func (resource_client *Resource_Client) GetPeers(query string) ([]*resourcepb.Pe
 /**
  * Add a action to a given application.
  */
-func (resource_client *Resource_Client) AddApplicationActions(applicationId string, actions []string) error {
+func (client *Resource_Client) AddApplicationActions(applicationId string, actions []string) error {
 	rqst := &resourcepb.AddApplicationActionsRqst{
 		ApplicationId: applicationId,
 		Actions:       actions,
 	}
-	_, err := resource_client.c.AddApplicationActions(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.AddApplicationActions(client.GetCtx(), rqst)
 
 	return err
 }
@@ -842,12 +852,12 @@ func (resource_client *Resource_Client) AddApplicationActions(applicationId stri
 /**
  * Remove action from a given application.
  */
-func (resource_client *Resource_Client) RemoveApplicationAction(applicationId string, action string) error {
+func (client *Resource_Client) RemoveApplicationAction(applicationId string, action string) error {
 	rqst := &resourcepb.RemoveApplicationActionRqst{
 		ApplicationId: applicationId,
 		Action:        action,
 	}
-	_, err := resource_client.c.RemoveApplicationAction(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveApplicationAction(client.GetCtx(), rqst)
 
 	return err
 }
@@ -855,11 +865,11 @@ func (resource_client *Resource_Client) RemoveApplicationAction(applicationId st
 /**
  * Remove action from a given application.
  */
-func (resource_client *Resource_Client) RemoveApplicationsAction(action string) error {
+func (client *Resource_Client) RemoveApplicationsAction(action string) error {
 	rqst := &resourcepb.RemoveApplicationsActionRqst{
 		Action: action,
 	}
-	_, err := resource_client.c.RemoveApplicationsAction(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.RemoveApplicationsAction(client.GetCtx(), rqst)
 
 	return err
 }
@@ -867,12 +877,12 @@ func (resource_client *Resource_Client) RemoveApplicationsAction(action string) 
 /**
  * Retreive applications...
  */
-func (resource_client *Resource_Client) GetApplications(query string) ([]*resourcepb.Application, error) {
+func (client *Resource_Client) GetApplications(query string) ([]*resourcepb.Application, error) {
 	rqst := &resourcepb.GetApplicationsRqst{
 		Query: query,
 	}
 
-	stream, err := resource_client.c.GetApplications(globular.GetClientContext(resource_client), rqst)
+	stream, err := client.c.GetApplications(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -899,12 +909,12 @@ func (resource_client *Resource_Client) GetApplications(query string) ([]*resour
 /**
  * Delete a given application
  */
-func (resource_client *Resource_Client) DeleteApplication(id string) error {
+func (client *Resource_Client) DeleteApplication(id string) error {
 	rqst := &resourcepb.DeleteApplicationRqst{
 		ApplicationId: id,
 	}
 
-	_, err := resource_client.c.DeleteApplication(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.DeleteApplication(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -915,7 +925,7 @@ func (resource_client *Resource_Client) DeleteApplication(id string) error {
 /**
  * Create an application descriptor...
  */
-func (resource_client *Resource_Client) CreateApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (client *Resource_Client) CreateApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
 	rqst := &resourcepb.CreateApplicationRqst{
 		Application: &resourcepb.Application{
 			Id:          id,
@@ -930,7 +940,7 @@ func (resource_client *Resource_Client) CreateApplication(id, password, path, pu
 		},
 	}
 
-	_, err := resource_client.c.CreateApplication(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.CreateApplication(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -941,13 +951,13 @@ func (resource_client *Resource_Client) CreateApplication(id, password, path, pu
 /**
  * Return the applicaiton version.
  */
-func (resource_client *Resource_Client) GetApplicationVersion(id string) (string, error) {
+func (client *Resource_Client) GetApplicationVersion(id string) (string, error) {
 
 	rqst := &resourcepb.GetApplicationVersionRqst{
 		Id: id,
 	}
 
-	rsp, err := resource_client.c.GetApplicationVersion(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetApplicationVersion(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -958,13 +968,13 @@ func (resource_client *Resource_Client) GetApplicationVersion(id string) (string
 /**
  * Return the applicaiton icon.
  */
-func (resource_client *Resource_Client) GetApplicationIcon(id string) (string, error) {
+func (client *Resource_Client) GetApplicationIcon(id string) (string, error) {
 
 	rqst := &resourcepb.GetApplicationIconRqst{
 		Id: id,
 	}
 
-	rsp, err := resource_client.c.GetApplicationIcon(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetApplicationIcon(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -975,13 +985,13 @@ func (resource_client *Resource_Client) GetApplicationIcon(id string) (string, e
 /**
  * Return the applicaiton icon.
  */
-func (resource_client *Resource_Client) GetApplicationAlias(id string) (string, error) {
+func (client *Resource_Client) GetApplicationAlias(id string) (string, error) {
 
 	rqst := &resourcepb.GetApplicationAliasRqst{
 		Id: id,
 	}
 
-	rsp, err := resource_client.c.GetApplicationAlias(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetApplicationAlias(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -993,13 +1003,13 @@ func (resource_client *Resource_Client) GetApplicationAlias(id string) (string, 
 // Package
 ////////////////////////////////////////////////////////////////////////////////
 
-func (resource_client *Resource_Client) GetPackageDescriptor(pacakageId, publisherId, version string) (*resourcepb.PackageDescriptor, error) {
+func (client *Resource_Client) GetPackageDescriptor(pacakageId, publisherId, version string) (*resourcepb.PackageDescriptor, error) {
 	rqst := &resourcepb.GetPackageDescriptorRequest{
 		ServiceId:   pacakageId,
 		PublisherId: publisherId,
 	}
 
-	rsp, err := resource_client.c.GetPackageDescriptor(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetPackageDescriptor(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -1019,12 +1029,12 @@ func (resource_client *Resource_Client) GetPackageDescriptor(pacakageId, publish
 /**
  * Return the package checksum.
  */
-func (resource_client *Resource_Client) GetPackageBundleChecksum(id string) (string, error) {
+func (client *Resource_Client) GetPackageBundleChecksum(id string) (string, error) {
 	rqst := &resourcepb.GetPackageBundleChecksumRequest{
 		Id: id,
 	}
 
-	rsp, err := resource_client.c.GetPackageBundleChecksum(globular.GetClientContext(resource_client), rqst)
+	rsp, err := client.c.GetPackageBundleChecksum(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -1035,18 +1045,18 @@ func (resource_client *Resource_Client) GetPackageBundleChecksum(id string) (str
 /**
  * Set package bundle information.
  */
-func (resource_client *Resource_Client) SetPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
+func (client *Resource_Client) SetPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
 	rqst := &resourcepb.SetPackageBundleRequest{
 		Bundle: &resourcepb.PackageBundle{
 			PackageDescriptor: descriptor,
-			Checksum:    checksum,
-			Plaform:     platform,
-			Size:        size,
-			Modified:    modified,
+			Checksum:          checksum,
+			Plaform:           platform,
+			Size:              size,
+			Modified:          modified,
 		},
 	}
 
-	_, err := resource_client.c.SetPackageBundle(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.SetPackageBundle(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -1054,11 +1064,11 @@ func (resource_client *Resource_Client) SetPackageBundle(checksum, platform stri
 	return nil
 }
 
-func (resource_client *Resource_Client) CreateNotification(notification *resourcepb.Notification) error {
+func (client *Resource_Client) CreateNotification(notification *resourcepb.Notification) error {
 	rqst := &resourcepb.CreateNotificationRqst{}
 	rqst.Notification = notification
 
-	_, err := resource_client.c.CreateNotification(globular.GetClientContext(resource_client), rqst)
+	_, err := client.c.CreateNotification(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}

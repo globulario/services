@@ -45,6 +45,9 @@ type Log_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -70,9 +73,16 @@ func NewLogService_Client(address string, id string) (*Log_Client, error) {
 
 func (client *Log_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(client)
+		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Log_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the ipv4 address
@@ -174,9 +184,9 @@ func (client *Log_Client) SetCaFile(caFile string) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Append a new log information.
-func (client *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string, fileLine string, functionName string ) error {
+func (client *Log_Client) Log(application string, user string, method string, level logpb.LogLevel, message string, fileLine string, functionName string) error {
 	// do not log itself.
-	if method == "/log.LogService/Log"{
+	if method == "/log.LogService/Log" {
 		return errors.New("recursive function call cycle")
 	}
 
@@ -196,7 +206,7 @@ func (client *Log_Client) Log(application string, user string, method string, le
 
 	rqst.Info = info
 
-	_, err := client.c.Log(globular.GetClientContext(client), rqst)
+	_, err := client.c.Log(client.GetCtx(), rqst)
 
 	log.Println(application, user, method, level, message)
 
@@ -211,7 +221,7 @@ func (client *Log_Client) GetLog(query string) ([]*logpb.LogInfo, error) {
 		Query: query,
 	}
 
-	stream, err := client.c.GetLog(globular.GetClientContext(client), rqst)
+	stream, err := client.c.GetLog(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +254,7 @@ func (client *Log_Client) DeleteLog(info *logpb.LogInfo) error {
 		Log: info,
 	}
 
-	_, err := client.c.DeleteLog(globular.GetClientContext(client), rqst)
+	_, err := client.c.DeleteLog(client.GetCtx(), rqst)
 
 	return err
 }
@@ -257,7 +267,7 @@ func (client *Log_Client) ClearLog(query string) error {
 		Query: query,
 	}
 
-	_, err := client.c.ClearAllLog(globular.GetClientContext(client), rqst)
+	_, err := client.c.ClearAllLog(client.GetCtx(), rqst)
 
 	return err
 }

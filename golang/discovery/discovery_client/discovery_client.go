@@ -51,6 +51,9 @@ type Dicovery_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -73,9 +76,16 @@ func NewDiscoveryService_Client(address string, id string) (*Dicovery_Client, er
 
 func (client *Dicovery_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(client)
+		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Dicovery_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -231,7 +241,7 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 		rqst.Platform = platform
 
 		// Set the token into the context and send the request.
-		ctx := globular.GetClientContext(Services_Manager_Client)
+		ctx := Services_Manager_Client.GetCtx()
 		if len(token) > 0 {
 			md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -271,10 +281,10 @@ func (client *Dicovery_Client) PublishApplication(user, organization, path, name
 		Keywords:     keywords,
 		Roles:        roles,
 		Path:         path,
-		Groups: 	  groups,
+		Groups:       groups,
 	}
 
-	_, err := client.c.PublishApplication(globular.GetClientContext(client), rqst)
+	_, err := client.c.PublishApplication(client.GetCtx(), rqst)
 
 	return err
 }

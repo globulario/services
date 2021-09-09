@@ -1,11 +1,12 @@
 package service_manager_client
 
 import (
-	"strconv"
 	"context"
+	"strconv"
+
 	//"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -44,6 +45,9 @@ type Services_Manager_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -64,9 +68,16 @@ func NewServicesManagerService_Client(address string, id string) (*Services_Mana
 
 func (client *Services_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(client)
+		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Services_Manager_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -92,7 +103,6 @@ func (client *Services_Manager_Client) GetName() string {
 func (client *Services_Manager_Client) GetMac() string {
 	return client.mac
 }
-
 
 // must be close when no more needed.
 func (client *Services_Manager_Client) Close() {
@@ -170,13 +180,13 @@ func (client *Services_Manager_Client) SetCaFile(caFile string) {
 /**
  * Intall a new service or update an existing one.
  */
- func (client *Services_Manager_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
+func (client *Services_Manager_Client) InstallService(token string, domain string, user string, discoveryId string, publisherId string, serviceId string) error {
 
 	rqst := new(services_managerpb.InstallServiceRequest)
 	rqst.DicorveryId = discoveryId
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
-	ctx := globular.GetClientContext(client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		if len(md.Get("token")) != 0 {
@@ -199,7 +209,7 @@ func (client *Services_Manager_Client) UninstallService(token string, domain str
 	rqst.PublisherId = publisherId
 	rqst.ServiceId = serviceId
 	rqst.Version = version
-	ctx := globular.GetClientContext(client)
+	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 
@@ -217,7 +227,7 @@ func (client *Services_Manager_Client) UninstallService(token string, domain str
 func (client *Services_Manager_Client) StartServiceInstance(id string) (int, int, error) {
 	rqst := new(services_managerpb.StartServiceInstanceRequest)
 	rqst.ServiceId = id
-	rsp, err := client.c.StartServiceInstance(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.StartServiceInstance(client.GetCtx(), rqst)
 	if err != nil {
 		return -1, -1, err
 	}
@@ -228,7 +238,7 @@ func (client *Services_Manager_Client) StartServiceInstance(id string) (int, int
 func (client *Services_Manager_Client) StopServiceInstance(id string) error {
 	rqst := new(services_managerpb.StopServiceInstanceRequest)
 	rqst.ServiceId = id
-	_, err := client.c.StopServiceInstance(globular.GetClientContext(client), rqst)
+	_, err := client.c.StopServiceInstance(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -239,7 +249,7 @@ func (client *Services_Manager_Client) StopServiceInstance(id string) error {
 func (client *Services_Manager_Client) RestartAllServices() error {
 	rqst := new(services_managerpb.RestartAllServicesRequest)
 
-	_, err := client.c.RestartAllServices(globular.GetClientContext(client), rqst)
+	_, err := client.c.RestartAllServices(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}

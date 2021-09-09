@@ -51,6 +51,9 @@ type Authentication_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -71,9 +74,16 @@ func NewAuthenticationService_Client(address string, id string) (*Authentication
 
 func (client *Authentication_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(client)
+		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Authentication_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -100,7 +110,6 @@ func (client *Authentication_Client) GetMac() string {
 	return client.mac
 }
 
-
 // must be close when no more needed.
 func (client *Authentication_Client) Close() {
 	client.cc.Close()
@@ -124,7 +133,6 @@ func (client *Authentication_Client) SetName(name string) {
 func (client *Authentication_Client) SetMac(mac string) {
 	client.mac = mac
 }
-
 
 // Set the domain.
 func (client *Authentication_Client) SetDomain(domain string) {
@@ -182,9 +190,9 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 	err := Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
 		log.Println("fail to create dir ", tokensPath, " with error ", err)
-		return "",  err
+		return "", err
 	}
-	
+
 	path := tokensPath + "/" + client.GetDomain() + "_token"
 
 	rqst := &authenticationpb.AuthenticateRqst{
@@ -192,9 +200,9 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 		Password: password,
 	}
 
-	log.Println("Authenticate", name," on domain ", client.GetDomain() )
+	log.Println("Authenticate", name, " on domain ", client.GetDomain())
 
-	rsp, err := client.c.Authenticate(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.Authenticate(client.GetCtx(), rqst)
 	if err != nil {
 		log.Println("fail to authenticate!")
 		return "", err
@@ -227,7 +235,7 @@ func (client *Authentication_Client) RefreshToken(token string) (string, error) 
 	rqst := new(authenticationpb.RefreshTokenRqst)
 	rqst.Token = token
 
-	rsp, err := client.c.RefreshToken(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.RefreshToken(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -245,7 +253,7 @@ func (client *Authentication_Client) SetPassword(user, old_password, new_passwor
 	rqst.NewPassword = new_password
 	rqst.AccountId = user
 
-	rsp, err := client.c.SetPassword(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.SetPassword(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -259,7 +267,7 @@ func (client *Authentication_Client) SetRootPassword(old_password, new_password 
 	rqst.OldPassword = old_password
 	rqst.NewPassword = new_password
 
-	rsp, err := client.c.SetRootPassword(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.SetRootPassword(client.GetCtx(), rqst)
 	if err != nil {
 		return "", err
 	}
@@ -276,7 +284,7 @@ func (client *Authentication_Client) SetRootEmail(oldEmail, newEmail string) err
 	rqst.NewEmail = newEmail
 	rqst.OldEmail = oldEmail
 
-	_, err := client.c.SetRootEmail(globular.GetClientContext(client), rqst)
+	_, err := client.c.SetRootEmail(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}
@@ -292,7 +300,7 @@ func (client *Authentication_Client) ValidateToken(token string) error {
 
 	rqst.Token = token
 
-	_, err := client.c.ValidateToken(globular.GetClientContext(client), rqst)
+	_, err := client.c.ValidateToken(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}

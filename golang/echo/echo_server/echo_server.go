@@ -13,7 +13,7 @@ import (
 	"github.com/globulario/services/golang/echo/echo_client"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/interceptors"
+	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	
@@ -318,7 +318,7 @@ func (svr *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, interceptors.ServerUnaryInterceptor, interceptors.ServerStreamInterceptor)
+	svr.grpcServer, err = globular.InitGrpcServer(svr, /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/ nil, nil)
 	if err != nil {
 		return err
 	}

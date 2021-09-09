@@ -25,8 +25,8 @@ namespace Echo
             System.Console.WriteLine("Create new EchoServiceImpl");
 
             // Here I will set the default values.
-            this.Port = 10051; // The default port value
-            this.Proxy = 10052; // The reverse proxy port
+            this.Port = 10001; // The default port value
+            this.Proxy = 8080; // The reverse proxy port
             this.Id =  Guid.NewGuid().ToString(); // The service instance id.
             this.Name = "echo.EchoService"; // The service name
             this.Version = "0.0.1";

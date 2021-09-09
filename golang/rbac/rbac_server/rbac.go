@@ -996,7 +996,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 						groupId := account.Groups[i]
 						_, accessDenied_, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
 						if accessDenied_ {
-							return false, true, errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path )
+							return false, true, errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
 						}
 					}
 				}
@@ -1259,19 +1259,19 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 
 	var actions []string
-	if strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService"){
+	if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") {
 		return true, nil
 	}
 
 	// Validate the access for a given suject...
 	hasAccess := false
-	
+
 	// So first of all I will validate the actions itself...
 	if subjectType == rbacpb.SubjectType_APPLICATION {
 		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for application "+subject)
 		application, err := rbac_server.getApplication(subject)
 		if err != nil {
-			rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application " + subject + " from the resource...")
+			rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application "+subject+" from the resource...")
 			return false, err
 		}
 		actions = application.Actions
@@ -1336,8 +1336,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		return true, nil
 	}
 
-
-
 	// Now I will validate the resource access.
 	// infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)
@@ -1353,14 +1351,14 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 					err := errors.New("subject " + subject + " can call the method '" + action + "' but has not the permission to " + resources[i].Permission + " resource '" + resources[i].Path + "'")
 					return false, err
 				} else if hasAccess {
-					
-					rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject " + subject + " can call the method '" + action + "' and has permission to " + resources[i].Permission + " resource '" + resources[i].Path + "'")
+
+					rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action+"' and has permission to "+resources[i].Permission+" resource '"+resources[i].Path+"'")
 					return true, nil
 				}
 			}
 		}
 	}
-	rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(),"subject " + subject + " can call the method '" + action);
+	rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action)
 	return true, nil
 }
 

@@ -20,20 +20,9 @@ namespace Globular
         public int ConfigurationPort { get; set; }
         public int PortHttp { get; set; }
         public int PortHttps { get; set; }
-        public int AdminPort { get; set; }
         public string AdminEmail { get; set; }
-        public int ResourcePort { get; set; }
-        public int RbacPort {get; set;}
-        public int PackagesDiscoveryPort { get; set; }
-        public int PackagesRepositoryPort { get; set; }
-        public int CertificateAuthorityPort { get; set; }
-        public int LoadBalancingServicePort { get; set; }
         public int SessionTimeout { get; set; }
         public int CertExpirationDelay { get; set; }
-        public int IdleTimeout { get; set; }
-
-        public string[] Discoveries { get; set; }
-        public string[] DNS { get; set; }
 
         // The map of service object.
         public Dictionary<string, ServiceConfig> Services { get; set; }
@@ -55,6 +44,8 @@ namespace Globular
         public string Proto { get; set; }
         public int Port { get; set; }
         public bool TLS { get; set; }
+        public int Process { get; set; }
+        public string LastError { get; set; }
     }
 
     public class Client
@@ -189,7 +180,7 @@ namespace Globular
             return rsp.Content.ReadAsStringAsync().Result;
         }
 
-
+        // Get the SAN configuration.
         private string getSanConfiguration(string domain, int ConfigurationPort)
         {
             // Get the configuration from the globular server.
@@ -389,6 +380,7 @@ namespace Globular
 
         private void init(string id, string address = "localhost:80")
         {
+            
             // Get the configuration from the globular server.
             var client = new HttpClient();
             string rqst = "http://" + address + "/config";
@@ -400,8 +392,16 @@ namespace Globular
                 throw new System.InvalidOperationException("Fail to get client configuration " + rqst);
             }
 
-            // The default configuration port will be 80
-            var configurationPort = 80;
+            // I will read the configuration from the local config.
+            string programFiles = Environment.ExpandEnvironmentVariables("%ProgramW6432%");
+            string configFile = programFiles + "/globular/config/config.json";
+            var jsonStr = File.ReadAllText(configFile);
+
+            var serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
+
+            // The default configuration port will be local
+            var configurationPort = serverConfig.PortHttp;
+
             this.domain = address;
             if(address.IndexOf(":") != -1){
                 this.domain = address.Substring(0, address.IndexOf(":"));
@@ -409,7 +409,8 @@ namespace Globular
             }
 
             // Here I will parse the JSON object and initialyse values from it...
-            var serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
+            serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
+
             ServiceConfig config = null;
             if (!serverConfig.Services.ContainsKey(id))
             {
@@ -438,10 +439,15 @@ namespace Globular
             this.id = config.Id;
             this.name = config.Name;
 
+            // Write line 
+            System.Console.WriteLine("-----------------> client " + this.name + " id " + this.id + " port " + this.port);
+
             // Here I will create grpc connection with the service...
             if (!this.HasTLS())
             {
                 // Non secure connection.
+                System.Console.WriteLine("try to connect to " +this.domain + ":" + this.port);
+
                 this.channel = new Channel(this.domain, this.port, ChannelCredentials.Insecure);
             }
             else

@@ -47,6 +47,9 @@ type Rbac_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -67,9 +70,16 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 
 func (client *Rbac_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(client)
+		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Rbac_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -96,7 +106,6 @@ func (client *Rbac_Client) GetMac() string {
 	return client.mac
 }
 
-
 // must be close when no more needed.
 func (client *Rbac_Client) Close() {
 	client.cc.Close()
@@ -120,7 +129,6 @@ func (client *Rbac_Client) SetName(name string) {
 func (client *Rbac_Client) SetMac(mac string) {
 	client.mac = mac
 }
-
 
 // Set the domain.
 func (client *Rbac_Client) SetDomain(domain string) {
@@ -178,7 +186,7 @@ func (client *Rbac_Client) SetResourcePermissions(path string, permissions *rbac
 		Permissions: permissions,
 	}
 
-	_, err := client.c.SetResourcePermissions(globular.GetClientContext(client), rqst)
+	_, err := client.c.SetResourcePermissions(client.GetCtx(), rqst)
 	return err
 
 }
@@ -191,7 +199,7 @@ func (client *Rbac_Client) GetResourcePermission(path string, permissionName str
 		Path: path,
 	}
 
-	rsp, err := client.c.GetResourcePermission(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.GetResourcePermission(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +212,7 @@ func (client *Rbac_Client) GetResourcePermissions(path string) (*rbacpb.Permissi
 		Path: path,
 	}
 
-	rsp, err := client.c.GetResourcePermissions(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.GetResourcePermissions(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +225,7 @@ func (client *Rbac_Client) DeleteResourcePermissions(path string) error {
 		Path: path,
 	}
 
-	_, err := client.c.DeleteResourcePermissions(globular.GetClientContext(client), rqst)
+	_, err := client.c.DeleteResourcePermissions(client.GetCtx(), rqst)
 	return err
 }
 
@@ -229,7 +237,7 @@ func (client *Rbac_Client) DeleteResourcePermission(path string, permissionName 
 		Path: path,
 	}
 
-	_, err := client.c.DeleteResourcePermission(globular.GetClientContext(client), rqst)
+	_, err := client.c.DeleteResourcePermission(client.GetCtx(), rqst)
 	return err
 }
 
@@ -241,7 +249,7 @@ func (client *Rbac_Client) SetResourcePermission(path string, permission *rbacpb
 		Path:       path,
 	}
 
-	_, err := client.c.SetResourcePermission(globular.GetClientContext(client), rqst)
+	_, err := client.c.SetResourcePermission(client.GetCtx(), rqst)
 	return err
 }
 
@@ -253,7 +261,7 @@ func (client *Rbac_Client) AddResourceOwner(path string, owner string, subjectTy
 		Path:    path,
 	}
 
-	_, err := client.c.AddResourceOwner(globular.GetClientContext(client), rqst)
+	_, err := client.c.AddResourceOwner(client.GetCtx(), rqst)
 	return err
 
 }
@@ -266,7 +274,7 @@ func (client *Rbac_Client) RemoveResourceOwner(path string, owner string, subjec
 		Type:    subjectType,
 	}
 
-	_, err := client.c.RemoveResourceOwner(globular.GetClientContext(client), rqst)
+	_, err := client.c.RemoveResourceOwner(client.GetCtx(), rqst)
 	return err
 }
 
@@ -277,7 +285,7 @@ func (client *Rbac_Client) DeleteAllAccess(subject string, subjectType rbacpb.Su
 		Type:    subjectType,
 	}
 
-	_, err := client.c.DeleteAllAccess(globular.GetClientContext(client), rqst)
+	_, err := client.c.DeleteAllAccess(client.GetCtx(), rqst)
 	return err
 
 }
@@ -292,7 +300,7 @@ func (client *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.Sub
 		Permission: permission,
 	}
 
-	rsp, err := client.c.ValidateAccess(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.ValidateAccess(client.GetCtx(), rqst)
 	if err != nil {
 		return false, false, err
 	}
@@ -311,7 +319,7 @@ func (client *Rbac_Client) ValidateAction(action string, subject string, subject
 		Infos:   resources,
 	}
 
-	rsp, err := client.c.ValidateAction(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.ValidateAction(client.GetCtx(), rqst)
 	if err != nil {
 		return false, err
 	}
@@ -328,7 +336,7 @@ func (client *Rbac_Client) GetActionResourceInfos(action string) ([]*rbacpb.Reso
 		Action: action,
 	}
 
-	rsp, err := client.c.GetActionResourceInfos(globular.GetClientContext(client), rqst)
+	rsp, err := client.c.GetActionResourceInfos(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +353,7 @@ func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]
 		Permissions: permissions_,
 	}
 
-	_, err = client.c.SetActionResourcesPermissions(globular.GetClientContext(client), rqst)
+	_, err = client.c.SetActionResourcesPermissions(client.GetCtx(), rqst)
 	if err != nil {
 		return err
 	}

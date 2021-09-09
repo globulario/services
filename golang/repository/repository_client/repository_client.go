@@ -31,7 +31,7 @@ import (
 
 type Repository_Service_Client struct {
 	cc *grpc.ClientConn
-	c  repositorypb.PackageRepositoryClient;
+	c  repositorypb.PackageRepositoryClient
 
 	// The id of the service
 	id string
@@ -59,6 +59,9 @@ type Repository_Service_Client struct {
 
 	// certificate authority file
 	caFile string
+
+	// The client context
+	ctx context.Context
 }
 
 // Create a connection to the service.
@@ -79,9 +82,16 @@ func NewRepositoryService_Client(address string, id string) (*Repository_Service
 
 func (client *Repository_Service_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
-		ctx = globular.GetClientContext(client)
+		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
+}
+
+func (client *Repository_Service_Client) GetCtx() context.Context {
+	if client.ctx == nil {
+		client.ctx = globular.GetClientContext(client)
+	}
+	return client.ctx
 }
 
 // Return the domain
@@ -184,14 +194,14 @@ func (client *Repository_Service_Client) SetCaFile(caFile string) {
 /**
  * Download bundle from a repository and return it as an object in memory.
  */
- func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.PackageDescriptor, platform string) (*resourcepb.PackageBundle, error) {
+func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.PackageDescriptor, platform string) (*resourcepb.PackageBundle, error) {
 
 	rqst := &repositorypb.DownloadBundleRequest{
 		Descriptor_: descriptor,
 		Plaform:     platform,
 	}
 
-	stream, err := client.c.DownloadBundle(globular.GetClientContext(client), rqst)
+	stream, err := client.c.DownloadBundle(client.GetCtx(), rqst)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +254,7 @@ func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, pu
 	if err != nil {
 		return err
 	}
-	
+
 	bundle.PackageDescriptor = descriptor
 	if !Utility.Exists(packagePath) {
 		return errors.New("No package found at path " + packagePath)
@@ -265,7 +275,7 @@ func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, pu
 func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBundle) error {
 
 	// Open the stream...
-	stream, err := client.c.UploadBundle(globular.GetClientContext(client))
+	stream, err := client.c.UploadBundle(client.GetCtx())
 	if err != nil {
 		return err
 	}
@@ -305,12 +315,12 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 /**
  * Create and Upload the service archive on the server.
  */
- func (client *Repository_Service_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) error {
+func (client *Repository_Service_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) error {
 
 	// Here I will try to read the service configuation from the path.
 	configs, _ := Utility.FindFileByName(path, "config.json")
 	if len(configs) == 0 {
-		return  errors.New("no configuration file was found")
+		return errors.New("no configuration file was found")
 	}
 
 	// Find proto by name
@@ -373,7 +383,7 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 
 	packagePath, err := client.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	// Remove the file when it's transfer on the server...
@@ -382,7 +392,7 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 	// Read the package data.
 	packageFile, err := os.Open(packagePath)
 	if err != nil {
-		return  err
+		return err
 	}
 	defer packageFile.Close()
 
@@ -405,7 +415,7 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 		}
 
 		rqst := &repositorypb.UploadBundleRequest{
-			Data:         part[:count],
+			Data: part[:count],
 		}
 
 		// send the data to the server.
@@ -417,7 +427,7 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 			break
 		} else if err != nil {
 
-			return  err
+			return err
 		}
 
 	}
@@ -461,4 +471,3 @@ func (client *Repository_Service_Client) createServicePackage(publisherId string
 	}
 	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil
 }
-

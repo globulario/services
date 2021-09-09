@@ -9,7 +9,7 @@ import (
 
 var (
 	// Connect to the plc client.
-	client, _ = NewAuthenticationService_Client("localhost", /*"authentication.AuthenticationService"*/ "133e2815-1ef6-489e-82ea-e3c7d3b7d5ab")
+	client, _ = NewAuthenticationService_Client("localhost", "authentication.AuthenticationService")
 )
 
 func BenchmarkAuthenticate(b *testing.B) {
