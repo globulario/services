@@ -11,9 +11,9 @@ import (
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
-	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"google.golang.org/grpc"
@@ -59,9 +59,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
-	ConfigPath string
-	LastError string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
 
 	TLS bool
 
@@ -535,6 +536,7 @@ func main() {
 	s_impl.Dependencies = []string{"resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

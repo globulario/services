@@ -51,6 +51,7 @@ type server struct {
 	Repositories    []string
 	Discoveries     []string
 	Process         int
+	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
 
@@ -559,6 +560,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins

@@ -38,7 +38,7 @@ type server struct {
 	// The global attribute of the services.
 	Id              string
 	Name            string
-	Mac string
+	Mac             string
 	Domain          string
 	Path            string
 	Proto           string
@@ -55,10 +55,11 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
-	ConfigPath string
-	LastError string
-	TLS bool
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
+	TLS             bool
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -394,6 +395,7 @@ func main() {
 	s_impl.Dependencies = []string{"event.EventService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

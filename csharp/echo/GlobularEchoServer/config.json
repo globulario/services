@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
   "AllowAllOrigins": true,
   "AllowedOrigins": "",
@@ -30,3 +31,5 @@
   "Value": "echo value!",
   "Version": "0.0.1"
 }
+=======
+>>>>>>> 8344c8d8891e13a3f27035572afd5c06813fab3e

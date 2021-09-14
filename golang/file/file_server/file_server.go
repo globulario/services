@@ -59,7 +59,7 @@ var (
 type server struct {
 	// The global attribute of the services.
 	Id                 string
-	Mac string
+	Mac                string
 	Name               string
 	Path               string
 	Proto              string
@@ -83,9 +83,10 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
-	Process	int
-	ConfigPath string
-	LastError string
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -666,7 +667,7 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 		err = stream.Send(&filepb.ReadDirResponse{
 			Data: data,
 		})
-		if err != nil{
+		if err != nil {
 			return err
 		}
 	}
@@ -701,7 +702,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			user, _, _,_,  _, err = interceptors.ValidateToken(token)
+			user, _, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -777,7 +778,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _,_,  _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
 			if err != nil {
 				return err
 			}
@@ -1096,6 +1097,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"rbac.RbacService"}
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.

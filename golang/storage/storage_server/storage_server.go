@@ -69,9 +69,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
-	ConfigPath string
-	LastError string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
 
 	// storage_server-signed X.509 public keys for distribution
 	CertFile string
@@ -119,7 +120,7 @@ func (svr *server) GetMac() string {
 }
 
 func (svr *server) SetMac(mac string) {
-	 svr.Mac = mac
+	svr.Mac = mac
 }
 
 // The description of the service
@@ -751,7 +752,8 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Process = -1
-	
+	s_impl.ProxyProcess = -1
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

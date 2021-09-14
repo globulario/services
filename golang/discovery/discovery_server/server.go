@@ -12,13 +12,13 @@ import (
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 
 	//"google.golang.org/grpc/grpclog"
@@ -61,9 +61,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
-	ConfigPath string
-	LastError string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
 
 	TLS bool
 
@@ -108,7 +109,6 @@ func (svr *server) GetMac() string {
 func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
-
 
 // The description of the service
 func (server *server) GetDescription() string {
@@ -441,12 +441,13 @@ func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDes
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 var (
-	log_client_  *log_client.Log_Client
+	log_client_ *log_client.Log_Client
 )
+
 /**
  * Get the log client.
  */
- func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
 		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
@@ -477,7 +478,6 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 
 // Publish a package, the package can contain an application or a services.
 func (server *server) publishPackage(user string, organization string, discovery string, repository string, platform string, path string, descriptor *resourcepb.PackageDescriptor) error {
-
 
 	// Ladies and Gentlemans After one year after tow years services as resource!
 	path_ := descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Id + "/" + descriptor.Version
@@ -552,8 +552,8 @@ func (server *server) publishPackage(user string, organization string, discovery
 	}
 
 	// UploadBundle
-	server.logServiceInfo(Utility.FunctionName(), Utility.FileLine(), "Upload package bundle ", discovery + " " + descriptor.Id + " " + descriptor.PublisherId+ " "  + descriptor.Version + " " + platform+ " "  + path)
-	
+	server.logServiceInfo(Utility.FunctionName(), Utility.FileLine(), "Upload package bundle ", discovery+" "+descriptor.Id+" "+descriptor.PublisherId+" "+descriptor.Version+" "+platform+" "+path)
+
 	// Upload the package bundle to the repository.
 	return services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
 }
@@ -585,6 +585,7 @@ func main() {
 	s_impl.Dependencies = []string{"rbac.RbacService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

@@ -58,7 +58,7 @@ type server struct {
 	// The global attribute of the services.
 	Id                 string
 	Name               string
-	Mac string
+	Mac                string
 	Path               string
 	Proto              string
 	Port               int
@@ -81,9 +81,10 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
-	Process	int
-	ConfigPath string
-	LastError string
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -670,6 +671,7 @@ func main() {
 	s_impl.Connections = make(map[string]connection)
 	s_impl.DbIpV4 = "0.0.0.0:27017" // default mongodb port.
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	s_impl.Password = "adminadmin" // The default password for the admin.
 
 	// Here I will retreive the list of connections from file if there are some...

@@ -63,14 +63,9 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-<<<<<<< HEAD
-	Process int
-	ProxyProcess int
-	LastError string
-=======
 	Process         int
+	ProxyProcess    int
 	LastError       string
->>>>>>> 09138711736a4fb0adaa1b27455d52bc22e0dbd3
 
 	TLS bool
 
@@ -615,6 +610,7 @@ func main() {
 	s_impl.Dependencies = []string{"resource.ResourceService", "rbac.RbacService", "event.EventService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.WatchUpdateDelay = 60 * 60 // validate service version at each hours...
@@ -639,7 +635,7 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	s_impl.Root = strings.ReplaceAll(s_impl.Root, "\\", "/")
-	
+
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
