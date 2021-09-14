@@ -94,9 +94,10 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
-	Process	int
-	ConfigPath string
-	LastError string
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -395,10 +396,9 @@ func (persistence_server *server) StopService() error {
 	return globular.StopService(persistence_server, persistence_server.grpcServer)
 }
 
-
 // Singleton.
 var (
-	log_client_    *log_client.Log_Client
+	log_client_ *log_client.Log_Client
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -437,7 +437,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 ////////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 ////////////////////////////////////////////////////////////////////////////////////////
-func (persistence_server *server) createConnection(ctx context.Context,user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool ) error {
+func (persistence_server *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool) error {
 
 	var c connection
 	var err error
@@ -451,7 +451,7 @@ func (persistence_server *server) createConnection(ctx context.Context,user, pas
 
 		// Set the connection info from the request.
 		c.Id = id
-		c.Name =name
+		c.Name = name
 		c.Host = host
 		c.Port = port
 		c.User = user
@@ -1124,6 +1124,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"log.LogService"}
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

@@ -78,9 +78,10 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
-	Process	int
-	ConfigPath string
-	LastError string
+	Process            int
+	ProxyProcess       int
+	ConfigPath         string
+	LastError          string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -114,7 +115,6 @@ func (svr *server) GetMac() string {
 func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
-
 
 // The description of the service
 func (monitoring_server *server) GetDescription() string {
@@ -876,6 +876,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

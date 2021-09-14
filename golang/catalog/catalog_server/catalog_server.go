@@ -59,9 +59,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
-	ConfigPath string
-	LastError string
+	Process         int
+	ProxyProcess    int
+	ConfigPath      string
+	LastError       string
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -112,7 +113,6 @@ func (svr *server) GetMac() string {
 func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
-
 
 // The description of the service
 func (svr *server) GetDescription() string {
@@ -2439,6 +2439,7 @@ func main() {
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins

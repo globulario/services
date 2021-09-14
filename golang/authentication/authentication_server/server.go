@@ -65,6 +65,7 @@ type server struct {
 	Repositories    []string
 	Discoveries     []string
 	Process         int
+	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
 	TLS bool
@@ -594,7 +595,7 @@ func main() {
 	s_impl.WatchSessionsDelay = 60
 	s_impl.SessionTimeout = 60 * 15 * 1000
 	s_impl.Process = -1
-
+	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.exit_ = make(chan bool)
