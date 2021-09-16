@@ -326,7 +326,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 			// if the attach process in running I will keep the proxy alive.
 			_, err := Utility.GetProcessRunningStatus(servicePid)
 			if err != nil {
-				//StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, servicePid)
+				StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, servicePid)
 			}
 			return
 		}
