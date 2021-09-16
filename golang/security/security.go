@@ -41,7 +41,6 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		err := errors.New("no address was given for service name " + name)
 		return nil, err
 	}
-	
 
 	// In case of local service I will get the service value directly from
 	// the configuration file.
@@ -80,7 +79,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 
 	// No service with name or id was found...
 	if config == nil {
-		return nil, errors.New("No service found whit name " + name + " exist on the server.")
+		return nil, errors.New("No service found with name " + name + " exist on the server.")
 	}
 
 	// Set the config tls...
@@ -149,7 +148,7 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  * Return the server local configuration if one exist.
  */
 
- /*
+/*
 func getLocalConfig() (map[string]interface{}, error) {
 
 	if !Utility.Exists(ConfigPath) {
@@ -185,7 +184,7 @@ func getLocalConfig() (map[string]interface{}, error) {
 /**
  * Return the server local configuration if one exist.
  */
- func getLocalConfig() (map[string]interface{}, error) {
+func getLocalConfig() (map[string]interface{}, error) {
 
 	if !Utility.Exists(ConfigPath) {
 		return nil, errors.New("no local Globular configuration found")
@@ -473,7 +472,7 @@ func GenerateAuthorityPrivateKey(path string, pwd string) error {
 	return nil
 }
 
-// Certificate Authority trust certificate (this should be shared whit users)
+// Certificate Authority trust certificate (this should be shared with users)
 func GenerateAuthorityTrustCertificate(path string, pwd string, expiration_delay int, domain string) error {
 	if Utility.Exists(path + "/ca.crt") {
 		return nil
@@ -982,13 +981,13 @@ func GetLocalKey() ([]byte, error) {
  */
 func GetPeerKey(id string) ([]byte, error) {
 
-	if len(id)== 0 {
+	if len(id) == 0 {
 		return nil, errors.New("no peer id was given to get key")
 	}
 
 	id = strings.ReplaceAll(id, ":", "_")
 
-	if id == strings.ReplaceAll(Utility.MyMacAddr(), ":", "_"){
+	if id == strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") {
 		return GetLocalKey()
 	}
 

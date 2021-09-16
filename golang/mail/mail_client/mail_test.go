@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"testing"
-
-	"github.com/globulario/services/golang/mail/mailpb"
 )
 
 var (
@@ -48,7 +46,7 @@ func TestSendEmail(t *testing.T) {
 }
 
 /**
- * Test send email whit attachements.
+ * Test send email with attachements.
  */
 /*func TestSendEmailWithAttachements(t *testing.T) {
 

@@ -378,7 +378,7 @@ func (client *File_Client) MoveFile(path interface{}, dest interface{}) error {
 }
 
 /**
- * Delete a file whit a given path.
+ * Delete a file with a given path.
  */
 func (client *File_Client) DeleteFile(path string) error {
 

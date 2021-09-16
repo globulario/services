@@ -281,7 +281,7 @@ func sendFile(id string, path string, stream mailpb.MailService_SendEmailWithAtt
 }
 
 /**
- * Test send email whit attachements.
+ * Test send email with attachements.
  */
 func (client *Mail_Client) SendEmailWithAttachements(id string, from string, to []string, cc []*mailpb.CarbonCopy, subject string, body string, bodyType int32, files []string) error {
 

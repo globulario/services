@@ -157,7 +157,7 @@ func (store *LevelDB_store) getItem(key string) ([]byte, error) {
 	return db.Get([]byte(key), nil)
 }
 
-// Remove an item or a range of items whit same path
+// Remove an item or a range of items with same path
 func (store *LevelDB_store) removeItem(key string) error {
 	db, err := store.getDb()
 	if err != nil {

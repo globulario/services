@@ -20,6 +20,7 @@ var (
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
 )
+
 /*
 func TestCreateSaConnection(t *testing.T) {
 
@@ -143,7 +144,7 @@ func TestPersistMany(t *testing.T) {
 
 	err := client.InsertMany(Id, Database, Collection, entities, "")
 	if err != nil {
-		log.Fatalf("Fail to insert many entities whit error %v", err)
+		log.Fatalf("Fail to insert many entities with error %v", err)
 	}
 }
 

@@ -75,17 +75,17 @@ type Store interface {
 	Aggregate(ctx context.Context, connectionId string, database string, collection string, pipeline string, optionsStr string) ([]interface{}, error)
 
 	/**
-	 * Update document that match a given condition whit a given value.
+	 * Update document that match a given condition with a given value.
 	 */
 	Update(ctx context.Context, connectionId string, database string, collection string, query string, value string, options string) error
 
 	/**
-	 * Update document that match a given condition whit a given value.
+	 * Update document that match a given condition with a given value.
 	 */
 	UpdateOne(ctx context.Context, connectionId string, database string, collection string, query string, value string, options string) error
 
 	/**
-	 * Replace one document that match a given condition whit a given value.
+	 * Replace one document that match a given condition with a given value.
 	 */
 	ReplaceOne(ctx context.Context, connectionId string, database string, collection string, query string, value string, options string) error
 
@@ -116,10 +116,10 @@ type Store interface {
 	/**
 	 * Start the data store.
 	 */
-	 Start(user, password string, port int, dataPath string) error;
+	Start(user, password string, port int, dataPath string) error
 
-	 /**
-	  * Stop the server
-	  */
-	 Stop() error;
+	/**
+	 * Stop the server
+	 */
+	Stop() error
 }

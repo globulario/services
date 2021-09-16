@@ -141,7 +141,7 @@ Collection := "Employees"
 
 err := client.InsertMany(Id, Database, Collection, entities, "")
 if err != nil {
-    log.Fatalf("Fail to insert many entities whit error %v", err)
+    log.Fatalf("Fail to insert many entities with error %v", err)
 }
 ```
 
