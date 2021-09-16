@@ -11,9 +11,16 @@ import (
 	"strings"
 	"time"
 
+	"sync"
+
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
 	"github.com/syndtr/goleveldb/leveldb/errors"
+)
+
+// I will keep the service configuation in a sync map.
+var (
+	configs *sync.Map
 )
 
 // Those function are use to get the correct
@@ -23,10 +30,10 @@ func GetRootDir() string {
 
 		if runtime.GOARCH == "386" {
 			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-			return strings.ReplaceAll(programFilePath, "\\", "/")+ "/globular" // "C:/Program Files (x86)/globular"
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular" // "C:/Program Files (x86)/globular"
 		} else {
 			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
-			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular"  // "C:/Program Files/globular"
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular" // "C:/Program Files/globular"
 		}
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/usr/local/share/globular"
@@ -104,99 +111,119 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	services := make([]map[string]interface{}, 0)
 
-	// admin, resource, ca and services.
-	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	
-	if len(serviceDir) == 0 {
-		serviceDir = GetServicesDir()
-	}
-	
-	serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+	if configs == nil {
+		// Create the sync map.
+		configs = new(sync.Map)
 
-	// I will try to get configuration from services.
-	filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {
-		path = strings.ReplaceAll(path, "\\", "/")
-		if info == nil {
-			return nil
+		// I will get the services configuations from the config.json files.
+		serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
+
+		if len(serviceDir) == 0 {
+			serviceDir = GetServicesDir()
 		}
 
-		if err == nil && info.Name() == "config.json" {
-			// So here I will read the content of the file.
-			s := make(map[string]interface{})
-			config, err := ioutil.ReadFile(path)
-			if err == nil {
-				// Read the config file.
-				err := json.Unmarshal(config, &s)
+		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+
+		// I will try to get configuration from services.
+		filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {
+			path = strings.ReplaceAll(path, "\\", "/")
+			if info == nil {
+				return nil
+			}
+
+			if err == nil && info.Name() == "config.json" {
+				// So here I will read the content of the file.
+				s := make(map[string]interface{})
+				config, err := ioutil.ReadFile(path)
 				if err == nil {
-					if s["Protocol"] != nil {
-						// If a configuration file exist It will be use to start services,
-						// otherwise the service configuration file will be use.
-						if s["Name"] != nil {
+					// Read the config file.
+					err := json.Unmarshal(config, &s)
+					if err == nil {
+						if s["Protocol"] != nil {
+							// If a configuration file exist It will be use to start services,
+							// otherwise the service configuration file will be use.
+							if s["Name"] != nil {
 
-							// if no id was given I will generate a uuid.
-							if s["Id"] == nil {
-								s["Id"] = Utility.RandomUUID()
-							}
-
-							// Here I will set the proto file path.
-							if !Utility.Exists(s["Proto"].(string)) {
-								s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
-							}
-
-							// Now the exec path.
-							if !Utility.Exists(s["Path"].(string)) {
-								s["Path"] = path[0:strings.LastIndex(path, "/")] + "/" + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
-							}
-
-							// Keep the configuration path in the object...
-							s["ConfigPath"] = path
-
-							if s["Root"] != nil {
-								if s["Name"] == "file.FileService" {
-									s["Root"] = GetDataDir() + "/files"
-								} else if s["Name"] == "conversation.ConversationService" {
-									s["Root"] = GetDataDir()
+								// if no id was given I will generate a uuid.
+								if s["Id"] == nil {
+									s["Id"] = Utility.RandomUUID()
 								}
-							}
 
-							services = append(services, s)
+								// Here I will set the proto file path.
+								if !Utility.Exists(s["Proto"].(string)) {
+									s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
+								}
+
+								// Now the exec path.
+								if !Utility.Exists(s["Path"].(string)) {
+									s["Path"] = path[0:strings.LastIndex(path, "/")] + "/" + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
+								}
+
+								// Keep the configuration path in the object...
+								s["ConfigPath"] = path
+
+								if s["Root"] != nil {
+									if s["Name"] == "file.FileService" {
+										s["Root"] = GetDataDir() + "/files"
+									} else if s["Name"] == "conversation.ConversationService" {
+										s["Root"] = GetDataDir()
+									}
+								}
+
+								// keep in the sync map.
+								configs.Store(s["Id"].(string), s)
+
+								services = append(services, s)
+							}
 						}
+					} else {
+						log.Println("fail to unmarshal configuration path:", path, err)
 					}
 				} else {
-					log.Println("fail to unmarshal configuration path:", path , err)
+					log.Println("Fail to read config file path:", path, err)
 				}
-			} else {
-				log.Println("Fail to read config file path:", path, err)
 			}
+			return nil
+		})
+
+		// Now I will order the services in a way required service will start first...
+		servicesNames := make([]string, len(services))
+		for i := 0; i < len(services); i++ {
+			servicesNames[i] = services[i]["Name"].(string)
 		}
-		return nil
-	})
 
-	// Now I will order the services in a way required service will start first...
-	servicesNames := make([]string, len(services))
-	for i := 0; i < len(services); i++ {
-		servicesNames[i] = services[i]["Name"].(string)
-	}
+		// Now I will move the services below all it dependencie in the array...
+		for i := 0; i < len(servicesNames); i++ {
+			index := getObjectIndex(servicesNames[i], "Name", services)
+			if services[index]["Dependencies"] != nil {
+				dependencies := services[index]["Dependencies"].([]interface{})
 
-	// Now I will move the services below all it dependencie in the array...
-	for i := 0; i < len(servicesNames); i++ {
-		index := getObjectIndex(servicesNames[i], "Name", services)
-		if services[index]["Dependencies"] != nil {
-			dependencies := services[index]["Dependencies"].([]interface{})
-
-			for j := 0; j < len(dependencies); j++ {
-				index_ := getObjectIndex(dependencies[j].(string), "Name", services)
-				if index_ != -1 {
-					if index < index_ {
-						// move the services in the array...
-						services = moveObject(services, index_, index)
+				for j := 0; j < len(dependencies); j++ {
+					index_ := getObjectIndex(dependencies[j].(string), "Name", services)
+					if index_ != -1 {
+						if index < index_ {
+							// move the services in the array...
+							services = moveObject(services, index_, index)
+						}
 					}
 				}
 			}
 		}
+	} else {
+		// I will get the services from the sync map.
+		configs.Range(func(key, value interface{}) bool {
+			// Here I will create a detach copy of the map...
+			data, _ := json.Marshal(value)
+			s := make(map[string]interface{})
+			json.Unmarshal(data, &s)
+			services = append(services, s)
+			return true
+		})
+
 	}
 	// return the services configuration.
 	return services, nil
+
 }
 
 /**
@@ -242,9 +269,11 @@ func GetServicesConfigurationsById(id string) (map[string]interface{}, error) {
  * Save a service configuration.
  */
 func SaveServiceConfiguration(s map[string]interface{}) error {
+	// set the config in the map.
+	configs.Store(s["Id"].(string), s)
+
 	// Save it config...
 	jsonStr, _ := Utility.ToJson(s)
-
 	return ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
 }
 
