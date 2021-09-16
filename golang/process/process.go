@@ -1,8 +1,10 @@
 package process
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"runtime"
@@ -195,6 +197,8 @@ func StartServiceProcess(serviceId string, portsRange string) error {
 			logInfo(service_config["Name"].(string)+":"+service_config["Id"].(string), service_config["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			stdout.Close()
 			done <- true
+			config.SaveServiceConfiguration(service_config)
+
 			return
 		}
 
@@ -322,11 +326,29 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	// Get the process id...
 	go func() {
 		err = proxyProcess.Wait()
+
+		// Here I will reload the values from the configuration file.
+		if s["ConfigPath"] != nil {
+			path := s["ConfigPath"].(string)
+			// So here I will read value from file...
+			data, err := ioutil.ReadFile(path)
+			if err == nil {
+				// Read the config file.
+				err := json.Unmarshal(data, &s)
+				if err == nil {
+					config.SetServiceConfiguration(s)
+				}
+			}
+		}
+
 		if err != nil {
+			processId := Utility.ToInt(s["Process"])
 			// if the attach process in running I will keep the proxy alive.
-			_, err := Utility.GetProcessRunningStatus(Utility.ToInt(s["Process"]))
-			if err != nil {
-				StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange)
+			if processId != -1 {
+				_, err := Utility.GetProcessRunningStatus(processId)
+				if err != nil {
+					StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange)
+				}
 			}
 			return
 		}
@@ -387,6 +409,19 @@ func ManageServicesProcess(exit chan bool) {
 				// Fist of all I will get all services process...
 				for i := 0; i < len(services); i++ {
 					s := services[i]
+					if s["ConfigPath"] != nil {
+						path := s["ConfigPath"].(string)
+						// So here I will read value from file...
+						data, err := ioutil.ReadFile(path)
+						if err == nil {
+							// Read the config file.
+							err := json.Unmarshal(data, &s)
+							if err == nil {
+								config.SetServiceConfiguration(s)
+							}
+						}
+					}
+
 					if s["Name"] != nil {
 						pid := -1
 						if s["Process"] != nil {

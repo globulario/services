@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -506,9 +505,10 @@ func (server *server) stopService(s map[string]interface{}) error {
 
 	// Save it config...
 	s["State"] = "killed"
+	s["Process"] = -1
+	s["ProxyProcess"] = -1
 
-	jsonStr, _ := Utility.ToJson(s)
-	return ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
+	return config.SaveServiceConfiguration(s)
 }
 
 // uninstall service

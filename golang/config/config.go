@@ -20,6 +20,7 @@ import (
 
 // I will keep the service configuation in a sync map.
 var (
+	// test with a sync map
 	configs *sync.Map
 )
 
@@ -265,15 +266,23 @@ func GetServicesConfigurationsById(id string) (map[string]interface{}, error) {
 	return nil, errors.New("no service found with id " + id)
 }
 
+func SetServiceConfiguration(s map[string]interface{}) {
+	// set the config in the map.
+	configs.Store(s["Id"].(string), s)
+}
+
 /**
  * Save a service configuration.
  */
 func SaveServiceConfiguration(s map[string]interface{}) error {
+
 	// set the config in the map.
-	configs.Store(s["Id"].(string), s)
+	SetServiceConfiguration(s)
 
 	// Save it config...
 	jsonStr, _ := Utility.ToJson(s)
+	//fmt.Println("service configuarion: ", s)
+
 	return ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
 }
 
