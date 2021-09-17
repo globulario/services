@@ -2,6 +2,7 @@
 #There is the command to build all services at once.
 go build -o ./admin/admin_server ./admin/admin_server
 go build -o ./applications_manager/applications_manager_server ./applications_manager/applications_manager_server
+go build -o ./services_manager/services_manager_server ./services_manager/services_manager_server
 go build -o ./authentication/authentication_server ./authentication/authentication_server
 go build -o ./catalog/catalog_server ./catalog/catalog_server
 go build -o ./conversation/conversation_server ./conversation/conversation_server

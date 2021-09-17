@@ -311,7 +311,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	// start the proxy service one time
 	proxyProcess := exec.Command(proxyPath, proxyArgs...)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
 
 	err = proxyProcess.Start()

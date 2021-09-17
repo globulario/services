@@ -299,8 +299,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var result interface{}
 	result, err = handler(ctx, rqst)
 
-	fmt.Print("rsp was sent ", method)
-	
 	// Send log message.
 	if err != nil {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
@@ -439,7 +437,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// Start streaming.
 	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, domain: domain, token: token, application: application, clientId: clientId, peer: issuer})
-	fmt.Print("rsp was sent ", method)
+
 	if err != nil {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 	}
