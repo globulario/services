@@ -211,7 +211,6 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		}
 
 		// Set the process to -1
-		s["ProxyProcess"] = -1
 		s["Process"] = -1
 		s["State"] = "stopped"
 		config.SaveServiceConfiguration(s)
@@ -234,7 +233,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	servicePort := Utility.ToInt(s["Port"])
 	pid := Utility.ToInt(s["ProxyProcess"])
 	if pid != -1 {
-		KillServiceProcess(s)
+		Utility.TerminateProcess(pid, 0)
 	}
 
 	dir, _ := os.Getwd()
@@ -327,6 +326,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 			if processPid != -1 {
 				_, err := Utility.GetProcessRunningStatus(processPid)
 				if err != nil {
+					fmt.Println("proxy prcess fail with error:  ", err)
 					StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, processPid)
 				}
 			}
@@ -412,6 +412,7 @@ func ManageServicesProcess(exit chan bool) {
 							if state == "killed" || state == "failed" || state == "stopped" || state == "running" {
 								// make sure the process is no running...
 								if s["KeepAlive"].(bool) {
+									fmt.Println("---------------------------> 415")
 									KillServiceProcess(s)
 								}
 							}
