@@ -5,6 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	//"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"strings"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -16,11 +22,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
-	"io/ioutil"
-	"log"
-	"os"
-	"os/exec"
-	"strings"
 )
 
 // Uninstall a service...
@@ -114,7 +115,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 			// I will replace the path inside the config...
 			execName := s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/")+1:]
-			s["Path"] = path + "/" + execName
+			s["Path"] = path + execName
 			s["Proto"] = protos[0]
 
 			// Here I will get previous service values...
@@ -234,9 +235,10 @@ func (server *server) stopServiceInstance(serviceId string) error {
 			if err != nil {
 				return err
 			}
+
 		}
 	}
-
+	
 	return nil
 }
 
@@ -273,12 +275,23 @@ func (server *server) startServiceInstance(serviceId string) error {
 		return err
 	}
 
-	err = process.StartServiceProcess(serviceId, globular["PortsRange"].(string))
+	s, err := config.GetServicesConfigurationsById(serviceId)
 	if err != nil {
 		return err
 	}
 
-	return err
+
+	processPid, err = process.StartServiceProcess(serviceId, globular["PortsRange"].(string))
+	if err != nil {
+		return err
+	}
+
+	err =process.StartServiceProxyProcess(serviceId, globular["CertificateAuthorityBundle"].(string),  globular["Certificate"].(string),  globular["PortsRange"].(string), processPid)
+	if err != nil {
+		return err
+	}
+
+	return server.publishUpdateServiceConfigEvent(s)
 }
 
 // Start a service
@@ -316,7 +329,6 @@ func (server *server) RestartAllServices(ctx context.Context, rqst *services_man
 
 	for i := 0; i < len(services); i++ {
 		if services[i]["Id"].(string) != server.GetId() {
-			log.Println("-----> start service ", services[i]["Name"].(string), services[i]["Id"].(string))
 			err := server.startServiceInstance(services[i]["Id"].(string))
 			if err != nil {
 				return nil, status.Errorf(

@@ -22,6 +22,9 @@ import (
 var (
 	// test with a sync map
 	configs *sync.Map
+
+	// Here I will made use of the storage service to store values.
+	
 )
 
 // Those function are use to get the correct
@@ -157,7 +160,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 								// Now the exec path.
 								if !Utility.Exists(s["Path"].(string)) {
-									s["Path"] = path[0:strings.LastIndex(path, "/")] + "/" + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
+									s["Path"] = path[0:strings.LastIndex(path, "/") + 1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
 								}
 
 								// Keep the configuration path in the object...

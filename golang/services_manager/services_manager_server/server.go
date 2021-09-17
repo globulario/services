@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -380,7 +382,38 @@ var (
 	resource_client_ *resource_client.Resource_Client
 	rbac_client_     *rbac_client.Rbac_Client
 	log_client_      *log_client.Log_Client
+	event_client_   *event_client.Event_Client
 )
+
+///////////////////// resource service functions ////////////////////////////////////
+func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ != nil {
+		return event_client_, nil
+	}
+
+	event_client_, err = event_client.NewEventService_Client(server.Domain, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
+
+	return event_client_, nil
+}
+
+// when services state change that publish 
+func (server *server) publishUpdateServiceConfigEvent(config map[string]interface{}) error{
+	data, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	client, err := server.getEventClient()
+	if err != nil {
+		return err
+	}
+
+	return client.Publish("update_globular_service_configuration_evt",data)
+}
 
 ///////////////////// resource service functions ////////////////////////////////////
 func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
@@ -508,7 +541,13 @@ func (server *server) stopService(s map[string]interface{}) error {
 	s["Process"] = -1
 	s["ProxyProcess"] = -1
 
-	return config.SaveServiceConfiguration(s)
+	err = config.SaveServiceConfiguration(s)
+	if err != nil {
+		return err
+	}
+
+
+	return server.publishUpdateServiceConfigEvent(s) 
 }
 
 // uninstall service

@@ -241,7 +241,7 @@ export class EventHub {
         const rqst = new SubscribeRequest
         rqst.setName(name)
         rqst.setUuid(this.uuid)
-        this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
+        this.globular.eventService.subscribe(rqst, {}).then((rsp: SubscribeResponse) => {
           if (this.subscribers[name] == undefined) {
             this.subscribers[name] = {} // create if it not exist.
           }
@@ -290,7 +290,7 @@ export class EventHub {
         rqst.setUuid(this.uuid)
 
         // Now I will test with promise
-        this.globular.eventService.unSubscribe(rqst)
+        this.globular.eventService.unSubscribe(rqst, {})
           .then((resp: any) => {
           })
           .catch((error: any) => {
@@ -322,7 +322,7 @@ export class EventHub {
       rqst.setEvt(evt);
 
       // Now I will test with promise
-      this.globular.eventService.publish(rqst)
+      this.globular.eventService.publish(rqst, {})
         .then((resp: any) => {
           /** Nothing to do here. */
         })
