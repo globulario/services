@@ -412,7 +412,6 @@ func ManageServicesProcess(exit chan bool) {
 							if state == "killed" || state == "failed" || state == "stopped" || state == "running" {
 								// make sure the process is no running...
 								if s["KeepAlive"].(bool) {
-									fmt.Println("---------------------------> 415")
 									KillServiceProcess(s)
 								}
 							}

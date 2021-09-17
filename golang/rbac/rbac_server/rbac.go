@@ -446,7 +446,7 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	fmt.Println("---------> path ", path, " permission: ", string(data))
+	//fmt.Println("---------> path ", path, " permission: ", string(data))
 
 	permissions := new(rbacpb.Permissions)
 	err = json.Unmarshal(data, &permissions)

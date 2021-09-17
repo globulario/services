@@ -218,12 +218,10 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 				return nil, err
 			}
 		} else {
-			log.Println("try onnect to server at address: ", address)
 			cc, err = grpc.Dial(address, grpc.WithInsecure())
 			if err != nil {
 				return nil, err
 			}
-			log.Println("connected")
 		}
 	}
 	return cc, nil
@@ -237,8 +235,6 @@ func GetClientContext(client Client) context.Context {
 
 	// if the address is local.
 	address := client.GetDomain()
-
-	log.Println("get client context")
 
 	err := Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
