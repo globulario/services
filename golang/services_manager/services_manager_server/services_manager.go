@@ -281,7 +281,7 @@ func (server *server) startServiceInstance(serviceId string) error {
 	}
 
 
-	processPid, err = process.StartServiceProcess(serviceId, globular["PortsRange"].(string))
+	processPid, err := process.StartServiceProcess(serviceId, globular["PortsRange"].(string))
 	if err != nil {
 		return err
 	}

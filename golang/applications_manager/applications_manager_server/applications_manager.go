@@ -391,9 +391,16 @@ func (server *server) sendApplicationNotification(application string, message st
 	notification.Message = message
 	notification.Recipient = application
 	notification.Date = time.Now().Unix()
-	notification.Sender = ""
 
-	err := server.createNotification(notification)
+	// here I will get infos from the datastore.
+	application_, err :=server.getApplication(application);
+	if err != nil {
+		return err
+	}
+
+	notification.Sender = `{"_id":"`+application_.Id+`", "name":"`+application_.Name +`","icon":"`+application_.Icon+`", "alias":"`+application_.Alias+`"}`
+
+	err = server.createNotification(notification)
 	if err != nil {
 		return err
 	}

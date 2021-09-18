@@ -240,6 +240,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/resource.ResourceService/UpdateSession" ||
 		method == "/resource.ResourceService/GetSession" ||
 		method == "/resource.ResourceService/RemoveSession" ||
+		method == "/resource.ResourceService/GetSessions" ||
 		method == "/resource.ResourceService/GetAccount" ||
 		method == "/resource.ResourceService/RegisterPeer" ||
 		method == "/resource.ResourceService/AccountExist" ||
@@ -263,8 +264,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = ValidateToken(token)
 		if err != nil && !hasAccess {
-			
-			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			fmt.Println()
+			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method " + method + " with error " + err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
 		if clientId == "sa" {

@@ -400,6 +400,19 @@ func (svr *server) getApplicationVersion(id string) (string, error) {
 	return resourceClient.GetApplicationVersion(id)
 }
 
+func (svr *server) getApplication(id string) (*resourcepb.Application, error) {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+
+	applications, err := resourceClient.GetApplications(`{"_id":"`+ id +`"}`)
+	if err != nil {
+		return nil,  err
+	}
+	return applications[0], nil
+}
+
 func (svr *server) createRole(id, name string, actions []string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {

@@ -11,13 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
-	ps "github.com/mitchellh/go-ps"
 )
 
 /**
@@ -35,12 +33,8 @@ func KillServiceProcess(s map[string]interface{}) error {
 		proxyProcessPid = Utility.ToInt(s["ProxyProcess"])
 	}
 
-	// Here I will set a variable that tell globular to not keep the service alive...
-	s["State"] = "terminated"
-
 	// nothing to do here...
 	if proxyProcessPid == -1 && pid == -1 {
-		config.SaveServiceConfiguration(s)
 		return nil
 	}
 
@@ -52,6 +46,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 	}
 
 	fmt.Println("Kill process ", s["Name"], "with pid", pid, "and proxy", proxyProcessPid)
+
 	// kill it in the name of...
 	process, err := os.FindProcess(pid)
 	s["State"] = "stopped"
@@ -97,6 +92,13 @@ func logInfo(name, domain, fileLine, functionName, message string, level logpb.L
 	log_client_.Log(name, domain, functionName, level, message, fileLine, functionName)
 }
 
+func setServiceConfigurationError(err error, s map[string]interface{}){
+	s["State"] = "failed"
+	s["LastError"] = err.Error()
+	config.SaveServiceConfiguration(s)
+	logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+}
+
 // Start a service process.
 func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
@@ -114,31 +116,21 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	// Get the next available port.
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
-		s["State"] = "failed"
-		s["LastError"] = err.Error()
-		config.SaveServiceConfiguration(s)
-		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		setServiceConfigurationError(err, s)
 		return -1, err
 	}
 
 	s["Port"] = port
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
-		s["State"] = "failed"
-		s["LastError"] = err.Error()
-		config.SaveServiceConfiguration(s)
-		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+		setServiceConfigurationError(err, s)
 		return -1, err
 	}
 
 	p := exec.Command(s["Path"].(string), Utility.ToString(port))
 	stdout, err := p.StdoutPipe()
 	if err != nil {
-		s["State"] = "failed"
-		s["LastError"] = err.Error()
-		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-		config.SaveServiceConfiguration(s)
-
+		setServiceConfigurationError(err, s)
 		return -1, err
 	}
 
@@ -164,11 +156,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	err = p.Start()
 
 	if err != nil {
-		s["State"] = "failed"
-		s["Process"] = -1
-		s["LastError"] = err.Error()
-		logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
-		config.SaveServiceConfiguration(s)
+		setServiceConfigurationError(err, s)
 		stdout.Close()
 		done <- true
 		return -1,  err
@@ -186,13 +174,9 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		s, _ := config.GetServicesConfigurationsById(serviceId)
 
 		if err != nil {
-			s["State"] = "failed"
-			s["LastError"] = err.Error()
-			s["Process"] = -1
-			logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			setServiceConfigurationError(err, s)			
 			stdout.Close()
 			done <- true
-			config.SaveServiceConfiguration(s)
 			return
 		}
 
@@ -335,7 +319,6 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	}()
 
 	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], "and name:", s["Name"])
-
 	return config.SaveServiceConfiguration(s)
 }
 
@@ -363,107 +346,4 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 
 	// default
 	return nil, errors.New("process running but query operation not permitted")
-}
-
-/**
- * TODO debug it it not work properly....
- * Keep process found in configuration in line with one found on the server.
- */
-func ManageServicesProcess(exit chan bool) {
-
-	ticker := time.NewTicker(5 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-exit:
-				return // stop processing...
-			case <-ticker.C:
-				// Here I will manage the process...
-				services, err := config.GetServicesConfigurations()
-				if err != nil {
-					return
-				}
-
-				runingProcess := make(map[string][]int)
-				proxies := make([]int, 0)
-
-				// Fist of all I will get all services process...
-				for i := 0; i < len(services); i++ {
-					s := services[i]
-					if s["Name"] != nil {
-						pid := -1
-						if s["Process"] != nil {
-							Utility.ToInt(s["Process"])
-						}
-
-						state := "stopped"
-						if s["State"] != nil {
-							state = s["State"].(string)
-						}
-
-						p, err := ps.FindProcess(pid)
-						if pid != -1 && err == nil && p != nil {
-							name := p.Executable()
-							if _, ok := runingProcess[name]; !ok {
-								runingProcess[name] = make([]int, 0)
-							}
-							runingProcess[name] = append(runingProcess[name], Utility.ToInt(s["Process"]))
-						} else if pid == -1 || p == nil {
-							if state == "killed" || state == "failed" || state == "stopped" || state == "running" {
-								// make sure the process is no running...
-								if s["KeepAlive"].(bool) {
-									KillServiceProcess(s)
-								}
-							}
-						}
-						if s["ProxyProcess"] != nil {
-							proxies = append(proxies, Utility.ToInt(s["ProxyProcess"]))
-						}
-					}
-				}
-
-				proxies_, _ := Utility.GetProcessIdsByName("grpcwebproxy")
-				for i := 0; i < len(proxies_); i++ {
-					proxy := proxies_[i]
-					for j := 0; j < len(proxies); j++ {
-						if proxy == proxies[j] {
-							proxy = -1
-							break
-						}
-					}
-					if proxy != -1 {
-						p, err := os.FindProcess(proxy)
-						if err == nil {
-							fmt.Println("try to kill proxy process pid ", p.Pid)
-							p.Kill()
-						}
-					}
-				}
-
-				// Now I will find process by name on the computer and kill process not found in the configuration file.
-				for name, pids := range runingProcess {
-					pids_, err := Utility.GetProcessIdsByName(name)
-					if err == nil {
-						for i := 0; i < len(pids_); i++ {
-							pid := pids_[i]
-							for j := 0; j < len(pids); j++ {
-								if pid == pids[j] {
-									pid = -1
-									break
-								}
-							}
-
-							if pid != -1 {
-								p, err := os.FindProcess(pid)
-								if err == nil {
-									fmt.Println("try to kill process pid ", p.Pid)
-									p.Kill()
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}()
 }

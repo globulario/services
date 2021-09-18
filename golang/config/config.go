@@ -22,9 +22,6 @@ import (
 var (
 	// test with a sync map
 	configs *sync.Map
-
-	// Here I will made use of the storage service to store values.
-	
 )
 
 // Those function are use to get the correct
@@ -160,7 +157,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 								// Now the exec path.
 								if !Utility.Exists(s["Path"].(string)) {
-									s["Path"] = path[0:strings.LastIndex(path, "/") + 1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
+									s["Path"] = path[0:strings.LastIndex(path, "/")+1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
 								}
 
 								// Keep the configuration path in the object...
@@ -274,19 +271,47 @@ func SetServiceConfiguration(s map[string]interface{}) {
 	configs.Store(s["Id"].(string), s)
 }
 
+var (
+	// Help to sync file access.
+	saveFileChan chan map[string]interface{}
+)
+
+func saveServiceConfiguration() {
+	for {
+		select {
+		case infos := <-saveFileChan:
+			s := infos["service_config"].(map[string]interface{})
+			return_chan :=  infos["return"].(chan error)
+			// Save it config...
+			jsonStr, _ := Utility.ToJson(s)
+
+			// return the
+			return_chan <- ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
+		}
+	}
+}
+
 /**
  * Save a service configuration.
  */
 func SaveServiceConfiguration(s map[string]interface{}) error {
+	if saveFileChan == nil {
+		saveFileChan = make(chan map[string]interface{})
+		// start the loop.
+		go saveServiceConfiguration()
+	}
 
 	// set the config in the map.
 	SetServiceConfiguration(s)
 
-	// Save it config...
-	jsonStr, _ := Utility.ToJson(s)
-	//fmt.Println("service configuarion: ", s)
+	infos := make(map[string]interface{})
+	infos["service_config"] = s
+	infos["return"] = make(chan error)
 
-	return ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
+	// set the info in the channel
+	saveFileChan <- infos
+
+	return <-infos["return"].(chan error)
 }
 
 /**
