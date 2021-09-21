@@ -827,9 +827,34 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	file_server.rbac_client_.DeleteResourcePermissions(rqst.GetPath() + "/" + rqst.GetOldName())
 	file_server.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetNewName())
 
+	startIndex := strings.LastIndex(rqst.GetOldName(), "/")
+	if startIndex != -1 {
+		startIndex++
+	}else{
+		startIndex = 0
+	}
+
+	endIndex := strings.LastIndex(rqst.GetOldName(), ".")
+	if endIndex == -1 {
+		endIndex = len(rqst.GetOldName())
+	}
+
 	// Rename it .hidden file.
-	hiddenFolderFrom := path + "/.hidden/" + rqst.GetOldName()[strings.LastIndex(rqst.GetOldName(), "/")+1:strings.LastIndex(rqst.GetOldName(), ".")]
-	hiddenFolderTo := path + "/.hidden/" + rqst.GetNewName()[strings.LastIndex(rqst.GetNewName(), "/")+1:strings.LastIndex(rqst.GetNewName(), ".")]
+	hiddenFolderFrom := path + "/.hidden/" + rqst.GetOldName()[startIndex:endIndex]
+
+	startIndex = strings.LastIndex(rqst.GetNewName(), "/")
+	if startIndex != -1 {
+		startIndex++
+	}else{
+		startIndex = 0
+	}
+
+	endIndex = strings.LastIndex(rqst.GetNewName(), ".")
+	if endIndex == -1 {
+		endIndex = len(rqst.GetNewName())
+	}
+	
+	hiddenFolderTo := path + "/.hidden/" + rqst.GetNewName()[startIndex:endIndex]
 
 	if Utility.Exists(hiddenFolderFrom) {
 		err := os.Rename(hiddenFolderFrom, hiddenFolderTo)
