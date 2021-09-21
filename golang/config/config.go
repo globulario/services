@@ -179,6 +179,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 						}
 					} else {
 						log.Println("fail to unmarshal configuration path:", path, err)
+
 					}
 				} else {
 					log.Println("Fail to read config file path:", path, err)
@@ -281,12 +282,19 @@ func saveServiceConfiguration() {
 		select {
 		case infos := <-saveFileChan:
 			s := infos["service_config"].(map[string]interface{})
-			return_chan :=  infos["return"].(chan error)
-			// Save it config...
-			jsonStr, _ := Utility.ToJson(s)
+			return_chan := infos["return"].(chan error)
 
-			// return the
-			return_chan <- ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
+			// Save it config...
+			jsonStr, err := Utility.ToJson(s)
+
+			if err != nil {
+				return_chan <- err
+			} else if len(jsonStr) == 0 {
+				return_chan <- errors.New("no configuration to save")
+			} else {
+				// return the
+				return_chan <- ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
+			}
 		}
 	}
 }
