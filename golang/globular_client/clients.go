@@ -227,20 +227,12 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	return cc, nil
 }
 
-// Keep de client context
-/*var (
-	ctx context.Context
-	hasContext = false
-)*/
-
 /**
  * That function is use to get the client context. If a token is found in the
  * tmp directory for the client domain it's set in the metadata.
  */
 func GetClientContext(client Client) context.Context {
-	/*if hasContext {
-		return ctx
-	}*/
+
 	var ctx context.Context
 	// if the address is local.
 	address := client.GetDomain()
@@ -259,13 +251,11 @@ func GetClientContext(client Client) context.Context {
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": myIP})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
-		//hasContext = true
 		return ctx
 	}
 
 	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr(), "ip": myIP})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
-	//hasContext = true
 	return ctx
 
 }
