@@ -13,7 +13,6 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
@@ -30,7 +29,7 @@ var (
 //* Validate a token *
 func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 
-	id, _, _, _, expireAt, err := interceptors.ValidateToken(rqst.Token)
+	id, _, _, _, expireAt, err := security.ValidateToken(rqst.Token)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -46,7 +45,7 @@ func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.
 func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
 
 	// first of all I will validate the current token.
-	id, name, email, issuer, expireAt, err := interceptors.ValidateToken(rqst.Token)
+	id, name, email, issuer, expireAt, err := security.ValidateToken(rqst.Token)
 
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "token is expired") {
@@ -70,7 +69,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), id, name, email)
+	tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), id, name, email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -91,7 +90,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 		}
 
 		// get back the new expireAt
-		_, _, _, _, expireAt, _ = interceptors.ValidateToken(tokenString)
+		_, _, _, _, expireAt, _ = security.ValidateToken(tokenString)
 		session.ExpireAt = expireAt
 
 		server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
@@ -219,7 +218,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 	}
 
 	// The token string
-	tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -353,7 +352,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 			}
 		}
 
-		tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+		tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -384,13 +383,13 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	session.AccountId = account.Id
 
 	// The token string
-	tokenString, err := interceptors.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), account.Id, account.Name, account.Email)
+	tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), account.Id, account.Name, account.Email)
 	if err != nil {
 		return "", err
 	}
 
 	// get the expire time.
-	_, user, email, _, expireAt, _ := interceptors.ValidateToken(tokenString)
+	_, user, email, _, expireAt, _ := security.ValidateToken(tokenString)
 	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 
 	// Create the user file directory.

@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"log"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -477,7 +478,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 /////////////////////// Discovery specific function /////////////////////////////////
 
 // Publish a package, the package can contain an application or a services.
-func (server *server) publishPackage(user string, organization string, discovery string, repository string, platform string, path string, descriptor *resourcepb.PackageDescriptor) error {
+func (server *server) publishPackage(user, organization, discovery, repository, platform, path string, descriptor *resourcepb.PackageDescriptor) error {
 
 	// Ladies and Gentlemans After one year after tow years services as resource!
 	path_ := descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Id + "/" + descriptor.Version
@@ -514,7 +515,7 @@ func (server *server) publishPackage(user string, organization string, discovery
 		// Set the permissions.
 		err = server.setResourcePermissions(path_, permissions)
 		if err != nil {
-			log.Println("fail to publish package with error: ", err.Error())
+			fmt.Println("fail to publish package with error: ", err.Error())
 			return err
 		}
 	}
@@ -522,10 +523,10 @@ func (server *server) publishPackage(user string, organization string, discovery
 	// Test the permission before actualy publish the package.
 	hasAccess, isDenied, err := server.validateAccess(user, rbacpb.SubjectType_ACCOUNT, "publish", path_)
 	if !hasAccess || isDenied || err != nil {
-		log.Println(err)
+		fmt.Println(err)
 		return err
 	}
-
+	
 	// Append the user into the list of owner if is not already part of it.
 	if !Utility.Contains(permissions.Owners.Accounts, user) {
 		permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
@@ -534,28 +535,36 @@ func (server *server) publishPackage(user string, organization string, discovery
 	// Save the permissions.
 	err = server.setResourcePermissions(path_, permissions)
 	if err != nil {
-		log.Println(err)
+		fmt.Println(err)
 		return err
 	}
-
+	
 	// Fist of all publish the package descriptor.
 	err = server.publishPackageDescriptor(descriptor)
 	if err != nil {
-		log.Println(err)
+		fmt.Println(err)
 		return err
 	}
 
 	// Connect to the repository resourcepb.
 	services_repository, err := repository_client.NewRepositoryService_Client(repository, "repository.PackageRepository")
 	if err != nil {
-		return errors.New("Fail to connect to package repository at " + repository)
+		err = errors.New("Fail to connect to package repository at " + repository)
+		fmt.Println(err)
+		return err
 	}
 
 	// UploadBundle
 	server.logServiceInfo(Utility.FunctionName(), Utility.FileLine(), "Upload package bundle ", discovery+" "+descriptor.Id+" "+descriptor.PublisherId+" "+descriptor.Version+" "+platform+" "+path)
 
+
+	err = services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
+	if err != nil {
+		fmt.Println(err)
+	}
+	log.Println("uploadBundle successfully!")
 	// Upload the package bundle to the repository.
-	return services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
+	return err
 }
 
 // That service is use to give access to SQL.

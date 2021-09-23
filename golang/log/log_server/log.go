@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
@@ -65,7 +65,7 @@ func (server *server) log(info *logpb.LogInfo) error {
 
 	// The userId can be a single string or a JWT token.
 	if len(info.UserId) > 0 {
-		id, name, _, _, _, err := interceptors.ValidateToken(info.UserId)
+		id, name, _, _, _, err := security.ValidateToken(info.UserId)
 		if err == nil {
 			info.UserId = id
 		}

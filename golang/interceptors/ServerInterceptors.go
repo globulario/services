@@ -20,9 +20,11 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/storage/storage_store"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
 )
 
 var (
@@ -262,9 +264,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var issuer string
 
 	if len(token) > 0 {
-		clientId, _, _, issuer, _, err = ValidateToken(token)
+		clientId, _, _, issuer, _, err = security.ValidateToken(token)
 		if err != nil && !hasAccess {
-			fmt.Println()
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method " + method + " with error " + err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
@@ -427,7 +428,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
-		clientId, _, _, issuer, _, err = ValidateToken(token)
+		clientId, _, _, issuer, _, err = security.ValidateToken(token)
 		if err != nil {
 			return err
 		}

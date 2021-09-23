@@ -1,12 +1,12 @@
-package interceptors
+package security
 
 import (
 	"context"
 	"fmt"
-	"time"
-
 	"github.com/dgrijalva/jwt-go"
-	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/config"
+	"io/ioutil"
+	"time"
 )
 
 // Authentication holds the login/password
@@ -83,7 +83,7 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 
 		// Get the jwt key from file.
-		jwtKey, err := security.GetPeerKey(claims.Issuer)
+		jwtKey, err := GetPeerKey(claims.Issuer)
 
 		return jwtKey, err
 	})
@@ -97,4 +97,69 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
 	}
 
 	return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, nil
+}
+
+/**
+ * refresh the local token.
+ */
+func refreshLocalToken(token string) (string, error) {
+
+	claims := &Claims{}
+	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+
+		// Get the jwt key from file.
+		jwtKey, err := GetPeerKey(claims.Issuer)
+
+		return jwtKey, err
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	jwtKey, err := GetPeerKey(claims.Issuer)
+	if err != nil {
+		return "", err
+	}
+
+	token, err = GenerateToken(jwtKey, time.Duration(claims.ExpiresAt-claims.IssuedAt), claims.Issuer, "", "", claims.Email)
+	if err != nil {
+		return "", err
+	}
+
+	return token, err
+}
+
+/**
+ * Return the local token string.
+ */
+func GetLocalToken(domain string) (string, error) {
+	tokensPath := config.GetConfigDir() + "/tokens"
+	path := tokensPath + "/" + domain + "_token"
+	fmt.Println("---------------------------------> get local token: ", path)
+	
+	token, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	// Here I will validate the token...
+	_, _, _, _, expiresAt, err := ValidateToken(string(token))
+	if err != nil {
+		return "", err
+	}
+
+	// Here I will test if I need to refresh the token...
+	if time.Now().Before(time.Unix(expiresAt, 0)) {
+		return string(token), nil
+	}
+
+	fmt.Println("---------------------------------> refresh local token: ", path)
+	
+	newToken, err := refreshLocalToken(string(token))
+	if err == nil {
+		err = ioutil.WriteFile(path, []byte(newToken), 0644)
+	}
+
+	return newToken, nil
 }

@@ -3,6 +3,7 @@ module github.com/globulario/services/golang
 go 1.16
 
 replace github.com/davecourtois/Utility => ../../Utility
+replace "github.com/globulario/services/golang/security" => ./security
 
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.7.0

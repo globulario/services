@@ -28,6 +28,7 @@ import (
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/nfnt/resize"
@@ -702,7 +703,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			user, _, _, _, _, err = interceptors.ValidateToken(token)
+			user, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -778,7 +779,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return err
 			}

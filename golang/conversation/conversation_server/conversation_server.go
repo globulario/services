@@ -13,6 +13,7 @@ import (
 	"github.com/globulario/services/golang/conversation/conversationpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 
 	"google.golang.org/grpc/codes"
@@ -443,7 +444,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -646,7 +647,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, err
 			}
@@ -704,7 +705,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, err
 			}
@@ -829,7 +830,7 @@ func (svr *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
@@ -863,7 +864,7 @@ func (svr *server) Disconnect(ctx context.Context, rqst *conversationpb.Disconne
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -894,7 +895,7 @@ func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
@@ -990,7 +991,7 @@ func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.L
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -1042,7 +1043,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -1328,7 +1329,7 @@ func (svr *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.Ac
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -1372,7 +1373,7 @@ func (svr *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.D
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -1415,7 +1416,7 @@ func (svr *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.Re
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -1457,7 +1458,7 @@ func (svr *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -1508,7 +1509,7 @@ func (svr *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = interceptors.ValidateToken(token)
+			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,

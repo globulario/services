@@ -243,18 +243,16 @@ func GetClientContext(client Client) context.Context {
 	}
 	
 	// Get the token for that domain if it exist
-	path := tokensPath + "/" + client.GetDomain() + "_token"
-	token, err := ioutil.ReadFile(path)
+	token, err := security.GetLocalToken(client.GetDomain())
 
-	myIP := Utility.MyIP()
 
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr(), "ip": myIP})
+		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr()})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr(), "ip": myIP})
+	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr()})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
 	return ctx
 

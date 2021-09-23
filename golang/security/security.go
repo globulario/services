@@ -147,43 +147,6 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
 /**
  * Return the server local configuration if one exist.
  */
-
-/*
-func getLocalConfig() (map[string]interface{}, error) {
-
-	if !Utility.Exists(ConfigPath) {
-		return nil, errors.New("no local Globular configuration found")
-	}
-
-	config := make(map[string]interface{})
-	data, err := ioutil.ReadFile(ConfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	err = json.Unmarshal(data, &config)
-	if err != nil {
-		return nil, err
-	}
-
-	// Now I will read the services configurations...
-	servicesConfig, err := config_.GetServicesConfigurations()
-	if err != nil {
-		return nil, err
-	}
-
-	config["Services"] = make(map[string]interface{})
-
-	// convert to map...
-	for i:=0; i < len(servicesConfig); i++ {
-		config["Services"].(map[string]interface{})[servicesConfig[i]["Id"].(string)] = servicesConfig[i]
-	}
-
-	return config, nil
-}*/
-/**
- * Return the server local configuration if one exist.
- */
 func getLocalConfig() (map[string]interface{}, error) {
 
 	if !Utility.Exists(ConfigPath) {

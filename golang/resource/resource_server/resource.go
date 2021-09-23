@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 
@@ -124,8 +123,8 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 	}
 
 	// Generate a token to identify the user.
-	tokenString, err := interceptors.GenerateToken(key, resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
-	id, _, _, _, expireAt, _ := interceptors.ValidateToken(tokenString)
+	tokenString, err := security.GenerateToken(key, resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	id, _, _, _, expireAt, _ := security.ValidateToken(tokenString)
 
 	if err != nil {
 		return nil, status.Errorf(
