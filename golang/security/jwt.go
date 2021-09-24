@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"sync"
+	"time"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/globulario/services/golang/config"
-	"io/ioutil"
-	"time"
 )
 
 // Authentication holds the login/password
@@ -131,14 +133,31 @@ func refreshLocalToken(token string) (string, error) {
 	return token, err
 }
 
+// Here I will keep the token in a map so it will be less file reading...
+var tokens = new(sync.Map)
+
+func getLocalToken(domain string) (string, error) {
+	token, ok := tokens.Load(domain)
+	if ok {
+		return token.(string), nil
+	}
+
+	tokensPath := config.GetConfigDir() + "/tokens"
+	path := tokensPath + "/" + domain + "_token"
+	token_, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	return string(token_), nil
+}
+
 /**
  * Return the local token string.
  */
 func GetLocalToken(domain string) (string, error) {
 
-	tokensPath := config.GetConfigDir() + "/tokens"
-	path := tokensPath + "/" + domain + "_token"
-	token, err := ioutil.ReadFile(path)
+	token, err := getLocalToken(domain)
 	if err != nil {
 		return "", err
 	}
@@ -154,9 +173,14 @@ func GetLocalToken(domain string) (string, error) {
 		return "", errors.New("the token cannot be refresh after 7 day")
 	}
 
-	fmt.Println("---------------------------------> refresh local token: ", path)
 	newToken, err := refreshLocalToken(string(token))
+
+	// keep the token in the map...
+	tokens.Store(domain, newToken)
+
 	if err == nil {
+		tokensPath := config.GetConfigDir() + "/tokens"
+		path := tokensPath + "/" + domain + "_token"
 		err = ioutil.WriteFile(path, []byte(newToken), 0644)
 		if err != nil {
 			return "", err
