@@ -16,14 +16,12 @@ import { AdminServicePromiseClient } from './admin/admin_grpc_web_pb';
 import { ResourceServicePromiseClient } from './resource/resource_grpc_web_pb';
 import { RbacServicePromiseClient } from './rbac/rbac_grpc_web_pb'
 import { LogServicePromiseClient } from './log/log_grpc_web_pb';
-import { LoadBalancingServicePromiseClient } from './lb/lb_grpc_web_pb';
-import { PackageDiscoveryPromiseClient, PackageRepositoryPromiseClient } from './packages/packages_grpc_web_pb';
-import { CertificateAuthorityPromiseClient } from './ca/ca_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
 import { ConversationServicePromiseClient } from './conversation/conversation_grpc_web_pb';
 import { ServicesManagerServicePromiseClient } from './services_manager/services_manager_grpc_web_pb';
 import { ApplicationManagerServicePromiseClient } from './applications_manager/applications_manager_grpc_web_pb';
-
+import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb';
+import { PackageRepositoryPromiseClient } from './repository/repository_grpc_web_pb';
 
 /**
  * The service configuration information.
@@ -584,27 +582,6 @@ export class Globular {
     return this._rbacService;
   }
 
-  private _loadBalancingService: LoadBalancingServicePromiseClient
-  public get loadBalancingService(): LoadBalancingServicePromiseClient | undefined {
-    // refresh the config.
-    if (this._loadBalancingService == null) {
-      let configs = this.getConfigs('lb.LoadBalancingService')
-      configs.forEach((config: IServiceConfig) => {
-        this._loadBalancingService = new LoadBalancingServicePromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._loadBalancingService
-      });
-    }
-    return this._loadBalancingService;
-  }
-
   private _packagesDicovery: PackageDiscoveryPromiseClient
   public get packagesDicovery(): PackageDiscoveryPromiseClient | undefined {
     // refresh the config.
@@ -645,27 +622,6 @@ export class Globular {
       });
     }
     return this._servicesRepository;
-  }
-
-  private _certificateAuthority: CertificateAuthorityPromiseClient;
-  public get certificateAuthority(): CertificateAuthorityPromiseClient | undefined {
-    // refresh the config.
-    if (this._certificateAuthority == null) {
-      let configs = this.getConfigs('ca.CertificateAuthority')
-      configs.forEach((config: IServiceConfig) => {
-        this._certificateAuthority = new CertificateAuthorityPromiseClient(
-          this.config.Protocol +
-          '://' +
-          config.Domain +
-          ':' +
-          config.Proxy,
-          null,
-          null,
-        );
-        this._services[config.Id] = this._certificateAuthority
-      });
-    }
-    return this._certificateAuthority;
   }
 
   // list of services.

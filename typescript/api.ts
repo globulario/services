@@ -56,6 +56,14 @@ import {
   GetApplicationsRqst,
   GetApplicationsRsp,
   Application,
+  FindPackagesDescriptorRequest,
+  FindPackagesDescriptorResponse,
+  PackageDescriptor,
+  GetPackageDescriptorRequest,
+  GetPackageDescriptorResponse,
+  GetPackagesDescriptorRequest,
+  GetPackagesDescriptorResponse,
+  SetPackageDescriptorRequest,
 } from "./resource/resource_pb";
 
 import {
@@ -80,16 +88,6 @@ import {
   ReplaceOneRsp,
 } from "./persistence/persistence_pb";
 
-import {
-  FindPackagesDescriptorRequest,
-  FindPackagesDescriptorResponse,
-  PackageDescriptor,
-  GetPackageDescriptorRequest,
-  GetPackageDescriptorResponse,
-  GetPackagesDescriptorRequest,
-  GetPackagesDescriptorResponse,
-  SetPackageDescriptorRequest,
-} from "./packages/packages_pb";
 
 import {
   RenameRequest,
@@ -109,6 +107,7 @@ import {
   SearchDocumentsResponse,
   SearchResult,
 } from "./search/search_pb";
+
 import { AuthenticateRqst, RefreshTokenRqst, RefreshTokenRsp } from "./authentication/authentication_pb";
 
 // Here I will get the authentication information.
@@ -1759,7 +1758,7 @@ export function getPackageDescriptor(
   rqst.setServiceid(serviceId);
   rqst.setPublisherid(publisherId);
 
-  globular.packagesDicovery
+  globular.resourceService
     .getPackageDescriptor(rqst, {
       token: getToken(),
       application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -1788,7 +1787,7 @@ export function GetPackagesDescriptor(
 ) {
   const rqst = new GetPackagesDescriptorRequest();
 
-  const stream = globular.packagesDicovery.getPackagesDescriptor(rqst, {
+  const stream = globular.resourceService.getPackagesDescriptor(rqst, {
     application: application.length > 0 ? application : globular.config.IndexApplication,
     domain: domain,
   });
@@ -1824,9 +1823,9 @@ export function setServicesDescriptor(
   errorCallback: (err: any) => void
 ) {
   const rqst = new SetPackageDescriptorRequest();
-  rqst.setDescriptor(descriptor);
+  rqst.setPackagedescriptor(descriptor);
 
-  globular.packagesDicovery
+  globular.resourceService
     .setPackageDescriptor(rqst, {
       token: getToken(),
       application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -1853,7 +1852,7 @@ export function FindPackages(
   rqst.setKeywordsList(keywords);
 
   // Find services by keywords.
-  globular.packagesDicovery
+  globular.resourceService
     .findPackages(rqst, { application: application.length > 0 ? application : globular.config.IndexApplication, domain: domain })
     .then((rsp: FindPackagesDescriptorResponse) => {
       callback(rsp.getResultsList());

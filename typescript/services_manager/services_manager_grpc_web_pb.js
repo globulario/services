@@ -552,5 +552,85 @@ proto.services_manager.ServicesManagerServicePromiseClient.prototype.getServices
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.services_manager.GetAllActionsRequest,
+ *   !proto.services_manager.GetAllActionsResponse>}
+ */
+const methodDescriptor_ServicesManagerService_GetAllActions = new grpc.web.MethodDescriptor(
+  '/services_manager.ServicesManagerService/GetAllActions',
+  grpc.web.MethodType.UNARY,
+  proto.services_manager.GetAllActionsRequest,
+  proto.services_manager.GetAllActionsResponse,
+  /**
+   * @param {!proto.services_manager.GetAllActionsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.services_manager.GetAllActionsResponse.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.services_manager.GetAllActionsRequest,
+ *   !proto.services_manager.GetAllActionsResponse>}
+ */
+const methodInfo_ServicesManagerService_GetAllActions = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.services_manager.GetAllActionsResponse,
+  /**
+   * @param {!proto.services_manager.GetAllActionsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.services_manager.GetAllActionsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.services_manager.GetAllActionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.services_manager.GetAllActionsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.services_manager.GetAllActionsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.services_manager.ServicesManagerServiceClient.prototype.getAllActions =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/services_manager.ServicesManagerService/GetAllActions',
+      request,
+      metadata || {},
+      methodDescriptor_ServicesManagerService_GetAllActions,
+      callback);
+};
+
+
+/**
+ * @param {!proto.services_manager.GetAllActionsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.services_manager.GetAllActionsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.services_manager.ServicesManagerServicePromiseClient.prototype.getAllActions =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/services_manager.ServicesManagerService/GetAllActions',
+      request,
+      metadata || {},
+      methodDescriptor_ServicesManagerService_GetAllActions);
+};
+
+
 module.exports = proto.services_manager;
 

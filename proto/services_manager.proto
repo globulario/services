@@ -61,6 +61,14 @@ message GetServicesConfigurationResponse{
   repeated google.protobuf.Struct services = 1;
 }
 
+// Return the list of all actions of the server.
+message GetAllActionsRequest {
+}
+
+message GetAllActionsResponse {
+  repeated string actions = 1;
+}
+
 service ServicesManagerService {
 
   // Install a service...
@@ -81,4 +89,6 @@ service ServicesManagerService {
   // Get services configurations...
   rpc GetServicesConfiguration(GetServicesConfigurationRequest) returns (GetServicesConfigurationResponse);
 
+  // Return the list of all actions.
+  rpc GetAllActions(GetAllActionsRequest) returns(GetAllActionsResponse);
 }
