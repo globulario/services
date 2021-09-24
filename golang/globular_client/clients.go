@@ -245,12 +245,12 @@ func GetClientContext(client Client) context.Context {
 	// Get the token for that domain if it exist
 	token, err := security.GetLocalToken(client.GetDomain())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": client.GetMac()})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr()})
+	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": client.GetMac()})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
 	return ctx
 
