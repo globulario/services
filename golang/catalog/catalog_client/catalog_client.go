@@ -8,15 +8,17 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/security"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // catalog Client Service
 ////////////////////////////////////////////////////////////////////////////////
 
-type Catalog_Client  struct {
+type Catalog_Client struct {
 	cc *grpc.ClientConn
 	c  catalogpb.CatalogServiceClient
 
@@ -52,8 +54,8 @@ type Catalog_Client  struct {
 }
 
 // Create a connection to the service.
-func NewCatalogService_Client(address string, id string) (*Catalog_Client , error) {
-	client := new(Catalog_Client )
+func NewCatalogService_Client(address string, id string) (*Catalog_Client, error) {
+	client := new(Catalog_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
 		return nil, err
@@ -68,122 +70,130 @@ func NewCatalogService_Client(address string, id string) (*Catalog_Client , erro
 	return client, nil
 }
 
-func (client *Catalog_Client ) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+func (client *Catalog_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
-func (client *Catalog_Client ) GetCtx() context.Context {
+func (client *Catalog_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
 	}
+
+	// refresh the client as needed...
+	token, err := security.GetLocalToken(client.GetDomain())
+	if err == nil {
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
 	return client.ctx
 }
 
 // Return the domain
-func (client *Catalog_Client ) GetDomain() string {
+func (client *Catalog_Client) GetDomain() string {
 	return client.domain
 }
 
-func (client *Catalog_Client ) GetAddress() string {
+func (client *Catalog_Client) GetAddress() string {
 	return client.domain + ":" + strconv.Itoa(client.port)
 }
 
 // Return the id of the service instance
-func (client *Catalog_Client ) GetId() string {
+func (client *Catalog_Client) GetId() string {
 	return client.id
 }
 
 // Return the name of the service
-func (client *Catalog_Client ) GetName() string {
+func (client *Catalog_Client) GetName() string {
 	return client.name
 }
 
-func (client *Catalog_Client ) GetMac() string {
+func (client *Catalog_Client) GetMac() string {
 	return client.mac
 }
 
 // must be close when no more needed.
-func (client *Catalog_Client ) Close() {
+func (client *Catalog_Client) Close() {
 	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (client *Catalog_Client ) SetPort(port int) {
+func (client *Catalog_Client) SetPort(port int) {
 	client.port = port
 }
 
 // Set the client instance id.
-func (client *Catalog_Client ) SetId(id string) {
+func (client *Catalog_Client) SetId(id string) {
 	client.id = id
 }
 
 // Set the client name.
-func (client *Catalog_Client ) SetName(name string) {
+func (client *Catalog_Client) SetName(name string) {
 	client.name = name
 }
 
-func (client *Catalog_Client ) SetMac(mac string) {
+func (client *Catalog_Client) SetMac(mac string) {
 	client.mac = mac
 }
 
 // Set the domain.
-func (client *Catalog_Client ) SetDomain(domain string) {
+func (client *Catalog_Client) SetDomain(domain string) {
 	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (client *Catalog_Client ) HasTLS() bool {
+func (client *Catalog_Client) HasTLS() bool {
 	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (client *Catalog_Client ) GetCertFile() string {
+func (client *Catalog_Client) GetCertFile() string {
 	return client.certFile
 }
 
 // Get the TLS key file path
-func (client *Catalog_Client ) GetKeyFile() string {
+func (client *Catalog_Client) GetKeyFile() string {
 	return client.keyFile
 }
 
 // Get the TLS key file path
-func (client *Catalog_Client ) GetCaFile() string {
+func (client *Catalog_Client) GetCaFile() string {
 	return client.caFile
 }
 
 // Set the client is a secure client.
-func (client *Catalog_Client ) SetTLS(hasTls bool) {
+func (client *Catalog_Client) SetTLS(hasTls bool) {
 	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (client *Catalog_Client ) SetCertFile(certFile string) {
+func (client *Catalog_Client) SetCertFile(certFile string) {
 	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (client *Catalog_Client ) SetKeyFile(keyFile string) {
+func (client *Catalog_Client) SetKeyFile(keyFile string) {
 	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (client *Catalog_Client ) SetCaFile(caFile string) {
+func (client *Catalog_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
 ////////////////////////// API ////////////////////////
 // Stop the service.
-func (client *Catalog_Client ) StopService() {
+func (client *Catalog_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &catalogpb.StopRequest{})
 }
 
 // Create a new datastore connection.
-func (client *Catalog_Client ) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string) error {
+func (client *Catalog_Client) CreateConnection(connectionId string, name string, host string, port float64, storeType float64, user string, pwd string, timeout float64, options string) error {
 	rqst := &catalogpb.CreateConnectionRqst{
 		Connection: &catalogpb.Connection{
 			Id:       connectionId,
@@ -205,7 +215,7 @@ func (client *Catalog_Client ) CreateConnection(connectionId string, name string
 /**
  * Create a new unit of measure
  */
-func (client *Catalog_Client ) SaveUnitOfMesure(connectionId string, id string, languageCode string, name string, abreviation string, description string) error {
+func (client *Catalog_Client) SaveUnitOfMesure(connectionId string, id string, languageCode string, name string, abreviation string, description string) error {
 	rqst := &catalogpb.SaveUnitOfMeasureRequest{
 		ConnectionId: connectionId,
 		UnitOfMeasure: &catalogpb.UnitOfMeasure{
@@ -228,7 +238,7 @@ func (client *Catalog_Client ) SaveUnitOfMesure(connectionId string, id string, 
 /**
  * Save item property definition.
  */
-func (client *Catalog_Client ) SavePropertyDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, valueType float64) error {
+func (client *Catalog_Client) SavePropertyDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, valueType float64) error {
 	rqst := &catalogpb.SavePropertyDefinitionRequest{
 		ConnectionId: connectionId,
 		PropertyDefinition: &catalogpb.PropertyDefinition{
@@ -252,7 +262,7 @@ func (client *Catalog_Client ) SavePropertyDefinition(connectionId string, id st
 /**
  * Save item property definition.
  */
-func (client *Catalog_Client ) SaveItemDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, properties_str string, properties_ids_str string) error {
+func (client *Catalog_Client) SaveItemDefinition(connectionId string, id string, languageCode string, name string, abreviation string, description string, properties_str string, properties_ids_str string) error {
 
 	properties := new(catalogpb.References)
 
@@ -282,7 +292,7 @@ func (client *Catalog_Client ) SaveItemDefinition(connectionId string, id string
 /**
  * Save item property definition.
  */
-func (client *Catalog_Client ) SaveItemInstance(connectionId string, jsonStr string) error {
+func (client *Catalog_Client) SaveItemInstance(connectionId string, jsonStr string) error {
 
 	instance := new(catalogpb.ItemInstance)
 
@@ -307,7 +317,7 @@ func (client *Catalog_Client ) SaveItemInstance(connectionId string, jsonStr str
 /**
  * Save a Manufacturer whitout item.
  */
-func (client *Catalog_Client ) SaveManufacturer(connectionId string, id string, name string) error {
+func (client *Catalog_Client) SaveManufacturer(connectionId string, id string, name string) error {
 	rqst := &catalogpb.SaveManufacturerRequest{
 		ConnectionId: connectionId,
 		Manufacturer: &catalogpb.Manufacturer{
@@ -325,7 +335,7 @@ func (client *Catalog_Client ) SaveManufacturer(connectionId string, id string, 
  * Save package, create it if it not already exist.
  * TODO append subPackage param and itemInstance...
  */
-func (client *Catalog_Client ) SavePackage(connectionId string, id string, name string, languageCode string, description string, inventories []*catalogpb.Inventory) error {
+func (client *Catalog_Client) SavePackage(connectionId string, id string, name string, languageCode string, description string, inventories []*catalogpb.Inventory) error {
 
 	// The request.
 	rqst := &catalogpb.SavePackageRequest{
@@ -348,7 +358,7 @@ func (client *Catalog_Client ) SavePackage(connectionId string, id string, name 
 /**
  * Save a supplier.
  */
-func (client *Catalog_Client ) SaveSupplier(connectionId string, id string, name string) error {
+func (client *Catalog_Client) SaveSupplier(connectionId string, id string, name string) error {
 	rqst := &catalogpb.SaveSupplierRequest{
 		ConnectionId: connectionId,
 		Supplier: &catalogpb.Supplier{
@@ -365,7 +375,7 @@ func (client *Catalog_Client ) SaveSupplier(connectionId string, id string, name
 /**
  * Save package supplier.
  */
-func (client *Catalog_Client ) SavePackageSupplier(connectionId string, id string, supplier_ref_str string, packege_ref_str string, price_str string, date int64, qty int64) error {
+func (client *Catalog_Client) SavePackageSupplier(connectionId string, id string, supplier_ref_str string, packege_ref_str string, price_str string, date int64, qty int64) error {
 
 	// Supplier Ref.
 	supplierRef := new(catalogpb.Reference)
@@ -398,7 +408,7 @@ func (client *Catalog_Client ) SavePackageSupplier(connectionId string, id strin
 /**
  * Save Item Manufacturer.
  */
-func (client *Catalog_Client ) SaveItemManufacturer(connectionId string, id string, manufacturer_ref_str string, item_ref_str string) error {
+func (client *Catalog_Client) SaveItemManufacturer(connectionId string, id string, manufacturer_ref_str string, item_ref_str string) error {
 
 	// Supplier Ref.
 	manufacturerRef := new(catalogpb.Reference)
@@ -425,7 +435,7 @@ func (client *Catalog_Client ) SaveItemManufacturer(connectionId string, id stri
 /**
  * Save Item Manufacturer.
  */
-func (client *Catalog_Client ) SaveCategory(connectionId string, id string, name string, languageCode string, categories_str string) error {
+func (client *Catalog_Client) SaveCategory(connectionId string, id string, name string, languageCode string, categories_str string) error {
 	categories := new(catalogpb.References)
 	jsonpb.UnmarshalString(categories_str, categories)
 
@@ -446,7 +456,7 @@ func (client *Catalog_Client ) SaveCategory(connectionId string, id string, name
 /**
  * Appen item defintion category.
  */
-func (client *Catalog_Client ) AppendItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
+func (client *Catalog_Client) AppendItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
 	// The item definition reference.
 	itemDefinitionRef := new(catalogpb.Reference)
 	err := jsonpb.UnmarshalString(item_definition_ref_str, itemDefinitionRef)
@@ -475,7 +485,7 @@ func (client *Catalog_Client ) AppendItemDefinitionCategory(connectionId string,
 /**
  * Remove item defintion category.
  */
-func (client *Catalog_Client ) RemoveItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
+func (client *Catalog_Client) RemoveItemDefinitionCategory(connectionId string, item_definition_ref_str string, category_ref_str string) error {
 	// The item definition reference.
 	itemDefinitionRef := new(catalogpb.Reference)
 	err := jsonpb.UnmarshalString(item_definition_ref_str, itemDefinitionRef)
@@ -504,7 +514,7 @@ func (client *Catalog_Client ) RemoveItemDefinitionCategory(connectionId string,
 /**
  * Save Item Localisation.
  */
-func (client *Catalog_Client ) SaveLocalisation(connectionId string, localisation *catalogpb.Localisation) error {
+func (client *Catalog_Client) SaveLocalisation(connectionId string, localisation *catalogpb.Localisation) error {
 
 	rqst := &catalogpb.SaveLocalisationRequest{
 		ConnectionId: connectionId,

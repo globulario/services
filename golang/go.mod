@@ -3,11 +3,9 @@ module github.com/globulario/services/golang
 go 1.16
 
 replace github.com/davecourtois/Utility => ../../Utility
-replace "github.com/globulario/services/golang/security" => ./security
 
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.7.0
-	github.com/StackExchange/wmi v0.0.0-20210224194228-fe8f1750fd46 // indirect
 	github.com/alexbrainman/odbc v0.0.0-20200426075526-f0492dfa1575
 	github.com/allegro/bigcache v1.2.1
 	github.com/davecourtois/GoXapian v0.0.0-20201222213557-81c72bc9e73c
@@ -27,11 +25,9 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.7
 	github.com/mhale/smtpd v0.0.0-20210322105601-438c8edb069c
 	github.com/miekg/dns v1.1.42
-	github.com/mitchellh/go-ps v1.0.0
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7
 	github.com/prometheus/client_golang v1.10.0
-	github.com/shirou/gopsutil v3.21.4+incompatible
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
 	go.mongodb.org/mongo-driver v1.5.2

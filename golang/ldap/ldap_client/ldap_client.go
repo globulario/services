@@ -11,7 +11,9 @@ import (
 
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/ldap/ldappb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,6 +84,11 @@ func (client *LDAP_Client) Invoke(method string, rqst interface{}, ctx context.C
 func (client *LDAP_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
+	}
+	token, err := security.GetLocalToken(client.GetDomain())
+	if err == nil {
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
 }

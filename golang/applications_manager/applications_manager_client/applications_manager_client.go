@@ -17,6 +17,7 @@ import (
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"github.com/polds/imgbase64"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -87,6 +88,13 @@ func (Applications_Manager_Client *Applications_Manager_Client) Invoke(method st
 func (client *Applications_Manager_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
+	}
+
+	// refresh the client as needed...
+	token, err := security.GetLocalToken(client.GetDomain())
+	if err == nil {
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
 }

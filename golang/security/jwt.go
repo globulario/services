@@ -2,6 +2,7 @@ package security
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/globulario/services/golang/config"
@@ -54,7 +55,7 @@ func GenerateToken(jwtKey []byte, timeout time.Duration, issuer, userId, userNam
 			ExpiresAt: expirationTime.Unix(),
 			Subject:   userName,
 			Issuer:    issuer,
-			IssuedAt:  now.Unix() - 1000,
+			IssuedAt:  now.Unix() - 1000, // make sure the IssuedAt is not in the futur...
 		},
 	}
 
@@ -134,31 +135,32 @@ func refreshLocalToken(token string) (string, error) {
  * Return the local token string.
  */
 func GetLocalToken(domain string) (string, error) {
+
 	tokensPath := config.GetConfigDir() + "/tokens"
 	path := tokensPath + "/" + domain + "_token"
-	fmt.Println("---------------------------------> get local token: ", path)
-	
 	token, err := ioutil.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 
 	// Here I will validate the token...
-	_, _, _, _, expiresAt, err := ValidateToken(string(token))
-	if err != nil {
-		return "", err
-	}
-
-	// Here I will test if I need to refresh the token...
-	if time.Now().Before(time.Unix(expiresAt, 0)) {
+	_, _, _, _, expireAt, err := ValidateToken(string(token))
+	if err == nil {
 		return string(token), nil
 	}
 
+	// If the token is older than seven day without being refresh then I retrun an error.
+	if time.Unix(expireAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
+		return "", errors.New("the token cannot be refresh after 7 day")
+	}
+
 	fmt.Println("---------------------------------> refresh local token: ", path)
-	
 	newToken, err := refreshLocalToken(string(token))
 	if err == nil {
 		err = ioutil.WriteFile(path, []byte(newToken), 0644)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return newToken, nil
