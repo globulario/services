@@ -91,12 +91,16 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
 		return jwtKey, err
 	})
 
+	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
+		return  claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, errors.New("the token is expired")
+	}
+
 	if err != nil {
 		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, err
 	}
 
 	if !tkn.Valid {
-		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, fmt.Errorf("invalid token!")
+		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, errors.New("invalid token")
 	}
 
 	return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, nil
@@ -106,7 +110,7 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
  * refresh the local token.
  */
 func refreshLocalToken(token string) (string, error) {
-
+	fmt.Println("Refresh token...")
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 
@@ -164,6 +168,7 @@ func GetLocalToken(domain string) (string, error) {
 
 	// Here I will validate the token...
 	_, _, _, _, expireAt, err := ValidateToken(string(token))
+
 	if err == nil {
 		return string(token), nil
 	}
