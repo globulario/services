@@ -458,21 +458,6 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		c.Password = password
 		c.Store = store
 
-		if c.Store == persistencepb.StoreType_MONGO {
-			// here I will create a new mongo data store.
-			s := new(persistence_store.MongoStore)
-
-			// Now I will try to connect...
-			err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
-			if err != nil {
-				// codes.
-				return err
-			}
-
-			// keep the store for futur call...
-			persistence_server.stores[c.Id] = s
-		}
-
 		// If the connection need to save in the server configuration.
 		if save {
 			if persistence_server.Connections == nil {
@@ -489,9 +474,22 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		}
 	}
 
+	if c.Store == persistencepb.StoreType_MONGO {
+		// here I will create a new mongo data store.
+		s := new(persistence_store.MongoStore)
+
+		// Now I will try to connect...
+		err = s.Connect(c.Id, c.Host, c.Port, c.User, c.Password, c.Name, c.Timeout, c.Options)
+		if err != nil {
+			// codes.
+			return err
+		}
+		// keep the store for futur call...
+		persistence_server.stores[c.Id] = s
+	}
+
 	// test if the connection is reacheable.
 	err = persistence_server.stores[c.Id].Ping(ctx, c.Id)
-
 	if err != nil {
 		persistence_server.stores[c.Id].Disconnect(c.Id)
 		if _, ok := persistence_server.connections[id]; ok {
@@ -500,7 +498,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			delete(persistence_server.Connections, id)
 		}
 		return err
-	}
+	} 
 
 	// Print the success message here.
 	return nil
@@ -509,7 +507,6 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 // Create a new Store connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
 func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
-
 	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save)
 	if err != nil {
 		// codes.
@@ -915,6 +912,7 @@ func (persistence_server *server) Aggregate(rqst *persistencepb.AggregateRqst, s
 
 // Find one
 func (persistence_server *server) FindOne(ctx context.Context, rqst *persistencepb.FindOneRqst) (*persistencepb.FindOneResp, error) {
+
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("FindOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"))
@@ -925,6 +923,7 @@ func (persistence_server *server) FindOne(ctx context.Context, rqst *persistence
 
 	result, err := store.FindOne(ctx, strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_"), strings.ReplaceAll(strings.ReplaceAll(rqst.Database, "@", "_"), ".", "_"), rqst.Collection, rqst.Query, rqst.Options)
 	if err != nil {
+
 		err = errors.New(rqst.Collection + " " + rqst.Query + " " + err.Error())
 		return nil, status.Errorf(
 			codes.Internal,

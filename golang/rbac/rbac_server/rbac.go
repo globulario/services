@@ -1294,7 +1294,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 		actions = role.Actions
 	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
-		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for accout "+subject)
+		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for account "+subject)
 		// If the user is the super admin i will return true.
 		if subject == "sa" {
 			return true, nil

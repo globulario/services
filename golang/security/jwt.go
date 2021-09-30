@@ -2,13 +2,16 @@ package security
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 )
 
@@ -91,12 +94,16 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
 		return jwtKey, err
 	})
 
+	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
+		return  claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, errors.New("the token is expired")
+	}
+
 	if err != nil {
 		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, err
 	}
 
 	if !tkn.Valid {
-		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, fmt.Errorf("invalid token!")
+		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, errors.New("invalid token")
 	}
 
 	return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, nil
@@ -106,7 +113,7 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
  * refresh the local token.
  */
 func refreshLocalToken(token string) (string, error) {
-
+	fmt.Println("Refresh token...")
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 
@@ -116,7 +123,7 @@ func refreshLocalToken(token string) (string, error) {
 		return jwtKey, err
 	})
 
-	if err != nil {
+	if err != nil && !strings.HasPrefix(err.Error(), "token is expired"){
 		return "", err
 	}
 
@@ -125,11 +132,22 @@ func refreshLocalToken(token string) (string, error) {
 		return "", err
 	}
 
-	token, err = GenerateToken(jwtKey, time.Duration(claims.ExpiresAt-claims.IssuedAt), claims.Issuer, "", "", claims.Email)
+	// Now I will get the duration from the configuration.
+	globular := make(map[string] interface{})
+	data, err := ioutil.ReadFile(config.GetConfigDir() + "/config.json")
 	if err != nil {
 		return "", err
 	}
 
+	err = json.Unmarshal(data, &globular)
+	if err != nil {
+		return "", err
+	}
+
+	token, err = GenerateToken(jwtKey, time.Duration(int64(Utility.ToInt(globular["SessionTimeout"]))), claims.Issuer, "", "", claims.Email)
+	if err != nil {
+		return "", err
+	}
 	return token, err
 }
 
@@ -164,6 +182,7 @@ func GetLocalToken(domain string) (string, error) {
 
 	// Here I will validate the token...
 	_, _, _, _, expireAt, err := ValidateToken(string(token))
+
 	if err == nil {
 		return string(token), nil
 	}
@@ -172,8 +191,11 @@ func GetLocalToken(domain string) (string, error) {
 	if time.Unix(expireAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return "", errors.New("the token cannot be refresh after 7 day")
 	}
-
+	
 	newToken, err := refreshLocalToken(string(token))
+	if err != nil{
+		return "", err
+	}
 
 	// keep the token in the map...
 	tokens.Store(domain, newToken)
