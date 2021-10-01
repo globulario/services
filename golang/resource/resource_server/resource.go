@@ -747,7 +747,9 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 
 	if needSave {
 
-		jsonStr, _ := json.Marshal(role)
+		// jsonStr, _ := json.Marshal(role)
+		jsonStr := serialyseObject(role)
+		
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
