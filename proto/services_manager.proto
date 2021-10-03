@@ -69,6 +69,14 @@ message GetAllActionsResponse {
   repeated string actions = 1;
 }
 
+message SaveServiceConfigRequest {
+  string config = 1;
+}
+
+message SaveServiceConfigResponse {
+  
+}
+
 service ServicesManagerService {
 
   // Install a service...
@@ -91,4 +99,8 @@ service ServicesManagerService {
 
   // Return the list of all actions.
   rpc GetAllActions(GetAllActionsRequest) returns(GetAllActionsResponse);
+
+  // Save a given service configuration.
+  rpc SaveServiceConfig(SaveServiceConfigRequest) returns(SaveServiceConfigResponse);
+  
 }

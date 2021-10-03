@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
+	"github.com/emicklei/proto"
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/process"
@@ -21,7 +22,6 @@ import (
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"github.com/emicklei/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -239,7 +239,7 @@ func (server *server) stopServiceInstance(serviceId string) error {
 
 		}
 	}
-	
+
 	return nil
 }
 
@@ -281,13 +281,12 @@ func (server *server) startServiceInstance(serviceId string) error {
 		return err
 	}
 
-
 	processPid, err := process.StartServiceProcess(serviceId, globular["PortsRange"].(string))
 	if err != nil {
 		return err
 	}
 
-	err =process.StartServiceProxyProcess(serviceId, globular["CertificateAuthorityBundle"].(string),  globular["Certificate"].(string),  globular["PortsRange"].(string), processPid)
+	err = process.StartServiceProxyProcess(serviceId, globular["CertificateAuthorityBundle"].(string), globular["Certificate"].(string), globular["PortsRange"].(string), processPid)
 	if err != nil {
 		return err
 	}
@@ -363,10 +362,42 @@ func (server *server) GetServicesConfiguration(ctx context.Context, rqst *servic
 }
 
 /**
+ * Save service configuration.
+ */
+func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_managerpb.SaveServiceConfigRequest) (*services_managerpb.SaveServiceConfigResponse, error) {
+
+	s := make(map[string]interface{})
+	err := json.Unmarshal([]byte(rqst.Config), &s)
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Save the service configuration
+	err = config.SaveServiceConfiguration(s)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = server.publishUpdateServiceConfigEvent(s)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &services_managerpb.SaveServiceConfigResponse{}, nil
+}
+
+/**
  * That function return the list of all actions.
  */
-func (server *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error){
-	
+func (server *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
+
 	// first of all I will retreive the list of all services configuration.
 	services, err := config.GetServicesConfigurations()
 	if err != nil {
@@ -379,63 +410,63 @@ func (server *server) GetAllActions(ctx context.Context, rqst *services_managerp
 	actions := make([]string, 0)
 
 	// Now I will all protofile and extract methods names.
-	for i:=0; i < len(services); i++ {
+	for i := 0; i < len(services); i++ {
 		path := services[i]["Proto"].(string)
-		
-			// here I will parse the service defintion file to extract the
-			// service difinition.
-			reader, _ := os.Open(path)
-			defer reader.Close()
 
-			parser := proto.NewParser(reader)
-			definition, _ := parser.Parse()
+		// here I will parse the service defintion file to extract the
+		// service difinition.
+		reader, _ := os.Open(path)
+		defer reader.Close()
 
-			// Stack values from walking tree
-			stack := make([]interface{}, 0)
+		parser := proto.NewParser(reader)
+		definition, _ := parser.Parse()
 
-			handlePackage := func(stack *[]interface{}) func(*proto.Package) {
-				return func(p *proto.Package) {
-					*stack = append(*stack, p)
-				}
-			}(&stack)
+		// Stack values from walking tree
+		stack := make([]interface{}, 0)
 
-			handleService := func(stack *[]interface{}) func(*proto.Service) {
-				return func(s *proto.Service) {
-					*stack = append(*stack, s)
-				}
-			}(&stack)
-
-			handleRpc := func(stack *[]interface{}) func(*proto.RPC) {
-				return func(r *proto.RPC) {
-					*stack = append(*stack, r)
-				}
-			}(&stack)
-
-			// Walk this way
-			proto.Walk(definition,
-				proto.WithPackage(handlePackage),
-				proto.WithService(handleService),
-				proto.WithRPC(handleRpc))
-
-			var packageName string
-			var serviceName string
-			var methodName string
-
-			for len(stack) > 0 {
-				var x interface{}
-				x, stack = stack[0], stack[1:]
-				switch v := x.(type) {
-				case *proto.Package:
-					packageName = v.Name
-				case *proto.Service:
-					serviceName = v.Name
-				case *proto.RPC:
-					methodName = v.Name
-					path := "/" + packageName + "." + serviceName + "/" + methodName
-					// So here I will register the method into the backend.
-					actions = append(actions, path)
-				}
+		handlePackage := func(stack *[]interface{}) func(*proto.Package) {
+			return func(p *proto.Package) {
+				*stack = append(*stack, p)
 			}
+		}(&stack)
+
+		handleService := func(stack *[]interface{}) func(*proto.Service) {
+			return func(s *proto.Service) {
+				*stack = append(*stack, s)
+			}
+		}(&stack)
+
+		handleRpc := func(stack *[]interface{}) func(*proto.RPC) {
+			return func(r *proto.RPC) {
+				*stack = append(*stack, r)
+			}
+		}(&stack)
+
+		// Walk this way
+		proto.Walk(definition,
+			proto.WithPackage(handlePackage),
+			proto.WithService(handleService),
+			proto.WithRPC(handleRpc))
+
+		var packageName string
+		var serviceName string
+		var methodName string
+
+		for len(stack) > 0 {
+			var x interface{}
+			x, stack = stack[0], stack[1:]
+			switch v := x.(type) {
+			case *proto.Package:
+				packageName = v.Name
+			case *proto.Service:
+				serviceName = v.Name
+			case *proto.RPC:
+				methodName = v.Name
+				path := "/" + packageName + "." + serviceName + "/" + methodName
+				// So here I will register the method into the backend.
+				actions = append(actions, path)
+			}
+		}
 	}
 
 	return &services_managerpb.GetAllActionsResponse{

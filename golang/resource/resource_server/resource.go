@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"encoding/json"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
@@ -752,6 +750,7 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, string(jsonStr), ``)
 		if err != nil {
+			fmt.Println("------------------> ", jsonStr)
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -896,47 +895,21 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 		return nil, err
 	}
 
-	accountId := rqst.AccountId
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
+	// That service made user of persistence service.
+	err = resource_server.deleteReference(p, rqst.AccountId, rqst.RoleId, "members", "Roles")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No account named "+accountId+" exist!")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	account := values.(map[string]interface{})
-
-	// Now I will test if the account already contain the role.
-	if account["roles"] != nil {
-		roles := make([]interface{}, 0)
-		roles_ := []interface{}(account["roles"].(primitive.A))
-		needSave := false
-		for j := 0; j < len(roles_); j++ {
-			if roles_[j].(map[string]interface{})["$id"] == rqst.RoleId {
-				needSave = true
-			} else {
-				roles = append(roles, roles_[j])
-			}
-		}
-
-		if !needSave {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Account named "+rqst.AccountId+" does not contain role "+rqst.RoleId+"!")))
-		}
-
-		// append the newly created role.
-		account["roles"] = roles
-		jsonStr := serialyseObject(account)
-
-		err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+rqst.AccountId+`"},{"name":"`+rqst.AccountId+`"} ]}`, jsonStr, ``)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
+	err = resource_server.deleteReference(p, rqst.RoleId, rqst.AccountId, "roles", "Accounts")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
