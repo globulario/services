@@ -116,6 +116,8 @@ func validateAction(token, application, domain, organization, method, subject st
 		if time.Now().Before(expiredAt) && hasAccess__ {
 			return true, nil
 		}
+		// the token is expire...
+		cache.Delete(uuid)
 	}
 
 	rbac_client_, err := GetRbacClient(domain)
