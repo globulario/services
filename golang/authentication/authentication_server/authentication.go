@@ -69,7 +69,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), id, name, email)
+	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), id, name, email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -218,7 +218,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 	}
 
 	// The token string
-	tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -352,7 +352,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 			}
 		}
 
-		tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+		tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -383,7 +383,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	session.AccountId = account.Id
 
 	// The token string
-	tokenString, err := security.GenerateToken(key, time.Duration(server.SessionTimeout), Utility.MyMacAddr(), account.Id, account.Name, account.Email)
+	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), account.Id, account.Name, account.Email)
 	if err != nil {
 		return "", err
 	}

@@ -378,8 +378,14 @@ func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.G
 
 // Save Globular configuration.
 func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveConfigRequest) (*adminpb.SaveConfigRequest, error) {
+	jsonStr, err := Utility.PrettyPrint([]byte(rqst.Config))
+	if err != nil {
+		return nil, err
+	}
+
 	configPath := config.GetConfigDir() + "/config.json"
-	err := ioutil.WriteFile(configPath, []byte(rqst.Config), 0644)
+	
+	err = ioutil.WriteFile(configPath, jsonStr, 0644)
 	if err != nil {
 		return nil, err
 	}

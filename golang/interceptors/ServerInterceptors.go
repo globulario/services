@@ -112,9 +112,9 @@ func getActionResourceInfos(domain, method string) ([]*rbacpb.ResourceInfos, err
 
 }
 
-func validateAction(token string, application string, domain string, organization string, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
+func validateAction(token, application, domain, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
 
-	id := domain + method + subject
+	id := domain + method + token
 	for i := 0; i < len(infos); i++ {
 		id += infos[i].Permission + infos[i].Path
 	}
@@ -277,14 +277,14 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	//log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),"function call... ", logpb.LogLevel_INFO_MESSAGE)
 
 	// Test if peer has access
-	if !hasAccess && len(application) > 0 {
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for application "+application+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, domain)
-	}
-
 	if !hasAccess && len(clientId) > 0 {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  account "+clientId+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
+	}
+
+	if !hasAccess && len(application) > 0 {
+		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for application "+application+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
+		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, domain)
 	}
 
 	if !hasAccess && len(issuer) > 0 {

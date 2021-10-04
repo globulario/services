@@ -43,11 +43,12 @@ type Claims struct {
 }
 
 // Generate a token for a ginven user.
-func GenerateToken(jwtKey []byte, timeout time.Duration, issuer, userId, userName, email string) (string, error) {
+func GenerateToken(jwtKey []byte, timeout int, issuer, userId, userName, email string) (string, error) {
 
 	// Declare the expiration time of the token
 	now := time.Now()
-	expirationTime := now.Add(timeout * time.Millisecond)
+
+	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
 
 	// Create the JWT claims, which includes the username and expiry time
 	claims := &Claims{
@@ -144,7 +145,7 @@ func refreshLocalToken(token string) (string, error) {
 		return "", err
 	}
 
-	token, err = GenerateToken(jwtKey, time.Duration(int64(Utility.ToInt(globular["SessionTimeout"]))), claims.Issuer, "", "", claims.Email)
+	token, err = GenerateToken(jwtKey, Utility.ToInt(globular["SessionTimeout"]), claims.Issuer, "", "", claims.Email)
 	if err != nil {
 		return "", err
 	}

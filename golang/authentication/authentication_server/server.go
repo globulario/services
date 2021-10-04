@@ -593,7 +593,7 @@ func main() {
 	s_impl.Dependencies = []string{"event.EventService", "resource.ResourceService"}
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.WatchSessionsDelay = 60
-	s_impl.SessionTimeout = 60 * 15 * 1000
+	s_impl.SessionTimeout = 15
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins

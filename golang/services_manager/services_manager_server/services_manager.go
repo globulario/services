@@ -383,6 +383,22 @@ func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_mana
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Stop and start the services
+	err = server.stopServiceInstance(s["Id"].(string))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+
+	err = server.startServiceInstance(s["Id"].(string))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	err = server.publishUpdateServiceConfigEvent(s)
 	if err != nil {
 		return nil, status.Errorf(

@@ -92,7 +92,7 @@ type server struct {
 	DataPath         string
 
 	// The session time out.
-	SessionTimeout time.Duration
+	SessionTimeout int
 
 	// Data store where account, role ect are keep...
 	store persistence_store.Store
