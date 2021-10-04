@@ -7,9 +7,8 @@ package interceptors
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
+	//"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -37,7 +35,7 @@ var (
 
 	// That will contain the permission in memory to limit the number
 	// of resource request...
-	cache *storage_store.BigCache_store
+	cache  sync.Map
 
 	// keep map in memory.
 	ressourceInfos sync.Map
@@ -70,19 +68,6 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	return rbac_client_, nil
 }
 
-/**
- * A singleton use to access the cache.
- */
-func getCache() *storage_store.BigCache_store {
-	if cache == nil {
-		cache = storage_store.NewBigCache_store()
-		err := cache.Open("")
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-	return cache
-}
 
 /**
  * Keep method info in memory.
@@ -121,15 +106,14 @@ func validateAction(token, application, domain, organization, method, subject st
 
 	// generate a uuid for the action and it's ressource permissions.
 	uuid := Utility.GenerateUUID(id)
-	item, err := getCache().GetItem(uuid)
+	item, ok := cache.Load(uuid)
 
-	if err == nil {
+	if ok {
 		// Here I will test if the permission has expired...
-		hasAccess_ := make(map[string]interface{})
-		err := json.Unmarshal(item, &hasAccess_)
-		expiredAt := time.Unix(int64(hasAccess_["expiredAt"].(float64)), 0)
+		hasAccess_ :=item.(map[string]interface{})
+		expiredAt := time.Unix(hasAccess_["expiredAt"].(int64), 0)
 		hasAccess__ := hasAccess_["hasAccess"].(bool)
-		if err == nil && time.Now().Before(expiredAt) && hasAccess__ {
+		if time.Now().Before(expiredAt) && hasAccess__ {
 			return true, nil
 		}
 	}
@@ -145,8 +129,8 @@ func validateAction(token, application, domain, organization, method, subject st
 	}
 
 	// Here I will set the access in the cache.
-	hasAccess_, _ := json.Marshal(map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
-	getCache().SetItem(uuid, hasAccess_)
+	cache.Store(uuid, map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
+
 	return hasAccess, nil
 
 }
@@ -369,8 +353,8 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	}
 
 	// if the cache contain the uuid it means permission is allowed
-	_, err := getCache().GetItem(l.uuid)
-	if err == nil {
+	_, ok := cache.Load(l.uuid)
+	if ok {
 		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
 		return nil
 	}
@@ -393,8 +377,10 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		return err
 	}
 
+	cache.Store(l.uuid, []byte{})
+
 	// set empty item to set haAccess.
-	return getCache().SetItem(l.uuid, []byte{})
+	return nil
 }
 
 // Stream interceptor.
@@ -445,7 +431,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	}
 
 	// Remove the uuid from the cache
-	getCache().RemoveItem(uuid)
+	cache.Delete(uuid)
 
 	return err
 }
