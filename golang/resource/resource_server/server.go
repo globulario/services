@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
