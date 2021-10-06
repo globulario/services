@@ -131,6 +131,7 @@ func validateAction(token, application, domain, organization, method, subject st
 	}
 
 	// Here I will set the access in the cache.
+	log(domain, application, subject, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  "+subject+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 	cache.Store(uuid, map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
 
 	return hasAccess, nil
@@ -264,17 +265,14 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Test if peer has access
 	if !hasAccess && len(clientId) > 0 {
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  account "+clientId+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
 	}
 
 	if !hasAccess && len(application) > 0 {
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for application "+application+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, domain)
 	}
 
 	if !hasAccess && len(issuer) > 0 {
-		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for peer "+issuer+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, domain)
 	}
 
