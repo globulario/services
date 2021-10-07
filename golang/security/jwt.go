@@ -168,6 +168,9 @@ func getLocalToken(domain string) (string, error) {
 		return "", err
 	}
 
+	// keep the token in the map...
+	tokens.Store(domain, token)
+
 	return string(token_), nil
 }
 
