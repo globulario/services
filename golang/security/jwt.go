@@ -158,7 +158,9 @@ var tokens = new(sync.Map)
 func getLocalToken(domain string) (string, error) {
 	token, ok := tokens.Load(domain)
 	if ok {
+		if token != nil {
 		return token.(string), nil
+		}
 	}
 
 	tokensPath := config.GetConfigDir() + "/tokens"
@@ -169,7 +171,7 @@ func getLocalToken(domain string) (string, error) {
 	}
 
 	// keep the token in the map...
-	tokens.Store(domain, token)
+	tokens.Store(domain, string(token_))
 
 	return string(token_), nil
 }
