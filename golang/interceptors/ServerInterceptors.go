@@ -8,7 +8,7 @@ package interceptors
 import (
 	"context"
 	"errors"
-	//"fmt"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -114,9 +114,11 @@ func validateAction(token, application, domain, organization, method, subject st
 		expiredAt := time.Unix(hasAccess_["expiredAt"].(int64), 0)
 		hasAccess__ := hasAccess_["hasAccess"].(bool)
 		if time.Now().Before(expiredAt) && hasAccess__ {
+			fmt.Println("permission found for method",method, subject)
 			return true, nil
 		}
 		// the token is expire...
+		fmt.Println("remove expired cache item")
 		cache.Delete(uuid)
 	}
 
