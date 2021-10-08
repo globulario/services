@@ -4,306 +4,242 @@
 syntax = "proto3";
 package resource;
 
-//import "google/protobuf/struct.proto";
+// import "google/protobuf/struct.proto";
 option go_package = "resource/resourcepb";
 
 /** That message will contain the information to update a service on a node. **/
 message PackageBundle {
 
-	PackageDescriptor packageDescriptor = 1;
+  PackageDescriptor packageDescriptor = 1;
 
-	/** additionnal informations not found in the descriptor **/
-	string checksum = 2;
-	string plaform = 3;
-	int32 size = 4;
-	int64 modified = 5;
-	bytes Binairies = 6; // not save in the bd 
+  /** additionnal informations not found in the descriptor **/
+  string checksum = 2;
+  string plaform = 3;
+  int32 size = 4;
+  int64 modified = 5;
+  bytes Binairies = 6; // not save in the bd
 }
 
 enum PackageType {
-	UNKNOW_TYPE = 0; // not work correctly with ToJson function...
-	SERVICE_TYPE = 1;
-	APPLICATION_TYPE = 2;
+  UNKNOW_TYPE = 0; // not work correctly with ToJson function...
+  SERVICE_TYPE = 1;
+  APPLICATION_TYPE = 2;
 }
 
 /**
- * A package can contain Service or Application. The type will be use to dertmine 
- * what the package contain.
+ * A package can contain Service or Application. The type will be use to
+ * dertmine what the package contain.
  */
 message PackageDescriptor {
-	string id = 1;
-	string name = 2;
-	PackageType type = 3;
-	string publisherId = 4; // Cam be Organization or Account.
-	string version = 6;
-	string description = 7;
-	repeated string repositories = 8; // The list of repositories that has the package
-	repeated string discoveries = 9; // The list of dicoveries that has the package
-	repeated string keywords = 10; // keywords that describe the application/service
-	repeated string actions = 11; // optional, contain the list of actions required by that application / services
-	repeated Role roles = 12; // The list of roles required by the application/service
-	repeated Group groups= 13;
-	string icon = 14;
-	string alias = 15;
+  string id = 1;
+  string name = 2;
+  PackageType type = 3;
+  string publisherId = 4; // Cam be Organization or Account.
+  string version = 6;
+  string description = 7;
+  repeated string repositories =
+      8; // The list of repositories that has the package
+  repeated string discoveries =
+      9; // The list of dicoveries that has the package
+  repeated string keywords =
+      10; // keywords that describe the application/service
+  repeated string actions = 11; // optional, contain the list of actions
+                                // required by that application / services
+  repeated Role roles =
+      12; // The list of roles required by the application/service
+  repeated Group groups = 13;
+  string icon = 14;
+  string alias = 15;
 }
 
 /** Account **/
 message Account {
-	string id=1;
-	string name=2;
-	string email =3;
-	string password =4;
-	
-	// References.
-	repeated string organizations=6;
-	repeated string groups=7;
-	repeated string roles=8;
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string password = 4;
+
+  // References.
+  repeated string organizations = 6;
+  repeated string groups = 7;
+  repeated string roles = 8;
 }
 
 /** A role is simply a list of actions that an account can call **/
 message Role {
-	string id=1;
-	string name=2;
-	repeated string  actions=3; // must be a registered action from grpc.
-	
-	// References.
-	repeated string members=4;
-	repeated string organizations=5;
+  string id = 1;
+  string name = 2;
+  repeated string actions = 3; // must be a registered action from grpc.
+
+  // References.
+  repeated string members = 4;
+  repeated string organizations = 5;
 }
 
-message RegisterAccountRqst{
-	Account account = 1;
-	string confirm_password = 3;
+message RegisterAccountRqst {
+  Account account = 1;
+  string confirm_password = 3;
 }
 
-message RegisterAccountRsp {
-	string result = 1;
-}
+message RegisterAccountRsp { string result = 1; }
 
+message AccountExistRqst { string id = 1; }
 
-message AccountExistRqst{
-	string id = 1;
-}
-
-message AccountExistRsp{
-	bool result=1;
-}
+message AccountExistRsp { bool result = 1; }
 
 /**
  * Return the list of accounts (query is use to get specific account's).
  */
-message GetAccountsRqst{
-	string query = 1;
-	string options = 2;
+message GetAccountsRqst {
+  string query = 1;
+  string options = 2;
 }
 
-message GetAccountsRsp{
-	repeated Account accounts = 1;
+message GetAccountsRsp { repeated Account accounts = 1; }
+
+message GetAccountRqst { string accountId = 1; }
+
+message GetAccountRsp { Account account = 1; }
+
+message SetAccountPasswordRqst {
+  string accountId = 1;
+  string old_password = 2;
+  string new_password = 3;
 }
 
-message GetAccountRqst{
-	string accountId = 1;
+message SetAccountPasswordRsp { /** Nothing here */ }
+
+message SetEmailRequest {
+  string accountId = 1;
+  string oldEmail = 2;
+  string newEmail = 3;
 }
 
-message GetAccountRsp{
-	Account account = 1;
+message SetEmailResponse {}
+
+message DeleteAccountRqst { string id = 1; }
+
+message DeleteAccountRsp { string result = 1; }
+
+message AddAccountRoleRqst {
+  string accountId = 1;
+  string roleId = 2;
 }
 
-message SetAccountPasswordRqst{
-	string accountId = 1;
-	string old_password = 2;
-	string new_password = 3;
+message AddAccountRoleRsp { bool result = 1; }
+
+message RemoveAccountRoleRqst {
+  string accountId = 1;
+  string roleId = 2;
 }
 
-message SetAccountPasswordRsp{
-	/** Nothing here */
-}
-
-message SetEmailRequest{
-	string accountId = 1;
-	string oldEmail = 2;
-	string newEmail = 3;
-}
-
-message SetEmailResponse {
-	
-}
-
-message DeleteAccountRqst{
-	string id = 1;
-}
-
-message DeleteAccountRsp {
-	string result = 1;
-}
-
-message AddAccountRoleRqst{
-	string accountId = 1;
-	string roleId = 2;
-}
-
-message AddAccountRoleRsp{
-	bool result = 1;
-}
-
-message RemoveAccountRoleRqst{
-	string accountId = 1;
-	string roleId = 2;
-}
-
-message RemoveAccountRoleRsp{
-	bool result = 1;
-}
+message RemoveAccountRoleRsp { bool result = 1; }
 
 message Contact {
-	string id = 1;
-	int64 invitationTime = 2;
-	string status = 3;
+  string id = 1;
+  int64 invitationTime = 2;
+  string status = 3;
 }
 
-message SetAccountContactRqst{
-	string accountId = 1;
-	Contact contact = 2;
+message SetAccountContactRqst {
+  string accountId = 1;
+  Contact contact = 2;
 }
 
-message SetAccountContactRsp{
-	bool result = 1;
-}
+message SetAccountContactRsp { bool result = 1; }
 
-message CreateRoleRqst{
-	Role role = 1;
-}
+message CreateRoleRqst { Role role = 1; }
 
-message CreateRoleRsp{
-	bool result = 1;
-}
+message CreateRoleRsp { bool result = 1; }
 
 /**
  * Return the list of role's.
  */
-message GetRolesRqst{
-	string query = 1;
-	string options = 2;
+message GetRolesRqst {
+  string query = 1;
+  string options = 2;
 }
 
-message GetRolesRsp{
-	repeated Role roles = 1;
-}
+message GetRolesRsp { repeated Role roles = 1; }
 
-message DeleteRoleRqst{
-	string roleId = 1;
-}
+message DeleteRoleRqst { string roleId = 1; }
 
-message DeleteRoleRsp{
-	bool result = 1;
-}
+message DeleteRoleRsp { bool result = 1; }
 
 /** The application */
-message Application{
-	string id = 1;
-	string name = 2;
-	string password = 3;
-	string path = 4;
-	string version= 5;
-	string description = 6;
-	repeated string actions = 7;
-	repeated string keywords = 8;
-	string icon = 9;
-	string alias = 10;
-	string publisherid = 11;
-	int64 creation_date = 12;
-	int64 last_deployed = 13;
+message Application {
+  string id = 1;
+  string name = 2;
+  string password = 3;
+  string path = 4;
+  string version = 5;
+  string description = 6;
+  repeated string actions = 7;
+  repeated string keywords = 8;
+  string icon = 9;
+  string alias = 10;
+  string publisherid = 11;
+  int64 creation_date = 12;
+  int64 last_deployed = 13;
 }
 
 /** Create / Update an application */
-message CreateApplicationRqst {
-	Application application = 1;
-}
+message CreateApplicationRqst { Application application = 1; }
 
-message CreateApplicationRsp {
-	
-}
+message CreateApplicationRsp {}
 
 // Update application
-message UpdateApplicationRqst{
-	string applicationId = 1;
-	string values = 2;
+message UpdateApplicationRqst {
+  string applicationId = 1;
+  string values = 2;
 }
 
-message UpdateApplicationRsp{
-	bool result = 1;
-}
+message UpdateApplicationRsp { bool result = 1; }
 
 // Delete application
-message DeleteApplicationRqst{
-	string applicationId = 1;
-}
+message DeleteApplicationRqst { string applicationId = 1; }
 
-message DeleteApplicationRsp{
-	bool result = 1;
-}
+message DeleteApplicationRsp { bool result = 1; }
 
 // Retrun a json with applications informations.
-message GetApplicationsRqst{
-	string query = 1;
-	string options = 2;
+message GetApplicationsRqst {
+  string query = 1;
+  string options = 2;
 }
 
-message GetApplicationsRsp{
-	repeated Application applications = 1;
-}
+message GetApplicationsRsp { repeated Application applications = 1; }
 
 /** The application version */
-message GetApplicationVersionRqst {
-	string id = 1;
-}
+message GetApplicationVersionRqst { string id = 1; }
 
-message GetApplicationVersionRsp {
-	string version = 1;
-}
+message GetApplicationVersionRsp { string version = 1; }
 
 /** The application icon */
-message GetApplicationIconRqst {
-	string id = 1;
-}
+message GetApplicationIconRqst { string id = 1; }
 
-message GetApplicationIconRsp {
-	string icon = 1;
-}
+message GetApplicationIconRsp { string icon = 1; }
 
 /** The application alias */
-message GetApplicationAliasRqst {
-	string id = 1;
-}
+message GetApplicationAliasRqst { string id = 1; }
 
-message GetApplicationAliasRsp {
-	string alias = 1;
-}
+message GetApplicationAliasRsp { string alias = 1; }
 
 message IsOrgnanizationMemberRqst {
-	string organizationId = 1;
-	string accountId = 2;
+  string organizationId = 1;
+  string accountId = 2;
 }
 
-message IsOrgnanizationMemberRsp{
-	bool result = 1;
-}
+message IsOrgnanizationMemberRsp { bool result = 1; }
 
-message SetPackageBundleRequest {
-	PackageBundle bundle = 1;
-}
+message SetPackageBundleRequest { PackageBundle bundle = 1; }
 
-message SetPackageBundleResponse {
-	bool result = 1;
-}
+message SetPackageBundleResponse { bool result = 1; }
 
 message GetPackageBundleChecksumRequest {
-	string id = 1; // the bundle id.
+  string id = 1; // the bundle id.
 }
 
-message GetPackageBundleChecksumResponse {
-	string checksum = 1;
-}
+message GetPackageBundleChecksumResponse { string checksum = 1; }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Group's
@@ -311,76 +247,59 @@ message GetPackageBundleChecksumResponse {
 
 /** a globular group **/
 message Group {
-	string id = 1;
-	string name = 2; // must be unique on the network.
-	repeated string  members=3; // can be empty...
-	repeated string  organizations=4; // can be empty...
+  string id = 1;
+  string name = 2;                   // must be unique on the network.
+  repeated string members = 3;       // can be empty...
+  repeated string organizations = 4; // can be empty...
 }
 
 /**
  * Register group request.
  */
-message CreateGroupRqst{
-	Group group = 1;
-}
+message CreateGroupRqst { Group group = 1; }
 
-message CreateGroupRsp{
-	bool result = 1;
-}
+message CreateGroupRsp { bool result = 1; }
 
 /**
  * Return list of groups
  */
-message UpdateGroupRqst{
-	string groupId = 1; // filter...
-	string values = 2;
+message UpdateGroupRqst {
+  string groupId = 1; // filter...
+  string values = 2;
 }
 
-message UpdateGroupRsp{
-	bool result = 1;
-}
-
+message UpdateGroupRsp { bool result = 1; }
 
 /**
  * Return list of groups
  */
-message GetGroupsRqst{
-	string query = 1; // filter...
-	string options = 2;
+message GetGroupsRqst {
+  string query = 1; // filter...
+  string options = 2;
 }
 
-message GetGroupsRsp{
-	repeated Group groups = 1;
-}
+message GetGroupsRsp { repeated Group groups = 1; }
 
 /**
  * Remove a peer from the network.
  */
-message DeleteGroupRqst{
-	string group = 1;
+message DeleteGroupRqst { string group = 1; }
+
+message DeleteGroupRsp { bool result = 1; }
+
+message AddGroupMemberAccountRqst {
+  string groupId = 1;
+  string accountId = 2;
 }
 
-message DeleteGroupRsp{
-	bool result = 1;
+message AddGroupMemberAccountRsp { bool result = 1; }
+
+message RemoveGroupMemberAccountRqst {
+  string groupId = 1;
+  string accountId = 2;
 }
 
-message AddGroupMemberAccountRqst{
-	string groupId = 1;
-	string accountId = 2;
-}
-
-message AddGroupMemberAccountRsp{
-	bool result = 1;
-}
-
-message RemoveGroupMemberAccountRqst{
-	string groupId = 1;
-	string accountId = 2;
-}
-
-message RemoveGroupMemberAccountRsp{
-	bool result = 1;
-}
+message RemoveGroupMemberAccountRsp { bool result = 1; }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Organization's
@@ -388,50 +307,104 @@ message RemoveGroupMemberAccountRsp{
 
 /** a globular server **/
 message Organization {
-	string id = 1;
-	string name = 2; // must be unique on the network.
-	
-	// Aggregations
-	repeated string  accounts=3;
-	repeated string  groups=4;
-	repeated string  roles=5;
-	repeated string  applications=6;
+  string id = 1;
+  string name = 2; // must be unique on the network.
+  string icon = 3;
+
+  // Aggregations
+  repeated string accounts = 4;
+  repeated string groups = 5;
+  repeated string roles = 6;
+  repeated string applications = 7;
 }
 
 /**
  * Register peer request.
  */
-message CreateOrganizationRqst{
-	Organization organization = 1;
+message CreateOrganizationRqst { Organization organization = 1; }
+
+message CreateOrganizationRsp { bool result = 1; }
+
+message UpdateOrganizationRqst {   
+	string organizationId = 1;
+	string values = 2; 
 }
 
-message CreateOrganizationRsp{
-	bool result = 1;
-}
+message UpdateOrganizationRsp { bool result = 1; }
+
 
 /**
  * Return list of Organization
  */
-message GetOrganizationsRqst{
-	string query = 1;
-	string options = 2;
+message GetOrganizationsRqst {
+  string query = 1;
+  string options = 2;
 }
 
-message GetOrganizationsRsp{
-	repeated Organization organizations = 1;
+message GetOrganizationsRsp { repeated Organization organizations = 1; }
+
+message AddOrganizationAccountRqst {
+  string organizationId = 1;
+  string accountId = 2;
 }
+
+message AddOrganizationAccountRsp { bool result = 1; }
+
+message AddOrganizationGroupRqst {
+  string organizationId = 1;
+  string groupId = 2;
+}
+
+message AddOrganizationGroupRsp { bool result = 1; }
+
+message AddOrganizationRoleRqst {
+  string organizationId = 1;
+  string roleId = 2;
+}
+
+message AddOrganizationRoleRsp { bool result = 1; }
+
+message AddOrganizationApplicationRqst {
+  string organizationId = 1;
+  string applicationId = 2;
+}
+
+message AddOrganizationApplicationRsp { bool result = 1; }
+
+message RemoveOrganizationGroupRqst {
+  string organizationId = 1;
+  string groupId = 2;
+}
+
+message RemoveOrganizationGroupRsp { bool result = 1; }
+
+message RemoveOrganizationRoleRqst {
+  string organizationId = 1;
+  string roleId = 2;
+}
+
+message RemoveOrganizationRoleRsp { bool result = 1; }
+
+message RemoveOrganizationApplicationRqst {
+  string organizationId = 1;
+  string applicationId = 2;
+}
+
+message RemoveOrganizationApplicationRsp { bool result = 1; }
+
+message RemoveOrganizationAccountRqst {
+  string organizationId = 1;
+  string accountId = 2;
+}
+
+message RemoveOrganizationAccountRsp { bool result = 1; }
 
 /**
  * Remove a peer from the network.
  */
-message DeleteOrganizationRqst{
-	string organization = 1;
-}
+message DeleteOrganizationRqst { string organization = 1; }
 
-message DeleteOrganizationRsp{
-	bool result = 1;
-}
-
+message DeleteOrganizationRsp { bool result = 1; }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Peer's
@@ -439,580 +412,474 @@ message DeleteOrganizationRsp{
 
 /** a globular server **/
 message Peer {
-	string domain = 1; // must be unique on the network.
-	string address = 2; // the ip address, can be local network addresse.
-	string mac = 3; // The mac address
+  string domain = 1;  // must be unique on the network.
+  string address = 2; // the ip address, can be local network addresse.
+  string mac = 3;     // The mac address
 
-	// The list of actions.
-	repeated string actions=4;
+  // The list of actions.
+  repeated string actions = 4;
 }
 
 /**
  * Connect to peers together
  */
-message RegisterPeerRqst{
-	Peer peer = 1;
-	string public_key = 2;
-	string secret = 3; // The way the secret is exange is out of the scope of the function...
+message RegisterPeerRqst {
+  Peer peer = 1;
+  string public_key = 2;
+  string secret =
+      3; // The way the secret is exange is out of the scope of the function...
 }
 
-message RegisterPeerRsp{
-	Peer peer = 1;
-	string public_key = 2;
+message RegisterPeerRsp {
+  Peer peer = 1;
+  string public_key = 2;
 }
 
 /**
  * Return the list of peer (query is use to get specific peer's).
  */
-message GetPeersRqst{
-	string query = 1;
-	string options = 2;
+message GetPeersRqst {
+  string query = 1;
+  string options = 2;
 }
 
-message GetPeersRsp{
-	repeated Peer peers = 1;
-}
+message GetPeersRsp { repeated Peer peers = 1; }
 
 /**
  * Remove a peer from the network.
  */
-message DeletePeerRqst{
-	Peer peer = 1;
+message DeletePeerRqst { Peer peer = 1; }
+
+message DeletePeerRsp { bool result = 1; }
+
+message AddRoleActionsRqst {
+  string roleId = 1;
+  repeated string actions = 2;
 }
 
-message DeletePeerRsp{
-	bool result = 1;
+message AddRoleActionsRsp { bool result = 1; }
+
+message RemoveRoleActionRqst {
+  string roleId = 1;
+  string action = 2;
 }
 
+message RemoveRoleActionRsp { bool result = 1; }
 
-message AddRoleActionsRqst{
-	string roleId = 1;
-	repeated string actions = 2;
+message RemoveRolesActionRqst { string action = 2; }
+
+message RemoveRolesActionRsp { bool result = 1; }
+
+message AddApplicationActionsRqst {
+  string applicationId = 1;
+  repeated string actions = 2;
 }
 
-message AddRoleActionsRsp{
-	bool result = 1;
+message AddApplicationActionsRsp { bool result = 1; }
+
+message RemoveApplicationActionRqst {
+  string applicationId = 1;
+  string action = 2;
 }
 
-message RemoveRoleActionRqst{
-	string roleId = 1;
-	string action = 2;
+message RemoveApplicationActionRsp { bool result = 1; }
+
+message RemoveApplicationsActionRqst { string action = 2; }
+
+message RemoveApplicationsActionRsp { bool result = 1; }
+
+message AddPeerActionsRqst {
+  string domain = 1;
+  repeated string actions = 2;
 }
 
-message RemoveRoleActionRsp{
-	bool result = 1;
+message AddPeerActionsRsp { bool result = 1; }
+
+message RemovePeerActionRqst {
+  string domain = 1;
+  string action = 2;
 }
 
-message RemoveRolesActionRqst{
-	string action = 2;
-}
+message RemovePeerActionRsp { bool result = 1; }
 
-message RemoveRolesActionRsp{
-	bool result = 1;
-}
+message RemovePeersActionRqst { string action = 2; }
 
-message AddApplicationActionsRqst{
-	string applicationId = 1;
-	repeated string actions = 2;
-}
-
-message AddApplicationActionsRsp{
-	bool result = 1;
-}
-
-message RemoveApplicationActionRqst{
-	string applicationId = 1;
-	string action = 2;
-}
-
-message RemoveApplicationActionRsp{
-	bool result = 1;
-}
-
-message RemoveApplicationsActionRqst{
-	string action = 2;
-}
-
-message RemoveApplicationsActionRsp{
-	bool result = 1;
-}
-
-message AddPeerActionsRqst{
-	string domain = 1;
-	repeated string actions = 2;
-}
-
-message AddPeerActionsRsp{
-	bool result = 1;
-}
-
-message RemovePeerActionRqst{
-	string domain = 1;
-	string action = 2;
-}
-
-message RemovePeerActionRsp{
-	bool result = 1;
-}
-
-message RemovePeersActionRqst{
-	string action = 2;
-}
-
-message RemovePeersActionRsp{
-	bool result = 1;
-}
-
-message AddOrganizationAccountRqst{
-	string organizationId = 1;
-	string accountId = 2;
-}
-
-message AddOrganizationAccountRsp{
-	bool result = 1;
-}
-
-message AddOrganizationGroupRqst{
-	string organizationId = 1;
-	string groupId = 2;
-}
-
-message AddOrganizationGroupRsp{
-	bool result = 1;
-}
-
-message AddOrganizationRoleRqst{
-	string organizationId = 1;
-	string roleId = 2;
-}
-
-message AddOrganizationRoleRsp{
-	bool result = 1;
-}
-
-message AddOrganizationApplicationRqst{
-	string organizationId = 1;
-	string applicationId = 2;
-}
-
-message AddOrganizationApplicationRsp{
-	bool result = 1;
-}
-
-message RemoveOrganizationGroupRqst{
-	string organizationId = 1;
-	string groupId = 2;
-}
-
-message RemoveOrganizationGroupRsp{
-	bool result = 1;
-}
-
-message RemoveOrganizationRoleRqst{
-	string organizationId = 1;
-	string roleId = 2;
-}
-
-message RemoveOrganizationRoleRsp{
-	bool result = 1;
-}
-
-message RemoveOrganizationApplicationRqst{
-	string organizationId = 1;
-	string applicationId = 2;
-}
-
-message RemoveOrganizationApplicationRsp{
-	bool result = 1;
-}
-
-message RemoveOrganizationAccountRqst{
-	string organizationId = 1;
-	string accountId = 2;
-}
-
-message RemoveOrganizationAccountRsp{
-	bool result = 1;
-}
+message RemovePeersActionRsp { bool result = 1; }
 
 enum NotificationType {
-	USER_NOTIFICATION = 0;
-	APPLICATION_NOTIFICATION = 1;
-	SYSTEM_NOTIFICATION = 2;
+  USER_NOTIFICATION = 0;
+  APPLICATION_NOTIFICATION = 1;
+  SYSTEM_NOTIFICATION = 2;
 }
 
-message Notification{
-	string id = 1;
-	int64 date = 2;
-	string message = 3;
-	string recipient = 4;
-	string sender = 5;
-	NotificationType notification_type = 6;
+message Notification {
+  string id = 1;
+  int64 date = 2;
+  string message = 3;
+  string recipient = 4;
+  string sender = 5;
+  NotificationType notification_type = 6;
 }
 
-message CreateNotificationRqst {
-	Notification notification = 1;
-}
+message CreateNotificationRqst { Notification notification = 1; }
 
-message CreateNotificationRsp {
+message CreateNotificationRsp {}
 
-}
+message GetNotificationsRqst { string recipient = 1; }
 
-message GetNotificationsRqst {
-	string recipient = 1;
-}
-
-message GetNotificationsRsp {
-	repeated Notification notifications = 1;
-}
+message GetNotificationsRsp { repeated Notification notifications = 1; }
 
 message DeleteNotificationRqst {
-	string id = 1;
-	string recipient = 2; // The id of the application or the user id.
+  string id = 1;
+  string recipient = 2; // The id of the application or the user id.
 }
 
-message DeleteNotificationRsp {
+message DeleteNotificationRsp {}
 
+message ClearAllNotificationsRqst { string recipient = 1; }
+
+message ClearAllNotificationsRsp {}
+
+message ClearNotificationsByTypeRqst {
+  string recipient = 1;
+  NotificationType notification_type = 2;
 }
 
-message ClearAllNotificationsRqst{
-	string recipient = 1;
-}
-
-message ClearAllNotificationsRsp{
-
-}
-
-message ClearNotificationsByTypeRqst{
-	string recipient = 1;
-	NotificationType notification_type = 2;
-}
-
-message ClearNotificationsByTypeRsp{
-
-}
+message ClearNotificationsByTypeRsp {}
 
 message GetPackageDescriptorRequest {
-	string serviceId = 1;
-	string publisherId = 2;
+  string serviceId = 1;
+  string publisherId = 2;
 }
 
-
 message GetPackageDescriptorResponse {
-	// Return one of more service descriptor with various versions.
-	repeated PackageDescriptor results = 1;
+  // Return one of more service descriptor with various versions.
+  repeated PackageDescriptor results = 1;
 }
 
 message GetPackagesDescriptorRequest {
-	string query = 1;
-	string options = 2;
+  string query = 1;
+  string options = 2;
 }
 
 message GetPackagesDescriptorResponse {
-	repeated PackageDescriptor results = 1;
+  repeated PackageDescriptor results = 1;
 }
 
-message SetPackageDescriptorRequest {
-	PackageDescriptor packageDescriptor = 1;
-}
+message SetPackageDescriptorRequest { PackageDescriptor packageDescriptor = 1; }
 
-message SetPackageDescriptorResponse {
-	bool result = 1;
-}
+message SetPackageDescriptorResponse { bool result = 1; }
 
-message FindPackagesDescriptorRequest {
-	repeated string keywords = 1;
-}
+message FindPackagesDescriptorRequest { repeated string keywords = 1; }
 
 message FindPackagesDescriptorResponse {
-	repeated PackageDescriptor results = 1;
+  repeated PackageDescriptor results = 1;
 }
 
 enum SessionState {
-	ONLINE = 0;
-	OFFLINE=1;
-	AWAY = 2;
+  ONLINE = 0;
+  OFFLINE = 1;
+  AWAY = 2;
 }
 
 /** Information about user session */
 message Session {
-	string accountId = 1;
-	SessionState state = 2;
-	int64 last_state_time = 3; 
-	int64 expire_at = 4;
+  string accountId = 1;
+  SessionState state = 2;
+  int64 last_state_time = 3;
+  int64 expire_at = 4;
 }
 
-message UpdateSessionRequest {
-	Session session = 1;
-}
+message UpdateSessionRequest { Session session = 1; }
 
-message UpdateSessionResponse {
-	/** Nothing here */
-}
+message UpdateSessionResponse { /** Nothing here */ }
 
-message RemoveSessionRequest {
-	string accountId = 1;
-}
+message RemoveSessionRequest { string accountId = 1; }
 
-message RemoveSessionResponse {
-	/** Nothing here */
-}
+message RemoveSessionResponse { /** Nothing here */ }
 
 message GetSessionsRequest {
-	string query = 1;
-	string options = 2;
+  string query = 1;
+  string options = 2;
 }
 
-message GetSessionsResponse {
-	repeated Session sessions = 1;
-}
+message GetSessionsResponse { repeated Session sessions = 1; }
 
-message GetSessionRequest {
-	string accountId = 1;
-}
+message GetSessionRequest { string accountId = 1; }
 
-message GetSessionResponse {
-	Session session = 1;
-}
+message GetSessionResponse { Session session = 1; }
 
 /**
  * That service is use to manage Globular resource like permissions and accounts
- * or role. The service made use of Persistence service to store various 
+ * or role. The service made use of Persistence service to store various
  * objects.
  */
 service ResourceService {
 
-	////////////////////////////////////////////////////////////////////////////
-	// Organization's
-	////////////////////////////////////////////////////////////////////////////
-	
-	/** Register a new organization */
-	rpc CreateOrganization(CreateOrganizationRqst) returns (CreateOrganizationRsp);
-	
-	/** Return the list of organizations */
-	rpc GetOrganizations(GetOrganizationsRqst) returns(stream GetOrganizationsRsp);
+  ////////////////////////////////////////////////////////////////////////////
+  // Organization's
+  ////////////////////////////////////////////////////////////////////////////
 
-	/** Delete Organization */
-	rpc DeleteOrganization(DeleteOrganizationRqst) returns (DeleteOrganizationRsp);
-	
-	/** Add Account **/
-	rpc AddOrganizationAccount(AddOrganizationAccountRqst) returns (AddOrganizationAccountRsp);
-	
-	/** Add Group **/
-	rpc AddOrganizationGroup(AddOrganizationGroupRqst) returns (AddOrganizationGroupRsp);
-	
-	/** Add Role **/
-	rpc AddOrganizationRole(AddOrganizationRoleRqst) returns (AddOrganizationRoleRsp);
-	
-	/** Add Application **/
-	rpc AddOrganizationApplication(AddOrganizationApplicationRqst) returns (AddOrganizationApplicationRsp);
-	
-	/** Remove Account **/
-	rpc RemoveOrganizationAccount(RemoveOrganizationAccountRqst) returns (RemoveOrganizationAccountRsp);
-	
-	/** Remove Group **/
-	rpc RemoveOrganizationGroup(RemoveOrganizationGroupRqst) returns (RemoveOrganizationGroupRsp);
-	
-	/** Remove Role **/
-	rpc RemoveOrganizationRole(RemoveOrganizationRoleRqst) returns (RemoveOrganizationRoleRsp);
-	
-	/** Remove Application **/
-	rpc RemoveOrganizationApplication(RemoveOrganizationApplicationRqst) returns (RemoveOrganizationApplicationRsp);
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Group's
-	////////////////////////////////////////////////////////////////////////////
-	
-	/** Register a new group */
-	rpc CreateGroup(CreateGroupRqst) returns (CreateGroupRsp);
-	
-	/** Update a group */
-	rpc UpdateGroup(UpdateGroupRqst) returns (UpdateGroupRsp);
+  /** Register a new organization */
+  rpc CreateOrganization(CreateOrganizationRqst)
+      returns (CreateOrganizationRsp);
 
-	/** Return the list of groups */
-	rpc GetGroups(GetGroupsRqst) returns(stream GetGroupsRsp);
+  /** Update a organization */
+  rpc UpdateOrganization(UpdateOrganizationRqst) returns (UpdateOrganizationRsp);
 
-	/** Delete group */
-	rpc DeleteGroup(DeleteGroupRqst) returns (DeleteGroupRsp);
-	
-	/** Add a member account to the group **/
-	rpc AddGroupMemberAccount(AddGroupMemberAccountRqst) returns(AddGroupMemberAccountRsp);
-	
-	/** Remove member account from the group **/
-	rpc RemoveGroupMemberAccount(RemoveGroupMemberAccountRqst) returns(RemoveGroupMemberAccountRsp);
+  /** Return the list of organizations */
+  rpc GetOrganizations(GetOrganizationsRqst)
+      returns (stream GetOrganizationsRsp);
 
-	////////////////////////////////////////////////////////////////////////////
-	// Account's
-	////////////////////////////////////////////////////////////////////////////
-	
-	/** Register a new Account **/
-	rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp);
-	
-	/** Delete an account **/
-	rpc DeleteAccount(DeleteAccountRqst) returns(DeleteAccountRsp);
+  /** Delete Organization */
+  rpc DeleteOrganization(DeleteOrganizationRqst)
+      returns (DeleteOrganizationRsp);
 
-	/** Return a single account */
-	rpc GetAccount(GetAccountRqst) returns(GetAccountRsp);
+  /** Add Account **/
+  rpc AddOrganizationAccount(AddOrganizationAccountRqst)
+      returns (AddOrganizationAccountRsp);
 
-	/** Save an account */
-	rpc SetAccountPassword(SetAccountPasswordRqst) returns(SetAccountPasswordRsp);
-	
-	/** Return the list of accounts **/
-	rpc GetAccounts(GetAccountsRqst) returns(stream GetAccountsRsp);
+  /** Add Group **/
+  rpc AddOrganizationGroup(AddOrganizationGroupRqst)
+      returns (AddOrganizationGroupRsp);
 
-	/** Add role to a given account **/
-	rpc AddAccountRole(AddAccountRoleRqst) returns(AddAccountRoleRsp);
+  /** Add Role **/
+  rpc AddOrganizationRole(AddOrganizationRoleRqst)
+      returns (AddOrganizationRoleRsp);
 
-	/** Remove a role from a given account **/
-	rpc RemoveAccountRole(RemoveAccountRoleRqst) returns(RemoveAccountRoleRsp);
-	
-	/** Append a contact **/
-	rpc SetAccountContact(SetAccountContactRqst) returns(SetAccountContactRsp);
+  /** Add Application **/
+  rpc AddOrganizationApplication(AddOrganizationApplicationRqst)
+      returns (AddOrganizationApplicationRsp);
 
-	/** Set / Change the account email **/
-	rpc SetEmail(SetEmailRequest) returns(SetEmailResponse);
+  /** Remove Account **/
+  rpc RemoveOrganizationAccount(RemoveOrganizationAccountRqst)
+      returns (RemoveOrganizationAccountRsp);
 
-	/** Test if account is part of a given organization **/
-	rpc IsOrgnanizationMember(IsOrgnanizationMemberRqst) returns(IsOrgnanizationMemberRsp);
+  /** Remove Group **/
+  rpc RemoveOrganizationGroup(RemoveOrganizationGroupRqst)
+      returns (RemoveOrganizationGroupRsp);
 
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Role's
-	////////////////////////////////////////////////////////////////////////////
-	
-	/** Create / update a role with given action list **/
-	rpc CreateRole(CreateRoleRqst) returns(CreateRoleRsp);
-	
-	/** Return the list of roles **/
-	rpc GetRoles(GetRolesRqst) returns(stream GetRolesRsp);
-	
-	/** Delete a role with a given id **/
-	rpc DeleteRole(DeleteRoleRqst) returns(DeleteRoleRsp);
-	
-	/** Append action's to existing role. **/
-	rpc AddRoleActions(AddRoleActionsRqst) returns(AddRoleActionsRsp);
-	
-	/** Remove an action to existing role. **/
-	rpc RemoveRoleAction(RemoveRoleActionRqst) returns(RemoveRoleActionRsp);
+  /** Remove Role **/
+  rpc RemoveOrganizationRole(RemoveOrganizationRoleRqst)
+      returns (RemoveOrganizationRoleRsp);
 
-	/** Remove an action from all roles. **/
-	rpc RemoveRolesAction(RemoveRolesActionRqst) returns(RemoveRolesActionRsp);
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Application's
-	////////////////////////////////////////////////////////////////////////////
+  /** Remove Application **/
+  rpc RemoveOrganizationApplication(RemoveOrganizationApplicationRqst)
+      returns (RemoveOrganizationApplicationRsp);
 
-	/** Create an application **/
-	rpc CreateApplication(CreateApplicationRqst) returns(CreateApplicationRsp);
+  ////////////////////////////////////////////////////////////////////////////
+  // Group's
+  ////////////////////////////////////////////////////////////////////////////
 
-	/** Update an applicaiton values*/
-	rpc UpdateApplication(UpdateApplicationRqst) returns(UpdateApplicationRsp);
-	
-	/** Return a json string with all applications informations **/
-	rpc GetApplications(GetApplicationsRqst) returns(stream GetApplicationsRsp);
-	
-	/** Delete an application from the server. **/
-	rpc DeleteApplication(DeleteApplicationRqst) returns(DeleteApplicationRsp);
-	
-	/** Append actions to existing applications. **/
-	rpc AddApplicationActions(AddApplicationActionsRqst) returns(AddApplicationActionsRsp);
-	
-	/** Remove an action to existing applications. **/
-	rpc RemoveApplicationAction(RemoveApplicationActionRqst) returns(RemoveApplicationActionRsp);
+  /** Register a new group */
+  rpc CreateGroup(CreateGroupRqst) returns (CreateGroupRsp);
 
-	/** Remove an action from all applications. **/
-	rpc RemoveApplicationsAction(RemoveApplicationsActionRqst) returns(RemoveApplicationsActionRsp);
+  /** Update a group */
+  rpc UpdateGroup(UpdateGroupRqst) returns (UpdateGroupRsp);
 
-	/** Retreive application version */
-	rpc GetApplicationVersion(GetApplicationVersionRqst) returns(GetApplicationVersionRsp);
+  /** Return the list of groups */
+  rpc GetGroups(GetGroupsRqst) returns (stream GetGroupsRsp);
 
-	/** Reteive application alias */
-	rpc GetApplicationAlias(GetApplicationAliasRqst) returns(GetApplicationAliasRsp);
+  /** Delete group */
+  rpc DeleteGroup(DeleteGroupRqst) returns (DeleteGroupRsp);
 
-	/** Reteive application icon */
-	rpc GetApplicationIcon(GetApplicationIconRqst) returns(GetApplicationIconRsp);
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Peer's
-	////////////////////////////////////////////////////////////////////////////
-	
-	/** Register a peer on the network **/
-	rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
-	
-	/** Return the list of peers **/
-	rpc GetPeers(GetPeersRqst) returns(stream GetPeersRsp);
+  /** Add a member account to the group **/
+  rpc AddGroupMemberAccount(AddGroupMemberAccountRqst)
+      returns (AddGroupMemberAccountRsp);
 
-	/** Remove a peer from the network **/
-	rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
+  /** Remove member account from the group **/
+  rpc RemoveGroupMemberAccount(RemoveGroupMemberAccountRqst)
+      returns (RemoveGroupMemberAccountRsp);
 
-	/** Add peer actions **/
-	rpc AddPeerActions(AddPeerActionsRqst) returns(AddPeerActionsRsp);
-	
-	/** Remove peer action permission **/
-	rpc RemovePeerAction(RemovePeerActionRqst) returns(RemovePeerActionRsp);
+  ////////////////////////////////////////////////////////////////////////////
+  // Account's
+  ////////////////////////////////////////////////////////////////////////////
 
-	/** Remove peer action permission **/
-	rpc RemovePeersAction(RemovePeersActionRqst) returns(RemovePeersActionRsp);
+  /** Register a new Account **/
+  rpc RegisterAccount(RegisterAccountRqst) returns (RegisterAccountRsp);
 
-	////////////////////////////////////////////////////////////////////////////
-	// Notification's
-	////////////////////////////////////////////////////////////////////////////
+  /** Delete an account **/
+  rpc DeleteAccount(DeleteAccountRqst) returns (DeleteAccountRsp);
 
-	/** Create a notification */
-	rpc CreateNotification(CreateNotificationRqst) returns(CreateNotificationRsp);
+  /** Return a single account */
+  rpc GetAccount(GetAccountRqst) returns (GetAccountRsp);
 
-	/** Retreive notifications */
-	rpc GetNotifications(GetNotificationsRqst) returns(stream GetNotificationsRsp);
+  /** Save an account */
+  rpc SetAccountPassword(SetAccountPasswordRqst)
+      returns (SetAccountPasswordRsp);
 
-	/** Remove a notification */
-	rpc DeleteNotification(DeleteNotificationRqst) returns(DeleteNotificationRsp);
+  /** Return the list of accounts **/
+  rpc GetAccounts(GetAccountsRqst) returns (stream GetAccountsRsp);
 
-	/** Remove all Notification */
-	rpc ClearAllNotifications(ClearAllNotificationsRqst) returns(ClearAllNotificationsRsp);
+  /** Add role to a given account **/
+  rpc AddAccountRole(AddAccountRoleRqst) returns (AddAccountRoleRsp);
 
-	/** Remove all notification of a given type */
-	rpc ClearNotificationsByType(ClearNotificationsByTypeRqst) returns(ClearNotificationsByTypeRsp);
+  /** Remove a role from a given account **/
+  rpc RemoveAccountRole(RemoveAccountRoleRqst) returns (RemoveAccountRoleRsp);
 
-	////////////////////////////////////////////////////////////////////////////
-	// Package's
-	////////////////////////////////////////////////////////////////////////////
-	
-	
-	// Descriptor
+  /** Append a contact **/
+  rpc SetAccountContact(SetAccountContactRqst) returns (SetAccountContactRsp);
 
-	/** Search service by keywords **/
-	rpc FindPackages(FindPackagesDescriptorRequest) returns (FindPackagesDescriptorResponse);
-	
-	/** Return the list of all packages **/
-	rpc GetPackageDescriptor(GetPackageDescriptorRequest) returns ( GetPackageDescriptorResponse);
-	
-	/** Return the list of all packages **/
-	rpc GetPackagesDescriptor(GetPackagesDescriptorRequest) returns(stream GetPackagesDescriptorResponse);
-	
-	/** Save a service descriptor **/
-	rpc SetPackageDescriptor(SetPackageDescriptorRequest) returns(SetPackageDescriptorResponse);
+  /** Set / Change the account email **/
+  rpc SetEmail(SetEmailRequest) returns (SetEmailResponse);
 
-	// Bundle...
+  /** Test if account is part of a given organization **/
+  rpc IsOrgnanizationMember(IsOrgnanizationMemberRqst)
+      returns (IsOrgnanizationMemberRsp);
 
-	/** Retreive a pacakge bundle **/
-	rpc SetPackageBundle(SetPackageBundleRequest) returns(SetPackageBundleResponse);
+  ////////////////////////////////////////////////////////////////////////////
+  // Role's
+  ////////////////////////////////////////////////////////////////////////////
 
-	/** Return the checksum for a given bundle */
-	rpc GetPackageBundleChecksum(GetPackageBundleChecksumRequest) returns(GetPackageBundleChecksumResponse);
+  /** Create / update a role with given action list **/
+  rpc CreateRole(CreateRoleRqst) returns (CreateRoleRsp);
 
-	////////////////////////////////////////////////////////////////////////////
-	// Session's
-	////////////////////////////////////////////////////////////////////////////
+  /** Return the list of roles **/
+  rpc GetRoles(GetRolesRqst) returns (stream GetRolesRsp);
 
-	/** Update user session informations */
-	rpc UpdateSession(UpdateSessionRequest) returns(UpdateSessionResponse);
+  /** Delete a role with a given id **/
+  rpc DeleteRole(DeleteRoleRqst) returns (DeleteRoleRsp);
 
-	/** Return the list of sessions */
-	rpc GetSessions(GetSessionsRequest) returns(GetSessionsResponse); 
+  /** Append action's to existing role. **/
+  rpc AddRoleActions(AddRoleActionsRqst) returns (AddRoleActionsRsp);
 
-	/** Remove session */
-	rpc RemoveSession(RemoveSessionRequest) returns(RemoveSessionResponse);
+  /** Remove an action to existing role. **/
+  rpc RemoveRoleAction(RemoveRoleActionRqst) returns (RemoveRoleActionRsp);
 
-	/** Return a session for a given user */
-	rpc GetSession(GetSessionRequest) returns(GetSessionResponse);
+  /** Remove an action from all roles. **/
+  rpc RemoveRolesAction(RemoveRolesActionRqst) returns (RemoveRolesActionRsp);
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Application's
+  ////////////////////////////////////////////////////////////////////////////
+
+  /** Create an application **/
+  rpc CreateApplication(CreateApplicationRqst) returns (CreateApplicationRsp);
+
+  /** Update an applicaiton values*/
+  rpc UpdateApplication(UpdateApplicationRqst) returns (UpdateApplicationRsp);
+
+  /** Return a json string with all applications informations **/
+  rpc GetApplications(GetApplicationsRqst) returns (stream GetApplicationsRsp);
+
+  /** Delete an application from the server. **/
+  rpc DeleteApplication(DeleteApplicationRqst) returns (DeleteApplicationRsp);
+
+  /** Append actions to existing applications. **/
+  rpc AddApplicationActions(AddApplicationActionsRqst)
+      returns (AddApplicationActionsRsp);
+
+  /** Remove an action to existing applications. **/
+  rpc RemoveApplicationAction(RemoveApplicationActionRqst)
+      returns (RemoveApplicationActionRsp);
+
+  /** Remove an action from all applications. **/
+  rpc RemoveApplicationsAction(RemoveApplicationsActionRqst)
+      returns (RemoveApplicationsActionRsp);
+
+  /** Retreive application version */
+  rpc GetApplicationVersion(GetApplicationVersionRqst)
+      returns (GetApplicationVersionRsp);
+
+  /** Reteive application alias */
+  rpc GetApplicationAlias(GetApplicationAliasRqst)
+      returns (GetApplicationAliasRsp);
+
+  /** Reteive application icon */
+  rpc GetApplicationIcon(GetApplicationIconRqst)
+      returns (GetApplicationIconRsp);
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Peer's
+  ////////////////////////////////////////////////////////////////////////////
+
+  /** Register a peer on the network **/
+  rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
+
+  /** Return the list of peers **/
+  rpc GetPeers(GetPeersRqst) returns (stream GetPeersRsp);
+
+  /** Remove a peer from the network **/
+  rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
+
+  /** Add peer actions **/
+  rpc AddPeerActions(AddPeerActionsRqst) returns (AddPeerActionsRsp);
+
+  /** Remove peer action permission **/
+  rpc RemovePeerAction(RemovePeerActionRqst) returns (RemovePeerActionRsp);
+
+  /** Remove peer action permission **/
+  rpc RemovePeersAction(RemovePeersActionRqst) returns (RemovePeersActionRsp);
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Notification's
+  ////////////////////////////////////////////////////////////////////////////
+
+  /** Create a notification */
+  rpc CreateNotification(CreateNotificationRqst)
+      returns (CreateNotificationRsp);
+
+  /** Retreive notifications */
+  rpc GetNotifications(GetNotificationsRqst)
+      returns (stream GetNotificationsRsp);
+
+  /** Remove a notification */
+  rpc DeleteNotification(DeleteNotificationRqst)
+      returns (DeleteNotificationRsp);
+
+  /** Remove all Notification */
+  rpc ClearAllNotifications(ClearAllNotificationsRqst)
+      returns (ClearAllNotificationsRsp);
+
+  /** Remove all notification of a given type */
+  rpc ClearNotificationsByType(ClearNotificationsByTypeRqst)
+      returns (ClearNotificationsByTypeRsp);
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Package's
+  ////////////////////////////////////////////////////////////////////////////
+
+  // Descriptor
+
+  /** Search service by keywords **/
+  rpc FindPackages(FindPackagesDescriptorRequest)
+      returns (FindPackagesDescriptorResponse);
+
+  /** Return the list of all packages **/
+  rpc GetPackageDescriptor(GetPackageDescriptorRequest)
+      returns (GetPackageDescriptorResponse);
+
+  /** Return the list of all packages **/
+  rpc GetPackagesDescriptor(GetPackagesDescriptorRequest)
+      returns (stream GetPackagesDescriptorResponse);
+
+  /** Save a service descriptor **/
+  rpc SetPackageDescriptor(SetPackageDescriptorRequest)
+      returns (SetPackageDescriptorResponse);
+
+  // Bundle...
+
+  /** Retreive a pacakge bundle **/
+  rpc SetPackageBundle(SetPackageBundleRequest)
+      returns (SetPackageBundleResponse);
+
+  /** Return the checksum for a given bundle */
+  rpc GetPackageBundleChecksum(GetPackageBundleChecksumRequest)
+      returns (GetPackageBundleChecksumResponse);
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Session's
+  ////////////////////////////////////////////////////////////////////////////
+
+  /** Update user session informations */
+  rpc UpdateSession(UpdateSessionRequest) returns (UpdateSessionResponse);
+
+  /** Return the list of sessions */
+  rpc GetSessions(GetSessionsRequest) returns (GetSessionsResponse);
+
+  /** Remove session */
+  rpc RemoveSession(RemoveSessionRequest) returns (RemoveSessionResponse);
+
+  /** Return a session for a given user */
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
 }

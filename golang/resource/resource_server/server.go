@@ -567,6 +567,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	references_ := make([]interface{}, 0)
 	for j := 0; j < len(references); j++ {
 		if references[j].(map[string]interface{})["$id"] != refId {
+			fmt.Println("---------> append reference: ", refId)
 			references_ = append(references_, references[j])
 		}
 	}
@@ -578,7 +579,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("replace one succed: ", targetCollection,  jsonStr)
 	return nil
 }
 
@@ -736,7 +737,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, applicationId, organizationId, "applications", "Applications")
+			resource_server.deleteReference(p, applicationId, organizationId, "applications", "Organizations")
 		}
 	}
 
