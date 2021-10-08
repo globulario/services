@@ -480,7 +480,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		organizations := []interface{}(account["organizations"].(primitive.A))
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.Id, organizationId, "accounts", "Accounts")
+			resource_server.deleteReference(p, rqst.Id, organizationId, "accounts", "Organizations")
 		}
 	}
 
@@ -488,7 +488,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		groups := []interface{}(account["groups"].(primitive.A))
 		for i := 0; i < len(groups); i++ {
 			groupId := groups[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.Id, groupId, "members", "Accounts")
+			resource_server.deleteReference(p, rqst.Id, groupId, "members", "Groups")
 		}
 	}
 
@@ -496,7 +496,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		roles := []interface{}(account["roles"].(primitive.A))
 		for i := 0; i < len(roles); i++ {
 			roleId := roles[i].(map[string]interface{})["$id"].(string)
-			resource_server.deleteReference(p, rqst.Id, roleId, "members", "Accounts")
+			resource_server.deleteReference(p, rqst.Id, roleId, "members", "Roles")
 		}
 	}
 
@@ -750,7 +750,6 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, string(jsonStr), ``)
 		if err != nil {
-			fmt.Println("------------------> ", jsonStr)
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1712,6 +1711,38 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}, nil
 }
 
+// Update an organization informations.
+func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.UpdateOrganizationRqst) (*resourcepb.UpdateOrganizationRsp, error){
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Get the persistence connection
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.OrganizationId+`"}`, "")
+	if err != nil || count == 0 {
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	} else {
+
+		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.OrganizationId+`"}`, rqst.Values, "")
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	return &resourcepb.UpdateOrganizationRsp{
+		Result: true,
+	}, nil
+}
+
 //* Return the list of organizations
 func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, stream resourcepb.ResourceService_GetOrganizationsServer) error {
 	// Get the persistence connection
@@ -1970,7 +2001,10 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if groups != nil {
 			for i := 0; i < len(groups); i++ {
 				groupId := groups[i].(map[string]interface{})["$id"].(string)
-				resource_server.deleteReference(p, rqst.Organization, groupId, "organizations", "Organizations")
+				err:=resource_server.deleteReference(p, rqst.Organization, groupId, "organizations", "Groups")
+				if(err != nil){
+					fmt.Println(err)
+				}
 			}
 		}
 	}
@@ -1980,7 +2014,10 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if roles != nil {
 			for i := 0; i < len(roles); i++ {
 				roleId := roles[i].(map[string]interface{})["$id"].(string)
-				resource_server.deleteReference(p, rqst.Organization, roleId, "organizations", "Organizations")
+				err:=resource_server.deleteReference(p, rqst.Organization, roleId, "organizations", "Roles")
+				if(err != nil){
+					fmt.Println(err)
+				}
 			}
 		}
 	}
@@ -1990,7 +2027,10 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if applications != nil {
 			for i := 0; i < len(applications); i++ {
 				applicationId := applications[i].(map[string]interface{})["$id"].(string)
-				resource_server.deleteReference(p, rqst.Organization, applicationId, "organizations", "Organizations")
+				err :=resource_server.deleteReference(p, rqst.Organization, applicationId, "organizations", "Applications")
+				if(err != nil){
+					fmt.Println(err)
+				}
 			}
 		}
 	}
@@ -1999,8 +2039,11 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		accounts := []interface{}(organization["accounts"].(primitive.A))
 		if accounts != nil {
 			for i := 0; i < len(accounts); i++ {
-				accountsId := accounts[i].(map[string]interface{})["$id"].(string)
-				resource_server.deleteReference(p, rqst.Organization, accountsId, "organizations", "Organizations")
+				accountId := accounts[i].(map[string]interface{})["$id"].(string)
+				err  := resource_server.deleteReference(p, rqst.Organization, accountId, "organizations", "Accounts")
+				if(err != nil){
+					fmt.Println(err)
+				}
 			}
 		}
 	}
@@ -2192,7 +2235,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		if organizations != nil {
 			for i := 0; i < len(organizations); i++ {
 				organizationId := organizations[i].(map[string]interface{})["$id"].(string)
-				resource_server.deleteReference(p, rqst.Group, organizationId, "groups", "Groups")
+				resource_server.deleteReference(p, rqst.Group, organizationId, "groups", "Organizations")
 			}
 		}
 	}

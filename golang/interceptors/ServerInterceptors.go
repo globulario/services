@@ -261,8 +261,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-	//log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(),"function call... ", logpb.LogLevel_INFO_MESSAGE)
-
 	// Test if peer has access
 	if !hasAccess && len(clientId) > 0 {
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)

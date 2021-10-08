@@ -153,6 +153,86 @@ proto.resource.ResourceServicePromiseClient.prototype.createOrganization =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.UpdateOrganizationRqst,
+ *   !proto.resource.UpdateOrganizationRsp>}
+ */
+const methodDescriptor_ResourceService_UpdateOrganization = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/UpdateOrganization',
+  grpc.web.MethodType.UNARY,
+  proto.resource.UpdateOrganizationRqst,
+  proto.resource.UpdateOrganizationRsp,
+  /**
+   * @param {!proto.resource.UpdateOrganizationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdateOrganizationRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.UpdateOrganizationRqst,
+ *   !proto.resource.UpdateOrganizationRsp>}
+ */
+const methodInfo_ResourceService_UpdateOrganization = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.UpdateOrganizationRsp,
+  /**
+   * @param {!proto.resource.UpdateOrganizationRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdateOrganizationRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.UpdateOrganizationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.UpdateOrganizationRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.UpdateOrganizationRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.updateOrganization =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/UpdateOrganization',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateOrganization,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.UpdateOrganizationRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.UpdateOrganizationRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.updateOrganization =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/UpdateOrganization',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateOrganization);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.GetOrganizationsRqst,
  *   !proto.resource.GetOrganizationsRsp>}
  */
