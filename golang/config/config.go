@@ -169,6 +169,8 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 										s["Root"] = GetDataDir() + "/files"
 									} else if s["Name"] == "conversation.ConversationService" {
 										s["Root"] = GetDataDir()
+									} else if s["Name"] == "log.LogService" {
+										s["Root"] = GetDataDir() + "/logs"
 									}
 								}
 

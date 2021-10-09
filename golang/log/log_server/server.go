@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -375,9 +375,6 @@ func (svr *server) publish(event string, data []byte) error {
 // port number must be pass as argument.
 func main() {
 
-	// Set the log information in case of crash...
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
 	// Initialyse service with default values.
 	s_impl := new(server)
 	s_impl.Name = string(logpb.File_log_proto.Services().Get(0).FullName())
@@ -399,18 +396,21 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 
-	// The logs storage.
-	s_impl.logs = storage_store.NewLevelDB_store()
-	err := s_impl.logs.Open(`{"path":"` + s_impl.Root + `", "name":"logs"}`)
+	
+	// Here I will retreive the list of connections from file if there are some...
+	err := s_impl.Init()
 	if err != nil {
-		log.Println(err)
+		fmt.Print("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		return
 	}
 
-	// Here I will retreive the list of connections from file if there are some...
-	err = s_impl.Init()
+	// The logs storage.
+	s_impl.logs = storage_store.NewLevelDB_store()
+	err = s_impl.logs.Open(`{"path":"` + s_impl.Root + `", "name":"logs"}`)
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		fmt.Println(err)
 	}
+
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
