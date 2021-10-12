@@ -86,7 +86,7 @@ func (client *Resource_Client) GetCtx() context.Context {
 	}
 	token, err := security.GetLocalToken(client.GetDomain())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac":client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
@@ -357,12 +357,13 @@ func (client *Resource_Client) IsOrganizationMemeber(user, organization string) 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a new Account.
-func (client *Resource_Client) RegisterAccount(name string, email string, password string, confirmation_password string) error {
+func (client *Resource_Client) RegisterAccount(domain, name, email, password, confirmation_password string) error {
 	rqst := &resourcepb.RegisterAccountRqst{
 		Account: &resourcepb.Account{
 			Name:     name,
 			Email:    email,
 			Password: password,
+			Domain:   domain,
 		},
 		ConfirmPassword: confirmation_password,
 	}
@@ -681,15 +682,15 @@ func (client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a peer with a given name and mac address.
-func (client *Resource_Client) RegisterPeer(token, mac, domain, address, key, secret string) (*resourcepb.Peer, string, error) {
+func (client *Resource_Client) RegisterPeer(token, mac, domain, externl_ip_addres, local_ip_address, key string) (*resourcepb.Peer, string, error) {
 	rqst := &resourcepb.RegisterPeerRqst{
 		Peer: &resourcepb.Peer{
 			Domain:  domain,
 			Mac:     mac,
-			Address: address,
+			ExternalIpAddress: externl_ip_addres,
+			LocalIpAddress: local_ip_address,
 		},
 		PublicKey: string(key),
-		Secret:    secret,
 	}
 
 	ctx := client.GetCtx()
@@ -737,9 +738,9 @@ func (client *Resource_Client) DeletePeer(token, domain string) error {
 /**
  * Add a action to a given peer.
  */
-func (client *Resource_Client) AddPeerActions(token, domain string, actions []string) error {
+func (client *Resource_Client) AddPeerActions(token, mac string, actions []string) error {
 	rqst := &resourcepb.AddPeerActionsRqst{
-		Domain:  domain,
+		Mac:     mac,
 		Actions: actions,
 	}
 
@@ -761,9 +762,9 @@ func (client *Resource_Client) AddPeerActions(token, domain string, actions []st
 /**
  * Remove action from a given peer.
  */
-func (client *Resource_Client) RemovePeerAction(token, domain, action string) error {
+func (client *Resource_Client) RemovePeerAction(token, mac, action string) error {
 	rqst := &resourcepb.RemovePeerActionRqst{
-		Domain: domain,
+		Mac:    mac,
 		Action: action,
 	}
 

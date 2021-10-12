@@ -13,6 +13,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -325,7 +326,33 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 var (
 	rbac_client_ *rbac_client.Rbac_Client
 	log_client_  *log_client.Log_Client
+	event_client_ *event_client.Event_Client
 )
+
+///////////////////// resource service functions ////////////////////////////////////
+func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ != nil {
+		return event_client_, nil
+	}
+
+	event_client_, err = event_client.NewEventService_Client(server.Domain, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
+
+	return event_client_, nil
+}
+
+// when services state change that publish 
+func (server *server) publishUpdatePeersEvent() error{
+	client, err := server.getEventClient()
+	if err != nil {
+		return err
+	}
+
+	return client.Publish("update_peers_evt", []byte{})
+}
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
 /**
@@ -475,7 +502,7 @@ func (resource_server *server) validatePassword(password string, hash string) er
 /**
  * Register an Account.
  */
-func (resource_server *server) registerAccount(id string, name string, email string, password string, organizations []string, roles []string, groups []string) error {
+func (resource_server *server) registerAccount(domain, id, name, email, password string, organizations []string, roles []string, groups []string) error {
 
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -499,6 +526,7 @@ func (resource_server *server) registerAccount(id string, name string, email str
 	account["_id"] = id
 	account["name"] = name
 	account["email"] = email
+	account["domain"] = domain
 	account["password"], _ = resource_server.hashPassword(password) // hide the password...
 
 	// List of aggregation.

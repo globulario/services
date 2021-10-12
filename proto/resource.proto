@@ -7,6 +7,10 @@ package resource;
 // import "google/protobuf/struct.proto";
 option go_package = "resource/resourcepb";
 
+/////////////////////////////////////////////////////////////////
+// Package Bundle
+/////////////////////////////////////////////////////////////////
+
 /** That message will contain the information to update a service on a node. **/
 message PackageBundle {
 
@@ -19,6 +23,21 @@ message PackageBundle {
   int64 modified = 5;
   bytes Binairies = 6; // not save in the bd
 }
+
+
+message SetPackageBundleRequest { PackageBundle bundle = 1; }
+
+message SetPackageBundleResponse { bool result = 1; }
+
+message GetPackageBundleChecksumRequest {
+  string id = 1; // the bundle id.
+}
+
+message GetPackageBundleChecksumResponse { string checksum = 1; }
+
+/////////////////////////////////////////////////////////////////
+// Package
+/////////////////////////////////////////////////////////////////
 
 enum PackageType {
   UNKNOW_TYPE = 0; // not work correctly with ToJson function...
@@ -52,18 +71,40 @@ message PackageDescriptor {
   string alias = 15;
 }
 
-/** Account **/
-message Account {
-  string id = 1;
-  string name = 2;
-  string email = 3;
-  string password = 4;
 
-  // References.
-  repeated string organizations = 6;
-  repeated string groups = 7;
-  repeated string roles = 8;
+message GetPackageDescriptorRequest {
+  string serviceId = 1;
+  string publisherId = 2;
 }
+
+message GetPackageDescriptorResponse {
+  // Return one of more service descriptor with various versions.
+  repeated PackageDescriptor results = 1;
+}
+
+message GetPackagesDescriptorRequest {
+  string query = 1;
+  string options = 2;
+}
+
+message GetPackagesDescriptorResponse {
+  repeated PackageDescriptor results = 1;
+}
+
+message SetPackageDescriptorRequest { PackageDescriptor packageDescriptor = 1; }
+
+message SetPackageDescriptorResponse { bool result = 1; }
+
+message FindPackagesDescriptorRequest { repeated string keywords = 1; }
+
+message FindPackagesDescriptorResponse {
+  repeated PackageDescriptor results = 1;
+}
+
+
+/////////////////////////////////////////////////////////////////
+// Role
+/////////////////////////////////////////////////////////////////
 
 /** A role is simply a list of actions that an account can call **/
 message Role {
@@ -74,6 +115,42 @@ message Role {
   // References.
   repeated string members = 4;
   repeated string organizations = 5;
+}
+
+message AddRoleActionsRqst {
+  string roleId = 1;
+  repeated string actions = 2;
+}
+
+message AddRoleActionsRsp { bool result = 1; }
+
+message RemoveRoleActionRqst {
+  string roleId = 1;
+  string action = 2;
+}
+
+message RemoveRoleActionRsp { bool result = 1; }
+
+message RemoveRolesActionRqst { string action = 2; }
+
+message RemoveRolesActionRsp { bool result = 1; }
+
+/////////////////////////////////////////////////////////////////
+// Account
+/////////////////////////////////////////////////////////////////
+
+/** Account **/
+message Account {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string password = 4;
+  string domain = 5; // The domain where the account belong to.
+
+  // References.
+  repeated string organizations = 6;
+  repeated string groups = 7;
+  repeated string roles = 8;
 }
 
 message RegisterAccountRqst {
@@ -166,6 +243,11 @@ message DeleteRoleRqst { string roleId = 1; }
 
 message DeleteRoleRsp { bool result = 1; }
 
+
+/////////////////////////////////////////////////////////////////
+// Application
+/////////////////////////////////////////////////////////////////
+
 /** The application */
 message Application {
   string id = 1;
@@ -201,6 +283,24 @@ message DeleteApplicationRqst { string applicationId = 1; }
 
 message DeleteApplicationRsp { bool result = 1; }
 
+message AddApplicationActionsRqst {
+  string applicationId = 1;
+  repeated string actions = 2;
+}
+
+message AddApplicationActionsRsp { bool result = 1; }
+
+message RemoveApplicationActionRqst {
+  string applicationId = 1;
+  string action = 2;
+}
+
+message RemoveApplicationActionRsp { bool result = 1; }
+
+message RemoveApplicationsActionRqst { string action = 2; }
+
+message RemoveApplicationsActionRsp { bool result = 1; }
+
 // Retrun a json with applications informations.
 message GetApplicationsRqst {
   string query = 1;
@@ -223,23 +323,6 @@ message GetApplicationIconRsp { string icon = 1; }
 message GetApplicationAliasRqst { string id = 1; }
 
 message GetApplicationAliasRsp { string alias = 1; }
-
-message IsOrgnanizationMemberRqst {
-  string organizationId = 1;
-  string accountId = 2;
-}
-
-message IsOrgnanizationMemberRsp { bool result = 1; }
-
-message SetPackageBundleRequest { PackageBundle bundle = 1; }
-
-message SetPackageBundleResponse { bool result = 1; }
-
-message GetPackageBundleChecksumRequest {
-  string id = 1; // the bundle id.
-}
-
-message GetPackageBundleChecksumResponse { string checksum = 1; }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Group's
@@ -399,6 +482,15 @@ message RemoveOrganizationAccountRqst {
 
 message RemoveOrganizationAccountRsp { bool result = 1; }
 
+
+message IsOrgnanizationMemberRqst {
+  string organizationId = 1;
+  string accountId = 2;
+}
+
+message IsOrgnanizationMemberRsp { bool result = 1; }
+
+
 /**
  * Remove a peer from the network.
  */
@@ -410,14 +502,23 @@ message DeleteOrganizationRsp { bool result = 1; }
 // Peer's
 ////////////////////////////////////////////////////////////////////////////////
 
+// The state of peers approval.
+enum PeerApprovalState{
+  PEER_PENDING = 0;
+  PEER_ACCETEP = 1;
+  PEER_REJECTED = 2;
+}
+
 /** a globular server **/
 message Peer {
   string domain = 1;  // must be unique on the network.
-  string address = 2; // the ip address, can be local network addresse.
-  string mac = 3;     // The mac address
+  string external_ip_address = 2; // the ip address
+  string local_ip_address = 3; // the ip address
+  string mac = 4;     // The mac address
+  PeerApprovalState state = 5; // The peer approval state
 
   // The list of actions.
-  repeated string actions = 4;
+  repeated string actions = 6;
 }
 
 /**
@@ -426,8 +527,6 @@ message Peer {
 message RegisterPeerRqst {
   Peer peer = 1;
   string public_key = 2;
-  string secret =
-      3; // The way the secret is exange is out of the scope of the function...
 }
 
 message RegisterPeerRsp {
@@ -452,51 +551,15 @@ message DeletePeerRqst { Peer peer = 1; }
 
 message DeletePeerRsp { bool result = 1; }
 
-message AddRoleActionsRqst {
-  string roleId = 1;
-  repeated string actions = 2;
-}
-
-message AddRoleActionsRsp { bool result = 1; }
-
-message RemoveRoleActionRqst {
-  string roleId = 1;
-  string action = 2;
-}
-
-message RemoveRoleActionRsp { bool result = 1; }
-
-message RemoveRolesActionRqst { string action = 2; }
-
-message RemoveRolesActionRsp { bool result = 1; }
-
-message AddApplicationActionsRqst {
-  string applicationId = 1;
-  repeated string actions = 2;
-}
-
-message AddApplicationActionsRsp { bool result = 1; }
-
-message RemoveApplicationActionRqst {
-  string applicationId = 1;
-  string action = 2;
-}
-
-message RemoveApplicationActionRsp { bool result = 1; }
-
-message RemoveApplicationsActionRqst { string action = 2; }
-
-message RemoveApplicationsActionRsp { bool result = 1; }
-
 message AddPeerActionsRqst {
-  string domain = 1;
+  string mac = 1;
   repeated string actions = 2;
 }
 
 message AddPeerActionsRsp { bool result = 1; }
 
 message RemovePeerActionRqst {
-  string domain = 1;
+  string mac = 1;
   string action = 2;
 }
 
@@ -505,6 +568,22 @@ message RemovePeerActionRsp { bool result = 1; }
 message RemovePeersActionRqst { string action = 2; }
 
 message RemovePeersActionRsp { bool result = 1; }
+
+message AcceptPeerRqst {
+  Peer peer = 1;
+}
+
+message AcceptPeerRsp { bool result = 1; }
+
+message RejectPeerRqst {
+  Peer peer = 1;
+}
+
+message RejectPeerRsp { bool result = 1; }
+
+////////////////////////////////////////////////////////////////////////////////
+// Notifications
+////////////////////////////////////////////////////////////////////////////////
 
 enum NotificationType {
   USER_NOTIFICATION = 0;
@@ -547,40 +626,15 @@ message ClearNotificationsByTypeRqst {
 
 message ClearNotificationsByTypeRsp {}
 
-message GetPackageDescriptorRequest {
-  string serviceId = 1;
-  string publisherId = 2;
-}
-
-message GetPackageDescriptorResponse {
-  // Return one of more service descriptor with various versions.
-  repeated PackageDescriptor results = 1;
-}
-
-message GetPackagesDescriptorRequest {
-  string query = 1;
-  string options = 2;
-}
-
-message GetPackagesDescriptorResponse {
-  repeated PackageDescriptor results = 1;
-}
-
-message SetPackageDescriptorRequest { PackageDescriptor packageDescriptor = 1; }
-
-message SetPackageDescriptorResponse { bool result = 1; }
-
-message FindPackagesDescriptorRequest { repeated string keywords = 1; }
-
-message FindPackagesDescriptorResponse {
-  repeated PackageDescriptor results = 1;
-}
-
 enum SessionState {
   ONLINE = 0;
   OFFLINE = 1;
   AWAY = 2;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Sessions
+////////////////////////////////////////////////////////////////////////////////
 
 /** Information about user session */
 message Session {
@@ -810,6 +864,14 @@ service ResourceService {
 
   /** Remove peer action permission **/
   rpc RemovePeersAction(RemovePeersActionRqst) returns (RemovePeersActionRsp);
+
+  /** Accept a given peer **/
+  rpc AcceptPeer(AcceptPeerRqst) returns (AcceptPeerRsp);
+
+  /** Reject a given peer, note that the peer will stay reject, so
+      I will be imposible to request again and again, util it will be 
+      explicitly removed from the peer's list */
+  rpc RejectPeer(RejectPeerRqst) returns (RejectPeerRsp);
 
   ////////////////////////////////////////////////////////////////////////////
   // Notification's

@@ -4043,6 +4043,166 @@ proto.resource.ResourceServicePromiseClient.prototype.removePeersAction =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.AcceptPeerRqst,
+ *   !proto.resource.AcceptPeerRsp>}
+ */
+const methodDescriptor_ResourceService_AcceptPeer = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/AcceptPeer',
+  grpc.web.MethodType.UNARY,
+  proto.resource.AcceptPeerRqst,
+  proto.resource.AcceptPeerRsp,
+  /**
+   * @param {!proto.resource.AcceptPeerRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AcceptPeerRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.AcceptPeerRqst,
+ *   !proto.resource.AcceptPeerRsp>}
+ */
+const methodInfo_ResourceService_AcceptPeer = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.AcceptPeerRsp,
+  /**
+   * @param {!proto.resource.AcceptPeerRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.AcceptPeerRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.AcceptPeerRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.AcceptPeerRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.AcceptPeerRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.acceptPeer =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/AcceptPeer',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AcceptPeer,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.AcceptPeerRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.AcceptPeerRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.acceptPeer =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/AcceptPeer',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_AcceptPeer);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.RejectPeerRqst,
+ *   !proto.resource.RejectPeerRsp>}
+ */
+const methodDescriptor_ResourceService_RejectPeer = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/RejectPeer',
+  grpc.web.MethodType.UNARY,
+  proto.resource.RejectPeerRqst,
+  proto.resource.RejectPeerRsp,
+  /**
+   * @param {!proto.resource.RejectPeerRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RejectPeerRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.resource.RejectPeerRqst,
+ *   !proto.resource.RejectPeerRsp>}
+ */
+const methodInfo_ResourceService_RejectPeer = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.resource.RejectPeerRsp,
+  /**
+   * @param {!proto.resource.RejectPeerRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.RejectPeerRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.RejectPeerRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.resource.RejectPeerRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.RejectPeerRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.rejectPeer =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/RejectPeer',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RejectPeer,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.RejectPeerRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.RejectPeerRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.rejectPeer =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/RejectPeer',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_RejectPeer);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.CreateNotificationRqst,
  *   !proto.resource.CreateNotificationRsp>}
  */

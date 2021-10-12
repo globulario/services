@@ -22,12 +22,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	//"google.golang.org/grpc/codes"
-	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
-
-	//"google.golang.org/grpc/status"
 	"encoding/binary"
 
 	"github.com/globulario/services/golang/storage/storage_store"

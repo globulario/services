@@ -20,9 +20,9 @@ import (
 
 	// "go.mongodb.org/mongo-driver/x/mongo/driver/session"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
-
 
 // Set the root password
 func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.SetEmailRequest) (*resourcepb.SetEmailResponse, error) {
@@ -96,7 +96,6 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to confirm your password")))
-
 	}
 
 	if rqst.Account == nil {
@@ -106,7 +105,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 
 	}
 
-	err := resource_server.registerAccount(rqst.Account.Name, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
+	err := resource_server.registerAccount(rqst.Account.Domain, rqst.Account.Name, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -747,7 +746,7 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 
 		// jsonStr, _ := json.Marshal(role)
 		jsonStr := serialyseObject(role)
-		
+
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
@@ -936,7 +935,7 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	application["icon"] = app.Icon
 	application["alias"] = app.Alias
 	application["password"] = app.Password
-	if len(application["password"].(string) ) == 0{
+	if len(application["password"].(string)) == 0 {
 		application["password"] = app.Id
 	}
 	application["store"] = p.GetStoreType()
@@ -1321,7 +1320,7 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 			return err
 		}
 	}
-	
+
 	return nil
 
 }
@@ -1352,12 +1351,37 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
-	peer := make(map[string]interface{}, 0)
+	peer := make(map[string]interface{})
 	peer["_id"] = _id
 	peer["domain"] = rqst.Peer.Domain
 	peer["mac"] = rqst.Peer.Mac
-	peer["address"] = rqst.Peer.Address
-	peer["actions"] = make([]interface{}, 0)
+	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
+	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
+	peer["state"] = resourcepb.PeerApprovalState_PEER_PENDING
+	peer["actions"] = []interface{}{}
+
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, _, _, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			if clientId == "sa" {
+				peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
+				peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+
+		}
+	}
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
 	if err != nil {
@@ -1377,8 +1401,10 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Now I will return peers actual informations.
 	peer_ := new(resourcepb.Peer)
 	peer_.Domain = resource_server.Domain
-	peer_.Address = Utility.MyIP()
+	peer_.ExternalIpAddress = Utility.MyIP()
+	peer_.LocalIpAddress = Utility.MyLocalIP()
 	peer_.Mac = Utility.MyMacAddr()
+	peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
 
 	// actions will need to be set by admin latter...
 	pubKey, err := security.GetPeerKey(Utility.MyMacAddr())
@@ -1388,10 +1414,72 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// signal peers changes...
+	resource_server.publishUpdatePeersEvent()
+
 	return &resourcepb.RegisterPeerRsp{
 		Peer:      peer_,
 		PublicKey: string(pubKey),
 	}, nil
+}
+
+//* Accept a given peer *
+func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRqst) (*resourcepb.AcceptPeerRsp, error) {
+	// Get the persistence connection
+	_id := Utility.GenerateUUID(rqst.Peer.Mac)
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, `{ "$set":{"state":"`+Utility.ToString(resourcepb.PeerApprovalState_PEER_ACCETEP)+`"}}`, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Add actions require by peer...
+	err = resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetA"})
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+
+	// signal peers changes...
+	resource_server.publishUpdatePeersEvent()
+
+	return &resourcepb.AcceptPeerRsp{Result: true}, nil
+}
+
+//* Reject a given peer, note that the peer will stay reject, so
+//I will be imposible to request again and again, util it will be
+//explicitly removed from the peer's list
+func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRqst) (*resourcepb.RejectPeerRsp, error) {
+	_id := Utility.GenerateUUID(rqst.Peer.Mac)
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, `{ "$set":{"state":"`+Utility.ToString(resourcepb.PeerApprovalState_PEER_REJECTED)+`"}}`, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+
+	// signal peers changes...
+	resource_server.publishUpdatePeersEvent()
+
+	return &resourcepb.RejectPeerRsp{Result: true}, nil
 }
 
 //* Return the list of authorized peers *
@@ -1419,7 +1507,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	values := make([]*resourcepb.Peer, 0)
 
 	for i := 0; i < len(peers); i++ {
-		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), Address: peers[i].(map[string]interface{})["address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0)}
+		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string),  LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))}
 		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
 		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
 			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))
@@ -1468,7 +1556,7 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
-	_id := Utility.GenerateUUID(rqst.Peer.Domain)
+	_id := Utility.GenerateUUID(rqst.Peer.Mac)
 
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, "")
 	if err != nil {
@@ -1485,45 +1573,45 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+
+	// signal peers changes...
+	resource_server.publishUpdatePeersEvent()
+
 	return &resourcepb.DeletePeerRsp{
 		Result: true,
 	}, nil
 }
 
-//* Add peer action permission *
-func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerActionsRqst) (*resourcepb.AddPeerActionsRsp, error) {
-	// That service made user of persistence service.
+func (resource_server *server) addPeerActions(mac string, actions_ []string) error {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	_id := Utility.GenerateUUID(rqst.Domain)
+	_id := Utility.GenerateUUID(mac)
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, ``)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		return err
 	}
 
 	peer := values.(map[string]interface{})
 
 	needSave := false
 	if peer["actions"] == nil {
-		peer["actions"] = rqst.Actions
+		peer["actions"] = actions_
 		needSave = true
 	} else {
 		actions := []interface{}(peer["actions"].(primitive.A))
-		for j := 0; j < len(rqst.Actions); j++ {
+		for j := 0; j < len(actions_); j++ {
 			exist := false
 			for i := 0; i < len(peer["actions"].(primitive.A)); i++ {
-				if peer["actions"].(primitive.A)[i].(string) == rqst.Actions[j] {
+				if peer["actions"].(primitive.A)[i].(string) == actions_[j] {
 					exist = true
 					break
 				}
 			}
 			if !exist {
-				actions = append(actions, rqst.Actions[j])
+				actions = append(actions, actions_[j])
 				needSave = true
 			}
 		}
@@ -1534,10 +1622,25 @@ func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourc
 		jsonStr := serialyseObject(peer)
 		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, string(jsonStr), ``)
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			return err
 		}
+	}
+
+
+	// signal peers changes...
+	resource_server.publishUpdatePeersEvent()
+
+	return nil
+}
+
+//* Add peer action permission *
+func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerActionsRqst) (*resourcepb.AddPeerActionsRsp, error) {
+
+	err := resource_server.addPeerActions(rqst.Mac, rqst.Actions)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &resourcepb.AddPeerActionsRsp{Result: true}, nil
@@ -1551,7 +1654,8 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 	if err != nil {
 		return nil, err
 	}
-	_id := Utility.GenerateUUID(rqst.Domain)
+
+	_id := Utility.GenerateUUID(rqst.Mac)
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1581,7 +1685,7 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer named "+rqst.Domain+" not contain actions named "+rqst.Action+"!")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer "+rqst.Mac+" not contain actions named "+rqst.Action+"!")))
 		}
 	}
 
@@ -1594,6 +1698,10 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
+
+
+	// signal peers changes...
+	resource_server.publishUpdatePeersEvent()
 
 	return &resourcepb.RemovePeerActionRsp{Result: true}, nil
 }
@@ -1646,8 +1754,16 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 		}
 	}
 
+
+	// signal peers changes...
+	resource_server.publishUpdatePeersEvent()
+
 	return &resourcepb.RemovePeersActionRsp{Result: true}, nil
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Organization
+/////////////////////////////////////////////////////////////////////////////////////////
 
 //* Register a new organization
 func (resource_server *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
@@ -1712,7 +1828,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 }
 
 // Update an organization informations.
-func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.UpdateOrganizationRqst) (*resourcepb.UpdateOrganizationRsp, error){
+func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *resourcepb.UpdateOrganizationRqst) (*resourcepb.UpdateOrganizationRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -2001,8 +2117,8 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if groups != nil {
 			for i := 0; i < len(groups); i++ {
 				groupId := groups[i].(map[string]interface{})["$id"].(string)
-				err:=resource_server.deleteReference(p, rqst.Organization, groupId, "organizations", "Groups")
-				if(err != nil){
+				err := resource_server.deleteReference(p, rqst.Organization, groupId, "organizations", "Groups")
+				if err != nil {
 					fmt.Println(err)
 				}
 			}
@@ -2014,8 +2130,8 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if roles != nil {
 			for i := 0; i < len(roles); i++ {
 				roleId := roles[i].(map[string]interface{})["$id"].(string)
-				err:=resource_server.deleteReference(p, rqst.Organization, roleId, "organizations", "Roles")
-				if(err != nil){
+				err := resource_server.deleteReference(p, rqst.Organization, roleId, "organizations", "Roles")
+				if err != nil {
 					fmt.Println(err)
 				}
 			}
@@ -2027,8 +2143,8 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if applications != nil {
 			for i := 0; i < len(applications); i++ {
 				applicationId := applications[i].(map[string]interface{})["$id"].(string)
-				err :=resource_server.deleteReference(p, rqst.Organization, applicationId, "organizations", "Applications")
-				if(err != nil){
+				err := resource_server.deleteReference(p, rqst.Organization, applicationId, "organizations", "Applications")
+				if err != nil {
 					fmt.Println(err)
 				}
 			}
@@ -2040,8 +2156,8 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		if accounts != nil {
 			for i := 0; i < len(accounts); i++ {
 				accountId := accounts[i].(map[string]interface{})["$id"].(string)
-				err  := resource_server.deleteReference(p, rqst.Organization, accountId, "organizations", "Accounts")
-				if(err != nil){
+				err := resource_server.deleteReference(p, rqst.Organization, accountId, "organizations", "Accounts")
+				if err != nil {
 					fmt.Println(err)
 				}
 			}
@@ -2758,7 +2874,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 
 	// Generate the bundle id....
 	id := Utility.GenerateUUID(bundle.PackageDescriptor.PublisherId + "%" + bundle.PackageDescriptor.Name + "%" + bundle.PackageDescriptor.Version + "%" + bundle.PackageDescriptor.Id + "%" + bundle.Plaform)
-	
+
 	jsonStr, err := Utility.ToJson(map[string]interface{}{"_id": id, "checksum": bundle.Checksum, "platform": bundle.Plaform, "publisherid": bundle.PackageDescriptor.PublisherId, "servicename": bundle.PackageDescriptor.Name, "serviceid": bundle.PackageDescriptor.Id, "modified": bundle.Modified, "size": bundle.Size})
 	if err != nil {
 		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
@@ -2768,7 +2884,7 @@ func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.Set
 	}
 
 	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Bundles", `{"_id":"`+id+`"}`, jsonStr, `[{"upsert": true}]`)
-	if err!=nil {
+	if err != nil {
 		server.logServiceError("SetPackageBundle", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return nil, err
 	}
