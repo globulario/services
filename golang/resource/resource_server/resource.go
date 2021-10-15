@@ -2459,11 +2459,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	values := make([]*resourcepb.Notification, 0)
 	for i := 0; i < len(notifications); i++ {
 		n_ := notifications[i].(map[string]interface{})
-		notificationType := resourcepb.NotificationType_USER_NOTIFICATION
-		if n_["messageType"] != nil {
-			notificationType = resourcepb.NotificationType(int32(Utility.ToInt(n_["messageType"])))
-		}
-
+		notificationType := resourcepb.NotificationType(int32(Utility.ToInt(n_["notificationtype"])))
 		values = append(values, &resourcepb.Notification{Id: n_["id"].(string), Sender: n_["sender"].(string), Date: n_["date"].(int64), Recipient: n_["recipient"].(string), Message: n_["message"].(string), NotificationType: notificationType})
 		if len(values) >= maxSize {
 			err := stream.Send(
@@ -2544,7 +2540,7 @@ func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqs
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.Delete(context.Background(), "local_resource", rqst.Recipient+"_db", "Notifications", `{ "notificationType":`+Utility.ToString(rqst.NotificationType)+`}`, ``)
+	err = p.Delete(context.Background(), "local_resource", rqst.Recipient+"_db", "Notifications", `{ "notificationtype":`+Utility.ToString(rqst.NotificationType)+`}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
