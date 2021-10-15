@@ -21,7 +21,7 @@ proto.sql = require('./sql_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.sql = require('./sql_pb.js');
 proto.sql.SqlServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.sql.SqlServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.sql.SqlServiceClient =
 proto.sql.SqlServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_SqlService_Stop = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.sql.StopRequest,
- *   !proto.sql.StopResponse>}
- */
-const methodInfo_SqlService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.sql.StopResponse,
-  /**
-   * @param {!proto.sql.StopRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.sql.StopResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.sql.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.sql.StopResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.sql.StopResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.sql.StopResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.sql.SqlServiceClient.prototype.stop =
 /**
  * @param {!proto.sql.StopRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.StopResponse>}
  *     Promise that resolves to the response
@@ -173,30 +154,11 @@ const methodDescriptor_SqlService_CreateConnection = new grpc.web.MethodDescript
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.sql.CreateConnectionRqst,
- *   !proto.sql.CreateConnectionRsp>}
- */
-const methodInfo_SqlService_CreateConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.sql.CreateConnectionRsp,
-  /**
-   * @param {!proto.sql.CreateConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.sql.CreateConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.sql.CreateConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.sql.CreateConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.sql.CreateConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.sql.CreateConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -215,7 +177,7 @@ proto.sql.SqlServiceClient.prototype.createConnection =
 /**
  * @param {!proto.sql.CreateConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.CreateConnectionRsp>}
  *     Promise that resolves to the response
@@ -253,30 +215,11 @@ const methodDescriptor_SqlService_DeleteConnection = new grpc.web.MethodDescript
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.sql.DeleteConnectionRqst,
- *   !proto.sql.DeleteConnectionRsp>}
- */
-const methodInfo_SqlService_DeleteConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.sql.DeleteConnectionRsp,
-  /**
-   * @param {!proto.sql.DeleteConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.sql.DeleteConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.sql.DeleteConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.sql.DeleteConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.sql.DeleteConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.sql.DeleteConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -295,7 +238,7 @@ proto.sql.SqlServiceClient.prototype.deleteConnection =
 /**
  * @param {!proto.sql.DeleteConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.DeleteConnectionRsp>}
  *     Promise that resolves to the response
@@ -333,30 +276,11 @@ const methodDescriptor_SqlService_Ping = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.sql.PingConnectionRqst,
- *   !proto.sql.PingConnectionRsp>}
- */
-const methodInfo_SqlService_Ping = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.sql.PingConnectionRsp,
-  /**
-   * @param {!proto.sql.PingConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.sql.PingConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.sql.PingConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.sql.PingConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.sql.PingConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.sql.PingConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -375,7 +299,7 @@ proto.sql.SqlServiceClient.prototype.ping =
 /**
  * @param {!proto.sql.PingConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.PingConnectionRsp>}
  *     Promise that resolves to the response
@@ -413,27 +337,8 @@ const methodDescriptor_SqlService_QueryContext = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.sql.QueryContextRqst,
- *   !proto.sql.QueryContextRsp>}
- */
-const methodInfo_SqlService_QueryContext = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.sql.QueryContextRsp,
-  /**
-   * @param {!proto.sql.QueryContextRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.sql.QueryContextRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.sql.QueryContextRqst} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.sql.QueryContextRsp>}
  *     The XHR Node Readable Stream
@@ -450,7 +355,7 @@ proto.sql.SqlServiceClient.prototype.queryContext =
 
 /**
  * @param {!proto.sql.QueryContextRqst} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.sql.QueryContextRsp>}
  *     The XHR Node Readable Stream
@@ -488,30 +393,11 @@ const methodDescriptor_SqlService_ExecContext = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.sql.ExecContextRqst,
- *   !proto.sql.ExecContextRsp>}
- */
-const methodInfo_SqlService_ExecContext = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.sql.ExecContextRsp,
-  /**
-   * @param {!proto.sql.ExecContextRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.sql.ExecContextRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.sql.ExecContextRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.sql.ExecContextRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.sql.ExecContextRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.sql.ExecContextRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -530,7 +416,7 @@ proto.sql.SqlServiceClient.prototype.execContext =
 /**
  * @param {!proto.sql.ExecContextRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.sql.ExecContextRsp>}
  *     Promise that resolves to the response

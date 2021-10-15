@@ -21,7 +21,7 @@ proto.ldap = require('./ldap_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.ldap = require('./ldap_pb.js');
 proto.ldap.LdapServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.ldap.LdapServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.ldap.LdapServiceClient =
 proto.ldap.LdapServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_LdapService_Stop = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.ldap.StopRequest,
- *   !proto.ldap.StopResponse>}
- */
-const methodInfo_LdapService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.ldap.StopResponse,
-  /**
-   * @param {!proto.ldap.StopRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.ldap.StopResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.ldap.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.ldap.StopResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.StopResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.ldap.StopResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.ldap.LdapServiceClient.prototype.stop =
 /**
  * @param {!proto.ldap.StopRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.StopResponse>}
  *     Promise that resolves to the response
@@ -173,30 +154,11 @@ const methodDescriptor_LdapService_CreateConnection = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.ldap.CreateConnectionRqst,
- *   !proto.ldap.CreateConnectionRsp>}
- */
-const methodInfo_LdapService_CreateConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.ldap.CreateConnectionRsp,
-  /**
-   * @param {!proto.ldap.CreateConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.ldap.CreateConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.ldap.CreateConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.ldap.CreateConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.CreateConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.ldap.CreateConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -215,7 +177,7 @@ proto.ldap.LdapServiceClient.prototype.createConnection =
 /**
  * @param {!proto.ldap.CreateConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.CreateConnectionRsp>}
  *     Promise that resolves to the response
@@ -253,30 +215,11 @@ const methodDescriptor_LdapService_DeleteConnection = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.ldap.DeleteConnectionRqst,
- *   !proto.ldap.DeleteConnectionRsp>}
- */
-const methodInfo_LdapService_DeleteConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.ldap.DeleteConnectionRsp,
-  /**
-   * @param {!proto.ldap.DeleteConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.ldap.DeleteConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.ldap.DeleteConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.ldap.DeleteConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.DeleteConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.ldap.DeleteConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -295,7 +238,7 @@ proto.ldap.LdapServiceClient.prototype.deleteConnection =
 /**
  * @param {!proto.ldap.DeleteConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.DeleteConnectionRsp>}
  *     Promise that resolves to the response
@@ -333,30 +276,11 @@ const methodDescriptor_LdapService_Close = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.ldap.CloseRqst,
- *   !proto.ldap.CloseRsp>}
- */
-const methodInfo_LdapService_Close = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.ldap.CloseRsp,
-  /**
-   * @param {!proto.ldap.CloseRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.ldap.CloseRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.ldap.CloseRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.ldap.CloseRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.CloseRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.ldap.CloseRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -375,7 +299,7 @@ proto.ldap.LdapServiceClient.prototype.close =
 /**
  * @param {!proto.ldap.CloseRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.CloseRsp>}
  *     Promise that resolves to the response
@@ -413,30 +337,11 @@ const methodDescriptor_LdapService_Search = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.ldap.SearchRqst,
- *   !proto.ldap.SearchResp>}
- */
-const methodInfo_LdapService_Search = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.ldap.SearchResp,
-  /**
-   * @param {!proto.ldap.SearchRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.ldap.SearchResp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.ldap.SearchRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.ldap.SearchResp)}
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.SearchResp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.ldap.SearchResp>|undefined}
  *     The XHR Node Readable Stream
@@ -455,7 +360,7 @@ proto.ldap.LdapServiceClient.prototype.search =
 /**
  * @param {!proto.ldap.SearchRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.SearchResp>}
  *     Promise that resolves to the response
@@ -493,30 +398,11 @@ const methodDescriptor_LdapService_Authenticate = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.ldap.AuthenticateRqst,
- *   !proto.ldap.AuthenticateRsp>}
- */
-const methodInfo_LdapService_Authenticate = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.ldap.AuthenticateRsp,
-  /**
-   * @param {!proto.ldap.AuthenticateRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.ldap.AuthenticateRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.ldap.AuthenticateRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.ldap.AuthenticateRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.AuthenticateRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.ldap.AuthenticateRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -535,7 +421,7 @@ proto.ldap.LdapServiceClient.prototype.authenticate =
 /**
  * @param {!proto.ldap.AuthenticateRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.ldap.AuthenticateRsp>}
  *     Promise that resolves to the response

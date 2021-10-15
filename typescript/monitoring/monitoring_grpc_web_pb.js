@@ -21,7 +21,7 @@ proto.monitoring = require('./monitoring_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.monitoring = require('./monitoring_pb.js');
 proto.monitoring.MonitoringServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.monitoring.MonitoringServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.monitoring.MonitoringServiceClient =
 proto.monitoring.MonitoringServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_MonitoringService_Stop = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.StopRequest,
- *   !proto.monitoring.StopResponse>}
- */
-const methodInfo_MonitoringService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.StopResponse,
-  /**
-   * @param {!proto.monitoring.StopRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.StopResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.StopResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.StopResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.StopResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.monitoring.MonitoringServiceClient.prototype.stop =
 /**
  * @param {!proto.monitoring.StopRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.StopResponse>}
  *     Promise that resolves to the response
@@ -173,30 +154,11 @@ const methodDescriptor_MonitoringService_CreateConnection = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.CreateConnectionRqst,
- *   !proto.monitoring.CreateConnectionRsp>}
- */
-const methodInfo_MonitoringService_CreateConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.CreateConnectionRsp,
-  /**
-   * @param {!proto.monitoring.CreateConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.CreateConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.CreateConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.CreateConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.CreateConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.CreateConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -215,7 +177,7 @@ proto.monitoring.MonitoringServiceClient.prototype.createConnection =
 /**
  * @param {!proto.monitoring.CreateConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.CreateConnectionRsp>}
  *     Promise that resolves to the response
@@ -253,30 +215,11 @@ const methodDescriptor_MonitoringService_DeleteConnection = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.DeleteConnectionRqst,
- *   !proto.monitoring.DeleteConnectionRsp>}
- */
-const methodInfo_MonitoringService_DeleteConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.DeleteConnectionRsp,
-  /**
-   * @param {!proto.monitoring.DeleteConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.DeleteConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.DeleteConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.DeleteConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.DeleteConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.DeleteConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -295,7 +238,7 @@ proto.monitoring.MonitoringServiceClient.prototype.deleteConnection =
 /**
  * @param {!proto.monitoring.DeleteConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.DeleteConnectionRsp>}
  *     Promise that resolves to the response
@@ -333,30 +276,11 @@ const methodDescriptor_MonitoringService_Alerts = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.AlertsRequest,
- *   !proto.monitoring.AlertsResponse>}
- */
-const methodInfo_MonitoringService_Alerts = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.AlertsResponse,
-  /**
-   * @param {!proto.monitoring.AlertsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.AlertsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.AlertsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.AlertsResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.AlertsResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.AlertsResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -375,7 +299,7 @@ proto.monitoring.MonitoringServiceClient.prototype.alerts =
 /**
  * @param {!proto.monitoring.AlertsRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.AlertsResponse>}
  *     Promise that resolves to the response
@@ -413,30 +337,11 @@ const methodDescriptor_MonitoringService_AlertManagers = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.AlertManagersRequest,
- *   !proto.monitoring.AlertManagersResponse>}
- */
-const methodInfo_MonitoringService_AlertManagers = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.AlertManagersResponse,
-  /**
-   * @param {!proto.monitoring.AlertManagersRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.AlertManagersResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.AlertManagersRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.AlertManagersResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.AlertManagersResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.AlertManagersResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -455,7 +360,7 @@ proto.monitoring.MonitoringServiceClient.prototype.alertManagers =
 /**
  * @param {!proto.monitoring.AlertManagersRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.AlertManagersResponse>}
  *     Promise that resolves to the response
@@ -493,30 +398,11 @@ const methodDescriptor_MonitoringService_CleanTombstones = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.CleanTombstonesRequest,
- *   !proto.monitoring.CleanTombstonesResponse>}
- */
-const methodInfo_MonitoringService_CleanTombstones = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.CleanTombstonesResponse,
-  /**
-   * @param {!proto.monitoring.CleanTombstonesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.CleanTombstonesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.CleanTombstonesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.CleanTombstonesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.CleanTombstonesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.CleanTombstonesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -535,7 +421,7 @@ proto.monitoring.MonitoringServiceClient.prototype.cleanTombstones =
 /**
  * @param {!proto.monitoring.CleanTombstonesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.CleanTombstonesResponse>}
  *     Promise that resolves to the response
@@ -573,30 +459,11 @@ const methodDescriptor_MonitoringService_Config = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.ConfigRequest,
- *   !proto.monitoring.ConfigResponse>}
- */
-const methodInfo_MonitoringService_Config = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.ConfigResponse,
-  /**
-   * @param {!proto.monitoring.ConfigRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.ConfigResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.ConfigRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.ConfigResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.ConfigResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.ConfigResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -615,7 +482,7 @@ proto.monitoring.MonitoringServiceClient.prototype.config =
 /**
  * @param {!proto.monitoring.ConfigRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.ConfigResponse>}
  *     Promise that resolves to the response
@@ -653,30 +520,11 @@ const methodDescriptor_MonitoringService_DeleteSeries = new grpc.web.MethodDescr
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.DeleteSeriesRequest,
- *   !proto.monitoring.DeleteSeriesResponse>}
- */
-const methodInfo_MonitoringService_DeleteSeries = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.DeleteSeriesResponse,
-  /**
-   * @param {!proto.monitoring.DeleteSeriesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.DeleteSeriesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.DeleteSeriesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.DeleteSeriesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.DeleteSeriesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.DeleteSeriesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -695,7 +543,7 @@ proto.monitoring.MonitoringServiceClient.prototype.deleteSeries =
 /**
  * @param {!proto.monitoring.DeleteSeriesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.DeleteSeriesResponse>}
  *     Promise that resolves to the response
@@ -733,30 +581,11 @@ const methodDescriptor_MonitoringService_Flags = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.FlagsRequest,
- *   !proto.monitoring.FlagsResponse>}
- */
-const methodInfo_MonitoringService_Flags = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.FlagsResponse,
-  /**
-   * @param {!proto.monitoring.FlagsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.FlagsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.FlagsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.FlagsResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.FlagsResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.FlagsResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -775,7 +604,7 @@ proto.monitoring.MonitoringServiceClient.prototype.flags =
 /**
  * @param {!proto.monitoring.FlagsRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.FlagsResponse>}
  *     Promise that resolves to the response
@@ -813,30 +642,11 @@ const methodDescriptor_MonitoringService_LabelNames = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.LabelNamesRequest,
- *   !proto.monitoring.LabelNamesResponse>}
- */
-const methodInfo_MonitoringService_LabelNames = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.LabelNamesResponse,
-  /**
-   * @param {!proto.monitoring.LabelNamesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.LabelNamesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.LabelNamesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.LabelNamesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.LabelNamesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.LabelNamesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -855,7 +665,7 @@ proto.monitoring.MonitoringServiceClient.prototype.labelNames =
 /**
  * @param {!proto.monitoring.LabelNamesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.LabelNamesResponse>}
  *     Promise that resolves to the response
@@ -893,30 +703,11 @@ const methodDescriptor_MonitoringService_LabelValues = new grpc.web.MethodDescri
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.LabelValuesRequest,
- *   !proto.monitoring.LabelValuesResponse>}
- */
-const methodInfo_MonitoringService_LabelValues = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.LabelValuesResponse,
-  /**
-   * @param {!proto.monitoring.LabelValuesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.LabelValuesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.LabelValuesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.LabelValuesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.LabelValuesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.LabelValuesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -935,7 +726,7 @@ proto.monitoring.MonitoringServiceClient.prototype.labelValues =
 /**
  * @param {!proto.monitoring.LabelValuesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.LabelValuesResponse>}
  *     Promise that resolves to the response
@@ -973,30 +764,11 @@ const methodDescriptor_MonitoringService_Query = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.QueryRequest,
- *   !proto.monitoring.QueryResponse>}
- */
-const methodInfo_MonitoringService_Query = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.QueryResponse,
-  /**
-   * @param {!proto.monitoring.QueryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.QueryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.QueryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.QueryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.QueryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.QueryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1015,7 +787,7 @@ proto.monitoring.MonitoringServiceClient.prototype.query =
 /**
  * @param {!proto.monitoring.QueryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.QueryResponse>}
  *     Promise that resolves to the response
@@ -1053,27 +825,8 @@ const methodDescriptor_MonitoringService_QueryRange = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.QueryRangeRequest,
- *   !proto.monitoring.QueryRangeResponse>}
- */
-const methodInfo_MonitoringService_QueryRange = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.QueryRangeResponse,
-  /**
-   * @param {!proto.monitoring.QueryRangeRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.QueryRangeResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.QueryRangeRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.QueryRangeResponse>}
  *     The XHR Node Readable Stream
@@ -1090,7 +843,7 @@ proto.monitoring.MonitoringServiceClient.prototype.queryRange =
 
 /**
  * @param {!proto.monitoring.QueryRangeRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.QueryRangeResponse>}
  *     The XHR Node Readable Stream
@@ -1128,30 +881,11 @@ const methodDescriptor_MonitoringService_Series = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.SeriesRequest,
- *   !proto.monitoring.SeriesResponse>}
- */
-const methodInfo_MonitoringService_Series = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.SeriesResponse,
-  /**
-   * @param {!proto.monitoring.SeriesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.SeriesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.SeriesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.SeriesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.SeriesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.SeriesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1170,7 +904,7 @@ proto.monitoring.MonitoringServiceClient.prototype.series =
 /**
  * @param {!proto.monitoring.SeriesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.SeriesResponse>}
  *     Promise that resolves to the response
@@ -1208,30 +942,11 @@ const methodDescriptor_MonitoringService_Snapshot = new grpc.web.MethodDescripto
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.SnapshotRequest,
- *   !proto.monitoring.SnapshotResponse>}
- */
-const methodInfo_MonitoringService_Snapshot = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.SnapshotResponse,
-  /**
-   * @param {!proto.monitoring.SnapshotRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.SnapshotResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.SnapshotRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.SnapshotResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.SnapshotResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.SnapshotResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1250,7 +965,7 @@ proto.monitoring.MonitoringServiceClient.prototype.snapshot =
 /**
  * @param {!proto.monitoring.SnapshotRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.SnapshotResponse>}
  *     Promise that resolves to the response
@@ -1288,30 +1003,11 @@ const methodDescriptor_MonitoringService_Rules = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.RulesRequest,
- *   !proto.monitoring.RulesResponse>}
- */
-const methodInfo_MonitoringService_Rules = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.RulesResponse,
-  /**
-   * @param {!proto.monitoring.RulesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.RulesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.RulesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.RulesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.RulesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.RulesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1330,7 +1026,7 @@ proto.monitoring.MonitoringServiceClient.prototype.rules =
 /**
  * @param {!proto.monitoring.RulesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.RulesResponse>}
  *     Promise that resolves to the response
@@ -1368,30 +1064,11 @@ const methodDescriptor_MonitoringService_Targets = new grpc.web.MethodDescriptor
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.TargetsRequest,
- *   !proto.monitoring.TargetsResponse>}
- */
-const methodInfo_MonitoringService_Targets = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.TargetsResponse,
-  /**
-   * @param {!proto.monitoring.TargetsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.TargetsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.TargetsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.TargetsResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.TargetsResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.TargetsResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1410,7 +1087,7 @@ proto.monitoring.MonitoringServiceClient.prototype.targets =
 /**
  * @param {!proto.monitoring.TargetsRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.TargetsResponse>}
  *     Promise that resolves to the response
@@ -1448,30 +1125,11 @@ const methodDescriptor_MonitoringService_TargetsMetadata = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.monitoring.TargetsMetadataRequest,
- *   !proto.monitoring.TargetsMetadataResponse>}
- */
-const methodInfo_MonitoringService_TargetsMetadata = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.monitoring.TargetsMetadataResponse,
-  /**
-   * @param {!proto.monitoring.TargetsMetadataRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.monitoring.TargetsMetadataResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.monitoring.TargetsMetadataRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.monitoring.TargetsMetadataResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.monitoring.TargetsMetadataResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.monitoring.TargetsMetadataResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1490,7 +1148,7 @@ proto.monitoring.MonitoringServiceClient.prototype.targetsMetadata =
 /**
  * @param {!proto.monitoring.TargetsMetadataRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.monitoring.TargetsMetadataResponse>}
  *     Promise that resolves to the response

@@ -21,7 +21,7 @@ proto.file = require('./file_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.file = require('./file_pb.js');
 proto.file.FileServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.file.FileServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.file.FileServiceClient =
 proto.file.FileServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_FileService_Stop = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.StopRequest,
- *   !proto.file.StopResponse>}
- */
-const methodInfo_FileService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.StopResponse,
-  /**
-   * @param {!proto.file.StopRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.StopResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.StopResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.StopResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.StopResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.file.FileServiceClient.prototype.stop =
 /**
  * @param {!proto.file.StopRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.StopResponse>}
  *     Promise that resolves to the response
@@ -173,27 +154,8 @@ const methodDescriptor_FileService_ReadDir = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.ReadDirRequest,
- *   !proto.file.ReadDirResponse>}
- */
-const methodInfo_FileService_ReadDir = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.ReadDirResponse,
-  /**
-   * @param {!proto.file.ReadDirRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.ReadDirResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.ReadDirRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.file.ReadDirResponse>}
  *     The XHR Node Readable Stream
@@ -210,7 +172,7 @@ proto.file.FileServiceClient.prototype.readDir =
 
 /**
  * @param {!proto.file.ReadDirRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.file.ReadDirResponse>}
  *     The XHR Node Readable Stream
@@ -248,30 +210,11 @@ const methodDescriptor_FileService_CreateDir = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.CreateDirRequest,
- *   !proto.file.CreateDirResponse>}
- */
-const methodInfo_FileService_CreateDir = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.CreateDirResponse,
-  /**
-   * @param {!proto.file.CreateDirRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.CreateDirResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.CreateDirRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.CreateDirResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.CreateDirResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.CreateDirResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -290,7 +233,7 @@ proto.file.FileServiceClient.prototype.createDir =
 /**
  * @param {!proto.file.CreateDirRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.CreateDirResponse>}
  *     Promise that resolves to the response
@@ -328,30 +271,11 @@ const methodDescriptor_FileService_DeleteDir = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.DeleteDirRequest,
- *   !proto.file.DeleteDirResponse>}
- */
-const methodInfo_FileService_DeleteDir = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.DeleteDirResponse,
-  /**
-   * @param {!proto.file.DeleteDirRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.DeleteDirResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.DeleteDirRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.DeleteDirResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.DeleteDirResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.DeleteDirResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -370,7 +294,7 @@ proto.file.FileServiceClient.prototype.deleteDir =
 /**
  * @param {!proto.file.DeleteDirRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.DeleteDirResponse>}
  *     Promise that resolves to the response
@@ -408,30 +332,11 @@ const methodDescriptor_FileService_Rename = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.RenameRequest,
- *   !proto.file.RenameResponse>}
- */
-const methodInfo_FileService_Rename = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.RenameResponse,
-  /**
-   * @param {!proto.file.RenameRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.RenameResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.RenameRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.RenameResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.RenameResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.RenameResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -450,7 +355,7 @@ proto.file.FileServiceClient.prototype.rename =
 /**
  * @param {!proto.file.RenameRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.RenameResponse>}
  *     Promise that resolves to the response
@@ -488,30 +393,11 @@ const methodDescriptor_FileService_Move = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.MoveRequest,
- *   !proto.file.MoveResponse>}
- */
-const methodInfo_FileService_Move = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.MoveResponse,
-  /**
-   * @param {!proto.file.MoveRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.MoveResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.MoveRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.MoveResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.MoveResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.MoveResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -530,7 +416,7 @@ proto.file.FileServiceClient.prototype.move =
 /**
  * @param {!proto.file.MoveRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.MoveResponse>}
  *     Promise that resolves to the response
@@ -568,30 +454,11 @@ const methodDescriptor_FileService_Copy = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.CopyRequest,
- *   !proto.file.CopyResponse>}
- */
-const methodInfo_FileService_Copy = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.CopyResponse,
-  /**
-   * @param {!proto.file.CopyRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.CopyResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.CopyRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.CopyResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.CopyResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.CopyResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -610,7 +477,7 @@ proto.file.FileServiceClient.prototype.copy =
 /**
  * @param {!proto.file.CopyRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.CopyResponse>}
  *     Promise that resolves to the response
@@ -648,30 +515,11 @@ const methodDescriptor_FileService_CreateAchive = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.CreateArchiveRequest,
- *   !proto.file.CreateArchiveResponse>}
- */
-const methodInfo_FileService_CreateAchive = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.CreateArchiveResponse,
-  /**
-   * @param {!proto.file.CreateArchiveRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.CreateArchiveResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.CreateArchiveRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.CreateArchiveResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.CreateArchiveResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.CreateArchiveResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -690,7 +538,7 @@ proto.file.FileServiceClient.prototype.createAchive =
 /**
  * @param {!proto.file.CreateArchiveRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.CreateArchiveResponse>}
  *     Promise that resolves to the response
@@ -728,30 +576,11 @@ const methodDescriptor_FileService_GetFileInfo = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.GetFileInfoRequest,
- *   !proto.file.GetFileInfoResponse>}
- */
-const methodInfo_FileService_GetFileInfo = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.GetFileInfoResponse,
-  /**
-   * @param {!proto.file.GetFileInfoRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.GetFileInfoResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.GetFileInfoRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.GetFileInfoResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.GetFileInfoResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.GetFileInfoResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -770,7 +599,7 @@ proto.file.FileServiceClient.prototype.getFileInfo =
 /**
  * @param {!proto.file.GetFileInfoRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.GetFileInfoResponse>}
  *     Promise that resolves to the response
@@ -808,27 +637,8 @@ const methodDescriptor_FileService_ReadFile = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.ReadFileRequest,
- *   !proto.file.ReadFileResponse>}
- */
-const methodInfo_FileService_ReadFile = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.ReadFileResponse,
-  /**
-   * @param {!proto.file.ReadFileRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.ReadFileResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.ReadFileRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.file.ReadFileResponse>}
  *     The XHR Node Readable Stream
@@ -845,7 +655,7 @@ proto.file.FileServiceClient.prototype.readFile =
 
 /**
  * @param {!proto.file.ReadFileRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.file.ReadFileResponse>}
  *     The XHR Node Readable Stream
@@ -883,30 +693,11 @@ const methodDescriptor_FileService_DeleteFile = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.DeleteFileRequest,
- *   !proto.file.DeleteFileResponse>}
- */
-const methodInfo_FileService_DeleteFile = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.DeleteFileResponse,
-  /**
-   * @param {!proto.file.DeleteFileRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.DeleteFileResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.DeleteFileRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.DeleteFileResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.DeleteFileResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.DeleteFileResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -925,7 +716,7 @@ proto.file.FileServiceClient.prototype.deleteFile =
 /**
  * @param {!proto.file.DeleteFileRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.DeleteFileResponse>}
  *     Promise that resolves to the response
@@ -963,27 +754,8 @@ const methodDescriptor_FileService_GetThumbnails = new grpc.web.MethodDescriptor
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.GetThumbnailsRequest,
- *   !proto.file.GetThumbnailsResponse>}
- */
-const methodInfo_FileService_GetThumbnails = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.GetThumbnailsResponse,
-  /**
-   * @param {!proto.file.GetThumbnailsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.GetThumbnailsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.GetThumbnailsRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.file.GetThumbnailsResponse>}
  *     The XHR Node Readable Stream
@@ -1000,7 +772,7 @@ proto.file.FileServiceClient.prototype.getThumbnails =
 
 /**
  * @param {!proto.file.GetThumbnailsRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.file.GetThumbnailsResponse>}
  *     The XHR Node Readable Stream
@@ -1038,30 +810,11 @@ const methodDescriptor_FileService_WriteExcelFile = new grpc.web.MethodDescripto
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.WriteExcelFileRequest,
- *   !proto.file.WriteExcelFileResponse>}
- */
-const methodInfo_FileService_WriteExcelFile = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.WriteExcelFileResponse,
-  /**
-   * @param {!proto.file.WriteExcelFileRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.WriteExcelFileResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.WriteExcelFileRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.WriteExcelFileResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.WriteExcelFileResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.WriteExcelFileResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1080,7 +833,7 @@ proto.file.FileServiceClient.prototype.writeExcelFile =
 /**
  * @param {!proto.file.WriteExcelFileRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.WriteExcelFileResponse>}
  *     Promise that resolves to the response
@@ -1118,30 +871,11 @@ const methodDescriptor_FileService_HtmlToPdf = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.file.HtmlToPdfRqst,
- *   !proto.file.HtmlToPdfResponse>}
- */
-const methodInfo_FileService_HtmlToPdf = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.file.HtmlToPdfResponse,
-  /**
-   * @param {!proto.file.HtmlToPdfRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.file.HtmlToPdfResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.file.HtmlToPdfRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.file.HtmlToPdfResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.HtmlToPdfResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.file.HtmlToPdfResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1160,7 +894,7 @@ proto.file.FileServiceClient.prototype.htmlToPdf =
 /**
  * @param {!proto.file.HtmlToPdfRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.file.HtmlToPdfResponse>}
  *     Promise that resolves to the response

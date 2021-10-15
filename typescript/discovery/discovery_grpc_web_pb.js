@@ -23,7 +23,7 @@ proto.discovery = require('./discovery_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -31,7 +31,7 @@ proto.discovery = require('./discovery_pb.js');
 proto.discovery.PackageDiscoveryClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -49,7 +49,7 @@ proto.discovery.PackageDiscoveryClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -57,7 +57,7 @@ proto.discovery.PackageDiscoveryClient =
 proto.discovery.PackageDiscoveryPromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -95,30 +95,11 @@ const methodDescriptor_PackageDiscovery_PublishService = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.discovery.PublishServiceRequest,
- *   !proto.discovery.PublishServiceResponse>}
- */
-const methodInfo_PackageDiscovery_PublishService = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.discovery.PublishServiceResponse,
-  /**
-   * @param {!proto.discovery.PublishServiceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.discovery.PublishServiceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.discovery.PublishServiceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.discovery.PublishServiceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.discovery.PublishServiceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.discovery.PublishServiceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -137,7 +118,7 @@ proto.discovery.PackageDiscoveryClient.prototype.publishService =
 /**
  * @param {!proto.discovery.PublishServiceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.discovery.PublishServiceResponse>}
  *     Promise that resolves to the response
@@ -175,30 +156,11 @@ const methodDescriptor_PackageDiscovery_PublishApplication = new grpc.web.Method
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.discovery.PublishApplicationRequest,
- *   !proto.discovery.PublishApplicationResponse>}
- */
-const methodInfo_PackageDiscovery_PublishApplication = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.discovery.PublishApplicationResponse,
-  /**
-   * @param {!proto.discovery.PublishApplicationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.discovery.PublishApplicationResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.discovery.PublishApplicationRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.discovery.PublishApplicationResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.discovery.PublishApplicationResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.discovery.PublishApplicationResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -217,7 +179,7 @@ proto.discovery.PackageDiscoveryClient.prototype.publishApplication =
 /**
  * @param {!proto.discovery.PublishApplicationRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.discovery.PublishApplicationResponse>}
  *     Promise that resolves to the response

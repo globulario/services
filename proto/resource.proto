@@ -110,11 +110,12 @@ message FindPackagesDescriptorResponse {
 message Role {
   string id = 1;
   string name = 2;
-  repeated string actions = 3; // must be a registered action from grpc.
+  string description = 3;
+  repeated string actions = 4; // must be a registered action from grpc.
 
   // References.
-  repeated string members = 4;
-  repeated string organizations = 5;
+  repeated string members = 5;
+  repeated string organizations = 6;
 }
 
 message AddRoleActionsRqst {
@@ -332,8 +333,9 @@ message GetApplicationAliasRsp { string alias = 1; }
 message Group {
   string id = 1;
   string name = 2;                   // must be unique on the network.
-  repeated string members = 3;       // can be empty...
-  repeated string organizations = 4; // can be empty...
+  string description = 3;
+  repeated string members = 4;       // can be empty...
+  repeated string organizations = 5; // can be empty...
 }
 
 /**
@@ -392,13 +394,15 @@ message RemoveGroupMemberAccountRsp { bool result = 1; }
 message Organization {
   string id = 1;
   string name = 2; // must be unique on the network.
-  string icon = 3;
+  string email = 3;
+  string icon = 4;
+  string description = 5;
 
   // Aggregations
-  repeated string accounts = 4;
-  repeated string groups = 5;
-  repeated string roles = 6;
-  repeated string applications = 7;
+  repeated string accounts = 6;
+  repeated string groups = 7;
+  repeated string roles = 8;
+  repeated string applications = 9;
 }
 
 /**

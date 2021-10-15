@@ -1785,17 +1785,20 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
-	g := make(map[string]interface{}, 0)
-	g["_id"] = rqst.Organization.Id
-	g["name"] = rqst.Organization.Name
+	o := make(map[string]interface{}, 0)
+	o["_id"] = rqst.Organization.Id
+	o["name"] = rqst.Organization.Name
+	o["icon"] = rqst.Organization.Icon
+	o["email"] = rqst.Organization.Email
+	o["description"] = rqst.Organization.Email
 
 	// Those are the list of entity linked to the organisation
-	g["accounts"] = make([]interface{}, 0)
-	g["groups"] = make([]interface{}, 0)
-	g["roles"] = make([]interface{}, 0)
-	g["applications"] = make([]interface{}, 0)
+	o["accounts"] = make([]interface{}, 0)
+	o["groups"] = make([]interface{}, 0)
+	o["roles"] = make([]interface{}, 0)
+	o["applications"] = make([]interface{}, 0)
 
-	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Organizations", g, "")
+	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Organizations", o, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1888,6 +1891,9 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 		organization := new(resourcepb.Organization)
 		organization.Id = o["_id"].(string)
 		organization.Name = o["name"].(string)
+		organization.Icon = o["icon"].(string)
+		organization.Description = o["description"].(string)
+		organization.Email = o["email"].(string)
 
 		// Here I will set the aggregation.
 
@@ -2232,7 +2238,7 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 //* Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 	// Get the persistence connection
-	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, rqst.Group.Members)
+	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, rqst.Group.Description, rqst.Group.Members)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -2270,7 +2276,7 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 	values := make([]*resourcepb.Group, 0)
 	for i := 0; i < len(groups); i++ {
 
-		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Members: make([]string, 0)}
+		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Description: groups[i].(map[string]interface{})["description"].(string), Members: make([]string, 0)}
 
 		if groups[i].(map[string]interface{})["members"] != nil {
 			members := []interface{}(groups[i].(map[string]interface{})["members"].(primitive.A))

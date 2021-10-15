@@ -21,7 +21,7 @@ proto.echo = require('./echo_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.echo = require('./echo_pb.js');
 proto.echo.EchoServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.echo.EchoServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.echo.EchoServiceClient =
 proto.echo.EchoServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_EchoService_Stop = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.StopRequest,
- *   !proto.echo.StopResponse>}
- */
-const methodInfo_EchoService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.StopResponse,
-  /**
-   * @param {!proto.echo.StopRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.echo.StopResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.echo.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.StopResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.echo.StopResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.echo.StopResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.echo.EchoServiceClient.prototype.stop =
 /**
  * @param {!proto.echo.StopRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.StopResponse>}
  *     Promise that resolves to the response
@@ -173,30 +154,11 @@ const methodDescriptor_EchoService_Echo = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.echo.EchoRequest,
- *   !proto.echo.EchoResponse>}
- */
-const methodInfo_EchoService_Echo = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.echo.EchoResponse,
-  /**
-   * @param {!proto.echo.EchoRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.echo.EchoResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.echo.EchoRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.echo.EchoResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.echo.EchoResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.echo.EchoResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -215,7 +177,7 @@ proto.echo.EchoServiceClient.prototype.echo =
 /**
  * @param {!proto.echo.EchoRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.echo.EchoResponse>}
  *     Promise that resolves to the response

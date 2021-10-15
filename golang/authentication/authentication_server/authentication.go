@@ -359,10 +359,15 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
+		// Create the user file directory.
+		path := "/users/sa"
+		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
+		server.addResourceOwner(path, "sa", rbacpb.SubjectType_ACCOUNT)
+
 		// So here I will keep the token...
 		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
 		fmt.Println("server authenticate response ", time.Now().Unix())
-		
+
 		return tokenString, nil
 	}
 

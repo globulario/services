@@ -21,7 +21,7 @@ proto.authentication = require('./authentication_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.authentication = require('./authentication_pb.js');
 proto.authentication.AuthenticationServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.authentication.AuthenticationServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.authentication.AuthenticationServiceClient =
 proto.authentication.AuthenticationServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_AuthenticationService_ValidateToken = new grpc.web.Method
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.authentication.ValidateTokenRqst,
- *   !proto.authentication.ValidateTokenRsp>}
- */
-const methodInfo_AuthenticationService_ValidateToken = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.authentication.ValidateTokenRsp,
-  /**
-   * @param {!proto.authentication.ValidateTokenRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.authentication.ValidateTokenRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.authentication.ValidateTokenRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.authentication.ValidateTokenRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.ValidateTokenRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.authentication.ValidateTokenRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.authentication.AuthenticationServiceClient.prototype.validateToken =
 /**
  * @param {!proto.authentication.ValidateTokenRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.authentication.ValidateTokenRsp>}
  *     Promise that resolves to the response
@@ -173,30 +154,11 @@ const methodDescriptor_AuthenticationService_RefreshToken = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.authentication.RefreshTokenRqst,
- *   !proto.authentication.RefreshTokenRsp>}
- */
-const methodInfo_AuthenticationService_RefreshToken = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.authentication.RefreshTokenRsp,
-  /**
-   * @param {!proto.authentication.RefreshTokenRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.authentication.RefreshTokenRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.authentication.RefreshTokenRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.authentication.RefreshTokenRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.RefreshTokenRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.authentication.RefreshTokenRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -215,7 +177,7 @@ proto.authentication.AuthenticationServiceClient.prototype.refreshToken =
 /**
  * @param {!proto.authentication.RefreshTokenRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.authentication.RefreshTokenRsp>}
  *     Promise that resolves to the response
@@ -253,30 +215,11 @@ const methodDescriptor_AuthenticationService_SetPassword = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.authentication.SetPasswordRequest,
- *   !proto.authentication.SetPasswordResponse>}
- */
-const methodInfo_AuthenticationService_SetPassword = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.authentication.SetPasswordResponse,
-  /**
-   * @param {!proto.authentication.SetPasswordRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.authentication.SetPasswordResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.authentication.SetPasswordRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.authentication.SetPasswordResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.SetPasswordResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.authentication.SetPasswordResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -295,7 +238,7 @@ proto.authentication.AuthenticationServiceClient.prototype.setPassword =
 /**
  * @param {!proto.authentication.SetPasswordRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.authentication.SetPasswordResponse>}
  *     Promise that resolves to the response
@@ -333,30 +276,11 @@ const methodDescriptor_AuthenticationService_SetRootPassword = new grpc.web.Meth
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.authentication.SetRootPasswordRequest,
- *   !proto.authentication.SetRootPasswordResponse>}
- */
-const methodInfo_AuthenticationService_SetRootPassword = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.authentication.SetRootPasswordResponse,
-  /**
-   * @param {!proto.authentication.SetRootPasswordRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.authentication.SetRootPasswordResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.authentication.SetRootPasswordRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.authentication.SetRootPasswordResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.SetRootPasswordResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.authentication.SetRootPasswordResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -375,7 +299,7 @@ proto.authentication.AuthenticationServiceClient.prototype.setRootPassword =
 /**
  * @param {!proto.authentication.SetRootPasswordRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.authentication.SetRootPasswordResponse>}
  *     Promise that resolves to the response
@@ -413,30 +337,11 @@ const methodDescriptor_AuthenticationService_SetRootEmail = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.authentication.SetRootEmailRequest,
- *   !proto.authentication.SetRootEmailResponse>}
- */
-const methodInfo_AuthenticationService_SetRootEmail = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.authentication.SetRootEmailResponse,
-  /**
-   * @param {!proto.authentication.SetRootEmailRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.authentication.SetRootEmailResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.authentication.SetRootEmailRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.authentication.SetRootEmailResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.SetRootEmailResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.authentication.SetRootEmailResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -455,7 +360,7 @@ proto.authentication.AuthenticationServiceClient.prototype.setRootEmail =
 /**
  * @param {!proto.authentication.SetRootEmailRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.authentication.SetRootEmailResponse>}
  *     Promise that resolves to the response
@@ -493,30 +398,11 @@ const methodDescriptor_AuthenticationService_Authenticate = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.authentication.AuthenticateRqst,
- *   !proto.authentication.AuthenticateRsp>}
- */
-const methodInfo_AuthenticationService_Authenticate = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.authentication.AuthenticateRsp,
-  /**
-   * @param {!proto.authentication.AuthenticateRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.authentication.AuthenticateRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.authentication.AuthenticateRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.authentication.AuthenticateRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.AuthenticateRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.authentication.AuthenticateRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -535,7 +421,7 @@ proto.authentication.AuthenticationServiceClient.prototype.authenticate =
 /**
  * @param {!proto.authentication.AuthenticateRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.authentication.AuthenticateRsp>}
  *     Promise that resolves to the response

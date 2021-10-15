@@ -23,7 +23,7 @@ proto.repository = require('./repository_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -31,7 +31,7 @@ proto.repository = require('./repository_pb.js');
 proto.repository.PackageRepositoryClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -49,7 +49,7 @@ proto.repository.PackageRepositoryClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -57,7 +57,7 @@ proto.repository.PackageRepositoryClient =
 proto.repository.PackageRepositoryPromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -95,27 +95,8 @@ const methodDescriptor_PackageRepository_DownloadBundle = new grpc.web.MethodDes
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.repository.DownloadBundleRequest,
- *   !proto.repository.DownloadBundleResponse>}
- */
-const methodInfo_PackageRepository_DownloadBundle = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.repository.DownloadBundleResponse,
-  /**
-   * @param {!proto.repository.DownloadBundleRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.repository.DownloadBundleResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.repository.DownloadBundleRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.repository.DownloadBundleResponse>}
  *     The XHR Node Readable Stream
@@ -132,7 +113,7 @@ proto.repository.PackageRepositoryClient.prototype.downloadBundle =
 
 /**
  * @param {!proto.repository.DownloadBundleRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.repository.DownloadBundleResponse>}
  *     The XHR Node Readable Stream

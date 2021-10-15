@@ -21,7 +21,7 @@ proto.mail = require('./mail_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.mail = require('./mail_pb.js');
 proto.mail.MailServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.mail.MailServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.mail.MailServiceClient =
 proto.mail.MailServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_MailService_Stop = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.mail.StopRequest,
- *   !proto.mail.StopResponse>}
- */
-const methodInfo_MailService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.mail.StopResponse,
-  /**
-   * @param {!proto.mail.StopRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.mail.StopResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.mail.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.mail.StopResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.mail.StopResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.mail.StopResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.mail.MailServiceClient.prototype.stop =
 /**
  * @param {!proto.mail.StopRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.StopResponse>}
  *     Promise that resolves to the response
@@ -173,30 +154,11 @@ const methodDescriptor_MailService_CreateConnection = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.mail.CreateConnectionRqst,
- *   !proto.mail.CreateConnectionRsp>}
- */
-const methodInfo_MailService_CreateConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.mail.CreateConnectionRsp,
-  /**
-   * @param {!proto.mail.CreateConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.mail.CreateConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.mail.CreateConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.mail.CreateConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.mail.CreateConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.mail.CreateConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -215,7 +177,7 @@ proto.mail.MailServiceClient.prototype.createConnection =
 /**
  * @param {!proto.mail.CreateConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.CreateConnectionRsp>}
  *     Promise that resolves to the response
@@ -253,30 +215,11 @@ const methodDescriptor_MailService_DeleteConnection = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.mail.DeleteConnectionRqst,
- *   !proto.mail.DeleteConnectionRsp>}
- */
-const methodInfo_MailService_DeleteConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.mail.DeleteConnectionRsp,
-  /**
-   * @param {!proto.mail.DeleteConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.mail.DeleteConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.mail.DeleteConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.mail.DeleteConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.mail.DeleteConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.mail.DeleteConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -295,7 +238,7 @@ proto.mail.MailServiceClient.prototype.deleteConnection =
 /**
  * @param {!proto.mail.DeleteConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.DeleteConnectionRsp>}
  *     Promise that resolves to the response
@@ -333,30 +276,11 @@ const methodDescriptor_MailService_SendEmail = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.mail.SendEmailRqst,
- *   !proto.mail.SendEmailRsp>}
- */
-const methodInfo_MailService_SendEmail = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.mail.SendEmailRsp,
-  /**
-   * @param {!proto.mail.SendEmailRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.mail.SendEmailRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.mail.SendEmailRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.mail.SendEmailRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.mail.SendEmailRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.mail.SendEmailRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -375,7 +299,7 @@ proto.mail.MailServiceClient.prototype.sendEmail =
 /**
  * @param {!proto.mail.SendEmailRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.mail.SendEmailRsp>}
  *     Promise that resolves to the response

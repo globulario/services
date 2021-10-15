@@ -6011,7 +6011,7 @@ proto.resource.FindPackagesDescriptorResponse.prototype.clearResultsList = funct
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Role.repeatedFields_ = [3,4,5];
+proto.resource.Role.repeatedFields_ = [4,5,6];
 
 
 
@@ -6046,9 +6046,10 @@ proto.resource.Role.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
-    membersList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f
+    description: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    actionsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+    membersList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -6095,13 +6096,17 @@ proto.resource.Role.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.addActions(value);
+      msg.setDescription(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.addMembers(value);
+      msg.addActions(value);
       break;
     case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addMembers(value);
+      break;
+    case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.addOrganizations(value);
       break;
@@ -6148,24 +6153,31 @@ proto.resource.Role.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getActionsList();
+  f = message.getDescription();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       3,
       f
     );
   }
-  f = message.getMembersList();
+  f = message.getActionsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       4,
       f
     );
   }
-  f = message.getOrganizationsList();
+  f = message.getMembersList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       5,
+      f
+    );
+  }
+  f = message.getOrganizationsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      6,
       f
     );
   }
@@ -6209,11 +6221,29 @@ proto.resource.Role.prototype.setName = function(value) {
 
 
 /**
- * repeated string actions = 3;
+ * optional string description = 3;
+ * @return {string}
+ */
+proto.resource.Role.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Role} returns this
+ */
+proto.resource.Role.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * repeated string actions = 4;
  * @return {!Array<string>}
  */
 proto.resource.Role.prototype.getActionsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
 };
 
 
@@ -6222,7 +6252,7 @@ proto.resource.Role.prototype.getActionsList = function() {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.setActionsList = function(value) {
-  return jspb.Message.setField(this, 3, value || []);
+  return jspb.Message.setField(this, 4, value || []);
 };
 
 
@@ -6232,7 +6262,7 @@ proto.resource.Role.prototype.setActionsList = function(value) {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.addActions = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
 };
 
 
@@ -6246,11 +6276,11 @@ proto.resource.Role.prototype.clearActionsList = function() {
 
 
 /**
- * repeated string members = 4;
+ * repeated string members = 5;
  * @return {!Array<string>}
  */
 proto.resource.Role.prototype.getMembersList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
 };
 
 
@@ -6259,7 +6289,7 @@ proto.resource.Role.prototype.getMembersList = function() {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.setMembersList = function(value) {
-  return jspb.Message.setField(this, 4, value || []);
+  return jspb.Message.setField(this, 5, value || []);
 };
 
 
@@ -6269,7 +6299,7 @@ proto.resource.Role.prototype.setMembersList = function(value) {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.addMembers = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
 };
 
 
@@ -6283,11 +6313,11 @@ proto.resource.Role.prototype.clearMembersList = function() {
 
 
 /**
- * repeated string organizations = 5;
+ * repeated string organizations = 6;
  * @return {!Array<string>}
  */
 proto.resource.Role.prototype.getOrganizationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
 };
 
 
@@ -6296,7 +6326,7 @@ proto.resource.Role.prototype.getOrganizationsList = function() {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.setOrganizationsList = function(value) {
-  return jspb.Message.setField(this, 5, value || []);
+  return jspb.Message.setField(this, 6, value || []);
 };
 
 
@@ -6306,7 +6336,7 @@ proto.resource.Role.prototype.setOrganizationsList = function(value) {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.addOrganizations = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
 };
 
 
@@ -14854,7 +14884,7 @@ proto.resource.GetApplicationAliasRsp.prototype.setAlias = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Group.repeatedFields_ = [3,4];
+proto.resource.Group.repeatedFields_ = [4,5];
 
 
 
@@ -14889,8 +14919,9 @@ proto.resource.Group.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    membersList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f
+    description: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    membersList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -14937,9 +14968,13 @@ proto.resource.Group.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.addMembers(value);
+      msg.setDescription(value);
       break;
     case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addMembers(value);
+      break;
+    case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.addOrganizations(value);
       break;
@@ -14986,17 +15021,24 @@ proto.resource.Group.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getDescription();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
   f = message.getMembersList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      3,
+      4,
       f
     );
   }
   f = message.getOrganizationsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      4,
+      5,
       f
     );
   }
@@ -15040,11 +15082,29 @@ proto.resource.Group.prototype.setName = function(value) {
 
 
 /**
- * repeated string members = 3;
+ * optional string description = 3;
+ * @return {string}
+ */
+proto.resource.Group.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Group} returns this
+ */
+proto.resource.Group.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * repeated string members = 4;
  * @return {!Array<string>}
  */
 proto.resource.Group.prototype.getMembersList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
 };
 
 
@@ -15053,7 +15113,7 @@ proto.resource.Group.prototype.getMembersList = function() {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.setMembersList = function(value) {
-  return jspb.Message.setField(this, 3, value || []);
+  return jspb.Message.setField(this, 4, value || []);
 };
 
 
@@ -15063,7 +15123,7 @@ proto.resource.Group.prototype.setMembersList = function(value) {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.addMembers = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
 };
 
 
@@ -15077,11 +15137,11 @@ proto.resource.Group.prototype.clearMembersList = function() {
 
 
 /**
- * repeated string organizations = 4;
+ * repeated string organizations = 5;
  * @return {!Array<string>}
  */
 proto.resource.Group.prototype.getOrganizationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
 };
 
 
@@ -15090,7 +15150,7 @@ proto.resource.Group.prototype.getOrganizationsList = function() {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.setOrganizationsList = function(value) {
-  return jspb.Message.setField(this, 4, value || []);
+  return jspb.Message.setField(this, 5, value || []);
 };
 
 
@@ -15100,7 +15160,7 @@ proto.resource.Group.prototype.setOrganizationsList = function(value) {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.addOrganizations = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
 };
 
 
@@ -16850,7 +16910,7 @@ proto.resource.RemoveGroupMemberAccountRsp.prototype.setResult = function(value)
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Organization.repeatedFields_ = [4,5,6,7];
+proto.resource.Organization.repeatedFields_ = [6,7,8,9];
 
 
 
@@ -16885,11 +16945,13 @@ proto.resource.Organization.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    icon: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    accountsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    rolesList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    applicationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
+    email: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    icon: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    accountsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+    groupsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+    rolesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+    applicationsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -16936,21 +16998,29 @@ proto.resource.Organization.deserializeBinaryFromReader = function(msg, reader) 
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setIcon(value);
+      msg.setEmail(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.addAccounts(value);
+      msg.setIcon(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.addGroups(value);
+      msg.setDescription(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.addRoles(value);
+      msg.addAccounts(value);
       break;
     case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addGroups(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addRoles(value);
+      break;
+    case 9:
       var value = /** @type {string} */ (reader.readString());
       msg.addApplications(value);
       break;
@@ -16997,38 +17067,52 @@ proto.resource.Organization.serializeBinaryToWriter = function(message, writer) 
       f
     );
   }
-  f = message.getIcon();
+  f = message.getEmail();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getAccountsList();
+  f = message.getIcon();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       4,
       f
     );
   }
-  f = message.getGroupsList();
+  f = message.getDescription();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       5,
       f
     );
   }
-  f = message.getRolesList();
+  f = message.getAccountsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       6,
       f
     );
   }
-  f = message.getApplicationsList();
+  f = message.getGroupsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       7,
+      f
+    );
+  }
+  f = message.getRolesList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      8,
+      f
+    );
+  }
+  f = message.getApplicationsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      9,
       f
     );
   }
@@ -17072,10 +17156,10 @@ proto.resource.Organization.prototype.setName = function(value) {
 
 
 /**
- * optional string icon = 3;
+ * optional string email = 3;
  * @return {string}
  */
-proto.resource.Organization.prototype.getIcon = function() {
+proto.resource.Organization.prototype.getEmail = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -17084,17 +17168,53 @@ proto.resource.Organization.prototype.getIcon = function() {
  * @param {string} value
  * @return {!proto.resource.Organization} returns this
  */
-proto.resource.Organization.prototype.setIcon = function(value) {
+proto.resource.Organization.prototype.setEmail = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * repeated string accounts = 4;
+ * optional string icon = 4;
+ * @return {string}
+ */
+proto.resource.Organization.prototype.getIcon = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.setIcon = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string description = 5;
+ * @return {string}
+ */
+proto.resource.Organization.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * repeated string accounts = 6;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getAccountsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
 };
 
 
@@ -17103,7 +17223,7 @@ proto.resource.Organization.prototype.getAccountsList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setAccountsList = function(value) {
-  return jspb.Message.setField(this, 4, value || []);
+  return jspb.Message.setField(this, 6, value || []);
 };
 
 
@@ -17113,7 +17233,7 @@ proto.resource.Organization.prototype.setAccountsList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addAccounts = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
 };
 
 
@@ -17127,11 +17247,11 @@ proto.resource.Organization.prototype.clearAccountsList = function() {
 
 
 /**
- * repeated string groups = 5;
+ * repeated string groups = 7;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getGroupsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
 };
 
 
@@ -17140,7 +17260,7 @@ proto.resource.Organization.prototype.getGroupsList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setGroupsList = function(value) {
-  return jspb.Message.setField(this, 5, value || []);
+  return jspb.Message.setField(this, 7, value || []);
 };
 
 
@@ -17150,7 +17270,7 @@ proto.resource.Organization.prototype.setGroupsList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addGroups = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
 };
 
 
@@ -17164,11 +17284,11 @@ proto.resource.Organization.prototype.clearGroupsList = function() {
 
 
 /**
- * repeated string roles = 6;
+ * repeated string roles = 8;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getRolesList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
 };
 
 
@@ -17177,7 +17297,7 @@ proto.resource.Organization.prototype.getRolesList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setRolesList = function(value) {
-  return jspb.Message.setField(this, 6, value || []);
+  return jspb.Message.setField(this, 8, value || []);
 };
 
 
@@ -17187,7 +17307,7 @@ proto.resource.Organization.prototype.setRolesList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addRoles = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
 };
 
 
@@ -17201,11 +17321,11 @@ proto.resource.Organization.prototype.clearRolesList = function() {
 
 
 /**
- * repeated string applications = 7;
+ * repeated string applications = 9;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getApplicationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
 };
 
 
@@ -17214,7 +17334,7 @@ proto.resource.Organization.prototype.getApplicationsList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setApplicationsList = function(value) {
-  return jspb.Message.setField(this, 7, value || []);
+  return jspb.Message.setField(this, 9, value || []);
 };
 
 
@@ -17224,7 +17344,7 @@ proto.resource.Organization.prototype.setApplicationsList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addApplications = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
 };
 
 

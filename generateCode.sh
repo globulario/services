@@ -72,9 +72,6 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/repo
 mkdir typescript/discovery
 protoc --js_out=import_style=commonjs:typescript/discovery  -I ./proto/ discovery.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/discovery -I ./proto/ discovery.proto
-mkdir typescript/lb
-protoc --js_out=import_style=commonjs:typescript/lb  -I ./proto/ lb.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/lb -I ./proto/ lb.proto
 mkdir typescript/echo
 protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ echo.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ echo.proto

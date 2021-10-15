@@ -21,7 +21,7 @@ proto.log = require('./log_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.log = require('./log_pb.js');
 proto.log.LogServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.log.LogServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.log.LogServiceClient =
 proto.log.LogServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_LogService_Log = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.log.LogRqst,
- *   !proto.log.LogRsp>}
- */
-const methodInfo_LogService_Log = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.log.LogRsp,
-  /**
-   * @param {!proto.log.LogRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.log.LogRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.log.LogRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.log.LogRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.log.LogRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.log.LogRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.log.LogServiceClient.prototype.log =
 /**
  * @param {!proto.log.LogRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.log.LogRsp>}
  *     Promise that resolves to the response
@@ -173,27 +154,8 @@ const methodDescriptor_LogService_GetLog = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.log.GetLogRqst,
- *   !proto.log.GetLogRsp>}
- */
-const methodInfo_LogService_GetLog = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.log.GetLogRsp,
-  /**
-   * @param {!proto.log.GetLogRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.log.GetLogRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.log.GetLogRqst} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.log.GetLogRsp>}
  *     The XHR Node Readable Stream
@@ -210,7 +172,7 @@ proto.log.LogServiceClient.prototype.getLog =
 
 /**
  * @param {!proto.log.GetLogRqst} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.log.GetLogRsp>}
  *     The XHR Node Readable Stream
@@ -248,30 +210,11 @@ const methodDescriptor_LogService_DeleteLog = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.log.DeleteLogRqst,
- *   !proto.log.DeleteLogRsp>}
- */
-const methodInfo_LogService_DeleteLog = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.log.DeleteLogRsp,
-  /**
-   * @param {!proto.log.DeleteLogRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.log.DeleteLogRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.log.DeleteLogRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.log.DeleteLogRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.log.DeleteLogRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.log.DeleteLogRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -290,7 +233,7 @@ proto.log.LogServiceClient.prototype.deleteLog =
 /**
  * @param {!proto.log.DeleteLogRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.log.DeleteLogRsp>}
  *     Promise that resolves to the response
@@ -328,30 +271,11 @@ const methodDescriptor_LogService_ClearAllLog = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.log.ClearAllLogRqst,
- *   !proto.log.ClearAllLogRsp>}
- */
-const methodInfo_LogService_ClearAllLog = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.log.ClearAllLogRsp,
-  /**
-   * @param {!proto.log.ClearAllLogRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.log.ClearAllLogRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.log.ClearAllLogRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.log.ClearAllLogRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.log.ClearAllLogRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.log.ClearAllLogRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -370,7 +294,7 @@ proto.log.LogServiceClient.prototype.clearAllLog =
 /**
  * @param {!proto.log.ClearAllLogRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.log.ClearAllLogRsp>}
  *     Promise that resolves to the response

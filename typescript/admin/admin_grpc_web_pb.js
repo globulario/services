@@ -21,7 +21,7 @@ proto.admin = require('./admin_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.admin = require('./admin_pb.js');
 proto.admin.AdminServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.admin.AdminServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.admin.AdminServiceClient =
 proto.admin.AdminServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,27 +93,8 @@ const methodDescriptor_AdminService_DownloadGlobular = new grpc.web.MethodDescri
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.DownloadGlobularRequest,
- *   !proto.admin.DownloadGlobularResponse>}
- */
-const methodInfo_AdminService_DownloadGlobular = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.DownloadGlobularResponse,
-  /**
-   * @param {!proto.admin.DownloadGlobularRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.DownloadGlobularResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.DownloadGlobularRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.admin.DownloadGlobularResponse>}
  *     The XHR Node Readable Stream
@@ -130,7 +111,7 @@ proto.admin.AdminServiceClient.prototype.downloadGlobular =
 
 /**
  * @param {!proto.admin.DownloadGlobularRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.admin.DownloadGlobularResponse>}
  *     The XHR Node Readable Stream
@@ -168,30 +149,11 @@ const methodDescriptor_AdminService_GetCertificates = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.GetCertificatesRequest,
- *   !proto.admin.GetCertificatesResponse>}
- */
-const methodInfo_AdminService_GetCertificates = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.GetCertificatesResponse,
-  /**
-   * @param {!proto.admin.GetCertificatesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.GetCertificatesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.GetCertificatesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.GetCertificatesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.GetCertificatesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.GetCertificatesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -210,7 +172,7 @@ proto.admin.AdminServiceClient.prototype.getCertificates =
 /**
  * @param {!proto.admin.GetCertificatesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetCertificatesResponse>}
  *     Promise that resolves to the response
@@ -248,30 +210,11 @@ const methodDescriptor_AdminService_HasRunningProcess = new grpc.web.MethodDescr
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.HasRunningProcessRequest,
- *   !proto.admin.HasRunningProcessResponse>}
- */
-const methodInfo_AdminService_HasRunningProcess = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.HasRunningProcessResponse,
-  /**
-   * @param {!proto.admin.HasRunningProcessRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.HasRunningProcessResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.HasRunningProcessRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.HasRunningProcessResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.HasRunningProcessResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.HasRunningProcessResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -290,7 +233,7 @@ proto.admin.AdminServiceClient.prototype.hasRunningProcess =
 /**
  * @param {!proto.admin.HasRunningProcessRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.HasRunningProcessResponse>}
  *     Promise that resolves to the response
@@ -328,27 +271,8 @@ const methodDescriptor_AdminService_RunCmd = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.RunCmdRequest,
- *   !proto.admin.RunCmdResponse>}
- */
-const methodInfo_AdminService_RunCmd = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.RunCmdResponse,
-  /**
-   * @param {!proto.admin.RunCmdRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.RunCmdResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.RunCmdRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.admin.RunCmdResponse>}
  *     The XHR Node Readable Stream
@@ -365,7 +289,7 @@ proto.admin.AdminServiceClient.prototype.runCmd =
 
 /**
  * @param {!proto.admin.RunCmdRequest} request The request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!grpc.web.ClientReadableStream<!proto.admin.RunCmdResponse>}
  *     The XHR Node Readable Stream
@@ -403,30 +327,11 @@ const methodDescriptor_AdminService_SetEnvironmentVariable = new grpc.web.Method
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.SetEnvironmentVariableRequest,
- *   !proto.admin.SetEnvironmentVariableResponse>}
- */
-const methodInfo_AdminService_SetEnvironmentVariable = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.SetEnvironmentVariableResponse,
-  /**
-   * @param {!proto.admin.SetEnvironmentVariableRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.SetEnvironmentVariableResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.SetEnvironmentVariableRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.SetEnvironmentVariableResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.SetEnvironmentVariableResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.SetEnvironmentVariableResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -445,7 +350,7 @@ proto.admin.AdminServiceClient.prototype.setEnvironmentVariable =
 /**
  * @param {!proto.admin.SetEnvironmentVariableRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SetEnvironmentVariableResponse>}
  *     Promise that resolves to the response
@@ -483,30 +388,11 @@ const methodDescriptor_AdminService_GetEnvironmentVariable = new grpc.web.Method
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.GetEnvironmentVariableRequest,
- *   !proto.admin.GetEnvironmentVariableResponse>}
- */
-const methodInfo_AdminService_GetEnvironmentVariable = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.GetEnvironmentVariableResponse,
-  /**
-   * @param {!proto.admin.GetEnvironmentVariableRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.GetEnvironmentVariableResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.GetEnvironmentVariableRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.GetEnvironmentVariableResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.GetEnvironmentVariableResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.GetEnvironmentVariableResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -525,7 +411,7 @@ proto.admin.AdminServiceClient.prototype.getEnvironmentVariable =
 /**
  * @param {!proto.admin.GetEnvironmentVariableRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetEnvironmentVariableResponse>}
  *     Promise that resolves to the response
@@ -563,30 +449,11 @@ const methodDescriptor_AdminService_UnsetEnvironmentVariable = new grpc.web.Meth
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.UnsetEnvironmentVariableRequest,
- *   !proto.admin.UnsetEnvironmentVariableResponse>}
- */
-const methodInfo_AdminService_UnsetEnvironmentVariable = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.UnsetEnvironmentVariableResponse,
-  /**
-   * @param {!proto.admin.UnsetEnvironmentVariableRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.UnsetEnvironmentVariableResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.UnsetEnvironmentVariableRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.UnsetEnvironmentVariableResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.UnsetEnvironmentVariableResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.UnsetEnvironmentVariableResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -605,7 +472,7 @@ proto.admin.AdminServiceClient.prototype.unsetEnvironmentVariable =
 /**
  * @param {!proto.admin.UnsetEnvironmentVariableRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.UnsetEnvironmentVariableResponse>}
  *     Promise that resolves to the response
@@ -643,30 +510,11 @@ const methodDescriptor_AdminService_KillProcess = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.KillProcessRequest,
- *   !proto.admin.KillProcessResponse>}
- */
-const methodInfo_AdminService_KillProcess = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.KillProcessResponse,
-  /**
-   * @param {!proto.admin.KillProcessRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.KillProcessResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.KillProcessRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.KillProcessResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.KillProcessResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.KillProcessResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -685,7 +533,7 @@ proto.admin.AdminServiceClient.prototype.killProcess =
 /**
  * @param {!proto.admin.KillProcessRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.KillProcessResponse>}
  *     Promise that resolves to the response
@@ -723,30 +571,11 @@ const methodDescriptor_AdminService_KillProcesses = new grpc.web.MethodDescripto
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.KillProcessesRequest,
- *   !proto.admin.KillProcessesResponse>}
- */
-const methodInfo_AdminService_KillProcesses = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.KillProcessesResponse,
-  /**
-   * @param {!proto.admin.KillProcessesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.KillProcessesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.KillProcessesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.KillProcessesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.KillProcessesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.KillProcessesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -765,7 +594,7 @@ proto.admin.AdminServiceClient.prototype.killProcesses =
 /**
  * @param {!proto.admin.KillProcessesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.KillProcessesResponse>}
  *     Promise that resolves to the response
@@ -803,30 +632,11 @@ const methodDescriptor_AdminService_GetPids = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.GetPidsRequest,
- *   !proto.admin.GetPidsResponse>}
- */
-const methodInfo_AdminService_GetPids = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.GetPidsResponse,
-  /**
-   * @param {!proto.admin.GetPidsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.GetPidsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.GetPidsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.GetPidsResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.GetPidsResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.GetPidsResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -845,7 +655,7 @@ proto.admin.AdminServiceClient.prototype.getPids =
 /**
  * @param {!proto.admin.GetPidsRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.GetPidsResponse>}
  *     Promise that resolves to the response
@@ -883,30 +693,11 @@ const methodDescriptor_AdminService_SaveConfig = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.admin.SaveConfigRequest,
- *   !proto.admin.SaveConfigRequest>}
- */
-const methodInfo_AdminService_SaveConfig = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.admin.SaveConfigRequest,
-  /**
-   * @param {!proto.admin.SaveConfigRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.admin.SaveConfigRequest.deserializeBinary
-);
-
-
-/**
  * @param {!proto.admin.SaveConfigRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.admin.SaveConfigRequest)}
+ * @param {function(?grpc.web.RpcError, ?proto.admin.SaveConfigRequest)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.admin.SaveConfigRequest>|undefined}
  *     The XHR Node Readable Stream
@@ -925,7 +716,7 @@ proto.admin.AdminServiceClient.prototype.saveConfig =
 /**
  * @param {!proto.admin.SaveConfigRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.admin.SaveConfigRequest>}
  *     Promise that resolves to the response

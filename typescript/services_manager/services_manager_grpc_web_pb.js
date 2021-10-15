@@ -23,7 +23,7 @@ proto.services_manager = require('./services_manager_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -31,7 +31,7 @@ proto.services_manager = require('./services_manager_pb.js');
 proto.services_manager.ServicesManagerServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -49,7 +49,7 @@ proto.services_manager.ServicesManagerServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -57,7 +57,7 @@ proto.services_manager.ServicesManagerServiceClient =
 proto.services_manager.ServicesManagerServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -95,30 +95,11 @@ const methodDescriptor_ServicesManagerService_InstallService = new grpc.web.Meth
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.InstallServiceRequest,
- *   !proto.services_manager.InstallServiceResponse>}
- */
-const methodInfo_ServicesManagerService_InstallService = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.InstallServiceResponse,
-  /**
-   * @param {!proto.services_manager.InstallServiceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.InstallServiceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.InstallServiceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.InstallServiceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.InstallServiceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.InstallServiceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -137,7 +118,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.installService =
 /**
  * @param {!proto.services_manager.InstallServiceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.InstallServiceResponse>}
  *     Promise that resolves to the response
@@ -175,30 +156,11 @@ const methodDescriptor_ServicesManagerService_UninstallService = new grpc.web.Me
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.UninstallServiceRequest,
- *   !proto.services_manager.UninstallServiceResponse>}
- */
-const methodInfo_ServicesManagerService_UninstallService = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.UninstallServiceResponse,
-  /**
-   * @param {!proto.services_manager.UninstallServiceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.UninstallServiceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.UninstallServiceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.UninstallServiceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.UninstallServiceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.UninstallServiceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -217,7 +179,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.uninstallService =
 /**
  * @param {!proto.services_manager.UninstallServiceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.UninstallServiceResponse>}
  *     Promise that resolves to the response
@@ -255,30 +217,11 @@ const methodDescriptor_ServicesManagerService_StopServiceInstance = new grpc.web
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.StopServiceInstanceRequest,
- *   !proto.services_manager.StopServiceInstanceResponse>}
- */
-const methodInfo_ServicesManagerService_StopServiceInstance = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.StopServiceInstanceResponse,
-  /**
-   * @param {!proto.services_manager.StopServiceInstanceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.StopServiceInstanceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.StopServiceInstanceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.StopServiceInstanceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.StopServiceInstanceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.StopServiceInstanceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -297,7 +240,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.stopServiceInstanc
 /**
  * @param {!proto.services_manager.StopServiceInstanceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.StopServiceInstanceResponse>}
  *     Promise that resolves to the response
@@ -335,30 +278,11 @@ const methodDescriptor_ServicesManagerService_StartServiceInstance = new grpc.we
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.StartServiceInstanceRequest,
- *   !proto.services_manager.StartServiceInstanceResponse>}
- */
-const methodInfo_ServicesManagerService_StartServiceInstance = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.StartServiceInstanceResponse,
-  /**
-   * @param {!proto.services_manager.StartServiceInstanceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.StartServiceInstanceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.StartServiceInstanceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.StartServiceInstanceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.StartServiceInstanceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.StartServiceInstanceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -377,7 +301,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.startServiceInstan
 /**
  * @param {!proto.services_manager.StartServiceInstanceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.StartServiceInstanceResponse>}
  *     Promise that resolves to the response
@@ -415,30 +339,11 @@ const methodDescriptor_ServicesManagerService_RestartAllServices = new grpc.web.
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.RestartAllServicesRequest,
- *   !proto.services_manager.RestartAllServicesResponse>}
- */
-const methodInfo_ServicesManagerService_RestartAllServices = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.RestartAllServicesResponse,
-  /**
-   * @param {!proto.services_manager.RestartAllServicesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.RestartAllServicesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.RestartAllServicesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.RestartAllServicesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.RestartAllServicesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.RestartAllServicesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -457,7 +362,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.restartAllServices
 /**
  * @param {!proto.services_manager.RestartAllServicesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.RestartAllServicesResponse>}
  *     Promise that resolves to the response
@@ -495,30 +400,11 @@ const methodDescriptor_ServicesManagerService_GetServicesConfiguration = new grp
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.GetServicesConfigurationRequest,
- *   !proto.services_manager.GetServicesConfigurationResponse>}
- */
-const methodInfo_ServicesManagerService_GetServicesConfiguration = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.GetServicesConfigurationResponse,
-  /**
-   * @param {!proto.services_manager.GetServicesConfigurationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.GetServicesConfigurationResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.GetServicesConfigurationRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.GetServicesConfigurationResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.GetServicesConfigurationResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.GetServicesConfigurationResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -537,7 +423,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.getServicesConfigu
 /**
  * @param {!proto.services_manager.GetServicesConfigurationRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.GetServicesConfigurationResponse>}
  *     Promise that resolves to the response
@@ -575,30 +461,11 @@ const methodDescriptor_ServicesManagerService_GetAllActions = new grpc.web.Metho
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.GetAllActionsRequest,
- *   !proto.services_manager.GetAllActionsResponse>}
- */
-const methodInfo_ServicesManagerService_GetAllActions = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.GetAllActionsResponse,
-  /**
-   * @param {!proto.services_manager.GetAllActionsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.GetAllActionsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.GetAllActionsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.GetAllActionsResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.GetAllActionsResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.GetAllActionsResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -617,7 +484,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.getAllActions =
 /**
  * @param {!proto.services_manager.GetAllActionsRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.GetAllActionsResponse>}
  *     Promise that resolves to the response
@@ -655,30 +522,11 @@ const methodDescriptor_ServicesManagerService_SaveServiceConfig = new grpc.web.M
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.services_manager.SaveServiceConfigRequest,
- *   !proto.services_manager.SaveServiceConfigResponse>}
- */
-const methodInfo_ServicesManagerService_SaveServiceConfig = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.services_manager.SaveServiceConfigResponse,
-  /**
-   * @param {!proto.services_manager.SaveServiceConfigRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.services_manager.SaveServiceConfigResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.services_manager.SaveServiceConfigRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.services_manager.SaveServiceConfigResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.services_manager.SaveServiceConfigResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.services_manager.SaveServiceConfigResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -697,7 +545,7 @@ proto.services_manager.ServicesManagerServiceClient.prototype.saveServiceConfig 
 /**
  * @param {!proto.services_manager.SaveServiceConfigRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.services_manager.SaveServiceConfigResponse>}
  *     Promise that resolves to the response

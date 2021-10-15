@@ -2303,13 +2303,14 @@ export function getAllPeersInfo(
 
 export function appendActionToPeer(
   globular: Globular,
+  mac: string,
   domain: string,
   actions: Array<string>,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
   let rqst = new AddPeerActionsRqst();
-  rqst.setDomain(domain);
+  rqst.setMac(mac);
   rqst.setActionsList(actions);
   globular.resourceService
     .addPeerActions(rqst, {
@@ -2329,12 +2330,13 @@ export function appendActionToPeer(
 export function removeActionFromPeer(
   globular: Globular,
   domain: string,
+  mac: string,
   action: string,
   callback: () => void,
   errorCallback: (err: any) => void
 ) {
   let rqst = new RemovePeerActionRqst();
-  rqst.setDomain(domain);
+  rqst.setMac(mac);
   rqst.setAction(action);
   globular.resourceService
     .removePeerAction(rqst, {

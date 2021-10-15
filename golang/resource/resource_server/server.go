@@ -595,7 +595,6 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	references_ := make([]interface{}, 0)
 	for j := 0; j < len(references); j++ {
 		if references[j].(map[string]interface{})["$id"] != refId {
-			fmt.Println("---------> append reference: ", refId)
 			references_ = append(references_, references[j])
 		}
 	}
@@ -679,7 +678,7 @@ func serialyseObject(obj map[string]interface{}) string {
 	return jsonStr
 }
 
-func (resource_server *server) createGroup(id, name string, members []string) error {
+func (resource_server *server) createGroup(id, name, description string, members []string) error {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -698,6 +697,7 @@ func (resource_server *server) createGroup(id, name string, members []string) er
 	g := make(map[string]interface{}, 0)
 	g["_id"] = id
 	g["name"] = name
+	g["description"] = description
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Groups", g, "")
 	if err != nil {

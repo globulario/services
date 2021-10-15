@@ -21,7 +21,7 @@ proto.catalog = require('./catalog_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -29,7 +29,7 @@ proto.catalog = require('./catalog_pb.js');
 proto.catalog.CatalogServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -47,7 +47,7 @@ proto.catalog.CatalogServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?Object} options
+ * @param {?grpc.web.ClientOptions} options
  * @constructor
  * @struct
  * @final
@@ -55,7 +55,7 @@ proto.catalog.CatalogServiceClient =
 proto.catalog.CatalogServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options['format'] = 'text';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -93,30 +93,11 @@ const methodDescriptor_CatalogService_Stop = new grpc.web.MethodDescriptor(
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.StopRequest,
- *   !proto.catalog.StopResponse>}
- */
-const methodInfo_CatalogService_Stop = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.StopResponse,
-  /**
-   * @param {!proto.catalog.StopRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.StopResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.StopRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.StopResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.StopResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.StopResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -135,7 +116,7 @@ proto.catalog.CatalogServiceClient.prototype.stop =
 /**
  * @param {!proto.catalog.StopRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.StopResponse>}
  *     Promise that resolves to the response
@@ -173,30 +154,11 @@ const methodDescriptor_CatalogService_CreateConnection = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.CreateConnectionRqst,
- *   !proto.catalog.CreateConnectionRsp>}
- */
-const methodInfo_CatalogService_CreateConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.CreateConnectionRsp,
-  /**
-   * @param {!proto.catalog.CreateConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.CreateConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.CreateConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.CreateConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.CreateConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.CreateConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -215,7 +177,7 @@ proto.catalog.CatalogServiceClient.prototype.createConnection =
 /**
  * @param {!proto.catalog.CreateConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.CreateConnectionRsp>}
  *     Promise that resolves to the response
@@ -253,30 +215,11 @@ const methodDescriptor_CatalogService_DeleteConnection = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteConnectionRqst,
- *   !proto.catalog.DeleteConnectionRsp>}
- */
-const methodInfo_CatalogService_DeleteConnection = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteConnectionRsp,
-  /**
-   * @param {!proto.catalog.DeleteConnectionRqst} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteConnectionRsp.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteConnectionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteConnectionRsp)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteConnectionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteConnectionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -295,7 +238,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteConnection =
 /**
  * @param {!proto.catalog.DeleteConnectionRqst} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteConnectionRsp>}
  *     Promise that resolves to the response
@@ -333,30 +276,11 @@ const methodDescriptor_CatalogService_SaveUnitOfMeasure = new grpc.web.MethodDes
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveUnitOfMeasureRequest,
- *   !proto.catalog.SaveUnitOfMeasureResponse>}
- */
-const methodInfo_CatalogService_SaveUnitOfMeasure = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveUnitOfMeasureResponse,
-  /**
-   * @param {!proto.catalog.SaveUnitOfMeasureRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveUnitOfMeasureResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveUnitOfMeasureRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveUnitOfMeasureResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveUnitOfMeasureResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveUnitOfMeasureResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -375,7 +299,7 @@ proto.catalog.CatalogServiceClient.prototype.saveUnitOfMeasure =
 /**
  * @param {!proto.catalog.SaveUnitOfMeasureRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveUnitOfMeasureResponse>}
  *     Promise that resolves to the response
@@ -413,30 +337,11 @@ const methodDescriptor_CatalogService_SavePropertyDefinition = new grpc.web.Meth
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SavePropertyDefinitionRequest,
- *   !proto.catalog.SavePropertyDefinitionResponse>}
- */
-const methodInfo_CatalogService_SavePropertyDefinition = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SavePropertyDefinitionResponse,
-  /**
-   * @param {!proto.catalog.SavePropertyDefinitionRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SavePropertyDefinitionResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SavePropertyDefinitionRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SavePropertyDefinitionResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SavePropertyDefinitionResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SavePropertyDefinitionResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -455,7 +360,7 @@ proto.catalog.CatalogServiceClient.prototype.savePropertyDefinition =
 /**
  * @param {!proto.catalog.SavePropertyDefinitionRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SavePropertyDefinitionResponse>}
  *     Promise that resolves to the response
@@ -493,30 +398,11 @@ const methodDescriptor_CatalogService_SaveItemDefinition = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveItemDefinitionRequest,
- *   !proto.catalog.SaveItemDefinitionResponse>}
- */
-const methodInfo_CatalogService_SaveItemDefinition = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveItemDefinitionResponse,
-  /**
-   * @param {!proto.catalog.SaveItemDefinitionRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveItemDefinitionResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveItemDefinitionRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveItemDefinitionResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveItemDefinitionResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveItemDefinitionResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -535,7 +421,7 @@ proto.catalog.CatalogServiceClient.prototype.saveItemDefinition =
 /**
  * @param {!proto.catalog.SaveItemDefinitionRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveItemDefinitionResponse>}
  *     Promise that resolves to the response
@@ -573,30 +459,11 @@ const methodDescriptor_CatalogService_SaveItemInstance = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveItemInstanceRequest,
- *   !proto.catalog.SaveItemInstanceResponse>}
- */
-const methodInfo_CatalogService_SaveItemInstance = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveItemInstanceResponse,
-  /**
-   * @param {!proto.catalog.SaveItemInstanceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveItemInstanceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveItemInstanceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveItemInstanceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveItemInstanceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveItemInstanceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -615,7 +482,7 @@ proto.catalog.CatalogServiceClient.prototype.saveItemInstance =
 /**
  * @param {!proto.catalog.SaveItemInstanceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveItemInstanceResponse>}
  *     Promise that resolves to the response
@@ -653,30 +520,11 @@ const methodDescriptor_CatalogService_SaveInventory = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveInventoryRequest,
- *   !proto.catalog.SaveInventoryResponse>}
- */
-const methodInfo_CatalogService_SaveInventory = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveInventoryResponse,
-  /**
-   * @param {!proto.catalog.SaveInventoryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveInventoryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveInventoryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveInventoryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveInventoryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveInventoryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -695,7 +543,7 @@ proto.catalog.CatalogServiceClient.prototype.saveInventory =
 /**
  * @param {!proto.catalog.SaveInventoryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveInventoryResponse>}
  *     Promise that resolves to the response
@@ -733,30 +581,11 @@ const methodDescriptor_CatalogService_SaveManufacturer = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveManufacturerRequest,
- *   !proto.catalog.SaveManufacturerResponse>}
- */
-const methodInfo_CatalogService_SaveManufacturer = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveManufacturerResponse,
-  /**
-   * @param {!proto.catalog.SaveManufacturerRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveManufacturerResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveManufacturerRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveManufacturerResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveManufacturerResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveManufacturerResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -775,7 +604,7 @@ proto.catalog.CatalogServiceClient.prototype.saveManufacturer =
 /**
  * @param {!proto.catalog.SaveManufacturerRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveManufacturerResponse>}
  *     Promise that resolves to the response
@@ -813,30 +642,11 @@ const methodDescriptor_CatalogService_SaveSupplier = new grpc.web.MethodDescript
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveSupplierRequest,
- *   !proto.catalog.SaveSupplierResponse>}
- */
-const methodInfo_CatalogService_SaveSupplier = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveSupplierResponse,
-  /**
-   * @param {!proto.catalog.SaveSupplierRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveSupplierResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveSupplierRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveSupplierResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveSupplierResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveSupplierResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -855,7 +665,7 @@ proto.catalog.CatalogServiceClient.prototype.saveSupplier =
 /**
  * @param {!proto.catalog.SaveSupplierRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveSupplierResponse>}
  *     Promise that resolves to the response
@@ -893,30 +703,11 @@ const methodDescriptor_CatalogService_SaveLocalisation = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveLocalisationRequest,
- *   !proto.catalog.SaveLocalisationResponse>}
- */
-const methodInfo_CatalogService_SaveLocalisation = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveLocalisationResponse,
-  /**
-   * @param {!proto.catalog.SaveLocalisationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveLocalisationResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveLocalisationRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveLocalisationResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveLocalisationResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveLocalisationResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -935,7 +726,7 @@ proto.catalog.CatalogServiceClient.prototype.saveLocalisation =
 /**
  * @param {!proto.catalog.SaveLocalisationRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveLocalisationResponse>}
  *     Promise that resolves to the response
@@ -973,30 +764,11 @@ const methodDescriptor_CatalogService_SavePackage = new grpc.web.MethodDescripto
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SavePackageRequest,
- *   !proto.catalog.SavePackageResponse>}
- */
-const methodInfo_CatalogService_SavePackage = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SavePackageResponse,
-  /**
-   * @param {!proto.catalog.SavePackageRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SavePackageResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SavePackageRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SavePackageResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SavePackageResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SavePackageResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1015,7 +787,7 @@ proto.catalog.CatalogServiceClient.prototype.savePackage =
 /**
  * @param {!proto.catalog.SavePackageRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SavePackageResponse>}
  *     Promise that resolves to the response
@@ -1053,30 +825,11 @@ const methodDescriptor_CatalogService_SavePackageSupplier = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SavePackageSupplierRequest,
- *   !proto.catalog.SavePackageSupplierResponse>}
- */
-const methodInfo_CatalogService_SavePackageSupplier = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SavePackageSupplierResponse,
-  /**
-   * @param {!proto.catalog.SavePackageSupplierRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SavePackageSupplierResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SavePackageSupplierRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SavePackageSupplierResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SavePackageSupplierResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SavePackageSupplierResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1095,7 +848,7 @@ proto.catalog.CatalogServiceClient.prototype.savePackageSupplier =
 /**
  * @param {!proto.catalog.SavePackageSupplierRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SavePackageSupplierResponse>}
  *     Promise that resolves to the response
@@ -1133,30 +886,11 @@ const methodDescriptor_CatalogService_SaveItemManufacturer = new grpc.web.Method
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveItemManufacturerRequest,
- *   !proto.catalog.SaveItemManufacturerResponse>}
- */
-const methodInfo_CatalogService_SaveItemManufacturer = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveItemManufacturerResponse,
-  /**
-   * @param {!proto.catalog.SaveItemManufacturerRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveItemManufacturerResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveItemManufacturerRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveItemManufacturerResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveItemManufacturerResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveItemManufacturerResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1175,7 +909,7 @@ proto.catalog.CatalogServiceClient.prototype.saveItemManufacturer =
 /**
  * @param {!proto.catalog.SaveItemManufacturerRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveItemManufacturerResponse>}
  *     Promise that resolves to the response
@@ -1213,30 +947,11 @@ const methodDescriptor_CatalogService_SaveCategory = new grpc.web.MethodDescript
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.SaveCategoryRequest,
- *   !proto.catalog.SaveCategoryResponse>}
- */
-const methodInfo_CatalogService_SaveCategory = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.SaveCategoryResponse,
-  /**
-   * @param {!proto.catalog.SaveCategoryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.SaveCategoryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.SaveCategoryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.SaveCategoryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.SaveCategoryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.SaveCategoryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1255,7 +970,7 @@ proto.catalog.CatalogServiceClient.prototype.saveCategory =
 /**
  * @param {!proto.catalog.SaveCategoryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.SaveCategoryResponse>}
  *     Promise that resolves to the response
@@ -1293,30 +1008,11 @@ const methodDescriptor_CatalogService_AppendItemDefinitionCategory = new grpc.we
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.AppendItemDefinitionCategoryRequest,
- *   !proto.catalog.AppendItemDefinitionCategoryResponse>}
- */
-const methodInfo_CatalogService_AppendItemDefinitionCategory = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.AppendItemDefinitionCategoryResponse,
-  /**
-   * @param {!proto.catalog.AppendItemDefinitionCategoryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.AppendItemDefinitionCategoryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.AppendItemDefinitionCategoryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.AppendItemDefinitionCategoryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.AppendItemDefinitionCategoryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.AppendItemDefinitionCategoryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1335,7 +1031,7 @@ proto.catalog.CatalogServiceClient.prototype.appendItemDefinitionCategory =
 /**
  * @param {!proto.catalog.AppendItemDefinitionCategoryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.AppendItemDefinitionCategoryResponse>}
  *     Promise that resolves to the response
@@ -1373,30 +1069,11 @@ const methodDescriptor_CatalogService_RemoveItemDefinitionCategory = new grpc.we
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.RemoveItemDefinitionCategoryRequest,
- *   !proto.catalog.RemoveItemDefinitionCategoryResponse>}
- */
-const methodInfo_CatalogService_RemoveItemDefinitionCategory = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.RemoveItemDefinitionCategoryResponse,
-  /**
-   * @param {!proto.catalog.RemoveItemDefinitionCategoryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.RemoveItemDefinitionCategoryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.RemoveItemDefinitionCategoryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.RemoveItemDefinitionCategoryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.RemoveItemDefinitionCategoryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.RemoveItemDefinitionCategoryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1415,7 +1092,7 @@ proto.catalog.CatalogServiceClient.prototype.removeItemDefinitionCategory =
 /**
  * @param {!proto.catalog.RemoveItemDefinitionCategoryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.RemoveItemDefinitionCategoryResponse>}
  *     Promise that resolves to the response
@@ -1453,30 +1130,11 @@ const methodDescriptor_CatalogService_getSupplier = new grpc.web.MethodDescripto
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetSupplierRequest,
- *   !proto.catalog.GetSupplierResponse>}
- */
-const methodInfo_CatalogService_getSupplier = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetSupplierResponse,
-  /**
-   * @param {!proto.catalog.GetSupplierRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetSupplierResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetSupplierRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetSupplierResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetSupplierResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetSupplierResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1495,7 +1153,7 @@ proto.catalog.CatalogServiceClient.prototype.getSupplier =
 /**
  * @param {!proto.catalog.GetSupplierRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetSupplierResponse>}
  *     Promise that resolves to the response
@@ -1533,30 +1191,11 @@ const methodDescriptor_CatalogService_getSuppliers = new grpc.web.MethodDescript
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetSuppliersRequest,
- *   !proto.catalog.GetSuppliersResponse>}
- */
-const methodInfo_CatalogService_getSuppliers = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetSuppliersResponse,
-  /**
-   * @param {!proto.catalog.GetSuppliersRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetSuppliersResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetSuppliersRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetSuppliersResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetSuppliersResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetSuppliersResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1575,7 +1214,7 @@ proto.catalog.CatalogServiceClient.prototype.getSuppliers =
 /**
  * @param {!proto.catalog.GetSuppliersRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetSuppliersResponse>}
  *     Promise that resolves to the response
@@ -1613,30 +1252,11 @@ const methodDescriptor_CatalogService_getManufacturer = new grpc.web.MethodDescr
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetManufacturerRequest,
- *   !proto.catalog.GetManufacturerResponse>}
- */
-const methodInfo_CatalogService_getManufacturer = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetManufacturerResponse,
-  /**
-   * @param {!proto.catalog.GetManufacturerRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetManufacturerResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetManufacturerRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetManufacturerResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetManufacturerResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetManufacturerResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1655,7 +1275,7 @@ proto.catalog.CatalogServiceClient.prototype.getManufacturer =
 /**
  * @param {!proto.catalog.GetManufacturerRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetManufacturerResponse>}
  *     Promise that resolves to the response
@@ -1693,30 +1313,11 @@ const methodDescriptor_CatalogService_getManufacturers = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetManufacturersRequest,
- *   !proto.catalog.GetManufacturersResponse>}
- */
-const methodInfo_CatalogService_getManufacturers = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetManufacturersResponse,
-  /**
-   * @param {!proto.catalog.GetManufacturersRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetManufacturersResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetManufacturersRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetManufacturersResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetManufacturersResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetManufacturersResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1735,7 +1336,7 @@ proto.catalog.CatalogServiceClient.prototype.getManufacturers =
 /**
  * @param {!proto.catalog.GetManufacturersRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetManufacturersResponse>}
  *     Promise that resolves to the response
@@ -1773,30 +1374,11 @@ const methodDescriptor_CatalogService_getSupplierPackages = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetSupplierPackagesRequest,
- *   !proto.catalog.GetSupplierPackagesResponse>}
- */
-const methodInfo_CatalogService_getSupplierPackages = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetSupplierPackagesResponse,
-  /**
-   * @param {!proto.catalog.GetSupplierPackagesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetSupplierPackagesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetSupplierPackagesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetSupplierPackagesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetSupplierPackagesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetSupplierPackagesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1815,7 +1397,7 @@ proto.catalog.CatalogServiceClient.prototype.getSupplierPackages =
 /**
  * @param {!proto.catalog.GetSupplierPackagesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetSupplierPackagesResponse>}
  *     Promise that resolves to the response
@@ -1853,30 +1435,11 @@ const methodDescriptor_CatalogService_getPackage = new grpc.web.MethodDescriptor
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetPackageRequest,
- *   !proto.catalog.GetPackageResponse>}
- */
-const methodInfo_CatalogService_getPackage = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetPackageResponse,
-  /**
-   * @param {!proto.catalog.GetPackageRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetPackageResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetPackageRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetPackageResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetPackageResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetPackageResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1895,7 +1458,7 @@ proto.catalog.CatalogServiceClient.prototype.getPackage =
 /**
  * @param {!proto.catalog.GetPackageRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetPackageResponse>}
  *     Promise that resolves to the response
@@ -1933,30 +1496,11 @@ const methodDescriptor_CatalogService_getPackages = new grpc.web.MethodDescripto
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetPackagesRequest,
- *   !proto.catalog.GetPackagesResponse>}
- */
-const methodInfo_CatalogService_getPackages = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetPackagesResponse,
-  /**
-   * @param {!proto.catalog.GetPackagesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetPackagesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetPackagesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetPackagesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetPackagesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetPackagesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -1975,7 +1519,7 @@ proto.catalog.CatalogServiceClient.prototype.getPackages =
 /**
  * @param {!proto.catalog.GetPackagesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetPackagesResponse>}
  *     Promise that resolves to the response
@@ -2013,30 +1557,11 @@ const methodDescriptor_CatalogService_getUnitOfMeasure = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetUnitOfMeasureRequest,
- *   !proto.catalog.GetUnitOfMeasureResponse>}
- */
-const methodInfo_CatalogService_getUnitOfMeasure = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetUnitOfMeasureResponse,
-  /**
-   * @param {!proto.catalog.GetUnitOfMeasureRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetUnitOfMeasureResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetUnitOfMeasureRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetUnitOfMeasureResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetUnitOfMeasureResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetUnitOfMeasureResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2055,7 +1580,7 @@ proto.catalog.CatalogServiceClient.prototype.getUnitOfMeasure =
 /**
  * @param {!proto.catalog.GetUnitOfMeasureRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetUnitOfMeasureResponse>}
  *     Promise that resolves to the response
@@ -2093,30 +1618,11 @@ const methodDescriptor_CatalogService_getUnitOfMeasures = new grpc.web.MethodDes
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetUnitOfMeasuresRequest,
- *   !proto.catalog.GetUnitOfMeasuresResponse>}
- */
-const methodInfo_CatalogService_getUnitOfMeasures = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetUnitOfMeasuresResponse,
-  /**
-   * @param {!proto.catalog.GetUnitOfMeasuresRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetUnitOfMeasuresResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetUnitOfMeasuresRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetUnitOfMeasuresResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetUnitOfMeasuresResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetUnitOfMeasuresResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2135,7 +1641,7 @@ proto.catalog.CatalogServiceClient.prototype.getUnitOfMeasures =
 /**
  * @param {!proto.catalog.GetUnitOfMeasuresRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetUnitOfMeasuresResponse>}
  *     Promise that resolves to the response
@@ -2173,30 +1679,11 @@ const methodDescriptor_CatalogService_getItemDefinition = new grpc.web.MethodDes
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetItemDefinitionRequest,
- *   !proto.catalog.GetItemDefinitionResponse>}
- */
-const methodInfo_CatalogService_getItemDefinition = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetItemDefinitionResponse,
-  /**
-   * @param {!proto.catalog.GetItemDefinitionRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetItemDefinitionResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetItemDefinitionRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetItemDefinitionResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetItemDefinitionResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetItemDefinitionResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2215,7 +1702,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemDefinition =
 /**
  * @param {!proto.catalog.GetItemDefinitionRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemDefinitionResponse>}
  *     Promise that resolves to the response
@@ -2253,30 +1740,11 @@ const methodDescriptor_CatalogService_getItemDefinitions = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetItemDefinitionsRequest,
- *   !proto.catalog.GetItemDefinitionsResponse>}
- */
-const methodInfo_CatalogService_getItemDefinitions = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetItemDefinitionsResponse,
-  /**
-   * @param {!proto.catalog.GetItemDefinitionsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetItemDefinitionsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetItemDefinitionsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetItemDefinitionsResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetItemDefinitionsResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetItemDefinitionsResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2295,7 +1763,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemDefinitions =
 /**
  * @param {!proto.catalog.GetItemDefinitionsRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemDefinitionsResponse>}
  *     Promise that resolves to the response
@@ -2333,30 +1801,11 @@ const methodDescriptor_CatalogService_getItemInstance = new grpc.web.MethodDescr
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetItemInstanceRequest,
- *   !proto.catalog.GetItemInstanceResponse>}
- */
-const methodInfo_CatalogService_getItemInstance = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetItemInstanceResponse,
-  /**
-   * @param {!proto.catalog.GetItemInstanceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetItemInstanceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetItemInstanceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetItemInstanceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetItemInstanceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetItemInstanceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2375,7 +1824,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemInstance =
 /**
  * @param {!proto.catalog.GetItemInstanceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemInstanceResponse>}
  *     Promise that resolves to the response
@@ -2413,30 +1862,11 @@ const methodDescriptor_CatalogService_getItemInstances = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetItemInstancesRequest,
- *   !proto.catalog.GetItemInstancesResponse>}
- */
-const methodInfo_CatalogService_getItemInstances = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetItemInstancesResponse,
-  /**
-   * @param {!proto.catalog.GetItemInstancesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetItemInstancesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetItemInstancesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetItemInstancesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetItemInstancesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetItemInstancesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2455,7 +1885,7 @@ proto.catalog.CatalogServiceClient.prototype.getItemInstances =
 /**
  * @param {!proto.catalog.GetItemInstancesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetItemInstancesResponse>}
  *     Promise that resolves to the response
@@ -2493,30 +1923,11 @@ const methodDescriptor_CatalogService_getLocalisation = new grpc.web.MethodDescr
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetLocalisationRequest,
- *   !proto.catalog.GetLocalisationResponse>}
- */
-const methodInfo_CatalogService_getLocalisation = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetLocalisationResponse,
-  /**
-   * @param {!proto.catalog.GetLocalisationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetLocalisationResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetLocalisationRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetLocalisationResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetLocalisationResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetLocalisationResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2535,7 +1946,7 @@ proto.catalog.CatalogServiceClient.prototype.getLocalisation =
 /**
  * @param {!proto.catalog.GetLocalisationRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetLocalisationResponse>}
  *     Promise that resolves to the response
@@ -2573,30 +1984,11 @@ const methodDescriptor_CatalogService_getLocalisations = new grpc.web.MethodDesc
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetLocalisationsRequest,
- *   !proto.catalog.GetLocalisationsResponse>}
- */
-const methodInfo_CatalogService_getLocalisations = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetLocalisationsResponse,
-  /**
-   * @param {!proto.catalog.GetLocalisationsRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetLocalisationsResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetLocalisationsRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetLocalisationsResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetLocalisationsResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetLocalisationsResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2615,7 +2007,7 @@ proto.catalog.CatalogServiceClient.prototype.getLocalisations =
 /**
  * @param {!proto.catalog.GetLocalisationsRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetLocalisationsResponse>}
  *     Promise that resolves to the response
@@ -2653,30 +2045,11 @@ const methodDescriptor_CatalogService_getCategory = new grpc.web.MethodDescripto
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetCategoryRequest,
- *   !proto.catalog.GetCategoryResponse>}
- */
-const methodInfo_CatalogService_getCategory = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetCategoryResponse,
-  /**
-   * @param {!proto.catalog.GetCategoryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetCategoryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetCategoryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetCategoryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetCategoryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetCategoryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2695,7 +2068,7 @@ proto.catalog.CatalogServiceClient.prototype.getCategory =
 /**
  * @param {!proto.catalog.GetCategoryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetCategoryResponse>}
  *     Promise that resolves to the response
@@ -2733,30 +2106,11 @@ const methodDescriptor_CatalogService_getCategories = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetCategoriesRequest,
- *   !proto.catalog.GetCategoriesResponse>}
- */
-const methodInfo_CatalogService_getCategories = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetCategoriesResponse,
-  /**
-   * @param {!proto.catalog.GetCategoriesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetCategoriesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetCategoriesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetCategoriesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetCategoriesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetCategoriesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2775,7 +2129,7 @@ proto.catalog.CatalogServiceClient.prototype.getCategories =
 /**
  * @param {!proto.catalog.GetCategoriesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetCategoriesResponse>}
  *     Promise that resolves to the response
@@ -2813,30 +2167,11 @@ const methodDescriptor_CatalogService_getInventories = new grpc.web.MethodDescri
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.GetInventoriesRequest,
- *   !proto.catalog.GetInventoriesResponse>}
- */
-const methodInfo_CatalogService_getInventories = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.GetInventoriesResponse,
-  /**
-   * @param {!proto.catalog.GetInventoriesRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.GetInventoriesResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.GetInventoriesRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.GetInventoriesResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.GetInventoriesResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.GetInventoriesResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2855,7 +2190,7 @@ proto.catalog.CatalogServiceClient.prototype.getInventories =
 /**
  * @param {!proto.catalog.GetInventoriesRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.GetInventoriesResponse>}
  *     Promise that resolves to the response
@@ -2893,30 +2228,11 @@ const methodDescriptor_CatalogService_deleteInventory = new grpc.web.MethodDescr
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteInventoryRequest,
- *   !proto.catalog.DeleteInventoryResponse>}
- */
-const methodInfo_CatalogService_deleteInventory = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteInventoryResponse,
-  /**
-   * @param {!proto.catalog.DeleteInventoryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteInventoryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteInventoryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteInventoryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteInventoryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteInventoryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -2935,7 +2251,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteInventory =
 /**
  * @param {!proto.catalog.DeleteInventoryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteInventoryResponse>}
  *     Promise that resolves to the response
@@ -2973,30 +2289,11 @@ const methodDescriptor_CatalogService_deletePackage = new grpc.web.MethodDescrip
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeletePackageRequest,
- *   !proto.catalog.DeletePackageResponse>}
- */
-const methodInfo_CatalogService_deletePackage = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeletePackageResponse,
-  /**
-   * @param {!proto.catalog.DeletePackageRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeletePackageResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeletePackageRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeletePackageResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeletePackageResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeletePackageResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3015,7 +2312,7 @@ proto.catalog.CatalogServiceClient.prototype.deletePackage =
 /**
  * @param {!proto.catalog.DeletePackageRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeletePackageResponse>}
  *     Promise that resolves to the response
@@ -3053,30 +2350,11 @@ const methodDescriptor_CatalogService_deletePackageSupplier = new grpc.web.Metho
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeletePackageSupplierRequest,
- *   !proto.catalog.DeletePackageSupplierResponse>}
- */
-const methodInfo_CatalogService_deletePackageSupplier = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeletePackageSupplierResponse,
-  /**
-   * @param {!proto.catalog.DeletePackageSupplierRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeletePackageSupplierResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeletePackageSupplierRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeletePackageSupplierResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeletePackageSupplierResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeletePackageSupplierResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3095,7 +2373,7 @@ proto.catalog.CatalogServiceClient.prototype.deletePackageSupplier =
 /**
  * @param {!proto.catalog.DeletePackageSupplierRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeletePackageSupplierResponse>}
  *     Promise that resolves to the response
@@ -3133,30 +2411,11 @@ const methodDescriptor_CatalogService_deleteSupplier = new grpc.web.MethodDescri
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteSupplierRequest,
- *   !proto.catalog.DeleteSupplierResponse>}
- */
-const methodInfo_CatalogService_deleteSupplier = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteSupplierResponse,
-  /**
-   * @param {!proto.catalog.DeleteSupplierRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteSupplierResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteSupplierRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteSupplierResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteSupplierResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteSupplierResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3175,7 +2434,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteSupplier =
 /**
  * @param {!proto.catalog.DeleteSupplierRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteSupplierResponse>}
  *     Promise that resolves to the response
@@ -3213,30 +2472,11 @@ const methodDescriptor_CatalogService_deletePropertyDefinition = new grpc.web.Me
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeletePropertyDefinitionRequest,
- *   !proto.catalog.DeletePropertyDefinitionResponse>}
- */
-const methodInfo_CatalogService_deletePropertyDefinition = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeletePropertyDefinitionResponse,
-  /**
-   * @param {!proto.catalog.DeletePropertyDefinitionRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeletePropertyDefinitionResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeletePropertyDefinitionRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeletePropertyDefinitionResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeletePropertyDefinitionResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeletePropertyDefinitionResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3255,7 +2495,7 @@ proto.catalog.CatalogServiceClient.prototype.deletePropertyDefinition =
 /**
  * @param {!proto.catalog.DeletePropertyDefinitionRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeletePropertyDefinitionResponse>}
  *     Promise that resolves to the response
@@ -3293,30 +2533,11 @@ const methodDescriptor_CatalogService_deleteUnitOfMeasure = new grpc.web.MethodD
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteUnitOfMeasureRequest,
- *   !proto.catalog.DeleteUnitOfMeasureResponse>}
- */
-const methodInfo_CatalogService_deleteUnitOfMeasure = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteUnitOfMeasureResponse,
-  /**
-   * @param {!proto.catalog.DeleteUnitOfMeasureRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteUnitOfMeasureResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteUnitOfMeasureRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteUnitOfMeasureResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteUnitOfMeasureResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteUnitOfMeasureResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3335,7 +2556,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteUnitOfMeasure =
 /**
  * @param {!proto.catalog.DeleteUnitOfMeasureRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteUnitOfMeasureResponse>}
  *     Promise that resolves to the response
@@ -3373,30 +2594,11 @@ const methodDescriptor_CatalogService_deleteItemInstance = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteItemInstanceRequest,
- *   !proto.catalog.DeleteItemInstanceResponse>}
- */
-const methodInfo_CatalogService_deleteItemInstance = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteItemInstanceResponse,
-  /**
-   * @param {!proto.catalog.DeleteItemInstanceRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteItemInstanceResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteItemInstanceRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteItemInstanceResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteItemInstanceResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteItemInstanceResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3415,7 +2617,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteItemInstance =
 /**
  * @param {!proto.catalog.DeleteItemInstanceRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteItemInstanceResponse>}
  *     Promise that resolves to the response
@@ -3453,30 +2655,11 @@ const methodDescriptor_CatalogService_deleteManufacturer = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteManufacturerRequest,
- *   !proto.catalog.DeleteManufacturerResponse>}
- */
-const methodInfo_CatalogService_deleteManufacturer = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteManufacturerResponse,
-  /**
-   * @param {!proto.catalog.DeleteManufacturerRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteManufacturerResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteManufacturerRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteManufacturerResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteManufacturerResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteManufacturerResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3495,7 +2678,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteManufacturer =
 /**
  * @param {!proto.catalog.DeleteManufacturerRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteManufacturerResponse>}
  *     Promise that resolves to the response
@@ -3533,30 +2716,11 @@ const methodDescriptor_CatalogService_deleteItemManufacturer = new grpc.web.Meth
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteItemManufacturerRequest,
- *   !proto.catalog.DeleteItemManufacturerResponse>}
- */
-const methodInfo_CatalogService_deleteItemManufacturer = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteItemManufacturerResponse,
-  /**
-   * @param {!proto.catalog.DeleteItemManufacturerRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteItemManufacturerResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteItemManufacturerRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteItemManufacturerResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteItemManufacturerResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteItemManufacturerResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3575,7 +2739,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteItemManufacturer =
 /**
  * @param {!proto.catalog.DeleteItemManufacturerRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteItemManufacturerResponse>}
  *     Promise that resolves to the response
@@ -3613,30 +2777,11 @@ const methodDescriptor_CatalogService_deleteCategory = new grpc.web.MethodDescri
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteCategoryRequest,
- *   !proto.catalog.DeleteCategoryResponse>}
- */
-const methodInfo_CatalogService_deleteCategory = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteCategoryResponse,
-  /**
-   * @param {!proto.catalog.DeleteCategoryRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteCategoryResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteCategoryRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteCategoryResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteCategoryResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteCategoryResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3655,7 +2800,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteCategory =
 /**
  * @param {!proto.catalog.DeleteCategoryRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteCategoryResponse>}
  *     Promise that resolves to the response
@@ -3693,30 +2838,11 @@ const methodDescriptor_CatalogService_deleteLocalisation = new grpc.web.MethodDe
 
 
 /**
- * @const
- * @type {!grpc.web.AbstractClientBase.MethodInfo<
- *   !proto.catalog.DeleteLocalisationRequest,
- *   !proto.catalog.DeleteLocalisationResponse>}
- */
-const methodInfo_CatalogService_deleteLocalisation = new grpc.web.AbstractClientBase.MethodInfo(
-  proto.catalog.DeleteLocalisationResponse,
-  /**
-   * @param {!proto.catalog.DeleteLocalisationRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.catalog.DeleteLocalisationResponse.deserializeBinary
-);
-
-
-/**
  * @param {!proto.catalog.DeleteLocalisationRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.Error, ?proto.catalog.DeleteLocalisationResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.catalog.DeleteLocalisationResponse)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.catalog.DeleteLocalisationResponse>|undefined}
  *     The XHR Node Readable Stream
@@ -3735,7 +2861,7 @@ proto.catalog.CatalogServiceClient.prototype.deleteLocalisation =
 /**
  * @param {!proto.catalog.DeleteLocalisationRequest} request The
  *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.catalog.DeleteLocalisationResponse>}
  *     Promise that resolves to the response
