@@ -210,13 +210,16 @@ func (client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.Packa
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new Organization
-func (client *Resource_Client) CreateOrganization(id string, name string) error {
+func (client *Resource_Client) CreateOrganization(id string, name string, email string, description string, icon string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.CreateOrganizationRqst{
 		Organization: &resourcepb.Organization{
 			Id:   id,
 			Name: name,
+			Description: description,
+			Icon: icon,
+			Email: email,
 		},
 	}
 
@@ -503,11 +506,12 @@ func (client *Resource_Client) UpdateSession(session *resourcepb.Session) error 
 /**
  * Create a new group.
  */
-func (client *Resource_Client) CreateGroup(id string, name string) error {
+func (client *Resource_Client) CreateGroup(id string, name string, description string) error {
 	rqst := new(resourcepb.CreateGroupRqst)
 	g := new(resourcepb.Group)
 	g.Name = name
 	g.Id = id
+	g.Description = description
 	rqst.Group = g
 	ctx := client.GetCtx()
 	_, err := client.c.CreateGroup(ctx, rqst)

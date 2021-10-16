@@ -24,6 +24,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
+	"github.com/globulario/services/golang/event/event_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -366,6 +367,7 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 
 var (
 	admin_client_ *admin_client.Admin_Client
+	event_client_ *event_client.Event_Client
 )
 
 /**
@@ -381,6 +383,21 @@ func getAdminClient(domain string) (*admin_client.Admin_Client, error) {
 	}
 
 	return admin_client_, nil
+}
+
+/**
+ * Get local event client.
+ */
+func getEventClient(domain string) (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ == nil {
+		event_client_, err = event_client.NewEventService_Client(domain, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return event_client_, nil
 }
 
 /**
@@ -423,8 +440,9 @@ func SaveService(path string, s Service) error {
 		return err
 	}
 
-	ioutil.WriteFile(path, []byte(str), 0644)
-	return nil
+	err = ioutil.WriteFile(path, []byte(str), 0644)
+
+	return err
 }
 
 func StartService(s Service, server *grpc.Server) error {
@@ -442,8 +460,15 @@ func StartService(s Service, server *grpc.Server) error {
 	go func() {
 
 		// no web-rpc server.
-		fmt.Println("service name: "+ s.GetName()+ " id:" + s.GetId())
+		fmt.Println("service name: " + s.GetName() + " id:" + s.GetId() + " started")
+/*
+		event_client_, _ := getEventClient(s.GetDomain())
+		if err == nil {
+			// Here I will publish the start service event
+			event_client_.Publish("start_service_evt", s)
 
+		}
+*/
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
 			return
@@ -461,6 +486,10 @@ func StartService(s Service, server *grpc.Server) error {
 }
 
 func StopService(s Service, server *grpc.Server) error {
+
+	// Here I will publish the start service event
+	event_client_.Publish("stop_service_evt", s)
+
 	// Stop the service.
 	server.Stop()
 	return nil

@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_manager_client"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
@@ -422,13 +421,12 @@ func (svr *server) createRole(id, name string, actions []string) error {
 	return resourceClient.CreateRole(id, name, actions)
 }
 
-func (svr *server) createGroup(id, name string) error {
+func (svr *server) createGroup(id, name, description string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
-
-	return resourceClient.CreateGroup(id, name)
+	return resourceClient.CreateGroup(id, name, description)
 }
 
 func (svr *server) createNotification(notification *resourcepb.Notification) error {

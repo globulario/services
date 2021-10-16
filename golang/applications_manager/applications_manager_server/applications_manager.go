@@ -172,7 +172,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 
 	for i := 0; i < len(groups); i++ {
 		group := groups[i]
-		err = server.createGroup(group.Id, group.Name)
+		err = server.createGroup(group.Id, group.Name, group.Description)
 		if err != nil {
 			log.Println("fail to create group "+group.Id, "with error:", err)
 		}
@@ -327,6 +327,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of " +alias + " vesion " + version + " was publish")
 	
+
 	// Publish application...
 	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 	if err != nil {
@@ -347,6 +348,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		groups_[i] = new(resourcepb.Group)
 		groups_[i].Id = groups[i].Id
 		groups_[i].Name = groups[i].Name
+		groups_[i].Description = groups[i].Description
 	}
 
 	// Read bytes and extract it in the current directory.

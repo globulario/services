@@ -21,7 +21,7 @@ var (
 func TestCreateOrganization(t *testing.T) {
 	authentication_client_.Authenticate("sa", "adminadmin")
 	log.Println("---> test create organisation.")
-	err := client.CreateOrganization("globulario", "globulario")
+	err := client.CreateOrganization("globulario", "globulario", "globulario@globuar.io", "description", "")
 	if err != nil {
 		log.Println("---> create organization fail! ", err)
 	} else {
@@ -31,7 +31,7 @@ func TestCreateOrganization(t *testing.T) {
 
 /** Test create account **/
 func TestCreateAccount(t *testing.T) {
-	err := client.RegisterAccount("dave", "dave@globular.io", "1234", "1234")
+	err := client.RegisterAccount(domain, "dave", "dave@globular.io", "1234", "1234")
 	if err != nil {
 		log.Println("---> create account fail! ", err)
 	} else {
@@ -41,7 +41,7 @@ func TestCreateAccount(t *testing.T) {
 
 /** Test create group **/
 func TestCreateGroup(t *testing.T) {
-	err := client.CreateGroup("group_0", "group_0")
+	err := client.CreateGroup("group_0", "group_0", "test")
 	if err != nil {
 		log.Println("---> create group group_0 fail! ", err)
 	} else {

@@ -440,7 +440,6 @@ namespace Globular
             this.name = config.Name;
 
             // Write line 
-            System.Console.WriteLine("-----------------> client " + this.name + " id " + this.id + " port " + this.port);
 
             // Here I will create grpc connection with the service...
             if (!this.HasTLS())

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -346,7 +345,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	// Create groups.
-	log.Println("create groups")
+	
 	groups := make([]*resourcepb.Group, 0)
 	if packageConfig["groups"] != nil {
 		groups_ := packageConfig["groups"].([]interface{})
@@ -355,6 +354,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 			group := new(resourcepb.Group)
 			group.Id = group_["id"].(string)
 			group.Name = group_["name"].(string)
+			group.Description = group_["description"].(string)
 			groups = append(groups, group)
 		}
 	}
