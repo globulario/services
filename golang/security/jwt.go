@@ -145,7 +145,7 @@ func refreshLocalToken(token string) (string, error) {
 		return "", err
 	}
 
-	token, err = GenerateToken(jwtKey, Utility.ToInt(globular["SessionTimeout"]), claims.Issuer, "", "", claims.Email)
+	token, err = GenerateToken(jwtKey, Utility.ToInt(globular["SessionTimeout"]), claims.Issuer, claims.Id, claims.Username, claims.Email)
 	if err != nil {
 		return "", err
 	}
