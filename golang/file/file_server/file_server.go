@@ -25,11 +25,11 @@ import (
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/file/file_client"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/security"
-	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
@@ -54,6 +54,8 @@ var (
 
 	// The default domain.
 	domain string = "localhost"
+
+	rbac_client_  *rbac_client.Rbac_Client
 )
 
 // Value need by Globular to start the services...
@@ -91,9 +93,6 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
-
-	// The rbac client
-	rbac_client_ *rbac_client.Rbac_Client
 
 	// Specific to file server.
 	Root string
@@ -806,7 +805,12 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 	}
 
 	// Set the owner of the conversation.
-	err = file_server.rbac_client_.SetResourcePermissions(path, permissions)
+	rbac_client_, err = file_server.GetRbacClient()
+	if err != nil {
+		return err
+	}
+
+	err = rbac_client_.SetResourcePermissions(path, permissions)
 
 	fmt.Println("Set permission to ", path, clientId)
 
@@ -827,8 +831,15 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_, err = file_server.GetRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// Remove the permission for the previous path.
-	file_server.rbac_client_.DeleteResourcePermissions(rqst.GetPath() + "/" + rqst.GetOldName())
+	rbac_client_.DeleteResourcePermissions(rqst.GetPath() + "/" + rqst.GetOldName())
 	file_server.createPermission(ctx, rqst.GetPath()+"/"+rqst.GetNewName())
 
 	startIndex := strings.LastIndex(rqst.GetOldName(), "/")
@@ -888,7 +899,15 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	file_server.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
+	rbac_client_, err = file_server.GetRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+
+	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
 	return &filepb.DeleteDirResponse{
 		Result: true,
@@ -1037,8 +1056,16 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_, err = file_server.GetRbacClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+
 	// I will remove the permission from the db.
-	file_server.rbac_client_.DeleteResourcePermissions(rqst.GetPath())
+	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
 	// Also delete informations from .hidden
 	path_ := path[0:strings.LastIndex(path, "/")]
@@ -1102,6 +1129,27 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
 	}, nil
 }
 
+
+func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return rbac_client_, nil
+}
+
+func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	rbac_client_, err := server.GetRbacClient()
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetActionResourcesPermissions(permissions)
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -1143,6 +1191,20 @@ func main() {
 	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
+	// Set the permissions
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[1].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[2].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[3].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[4].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[5].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[6].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[7].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[8].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[9].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[10].(map[string]interface{}))
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[11].(map[string]interface{}))
+	
 	// Set the root path if is pass as argument.
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = os.TempDir()
@@ -1162,8 +1224,6 @@ func main() {
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	// Init the Role Based Access Control client.
-	s_impl.rbac_client_, _ = rbac_client.NewRbacService_Client(s_impl.Domain, "rbac.RbacService")
 
 	// Start the service.
 	s_impl.StartService()
