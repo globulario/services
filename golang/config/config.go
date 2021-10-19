@@ -16,7 +16,6 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
 	"github.com/syndtr/goleveldb/leveldb/errors"
-	
 )
 
 // I will keep the service configuation in a sync map.
@@ -167,7 +166,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 								if s["Root"] != nil {
 									if s["Name"] == "file.FileService" {
 										s["Root"] = GetDataDir() + "/files"
-									} else if s["Name"] == "conversation.ConversationService" || s["Name"] == "log.LogService" {
+									} else {
 										s["Root"] = GetDataDir()
 									}
 								}
@@ -353,7 +352,7 @@ func GetServiceMethods(name string, publisherId string, version string) ([]strin
 	if err != nil {
 		return methods, err
 	}
-	
+
 	defer reader.Close()
 
 	parser := proto.NewParser(reader)

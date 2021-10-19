@@ -446,8 +446,6 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	//fmt.Println("---------> path ", path, " permission: ", string(data))
-
 	permissions := new(rbacpb.Permissions)
 	err = json.Unmarshal(data, &permissions)
 	if err != nil {
@@ -600,8 +598,10 @@ func (rbac_server *server) GetResourcePermissions(ctx context.Context, rqst *rba
 
 func (rbac_server *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
 	permissions, err := rbac_server.getResourcePermissions(path)
+
 	if err != nil {
 		if strings.Index(err.Error(), "leveldb: not found") != -1 {
+
 			// So here I will create the permissions object...
 			permissions = &rbacpb.Permissions{
 				Allowed: []*rbacpb.Permission{},
@@ -618,40 +618,46 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 		} else {
 			return err
 		}
-		// associate with the path.
-		err = rbac_server.setResourcePermissions(path, permissions)
-		if err != nil {
-			return err
-		}
 	}
 
+	needSave := false
 	// Owned resources
 	owners := permissions.Owners
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !Utility.Contains(owners.Accounts, subject) {
 			owners.Accounts = append(owners.Accounts, subject)
+			needSave = true
 		}
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		if !Utility.Contains(owners.Applications, subject) {
 			owners.Applications = append(owners.Applications, subject)
+			needSave = true
 		}
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		if !Utility.Contains(owners.Groups, subject) {
 			owners.Groups = append(owners.Groups, subject)
+			needSave = true
 		}
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		if !Utility.Contains(owners.Organizations, subject) {
 			owners.Organizations = append(owners.Organizations, subject)
+			needSave = true
 		}
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		if !Utility.Contains(owners.Peers, subject) {
 			owners.Peers = append(owners.Peers, subject)
+			needSave = true
 		}
 	}
-	permissions.Owners = owners
-	err = rbac_server.setResourcePermissions(path, permissions)
-	if err != nil {
-		return err
+
+	// Save permission if ti owner has changed.
+	if needSave {
+		permissions.Owners = owners
+		err = rbac_server.setResourcePermissions(path, permissions)
+		if err != nil {
+			return err
+		}
+		fmt.Print("--------------------------> Permission saved: ", permissions)
 	}
 	return nil
 }
