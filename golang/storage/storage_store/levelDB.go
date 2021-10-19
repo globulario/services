@@ -129,11 +129,11 @@ func (store *LevelDB_store) setItem(key string, val []byte) error {
 // Get item with a given key.
 func (store *LevelDB_store) getItem(key string) ([]byte, error) {
 	db, err := store.getDb()
-	defer db.Close()
+
 	if err != nil {
 		return nil, err
 	}
-
+	defer db.Close()
 	// Here I will make a little trick to give more flexibility to the tool...
 	if strings.HasSuffix(key, "*") {
 		// I will made use of iterator to ket the values

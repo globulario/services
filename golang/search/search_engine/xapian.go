@@ -514,6 +514,8 @@ func (search_engine *XapianEngine) indexFile(db xapian.WritableDatabase, path st
 		return err
 	}
 
+	defer f.Close()
+
 	mime, err := Utility.GetFileContentType(f)
 	if err != nil {
 		return err

@@ -464,13 +464,13 @@ func (client *Repository_Service_Client) createServicePackage(publisherId string
 	if err != nil {
 		return "", err
 	}
+	// close the file.
+	defer fileToWrite.Close()
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
 		return "", err
 	}
 
-	// close the file.
-	fileToWrite.Close()
 
 	if err != nil {
 		return "", err

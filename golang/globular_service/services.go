@@ -259,13 +259,14 @@ func CreateServicePackage(s Service, distPath string, platform string) (string, 
 	if err != nil {
 		panic(err)
 	}
+	
+	defer fileToWrite.Close()
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
 		panic(err)
 	}
 
-	// close the file.
-	fileToWrite.Close()
+
 
 	// Remove the dir when the archive is created.
 	err = os.RemoveAll(path)

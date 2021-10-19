@@ -579,6 +579,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						icon, err := os.Open(path)
 						if err == nil {
 							info_.Thumbnail = createThumbnail(path, icon, 80, 80)
+							icon.Close()
 						} else {
 							fmt.Println(err)
 						}
@@ -594,6 +595,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						icon, err := os.Open(path)
 						if err == nil {
 							info_.Thumbnail = createThumbnail(path, icon, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+							icon.Close()
 						}
 					}
 				} else {
@@ -603,6 +605,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						icon, err := os.Open(path)
 						if err == nil {
 							info_.Thumbnail = createThumbnail(path, icon, 80, 80)
+							icon.Close()
 						} else {
 							fmt.Println(err)
 						}

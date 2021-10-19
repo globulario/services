@@ -929,14 +929,25 @@ func GeneratePeerKeys(id string) error {
 	return nil
 }
 
+// Keep the local key in memory...
+var (
+	localKey = []byte{}
+)
+
 /**
  * Return the local jwt key
  */
 func GetLocalKey() ([]byte, error) {
+	if len(localKey) > 0 {
+		return localKey, nil
+	}
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
 	id := strings.ReplaceAll(Utility.MyMacAddr(), ":", "_")
-	return ioutil.ReadFile(keyPath + "/" + id + "_public")
+	var err error
+	localKey, err = ioutil.ReadFile(keyPath + "/" + id + "_public")
+
+	return localKey, err
 }
 
 /**
@@ -962,21 +973,21 @@ func GetPeerKey(id string) ([]byte, error) {
 	}
 
 	// Read the public key file
-	file, err := os.Open(keyPath + "/" + id + "_public")
+	file_public, err := os.Open(keyPath + "/" + id + "_public")
+	
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
+	defer file_public.Close()
 
-	defer file.Close()
-
-	info, err := file.Stat()
+	info, err := file_public.Stat()
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
 	buf := make([]byte, info.Size())
-	file.Read(buf)
+	file_public.Read(buf)
 	//pem decoding
 	block, _ := pem.Decode(buf)
 
@@ -991,20 +1002,22 @@ func GetPeerKey(id string) ([]byte, error) {
 	puba := publicStream.(*ecdsa.PublicKey)
 
 	//1, open the private key file and read the content
-	file, err = os.Open(keyPath + "/" + strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") + "_private")
+	file_private, err := os.Open(keyPath + "/" + strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") + "_private")
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
 
-	info, err = file.Stat()
+	defer file_private.Close()
+
+	info, err = file_private.Stat()
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
 
 	buf = make([]byte, info.Size())
-	file.Read(buf)
+	file_private.Read(buf)
 
 	//2, pem decryption
 	block, _ = pem.Decode(buf)

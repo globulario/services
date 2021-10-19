@@ -214,13 +214,10 @@ func (client *Admin_Client) createServicePackage(publisherId string, serviceName
 	if err != nil {
 		return "", err
 	}
-
+	defer fileToWrite.Close()
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
 		return "", err
 	}
-
-	// close the file.
-	fileToWrite.Close()
 
 	if err != nil {
 		return "", err

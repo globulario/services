@@ -349,7 +349,11 @@ func GetServiceMethods(name string, publisherId string, version string) ([]strin
 
 	// here I will parse the service defintion file to extract the
 	// service difinition.
-	reader, _ := os.Open(path)
+	reader, err := os.Open(path)
+	if err != nil {
+		return methods, err
+	}
+	
 	defer reader.Close()
 
 	parser := proto.NewParser(reader)
