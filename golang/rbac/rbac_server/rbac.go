@@ -1222,7 +1222,6 @@ func (rbac_server *server) SetActionResourcesPermissions(ctx context.Context, rq
 
 // Retreive the ressource infos from the database.
 func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbacpb.ResourceInfos, error) {
-	fmt.Println("----------------> ", action)
 	if len(action) == 0 {
 		return nil, errors.New("no action given")
 	}
@@ -1240,7 +1239,6 @@ func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbac
 	err = json.Unmarshal(data, &infos)
 
 	for i := 0; i < len(infos); i++ {
-		fmt.Println("----------------> ", infos[i])
 		info := infos[i].(map[string]interface{})
 		infos_ = append(infos_, &rbacpb.ResourceInfos{Index: int32(Utility.ToInt(info["index"])), Permission: info["permission"].(string)})
 	}
