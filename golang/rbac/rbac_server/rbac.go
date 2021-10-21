@@ -9,6 +9,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -1394,4 +1395,47 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 	return &rbacpb.ValidateActionRsp{
 		Result: hasAccess,
 	}, nil
+}
+
+// Set the subject share ressource.
+func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string) {
+
+}
+
+// That function will set a share or update existing share... ex. add/delete account, group
+func (rbac_server *server) ShareResource(ctx context.Context, rqst *rbacpb.ShareResourceRqst) (*rbacpb.ShareResourceRsp, error) {
+	// the id will be compose of the domain @ path ex. domain@/usr/toto/titi
+	uuid := Utility.GenerateUUID(rqst.Share.Domain + rqst.Share.Path)
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Share)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will serialyse it and save it in the store.
+	err = rbac_server.permissions.SetItem(uuid, []byte(jsonStr))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will set the value in the user share...
+
+	return nil, nil
+}
+
+// Remove the share
+func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.UnshareResourceRqst) (*rbacpb.UnshareResourceRsp, error) {
+
+	return nil, nil
+}
+
+// Get the list of accessible shared ressources.
+func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.GetSharedResourceRqst) (*rbacpb.GetSharedResourceRsp, error) {
+
+	return nil, nil
 }

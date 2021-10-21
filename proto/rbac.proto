@@ -180,7 +180,7 @@ message SetActionResourcesPermissionsRsp{
  * Resource Shared. The resource can be share by the 
  */
 message Share {
-
+	
 	// The resource path must be unique on the domain.
 	string path = 1;
 
@@ -217,6 +217,17 @@ message UnshareResourceRsp {
 	
 }
 
+/**
+ * Get the list of accessible ressource for a given subject.
+ */
+message GetSharedResourceRqst {
+	string subject = 1;
+	SubjectType type = 2; 
+}
+
+message GetSharedResourceRsp {
+	repeated Share sharedResource = 1;
+}
 
 /**
  * The service to control action and resource access.
@@ -266,8 +277,14 @@ service RbacService {
 
 	///////////////////////// Share ////////////////////////////
 
+	// That function will set a share or update existing share... ex. add/delete account, group
 	rpc ShareResource(ShareResourceRqst) returns(ShareResourceRsp);
 
+	// Remove the share
 	rpc UshareResource(UnshareResourceRqst) returns(UnshareResourceRsp);
+
+	// Get the list of accessible shared ressources.
+	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp);
+	
 	
 }

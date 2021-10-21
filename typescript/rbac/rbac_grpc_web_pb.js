@@ -23,7 +23,7 @@ proto.rbac = require('./rbac_pb.js');
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?grpc.web.ClientOptions} options
+ * @param {?Object} options
  * @constructor
  * @struct
  * @final
@@ -31,7 +31,7 @@ proto.rbac = require('./rbac_pb.js');
 proto.rbac.RbacServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options.format = 'text';
+  options['format'] = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -49,7 +49,7 @@ proto.rbac.RbacServiceClient =
 /**
  * @param {string} hostname
  * @param {?Object} credentials
- * @param {?grpc.web.ClientOptions} options
+ * @param {?Object} options
  * @constructor
  * @struct
  * @final
@@ -57,7 +57,7 @@ proto.rbac.RbacServiceClient =
 proto.rbac.RbacServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options.format = 'text';
+  options['format'] = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -95,11 +95,30 @@ const methodDescriptor_RbacService_SetResourcePermissions = new grpc.web.MethodD
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.SetResourcePermissionsRqst,
+ *   !proto.rbac.SetResourcePermissionsRqst>}
+ */
+const methodInfo_RbacService_SetResourcePermissions = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.SetResourcePermissionsRqst,
+  /**
+   * @param {!proto.rbac.SetResourcePermissionsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.SetResourcePermissionsRqst.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.SetResourcePermissionsRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.SetResourcePermissionsRqst)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.SetResourcePermissionsRqst)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.SetResourcePermissionsRqst>|undefined}
  *     The XHR Node Readable Stream
@@ -118,7 +137,7 @@ proto.rbac.RbacServiceClient.prototype.setResourcePermissions =
 /**
  * @param {!proto.rbac.SetResourcePermissionsRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.SetResourcePermissionsRqst>}
  *     Promise that resolves to the response
@@ -156,11 +175,30 @@ const methodDescriptor_RbacService_DeleteResourcePermissions = new grpc.web.Meth
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.DeleteResourcePermissionsRqst,
+ *   !proto.rbac.DeleteResourcePermissionsRqst>}
+ */
+const methodInfo_RbacService_DeleteResourcePermissions = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.DeleteResourcePermissionsRqst,
+  /**
+   * @param {!proto.rbac.DeleteResourcePermissionsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.DeleteResourcePermissionsRqst.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.DeleteResourcePermissionsRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.DeleteResourcePermissionsRqst)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.DeleteResourcePermissionsRqst)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.DeleteResourcePermissionsRqst>|undefined}
  *     The XHR Node Readable Stream
@@ -179,7 +217,7 @@ proto.rbac.RbacServiceClient.prototype.deleteResourcePermissions =
 /**
  * @param {!proto.rbac.DeleteResourcePermissionsRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteResourcePermissionsRqst>}
  *     Promise that resolves to the response
@@ -217,11 +255,30 @@ const methodDescriptor_RbacService_DeleteResourcePermission = new grpc.web.Metho
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.DeleteResourcePermissionRqst,
+ *   !proto.rbac.DeleteResourcePermissionRqst>}
+ */
+const methodInfo_RbacService_DeleteResourcePermission = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.DeleteResourcePermissionRqst,
+  /**
+   * @param {!proto.rbac.DeleteResourcePermissionRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.DeleteResourcePermissionRqst.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.DeleteResourcePermissionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.DeleteResourcePermissionRqst)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.DeleteResourcePermissionRqst)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.DeleteResourcePermissionRqst>|undefined}
  *     The XHR Node Readable Stream
@@ -240,7 +297,7 @@ proto.rbac.RbacServiceClient.prototype.deleteResourcePermission =
 /**
  * @param {!proto.rbac.DeleteResourcePermissionRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteResourcePermissionRqst>}
  *     Promise that resolves to the response
@@ -278,11 +335,30 @@ const methodDescriptor_RbacService_GetResourcePermission = new grpc.web.MethodDe
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.GetResourcePermissionRqst,
+ *   !proto.rbac.GetResourcePermissionRsp>}
+ */
+const methodInfo_RbacService_GetResourcePermission = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.GetResourcePermissionRsp,
+  /**
+   * @param {!proto.rbac.GetResourcePermissionRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetResourcePermissionRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.GetResourcePermissionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.GetResourcePermissionRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.GetResourcePermissionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetResourcePermissionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -301,7 +377,7 @@ proto.rbac.RbacServiceClient.prototype.getResourcePermission =
 /**
  * @param {!proto.rbac.GetResourcePermissionRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetResourcePermissionRsp>}
  *     Promise that resolves to the response
@@ -339,11 +415,30 @@ const methodDescriptor_RbacService_SetResourcePermission = new grpc.web.MethodDe
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.SetResourcePermissionRqst,
+ *   !proto.rbac.SetResourcePermissionRsp>}
+ */
+const methodInfo_RbacService_SetResourcePermission = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.SetResourcePermissionRsp,
+  /**
+   * @param {!proto.rbac.SetResourcePermissionRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.SetResourcePermissionRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.SetResourcePermissionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.SetResourcePermissionRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.SetResourcePermissionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.SetResourcePermissionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -362,7 +457,7 @@ proto.rbac.RbacServiceClient.prototype.setResourcePermission =
 /**
  * @param {!proto.rbac.SetResourcePermissionRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.SetResourcePermissionRsp>}
  *     Promise that resolves to the response
@@ -400,11 +495,30 @@ const methodDescriptor_RbacService_GetResourcePermissions = new grpc.web.MethodD
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.GetResourcePermissionsRqst,
+ *   !proto.rbac.GetResourcePermissionsRsp>}
+ */
+const methodInfo_RbacService_GetResourcePermissions = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.GetResourcePermissionsRsp,
+  /**
+   * @param {!proto.rbac.GetResourcePermissionsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetResourcePermissionsRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.GetResourcePermissionsRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.GetResourcePermissionsRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.GetResourcePermissionsRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetResourcePermissionsRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -423,7 +537,7 @@ proto.rbac.RbacServiceClient.prototype.getResourcePermissions =
 /**
  * @param {!proto.rbac.GetResourcePermissionsRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetResourcePermissionsRsp>}
  *     Promise that resolves to the response
@@ -461,11 +575,30 @@ const methodDescriptor_RbacService_AddResourceOwner = new grpc.web.MethodDescrip
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.AddResourceOwnerRqst,
+ *   !proto.rbac.AddResourceOwnerRsp>}
+ */
+const methodInfo_RbacService_AddResourceOwner = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.AddResourceOwnerRsp,
+  /**
+   * @param {!proto.rbac.AddResourceOwnerRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.AddResourceOwnerRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.AddResourceOwnerRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.AddResourceOwnerRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.AddResourceOwnerRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.AddResourceOwnerRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -484,7 +617,7 @@ proto.rbac.RbacServiceClient.prototype.addResourceOwner =
 /**
  * @param {!proto.rbac.AddResourceOwnerRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.AddResourceOwnerRsp>}
  *     Promise that resolves to the response
@@ -522,11 +655,30 @@ const methodDescriptor_RbacService_RemoveResourceOwner = new grpc.web.MethodDesc
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.RemoveResourceOwnerRqst,
+ *   !proto.rbac.RemoveResourceOwnerRsp>}
+ */
+const methodInfo_RbacService_RemoveResourceOwner = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.RemoveResourceOwnerRsp,
+  /**
+   * @param {!proto.rbac.RemoveResourceOwnerRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.RemoveResourceOwnerRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.RemoveResourceOwnerRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.RemoveResourceOwnerRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.RemoveResourceOwnerRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.RemoveResourceOwnerRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -545,7 +697,7 @@ proto.rbac.RbacServiceClient.prototype.removeResourceOwner =
 /**
  * @param {!proto.rbac.RemoveResourceOwnerRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.RemoveResourceOwnerRsp>}
  *     Promise that resolves to the response
@@ -583,11 +735,30 @@ const methodDescriptor_RbacService_DeleteAllAccess = new grpc.web.MethodDescript
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.DeleteAllAccessRqst,
+ *   !proto.rbac.DeleteAllAccessRsp>}
+ */
+const methodInfo_RbacService_DeleteAllAccess = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.DeleteAllAccessRsp,
+  /**
+   * @param {!proto.rbac.DeleteAllAccessRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.DeleteAllAccessRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.DeleteAllAccessRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.DeleteAllAccessRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.DeleteAllAccessRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.DeleteAllAccessRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -606,7 +777,7 @@ proto.rbac.RbacServiceClient.prototype.deleteAllAccess =
 /**
  * @param {!proto.rbac.DeleteAllAccessRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.DeleteAllAccessRsp>}
  *     Promise that resolves to the response
@@ -644,11 +815,30 @@ const methodDescriptor_RbacService_ValidateAccess = new grpc.web.MethodDescripto
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.ValidateAccessRqst,
+ *   !proto.rbac.ValidateAccessRsp>}
+ */
+const methodInfo_RbacService_ValidateAccess = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.ValidateAccessRsp,
+  /**
+   * @param {!proto.rbac.ValidateAccessRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.ValidateAccessRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.ValidateAccessRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.ValidateAccessRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.ValidateAccessRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.ValidateAccessRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -667,7 +857,7 @@ proto.rbac.RbacServiceClient.prototype.validateAccess =
 /**
  * @param {!proto.rbac.ValidateAccessRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.ValidateAccessRsp>}
  *     Promise that resolves to the response
@@ -705,11 +895,30 @@ const methodDescriptor_RbacService_SetActionResourcesPermissions = new grpc.web.
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.SetActionResourcesPermissionsRqst,
+ *   !proto.rbac.SetActionResourcesPermissionsRsp>}
+ */
+const methodInfo_RbacService_SetActionResourcesPermissions = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.SetActionResourcesPermissionsRsp,
+  /**
+   * @param {!proto.rbac.SetActionResourcesPermissionsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.SetActionResourcesPermissionsRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.SetActionResourcesPermissionsRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.SetActionResourcesPermissionsRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.SetActionResourcesPermissionsRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.SetActionResourcesPermissionsRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -728,7 +937,7 @@ proto.rbac.RbacServiceClient.prototype.setActionResourcesPermissions =
 /**
  * @param {!proto.rbac.SetActionResourcesPermissionsRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.SetActionResourcesPermissionsRsp>}
  *     Promise that resolves to the response
@@ -766,11 +975,30 @@ const methodDescriptor_RbacService_GetActionResourceInfos = new grpc.web.MethodD
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.GetActionResourceInfosRqst,
+ *   !proto.rbac.GetActionResourceInfosRsp>}
+ */
+const methodInfo_RbacService_GetActionResourceInfos = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.GetActionResourceInfosRsp,
+  /**
+   * @param {!proto.rbac.GetActionResourceInfosRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetActionResourceInfosRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.GetActionResourceInfosRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.GetActionResourceInfosRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.GetActionResourceInfosRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetActionResourceInfosRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -789,7 +1017,7 @@ proto.rbac.RbacServiceClient.prototype.getActionResourceInfos =
 /**
  * @param {!proto.rbac.GetActionResourceInfosRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.GetActionResourceInfosRsp>}
  *     Promise that resolves to the response
@@ -827,11 +1055,30 @@ const methodDescriptor_RbacService_ValidateAction = new grpc.web.MethodDescripto
 
 
 /**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.ValidateActionRqst,
+ *   !proto.rbac.ValidateActionRsp>}
+ */
+const methodInfo_RbacService_ValidateAction = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.ValidateActionRsp,
+  /**
+   * @param {!proto.rbac.ValidateActionRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.ValidateActionRsp.deserializeBinary
+);
+
+
+/**
  * @param {!proto.rbac.ValidateActionRqst} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.rbac.ValidateActionRsp)}
+ * @param {function(?grpc.web.Error, ?proto.rbac.ValidateActionRsp)}
  *     callback The callback function(error, response)
  * @return {!grpc.web.ClientReadableStream<!proto.rbac.ValidateActionRsp>|undefined}
  *     The XHR Node Readable Stream
@@ -850,7 +1097,7 @@ proto.rbac.RbacServiceClient.prototype.validateAction =
 /**
  * @param {!proto.rbac.ValidateActionRqst} request The
  *     request proto
- * @param {?Object<string, string>=} metadata User defined
+ * @param {?Object<string, string>} metadata User defined
  *     call metadata
  * @return {!Promise<!proto.rbac.ValidateActionRsp>}
  *     Promise that resolves to the response
@@ -862,6 +1109,246 @@ proto.rbac.RbacServicePromiseClient.prototype.validateAction =
       request,
       metadata || {},
       methodDescriptor_RbacService_ValidateAction);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.ShareResourceRqst,
+ *   !proto.rbac.ShareResourceRsp>}
+ */
+const methodDescriptor_RbacService_ShareResource = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/ShareResource',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.ShareResourceRqst,
+  proto.rbac.ShareResourceRsp,
+  /**
+   * @param {!proto.rbac.ShareResourceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.ShareResourceRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.ShareResourceRqst,
+ *   !proto.rbac.ShareResourceRsp>}
+ */
+const methodInfo_RbacService_ShareResource = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.ShareResourceRsp,
+  /**
+   * @param {!proto.rbac.ShareResourceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.ShareResourceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.ShareResourceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.rbac.ShareResourceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.ShareResourceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.shareResource =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/ShareResource',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_ShareResource,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.ShareResourceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.ShareResourceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.shareResource =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/ShareResource',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_ShareResource);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.UnshareResourceRqst,
+ *   !proto.rbac.UnshareResourceRsp>}
+ */
+const methodDescriptor_RbacService_UshareResource = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/UshareResource',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.UnshareResourceRqst,
+  proto.rbac.UnshareResourceRsp,
+  /**
+   * @param {!proto.rbac.UnshareResourceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.UnshareResourceRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.UnshareResourceRqst,
+ *   !proto.rbac.UnshareResourceRsp>}
+ */
+const methodInfo_RbacService_UshareResource = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.UnshareResourceRsp,
+  /**
+   * @param {!proto.rbac.UnshareResourceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.UnshareResourceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.UnshareResourceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.rbac.UnshareResourceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.UnshareResourceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.ushareResource =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/UshareResource',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_UshareResource,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.UnshareResourceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.UnshareResourceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.ushareResource =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/UshareResource',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_UshareResource);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.GetSharedResourceRqst,
+ *   !proto.rbac.GetSharedResourceRsp>}
+ */
+const methodDescriptor_RbacService_GetSharedResource = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/GetSharedResource',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.GetSharedResourceRqst,
+  proto.rbac.GetSharedResourceRsp,
+  /**
+   * @param {!proto.rbac.GetSharedResourceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetSharedResourceRsp.deserializeBinary
+);
+
+
+/**
+ * @const
+ * @type {!grpc.web.AbstractClientBase.MethodInfo<
+ *   !proto.rbac.GetSharedResourceRqst,
+ *   !proto.rbac.GetSharedResourceRsp>}
+ */
+const methodInfo_RbacService_GetSharedResource = new grpc.web.AbstractClientBase.MethodInfo(
+  proto.rbac.GetSharedResourceRsp,
+  /**
+   * @param {!proto.rbac.GetSharedResourceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetSharedResourceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.GetSharedResourceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.Error, ?proto.rbac.GetSharedResourceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetSharedResourceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.getSharedResource =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/GetSharedResource',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetSharedResource,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.GetSharedResourceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.GetSharedResourceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.getSharedResource =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/GetSharedResource',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetSharedResource);
 };
 
 

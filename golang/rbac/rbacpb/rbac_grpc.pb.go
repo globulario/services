@@ -44,6 +44,12 @@ type RbacServiceClient interface {
 	GetActionResourceInfos(ctx context.Context, in *GetActionResourceInfosRqst, opts ...grpc.CallOption) (*GetActionResourceInfosRsp, error)
 	//* Validate the actions
 	ValidateAction(ctx context.Context, in *ValidateActionRqst, opts ...grpc.CallOption) (*ValidateActionRsp, error)
+	// That function will set a share or update existing share... ex. add/delete account, group
+	ShareResource(ctx context.Context, in *ShareResourceRqst, opts ...grpc.CallOption) (*ShareResourceRsp, error)
+	// Remove the share
+	UshareResource(ctx context.Context, in *UnshareResourceRqst, opts ...grpc.CallOption) (*UnshareResourceRsp, error)
+	// Get the list of accessible shared ressources.
+	GetSharedResource(ctx context.Context, in *GetSharedResourceRqst, opts ...grpc.CallOption) (*GetSharedResourceRsp, error)
 }
 
 type rbacServiceClient struct {
@@ -171,6 +177,33 @@ func (c *rbacServiceClient) ValidateAction(ctx context.Context, in *ValidateActi
 	return out, nil
 }
 
+func (c *rbacServiceClient) ShareResource(ctx context.Context, in *ShareResourceRqst, opts ...grpc.CallOption) (*ShareResourceRsp, error) {
+	out := new(ShareResourceRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/ShareResource", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) UshareResource(ctx context.Context, in *UnshareResourceRqst, opts ...grpc.CallOption) (*UnshareResourceRsp, error) {
+	out := new(UnshareResourceRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/UshareResource", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) GetSharedResource(ctx context.Context, in *GetSharedResourceRqst, opts ...grpc.CallOption) (*GetSharedResourceRsp, error) {
+	out := new(GetSharedResourceRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/GetSharedResource", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RbacServiceServer is the server API for RbacService service.
 // All implementations should embed UnimplementedRbacServiceServer
 // for forward compatibility
@@ -201,6 +234,12 @@ type RbacServiceServer interface {
 	GetActionResourceInfos(context.Context, *GetActionResourceInfosRqst) (*GetActionResourceInfosRsp, error)
 	//* Validate the actions
 	ValidateAction(context.Context, *ValidateActionRqst) (*ValidateActionRsp, error)
+	// That function will set a share or update existing share... ex. add/delete account, group
+	ShareResource(context.Context, *ShareResourceRqst) (*ShareResourceRsp, error)
+	// Remove the share
+	UshareResource(context.Context, *UnshareResourceRqst) (*UnshareResourceRsp, error)
+	// Get the list of accessible shared ressources.
+	GetSharedResource(context.Context, *GetSharedResourceRqst) (*GetSharedResourceRsp, error)
 }
 
 // UnimplementedRbacServiceServer should be embedded to have forward compatible implementations.
@@ -245,6 +284,15 @@ func (UnimplementedRbacServiceServer) GetActionResourceInfos(context.Context, *G
 }
 func (UnimplementedRbacServiceServer) ValidateAction(context.Context, *ValidateActionRqst) (*ValidateActionRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateAction not implemented")
+}
+func (UnimplementedRbacServiceServer) ShareResource(context.Context, *ShareResourceRqst) (*ShareResourceRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ShareResource not implemented")
+}
+func (UnimplementedRbacServiceServer) UshareResource(context.Context, *UnshareResourceRqst) (*UnshareResourceRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UshareResource not implemented")
+}
+func (UnimplementedRbacServiceServer) GetSharedResource(context.Context, *GetSharedResourceRqst) (*GetSharedResourceRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSharedResource not implemented")
 }
 
 // UnsafeRbacServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -492,6 +540,60 @@ func _RbacService_ValidateAction_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RbacService_ShareResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShareResourceRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).ShareResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/ShareResource",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).ShareResource(ctx, req.(*ShareResourceRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_UshareResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnshareResourceRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).UshareResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/UshareResource",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).UshareResource(ctx, req.(*UnshareResourceRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_GetSharedResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSharedResourceRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).GetSharedResource(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/GetSharedResource",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).GetSharedResource(ctx, req.(*GetSharedResourceRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RbacService_ServiceDesc is the grpc.ServiceDesc for RbacService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -550,6 +652,18 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateAction",
 			Handler:    _RbacService_ValidateAction_Handler,
+		},
+		{
+			MethodName: "ShareResource",
+			Handler:    _RbacService_ShareResource_Handler,
+		},
+		{
+			MethodName: "UshareResource",
+			Handler:    _RbacService_UshareResource_Handler,
+		},
+		{
+			MethodName: "GetSharedResource",
+			Handler:    _RbacService_GetSharedResource_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
