@@ -26,19 +26,12 @@ message Permissions {
 	repeated Permission denied = 3;
 }
 
-message ActionResourceParameterPermission {
-	int32 index = 1;
-	string permission = 2;
-}
-
-/** Append a permission owner **/
-
 /** Return a resource permissions **/
 message GetResourcePermissionsRqst{
 	string path = 1;
 }
 
-/** Delete resource permissions **/
+/** Get resource permissions **/
 message GetResourcePermissionsRsp{
 	Permissions permissions = 1;
 }
@@ -184,6 +177,48 @@ message SetActionResourcesPermissionsRsp{
 }
 
 /**
+ * Resource Shared. The resource can be share by the 
+ */
+message Share {
+
+	// The resource path must be unique on the domain.
+	string path = 1;
+
+	// The domain from where the share is located.
+	string domain = 2;
+
+	// List of specific object to share with
+	repeated string applications = 3;
+	repeated string peers = 4;
+	repeated string accounts = 5;
+	repeated string groups = 6;
+	repeated string organizations = 7;
+}
+
+/**
+ * Set a share, that can be use to add/remove/update an 
+ */
+message ShareResourceRqst {
+	Share share = 1;
+}
+
+message ShareResourceRsp {
+	
+}
+
+/**
+ * Delete the share.
+ */
+ message UnshareResourceRqst {
+	Share share = 1;
+}
+
+message UnshareResourceRsp {
+	
+}
+
+
+/**
  * The service to control action and resource access.
  */
 service RbacService {
@@ -228,5 +263,11 @@ service RbacService {
 	
 	/** Validate the actions */
 	rpc ValidateAction(ValidateActionRqst) returns(ValidateActionRsp);
+
+	///////////////////////// Share ////////////////////////////
+
+	rpc ShareResource(ShareResourceRqst) returns(ShareResourceRsp);
+
+	rpc UshareResource(UnshareResourceRqst) returns(UnshareResourceRsp);
 	
 }
