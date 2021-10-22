@@ -110,12 +110,13 @@ message FindPackagesDescriptorResponse {
 message Role {
   string id = 1;
   string name = 2;
-  string description = 3;
-  repeated string actions = 4; // must be a registered action from grpc.
+  string domain = 3;
+  string description = 4;
+  repeated string actions = 5; // must be a registered action from grpc.
 
   // References.
-  repeated string members = 5;
-  repeated string organizations = 6;
+  repeated string members = 6;
+  repeated string organizations = 7;
 }
 
 message AddRoleActionsRqst {
@@ -253,17 +254,18 @@ message DeleteRoleRsp { bool result = 1; }
 message Application {
   string id = 1;
   string name = 2;
-  string password = 3;
-  string path = 4;
-  string version = 5;
-  string description = 6;
-  repeated string actions = 7;
-  repeated string keywords = 8;
-  string icon = 9;
-  string alias = 10;
-  string publisherid = 11;
-  int64 creation_date = 12;
-  int64 last_deployed = 13;
+  string domain = 3;
+  string password = 4;
+  string path = 5;
+  string version = 6;
+  string description = 7;
+  repeated string actions = 8;
+  repeated string keywords = 9;
+  string icon = 10;
+  string alias = 11;
+  string publisherid = 12;
+  int64 creation_date = 13;
+  int64 last_deployed = 14;
 }
 
 /** Create / Update an application */
@@ -333,9 +335,10 @@ message GetApplicationAliasRsp { string alias = 1; }
 message Group {
   string id = 1;
   string name = 2;                   // must be unique on the network.
-  string description = 3;
-  repeated string members = 4;       // can be empty...
-  repeated string organizations = 5; // can be empty...
+  string domain = 3;
+  string description = 4;
+  repeated string members = 5;       // can be empty...
+  repeated string organizations = 6; // can be empty...
 }
 
 /**
@@ -393,16 +396,17 @@ message RemoveGroupMemberAccountRsp { bool result = 1; }
 /** a globular server **/
 message Organization {
   string id = 1;
-  string name = 2; // must be unique on the network.
-  string email = 3;
-  string icon = 4;
-  string description = 5;
+  string domain = 2;
+  string name = 3; // must be unique on the network.
+  string email = 4;
+  string icon = 5;
+  string description = 6;
 
   // Aggregations
-  repeated string accounts = 6;
-  repeated string groups = 7;
-  repeated string roles = 8;
-  repeated string applications = 9;
+  repeated string accounts = 7;
+  repeated string groups = 8;
+  repeated string roles = 9;
+  repeated string applications = 10;
 }
 
 /**
