@@ -50,6 +50,10 @@ type RbacServiceClient interface {
 	UshareResource(ctx context.Context, in *UnshareResourceRqst, opts ...grpc.CallOption) (*UnshareResourceRsp, error)
 	// Get the list of accessible shared ressources.
 	GetSharedResource(ctx context.Context, in *GetSharedResourceRqst, opts ...grpc.CallOption) (*GetSharedResourceRsp, error)
+	// Remove a subject from a share.
+	RemoveSubjectFromShare(ctx context.Context, in *RemoveSubjectFromShareRqst, opts ...grpc.CallOption) (*RemoveSubjectFromShareRsp, error)
+	// Delete the subject
+	DeleteSubjectShare(ctx context.Context, in *DeleteSubjectShareRqst, opts ...grpc.CallOption) (*DeleteSubjectShareRsp, error)
 }
 
 type rbacServiceClient struct {
@@ -204,6 +208,24 @@ func (c *rbacServiceClient) GetSharedResource(ctx context.Context, in *GetShared
 	return out, nil
 }
 
+func (c *rbacServiceClient) RemoveSubjectFromShare(ctx context.Context, in *RemoveSubjectFromShareRqst, opts ...grpc.CallOption) (*RemoveSubjectFromShareRsp, error) {
+	out := new(RemoveSubjectFromShareRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/RemoveSubjectFromShare", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) DeleteSubjectShare(ctx context.Context, in *DeleteSubjectShareRqst, opts ...grpc.CallOption) (*DeleteSubjectShareRsp, error) {
+	out := new(DeleteSubjectShareRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/DeleteSubjectShare", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RbacServiceServer is the server API for RbacService service.
 // All implementations should embed UnimplementedRbacServiceServer
 // for forward compatibility
@@ -240,6 +262,10 @@ type RbacServiceServer interface {
 	UshareResource(context.Context, *UnshareResourceRqst) (*UnshareResourceRsp, error)
 	// Get the list of accessible shared ressources.
 	GetSharedResource(context.Context, *GetSharedResourceRqst) (*GetSharedResourceRsp, error)
+	// Remove a subject from a share.
+	RemoveSubjectFromShare(context.Context, *RemoveSubjectFromShareRqst) (*RemoveSubjectFromShareRsp, error)
+	// Delete the subject
+	DeleteSubjectShare(context.Context, *DeleteSubjectShareRqst) (*DeleteSubjectShareRsp, error)
 }
 
 // UnimplementedRbacServiceServer should be embedded to have forward compatible implementations.
@@ -293,6 +319,12 @@ func (UnimplementedRbacServiceServer) UshareResource(context.Context, *UnshareRe
 }
 func (UnimplementedRbacServiceServer) GetSharedResource(context.Context, *GetSharedResourceRqst) (*GetSharedResourceRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSharedResource not implemented")
+}
+func (UnimplementedRbacServiceServer) RemoveSubjectFromShare(context.Context, *RemoveSubjectFromShareRqst) (*RemoveSubjectFromShareRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveSubjectFromShare not implemented")
+}
+func (UnimplementedRbacServiceServer) DeleteSubjectShare(context.Context, *DeleteSubjectShareRqst) (*DeleteSubjectShareRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteSubjectShare not implemented")
 }
 
 // UnsafeRbacServiceServer may be embedded to opt out of forward compatibility for this service.
@@ -594,6 +626,42 @@ func _RbacService_GetSharedResource_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RbacService_RemoveSubjectFromShare_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveSubjectFromShareRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).RemoveSubjectFromShare(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/RemoveSubjectFromShare",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).RemoveSubjectFromShare(ctx, req.(*RemoveSubjectFromShareRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_DeleteSubjectShare_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSubjectShareRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).DeleteSubjectShare(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/DeleteSubjectShare",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).DeleteSubjectShare(ctx, req.(*DeleteSubjectShareRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RbacService_ServiceDesc is the grpc.ServiceDesc for RbacService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -664,6 +732,14 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSharedResource",
 			Handler:    _RbacService_GetSharedResource_Handler,
+		},
+		{
+			MethodName: "RemoveSubjectFromShare",
+			Handler:    _RbacService_RemoveSubjectFromShare_Handler,
+		},
+		{
+			MethodName: "DeleteSubjectShare",
+			Handler:    _RbacService_DeleteSubjectShare_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

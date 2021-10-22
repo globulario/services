@@ -6011,7 +6011,7 @@ proto.resource.FindPackagesDescriptorResponse.prototype.clearResultsList = funct
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Role.repeatedFields_ = [4,5,6];
+proto.resource.Role.repeatedFields_ = [5,6,7];
 
 
 
@@ -6046,10 +6046,11 @@ proto.resource.Role.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    membersList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
+    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    actionsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+    membersList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -6096,17 +6097,21 @@ proto.resource.Role.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.setDomain(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.addActions(value);
+      msg.setDescription(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.addMembers(value);
+      msg.addActions(value);
       break;
     case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addMembers(value);
+      break;
+    case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.addOrganizations(value);
       break;
@@ -6153,31 +6158,38 @@ proto.resource.Role.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getDescription();
+  f = message.getDomain();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getActionsList();
+  f = message.getDescription();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       4,
       f
     );
   }
-  f = message.getMembersList();
+  f = message.getActionsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       5,
       f
     );
   }
-  f = message.getOrganizationsList();
+  f = message.getMembersList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       6,
+      f
+    );
+  }
+  f = message.getOrganizationsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      7,
       f
     );
   }
@@ -6221,10 +6233,10 @@ proto.resource.Role.prototype.setName = function(value) {
 
 
 /**
- * optional string description = 3;
+ * optional string domain = 3;
  * @return {string}
  */
-proto.resource.Role.prototype.getDescription = function() {
+proto.resource.Role.prototype.getDomain = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -6233,17 +6245,35 @@ proto.resource.Role.prototype.getDescription = function() {
  * @param {string} value
  * @return {!proto.resource.Role} returns this
  */
-proto.resource.Role.prototype.setDescription = function(value) {
+proto.resource.Role.prototype.setDomain = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * repeated string actions = 4;
+ * optional string description = 4;
+ * @return {string}
+ */
+proto.resource.Role.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Role} returns this
+ */
+proto.resource.Role.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * repeated string actions = 5;
  * @return {!Array<string>}
  */
 proto.resource.Role.prototype.getActionsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
 };
 
 
@@ -6252,7 +6282,7 @@ proto.resource.Role.prototype.getActionsList = function() {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.setActionsList = function(value) {
-  return jspb.Message.setField(this, 4, value || []);
+  return jspb.Message.setField(this, 5, value || []);
 };
 
 
@@ -6262,7 +6292,7 @@ proto.resource.Role.prototype.setActionsList = function(value) {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.addActions = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
 };
 
 
@@ -6276,11 +6306,11 @@ proto.resource.Role.prototype.clearActionsList = function() {
 
 
 /**
- * repeated string members = 5;
+ * repeated string members = 6;
  * @return {!Array<string>}
  */
 proto.resource.Role.prototype.getMembersList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
 };
 
 
@@ -6289,7 +6319,7 @@ proto.resource.Role.prototype.getMembersList = function() {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.setMembersList = function(value) {
-  return jspb.Message.setField(this, 5, value || []);
+  return jspb.Message.setField(this, 6, value || []);
 };
 
 
@@ -6299,7 +6329,7 @@ proto.resource.Role.prototype.setMembersList = function(value) {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.addMembers = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
 };
 
 
@@ -6313,11 +6343,11 @@ proto.resource.Role.prototype.clearMembersList = function() {
 
 
 /**
- * repeated string organizations = 6;
+ * repeated string organizations = 7;
  * @return {!Array<string>}
  */
 proto.resource.Role.prototype.getOrganizationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
 };
 
 
@@ -6326,7 +6356,7 @@ proto.resource.Role.prototype.getOrganizationsList = function() {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.setOrganizationsList = function(value) {
-  return jspb.Message.setField(this, 6, value || []);
+  return jspb.Message.setField(this, 7, value || []);
 };
 
 
@@ -6336,7 +6366,7 @@ proto.resource.Role.prototype.setOrganizationsList = function(value) {
  * @return {!proto.resource.Role} returns this
  */
 proto.resource.Role.prototype.addOrganizations = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
 };
 
 
@@ -11581,7 +11611,7 @@ proto.resource.DeleteRoleRsp.prototype.setResult = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Application.repeatedFields_ = [7,8];
+proto.resource.Application.repeatedFields_ = [8,9];
 
 
 
@@ -11616,17 +11646,18 @@ proto.resource.Application.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    path: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    version: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    actionsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    icon: jspb.Message.getFieldWithDefault(msg, 9, ""),
-    alias: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    publisherid: jspb.Message.getFieldWithDefault(msg, 11, ""),
-    creationDate: jspb.Message.getFieldWithDefault(msg, 12, 0),
-    lastDeployed: jspb.Message.getFieldWithDefault(msg, 13, 0)
+    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    password: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    path: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    version: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    actionsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+    keywordsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+    icon: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    alias: jspb.Message.getFieldWithDefault(msg, 11, ""),
+    publisherid: jspb.Message.getFieldWithDefault(msg, 12, ""),
+    creationDate: jspb.Message.getFieldWithDefault(msg, 13, 0),
+    lastDeployed: jspb.Message.getFieldWithDefault(msg, 14, 0)
   };
 
   if (includeInstance) {
@@ -11673,45 +11704,49 @@ proto.resource.Application.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPassword(value);
+      msg.setDomain(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPath(value);
+      msg.setPassword(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setVersion(value);
+      msg.setPath(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.setVersion(value);
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.addActions(value);
+      msg.setDescription(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
-      msg.addKeywords(value);
+      msg.addActions(value);
       break;
     case 9:
       var value = /** @type {string} */ (reader.readString());
-      msg.setIcon(value);
+      msg.addKeywords(value);
       break;
     case 10:
       var value = /** @type {string} */ (reader.readString());
-      msg.setAlias(value);
+      msg.setIcon(value);
       break;
     case 11:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPublisherid(value);
+      msg.setAlias(value);
       break;
     case 12:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublisherid(value);
+      break;
+    case 13:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setCreationDate(value);
       break;
-    case 13:
+    case 14:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setLastDeployed(value);
       break;
@@ -11758,80 +11793,87 @@ proto.resource.Application.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getPassword();
+  f = message.getDomain();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getPath();
+  f = message.getPassword();
   if (f.length > 0) {
     writer.writeString(
       4,
       f
     );
   }
-  f = message.getVersion();
+  f = message.getPath();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
-  f = message.getDescription();
+  f = message.getVersion();
   if (f.length > 0) {
     writer.writeString(
       6,
       f
     );
   }
-  f = message.getActionsList();
+  f = message.getDescription();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       7,
       f
     );
   }
-  f = message.getKeywordsList();
+  f = message.getActionsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       8,
       f
     );
   }
-  f = message.getIcon();
+  f = message.getKeywordsList();
   if (f.length > 0) {
-    writer.writeString(
+    writer.writeRepeatedString(
       9,
       f
     );
   }
-  f = message.getAlias();
+  f = message.getIcon();
   if (f.length > 0) {
     writer.writeString(
       10,
       f
     );
   }
-  f = message.getPublisherid();
+  f = message.getAlias();
   if (f.length > 0) {
     writer.writeString(
       11,
       f
     );
   }
+  f = message.getPublisherid();
+  if (f.length > 0) {
+    writer.writeString(
+      12,
+      f
+    );
+  }
   f = message.getCreationDate();
   if (f !== 0) {
     writer.writeInt64(
-      12,
+      13,
       f
     );
   }
   f = message.getLastDeployed();
   if (f !== 0) {
     writer.writeInt64(
-      13,
+      14,
       f
     );
   }
@@ -11875,10 +11917,10 @@ proto.resource.Application.prototype.setName = function(value) {
 
 
 /**
- * optional string password = 3;
+ * optional string domain = 3;
  * @return {string}
  */
-proto.resource.Application.prototype.getPassword = function() {
+proto.resource.Application.prototype.getDomain = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -11887,16 +11929,16 @@ proto.resource.Application.prototype.getPassword = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setPassword = function(value) {
+proto.resource.Application.prototype.setDomain = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * optional string path = 4;
+ * optional string password = 4;
  * @return {string}
  */
-proto.resource.Application.prototype.getPath = function() {
+proto.resource.Application.prototype.getPassword = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -11905,16 +11947,16 @@ proto.resource.Application.prototype.getPath = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setPath = function(value) {
+proto.resource.Application.prototype.setPassword = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
 /**
- * optional string version = 5;
+ * optional string path = 5;
  * @return {string}
  */
-proto.resource.Application.prototype.getVersion = function() {
+proto.resource.Application.prototype.getPath = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -11923,16 +11965,16 @@ proto.resource.Application.prototype.getVersion = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setVersion = function(value) {
+proto.resource.Application.prototype.setPath = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * optional string description = 6;
+ * optional string version = 6;
  * @return {string}
  */
-proto.resource.Application.prototype.getDescription = function() {
+proto.resource.Application.prototype.getVersion = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
@@ -11941,17 +11983,35 @@ proto.resource.Application.prototype.getDescription = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setDescription = function(value) {
+proto.resource.Application.prototype.setVersion = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
 /**
- * repeated string actions = 7;
+ * optional string description = 7;
+ * @return {string}
+ */
+proto.resource.Application.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Application} returns this
+ */
+proto.resource.Application.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * repeated string actions = 8;
  * @return {!Array<string>}
  */
 proto.resource.Application.prototype.getActionsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
 };
 
 
@@ -11960,7 +12020,7 @@ proto.resource.Application.prototype.getActionsList = function() {
  * @return {!proto.resource.Application} returns this
  */
 proto.resource.Application.prototype.setActionsList = function(value) {
-  return jspb.Message.setField(this, 7, value || []);
+  return jspb.Message.setField(this, 8, value || []);
 };
 
 
@@ -11970,7 +12030,7 @@ proto.resource.Application.prototype.setActionsList = function(value) {
  * @return {!proto.resource.Application} returns this
  */
 proto.resource.Application.prototype.addActions = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
 };
 
 
@@ -11984,11 +12044,11 @@ proto.resource.Application.prototype.clearActionsList = function() {
 
 
 /**
- * repeated string keywords = 8;
+ * repeated string keywords = 9;
  * @return {!Array<string>}
  */
 proto.resource.Application.prototype.getKeywordsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
 };
 
 
@@ -11997,7 +12057,7 @@ proto.resource.Application.prototype.getKeywordsList = function() {
  * @return {!proto.resource.Application} returns this
  */
 proto.resource.Application.prototype.setKeywordsList = function(value) {
-  return jspb.Message.setField(this, 8, value || []);
+  return jspb.Message.setField(this, 9, value || []);
 };
 
 
@@ -12007,7 +12067,7 @@ proto.resource.Application.prototype.setKeywordsList = function(value) {
  * @return {!proto.resource.Application} returns this
  */
 proto.resource.Application.prototype.addKeywords = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
 };
 
 
@@ -12021,28 +12081,10 @@ proto.resource.Application.prototype.clearKeywordsList = function() {
 
 
 /**
- * optional string icon = 9;
+ * optional string icon = 10;
  * @return {string}
  */
 proto.resource.Application.prototype.getIcon = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.resource.Application} returns this
- */
-proto.resource.Application.prototype.setIcon = function(value) {
-  return jspb.Message.setProto3StringField(this, 9, value);
-};
-
-
-/**
- * optional string alias = 10;
- * @return {string}
- */
-proto.resource.Application.prototype.getAlias = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
 };
 
@@ -12051,16 +12093,16 @@ proto.resource.Application.prototype.getAlias = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setAlias = function(value) {
+proto.resource.Application.prototype.setIcon = function(value) {
   return jspb.Message.setProto3StringField(this, 10, value);
 };
 
 
 /**
- * optional string publisherid = 11;
+ * optional string alias = 11;
  * @return {string}
  */
-proto.resource.Application.prototype.getPublisherid = function() {
+proto.resource.Application.prototype.getAlias = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
 };
 
@@ -12069,34 +12111,34 @@ proto.resource.Application.prototype.getPublisherid = function() {
  * @param {string} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setPublisherid = function(value) {
+proto.resource.Application.prototype.setAlias = function(value) {
   return jspb.Message.setProto3StringField(this, 11, value);
 };
 
 
 /**
- * optional int64 creation_date = 12;
+ * optional string publisherid = 12;
+ * @return {string}
+ */
+proto.resource.Application.prototype.getPublisherid = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Application} returns this
+ */
+proto.resource.Application.prototype.setPublisherid = function(value) {
+  return jspb.Message.setProto3StringField(this, 12, value);
+};
+
+
+/**
+ * optional int64 creation_date = 13;
  * @return {number}
  */
 proto.resource.Application.prototype.getCreationDate = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 12, 0));
-};
-
-
-/**
- * @param {number} value
- * @return {!proto.resource.Application} returns this
- */
-proto.resource.Application.prototype.setCreationDate = function(value) {
-  return jspb.Message.setProto3IntField(this, 12, value);
-};
-
-
-/**
- * optional int64 last_deployed = 13;
- * @return {number}
- */
-proto.resource.Application.prototype.getLastDeployed = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 13, 0));
 };
 
@@ -12105,8 +12147,26 @@ proto.resource.Application.prototype.getLastDeployed = function() {
  * @param {number} value
  * @return {!proto.resource.Application} returns this
  */
-proto.resource.Application.prototype.setLastDeployed = function(value) {
+proto.resource.Application.prototype.setCreationDate = function(value) {
   return jspb.Message.setProto3IntField(this, 13, value);
+};
+
+
+/**
+ * optional int64 last_deployed = 14;
+ * @return {number}
+ */
+proto.resource.Application.prototype.getLastDeployed = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 14, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.resource.Application} returns this
+ */
+proto.resource.Application.prototype.setLastDeployed = function(value) {
+  return jspb.Message.setProto3IntField(this, 14, value);
 };
 
 
@@ -14884,7 +14944,7 @@ proto.resource.GetApplicationAliasRsp.prototype.setAlias = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Group.repeatedFields_ = [4,5];
+proto.resource.Group.repeatedFields_ = [5,6];
 
 
 
@@ -14919,9 +14979,10 @@ proto.resource.Group.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    membersList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f
+    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    membersList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -14968,13 +15029,17 @@ proto.resource.Group.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.setDomain(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.addMembers(value);
+      msg.setDescription(value);
       break;
     case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addMembers(value);
+      break;
+    case 6:
       var value = /** @type {string} */ (reader.readString());
       msg.addOrganizations(value);
       break;
@@ -15021,24 +15086,31 @@ proto.resource.Group.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getDescription();
+  f = message.getDomain();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
+  f = message.getDescription();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
   f = message.getMembersList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      4,
+      5,
       f
     );
   }
   f = message.getOrganizationsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      5,
+      6,
       f
     );
   }
@@ -15082,10 +15154,10 @@ proto.resource.Group.prototype.setName = function(value) {
 
 
 /**
- * optional string description = 3;
+ * optional string domain = 3;
  * @return {string}
  */
-proto.resource.Group.prototype.getDescription = function() {
+proto.resource.Group.prototype.getDomain = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -15094,17 +15166,35 @@ proto.resource.Group.prototype.getDescription = function() {
  * @param {string} value
  * @return {!proto.resource.Group} returns this
  */
-proto.resource.Group.prototype.setDescription = function(value) {
+proto.resource.Group.prototype.setDomain = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * repeated string members = 4;
+ * optional string description = 4;
+ * @return {string}
+ */
+proto.resource.Group.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Group} returns this
+ */
+proto.resource.Group.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * repeated string members = 5;
  * @return {!Array<string>}
  */
 proto.resource.Group.prototype.getMembersList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
 };
 
 
@@ -15113,7 +15203,7 @@ proto.resource.Group.prototype.getMembersList = function() {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.setMembersList = function(value) {
-  return jspb.Message.setField(this, 4, value || []);
+  return jspb.Message.setField(this, 5, value || []);
 };
 
 
@@ -15123,7 +15213,7 @@ proto.resource.Group.prototype.setMembersList = function(value) {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.addMembers = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
 };
 
 
@@ -15137,11 +15227,11 @@ proto.resource.Group.prototype.clearMembersList = function() {
 
 
 /**
- * repeated string organizations = 5;
+ * repeated string organizations = 6;
  * @return {!Array<string>}
  */
 proto.resource.Group.prototype.getOrganizationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
 };
 
 
@@ -15150,7 +15240,7 @@ proto.resource.Group.prototype.getOrganizationsList = function() {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.setOrganizationsList = function(value) {
-  return jspb.Message.setField(this, 5, value || []);
+  return jspb.Message.setField(this, 6, value || []);
 };
 
 
@@ -15160,7 +15250,7 @@ proto.resource.Group.prototype.setOrganizationsList = function(value) {
  * @return {!proto.resource.Group} returns this
  */
 proto.resource.Group.prototype.addOrganizations = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
 };
 
 
@@ -16910,7 +17000,7 @@ proto.resource.RemoveGroupMemberAccountRsp.prototype.setResult = function(value)
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Organization.repeatedFields_ = [6,7,8,9];
+proto.resource.Organization.repeatedFields_ = [7,8,9,10];
 
 
 
@@ -16944,14 +17034,15 @@ proto.resource.Organization.prototype.toObject = function(opt_includeInstance) {
 proto.resource.Organization.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    name: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    email: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    icon: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    description: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    accountsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
-    rolesList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
-    applicationsList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f
+    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    name: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    email: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    icon: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    description: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    accountsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+    groupsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
+    rolesList: (f = jspb.Message.getRepeatedField(msg, 9)) == null ? undefined : f,
+    applicationsList: (f = jspb.Message.getRepeatedField(msg, 10)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -16994,33 +17085,37 @@ proto.resource.Organization.deserializeBinaryFromReader = function(msg, reader) 
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setName(value);
+      msg.setDomain(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setEmail(value);
+      msg.setName(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setIcon(value);
+      msg.setEmail(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDescription(value);
+      msg.setIcon(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.addAccounts(value);
+      msg.setDescription(value);
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.addGroups(value);
+      msg.addAccounts(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
-      msg.addRoles(value);
+      msg.addGroups(value);
       break;
     case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addRoles(value);
+      break;
+    case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.addApplications(value);
       break;
@@ -17060,59 +17155,66 @@ proto.resource.Organization.serializeBinaryToWriter = function(message, writer) 
       f
     );
   }
-  f = message.getName();
+  f = message.getDomain();
   if (f.length > 0) {
     writer.writeString(
       2,
       f
     );
   }
-  f = message.getEmail();
+  f = message.getName();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getIcon();
+  f = message.getEmail();
   if (f.length > 0) {
     writer.writeString(
       4,
       f
     );
   }
-  f = message.getDescription();
+  f = message.getIcon();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
-  f = message.getAccountsList();
+  f = message.getDescription();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       6,
       f
     );
   }
-  f = message.getGroupsList();
+  f = message.getAccountsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       7,
       f
     );
   }
-  f = message.getRolesList();
+  f = message.getGroupsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       8,
       f
     );
   }
-  f = message.getApplicationsList();
+  f = message.getRolesList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       9,
+      f
+    );
+  }
+  f = message.getApplicationsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      10,
       f
     );
   }
@@ -17138,10 +17240,10 @@ proto.resource.Organization.prototype.setId = function(value) {
 
 
 /**
- * optional string name = 2;
+ * optional string domain = 2;
  * @return {string}
  */
-proto.resource.Organization.prototype.getName = function() {
+proto.resource.Organization.prototype.getDomain = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -17150,16 +17252,16 @@ proto.resource.Organization.prototype.getName = function() {
  * @param {string} value
  * @return {!proto.resource.Organization} returns this
  */
-proto.resource.Organization.prototype.setName = function(value) {
+proto.resource.Organization.prototype.setDomain = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
 /**
- * optional string email = 3;
+ * optional string name = 3;
  * @return {string}
  */
-proto.resource.Organization.prototype.getEmail = function() {
+proto.resource.Organization.prototype.getName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
@@ -17168,16 +17270,16 @@ proto.resource.Organization.prototype.getEmail = function() {
  * @param {string} value
  * @return {!proto.resource.Organization} returns this
  */
-proto.resource.Organization.prototype.setEmail = function(value) {
+proto.resource.Organization.prototype.setName = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * optional string icon = 4;
+ * optional string email = 4;
  * @return {string}
  */
-proto.resource.Organization.prototype.getIcon = function() {
+proto.resource.Organization.prototype.getEmail = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -17186,16 +17288,16 @@ proto.resource.Organization.prototype.getIcon = function() {
  * @param {string} value
  * @return {!proto.resource.Organization} returns this
  */
-proto.resource.Organization.prototype.setIcon = function(value) {
+proto.resource.Organization.prototype.setEmail = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
 /**
- * optional string description = 5;
+ * optional string icon = 5;
  * @return {string}
  */
-proto.resource.Organization.prototype.getDescription = function() {
+proto.resource.Organization.prototype.getIcon = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -17204,17 +17306,35 @@ proto.resource.Organization.prototype.getDescription = function() {
  * @param {string} value
  * @return {!proto.resource.Organization} returns this
  */
-proto.resource.Organization.prototype.setDescription = function(value) {
+proto.resource.Organization.prototype.setIcon = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * repeated string accounts = 6;
+ * optional string description = 6;
+ * @return {string}
+ */
+proto.resource.Organization.prototype.getDescription = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.resource.Organization} returns this
+ */
+proto.resource.Organization.prototype.setDescription = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * repeated string accounts = 7;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getAccountsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
 };
 
 
@@ -17223,7 +17343,7 @@ proto.resource.Organization.prototype.getAccountsList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setAccountsList = function(value) {
-  return jspb.Message.setField(this, 6, value || []);
+  return jspb.Message.setField(this, 7, value || []);
 };
 
 
@@ -17233,7 +17353,7 @@ proto.resource.Organization.prototype.setAccountsList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addAccounts = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
 };
 
 
@@ -17247,11 +17367,11 @@ proto.resource.Organization.prototype.clearAccountsList = function() {
 
 
 /**
- * repeated string groups = 7;
+ * repeated string groups = 8;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getGroupsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
 };
 
 
@@ -17260,7 +17380,7 @@ proto.resource.Organization.prototype.getGroupsList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setGroupsList = function(value) {
-  return jspb.Message.setField(this, 7, value || []);
+  return jspb.Message.setField(this, 8, value || []);
 };
 
 
@@ -17270,7 +17390,7 @@ proto.resource.Organization.prototype.setGroupsList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addGroups = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
 };
 
 
@@ -17284,11 +17404,11 @@ proto.resource.Organization.prototype.clearGroupsList = function() {
 
 
 /**
- * repeated string roles = 8;
+ * repeated string roles = 9;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getRolesList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
 };
 
 
@@ -17297,7 +17417,7 @@ proto.resource.Organization.prototype.getRolesList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setRolesList = function(value) {
-  return jspb.Message.setField(this, 8, value || []);
+  return jspb.Message.setField(this, 9, value || []);
 };
 
 
@@ -17307,7 +17427,7 @@ proto.resource.Organization.prototype.setRolesList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addRoles = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
 };
 
 
@@ -17321,11 +17441,11 @@ proto.resource.Organization.prototype.clearRolesList = function() {
 
 
 /**
- * repeated string applications = 9;
+ * repeated string applications = 10;
  * @return {!Array<string>}
  */
 proto.resource.Organization.prototype.getApplicationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 9));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 10));
 };
 
 
@@ -17334,7 +17454,7 @@ proto.resource.Organization.prototype.getApplicationsList = function() {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.setApplicationsList = function(value) {
-  return jspb.Message.setField(this, 9, value || []);
+  return jspb.Message.setField(this, 10, value || []);
 };
 
 
@@ -17344,7 +17464,7 @@ proto.resource.Organization.prototype.setApplicationsList = function(value) {
  * @return {!proto.resource.Organization} returns this
  */
 proto.resource.Organization.prototype.addApplications = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 9, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 10, value, opt_index);
 };
 
 

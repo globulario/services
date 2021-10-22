@@ -1398,25 +1398,134 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 }
 
 // Set the subject share ressource.
-func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string) {
+func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string) error {
+	shared := make([]string, 0)
+	data, err := rbac_server.permissions.GetItem(subject)
+	if err == nil {
+		err := json.Unmarshal(data, &shared)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !Utility.Contains(shared, resourceUuid) {
+		shared = append(shared, resourceUuid)
+		// Now I will set back the values in the store.
+		data, err := json.Marshal(shared)
+		if err != nil {
+			return err
+		}
+
+		return rbac_server.permissions.SetItem(subject, data)
+	}
+
+	return nil
+}
+
+func (rbac_server *server) unsetSubjectSharedResource(subject, resourceUuid string) error {
+	shared := make([]string, 0)
+	data, err := rbac_server.permissions.GetItem(subject)
+	if err == nil {
+		err := json.Unmarshal(data, &shared)
+		if err != nil {
+			return err
+		}
+	}
+
+	if Utility.Contains(shared, resourceUuid) {
+
+		shared = Utility.RemoveString(shared, resourceUuid)
+		if err != nil {
+			return err
+		}
+		return rbac_server.permissions.SetItem(subject, data)
+	}
+
+	return nil
+}
+
+// Save / Create a Share.
+func (rbac_server *server) shareResource(share *rbacpb.Share) error {
+	// the id will be compose of the domain @ path ex. domain@/usr/toto/titi
+	uuid := Utility.GenerateUUID(share.Domain +share.Path)
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(share)
+	if err != nil {
+		return err
+	}
+
+	// Now I will serialyse it and save it in the store.
+	err = rbac_server.permissions.SetItem(uuid, []byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	// Now I will set the value in the user share...
+	// The list of accounts
+	for i := 0; i < len(share.Accounts); i++ {
+		a := "SHARED/ACCOUNTS/" + share.Accounts[i]
+		err := rbac_server.setSubjectSharedResource(a, uuid)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i := 0; i < len(share.Applications); i++ {
+		a := "SHARED/APPLICATIONS/" + share.Applications[i]
+		err := rbac_server.setSubjectSharedResource(a, uuid)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i := 0; i < len(share.Organizations); i++ {
+		o := "SHARED/ORGANIZATIONS/" + share.Organizations[i]
+		err := rbac_server.setSubjectSharedResource(o, uuid)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i := 0; i < len(share.Groups); i++ {
+		g := "SHARED/GROUPS/" + share.Groups[i]
+		err := rbac_server.setSubjectSharedResource(g, uuid)
+		if err != nil {
+			return err
+		}
+	}
+
+	for i := 0; i < len(share.Peers); i++ {
+		p := "SHARED/PEERS/" + share.Peers[i]
+		err := rbac_server.setSubjectSharedResource(p, uuid)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 
 }
 
 // That function will set a share or update existing share... ex. add/delete account, group
 func (rbac_server *server) ShareResource(ctx context.Context, rqst *rbacpb.ShareResourceRqst) (*rbacpb.ShareResourceRsp, error) {
-	// the id will be compose of the domain @ path ex. domain@/usr/toto/titi
-	uuid := Utility.GenerateUUID(rqst.Share.Domain + rqst.Share.Path)
 
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(rqst.Share)
+	err := rbac_server.shareResource(rqst.Share)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Now I will serialyse it and save it in the store.
-	err = rbac_server.permissions.SetItem(uuid, []byte(jsonStr))
+
+	return &rbacpb.ShareResourceRsp{}, nil
+}
+
+// Remove the share
+func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.UnshareResourceRqst) (*rbacpb.UnshareResourceRsp, error) {
+
+	uuid := Utility.GenerateUUID(rqst.Share.Domain + rqst.Share.Path)
+	err := rbac_server.permissions.RemoveItem(uuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1424,18 +1533,124 @@ func (rbac_server *server) ShareResource(ctx context.Context, rqst *rbacpb.Share
 	}
 
 	// Now I will set the value in the user share...
+	// The list of accounts
+	for i := 0; i < len(rqst.Share.Accounts); i++ {
+		a := "SHARED/ACCOUNTS/" + rqst.Share.Accounts[i]
+		err := rbac_server.unsetSubjectSharedResource(a, uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
 
-	return nil, nil
+	for i := 0; i < len(rqst.Share.Applications); i++ {
+		a := "SHARED/APPLICATIONS/" + rqst.Share.Applications[i]
+		err := rbac_server.unsetSubjectSharedResource(a, uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	for i := 0; i < len(rqst.Share.Organizations); i++ {
+		o := "SHARED/ORGANIZATIONS/" + rqst.Share.Organizations[i]
+		err := rbac_server.unsetSubjectSharedResource(o, uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	for i := 0; i < len(rqst.Share.Groups); i++ {
+		g := "SHARED/GROUPS/" + rqst.Share.Groups[i]
+		err := rbac_server.unsetSubjectSharedResource(g, uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	for i := 0; i < len(rqst.Share.Peers); i++ {
+		p := "SHARED/PEERS/" + rqst.Share.Peers[i]
+		err := rbac_server.unsetSubjectSharedResource(p, uuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	return &rbacpb.UnshareResourceRsp{}, nil
 }
 
-// Remove the share
-func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.UnshareResourceRqst) (*rbacpb.UnshareResourceRsp, error) {
+// Get the list of accessible shared ressource.
+func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.SubjectType) ([]*rbacpb.Share, error) {
+	
+	// So here I will get the share resource for a given subject.
+	id := "SHARED/"
+	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		id += "ACCOUNTS"
+	} else if subjectType == rbacpb.SubjectType_APPLICATION {
+		id += "APPLICATIONS"
+	} else if subjectType == rbacpb.SubjectType_GROUP {
+		id += "GROUPS"
+	} else if subjectType == rbacpb.SubjectType_PEER {
+		id += "PEERS"
+	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+		id += "ORGANIZATIONS"
+	}
+	id += "/" +subject
 
-	return nil, nil
+	// Now I will retreive the list of existing path.
+	shared := make([]string, 0)
+	data, err := rbac_server.permissions.GetItem(id)
+	if err == nil {
+		err := json.Unmarshal(data, &shared)
+		if err != nil {
+			return nil, err
+		}
+	}
+	share_ := make([]*rbacpb.Share, 0)
+
+	// So now I go the list of shared uuid.
+	for i := 0; i < len(shared); i++ {
+		data, err := rbac_server.permissions.GetItem(shared[i])
+		if err == nil {
+			share := new(rbacpb.Share)
+			err := jsonpb.UnmarshalString(string(data), share)
+			if err == nil {
+				share_ = append(share_, share)
+			}
+		}
+	}
+
+	return share_, nil
 }
 
 // Get the list of accessible shared ressources.
 func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.GetSharedResourceRqst) (*rbacpb.GetSharedResourceRsp, error) {
+	share, err := rbac_server.getSharedResource(rqst.Subject, rqst.Type)
 
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &rbacpb.GetSharedResourceRsp{SharedResource:share}, nil
+}
+
+// Remove a subject from a share.
+func (rbac_server *server) RemoveSubjectFromShare(ctx context.Context, rqst *rbacpb.RemoveSubjectFromShareRqst) (*rbacpb.RemoveSubjectFromShareRsp, error) {
+	return nil, nil
+}
+
+// Delete the subject
+func (rbac_server *server) DeleteSubjectShare(ctx context.Context, rqst *rbacpb.DeleteSubjectShareRqst) (*rbacpb.DeleteSubjectShareRsp, error) {
+	// So here I need to get the list of shares for a given account and remove it 
 	return nil, nil
 }

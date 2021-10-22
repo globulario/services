@@ -230,6 +230,31 @@ message GetSharedResourceRsp {
 }
 
 /**
+ * Remove Subject from the list of share.
+ */
+message RemoveSubjectFromShareRqst{
+	string subject = 1;
+	SubjectType type = 2;
+	string path = 3;
+}
+
+message RemoveSubjectFromShareRsp{
+
+}
+
+/**
+ * Delete all share for a subject. That can be use if a subject is delete...
+ */
+message DeleteSubjectShareRqst{
+	string subject = 1;
+	SubjectType type = 2;
+}
+
+message DeleteSubjectShareRsp{
+
+}
+
+/**
  * The service to control action and resource access.
  */
 service RbacService {
@@ -285,6 +310,10 @@ service RbacService {
 
 	// Get the list of accessible shared ressources.
 	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp);
+
+	// Remove a subject from a share.
+	rpc RemoveSubjectFromShare(RemoveSubjectFromShareRqst) returns(RemoveSubjectFromShareRsp);
 	
-	
+	// Delete the subject
+	rpc DeleteSubjectShare(DeleteSubjectShareRqst) returns(DeleteSubjectShareRsp);
 }
