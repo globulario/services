@@ -560,6 +560,9 @@ func main() {
 	rbacpb.RegisterRbacServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	// Need to be the owner in order to change permissions
+	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/rbac.RbacService/SetResourcePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}})
+
 	// Start the service.
 	s_impl.StartService()
 

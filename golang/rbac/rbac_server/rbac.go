@@ -253,7 +253,6 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 		return err
 	}
 
-	fmt.Println("--------------------> 256")
 	err = rbac_server.shareResource(share)
 	if err != nil {
 		return err
