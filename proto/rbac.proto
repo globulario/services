@@ -235,7 +235,8 @@ message GetSharedResourceRsp {
 message RemoveSubjectFromShareRqst{
 	string subject = 1;
 	SubjectType type = 2;
-	string path = 3;
+	string domain = 3;
+	string path = 4;
 }
 
 message RemoveSubjectFromShareRsp{

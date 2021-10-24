@@ -1048,5 +1048,127 @@ proto.rbac.RbacServicePromiseClient.prototype.getSharedResource =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.RemoveSubjectFromShareRqst,
+ *   !proto.rbac.RemoveSubjectFromShareRsp>}
+ */
+const methodDescriptor_RbacService_RemoveSubjectFromShare = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/RemoveSubjectFromShare',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.RemoveSubjectFromShareRqst,
+  proto.rbac.RemoveSubjectFromShareRsp,
+  /**
+   * @param {!proto.rbac.RemoveSubjectFromShareRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.RemoveSubjectFromShareRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.RemoveSubjectFromShareRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.RemoveSubjectFromShareRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.RemoveSubjectFromShareRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.removeSubjectFromShare =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/RemoveSubjectFromShare',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_RemoveSubjectFromShare,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.RemoveSubjectFromShareRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.RemoveSubjectFromShareRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.removeSubjectFromShare =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/RemoveSubjectFromShare',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_RemoveSubjectFromShare);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.DeleteSubjectShareRqst,
+ *   !proto.rbac.DeleteSubjectShareRsp>}
+ */
+const methodDescriptor_RbacService_DeleteSubjectShare = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/DeleteSubjectShare',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.DeleteSubjectShareRqst,
+  proto.rbac.DeleteSubjectShareRsp,
+  /**
+   * @param {!proto.rbac.DeleteSubjectShareRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.DeleteSubjectShareRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.DeleteSubjectShareRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.DeleteSubjectShareRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.DeleteSubjectShareRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.deleteSubjectShare =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/DeleteSubjectShare',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_DeleteSubjectShare,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.DeleteSubjectShareRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.DeleteSubjectShareRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.deleteSubjectShare =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/DeleteSubjectShare',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_DeleteSubjectShare);
+};
+
+
 module.exports = proto.rbac;
 
