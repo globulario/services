@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-	"fmt"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/golang/protobuf/jsonpb"
@@ -1638,6 +1637,7 @@ func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.Unsh
 }
 
 // Get the list of accessible shared ressource.
+// TODO if account also get share for groups and organization that the acount is part of...
 func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.SubjectType) ([]*rbacpb.Share, error) {
 
 	// So here I will get the share resource for a given subject.
@@ -1674,6 +1674,85 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 			err := jsonpb.UnmarshalString(string(data), share)
 			if err == nil {
 				share_ = append(share_, share)
+			}
+		}
+	}
+
+	// Here I will get the share for groups.
+	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		account, err := rbac_server.getAccount(subject)
+		if err != nil {
+			return nil, err
+		}
+
+		for i:=0; i < len(account.Groups); i++ {
+			share__, err := rbac_server.getSharedResource(account.Groups[i], rbacpb.SubjectType_GROUP)
+			if err == nil {
+				for j:=0; j < len(share__); j++ {
+					// test if the share already exist in the path
+					contain := false
+					for k:=0; k < len(share_); k++ {
+						if share__[j].Path == share_[k].Path {
+							contain = true
+							break
+						}
+					}
+					if !contain {
+						// append the list of values...
+						share_ = append(share_, share__[j])
+					}
+					
+				}
+			}
+		}
+
+		for i:=0; i < len(account.Organizations); i++ {
+			share__, err := rbac_server.getSharedResource(account.Organizations[i], rbacpb.SubjectType_ORGANIZATION)
+			if err == nil {
+				for j:=0; j < len(share__); j++ {
+					// test if the share already exist in the path
+					contain := false
+					for k:=0; k < len(share_); k++ {
+						if share__[j].Path == share_[k].Path {
+							contain = true
+							break
+						}
+					}
+					if !contain {
+						// append the list of values...
+						share_ = append(share_, share__[j])
+					}
+					
+				}
+			}
+		}
+	}
+
+	// Now for groups I will also take organizations shares...
+	if subjectType == rbacpb.SubjectType_GROUP {
+		group, err := rbac_server.getGroup(subject)
+		if err != nil {
+			return nil, err
+		}
+
+		for i:=0; i < len(group.Organizations); i++ {
+			share__, err := rbac_server.getSharedResource(group.Organizations[i], rbacpb.SubjectType_ORGANIZATION)
+			if err == nil {
+				for j:=0; j < len(share__); j++ {
+					// test if the share already exist in the path
+					contain := false
+					for k:=0; k < len(share_); k++ {
+						if share__[j].Path == share_[k].Path {
+							contain = true
+							break
+						}
+					}
+					if !contain {
+						// append the list of values...
+						share_ = append(share_, share__[j])
+					}
+					
+				}
 			}
 		}
 	}
