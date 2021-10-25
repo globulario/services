@@ -106,11 +106,21 @@ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 }
 
 /**
+ * Here I will keep the services configuration in a map so it will be read on time from 
+ * file and keep in memory for further access.
+ */
+
+ var(
+	 servicesConfigurations *sync.Map
+ )
+
+/**
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	services := make([]map[string]interface{}, 0)
+
 
 	if configs == nil {
 		// Create the sync map.

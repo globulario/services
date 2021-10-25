@@ -747,7 +747,7 @@ func main() {
 	reflection.Register(s_impl.grpcServer)
 
 	go func() {
-		s_impl.synchronize()
+		// s_impl.synchronize()
 	}()
 
 	// Start the service.
