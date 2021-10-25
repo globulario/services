@@ -105,7 +105,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 
 	}
 
-	err := resource_server.registerAccount(rqst.Account.Domain, rqst.Account.Name, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
+	err := resource_server.registerAccount(rqst.Account.Domain, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Password, rqst.Account.Organizations, rqst.Account.Roles, rqst.Account.Groups)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

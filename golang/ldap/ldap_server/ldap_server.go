@@ -9,11 +9,13 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -37,6 +39,9 @@ var (
 
 	// The default domain
 	domain string = "localhost"
+
+	// The ressource service to register account and create group...
+	resource_client_ *resource_client.Resource_Client
 )
 
 // Keep connection information here.
@@ -87,6 +92,10 @@ type server struct {
 
 	// The map of connection...
 	Connections map[string]connection
+
+	// The ldap synchronization info...
+	LdapSyncInfos map[string]interface{} // Contain LdapSyncInfos...
+
 }
 
 // Globular services implementation...
@@ -394,6 +403,75 @@ func (server *server) connect(id string, userId string, pwd string) (*LDAP.Conn,
 	return conn, nil
 }
 
+///////////////////// resource service functions ////////////////////////////////////
+func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+	var err error
+	if resource_client_ != nil {
+		return resource_client_, nil
+	}
+
+	resource_client_, err = resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	if err != nil {
+		return nil, err
+	}
+
+	return resource_client_, nil
+}
+
+// Create an empty group.
+func (svr *server) createGroup(id, name, description string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+	return resourceClient.CreateGroup(id, name, description)
+}
+
+// Register a new user.
+func (svr *server) registerAccount(domain, id, name, email, password string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+
+	return resourceClient.RegisterAccount(domain, id, name, email, password, password)
+}
+
+func (svr *server) addGroupMemberAccount(groupId string, accountId string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+	return resourceClient.AddGroupMemberAccount(groupId, accountId)
+}
+
+func (svr *server) getAccount(id string) (*resourcepb.Account, error) {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return resourceClient.GetAccount(id)
+}
+
+func (svr *server) getGroup(id string) (*resourcepb.Group, error) {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+	groups, err := resourceClient.GetGroups(`{"_id":"` + id + `"}`)
+	if len(groups) > 0 {
+		return groups[0],nil
+	}else if err != nil{
+		return nil, err
+	}
+	return nil, errors.New("no group found with id " + id)
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// LDAP specific functionality
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 // Authenticate a user with LDAP server.
 func (server *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateRqst) (*ldappb.AuthenticateRsp, error) {
 	id := rqst.Id
@@ -524,6 +602,106 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 	}, nil
 }
 
+// Synchronize the list user and group whith ressources...
+// Here is an exemple of ldap configuration...
+// "LdapSyncInfos": {
+//     "my__ldap": [
+//       {
+//         "ConnectionId": "my__ldap",
+//         "GroupSyncInfos": {
+//           "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//           "Id": "name",
+//           "Query": "((objectClass=group))"
+//         },
+//         "Refresh": 1,
+//         "UserSyncInfos": {
+//           "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//           "Email": "mail",
+//           "Id": "userPrincipalName",
+//           "Query": "(|(objectClass=person)(objectClass=user))"
+//         }
+//       }
+//     ]
+//  }
+func (server *server) synchronize() error {
+
+	for connectionId, syncInfo_ := range server.LdapSyncInfos {
+		syncInfo := syncInfo_.(map[string]interface{})
+		groupSyncInfos := syncInfo["GroupSyncInfos"].(map[string]interface{})
+		groupsInfo, err := server.search(connectionId, groupSyncInfos["Base"].(string), groupSyncInfos["Query"].(string), []string{groupSyncInfos["Id"].(string), "distinguishedName"})
+		if err != nil {
+			fmt.Println("fail to retreive group info", err)
+			return err
+		}
+
+		// Print group info.
+		for i := 0; i < len(groupsInfo); i++ {
+			name := groupsInfo[i][0].([]string)[0]
+			id := Utility.GenerateUUID(groupsInfo[i][1].([]string)[0])
+			_, err := server.getGroup(id)
+			if err != nil {
+				server.createGroup(id, name, "") // The group member will be set latter in that function.
+			}
+		}
+
+		// Synchronize account and user info...
+		userSyncInfos := syncInfo["UserSyncInfos"].(map[string]interface{})
+		accountsInfo, err := server.search(connectionId, userSyncInfos["Base"].(string), userSyncInfos["Query"].(string), []string{userSyncInfos["Id"].(string), userSyncInfos["Email"].(string), "distinguishedName", "memberOf"})
+		if err != nil {
+			fmt.Println("fail to retreive account info", err)
+			return err
+		}
+
+		for i := 0; i < len(accountsInfo); i++ {
+			// Print the list of account...
+			// I will not set the password...
+			name := strings.ToLower(accountsInfo[i][0].([]string)[0])
+			fmt.Println("---------> synchronize account ", name)
+
+			if len(accountsInfo[i][1].([]string)) > 0 {
+				email := strings.ToLower(accountsInfo[i][1].([]string)[0])
+
+				if len(email) > 0 {
+					// Generate the 
+					id := Utility.GenerateUUID(strings.ToLower(accountsInfo[i][2].([]string)[0]))
+
+					if len(id) > 0 {
+
+						// Try to create account...
+						a, err := server.getAccount(id)
+						log.Println("-----------> a ", a, err)
+						if err != nil {
+							server.registerAccount(server.Domain, id, name, email, id)
+							a, err = server.getAccount(id)
+							if err != nil {
+								fmt.Println("fail to register account ", id)
+							}
+						}
+
+						// Now I will update the groups user list...
+						if len(accountsInfo[i][3].([]string)) > 0 {
+							for j := 0; j < len(accountsInfo[i][3].([]string)); j++ {
+								groupId := Utility.GenerateUUID(accountsInfo[i][3].([]string)[j])
+								fmt.Println("-----------------------------------------------------> add account ", a.Name, " to member of ", groupId)
+								err := server.addGroupMemberAccount(groupId, a.Id)
+								if err != nil {
+									fmt.Println("fail to add account ", id, " to ", groupId)
+								}
+							}
+						}
+
+					}
+				} else {
+					return errors.New("account " + strings.ToLower(accountsInfo[i][2].([]string)[0]) + " has no email configured! ")
+				}
+			}
+		}
+	}
+
+	// No error...
+	return nil
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -567,6 +745,10 @@ func main() {
 	// Register the echo services
 	ldappb.RegisterLdapServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	go func() {
+		s_impl.synchronize()
+	}()
 
 	// Start the service.
 	s_impl.StartService()

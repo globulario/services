@@ -360,9 +360,10 @@ func (client *Resource_Client) IsOrganizationMemeber(user, organization string) 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a new Account.
-func (client *Resource_Client) RegisterAccount(domain, name, email, password, confirmation_password string) error {
+func (client *Resource_Client) RegisterAccount(domain, id, name, email, password, confirmation_password string) error {
 	rqst := &resourcepb.RegisterAccountRqst{
 		Account: &resourcepb.Account{
+			Id: id,
 			Name:     name,
 			Email:    email,
 			Password: password,
