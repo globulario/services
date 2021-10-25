@@ -199,6 +199,25 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 //* Update account password.
 // TODO make sure only user can
 func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, _, _, err = security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -218,13 +237,16 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	name := account["name"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
-	// Here I will validate the old password.
-	err = resource_server.validatePassword(rqst.OldPassword, account["password"].(string))
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	// In case the request dosent came from the sa...
+	if clientId != "sa" {
+		err = resource_server.validatePassword(rqst.OldPassword, account["password"].(string))
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
+
 	// Change the password...
 	changePasswordScript := fmt.Sprintf(
 		"db=db.getSiblingDB('admin');db.changeUserPassword('%s','%s');", name, rqst.NewPassword)
@@ -1449,7 +1471,6 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	// signal peers changes...
 	resource_server.publishUpdatePeersEvent()
 
@@ -1474,7 +1495,6 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	// signal peers changes...
 	resource_server.publishUpdatePeersEvent()
@@ -1507,7 +1527,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	values := make([]*resourcepb.Peer, 0)
 
 	for i := 0; i < len(peers); i++ {
-		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string),  LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))}
+		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))}
 		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
 		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
 			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))
@@ -1573,7 +1593,6 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	// signal peers changes...
 	resource_server.publishUpdatePeersEvent()
 
@@ -1625,7 +1644,6 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 			return err
 		}
 	}
-
 
 	// signal peers changes...
 	resource_server.publishUpdatePeersEvent()
@@ -1699,7 +1717,6 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 		}
 	}
 
-
 	// signal peers changes...
 	resource_server.publishUpdatePeersEvent()
 
@@ -1753,7 +1770,6 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 			}
 		}
 	}
-
 
 	// signal peers changes...
 	resource_server.publishUpdatePeersEvent()

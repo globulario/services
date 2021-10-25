@@ -302,7 +302,7 @@ func (server *server) setKey(mac string) error {
 
 /* Authenticate a user */
 func (server *server) authenticate(accountId, pwd string) (string, error) {
-	fmt.Println("server authenticate rqst ", time.Now().Unix())
+
 	key, err := security.GetLocalKey()
 	if err != nil {
 		return "", status.Errorf(
@@ -377,10 +377,20 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 		return "", err
 	}
 
-	// Now I will validate the password received with the one in the account
-	err = server.validatePassword(pwd, account.Password)
-	if err != nil {
-		return "", err
+	// Now if the LDAP service is configure I will try to authenticate with it...
+	if len(server.LdapConnectionId) != -1 {
+
+		err := server.authenticateLdap(accountId, pwd)
+		if err != nil {
+			return "", err
+		}
+		// Here I will keep the password
+	} else {
+		// Now I will validate the password received with the one in the account
+		err = server.validatePassword(pwd, account.Password)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// Now I will create the session and generate it token.

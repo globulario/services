@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
+	"github.com/globulario/services/golang/ldap/ldap_client"
 
 	//"google.golang.org/grpc/grpclog"
 	// "errors"
@@ -86,6 +87,8 @@ type server struct {
 	WatchSessionsDelay int // The time in second to refresh sessions...
 
 	SessionTimeout int // The time before session expire.
+
+	LdapConnectionId string // If define the authentication will be validate by LDAP...
 
 	exit_ chan bool
 
@@ -359,7 +362,35 @@ var (
 	event_client_    *event_client.Event_Client
 	log_client_      *log_client.Log_Client
 	rbac_client_     *rbac_client.Rbac_Client
+	ldap_client_ 	 *ldap_client.LDAP_Client
 )
+
+///////////////////////  LDAP Services functions ////////////////////////////////////////////////
+/**
+ * Get the rbac client.
+ */
+ func GetLdapClient(domain string) (*ldap_client.LDAP_Client, error) {
+	var err error
+	if ldap_client_ == nil {
+		ldap_client_, err = ldap_client.NewLdapService_Client(domain, "ldap.LdapService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return ldap_client_, nil
+}
+
+// Authenticate user with LDAP server.
+func (svr *server)  authenticateLdap(userId string, password string) error {
+	ldap_client_, err := GetLdapClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+
+	// Return autentication result.
+	return ldap_client_.Authenticate(svr.LdapConnectionId, userId, password)
+}
 
 ///////////////////////  RBAC Services functions ////////////////////////////////////////////////
 /**
@@ -521,6 +552,7 @@ func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword str
  * validate the user password.
  */
 func (server *server) validatePassword(password string, hashedPassword string) error {
+	
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
