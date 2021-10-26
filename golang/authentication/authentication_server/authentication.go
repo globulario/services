@@ -384,7 +384,9 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		// Here I will keep the password
+		// set back the password.
+		// the old password can be left blank if the token was generated for sa.
+		server.changeAccountPassword(accountId,``, pwd)
 	} else {
 		// Now I will validate the password received with the one in the account
 		err = server.validatePassword(pwd, account.Password)
