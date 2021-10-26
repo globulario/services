@@ -409,11 +409,11 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	}
 
 	// get the expire time.
-	user, _, email, _, expireAt, _ := security.ValidateToken(tokenString)
+	user, /*userName*/ _, email, _, expireAt, _ := security.ValidateToken(tokenString)
 	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 
 	// Create the user file directory.
-	path := "/users/" + user
+	path := "/users/" + user//userName
 	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 	server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
 
