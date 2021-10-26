@@ -631,6 +631,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.exit_ = make(chan bool)
+	s_impl.LdapConnectionId = ""
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

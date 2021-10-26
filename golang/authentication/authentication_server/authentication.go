@@ -378,7 +378,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	}
 
 	// Now if the LDAP service is configure I will try to authenticate with it...
-	if len(server.LdapConnectionId) != -1 {
+	if len(server.LdapConnectionId) != 0 {
 
 		err := server.authenticateLdap(accountId, pwd)
 		if err != nil {
