@@ -208,6 +208,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 			clientId, _, _, _, _, err = security.ValidateToken(token)
+
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -217,7 +218,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 			return nil, errors.New("no token was given")
 		}
 	}
-
+	
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -231,6 +232,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	account := values.(map[string]interface{})
 
 	// Now update the sa password in mongo db.
@@ -265,6 +267,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Hash the password...
 	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"_id":"`+rqst.AccountId+`"}`, `{ "$set":{"password":"`+string(pwd)+`"}}`, "")
 	if err != nil {
 		return nil, status.Errorf(

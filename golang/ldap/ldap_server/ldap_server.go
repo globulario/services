@@ -5,12 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
@@ -18,6 +12,12 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"log"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
 	//"google.golang.org/grpc/grpclog"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -445,6 +445,14 @@ func (svr *server) addGroupMemberAccount(groupId string, accountId string) error
 	return resourceClient.AddGroupMemberAccount(groupId, accountId)
 }
 
+func (svr *server) removeGroupMemberAccount(groupId string, accountId string) error {
+	resourceClient, err := svr.getResourceClient()
+	if err != nil {
+		return err
+	}
+	return resourceClient.RemoveGroupMemberAccount(groupId, accountId)
+}
+
 func (svr *server) getAccount(id string) (*resourcepb.Account, error) {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
@@ -461,8 +469,8 @@ func (svr *server) getGroup(id string) (*resourcepb.Group, error) {
 	}
 	groups, err := resourceClient.GetGroups(`{"_id":"` + id + `"}`)
 	if len(groups) > 0 {
-		return groups[0],nil
-	}else if err != nil{
+		return groups[0], nil
+	} else if err != nil {
 		return nil, err
 	}
 	return nil, errors.New("no group found with id " + id)
@@ -605,7 +613,7 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 // Synchronize the list user and group whith ressources...
 // Here is an exemple of ldap configuration...
 // "LdapSyncInfos": {
-//     "my__ldap": [
+//     "my__ldap":
 //       {
 //         "ConnectionId": "my__ldap",
 //         "GroupSyncInfos": {
@@ -621,7 +629,6 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 //           "Query": "(|(objectClass=person)(objectClass=user))"
 //         }
 //       }
-//     ]
 //  }
 func (server *server) synchronize() error {
 
@@ -656,39 +663,63 @@ func (server *server) synchronize() error {
 			// Print the list of account...
 			// I will not set the password...
 			name := strings.ToLower(accountsInfo[i][0].([]string)[0])
-			fmt.Println("---------> synchronize account ", name)
 
 			if len(accountsInfo[i][1].([]string)) > 0 {
 				email := strings.ToLower(accountsInfo[i][1].([]string)[0])
 
 				if len(email) > 0 {
-					// Generate the 
-					id := Utility.GenerateUUID(strings.ToLower(accountsInfo[i][2].([]string)[0]))
+					// Generate the
+					id := name //strings.ToLower(accountsInfo[i][2].([]string)[0])
+
+					if strings.Index(id, "@") > 0 {
+						id = strings.Split(id, "@")[0]
+					}
 
 					if len(id) > 0 {
 
 						// Try to create account...
 						a, err := server.getAccount(id)
-						log.Println("-----------> a ", a, err)
 						if err != nil {
-							server.registerAccount(server.Domain, id, name, email, id)
-							a, err = server.getAccount(id)
+							err := server.registerAccount(server.Domain, id, name, email, id)
 							if err != nil {
-								fmt.Println("fail to register account ", id)
+								fmt.Println("fail to register account ", id, err)
 							}
 						}
 
+						a, err = server.getAccount(id)
+
 						// Now I will update the groups user list...
-						if len(accountsInfo[i][3].([]string)) > 0 {
-							for j := 0; j < len(accountsInfo[i][3].([]string)); j++ {
-								groupId := Utility.GenerateUUID(accountsInfo[i][3].([]string)[j])
-								fmt.Println("-----------------------------------------------------> add account ", a.Name, " to member of ", groupId)
-								err := server.addGroupMemberAccount(groupId, a.Id)
-								if err != nil {
-									fmt.Println("fail to add account ", id, " to ", groupId)
+						if err == nil {
+						if len(accountsInfo[i][3].([]string)) > 0 && a != nil {
+							groups := accountsInfo[i][3].([]string)
+							// Append not existing group...
+							for j := 0; j < len(groups); j++ {
+								groupId := Utility.GenerateUUID(groups[j])
+								
+								if !Utility.Contains(a.Groups, groupId) {
+									// Now I will remo
+									err := server.addGroupMemberAccount(groupId, a.Id)
+									if err != nil {
+										fmt.Println("fail to add account ", a.Id, " to ", groupId, err)
+									}
 								}
+
+							}
+
+							// Remove group that no more part of the ldap group.
+							for j := 0; j < len(a.Groups); j++ {
+								groupId := a.Groups[j]
+								if !Utility.Contains(groups, groupId) {
+									// Now I will remo
+									err := server.removeGroupMemberAccount(groupId, a.Id)
+									if err != nil {
+										fmt.Println("fail to remove account ",  a.Id, " from group ", groupId, " with error ", err)
+									}
+								}
+
 							}
 						}
+					}
 
 					}
 				} else {
@@ -747,7 +778,7 @@ func main() {
 	reflection.Register(s_impl.grpcServer)
 
 	go func() {
-		// s_impl.synchronize()
+		//s_impl.synchronize()
 	}()
 
 	// Start the service.
