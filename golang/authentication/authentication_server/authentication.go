@@ -303,7 +303,6 @@ func (server *server) setKey(mac string) error {
 /* Authenticate a user */
 func (server *server) authenticate(accountId, pwd string) (string, error) {
 
-
 	key, err := security.GetLocalKey()
 	if err != nil {
 		return "", status.Errorf(
@@ -375,25 +374,27 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	// Here I will get the account info.
 	account, err := server.getAccount(accountId)
 	if err != nil {
+		fmt.Println("-----------> ", 377, err)
 		return "", err
 	}
 
-	// Now if the LDAP service is configure I will try to authenticate with it...
-	if len(server.LdapConnectionId) != 0 {
-		err := server.authenticateLdap(account.Name, pwd)
-		if err != nil {
-			return "", err
-		}
-		// set back the password.
-		// the old password can be left blank if the token was generated for sa.
-		err = server.changeAccountPassword(account.Id,``, pwd)
-		if err != nil {
-			fmt.Println("fail to change password: ", account.Id, err)
-		}
-	} else {
-		// Now I will validate the password received with the one in the account
-		err = server.validatePassword(pwd, account.Password)
-		if err != nil {
+	fmt.Println("-----------> ", 380)
+	err = server.validatePassword(pwd, account.Password)
+	if err != nil {
+		// Now if the LDAP service is configure I will try to authenticate with it...
+		if len(server.LdapConnectionId) != 0 {
+			err := server.authenticateLdap(account.Name, pwd)
+			if err != nil {
+				return "", err
+			}
+			// set back the password.
+			// the old password can be left blank if the token was generated for sa.
+			err = server.changeAccountPassword(account.Id, ``, pwd)
+			if err != nil {
+				fmt.Println("fail to change password: ", account.Id, err)
+				return "", err
+			}
+		}else{
 			return "", err
 		}
 	}
@@ -409,25 +410,24 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	}
 
 	// get the expire time.
-	user, /*userName*/ _, email, _, expireAt, _ := security.ValidateToken(tokenString)
-	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+user+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
+	user, userName, email, _, expireAt, _ := security.ValidateToken(tokenString)
+	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+userName+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 
 	// Create the user file directory.
-	path := "/users/" + user//userName
+	path := "/users/" + user
 	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 	server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = expireAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
-	fmt.Println("server authenticate response ", time.Now().Unix())
+
 	err = server.updateSession(session)
 	if err != nil {
 		return "", err
 	}
 
-	fmt.Println("server authenticate response ", time.Now().Unix())
-	return tokenString, nil
+	return tokenString, err
 }
 
 //* Authenticate a user *

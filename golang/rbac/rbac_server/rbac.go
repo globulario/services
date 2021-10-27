@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/golang/protobuf/jsonpb"
@@ -928,12 +930,13 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	fmt.Println("-----------------------> Validate path: ", subject, path, name)
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
 
 	// .hidden files can be read by all...
-	if strings.Contains(path, ".hidden/") {
+	if strings.Contains(path, "/.hidden/") {
 		 return true, false, nil
 	}
 
