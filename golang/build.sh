@@ -24,3 +24,4 @@ go build -o ./sql/sql_server ./sql/sql_server
 go build -o ./storage/storage_server ./storage/storage_server
 
 
+

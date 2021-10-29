@@ -121,7 +121,7 @@ func validateAction(token, application, domain, organization, method, subject st
 		fmt.Println("remove expired cache item")
 		cache.Delete(uuid)
 	}
-
+	fmt.Println("124 --------------------------> ", domain)
 	rbac_client_, err := GetRbacClient(domain)
 	if err != nil {
 		return false, err
@@ -196,13 +196,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		token = strings.Join(md["token"], "")
 
 		// in case of resource path.
-		domain = strings.Join(md["domain"], "")
-		if strings.Index(domain, ":") == 0 {
-			port := strings.Join(md["port"], "")
-			if len(port) > 0 {
-				// set the address in that particular case.
-				domain += ":" + port
-			}
+		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
+		if strings.HasSuffix(domain, ":"){
+			domain += "80"
 		}
 	}
 
@@ -358,14 +354,16 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
 		return nil
 	}
-
+	
 	// Test if peer has access
 	if !hasAccess && len(l.clientId) > 0 {
 		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.clientId, rbacpb.SubjectType_ACCOUNT, l.domain)
 	}
 
 	if !hasAccess && len(l.application) > 0 {
+
 		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.application, rbacpb.SubjectType_APPLICATION, l.domain)
+
 	}
 
 	if !hasAccess && len(l.peer) > 0 {
@@ -377,6 +375,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		return err
 	}
 
+	// I will store the access.
 	cache.Store(l.uuid, []byte{})
 
 	// set empty item to set haAccess.
@@ -394,16 +393,14 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	var domain string
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-		domain = strings.Join(md["domain"], "")
 
-		if strings.Index(domain, ":") == 0 {
-			port := strings.Join(md["port"], "")
-			if len(port) > 0 {
-				// set the address in that particular case.
-				domain += ":" + port
-			}
+		// in case of resource path.
+		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
+		if strings.HasSuffix(domain, ":"){
+			domain += "80"
 		}
 	}
 
