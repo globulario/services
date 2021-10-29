@@ -106,29 +106,13 @@ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 }
 
 /**
- * Here I will keep the services configuration in a map so it will be read on time from 
- * file and keep in memory for further access.
- */
-
- var(
-	 servicesConfigurations *sync.Map
- )
-
-/**
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
-
-	services := make([]map[string]interface{}, 0)
-
-
+	var services []map[string]interface{}
 	if configs == nil {
-		// Create the sync map.
-		configs = new(sync.Map)
-
 		// I will get the services configuations from the config.json files.
 		serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
-
 		if len(serviceDir) == 0 {
 			serviceDir = GetServicesDir()
 		}
@@ -138,11 +122,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		// I will try to get configuration from services.
 		filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {
 			path = strings.ReplaceAll(path, "\\", "/")
-			if info == nil {
-				return nil
-			}
-
-			if err == nil && info.Name() == "config.json" {
+			if info != nil && err == nil && info.Name() == "config.json" && !strings.Contains(path, ".git") {
 				// So here I will read the content of the file.
 				s := make(map[string]interface{})
 				config, err := ioutil.ReadFile(path)
@@ -179,6 +159,14 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 									} else {
 										s["Root"] = GetDataDir()
 									}
+								}
+
+								// Create the sync map.
+								if configs == nil {
+									configs = new(sync.Map)
+								}
+								if services == nil {
+									services = make([]map[string]interface{}, 0)
 								}
 
 								// keep in the sync map.
@@ -222,6 +210,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			}
 		}
 	} else {
+		services = make([]map[string]interface{}, 0)
 		// I will get the services from the sync map.
 		configs.Range(func(key, value interface{}) bool {
 			// Here I will create a detach copy of the map...
@@ -233,9 +222,13 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		})
 
 	}
+	
+	if len(services) == 0 {
+		log.Panicln("fail!")
+	}
+
 	// return the services configuration.
 	return services, nil
-
 }
 
 /**
