@@ -255,6 +255,7 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 	}
 
 	err = rbac_server.shareResource(share)
+
 	if err != nil {
 		return err
 	}
@@ -930,7 +931,7 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	fmt.Println("-----------------------> Validate path: ", subject, path, name)
+	fmt.Println("-------------------------->validateAccess ", path, subject)
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
@@ -943,17 +944,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	// first I will test if permissions is define
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
-		// In that case I will try to get parent ressource permission.
-		if len(strings.Split(path, "/")) > 1 {
-			// test for it parent.
-			return rbac_server.validateAccess(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
-		}
-
-		if strings.Contains(err.Error(), "leveldb: not found") {
-			return true, false, err
-		}
-
-		// if no permission are define for a ressource anyone can access it.
 		return false, false, err
 	}
 
@@ -1003,6 +993,23 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	// If the user is the owner no other validation are required.
 	if isOwner {
 		return true, false, nil
+	}
+
+	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0 {
+
+		// In that case I will try to get parent ressource permission.
+		if len(strings.Split(path, "/")) > 1 {
+			parentPath := path[0:strings.LastIndex(path, "/")]
+			// test for it parent.
+			return rbac_server.validateAccess(subject, subjectType, name, parentPath)
+		}
+
+		if strings.Contains(err.Error(), "leveldb: not found") {
+			return true, false, err
+		}
+
+		// if no permission are define for a ressource anyone can access it.
+		return true, false, err
 	}
 
 	// First I will validate that the permission is not denied...
