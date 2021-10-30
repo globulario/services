@@ -447,8 +447,7 @@ func SaveService(path string, s Service) error {
 	event_client_, _ := getEventClient(s.GetDomain())
 	if err == nil {
 		// Here I will publish the start service event
-		fmt.Println("----------->update_globular_service_configuration_evt save service ", s.GetName())
-		event_client_.Publish("update_globular_service_configuration_evt", s)
+		event_client_.Publish("update_globular_service_configuration_evt", []byte(str))
 	}
 
 	return err

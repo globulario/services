@@ -40,23 +40,12 @@ func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, string, e
 		key += "/warning"
 	}
 
-	// Set the application in the path
-	if len(info.Application) > 0 {
-		key += "/" + info.Application
-	}
-
-	// Set the User Name if available.
-	if len(info.UserName) > 0 {
-		key += "/" + info.UserName
-	}
-
 	if len(info.Method) > 0 {
 		key += "/" + info.Method
 	}
 
-	key += "/" + Utility.ToString(info.Date)
-
-	key += "/" + Utility.GenerateUUID(jsonStr)
+	//key += "/" + Utility.ToString(info.Date)
+	// key += "/" + Utility.GenerateUUID(jsonStr)
 
 	return key, jsonStr, nil
 }

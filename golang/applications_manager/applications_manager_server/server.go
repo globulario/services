@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_manager_client"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
@@ -15,6 +16,7 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
@@ -35,6 +37,8 @@ var (
 	allowed_origins string = ""
 
 	domain string = "localhost"
+
+	rbac_client_  *rbac_client.Rbac_Client
 )
 
 // Value need by Globular to start the services...
@@ -519,6 +523,27 @@ func (svr *server) publish(event string, data []byte) error {
 	return eventClient.Publish(event, data)
 }
 
+
+func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return rbac_client_, nil
+}
+
+func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	rbac_client_, err := server.GetRbacClient()
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetActionResourcesPermissions(permissions)
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -563,6 +588,12 @@ func main() {
 	// Register the echo services
 	applications_managerpb.RegisterApplicationManagerServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// The user must part of owner in order to be able to deploy an application...
+	s_impl.Permissions = append(s_impl.Permissions, map[string]interface{}{"action": "/applications_manager.ApplicationManagerService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}})
+
+	// Set the permissions
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))
 
 	// Start the service.
 	s_impl.StartService()
