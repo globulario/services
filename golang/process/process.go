@@ -206,12 +206,12 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 }
 
 // Start a service process.
-func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string, processPid int) error {
+func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
 
 	s, err := config.GetServicesConfigurationsById(serviceId)
 	if err != nil {
 		fmt.Println("error at line 232 ", err)
-		return err
+		return -1, err
 	}
 
 	servicePort := Utility.ToInt(s["Port"])
@@ -230,7 +230,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	if !Utility.Exists(proxyPath) {
 		fmt.Println("No grpcwebproxy found with pat" + proxyPath)
-		return errors.New("No grpcwebproxy found with pat" + proxyPath)
+		return -1, errors.New("No grpcwebproxy found with pat" + proxyPath)
 	}
 
 	proxyBackendAddress := s["Domain"].(string) + ":" + strconv.Itoa(servicePort)
@@ -247,7 +247,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
 		fmt.Println("fail to start proxy with error, ", err)
-		return err
+		return -1,  err
 	}
 
 	s["Proxy"] = port
@@ -294,7 +294,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	err = proxyProcess.Start()
 	if err != nil {
 		fmt.Println("fail to start proxy with error, ", err)
-		return err
+		return -1, err
 	}
 
 	// save service configuration.
@@ -319,7 +319,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	}()
 
 	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], "and name:", s["Name"])
-	return config.SaveServiceConfiguration(s)
+	return  proxyProcess.Process.Pid, config.SaveServiceConfiguration(s)
 }
 
 // check if the process is actually running
