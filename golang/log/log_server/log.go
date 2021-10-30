@@ -128,7 +128,10 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 	infos := make([]*logpb.LogInfo, 0)
 	i := 0
 	max := 100
-	for jsonDecoder.More() {
+	// TODO Add a maximum number to keep in the db...
+	total := 0
+
+	for jsonDecoder.More()  && total < 1000{
 		info := logpb.LogInfo{}
 		err := jsonpb.UnmarshalNext(jsonDecoder, &info)
 		if err != nil {
@@ -154,6 +157,7 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 			i = 0
 		}
 		i++
+		total += max
 	}
 
 	// Send the last infos...
