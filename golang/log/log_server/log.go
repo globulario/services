@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -45,7 +45,7 @@ func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, string, e
 	}
 
 	//key += "/" + Utility.ToString(info.Date)
-	// key += "/" + Utility.GenerateUUID(jsonStr)
+	//key += "/" + Utility.GenerateUUID(jsonStr)
 
 	return key, jsonStr, nil
 }
@@ -120,7 +120,7 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 	// TODO Add a maximum number to keep in the db...
 	total := 0
 
-	for jsonDecoder.More()  && total < 1000{
+	for jsonDecoder.More() && total < 1000 {
 		info := logpb.LogInfo{}
 		err := jsonpb.UnmarshalNext(jsonDecoder, &info)
 		if err != nil {

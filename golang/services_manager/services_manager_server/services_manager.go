@@ -57,7 +57,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 		if err == nil {
 
-			previous, _ := config.GetServicesConfigurationsById(descriptor.Id)
+			previous, _ := config.GetServiceConfigurationById(descriptor.Id)
 			if previous != nil {
 				// Uninstall the previous version...
 				server.uninstallService(descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
@@ -204,7 +204,7 @@ func (server *server) stopServiceInstance(serviceId string) error {
 	if serviceId == server.GetId() {
 		return errors.New("The service manager could not stop itself!")
 	}
-	s, err := config.GetServicesConfigurationsById(serviceId)
+	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (server *server) stopServiceInstance(serviceId string) error {
 
 		for i := 0; i < len(services); i++ {
 			serviceId := services[i]["Id"].(string)
-			s, err := config.GetServicesConfigurationsById(serviceId)
+			s, err := config.GetServiceConfigurationById(serviceId)
 			if err != nil {
 				return err
 			}
@@ -276,7 +276,7 @@ func (server *server) startServiceInstance(serviceId string) error {
 		return err
 	}
 
-	s, err := config.GetServicesConfigurationsById(serviceId)
+	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return err
 	}

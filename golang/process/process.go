@@ -102,7 +102,7 @@ func setServiceConfigurationError(err error, s map[string]interface{}){
 // Start a service process.
 func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
-	s, err := config.GetServicesConfigurationsById(serviceId)
+	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return -1, err
 	}
@@ -171,7 +171,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		// wait the process to finish
 		err = p.Wait()
 
-		s, _ := config.GetServicesConfigurationsById(serviceId)
+		s, _ := config.GetServiceConfigurationById(serviceId)
 
 		if err != nil {
 			setServiceConfigurationError(err, s)			
@@ -208,7 +208,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 // Start a service process.
 func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
 
-	s, err := config.GetServicesConfigurationsById(serviceId)
+	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		fmt.Println("error at line 232 ", err)
 		return -1, err

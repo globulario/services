@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -20,7 +19,7 @@ import (
 
 // I will keep the service configuation in a sync map.
 var (
-	// test with a sync map
+	// Use a sync map to limit excessive file reading.
 	configs *sync.Map
 )
 
@@ -105,11 +104,45 @@ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 	return -1
 }
 
+func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
+	services, err := GetServicesConfigurations()
+	if err != nil {
+		return nil, err
+	}
+
+	// Now I will order the services in a way required service will start first...
+	servicesNames := make([]string, len(services))
+	for i := 0; i < len(services); i++ {
+		servicesNames[i] = services[i]["Name"].(string)
+	}
+
+	// Now I will move the services below all it dependencie in the array...
+	for i := 0; i < len(servicesNames); i++ {
+		index := getObjectIndex(servicesNames[i], "Name", services)
+		if services[index]["Dependencies"] != nil {
+			dependencies := services[index]["Dependencies"].([]interface{})
+
+			for j := 0; j < len(dependencies); j++ {
+				index_ := getObjectIndex(dependencies[j].(string), "Name", services)
+				if index_ != -1 {
+					if index < index_ {
+						// move the services in the array...
+						services = moveObject(services, index_, index)
+					}
+				}
+			}
+		}
+	}
+
+	return services, nil
+}
+
 /**
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
-	var services []map[string]interface{}
+
+	services := make([]map[string]interface{}, 0)
 	if configs == nil {
 		// I will get the services configuations from the config.json files.
 		serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
@@ -119,12 +152,16 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 
+		files, err := Utility.FindFileByName(serviceDir, "config.json")
+		log.Println("-----------------------> Number of service found: ", len(files) )
+		if err != nil{
+			return nil,  err
+		}
+
 		// I will try to get configuration from services.
-		filepath.Walk(serviceDir, func(path string, info os.FileInfo, err error) error {
-			path = strings.ReplaceAll(path, "\\", "/")
-			if info != nil && err == nil && info.Name() == "config.json" && !strings.Contains(path, ".git") {
-				// So here I will read the content of the file.
-				s := make(map[string]interface{})
+		for i:=0; i < len(files); i++ {
+			s := make(map[string]interface{})
+				path := files[i]
 				config, err := ioutil.ReadFile(path)
 				if err == nil {
 					// Read the config file.
@@ -165,10 +202,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 								if configs == nil {
 									configs = new(sync.Map)
 								}
-								if services == nil {
-									services = make([]map[string]interface{}, 0)
-								}
-
 								// keep in the sync map.
 								configs.Store(s["Id"].(string), s)
 
@@ -182,35 +215,8 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 				} else {
 					log.Println("Fail to read config file path:", path, err)
 				}
-			}
-			return nil
-		})
-
-		// Now I will order the services in a way required service will start first...
-		servicesNames := make([]string, len(services))
-		for i := 0; i < len(services); i++ {
-			servicesNames[i] = services[i]["Name"].(string)
-		}
-
-		// Now I will move the services below all it dependencie in the array...
-		for i := 0; i < len(servicesNames); i++ {
-			index := getObjectIndex(servicesNames[i], "Name", services)
-			if services[index]["Dependencies"] != nil {
-				dependencies := services[index]["Dependencies"].([]interface{})
-
-				for j := 0; j < len(dependencies); j++ {
-					index_ := getObjectIndex(dependencies[j].(string), "Name", services)
-					if index_ != -1 {
-						if index < index_ {
-							// move the services in the array...
-							services = moveObject(services, index_, index)
-						}
-					}
-				}
-			}
 		}
 	} else {
-		services = make([]map[string]interface{}, 0)
 		// I will get the services from the sync map.
 		configs.Range(func(key, value interface{}) bool {
 			// Here I will create a detach copy of the map...
@@ -220,11 +226,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			services = append(services, s)
 			return true
 		})
-
-	}
-	
-	if len(services) == 0 {
-		log.Panicln("fail!")
 	}
 
 	// return the services configuration.
@@ -254,7 +255,7 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
 /**
  * Return a service with a given configuration id.
  */
-func GetServicesConfigurationsById(id string) (map[string]interface{}, error) {
+func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 	// if no configuration found.
 	services, err := GetServicesConfigurations()
 	if err != nil {
