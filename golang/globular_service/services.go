@@ -259,14 +259,12 @@ func CreateServicePackage(s Service, distPath string, platform string) (string, 
 	if err != nil {
 		panic(err)
 	}
-	
+
 	defer fileToWrite.Close()
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
 		panic(err)
 	}
-
-
 
 	// Remove the dir when the archive is created.
 	err = os.RemoveAll(path)
@@ -442,6 +440,16 @@ func SaveService(path string, s Service) error {
 	}
 
 	err = ioutil.WriteFile(path, []byte(str), 0644)
+	if err != nil {
+		return err
+	}
+
+	event_client_, _ := getEventClient(s.GetDomain())
+	if err == nil {
+		// Here I will publish the start service event
+		fmt.Println("----------->update_globular_service_configuration_evt save service ", s.GetName())
+		event_client_.Publish("update_globular_service_configuration_evt", s)
+	}
 
 	return err
 }
@@ -462,14 +470,6 @@ func StartService(s Service, server *grpc.Server) error {
 
 		// no web-rpc server.
 		fmt.Println("service name: " + s.GetName() + " id:" + s.GetId() + " started")
-/*
-		event_client_, _ := getEventClient(s.GetDomain())
-		if err == nil {
-			// Here I will publish the start service event
-			event_client_.Publish("start_service_evt", s)
-
-		}
-*/
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
 			return
@@ -487,9 +487,6 @@ func StartService(s Service, server *grpc.Server) error {
 }
 
 func StopService(s Service, server *grpc.Server) error {
-
-	// Here I will publish the start service event
-	event_client_.Publish("stop_service_evt", s)
 
 	// Stop the service.
 	server.Stop()

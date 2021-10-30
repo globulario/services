@@ -121,7 +121,7 @@ func validateAction(token, application, domain, organization, method, subject st
 		fmt.Println("remove expired cache item")
 		cache.Delete(uuid)
 	}
-	fmt.Println("124 --------------------------> ", domain)
+	
 	rbac_client_, err := GetRbacClient(domain)
 	if err != nil {
 		return false, err

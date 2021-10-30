@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	//"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -931,7 +931,7 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	fmt.Println("-------------------------->validateAccess ", path, subject)
+	
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
