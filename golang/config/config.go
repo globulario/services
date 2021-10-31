@@ -153,7 +153,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 
 		files, err := Utility.FindFileByName(serviceDir, "config.json")
-		log.Println("-----------------------> Number of service found: ", len(files) )
 		if err != nil{
 			return nil,  err
 		}

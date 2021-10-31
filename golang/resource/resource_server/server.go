@@ -928,6 +928,10 @@ func main() {
 	"/rbac.RbacService/SetActionResourcesPermissions",
 	"/rbac.RbacService/SetResourcePermission",
 	"/rbac.RbacService/SetResourcePermissions",
+	"/resource.ResourceService/GetGroups",
+	"/resource.ResourceService/GetOrganizations",
+	"/resource.ResourceService/GetRoles",
+	"/resource.ResourceService/GetPeers",
 	"/resource.ResourceService/GetAccounts"})
 
 	// Start the service.

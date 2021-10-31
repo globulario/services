@@ -22,7 +22,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/reflect/protoreflect"
-
 )
 
 var (
@@ -35,7 +34,7 @@ var (
 
 	// That will contain the permission in memory to limit the number
 	// of resource request...
-	cache  sync.Map
+	cache sync.Map
 
 	// keep map in memory.
 	ressourceInfos sync.Map
@@ -67,7 +66,6 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	}
 	return rbac_client_, nil
 }
-
 
 /**
  * Keep method info in memory.
@@ -110,18 +108,18 @@ func validateAction(token, application, domain, organization, method, subject st
 
 	if ok {
 		// Here I will test if the permission has expired...
-		hasAccess_ :=item.(map[string]interface{})
+		hasAccess_ := item.(map[string]interface{})
 		expiredAt := time.Unix(hasAccess_["expiredAt"].(int64), 0)
 		hasAccess__ := hasAccess_["hasAccess"].(bool)
 		if time.Now().Before(expiredAt) && hasAccess__ {
-			fmt.Println("permission found for method",method, subject)
+			fmt.Println("permission found for method", method, subject)
 			return true, nil
 		}
 		// the token is expire...
 		fmt.Println("remove expired cache item")
 		cache.Delete(uuid)
 	}
-	
+
 	rbac_client_, err := GetRbacClient(domain)
 	if err != nil {
 		return false, err
@@ -197,11 +195,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 		// in case of resource path.
 		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
-		if strings.HasSuffix(domain, ":"){
+		if strings.HasSuffix(domain, ":") {
 			domain += "80"
 		}
 	}
-
 
 	// Here I will test if the
 	method := info.FullMethod
@@ -251,7 +248,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = security.ValidateToken(token)
 		if err != nil && !hasAccess {
-			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method " + method + " with error " + err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
 		if clientId == "sa" {
@@ -341,6 +338,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/resource.ResourceService/GetPeers" ||
 		l.method == "/resource.ResourceService/GetRoles" ||
 		l.method == "/resource.ResourceService/GetGroups" ||
+		l.method == "/resource.ResourceService/GetOrganizations" ||
 		l.method == "/resource.ResourceService/GetNotifications"
 
 	if hasAccess {
@@ -354,7 +352,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
 		return nil
 	}
-	
+
 	// Test if peer has access
 	if !hasAccess && len(l.clientId) > 0 {
 		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.clientId, rbacpb.SubjectType_ACCOUNT, l.domain)
@@ -399,7 +397,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 		// in case of resource path.
 		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
-		if strings.HasSuffix(domain, ":"){
+		if strings.HasSuffix(domain, ":") {
 			domain += "80"
 		}
 	}

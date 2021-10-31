@@ -59,7 +59,7 @@ func GenerateToken(jwtKey []byte, timeout int, issuer, userId, userName, email s
 			// In JWT, the expiry time is expressed as unix milliseconds
 			Id:        userId,
 			ExpiresAt: expirationTime.Unix(),
-			Subject:   userName,
+			Subject:   userId,
 			Issuer:    issuer,
 			IssuedAt:  now.Unix() - 1000, // make sure the IssuedAt is not in the futur...
 		},
