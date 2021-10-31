@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -17,12 +18,7 @@ import (
 // Api
 ////////////////////////////////////////////////////////////////////////////////
 
-func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, string, error) {
-	marshaler := new(jsonpb.Marshaler)
-	jsonStr, err := marshaler.MarshalToString(info)
-	if err != nil {
-		return "", "", err
-	}
+func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, error) {
 
 	key := ""
 
@@ -44,27 +40,52 @@ func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, string, e
 		key += "/" + info.Method
 	}
 
-	//key += "/" + Utility.ToString(info.Date)
-	//key += "/" + Utility.GenerateUUID(jsonStr)
+	key += "/" + Utility.GenerateUUID(info.Message)
 
-	return key, jsonStr, nil
+	// I will try to retreive previous item...
+	return key, nil
 }
 
-func (server *server) log(info *logpb.LogInfo) error {
+func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error {
 
 	// The userId can be a single string or a JWT token.
-	if len(info.UserId) > 0 {
-		id, name, _, _, _, err := security.ValidateToken(info.UserId)
+	fmt.Println("----------> occurence ", occurence)
+
+	if len(occurence.UserId) > 0 {
+		id, name, _, _, _, err := security.ValidateToken(occurence.UserId)
 		if err == nil {
-			info.UserId = id
+			occurence.UserId = id
 		}
 
-		info.UserId = id
-		info.UserName = name // keep only the user name
+		occurence.UserId = id
+		occurence.UserName = name // keep only the user name
 	}
 
 	// Return the log information.
-	key, jsonStr, err := server.getLogInfoKeyValue(info)
+	key, err := server.getLogInfoKeyValue(info)
+	if err != nil {
+		return err
+	}
+
+	// Here I will get the previous info and append it new offucrence before saved it...
+	previousInstance := new(logpb.LogInfo)
+	data, err := server.logs.GetItem(key)
+	if err == nil {
+		err = jsonpb.UnmarshalString(string(data), previousInstance)
+		if err == nil {
+			if previousInstance.Occurences == nil {
+				previousInstance.Occurences = make([]*logpb.Occurence, 0)
+			}
+			previousInstance.Occurences = append(previousInstance.Occurences, occurence)
+		}
+		info.Occurences = previousInstance.Occurences
+	} else {
+		info.Occurences = make([]*logpb.Occurence, 0)
+		info.Occurences = append(info.Occurences, occurence)
+	}
+
+	marshaler := new(jsonpb.Marshaler)
+	jsonStr, err := marshaler.MarshalToString(info)
 	if err != nil {
 		return err
 	}
@@ -81,8 +102,8 @@ func (server *server) log(info *logpb.LogInfo) error {
 // Log error or information into the data base *
 func (server *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
 	// Publish event...
-	server.log(rqst.Info)
-
+	fmt.Println("log occurence ", rqst.Occurence)
+	server.log(rqst.Info, rqst.Occurence)
 	return &logpb.LogRsp{
 		Result: true,
 	}, nil
@@ -96,14 +117,12 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 	if len(query) == 0 {
 		query = "/*"
 	}
-
 	data, err := server.logs.GetItem(query)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 	jsonDecoder := json.NewDecoder(strings.NewReader(string(data)))
 
 	// read open bracket
@@ -117,10 +136,8 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 	infos := make([]*logpb.LogInfo, 0)
 	i := 0
 	max := 100
-	// TODO Add a maximum number to keep in the db...
-	total := 0
 
-	for jsonDecoder.More() && total < 1000 {
+	for jsonDecoder.More() {
 		info := logpb.LogInfo{}
 		err := jsonpb.UnmarshalNext(jsonDecoder, &info)
 		if err != nil {
@@ -146,7 +163,6 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 			i = 0
 		}
 		i++
-		total += max
 	}
 
 	// Send the last infos...
@@ -161,7 +177,6 @@ func (server *server) GetLog(rqst *logpb.GetLogRqst, stream logpb.LogService_Get
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
-
 	return nil
 }
 
@@ -188,7 +203,7 @@ func (server *server) deleteLog(query string) error {
 			return err
 		}
 
-		key, _, err := server.getLogInfoKeyValue(&info)
+		key, err := server.getLogInfoKeyValue(&info)
 		if err != nil {
 			return err
 		}
@@ -202,7 +217,7 @@ func (server *server) deleteLog(query string) error {
 //* Delete a log info *
 func (server *server) DeleteLog(ctx context.Context, rqst *logpb.DeleteLogRqst) (*logpb.DeleteLogRsp, error) {
 
-	key, _, _ := server.getLogInfoKeyValue(rqst.Log)
+	key, _ := server.getLogInfoKeyValue(rqst.Log)
 	err := server.logs.RemoveItem(key)
 	if err != nil {
 		return nil, status.Errorf(
