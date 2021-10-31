@@ -950,6 +950,8 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 	if strings.HasPrefix(info.Mime, "image/") {
 		if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 			info.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+		}else{
+			info.Thumbnail = createThumbnail(path, f_, 80, 80)
 		}
 	}
 
