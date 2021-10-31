@@ -424,12 +424,24 @@ func SaveService(path string, s Service) error {
 			config["Process"] = config_["Process"]
 		}
 
+		if config_["ProxyProcess"] != nil {
+			config["ProxyProcess"] = config_["ProxyProcess"]
+		}
+
 		if config_["LastError"] != nil {
 			config["LastError"] = config_["LastError"]
 		}
 
 		if config_["ConfigPath"] != nil {
 			config["ConfigPath"] = path
+		}
+
+		if config_["Port"] != nil {
+			config["Port"] = config_["Port"]
+		}
+
+		if config_["Proxy"] != nil {
+			config["Proxy"] = config_["Proxy"]
 		}
 	}
 

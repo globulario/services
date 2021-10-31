@@ -237,7 +237,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/rbac.RbacService/GetResourcePermission" ||
 		strings.HasPrefix(method, "/log.LogService/") ||
 		strings.HasPrefix(method, "/authentication.AuthenticationService/") ||
-		strings.HasPrefix(method, "/event.EventService/") {
+		strings.HasPrefix(method, "/event.EventService/") ||
+		strings.HasPrefix(method, "/monitoring.MonitoringService"){
 		hasAccess = true
 	}
 
@@ -339,7 +340,9 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/resource.ResourceService/GetRoles" ||
 		l.method == "/resource.ResourceService/GetGroups" ||
 		l.method == "/resource.ResourceService/GetOrganizations" ||
-		l.method == "/resource.ResourceService/GetNotifications"
+		l.method == "/resource.ResourceService/GetNotifications" ||
+		strings.HasPrefix(l.method, "/monitoring.MonitoringService") ||
+		strings.HasPrefix(l.method, "/log.LogService/")
 
 	if hasAccess {
 		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)

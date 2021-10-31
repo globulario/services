@@ -4,18 +4,23 @@ import (
 	//"encoding/json"
 	"errors"
 	"fmt"
-	//"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
+	"io/ioutil"
 	"syscall"
-
+	"log"
+	"time"
+	"github.com/struCoder/pidusage"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 /**
@@ -67,6 +72,10 @@ func KillServiceProcess(s map[string]interface{}) error {
 
 var (
 	log_client_ *log_client.Log_Client
+
+	// Monitor the cpu usage of process.
+	servicesCpuUsage    *prometheus.GaugeVec
+	servicesMemoryUsage *prometheus.GaugeVec
 )
 
 /**
@@ -346,4 +355,190 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 
 	// default
 	return nil, errors.New("process running but query operation not permitted")
+}
+
+
+///////////////////////////// Monitoring //////////////////////////////////////////////////
+
+/**
+ * Start prometheus.
+ */
+ func StartProcessMonitoring(httpPort int, exit chan bool) error {
+	// Promometheus metrics for services.
+	http.Handle("/metrics", promhttp.Handler())
+
+	var err error
+
+	// Here I will start promethus.
+	dataPath := config.GetDataDir() + "/prometheus-data"
+	Utility.CreateDirIfNotExist(dataPath)
+	if !Utility.Exists(config.GetConfigDir() + "/prometheus.yml") {
+		config_ := `# my global config
+global:
+  scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      # - alertmanager:9093
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  - job_name: 'prometheus'
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+    static_configs:
+    - targets: ['localhost:9090']
+  
+  - job_name: 'globular_internal_services_metrics'
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['localhost:` + Utility.ToString(httpPort) + `']
+    
+  - job_name: 'node_exporter_metrics'
+    scrape_interval: 5s
+    static_configs:
+    - targets: ['localhost:9100']
+    
+`
+		err := ioutil.WriteFile(config.GetConfigDir()+"/prometheus.yml", []byte(config_), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !Utility.Exists(config.GetConfigDir() + "/alertmanager.yml") {
+		config_ := `global:
+  resolve_timeout: 5m
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/'
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']
+`
+		err := ioutil.WriteFile(config.GetConfigDir()+"/alertmanager.yml", []byte(config_), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	prometheusCmd := exec.Command("prometheus", "--web.listen-address", "0.0.0.0:9090", "--config.file", config.GetConfigDir()+"/prometheus.yml", "--storage.tsdb.path", dataPath)
+	err = prometheusCmd.Start()
+	prometheusCmd.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	if err != nil {
+		log.Println("fail to start prometheus ", err)
+		return err
+	}
+
+
+	// Here I will monitor the cpu usage of each services
+	servicesCpuUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "globular_services_cpu_usage_counter",
+		Help: "Monitor the cpu usage of each services.",
+	},
+		[]string{
+			"id",
+			"name"},
+	)
+
+	servicesMemoryUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "globular_services_memory_usage_counter",
+		Help: "Monitor the memory usage of each services.",
+	},
+		[]string{
+			"id",
+			"name"},
+	)
+
+	// Set the function into prometheus.
+	prometheus.MustRegister(servicesCpuUsage)
+	prometheus.MustRegister(servicesMemoryUsage)
+
+	// Start feeding the time series...
+	ticker := time.NewTicker(1 * time.Second)
+	go func() {
+		for {
+			select {
+
+			case <-ticker.C:
+
+				// Monitor globular itserf...
+				pids, err := Utility.GetProcessIdsByName("Globular")
+				if err == nil {
+					for i := 0; i < len(pids); i++ {
+						sysInfo, err := pidusage.GetStat(pids[i])
+						if err == nil {
+							//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
+							servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
+							servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
+						}
+					}
+				}
+
+				services, err := config.GetServicesConfigurations()
+				if err == nil {
+					for i:=0; i < len(services); i++ {
+
+						pid := Utility.ToInt(services[i]["Process"])
+						if pid > 0 {
+							sysInfo, err := pidusage.GetStat(pid)
+							if err == nil {
+								//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
+								servicesCpuUsage.WithLabelValues(services[i]["Id"].(string), services[i]["Name"].(string)).Set(sysInfo.CPU)
+								servicesMemoryUsage.WithLabelValues(services[i]["Id"].(string), services[i]["Name"].(string)).Set(sysInfo.Memory)
+							}
+						}
+					}
+				}
+			case <- exit:
+				break
+			}
+		}
+
+	}()
+
+	alertmanager := exec.Command("alertmanager", "--config.file", config.GetConfigDir()+"/alertmanager.yml")
+	alertmanager.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	err = alertmanager.Start()
+	if err != nil {
+		log.Println("fail to start prometheus alert manager", err)
+		// do not return here in that case simply continue without node exporter metrics.
+	}
+
+	node_exporter := exec.Command("node_exporter")
+	node_exporter.SysProcAttr = &syscall.SysProcAttr{
+		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+
+	err = node_exporter.Start()
+	if err != nil {
+		log.Println("fail to start prometheus node exporter", err)
+		// do not return here in that case simply continue without node exporter metrics.
+	}
+
+	return nil
 }

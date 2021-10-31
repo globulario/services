@@ -313,7 +313,7 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	}
 
 	// set the config in the map.
-	SetServiceConfiguration(s)
+	configs.Store(s["Id"].(string), s)
 
 	infos := make(map[string]interface{})
 	infos["service_config"] = s
