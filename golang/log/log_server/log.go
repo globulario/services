@@ -40,7 +40,7 @@ func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, error) {
 		key += "/" + info.Method
 	}
 
-	key += "/" + Utility.GenerateUUID(info.Message)
+	key += "/" + Utility.GenerateUUID(info.FunctionName + info.Line)
 
 	// I will try to retreive previous item...
 	return key, nil
@@ -49,8 +49,6 @@ func (server *server) getLogInfoKeyValue(info *logpb.LogInfo) (string, error) {
 func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error {
 
 	// The userId can be a single string or a JWT token.
-	fmt.Println("----------> occurence ", occurence)
-
 	if len(occurence.UserId) > 0 {
 		id, name, _, _, _, err := security.ValidateToken(occurence.UserId)
 		if err == nil {
