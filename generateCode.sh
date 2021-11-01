@@ -9,7 +9,6 @@ protoc proto/admin.proto -I proto --go-grpc_out=require_unimplemented_servers=fa
 protoc proto/resource.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/rbac.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/log.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
-protoc proto/lb.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/dns.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/echo.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/search.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang

@@ -480,17 +480,23 @@ inhibit_rules:
 	go func() {
 		for {
 			select {
-
+				
 			case <-ticker.C:
+				
+				execName := "Globular"
+				if runtime.GOOS == "windows" {
+					execName += ".exe" // in case of windows
+				}
 
 				// Monitor globular itserf...
-				pids, err := Utility.GetProcessIdsByName("Globular")
+				pids, err := Utility.GetProcessIdsByName(execName)
 				if err == nil {
 					for i := 0; i < len(pids); i++ {
 						sysInfo, err := pidusage.GetStat(pids[i])
 						if err == nil {
-							//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
+							//log.Println("---> set cpu for process ", pids[i], "Globular", sysInfo.CPU)
 							servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
+							//log.Println("---> set memory for process ", pids[i], "Globular", sysInfo.Memory)
 							servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
 						}
 					}
@@ -501,11 +507,13 @@ inhibit_rules:
 					for i:=0; i < len(services); i++ {
 
 						pid := Utility.ToInt(services[i]["Process"])
+						
 						if pid > 0 {
 							sysInfo, err := pidusage.GetStat(pid)
 							if err == nil {
-								//log.Println("---> set cpu for process ", pid, getStringVal(s.(*sync.Map), "Name"), sysInfo.CPU)
+								//log.Println("---> set cpu for process ", services[i]["Name"], sysInfo.CPU)
 								servicesCpuUsage.WithLabelValues(services[i]["Id"].(string), services[i]["Name"].(string)).Set(sysInfo.CPU)
+								//log.Println("---> set memory for process ", services[i]["Name"], sysInfo.Memory)
 								servicesMemoryUsage.WithLabelValues(services[i]["Id"].(string), services[i]["Name"].(string)).Set(sysInfo.Memory)
 							}
 						}
