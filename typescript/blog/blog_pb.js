@@ -136,7 +136,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.blog.CreateBlogPostRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.blog.CreateBlogPostRequest.repeatedFields_, null);
 };
 goog.inherits(proto.blog.CreateBlogPostRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -1419,7 +1419,7 @@ proto.blog.Comment.prototype.clearDislikersList = function() {
  * @private {!Array<number>}
  * @const
  */
-proto.blog.BlogPost.repeatedFields_ = [5,7,8,9];
+proto.blog.BlogPost.repeatedFields_ = [6,8,9,10];
 
 
 
@@ -1455,9 +1455,10 @@ proto.blog.BlogPost.toObject = function(includeInstance, msg) {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     author: jspb.Message.getFieldWithDefault(msg, 2, ""),
     text: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    keywordsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    creationtime: jspb.Message.getFieldWithDefault(msg, 6, 0),
+    title: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    language: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    keywordsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+    creationtime: jspb.Message.getFieldWithDefault(msg, 7, 0),
     likersList: jspb.Message.toObjectList(msg.getLikersList(),
     proto.blog.Like.toObject, includeInstance),
     dislikersList: jspb.Message.toObjectList(msg.getDislikersList(),
@@ -1514,27 +1515,31 @@ proto.blog.BlogPost.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLanguage(value);
+      msg.setTitle(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.addKeywords(value);
+      msg.setLanguage(value);
       break;
     case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addKeywords(value);
+      break;
+    case 7:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setCreationtime(value);
       break;
-    case 7:
+    case 8:
       var value = new proto.blog.Like;
       reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
       msg.addLikers(value);
       break;
-    case 8:
+    case 9:
       var value = new proto.blog.Dislike;
       reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
       msg.addDislikers(value);
       break;
-    case 9:
+    case 10:
       var value = new proto.blog.Comment;
       reader.readMessage(value,proto.blog.Comment.deserializeBinaryFromReader);
       msg.addComments(value);
@@ -1589,31 +1594,38 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getLanguage();
+  f = message.getTitle();
   if (f.length > 0) {
     writer.writeString(
       4,
       f
     );
   }
+  f = message.getLanguage();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
   f = message.getKeywordsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      5,
+      6,
       f
     );
   }
   f = message.getCreationtime();
   if (f !== 0) {
     writer.writeInt64(
-      6,
+      7,
       f
     );
   }
   f = message.getLikersList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      7,
+      8,
       f,
       proto.blog.Like.serializeBinaryToWriter
     );
@@ -1621,7 +1633,7 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
   f = message.getDislikersList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      8,
+      9,
       f,
       proto.blog.Dislike.serializeBinaryToWriter
     );
@@ -1629,7 +1641,7 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
   f = message.getCommentsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      9,
+      10,
       f,
       proto.blog.Comment.serializeBinaryToWriter
     );
@@ -1692,10 +1704,10 @@ proto.blog.BlogPost.prototype.setText = function(value) {
 
 
 /**
- * optional string language = 4;
+ * optional string title = 4;
  * @return {string}
  */
-proto.blog.BlogPost.prototype.getLanguage = function() {
+proto.blog.BlogPost.prototype.getTitle = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
@@ -1704,17 +1716,35 @@ proto.blog.BlogPost.prototype.getLanguage = function() {
  * @param {string} value
  * @return {!proto.blog.BlogPost} returns this
  */
-proto.blog.BlogPost.prototype.setLanguage = function(value) {
+proto.blog.BlogPost.prototype.setTitle = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
 /**
- * repeated string keywords = 5;
+ * optional string language = 5;
+ * @return {string}
+ */
+proto.blog.BlogPost.prototype.getLanguage = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.blog.BlogPost} returns this
+ */
+proto.blog.BlogPost.prototype.setLanguage = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * repeated string keywords = 6;
  * @return {!Array<string>}
  */
 proto.blog.BlogPost.prototype.getKeywordsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
 };
 
 
@@ -1723,7 +1753,7 @@ proto.blog.BlogPost.prototype.getKeywordsList = function() {
  * @return {!proto.blog.BlogPost} returns this
  */
 proto.blog.BlogPost.prototype.setKeywordsList = function(value) {
-  return jspb.Message.setField(this, 5, value || []);
+  return jspb.Message.setField(this, 6, value || []);
 };
 
 
@@ -1733,7 +1763,7 @@ proto.blog.BlogPost.prototype.setKeywordsList = function(value) {
  * @return {!proto.blog.BlogPost} returns this
  */
 proto.blog.BlogPost.prototype.addKeywords = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
 };
 
 
@@ -1747,11 +1777,11 @@ proto.blog.BlogPost.prototype.clearKeywordsList = function() {
 
 
 /**
- * optional int64 creationTime = 6;
+ * optional int64 creationTime = 7;
  * @return {number}
  */
 proto.blog.BlogPost.prototype.getCreationtime = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
 };
 
 
@@ -1760,17 +1790,17 @@ proto.blog.BlogPost.prototype.getCreationtime = function() {
  * @return {!proto.blog.BlogPost} returns this
  */
 proto.blog.BlogPost.prototype.setCreationtime = function(value) {
-  return jspb.Message.setProto3IntField(this, 6, value);
+  return jspb.Message.setProto3IntField(this, 7, value);
 };
 
 
 /**
- * repeated Like likers = 7;
+ * repeated Like likers = 8;
  * @return {!Array<!proto.blog.Like>}
  */
 proto.blog.BlogPost.prototype.getLikersList = function() {
   return /** @type{!Array<!proto.blog.Like>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Like, 7));
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Like, 8));
 };
 
 
@@ -1779,7 +1809,7 @@ proto.blog.BlogPost.prototype.getLikersList = function() {
  * @return {!proto.blog.BlogPost} returns this
 */
 proto.blog.BlogPost.prototype.setLikersList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 7, value);
+  return jspb.Message.setRepeatedWrapperField(this, 8, value);
 };
 
 
@@ -1789,7 +1819,7 @@ proto.blog.BlogPost.prototype.setLikersList = function(value) {
  * @return {!proto.blog.Like}
  */
 proto.blog.BlogPost.prototype.addLikers = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 7, opt_value, proto.blog.Like, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.blog.Like, opt_index);
 };
 
 
@@ -1803,12 +1833,12 @@ proto.blog.BlogPost.prototype.clearLikersList = function() {
 
 
 /**
- * repeated Dislike dislikers = 8;
+ * repeated Dislike dislikers = 9;
  * @return {!Array<!proto.blog.Dislike>}
  */
 proto.blog.BlogPost.prototype.getDislikersList = function() {
   return /** @type{!Array<!proto.blog.Dislike>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Dislike, 8));
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Dislike, 9));
 };
 
 
@@ -1817,7 +1847,7 @@ proto.blog.BlogPost.prototype.getDislikersList = function() {
  * @return {!proto.blog.BlogPost} returns this
 */
 proto.blog.BlogPost.prototype.setDislikersList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 8, value);
+  return jspb.Message.setRepeatedWrapperField(this, 9, value);
 };
 
 
@@ -1827,7 +1857,7 @@ proto.blog.BlogPost.prototype.setDislikersList = function(value) {
  * @return {!proto.blog.Dislike}
  */
 proto.blog.BlogPost.prototype.addDislikers = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.blog.Dislike, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.blog.Dislike, opt_index);
 };
 
 
@@ -1841,12 +1871,12 @@ proto.blog.BlogPost.prototype.clearDislikersList = function() {
 
 
 /**
- * repeated Comment comments = 9;
+ * repeated Comment comments = 10;
  * @return {!Array<!proto.blog.Comment>}
  */
 proto.blog.BlogPost.prototype.getCommentsList = function() {
   return /** @type{!Array<!proto.blog.Comment>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Comment, 9));
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Comment, 10));
 };
 
 
@@ -1855,7 +1885,7 @@ proto.blog.BlogPost.prototype.getCommentsList = function() {
  * @return {!proto.blog.BlogPost} returns this
 */
 proto.blog.BlogPost.prototype.setCommentsList = function(value) {
-  return jspb.Message.setRepeatedWrapperField(this, 9, value);
+  return jspb.Message.setRepeatedWrapperField(this, 10, value);
 };
 
 
@@ -1865,7 +1895,7 @@ proto.blog.BlogPost.prototype.setCommentsList = function(value) {
  * @return {!proto.blog.Comment}
  */
 proto.blog.BlogPost.prototype.addComments = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.blog.Comment, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 10, opt_value, proto.blog.Comment, opt_index);
 };
 
 
@@ -1878,6 +1908,13 @@ proto.blog.BlogPost.prototype.clearCommentsList = function() {
 };
 
 
+
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.blog.CreateBlogPostRequest.repeatedFields_ = [5];
 
 
 
@@ -1912,7 +1949,9 @@ proto.blog.CreateBlogPostRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
     language: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    text: jspb.Message.getFieldWithDefault(msg, 4, "")
+    text: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    keywordsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+    title: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -1961,6 +2000,14 @@ proto.blog.CreateBlogPostRequest.deserializeBinaryFromReader = function(msg, rea
       var value = /** @type {string} */ (reader.readString());
       msg.setText(value);
       break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addKeywords(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTitle(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -2008,6 +2055,20 @@ proto.blog.CreateBlogPostRequest.serializeBinaryToWriter = function(message, wri
   if (f.length > 0) {
     writer.writeString(
       4,
+      f
+    );
+  }
+  f = message.getKeywordsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      5,
+      f
+    );
+  }
+  f = message.getTitle();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
@@ -2065,6 +2126,61 @@ proto.blog.CreateBlogPostRequest.prototype.getText = function() {
  */
 proto.blog.CreateBlogPostRequest.prototype.setText = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * repeated string keywords = 5;
+ * @return {!Array<string>}
+ */
+proto.blog.CreateBlogPostRequest.prototype.getKeywordsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+};
+
+
+/**
+ * @param {!Array<string>} value
+ * @return {!proto.blog.CreateBlogPostRequest} returns this
+ */
+proto.blog.CreateBlogPostRequest.prototype.setKeywordsList = function(value) {
+  return jspb.Message.setField(this, 5, value || []);
+};
+
+
+/**
+ * @param {string} value
+ * @param {number=} opt_index
+ * @return {!proto.blog.CreateBlogPostRequest} returns this
+ */
+proto.blog.CreateBlogPostRequest.prototype.addKeywords = function(value, opt_index) {
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+};
+
+
+/**
+ * Clears the list making it empty but non-null.
+ * @return {!proto.blog.CreateBlogPostRequest} returns this
+ */
+proto.blog.CreateBlogPostRequest.prototype.clearKeywordsList = function() {
+  return this.setKeywordsList([]);
+};
+
+
+/**
+ * optional string title = 6;
+ * @return {string}
+ */
+proto.blog.CreateBlogPostRequest.prototype.getTitle = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.blog.CreateBlogPostRequest} returns this
+ */
+proto.blog.CreateBlogPostRequest.prototype.setTitle = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 

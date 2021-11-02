@@ -497,19 +497,27 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 		return err
 	}
 
+	fmt.Println("-----------------------------> 500");
+
 	// set the new one.
 	err = svr.store.SetItem(blogPost.Uuid, []byte(jsonStr))
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("-----------------------------> 507");
+
+	fmt.Println(jsonStr)
+
 	// Now I will set the search information for conversations...
-	err = svr.search_engine.IndexJsonObject(svr.Root+"/blogs/search_data", jsonStr, blogPost.Language, "uuid", []string{"name", "keywords"}, jsonStr)
+	err = svr.search_engine.IndexJsonObject(svr.Root+"/blogs/search_data", jsonStr, blogPost.Language, "uuid", []string{"keywords"}, jsonStr)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("conversation index ", blogPost.Uuid, " was saved!")
+	fmt.Println("-----------------------------> 516");
+
+	fmt.Println("blog with index ", blogPost.Uuid, " was saved!")
 
 	return nil
 }
@@ -576,6 +584,11 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
+	
+	// Set the root path if is pass as argument.
+	if len(s_impl.Root) == 0 {
+		s_impl.Root = os.TempDir()
+	}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

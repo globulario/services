@@ -86,7 +86,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return nil, nil
+	return &blogpb.CreateBlogPostResponse{BlogPost:blogPost}, nil
 }
 
 // Update a blog post...
