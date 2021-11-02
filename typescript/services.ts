@@ -18,6 +18,7 @@ import { RbacServicePromiseClient } from './rbac/rbac_grpc_web_pb'
 import { LogServicePromiseClient } from './log/log_grpc_web_pb';
 import { SubscribeRequest, UnSubscribeRequest, PublishRequest, Event, OnEventRequest, SubscribeResponse } from './event/event_pb';
 import { ConversationServicePromiseClient } from './conversation/conversation_grpc_web_pb';
+import { BlogServicePromiseClient } from './blog/blog_grpc_web_pb';
 import { ServicesManagerServicePromiseClient } from './services_manager/services_manager_grpc_web_pb';
 import { ApplicationManagerServicePromiseClient } from './applications_manager/applications_manager_grpc_web_pb';
 import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb';
@@ -538,6 +539,27 @@ export class Globular {
       })
     }
     return this._logService;
+  }
+
+  private _blogService: BlogServicePromiseClient
+  public get blogService(): BlogServicePromiseClient | undefined {
+    // refresh the config.
+    if (this._blogService == null) {
+      let configs = this.getConfigs('blog.BlogService')
+      configs.forEach((config: IServiceConfig) => {
+        this._blogService = new BlogServicePromiseClient(
+          this.config.Protocol +
+          '://' +
+          config.Domain +
+          ':' +
+          config.Proxy,
+          null,
+          null,
+        );
+        this._services[config.Id] = this._blogService
+      })
+    }
+    return this._blogService;
   }
 
   private _conversationService: ConversationServicePromiseClient

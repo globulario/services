@@ -1,25 +1,27 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
-
+	"fmt"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/blog/blog_client"
 	"github.com/globulario/services/golang/blog/blogpb"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/search/search_engine"
+	"github.com/globulario/services/golang/storage/storage_store"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	
-	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
+	"sync"
 )
 
 // The default values.
@@ -58,10 +60,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
+	Process         int
 	ProxyProcess    int
-	ConfigPath string
-	LastError string
+	ConfigPath      string
+	LastError       string
 
 	TLS bool
 
@@ -74,12 +76,24 @@ type server struct {
 	// a private RSA key to sign and authenticate the public key
 	CertAuthorityTrust string
 
+	// Specific configuration.
+	Root string // Where to look for conversation data, file.. etc.
+
 	Permissions []interface{} // contains the action permission for the services.
 
 	Dependencies []string // The list of services needed by this services.
 
 	// The grpc server.
 	grpcServer *grpc.Server
+
+	// The search engine..
+	search_engine *search_engine.XapianEngine
+
+	// Store global conversation information like conversation owner's participant...
+	store *storage_store.LevelDB_store
+
+	// keep in map active conversation db connections.
+	blogs *sync.Map
 }
 
 // Globular services implementation...
@@ -324,6 +338,12 @@ func (svr *server) Init() error {
 		return err
 	}
 
+	// Initialyse the search engine.
+	svr.search_engine = new(search_engine.XapianEngine)
+
+	// Create a new local store.
+	svr.store = storage_store.NewLevelDB_store()
+
 	return nil
 
 }
@@ -343,12 +363,187 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-/////////////////////// Blog specific function /////////////////////////////////
+// Singleton.
+var (
+	rbac_client_  *rbac_client.Rbac_Client
+	log_client_   *log_client.Log_Client
+	event_client_ *event_client.Event_Client
+)
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Logger function
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Get the log client.
+ */
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
+///////////////////// resource service functions ////////////////////////////////////
+func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ != nil {
+		return event_client_, nil
+	}
+
+	event_client_, err = event_client.NewEventService_Client(server.Domain, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
+
+	return event_client_, nil
+}
+
+func (svr *server) publish(event string, data []byte) error {
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+	return eventClient.Publish(event, data)
+}
+
+//////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
+/**
+ * Get the rbac client.
+ */
+func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return rbac_client_, nil
+}
+func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+	rbac_client_, err := GetRbacClient(server.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	return rbac_client_.GetResourcePermissions(path)
+}
+
+func (server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+	rbac_client_, err := GetRbacClient(server.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetResourcePermissions(path, permissions)
+}
+
+func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	rbac_client_, err := GetRbacClient(server.Domain)
+	if err != nil {
+		return false, false, err
+	}
+
+	return rbac_client_.ValidateAccess(subject, subjectType, name, path)
+
+}
+
+func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+// Blogger specific functions.
+////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Save a blog post.
+ */
+ func (svr *server) saveBlogPost(blogPost *blogpb.BlogPost) error {
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(blogPost)
+	if err != nil {
+		return err
+	}
+
+	// set the new one.
+	err = svr.store.SetItem(blogPost.Uuid, []byte(jsonStr))
+	if err != nil {
+		return err
+	}
+
+	// Now I will set the search information for conversations...
+	err = svr.search_engine.IndexJsonObject(svr.Root+"/blogs/search_data", jsonStr, blogPost.Language, "uuid", []string{"name", "keywords"}, jsonStr)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("conversation index ", blogPost.Uuid, " was saved!")
+
+	return nil
+}
+
+/**
+ * Databases will be created in the 'blogs' directory inside the Root path
+ * Each blog will have it own leveldb database
+ */
+func (svr *server) getBlogConnection(id string) (*storage_store.LevelDB_store, error) {
+
+	dbPath := svr.Root + "/blogs/" + id
+	Utility.CreateDirIfNotExist(dbPath)
+	connection, ok := svr.blogs.Load(dbPath)
+	if !ok {
+		connection = storage_store.NewLevelDB_store()
+		err := connection.(*storage_store.LevelDB_store).Open(`{"path":"` + dbPath + `", "name":"store_data"}`)
+		if err != nil {
+			return nil, err
+		}
+		svr.blogs.Store(dbPath, connection)
+	}
+
+	connection_ := connection.(*storage_store.LevelDB_store)
+	return connection_, nil
+}
+
+func (svr *server) closeBlogConnection(id string) {
+
+	dbPath := svr.Root + "/blogs/" + id
+	connection, ok := svr.blogs.Load(dbPath)
+	if !ok {
+		return
+	}
+
+	// Close the connection.
+	connection.(*storage_store.LevelDB_store).Close()
+	defer svr.blogs.Delete(dbPath)
+}
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
 
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -379,9 +574,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
+
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
+
+	// Open the connetion with the store.
+	Utility.CreateDirIfNotExist(s_impl.Root + "/blogs")
+	s_impl.store.Open(`{"path":"` + s_impl.Root + "/blogs" + `", "name":"index"}`)
 
 	// Register the blog services
 	blogpb.RegisterBlogServiceServer(s_impl.grpcServer, s_impl)

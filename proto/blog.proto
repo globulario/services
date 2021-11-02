@@ -7,18 +7,235 @@ package blog;
 
 option go_package="blog/blogpb";
 
-message EchoRequest {
-  string message = 1;
+/**
+ * That's the way I like it
+ */
+message Like {
+
+  /** The account id you set the like */
+  string accout_id = 1;
+
+  /** The creation time. */
+  int64 creationTime = 2;
+
+  /** The post or the comment */
+  string parent = 3;
 }
 
-message EchoResponse {
-  string message = 1;
-  int32 message_count = 2;
+/**
+ * You dislike it..?
+ */
+message Dislike {
+
+  /** The account id you set the like */
+  string accout_id = 1;
+
+  /** The creation time. */
+  int64 creationTime = 2;
+
+  /** The post or the comment */
+  string parent = 3;
 }
 
+/**
+ * Comment about what...
+ */
+message Comment {
+  /** Help to track comment **/
+  string uuid = 1;
+
+  /** can be the blog or other comment */
+  string parent = 2;
+
+  /** The account id you set the like */
+  string accout_id = 3;
+
+  /** The creation time. */
+  int64 creationTime = 4;
+
+  /** The language ex. en, es, fr*/
+	string language = 5;
+
+  /** The comment text */
+  string text = 6;
+
+  /** If there is answer's */
+  repeated Comment answers = 7;
+
+  /** The list of like's */
+  repeated Like likers = 8;
+
+  /** Th list of unlike's */
+  repeated Dislike dislikers = 9;
+}
+
+message BlogPost {
+  /** A unique identifier */
+  string uuid = 1;
+
+  string author = 2;
+
+  /** The text will be a json object that contain the Blog text */
+  string text = 3;
+
+	/** The language ex. en, es, fr*/
+	string language = 4;
+
+  /** Keywords Can be use by the search engine **/
+	repeated  string keywords = 5;
+
+  /** The creation time. */
+  int64 creationTime = 6;
+
+  /** The list of like's */
+  repeated Like likers = 7;
+
+  /** Th list of unlike's */
+  repeated Dislike dislikers = 8;
+
+  /** The list of comment's */
+  repeated Comment comments = 9;
+}
+
+message CreateBlogPostRequest {
+
+  /** The author of the post */
+  string account_id = 1;
+
+  /** The blog post language */
+	string language = 3;
+
+  /** The text */
+  string text = 4;  
+}
+
+message CreateBlogPostResponse {
+  BlogPost blog_post = 1;
+}
+
+/** Update a blog post */
+message SaveBlogPostRequest {
+  BlogPost blog_post = 1;
+}
+
+message SaveBlogPostResponse {
+   /* nothing here */
+}
+
+message GetBlogPostsByAuthorRequest{
+  /** An account id */
+  string author = 1;
+
+}
+
+message GetBlogPostsByAuthorResponse{
+  /** The list of post */
+  repeated BlogPost posts = 1;
+  
+}
+
+/** Search post by keyword's */
+message SearchBlogsPostRequest{
+  string query = 1;
+}
+
+message SearchBlogsPostResponse{
+  /** The list of post */
+  repeated BlogPost posts = 2;
+}
+
+/** Delete a post */
+message DeleteBlogPostRequest{
+  string uuid = 1;
+}
+
+message DeleteBlogPostResponse{
+
+}
+
+message AddLikeRequest {
+  string uuid = 1; // The target uuid.
+  Like like = 2; // info about the like.
+}
+
+message AddLikeResponse{
+}
+
+message RemoveLikeRequest {
+  string uuid = 1; // The target uuid.
+  Like like = 2; // info about the like.
+}
+
+message RemoveLikeResponse{
+}
+
+
+message AddDislikeRequest {
+  string uuid = 1; // The target uuid.
+  Like like = 2; // info about the like.
+}
+
+message AddDislikeResponse{
+}
+
+message RemoveDislikeRequest {
+  string uuid = 1; // The target uuid.
+  Like like = 2; // info about the like.
+}
+
+message RemoveDislikeResponse{
+}
+
+message AddCommentRequest {
+  string uuid = 1; // The target uuid.
+  Like like = 2; // info about the like.
+}
+
+message AddCommentResponse{
+}
+
+message RemoveCommentRequest {
+  string uuid = 1; // The target uuid.
+  Like like = 2; // info about the like.
+}
+
+message RemoveCommentResponse{
+}
+
+/** A blogger for globular */
 service BlogService {
 	
-  	// One request followed by one response
-	rpc Echo(EchoRequest) returns (EchoResponse);
+  // One request followed by one response
+	rpc CreateBlogPost(CreateBlogPostRequest) returns (CreateBlogPostResponse);
 
+  // Update a blog post...
+  rpc SaveBlogPost(SaveBlogPostRequest) returns (SaveBlogPostResponse);
+
+  // Retreive Blog Post by author
+  rpc GetBlogPostsByAuthor(GetBlogPostsByAuthorRequest) returns (GetBlogPostsByAuthorResponse);
+
+  // Search blog by keyword's or text find in the post...
+  rpc SearchBlogPosts(SearchBlogsPostRequest) returns (SearchBlogsPostResponse);
+
+  // Delete a blog.
+  rpc DeleteBlogPost(DeleteBlogPostRequest) returns (DeleteBlogPostResponse);
+
+  // Like a post or comment
+  rpc AddLike(AddLikeRequest) returns (AddLikeResponse);
+
+  // Remove like from a post or comment.
+  rpc RemoveLike(RemoveLikeRequest) returns (RemoveLikeResponse);
+
+  // Dislike a post or comment
+  rpc AddDislike(AddLikeRequest) returns (AddLikeResponse);
+
+  // Remove dislike from a post or comment.
+  rpc RemoveDislike(RemoveDislikeRequest) returns (RemoveDislikeResponse);
+
+  // Comment a post or comment
+  rpc AddComment(AddCommentRequest) returns (AddCommentResponse);
+
+  // Remove comment from a post or comment.
+  rpc RemoveComment(RemoveCommentRequest) returns (RemoveCommentResponse);
+  
 }
