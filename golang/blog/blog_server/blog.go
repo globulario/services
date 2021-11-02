@@ -53,6 +53,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 		CreationTime: time.Now().Unix(),
 		Language:     rqst.Language,
 		Text:         rqst.Text,
+		Title:        rqst.Title,
 	}
 
 	// Save the blog.
@@ -78,7 +79,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	}
 
 	// Set the owner of the conversation.
-	err = svr.rbac_client_.SetResourcePermissions(uuid, permissions)
+	err = svr.setResourcePermissions(uuid, permissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

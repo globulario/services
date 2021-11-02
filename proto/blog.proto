@@ -78,23 +78,27 @@ message BlogPost {
   /** The text will be a json object that contain the Blog text */
   string text = 3;
 
+  /** A title **/
+  string title = 4;
+
 	/** The language ex. en, es, fr*/
-	string language = 4;
+	string language = 5;
 
   /** Keywords Can be use by the search engine **/
-	repeated  string keywords = 5;
+	repeated  string keywords = 6;
 
   /** The creation time. */
-  int64 creationTime = 6;
+  int64 creationTime = 7;
 
   /** The list of like's */
-  repeated Like likers = 7;
+  repeated Like likers = 8;
 
   /** Th list of unlike's */
-  repeated Dislike dislikers = 8;
+  repeated Dislike dislikers = 9;
 
   /** The list of comment's */
-  repeated Comment comments = 9;
+  repeated Comment comments = 10;
+  
 }
 
 message CreateBlogPostRequest {
@@ -106,7 +110,14 @@ message CreateBlogPostRequest {
 	string language = 3;
 
   /** The text */
-  string text = 4;  
+  string text = 4; 
+
+  /** List of keywords */
+  repeated  string keywords = 5;
+
+  /** A title **/
+  string title = 6;
+
 }
 
 message CreateBlogPostResponse {
@@ -237,5 +248,5 @@ service BlogService {
 
   // Remove comment from a post or comment.
   rpc RemoveComment(RemoveCommentRequest) returns (RemoveCommentResponse);
-  
+
 }

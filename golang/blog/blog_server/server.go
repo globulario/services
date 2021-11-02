@@ -476,6 +476,14 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 	return rbac_client_.AddResourceOwner(path, subject, subjectType)
 }
 
+func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	rbac_client_, err :=GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetActionResourcesPermissions(permissions)
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Blogger specific functions.
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -578,6 +586,12 @@ func main() {
 	if len(os.Args) == 2 {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
+
+	s_impl.Permissions = append(s_impl.Permissions, map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
+	s_impl.Permissions = append(s_impl.Permissions, map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
+
+	// Set the permissions
+	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))
 
 	// Open the connetion with the store.
 	Utility.CreateDirIfNotExist(s_impl.Root + "/blogs")
