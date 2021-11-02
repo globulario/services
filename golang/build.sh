@@ -5,6 +5,7 @@ go build -o ./applications_manager/applications_manager_server ./applications_ma
 go build -o ./services_manager/services_manager_server ./services_manager/services_manager_server
 go build -o ./authentication/authentication_server ./authentication/authentication_server
 go build -o ./catalog/catalog_server ./catalog/catalog_server
+go build -o ./blog/blog_server ./blog/blog_server
 go build -o ./conversation/conversation_server ./conversation/conversation_server
 go build -o ./discovery/discovery_server ./discovery/discovery_server
 go build -o ./dns/dns_server ./dns/dns_server

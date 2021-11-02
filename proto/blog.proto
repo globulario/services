@@ -1,0 +1,24 @@
+/**
+ * You can use echo as starter project.
+ */
+
+syntax = "proto3";
+package blog;
+
+option go_package="blog/blogpb";
+
+message EchoRequest {
+  string message = 1;
+}
+
+message EchoResponse {
+  string message = 1;
+  int32 message_count = 2;
+}
+
+service BlogService {
+	
+  	// One request followed by one response
+	rpc Echo(EchoRequest) returns (EchoResponse);
+
+}

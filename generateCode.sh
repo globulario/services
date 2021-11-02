@@ -23,6 +23,7 @@ protoc proto/monitoring.proto -I proto --go-grpc_out=require_unimplemented_serve
 protoc proto/spc.proto -I proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/catalog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/conversation.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/blog.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/applications_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/authentication.proto -I proto  --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
@@ -74,6 +75,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/disc
 mkdir typescript/echo
 protoc --js_out=import_style=commonjs:typescript/echo  -I ./proto/ echo.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/echo -I ./proto/ echo.proto
+mkdir typescript/blog
+protoc --js_out=import_style=commonjs:typescript/blog  -I ./proto/ blog.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/blog -I ./proto/ blog.proto
 mkdir typescript/conversation
 protoc --js_out=import_style=commonjs:typescript/conversation  -I ./proto/ conversation.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/conversation -I ./proto/ conversation.proto
