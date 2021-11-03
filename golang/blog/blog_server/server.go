@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"fmt"
-	"github.com/golang/protobuf/jsonpb"
+	"sync"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/blog/blog_client"
 	"github.com/globulario/services/golang/blog/blogpb"
@@ -19,9 +21,9 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/storage/storage_store"
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"sync"
 )
 
 // The default values.
@@ -477,7 +479,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err :=GetRbacClient(svr.Domain)
+	rbac_client_, err := GetRbacClient(svr.Domain)
 	if err != nil {
 		return err
 	}
@@ -487,17 +489,43 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Blogger specific functions.
 ////////////////////////////////////////////////////////////////////////////////////////////////
+func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error) {
+
+	blog_posts := make([]*blogpb.BlogPost, 0)
+	blogs_, err := svr.store.GetItem(author)
+
+	ids := make([]string, 0)
+	if err == nil {
+		err = json.Unmarshal(blogs_, &ids)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Retreive the list of blogs.
+	for i := 0; i < len(ids); i++ {
+		jsonStr, err := svr.store.GetItem(ids[i])
+		instance := new (blogpb.BlogPost)
+		if err == nil {
+			err := jsonpb.UnmarshalString(string(jsonStr), instance)
+			if err == nil {
+				blog_posts = append(blog_posts, instance)
+			}
+		}
+	}
+
+	return blog_posts, nil
+}
+
 /**
  * Save a blog post.
  */
- func (svr *server) saveBlogPost(blogPost *blogpb.BlogPost) error {
+func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error {
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(blogPost)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("-----------------------------> 500");
 
 	// set the new one.
 	err = svr.store.SetItem(blogPost.Uuid, []byte(jsonStr))
@@ -505,9 +533,28 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 		return err
 	}
 
-	fmt.Println("-----------------------------> 507");
+	// I will asscociate the author with that post...
+	blogs_, err := svr.store.GetItem(author)
+	blogs := make([]string, 0)
+	if err == nil {
+		json.Unmarshal(blogs_, &blogs)
+		fmt.Println(blogs)
+	}
 
-	fmt.Println(jsonStr)
+	if !Utility.Contains(blogs, blogPost.Uuid) {
+		blogs = append(blogs, blogPost.Uuid)
+	}
+
+	// Now I will save the value.
+	blogs__, err := json.Marshal(blogs)
+	if err != nil {
+		return err
+	}
+
+	err = svr.store.SetItem(author, blogs__)
+	if err != nil {
+		return err
+	}
 
 	// Now I will set the search information for conversations...
 	err = svr.search_engine.IndexJsonObject(svr.Root+"/blogs/search_data", jsonStr, blogPost.Language, "uuid", []string{"keywords"}, jsonStr)
@@ -515,46 +562,9 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 		return err
 	}
 
-	fmt.Println("-----------------------------> 516");
-
-	fmt.Println("blog with index ", blogPost.Uuid, " was saved!")
+	fmt.Println("blog with index ", blogPost.Uuid, " was saved! author blogs: ", blogs)
 
 	return nil
-}
-
-/**
- * Databases will be created in the 'blogs' directory inside the Root path
- * Each blog will have it own leveldb database
- */
-func (svr *server) getBlogConnection(id string) (*storage_store.LevelDB_store, error) {
-
-	dbPath := svr.Root + "/blogs/" + id
-	Utility.CreateDirIfNotExist(dbPath)
-	connection, ok := svr.blogs.Load(dbPath)
-	if !ok {
-		connection = storage_store.NewLevelDB_store()
-		err := connection.(*storage_store.LevelDB_store).Open(`{"path":"` + dbPath + `", "name":"store_data"}`)
-		if err != nil {
-			return nil, err
-		}
-		svr.blogs.Store(dbPath, connection)
-	}
-
-	connection_ := connection.(*storage_store.LevelDB_store)
-	return connection_, nil
-}
-
-func (svr *server) closeBlogConnection(id string) {
-
-	dbPath := svr.Root + "/blogs/" + id
-	connection, ok := svr.blogs.Load(dbPath)
-	if !ok {
-		return
-	}
-
-	// Close the connection.
-	connection.(*storage_store.LevelDB_store).Close()
-	defer svr.blogs.Delete(dbPath)
 }
 
 // That service is use to give access to SQL.
@@ -584,7 +594,7 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	
+
 	// Set the root path if is pass as argument.
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = os.TempDir()

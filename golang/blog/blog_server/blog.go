@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-
 	"errors"
 	"strings"
 	"time"
@@ -57,10 +55,12 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 		Language:     rqst.Language,
 		Text:         rqst.Text,
 		Title:        rqst.Title,
+		Thumbnail:     rqst.Thumbnail,
+		Status:       blogpb.BogPostStatus_DRAFT,
 	}
 
 	// Save the blog.
-	err = svr.saveBlogPost(blogPost)
+	err = svr.saveBlogPost(clientId, blogPost)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -95,9 +95,26 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 
 // Update a blog post...
 func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRequest) (*blogpb.SaveBlogPostResponse, error) {
-	fmt.Println("Try to save Blog Post: ", rqst.BlogPost)
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, _, _, err = security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			errors.New("no token was given")
+		}
+	}
+
 	// Save the blog.
-	err := svr.saveBlogPost(rqst.BlogPost)
+	err = svr.saveBlogPost(clientId, rqst.BlogPost)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -118,8 +135,16 @@ func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 func (svr *server) GetBlogPostsByAuthor(ctx context.Context, rqst *blogpb.GetBlogPostsByAuthorRequest) (*blogpb.GetBlogPostsByAuthorResponse, error) {
 
 	// So here I will get the list of blogpost for a given author...
+	blogs, err := svr.getBlogPostByAuthor(rqst.Author)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
-	return nil, nil
+	return &blogpb.GetBlogPostsByAuthorResponse{
+		Posts: blogs,
+	}, nil
 }
 
 // Search blog by keyword's or text find in the post...

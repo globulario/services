@@ -69,6 +69,15 @@ message Comment {
   repeated Dislike dislikers = 9;
 }
 
+/**
+ * The blog state.
+ */
+enum BogPostStatus{
+  DRAFT = 0;
+  PUBLISHED = 1;
+  ARCHIVED = 2;
+}
+
 message BlogPost {
   /** A unique identifier */
   string uuid = 1;
@@ -101,6 +110,9 @@ message BlogPost {
 
   /** A thumbnail to display quickly **/
   string thumbnail = 11;
+
+  /** The satus of the blog */
+  BogPostStatus status = 12;
   
 }
 
@@ -116,10 +128,13 @@ message CreateBlogPostRequest {
   string text = 3; 
 
   /** List of keywords */
-  repeated  string keywords = 5;
+  repeated  string keywords = 4;
 
   /** A title **/
-  string title = 4;
+  string title = 5;
+
+  /** A image url */
+  string thumbnail = 6;
 
 }
 
@@ -215,6 +230,8 @@ message RemoveCommentRequest {
 
 message RemoveCommentResponse{
 }
+
+
 
 /** A blogger for globular */
 service BlogService {
