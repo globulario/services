@@ -98,6 +98,9 @@ message BlogPost {
 
   /** The list of comment's */
   repeated Comment comments = 10;
+
+  /** A thumbnail to display quickly **/
+  string thumbnail = 11;
   
 }
 
@@ -107,16 +110,16 @@ message CreateBlogPostRequest {
   string account_id = 1;
 
   /** The blog post language */
-	string language = 3;
+	string language = 2;
 
   /** The text */
-  string text = 4; 
+  string text = 3; 
 
   /** List of keywords */
   repeated  string keywords = 5;
 
   /** A title **/
-  string title = 6;
+  string title = 4;
 
 }
 

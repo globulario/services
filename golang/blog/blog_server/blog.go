@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/blog/blogpb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/metadata"
-	"strings"
-	"time"
+
 	//"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -86,16 +89,36 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &blogpb.CreateBlogPostResponse{BlogPost:blogPost}, nil
+	// TODO send publish event also..
+	return &blogpb.CreateBlogPostResponse{BlogPost: blogPost}, nil
 }
 
 // Update a blog post...
 func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRequest) (*blogpb.SaveBlogPostResponse, error) {
-	return nil, nil
+	fmt.Println("Try to save Blog Post: ", rqst.BlogPost)
+	// Save the blog.
+	err := svr.saveBlogPost(rqst.BlogPost)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// TODO send publish event also..
+	return &blogpb.SaveBlogPostResponse{}, nil
 }
 
 // Retreive Blog Post by author
 func (svr *server) GetBlogPostsByAuthor(ctx context.Context, rqst *blogpb.GetBlogPostsByAuthorRequest) (*blogpb.GetBlogPostsByAuthorResponse, error) {
+
+	// So here I will get the list of blogpost for a given author...
+
 	return nil, nil
 }
 
