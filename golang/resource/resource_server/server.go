@@ -324,8 +324,8 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 }
 
 var (
-	rbac_client_ *rbac_client.Rbac_Client
-	log_client_  *log_client.Log_Client
+	rbac_client_  *rbac_client.Rbac_Client
+	log_client_   *log_client.Log_Client
 	event_client_ *event_client.Event_Client
 )
 
@@ -344,8 +344,8 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	return event_client_, nil
 }
 
-// when services state change that publish 
-func (server *server) publishUpdatePeersEvent() error{
+// when services state change that publish
+func (server *server) publishUpdatePeersEvent() error {
 	client, err := server.getEventClient()
 	if err != nil {
 		return err
@@ -871,68 +871,74 @@ func main() {
 	s_impl.createRole("admin", "admin", []string{})
 
 	/** Regist the guest role **/
-	s_impl.createRole("guest", "guest", []string{        
-	"/admin.AdminService/RunCmd",
-	"/admin.AdminService/SaveConfig",
-	"/conversation.ConversationService/AcceptInvitation",
-	"/conversation.ConversationService/Connect",
-	"/conversation.ConversationService/CreateConversation",
-	"/conversation.ConversationService/DeclineInvitation",
-	"/conversation.ConversationService/DeleteConversation",
-	"/conversation.ConversationService/DeleteMessage",
-	"/conversation.ConversationService/Disconnect",
-	"/conversation.ConversationService/DislikeMessage",
-	"/conversation.ConversationService/FindConversations",
-	"/conversation.ConversationService/FindMessages",
-	"/conversation.ConversationService/GetConversations",
-	"/conversation.ConversationService/GetReceivedInvitations",
-	"/conversation.ConversationService/GetSentInvitations",
-	"/conversation.ConversationService/JoinConversation",
-	"/conversation.ConversationService/KickoutFromConversation",
-	"/conversation.ConversationService/LeaveConversation",
-	"/conversation.ConversationService/LikeMessage",
-	"/conversation.ConversationService/RevokeInvitation",
-	"/conversation.ConversationService/SendInvitation",
-	"/conversation.ConversationService/SendMessage",
-	"/conversation.ConversationService/SetMessageRead",
-	"/file.FileService/Copy",
-	"/file.FileService/CreateAchive",
-	"/file.FileService/CreateDir",
-	"/file.FileService/DeleteDir",
-	"/file.FileService/DeleteFile",
-	"/file.FileService/FileUploadHandler",
-	"/file.FileService/GetFileInfo",
-	"/file.FileService/GetThumbnails",
-	"/file.FileService/Move",
-	"/file.FileService/ReadDir",
-	"/file.FileService/ReadFile",
-	"/file.FileService/Rename",
-	"/file.FileService/SaveFile",
-	"/file.FileService/WriteExcelFile",
-	"/log.LogService/GetLog",
-	"/log.LogService/Log",
-	"/persistence.PersistenceService/Count",
-	"/persistence.PersistenceService/CreateConnection",
-	"/persistence.PersistenceService/Delete",
-	"/persistence.PersistenceService/DeleteOne",
-	"/persistence.PersistenceService/Find",
-	"/persistence.PersistenceService/FindOne",
-	"/persistence.PersistenceService/InsertOne",
-	"/persistence.PersistenceService/ReplaceOne",
-	"/persistence.PersistenceService/UpdateOne",
-	"/rbac.RbacService/DeleteResourcePermission",
-	"/rbac.RbacService/DeleteResourcePermissions",
-	"/rbac.RbacService/DeleteSubjectShare",
-	"/rbac.RbacService/GetResourcePermissions",
-	"/rbac.RbacService/GetSharedResource",
-	"/rbac.RbacService/SetActionResourcesPermissions",
-	"/rbac.RbacService/SetResourcePermission",
-	"/rbac.RbacService/SetResourcePermissions",
-	"/resource.ResourceService/GetGroups",
-	"/resource.ResourceService/GetOrganizations",
-	"/resource.ResourceService/GetRoles",
-	"/resource.ResourceService/GetPeers",
-	"/resource.ResourceService/GetAccounts"})
+	s_impl.createRole("guest", "guest", []string{
+		"/admin.AdminService/RunCmd",
+		"/admin.AdminService/SaveConfig",
+		"/conversation.ConversationService/AcceptInvitation",
+		"/conversation.ConversationService/Connect",
+		"/conversation.ConversationService/CreateConversation",
+		"/conversation.ConversationService/DeclineInvitation",
+		"/conversation.ConversationService/DeleteConversation",
+		"/conversation.ConversationService/DeleteMessage",
+		"/conversation.ConversationService/Disconnect",
+		"/conversation.ConversationService/DislikeMessage",
+		"/conversation.ConversationService/FindConversations",
+		"/conversation.ConversationService/FindMessages",
+		"/conversation.ConversationService/GetConversations",
+		"/conversation.ConversationService/GetReceivedInvitations",
+		"/conversation.ConversationService/GetSentInvitations",
+		"/conversation.ConversationService/JoinConversation",
+		"/conversation.ConversationService/KickoutFromConversation",
+		"/conversation.ConversationService/LeaveConversation",
+		"/conversation.ConversationService/LikeMessage",
+		"/conversation.ConversationService/RevokeInvitation",
+		"/conversation.ConversationService/SendInvitation",
+		"/conversation.ConversationService/SendMessage",
+		"/conversation.ConversationService/SetMessageRead",
+		"/file.FileService/Copy",
+		"/file.FileService/CreateAchive",
+		"/file.FileService/CreateDir",
+		"/file.FileService/DeleteDir",
+		"/file.FileService/DeleteFile",
+		"/file.FileService/FileUploadHandler",
+		"/file.FileService/GetFileInfo",
+		"/file.FileService/GetThumbnails",
+		"/file.FileService/Move",
+		"/file.FileService/ReadDir",
+		"/file.FileService/ReadFile",
+		"/file.FileService/Rename",
+		"/file.FileService/SaveFile",
+		"/file.FileService/WriteExcelFile",
+		"/log.LogService/GetLog",
+		"/log.LogService/Log",
+		"/persistence.PersistenceService/Count",
+		"/persistence.PersistenceService/CreateConnection",
+		"/persistence.PersistenceService/Delete",
+		"/persistence.PersistenceService/DeleteOne",
+		"/persistence.PersistenceService/Find",
+		"/persistence.PersistenceService/FindOne",
+		"/persistence.PersistenceService/InsertOne",
+		"/persistence.PersistenceService/ReplaceOne",
+		"/persistence.PersistenceService/UpdateOne",
+		"/rbac.RbacService/DeleteResourcePermission",
+		"/rbac.RbacService/DeleteResourcePermissions",
+		"/rbac.RbacService/DeleteSubjectShare",
+		"/rbac.RbacService/GetResourcePermissions",
+		"/rbac.RbacService/GetSharedResource",
+		"/rbac.RbacService/SetActionResourcesPermissions",
+		"/rbac.RbacService/SetResourcePermission",
+		"/rbac.RbacService/SetResourcePermissions",
+		"/resource.ResourceService/GetGroups",
+		"/resource.ResourceService/GetApplications",
+		"/resource.ResourceService/GetOrganizations",
+		"/resource.ResourceService/GetRoles",
+		"/resource.ResourceService/GetPeers",
+		"/resource.ResourceService/GetAccounts",
+		"/resource.ResourceService/SetAccountContact",
+		"/resource.ResourceService/GetNotifications",
+		"/resource.ResourceService/CreateNotification",
+		"/resource.ResourceService/DeleteNotification",
+	})
 
 	// Start the service.
 	s_impl.StartService()

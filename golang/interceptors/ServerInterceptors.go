@@ -226,6 +226,9 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/resource.ResourceService/RemoveSession" ||
 		method == "/resource.ResourceService/GetSessions" ||
 		method == "/resource.ResourceService/GetAccount" ||
+		method == "/resource.ResourceService/SetAccountContact" ||
+		method == "/resource.ResourceService/CreateNotification" ||
+		method == "/resource.ResourceService/DeleteNotification" ||
 		method == "/resource.ResourceService/RegisterPeer" ||
 		method == "/resource.ResourceService/AccountExist" ||
 		method == "/resource.ResourceService/SetAccountPassword" ||

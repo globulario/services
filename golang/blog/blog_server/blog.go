@@ -37,7 +37,10 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		} else {
-			errors.New("no token was given")
+			err := errors.New("no token was given")
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -109,7 +112,10 @@ func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		} else {
-			errors.New("no token was given")
+			err := errors.New("no token was given")
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -169,7 +175,10 @@ func (svr *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		} else {
-			errors.New("no token was given")
+			err := errors.New("no token was given")
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -184,6 +193,7 @@ func (svr *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 
 // Like a post or comment
 func (svr *server) AddLike(ctx context.Context, rqst *blogpb.AddLikeRequest) (*blogpb.AddLikeResponse, error) {
+
 	return nil, nil
 }
 
@@ -204,7 +214,78 @@ func (svr *server) RemoveDislike(ctx context.Context, rqst *blogpb.RemoveDislike
 
 // Comment a post or comment
 func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentRequest) (*blogpb.AddCommentResponse, error) {
-	return nil, nil
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, _, _, err = security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			err := errors.New("no token was given")
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if rqst.Comment.AccoutId != clientId {
+		err := errors.New("you can't comment for another account")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+	}
+
+	blog, err := svr.getBlogPost(rqst.Uuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Here I will append the comment...	
+	parentUuid := rqst.Comment.Parent
+
+	// set comment variable.
+	rqst.Comment.CreationTime = time.Now().Unix()
+	rqst.Comment.Uuid = Utility.RandomUUID()
+
+	// if the comment is a response to other comment then...
+	if len(parentUuid) > 0 {
+		// Here I need to find the comment in the blog comments...
+		if blog.Comments == nil {
+			err := errors.New("no parent comment comment found")
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		parentComment, err := svr.getBlogComment(parentUuid, blog)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// So here the parent comment was found...
+		parentComment.Answers = append(parentComment.Answers, rqst.Comment)
+	}
+
+	// Directly comment the blog...
+	if blog.Comments == nil {
+		blog.Comments = make([]*blogpb.Comment, 0)
+	}
+
+	blog.Comments = append(blog.Comments, rqst.Comment)
+
+	// Return the comment itself...
+	return &blogpb.AddCommentResponse{Comment: rqst.Comment}, nil
 }
 
 // Remove comment from a post or comment.

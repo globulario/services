@@ -3212,7 +3212,7 @@ proto.blog.AddLikeResponse.prototype.toObject = function(opt_includeInstance) {
  */
 proto.blog.AddLikeResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-
+    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3249,6 +3249,11 @@ proto.blog.AddLikeResponse.deserializeBinaryFromReader = function(msg, reader) {
     }
     var field = reader.getFieldNumber();
     switch (field) {
+    case 1:
+      var value = new proto.blog.Like;
+      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
+      msg.setLike(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3278,6 +3283,44 @@ proto.blog.AddLikeResponse.prototype.serializeBinary = function() {
  */
 proto.blog.AddLikeResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
+  f = message.getLike();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.blog.Like.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional Like like = 1;
+ * @return {?proto.blog.Like}
+ */
+proto.blog.AddLikeResponse.prototype.getLike = function() {
+  return /** @type{?proto.blog.Like} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Like, 1));
+};
+
+
+/** @param {?proto.blog.Like|undefined} value */
+proto.blog.AddLikeResponse.prototype.setLike = function(value) {
+  jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+proto.blog.AddLikeResponse.prototype.clearLike = function() {
+  this.setLike(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.blog.AddLikeResponse.prototype.hasLike = function() {
+  return jspb.Message.getField(this, 1) != null;
 };
 
 
@@ -3631,7 +3674,7 @@ proto.blog.AddDislikeRequest.prototype.toObject = function(opt_includeInstance) 
 proto.blog.AddDislikeRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
+    dislike: (f = msg.getDislike()) && proto.blog.Dislike.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3673,9 +3716,9 @@ proto.blog.AddDislikeRequest.deserializeBinaryFromReader = function(msg, reader)
       msg.setUuid(value);
       break;
     case 2:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.setLike(value);
+      var value = new proto.blog.Dislike;
+      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
+      msg.setDislike(value);
       break;
     default:
       reader.skipField();
@@ -3713,12 +3756,12 @@ proto.blog.AddDislikeRequest.serializeBinaryToWriter = function(message, writer)
       f
     );
   }
-  f = message.getLike();
+  f = message.getDislike();
   if (f != null) {
     writer.writeMessage(
       2,
       f,
-      proto.blog.Like.serializeBinaryToWriter
+      proto.blog.Dislike.serializeBinaryToWriter
     );
   }
 };
@@ -3740,23 +3783,23 @@ proto.blog.AddDislikeRequest.prototype.setUuid = function(value) {
 
 
 /**
- * optional Like like = 2;
- * @return {?proto.blog.Like}
+ * optional Dislike dislike = 2;
+ * @return {?proto.blog.Dislike}
  */
-proto.blog.AddDislikeRequest.prototype.getLike = function() {
-  return /** @type{?proto.blog.Like} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Like, 2));
+proto.blog.AddDislikeRequest.prototype.getDislike = function() {
+  return /** @type{?proto.blog.Dislike} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Dislike, 2));
 };
 
 
-/** @param {?proto.blog.Like|undefined} value */
-proto.blog.AddDislikeRequest.prototype.setLike = function(value) {
+/** @param {?proto.blog.Dislike|undefined} value */
+proto.blog.AddDislikeRequest.prototype.setDislike = function(value) {
   jspb.Message.setWrapperField(this, 2, value);
 };
 
 
-proto.blog.AddDislikeRequest.prototype.clearLike = function() {
-  this.setLike(undefined);
+proto.blog.AddDislikeRequest.prototype.clearDislike = function() {
+  this.setDislike(undefined);
 };
 
 
@@ -3764,7 +3807,7 @@ proto.blog.AddDislikeRequest.prototype.clearLike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.AddDislikeRequest.prototype.hasLike = function() {
+proto.blog.AddDislikeRequest.prototype.hasDislike = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 
@@ -3816,7 +3859,7 @@ proto.blog.AddDislikeResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.blog.AddDislikeResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-
+    dislike: (f = msg.getDislike()) && proto.blog.Dislike.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3853,6 +3896,11 @@ proto.blog.AddDislikeResponse.deserializeBinaryFromReader = function(msg, reader
     }
     var field = reader.getFieldNumber();
     switch (field) {
+    case 1:
+      var value = new proto.blog.Dislike;
+      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
+      msg.setDislike(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3882,6 +3930,44 @@ proto.blog.AddDislikeResponse.prototype.serializeBinary = function() {
  */
 proto.blog.AddDislikeResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
+  f = message.getDislike();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.blog.Dislike.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional Dislike dislike = 1;
+ * @return {?proto.blog.Dislike}
+ */
+proto.blog.AddDislikeResponse.prototype.getDislike = function() {
+  return /** @type{?proto.blog.Dislike} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Dislike, 1));
+};
+
+
+/** @param {?proto.blog.Dislike|undefined} value */
+proto.blog.AddDislikeResponse.prototype.setDislike = function(value) {
+  jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+proto.blog.AddDislikeResponse.prototype.clearDislike = function() {
+  this.setDislike(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.blog.AddDislikeResponse.prototype.hasDislike = function() {
+  return jspb.Message.getField(this, 1) != null;
 };
 
 
@@ -3933,7 +4019,7 @@ proto.blog.RemoveDislikeRequest.prototype.toObject = function(opt_includeInstanc
 proto.blog.RemoveDislikeRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
+    dislike: (f = msg.getDislike()) && proto.blog.Dislike.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3975,9 +4061,9 @@ proto.blog.RemoveDislikeRequest.deserializeBinaryFromReader = function(msg, read
       msg.setUuid(value);
       break;
     case 2:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.setLike(value);
+      var value = new proto.blog.Dislike;
+      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
+      msg.setDislike(value);
       break;
     default:
       reader.skipField();
@@ -4015,12 +4101,12 @@ proto.blog.RemoveDislikeRequest.serializeBinaryToWriter = function(message, writ
       f
     );
   }
-  f = message.getLike();
+  f = message.getDislike();
   if (f != null) {
     writer.writeMessage(
       2,
       f,
-      proto.blog.Like.serializeBinaryToWriter
+      proto.blog.Dislike.serializeBinaryToWriter
     );
   }
 };
@@ -4042,23 +4128,23 @@ proto.blog.RemoveDislikeRequest.prototype.setUuid = function(value) {
 
 
 /**
- * optional Like like = 2;
- * @return {?proto.blog.Like}
+ * optional Dislike dislike = 2;
+ * @return {?proto.blog.Dislike}
  */
-proto.blog.RemoveDislikeRequest.prototype.getLike = function() {
-  return /** @type{?proto.blog.Like} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Like, 2));
+proto.blog.RemoveDislikeRequest.prototype.getDislike = function() {
+  return /** @type{?proto.blog.Dislike} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Dislike, 2));
 };
 
 
-/** @param {?proto.blog.Like|undefined} value */
-proto.blog.RemoveDislikeRequest.prototype.setLike = function(value) {
+/** @param {?proto.blog.Dislike|undefined} value */
+proto.blog.RemoveDislikeRequest.prototype.setDislike = function(value) {
   jspb.Message.setWrapperField(this, 2, value);
 };
 
 
-proto.blog.RemoveDislikeRequest.prototype.clearLike = function() {
-  this.setLike(undefined);
+proto.blog.RemoveDislikeRequest.prototype.clearDislike = function() {
+  this.setDislike(undefined);
 };
 
 
@@ -4066,7 +4152,7 @@ proto.blog.RemoveDislikeRequest.prototype.clearLike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.RemoveDislikeRequest.prototype.hasLike = function() {
+proto.blog.RemoveDislikeRequest.prototype.hasDislike = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 
@@ -4235,7 +4321,7 @@ proto.blog.AddCommentRequest.prototype.toObject = function(opt_includeInstance) 
 proto.blog.AddCommentRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
+    comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4277,9 +4363,9 @@ proto.blog.AddCommentRequest.deserializeBinaryFromReader = function(msg, reader)
       msg.setUuid(value);
       break;
     case 2:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.setLike(value);
+      var value = new proto.blog.Comment;
+      reader.readMessage(value,proto.blog.Comment.deserializeBinaryFromReader);
+      msg.setComment(value);
       break;
     default:
       reader.skipField();
@@ -4317,12 +4403,12 @@ proto.blog.AddCommentRequest.serializeBinaryToWriter = function(message, writer)
       f
     );
   }
-  f = message.getLike();
+  f = message.getComment();
   if (f != null) {
     writer.writeMessage(
       2,
       f,
-      proto.blog.Like.serializeBinaryToWriter
+      proto.blog.Comment.serializeBinaryToWriter
     );
   }
 };
@@ -4344,23 +4430,23 @@ proto.blog.AddCommentRequest.prototype.setUuid = function(value) {
 
 
 /**
- * optional Like like = 2;
- * @return {?proto.blog.Like}
+ * optional Comment comment = 2;
+ * @return {?proto.blog.Comment}
  */
-proto.blog.AddCommentRequest.prototype.getLike = function() {
-  return /** @type{?proto.blog.Like} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Like, 2));
+proto.blog.AddCommentRequest.prototype.getComment = function() {
+  return /** @type{?proto.blog.Comment} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Comment, 2));
 };
 
 
-/** @param {?proto.blog.Like|undefined} value */
-proto.blog.AddCommentRequest.prototype.setLike = function(value) {
+/** @param {?proto.blog.Comment|undefined} value */
+proto.blog.AddCommentRequest.prototype.setComment = function(value) {
   jspb.Message.setWrapperField(this, 2, value);
 };
 
 
-proto.blog.AddCommentRequest.prototype.clearLike = function() {
-  this.setLike(undefined);
+proto.blog.AddCommentRequest.prototype.clearComment = function() {
+  this.setComment(undefined);
 };
 
 
@@ -4368,7 +4454,7 @@ proto.blog.AddCommentRequest.prototype.clearLike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.AddCommentRequest.prototype.hasLike = function() {
+proto.blog.AddCommentRequest.prototype.hasComment = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 
@@ -4420,7 +4506,7 @@ proto.blog.AddCommentResponse.prototype.toObject = function(opt_includeInstance)
  */
 proto.blog.AddCommentResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-
+    comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4457,6 +4543,11 @@ proto.blog.AddCommentResponse.deserializeBinaryFromReader = function(msg, reader
     }
     var field = reader.getFieldNumber();
     switch (field) {
+    case 1:
+      var value = new proto.blog.Comment;
+      reader.readMessage(value,proto.blog.Comment.deserializeBinaryFromReader);
+      msg.setComment(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -4486,6 +4577,44 @@ proto.blog.AddCommentResponse.prototype.serializeBinary = function() {
  */
 proto.blog.AddCommentResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
+  f = message.getComment();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.blog.Comment.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional Comment comment = 1;
+ * @return {?proto.blog.Comment}
+ */
+proto.blog.AddCommentResponse.prototype.getComment = function() {
+  return /** @type{?proto.blog.Comment} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Comment, 1));
+};
+
+
+/** @param {?proto.blog.Comment|undefined} value */
+proto.blog.AddCommentResponse.prototype.setComment = function(value) {
+  jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+proto.blog.AddCommentResponse.prototype.clearComment = function() {
+  this.setComment(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.blog.AddCommentResponse.prototype.hasComment = function() {
+  return jspb.Message.getField(this, 1) != null;
 };
 
 
@@ -4537,7 +4666,7 @@ proto.blog.RemoveCommentRequest.prototype.toObject = function(opt_includeInstanc
 proto.blog.RemoveCommentRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
+    comment: (f = msg.getComment()) && proto.blog.Comment.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4579,9 +4708,9 @@ proto.blog.RemoveCommentRequest.deserializeBinaryFromReader = function(msg, read
       msg.setUuid(value);
       break;
     case 2:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.setLike(value);
+      var value = new proto.blog.Comment;
+      reader.readMessage(value,proto.blog.Comment.deserializeBinaryFromReader);
+      msg.setComment(value);
       break;
     default:
       reader.skipField();
@@ -4619,12 +4748,12 @@ proto.blog.RemoveCommentRequest.serializeBinaryToWriter = function(message, writ
       f
     );
   }
-  f = message.getLike();
+  f = message.getComment();
   if (f != null) {
     writer.writeMessage(
       2,
       f,
-      proto.blog.Like.serializeBinaryToWriter
+      proto.blog.Comment.serializeBinaryToWriter
     );
   }
 };
@@ -4646,23 +4775,23 @@ proto.blog.RemoveCommentRequest.prototype.setUuid = function(value) {
 
 
 /**
- * optional Like like = 2;
- * @return {?proto.blog.Like}
+ * optional Comment comment = 2;
+ * @return {?proto.blog.Comment}
  */
-proto.blog.RemoveCommentRequest.prototype.getLike = function() {
-  return /** @type{?proto.blog.Like} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Like, 2));
+proto.blog.RemoveCommentRequest.prototype.getComment = function() {
+  return /** @type{?proto.blog.Comment} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Comment, 2));
 };
 
 
-/** @param {?proto.blog.Like|undefined} value */
-proto.blog.RemoveCommentRequest.prototype.setLike = function(value) {
+/** @param {?proto.blog.Comment|undefined} value */
+proto.blog.RemoveCommentRequest.prototype.setComment = function(value) {
   jspb.Message.setWrapperField(this, 2, value);
 };
 
 
-proto.blog.RemoveCommentRequest.prototype.clearLike = function() {
-  this.setLike(undefined);
+proto.blog.RemoveCommentRequest.prototype.clearComment = function() {
+  this.setComment(undefined);
 };
 
 
@@ -4670,7 +4799,7 @@ proto.blog.RemoveCommentRequest.prototype.clearLike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.RemoveCommentRequest.prototype.hasLike = function() {
+proto.blog.RemoveCommentRequest.prototype.hasComment = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 

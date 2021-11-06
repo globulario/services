@@ -188,6 +188,7 @@ message AddLikeRequest {
 }
 
 message AddLikeResponse{
+  Like like = 1; // info about the like.
 }
 
 message RemoveLikeRequest {
@@ -201,15 +202,16 @@ message RemoveLikeResponse{
 
 message AddDislikeRequest {
   string uuid = 1; // The target uuid.
-  Like like = 2; // info about the like.
+  Dislike dislike = 2; // info about the like.
 }
 
 message AddDislikeResponse{
+   Dislike dislike = 1; // info about the like.
 }
 
 message RemoveDislikeRequest {
   string uuid = 1; // The target uuid.
-  Like like = 2; // info about the like.
+  Dislike dislike = 2; // info about the like.
 }
 
 message RemoveDislikeResponse{
@@ -217,15 +219,16 @@ message RemoveDislikeResponse{
 
 message AddCommentRequest {
   string uuid = 1; // The target uuid.
-  Like like = 2; // info about the like.
+  Comment comment = 2; // info about the like.
 }
 
 message AddCommentResponse{
+  Comment comment = 1; // info about the like.
 }
 
 message RemoveCommentRequest {
   string uuid = 1; // The target uuid.
-  Like like = 2; // info about the like.
+  Comment comment = 2; // info about the like.
 }
 
 message RemoveCommentResponse{

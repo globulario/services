@@ -3,9 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-
-	//"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -492,8 +489,27 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Blogger specific functions.
 ////////////////////////////////////////////////////////////////////////////////////////////////
-func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error) {
 
+/**
+ * Return a new blogPost
+ */
+func (svr *server) getBlogPost(uuid string) (*blogpb.BlogPost, error) {
+	// Delete a blog...
+	blog := new(blogpb.BlogPost)
+	jsonStr, err := svr.store.GetItem(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	err = jsonpb.UnmarshalString(string(jsonStr), blog)
+	if err != nil {
+		return nil, err
+	}
+
+	return blog, nil
+}
+
+func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error) {
 
 	blog_posts := make([]*blogpb.BlogPost, 0)
 	blogs_, err := svr.store.GetItem(author)
@@ -522,20 +538,51 @@ func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error
 }
 
 /**
+ * Retreive a sub-comment in a comment.
+ */
+func (svr *server) getSubComment(parentUuid string, comment *blogpb.Comment) (*blogpb.Comment, error) {
+	if comment.Answers == nil {
+		return nil, errors.New("no answer was found for that comment")
+	}
+
+	for i:=0; i < len(comment.Answers); i++ {
+		answer := comment.Answers[i]
+		if parentUuid == answer.Uuid {
+			return answer, nil
+		}
+	}
+
+	return nil, errors.New("no answer was found for that comment") 
+}
+
+/**
+ * Retreive a comment inside a blog
+ */
+func (svr *server) getBlogComment(parentUuid string, blog *blogpb.BlogPost) (*blogpb.Comment, error) {
+	// Here I will try to find the comment...
+	for i := 0; i < len(blog.Comments); i++ {
+		comment := blog.Comments[i]
+		if comment.Uuid == parentUuid {
+			return comment, nil
+		}
+
+		// try to get the comment in sub-comment (answer)
+		comment, err := svr.getSubComment(parentUuid, comment)
+		if err == nil && comment != nil {
+			return comment, nil
+		}
+	}
+
+	return nil, errors.New("no comment was found for that blog")  
+}
+
+/**
  * So here I will delete the
  */
 func (svr *server) deleteBlogPost(author, uuid string) error {
-	// Delete a blog...
-	blog := new (blogpb.BlogPost)
-	jsonStr, err := svr.store.GetItem(uuid)
-	if err != nil {
-		fmt.Println("----------------> 532 ", uuid, err)
-		return err
-	}
 
-	err = jsonpb.UnmarshalString(string(jsonStr), blog)
+	blog, err := svr.getBlogPost(uuid)
 	if err != nil {
-		fmt.Println("----------------> 538 ", uuid, err)
 		return err
 	}
 
@@ -550,7 +597,6 @@ func (svr *server) deleteBlogPost(author, uuid string) error {
 	if err == nil {
 		err = json.Unmarshal(blogs_, &ids)
 		if err != nil {
-			fmt.Println("----------------> 553 ", blog.Author, err)
 			return err
 		}
 	}
@@ -560,17 +606,13 @@ func (svr *server) deleteBlogPost(author, uuid string) error {
 	// Now I will save the value.
 	blogs__, err := json.Marshal(ids)
 	if err != nil {
-		fmt.Println("----------------> 563 ", blogs__, err)
 		return err
 	}
 
 	err = svr.store.SetItem(blog.Author, blogs__)
 	if err != nil {
-		fmt.Println("----------------> 569 ", ids, err)
 		return err
 	}
-
-	fmt.Println("----------------> 572 ", uuid)
 
 	// Now I will delete the blog.
 	return svr.store.RemoveItem(uuid)
