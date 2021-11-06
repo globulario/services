@@ -154,7 +154,32 @@ func (svr *server) SearchBlogPosts(ctx context.Context, rqst *blogpb.SearchBlogs
 
 // Delete a blog.
 func (svr *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPostRequest) (*blogpb.DeleteBlogPostResponse, error) {
-	return nil, nil
+
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, _, _, err = security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			errors.New("no token was given")
+		}
+	}
+
+	err = svr.deleteBlogPost(clientId, rqst.Uuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &blogpb.DeleteBlogPostResponse{}, nil
 }
 
 // Like a post or comment

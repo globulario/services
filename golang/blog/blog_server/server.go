@@ -2,7 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+
+	//"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -491,6 +494,7 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 ////////////////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error) {
 
+
 	blog_posts := make([]*blogpb.BlogPost, 0)
 	blogs_, err := svr.store.GetItem(author)
 
@@ -505,7 +509,7 @@ func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error
 	// Retreive the list of blogs.
 	for i := 0; i < len(ids); i++ {
 		jsonStr, err := svr.store.GetItem(ids[i])
-		instance := new (blogpb.BlogPost)
+		instance := new(blogpb.BlogPost)
 		if err == nil {
 			err := jsonpb.UnmarshalString(string(jsonStr), instance)
 			if err == nil {
@@ -515,6 +519,61 @@ func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error
 	}
 
 	return blog_posts, nil
+}
+
+/**
+ * So here I will delete the
+ */
+func (svr *server) deleteBlogPost(author, uuid string) error {
+	// Delete a blog...
+	blog := new (blogpb.BlogPost)
+	jsonStr, err := svr.store.GetItem(uuid)
+	if err != nil {
+		fmt.Println("----------------> 532 ", uuid, err)
+		return err
+	}
+
+	err = jsonpb.UnmarshalString(string(jsonStr), blog)
+	if err != nil {
+		fmt.Println("----------------> 538 ", uuid, err)
+		return err
+	}
+
+	if author != blog.Author {
+		return errors.New("only blog author can delete it blog")
+	}
+
+	// first I will remove it from it author indexation.
+	blogs_, err := svr.store.GetItem(blog.Author)
+
+	ids := make([]string, 0)
+	if err == nil {
+		err = json.Unmarshal(blogs_, &ids)
+		if err != nil {
+			fmt.Println("----------------> 553 ", blog.Author, err)
+			return err
+		}
+	}
+
+	ids = Utility.RemoveString(ids, uuid)
+
+	// Now I will save the value.
+	blogs__, err := json.Marshal(ids)
+	if err != nil {
+		fmt.Println("----------------> 563 ", blogs__, err)
+		return err
+	}
+
+	err = svr.store.SetItem(blog.Author, blogs__)
+	if err != nil {
+		fmt.Println("----------------> 569 ", ids, err)
+		return err
+	}
+
+	fmt.Println("----------------> 572 ", uuid)
+
+	// Now I will delete the blog.
+	return svr.store.RemoveItem(uuid)
 }
 
 /**
@@ -538,7 +597,6 @@ func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error 
 	blogs := make([]string, 0)
 	if err == nil {
 		json.Unmarshal(blogs_, &blogs)
-		fmt.Println(blogs)
 	}
 
 	if !Utility.Contains(blogs, blogPost.Uuid) {
@@ -561,8 +619,6 @@ func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error 
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("blog with index ", blogPost.Uuid, " was saved! author blogs: ", blogs)
 
 	return nil
 }

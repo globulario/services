@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -359,6 +360,7 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 		if err != nil {
+			
 			return nil, err
 		}
 
