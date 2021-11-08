@@ -378,244 +378,122 @@ proto.blog.BlogServicePromiseClient.prototype.deleteBlogPost =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.blog.AddLikeRequest,
- *   !proto.blog.AddLikeResponse>}
+ *   !proto.blog.AddEmojiRequest,
+ *   !proto.blog.AddEmojiResponse>}
  */
-const methodDescriptor_BlogService_AddLike = new grpc.web.MethodDescriptor(
-  '/blog.BlogService/AddLike',
+const methodDescriptor_BlogService_AddEmoji = new grpc.web.MethodDescriptor(
+  '/blog.BlogService/AddEmoji',
   grpc.web.MethodType.UNARY,
-  proto.blog.AddLikeRequest,
-  proto.blog.AddLikeResponse,
+  proto.blog.AddEmojiRequest,
+  proto.blog.AddEmojiResponse,
   /**
-   * @param {!proto.blog.AddLikeRequest} request
+   * @param {!proto.blog.AddEmojiRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.blog.AddLikeResponse.deserializeBinary
+  proto.blog.AddEmojiResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.blog.AddLikeRequest} request The
+ * @param {!proto.blog.AddEmojiRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.blog.AddLikeResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.blog.AddEmojiResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.blog.AddLikeResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.AddEmojiResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.blog.BlogServiceClient.prototype.addLike =
+proto.blog.BlogServiceClient.prototype.addEmoji =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/blog.BlogService/AddLike',
+      '/blog.BlogService/AddEmoji',
       request,
       metadata || {},
-      methodDescriptor_BlogService_AddLike,
+      methodDescriptor_BlogService_AddEmoji,
       callback);
 };
 
 
 /**
- * @param {!proto.blog.AddLikeRequest} request The
+ * @param {!proto.blog.AddEmojiRequest} request The
  *     request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.blog.AddLikeResponse>}
+ * @return {!Promise<!proto.blog.AddEmojiResponse>}
  *     Promise that resolves to the response
  */
-proto.blog.BlogServicePromiseClient.prototype.addLike =
+proto.blog.BlogServicePromiseClient.prototype.addEmoji =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/blog.BlogService/AddLike',
+      '/blog.BlogService/AddEmoji',
       request,
       metadata || {},
-      methodDescriptor_BlogService_AddLike);
+      methodDescriptor_BlogService_AddEmoji);
 };
 
 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.blog.RemoveLikeRequest,
- *   !proto.blog.RemoveLikeResponse>}
+ *   !proto.blog.RemoveEmojiRequest,
+ *   !proto.blog.RemoveEmojiResponse>}
  */
-const methodDescriptor_BlogService_RemoveLike = new grpc.web.MethodDescriptor(
-  '/blog.BlogService/RemoveLike',
+const methodDescriptor_BlogService_RemoveEmoji = new grpc.web.MethodDescriptor(
+  '/blog.BlogService/RemoveEmoji',
   grpc.web.MethodType.UNARY,
-  proto.blog.RemoveLikeRequest,
-  proto.blog.RemoveLikeResponse,
+  proto.blog.RemoveEmojiRequest,
+  proto.blog.RemoveEmojiResponse,
   /**
-   * @param {!proto.blog.RemoveLikeRequest} request
+   * @param {!proto.blog.RemoveEmojiRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.blog.RemoveLikeResponse.deserializeBinary
+  proto.blog.RemoveEmojiResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.blog.RemoveLikeRequest} request The
+ * @param {!proto.blog.RemoveEmojiRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.blog.RemoveLikeResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.blog.RemoveEmojiResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.blog.RemoveLikeResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.RemoveEmojiResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.blog.BlogServiceClient.prototype.removeLike =
+proto.blog.BlogServiceClient.prototype.removeEmoji =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/blog.BlogService/RemoveLike',
+      '/blog.BlogService/RemoveEmoji',
       request,
       metadata || {},
-      methodDescriptor_BlogService_RemoveLike,
+      methodDescriptor_BlogService_RemoveEmoji,
       callback);
 };
 
 
 /**
- * @param {!proto.blog.RemoveLikeRequest} request The
+ * @param {!proto.blog.RemoveEmojiRequest} request The
  *     request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.blog.RemoveLikeResponse>}
+ * @return {!Promise<!proto.blog.RemoveEmojiResponse>}
  *     Promise that resolves to the response
  */
-proto.blog.BlogServicePromiseClient.prototype.removeLike =
+proto.blog.BlogServicePromiseClient.prototype.removeEmoji =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/blog.BlogService/RemoveLike',
+      '/blog.BlogService/RemoveEmoji',
       request,
       metadata || {},
-      methodDescriptor_BlogService_RemoveLike);
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.blog.AddLikeRequest,
- *   !proto.blog.AddLikeResponse>}
- */
-const methodDescriptor_BlogService_AddDislike = new grpc.web.MethodDescriptor(
-  '/blog.BlogService/AddDislike',
-  grpc.web.MethodType.UNARY,
-  proto.blog.AddLikeRequest,
-  proto.blog.AddLikeResponse,
-  /**
-   * @param {!proto.blog.AddLikeRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.blog.AddLikeResponse.deserializeBinary
-);
-
-
-/**
- * @param {!proto.blog.AddLikeRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.blog.AddLikeResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.blog.AddLikeResponse>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.blog.BlogServiceClient.prototype.addDislike =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/blog.BlogService/AddDislike',
-      request,
-      metadata || {},
-      methodDescriptor_BlogService_AddDislike,
-      callback);
-};
-
-
-/**
- * @param {!proto.blog.AddLikeRequest} request The
- *     request proto
- * @param {?Object<string, string>=} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.blog.AddLikeResponse>}
- *     Promise that resolves to the response
- */
-proto.blog.BlogServicePromiseClient.prototype.addDislike =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/blog.BlogService/AddDislike',
-      request,
-      metadata || {},
-      methodDescriptor_BlogService_AddDislike);
-};
-
-
-/**
- * @const
- * @type {!grpc.web.MethodDescriptor<
- *   !proto.blog.RemoveDislikeRequest,
- *   !proto.blog.RemoveDislikeResponse>}
- */
-const methodDescriptor_BlogService_RemoveDislike = new grpc.web.MethodDescriptor(
-  '/blog.BlogService/RemoveDislike',
-  grpc.web.MethodType.UNARY,
-  proto.blog.RemoveDislikeRequest,
-  proto.blog.RemoveDislikeResponse,
-  /**
-   * @param {!proto.blog.RemoveDislikeRequest} request
-   * @return {!Uint8Array}
-   */
-  function(request) {
-    return request.serializeBinary();
-  },
-  proto.blog.RemoveDislikeResponse.deserializeBinary
-);
-
-
-/**
- * @param {!proto.blog.RemoveDislikeRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
- *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.blog.RemoveDislikeResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.blog.RemoveDislikeResponse>|undefined}
- *     The XHR Node Readable Stream
- */
-proto.blog.BlogServiceClient.prototype.removeDislike =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/blog.BlogService/RemoveDislike',
-      request,
-      metadata || {},
-      methodDescriptor_BlogService_RemoveDislike,
-      callback);
-};
-
-
-/**
- * @param {!proto.blog.RemoveDislikeRequest} request The
- *     request proto
- * @param {?Object<string, string>=} metadata User defined
- *     call metadata
- * @return {!Promise<!proto.blog.RemoveDislikeResponse>}
- *     Promise that resolves to the response
- */
-proto.blog.BlogServicePromiseClient.prototype.removeDislike =
-    function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/blog.BlogService/RemoveDislike',
-      request,
-      metadata || {},
-      methodDescriptor_BlogService_RemoveDislike);
+      methodDescriptor_BlogService_RemoveEmoji);
 };
 
 

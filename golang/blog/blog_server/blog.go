@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -191,24 +192,92 @@ func (svr *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 	return &blogpb.DeleteBlogPostResponse{}, nil
 }
 
-// Like a post or comment
-func (svr *server) AddLike(ctx context.Context, rqst *blogpb.AddLikeRequest) (*blogpb.AddLikeResponse, error) {
+// Emoji a post or comment
+func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (*blogpb.AddEmojiResponse, error) {
+	var clientId string
+	var err error
 
-	return nil, nil
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			clientId, _, _, _, _, err = security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		} else {
+			err := errors.New("no token was given")
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if rqst.Emoji.AccountId != clientId {
+		err := errors.New("you can't comment for another account")
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+	}
+
+	emoji := make(map[string]interface{}, 0)
+
+	err = json.Unmarshal([]byte(rqst.Emoji.Emoji), &emoji)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Set the time and date...
+	rqst.Emoji.CreationTime = time.Now().Unix()
+
+	// Now I will add it to it parent.
+	blog, err := svr.getBlogPost(rqst.Uuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+	}
+
+	if blog.Uuid == rqst.Uuid {
+		// Here I will append the emoji to the blog itself...
+		if blog.Emotions == nil {
+			blog.Emotions = make([]*blogpb.Emoji, 0)
+		}
+
+		blog.Emotions = append(blog.Emotions, rqst.Emoji)
+	}else{
+		// Here I will find the comment who must contain the emoji
+		comment, err := svr.getBlogComment(rqst.Emoji.Parent, blog)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+		}
+
+		// Put emotion in your comment...
+		if comment.Emotions == nil {
+			comment.Emotions = make([]*blogpb.Emoji, 0)
+		}
+
+		comment.Emotions = append(comment.Emotions, rqst.Emoji)
+	}
+
+	err = svr.saveBlogPost(blog.Author, blog)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+	}
+
+	return &blogpb.AddEmojiResponse{Emoji: rqst.Emoji}, nil
 }
 
 // Remove like from a post or comment.
-func (svr *server) RemoveLike(ctx context.Context, rqst *blogpb.RemoveLikeRequest) (*blogpb.RemoveLikeResponse, error) {
-	return nil, nil
-}
-
-// Dislike a post or comment
-func (svr *server) AddDislike(ctx context.Context, rqst *blogpb.AddLikeRequest) (*blogpb.AddLikeResponse, error) {
-	return nil, nil
-}
-
-// Remove dislike from a post or comment.
-func (svr *server) RemoveDislike(ctx context.Context, rqst *blogpb.RemoveDislikeRequest) (*blogpb.RemoveDislikeResponse, error) {
+func (svr *server) RemoveEmoji(ctx context.Context, rqst *blogpb.RemoveEmojiRequest) (*blogpb.RemoveEmojiResponse, error) {
 	return nil, nil
 }
 
@@ -235,7 +304,7 @@ func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 		}
 	}
 
-	if rqst.Comment.AccoutId != clientId {
+	if rqst.Comment.AccountId != clientId {
 		err := errors.New("you can't comment for another account")
 		return nil, status.Errorf(
 			codes.Internal,

@@ -13,10 +13,8 @@ var global = Function('return this')();
 
 goog.exportSymbol('proto.blog.AddCommentRequest', null, global);
 goog.exportSymbol('proto.blog.AddCommentResponse', null, global);
-goog.exportSymbol('proto.blog.AddDislikeRequest', null, global);
-goog.exportSymbol('proto.blog.AddDislikeResponse', null, global);
-goog.exportSymbol('proto.blog.AddLikeRequest', null, global);
-goog.exportSymbol('proto.blog.AddLikeResponse', null, global);
+goog.exportSymbol('proto.blog.AddEmojiRequest', null, global);
+goog.exportSymbol('proto.blog.AddEmojiResponse', null, global);
 goog.exportSymbol('proto.blog.BlogPost', null, global);
 goog.exportSymbol('proto.blog.BogPostStatus', null, global);
 goog.exportSymbol('proto.blog.Comment', null, global);
@@ -24,16 +22,13 @@ goog.exportSymbol('proto.blog.CreateBlogPostRequest', null, global);
 goog.exportSymbol('proto.blog.CreateBlogPostResponse', null, global);
 goog.exportSymbol('proto.blog.DeleteBlogPostRequest', null, global);
 goog.exportSymbol('proto.blog.DeleteBlogPostResponse', null, global);
-goog.exportSymbol('proto.blog.Dislike', null, global);
+goog.exportSymbol('proto.blog.Emoji', null, global);
 goog.exportSymbol('proto.blog.GetBlogPostsByAuthorRequest', null, global);
 goog.exportSymbol('proto.blog.GetBlogPostsByAuthorResponse', null, global);
-goog.exportSymbol('proto.blog.Like', null, global);
 goog.exportSymbol('proto.blog.RemoveCommentRequest', null, global);
 goog.exportSymbol('proto.blog.RemoveCommentResponse', null, global);
-goog.exportSymbol('proto.blog.RemoveDislikeRequest', null, global);
-goog.exportSymbol('proto.blog.RemoveDislikeResponse', null, global);
-goog.exportSymbol('proto.blog.RemoveLikeRequest', null, global);
-goog.exportSymbol('proto.blog.RemoveLikeResponse', null, global);
+goog.exportSymbol('proto.blog.RemoveEmojiRequest', null, global);
+goog.exportSymbol('proto.blog.RemoveEmojiResponse', null, global);
 goog.exportSymbol('proto.blog.SaveBlogPostRequest', null, global);
 goog.exportSymbol('proto.blog.SaveBlogPostResponse', null, global);
 goog.exportSymbol('proto.blog.SearchBlogsPostRequest', null, global);
@@ -49,12 +44,12 @@ goog.exportSymbol('proto.blog.SearchBlogsPostResponse', null, global);
  * @extends {jspb.Message}
  * @constructor
  */
-proto.blog.Like = function(opt_data) {
+proto.blog.Emoji = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.blog.Like, jspb.Message);
+goog.inherits(proto.blog.Emoji, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.blog.Like.displayName = 'proto.blog.Like';
+  proto.blog.Emoji.displayName = 'proto.blog.Emoji';
 }
 
 
@@ -69,8 +64,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.blog.Like.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.Like.toObject(opt_includeInstance, this);
+proto.blog.Emoji.prototype.toObject = function(opt_includeInstance) {
+  return proto.blog.Emoji.toObject(opt_includeInstance, this);
 };
 
 
@@ -79,15 +74,16 @@ proto.blog.Like.prototype.toObject = function(opt_includeInstance) {
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.blog.Like} msg The msg instance to transform.
+ * @param {!proto.blog.Emoji} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.Like.toObject = function(includeInstance, msg) {
+proto.blog.Emoji.toObject = function(includeInstance, msg) {
   var f, obj = {
-    accoutId: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    accountId: jspb.Message.getFieldWithDefault(msg, 1, ""),
     creationtime: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    parent: jspb.Message.getFieldWithDefault(msg, 3, "")
+    parent: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    emoji: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -101,23 +97,23 @@ proto.blog.Like.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.Like}
+ * @return {!proto.blog.Emoji}
  */
-proto.blog.Like.deserializeBinary = function(bytes) {
+proto.blog.Emoji.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.Like;
-  return proto.blog.Like.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.blog.Emoji;
+  return proto.blog.Emoji.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.blog.Like} msg The message object to deserialize into.
+ * @param {!proto.blog.Emoji} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.Like}
+ * @return {!proto.blog.Emoji}
  */
-proto.blog.Like.deserializeBinaryFromReader = function(msg, reader) {
+proto.blog.Emoji.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -126,7 +122,7 @@ proto.blog.Like.deserializeBinaryFromReader = function(msg, reader) {
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setAccoutId(value);
+      msg.setAccountId(value);
       break;
     case 2:
       var value = /** @type {number} */ (reader.readInt64());
@@ -135,6 +131,10 @@ proto.blog.Like.deserializeBinaryFromReader = function(msg, reader) {
     case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setParent(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setEmoji(value);
       break;
     default:
       reader.skipField();
@@ -149,9 +149,9 @@ proto.blog.Like.deserializeBinaryFromReader = function(msg, reader) {
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.blog.Like.prototype.serializeBinary = function() {
+proto.blog.Emoji.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.blog.Like.serializeBinaryToWriter(this, writer);
+  proto.blog.Emoji.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -159,13 +159,13 @@ proto.blog.Like.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.blog.Like} message
+ * @param {!proto.blog.Emoji} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.Like.serializeBinaryToWriter = function(message, writer) {
+proto.blog.Emoji.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getAccoutId();
+  f = message.getAccountId();
   if (f.length > 0) {
     writer.writeString(
       1,
@@ -186,20 +186,27 @@ proto.blog.Like.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getEmoji();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
 };
 
 
 /**
- * optional string accout_id = 1;
+ * optional string account_id = 1;
  * @return {string}
  */
-proto.blog.Like.prototype.getAccoutId = function() {
+proto.blog.Emoji.prototype.getAccountId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.Like.prototype.setAccoutId = function(value) {
+proto.blog.Emoji.prototype.setAccountId = function(value) {
   jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -208,13 +215,13 @@ proto.blog.Like.prototype.setAccoutId = function(value) {
  * optional int64 creationTime = 2;
  * @return {number}
  */
-proto.blog.Like.prototype.getCreationtime = function() {
+proto.blog.Emoji.prototype.getCreationtime = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /** @param {number} value */
-proto.blog.Like.prototype.setCreationtime = function(value) {
+proto.blog.Emoji.prototype.setCreationtime = function(value) {
   jspb.Message.setProto3IntField(this, 2, value);
 };
 
@@ -223,210 +230,29 @@ proto.blog.Like.prototype.setCreationtime = function(value) {
  * optional string parent = 3;
  * @return {string}
  */
-proto.blog.Like.prototype.getParent = function() {
+proto.blog.Emoji.prototype.getParent = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.Like.prototype.setParent = function(value) {
+proto.blog.Emoji.prototype.setParent = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
-
 /**
- * Generated by JsPbCodeGenerator.
- * @param {Array=} opt_data Optional initial data array, typically from a
- * server response, or constructed directly in Javascript. The array is used
- * in place and becomes part of the constructed object. It is not cloned.
- * If no data is provided, the constructed object will be empty, but still
- * valid.
- * @extends {jspb.Message}
- * @constructor
- */
-proto.blog.Dislike = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
-};
-goog.inherits(proto.blog.Dislike, jspb.Message);
-if (goog.DEBUG && !COMPILED) {
-  proto.blog.Dislike.displayName = 'proto.blog.Dislike';
-}
-
-
-if (jspb.Message.GENERATE_TO_OBJECT) {
-/**
- * Creates an object representation of this proto suitable for use in Soy templates.
- * Field names that are reserved in JavaScript and will be renamed to pb_name.
- * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
- * For the list of reserved names please see:
- *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
- * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
- *     for transitional soy proto support: http://goto/soy-param-migration
- * @return {!Object}
- */
-proto.blog.Dislike.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.Dislike.toObject(opt_includeInstance, this);
-};
-
-
-/**
- * Static version of the {@see toObject} method.
- * @param {boolean|undefined} includeInstance Whether to include the JSPB
- *     instance for transitional soy proto support:
- *     http://goto/soy-param-migration
- * @param {!proto.blog.Dislike} msg The msg instance to transform.
- * @return {!Object}
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.Dislike.toObject = function(includeInstance, msg) {
-  var f, obj = {
-    accoutId: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    creationtime: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    parent: jspb.Message.getFieldWithDefault(msg, 3, "")
-  };
-
-  if (includeInstance) {
-    obj.$jspbMessageInstance = msg;
-  }
-  return obj;
-};
-}
-
-
-/**
- * Deserializes binary data (in protobuf wire format).
- * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.Dislike}
- */
-proto.blog.Dislike.deserializeBinary = function(bytes) {
-  var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.Dislike;
-  return proto.blog.Dislike.deserializeBinaryFromReader(msg, reader);
-};
-
-
-/**
- * Deserializes binary data (in protobuf wire format) from the
- * given reader into the given message object.
- * @param {!proto.blog.Dislike} msg The message object to deserialize into.
- * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.Dislike}
- */
-proto.blog.Dislike.deserializeBinaryFromReader = function(msg, reader) {
-  while (reader.nextField()) {
-    if (reader.isEndGroup()) {
-      break;
-    }
-    var field = reader.getFieldNumber();
-    switch (field) {
-    case 1:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setAccoutId(value);
-      break;
-    case 2:
-      var value = /** @type {number} */ (reader.readInt64());
-      msg.setCreationtime(value);
-      break;
-    case 3:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setParent(value);
-      break;
-    default:
-      reader.skipField();
-      break;
-    }
-  }
-  return msg;
-};
-
-
-/**
- * Serializes the message to binary data (in protobuf wire format).
- * @return {!Uint8Array}
- */
-proto.blog.Dislike.prototype.serializeBinary = function() {
-  var writer = new jspb.BinaryWriter();
-  proto.blog.Dislike.serializeBinaryToWriter(this, writer);
-  return writer.getResultBuffer();
-};
-
-
-/**
- * Serializes the given message to binary data (in protobuf wire
- * format), writing to the given BinaryWriter.
- * @param {!proto.blog.Dislike} message
- * @param {!jspb.BinaryWriter} writer
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.Dislike.serializeBinaryToWriter = function(message, writer) {
-  var f = undefined;
-  f = message.getAccoutId();
-  if (f.length > 0) {
-    writer.writeString(
-      1,
-      f
-    );
-  }
-  f = message.getCreationtime();
-  if (f !== 0) {
-    writer.writeInt64(
-      2,
-      f
-    );
-  }
-  f = message.getParent();
-  if (f.length > 0) {
-    writer.writeString(
-      3,
-      f
-    );
-  }
-};
-
-
-/**
- * optional string accout_id = 1;
+ * optional string emoji = 4;
  * @return {string}
  */
-proto.blog.Dislike.prototype.getAccoutId = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+proto.blog.Emoji.prototype.getEmoji = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.Dislike.prototype.setAccoutId = function(value) {
-  jspb.Message.setProto3StringField(this, 1, value);
-};
-
-
-/**
- * optional int64 creationTime = 2;
- * @return {number}
- */
-proto.blog.Dislike.prototype.getCreationtime = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
-};
-
-
-/** @param {number} value */
-proto.blog.Dislike.prototype.setCreationtime = function(value) {
-  jspb.Message.setProto3IntField(this, 2, value);
-};
-
-
-/**
- * optional string parent = 3;
- * @return {string}
- */
-proto.blog.Dislike.prototype.getParent = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
-};
-
-
-/** @param {string} value */
-proto.blog.Dislike.prototype.setParent = function(value) {
-  jspb.Message.setProto3StringField(this, 3, value);
+proto.blog.Emoji.prototype.setEmoji = function(value) {
+  jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
@@ -453,7 +279,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.blog.Comment.repeatedFields_ = [7,8,9];
+proto.blog.Comment.repeatedFields_ = [7,8];
 
 
 
@@ -486,16 +312,14 @@ proto.blog.Comment.toObject = function(includeInstance, msg) {
   var f, obj = {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
     parent: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    accoutId: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    accountId: jspb.Message.getFieldWithDefault(msg, 3, ""),
     creationtime: jspb.Message.getFieldWithDefault(msg, 4, 0),
     language: jspb.Message.getFieldWithDefault(msg, 5, ""),
     text: jspb.Message.getFieldWithDefault(msg, 6, ""),
     answersList: jspb.Message.toObjectList(msg.getAnswersList(),
     proto.blog.Comment.toObject, includeInstance),
-    likersList: jspb.Message.toObjectList(msg.getLikersList(),
-    proto.blog.Like.toObject, includeInstance),
-    dislikersList: jspb.Message.toObjectList(msg.getDislikersList(),
-    proto.blog.Dislike.toObject, includeInstance)
+    emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
+    proto.blog.Emoji.toObject, includeInstance)
   };
 
   if (includeInstance) {
@@ -542,7 +366,7 @@ proto.blog.Comment.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setAccoutId(value);
+      msg.setAccountId(value);
       break;
     case 4:
       var value = /** @type {number} */ (reader.readInt64());
@@ -562,14 +386,9 @@ proto.blog.Comment.deserializeBinaryFromReader = function(msg, reader) {
       msg.addAnswers(value);
       break;
     case 8:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.addLikers(value);
-      break;
-    case 9:
-      var value = new proto.blog.Dislike;
-      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
-      msg.addDislikers(value);
+      var value = new proto.blog.Emoji;
+      reader.readMessage(value,proto.blog.Emoji.deserializeBinaryFromReader);
+      msg.addEmotions(value);
       break;
     default:
       reader.skipField();
@@ -614,7 +433,7 @@ proto.blog.Comment.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getAccoutId();
+  f = message.getAccountId();
   if (f.length > 0) {
     writer.writeString(
       3,
@@ -650,20 +469,12 @@ proto.blog.Comment.serializeBinaryToWriter = function(message, writer) {
       proto.blog.Comment.serializeBinaryToWriter
     );
   }
-  f = message.getLikersList();
+  f = message.getEmotionsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
       8,
       f,
-      proto.blog.Like.serializeBinaryToWriter
-    );
-  }
-  f = message.getDislikersList();
-  if (f.length > 0) {
-    writer.writeRepeatedMessage(
-      9,
-      f,
-      proto.blog.Dislike.serializeBinaryToWriter
+      proto.blog.Emoji.serializeBinaryToWriter
     );
   }
 };
@@ -700,16 +511,16 @@ proto.blog.Comment.prototype.setParent = function(value) {
 
 
 /**
- * optional string accout_id = 3;
+ * optional string account_id = 3;
  * @return {string}
  */
-proto.blog.Comment.prototype.getAccoutId = function() {
+proto.blog.Comment.prototype.getAccountId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.Comment.prototype.setAccoutId = function(value) {
+proto.blog.Comment.prototype.setAccountId = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -791,64 +602,33 @@ proto.blog.Comment.prototype.clearAnswersList = function() {
 
 
 /**
- * repeated Like likers = 8;
- * @return {!Array<!proto.blog.Like>}
+ * repeated Emoji emotions = 8;
+ * @return {!Array<!proto.blog.Emoji>}
  */
-proto.blog.Comment.prototype.getLikersList = function() {
-  return /** @type{!Array<!proto.blog.Like>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Like, 8));
+proto.blog.Comment.prototype.getEmotionsList = function() {
+  return /** @type{!Array<!proto.blog.Emoji>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Emoji, 8));
 };
 
 
-/** @param {!Array<!proto.blog.Like>} value */
-proto.blog.Comment.prototype.setLikersList = function(value) {
+/** @param {!Array<!proto.blog.Emoji>} value */
+proto.blog.Comment.prototype.setEmotionsList = function(value) {
   jspb.Message.setRepeatedWrapperField(this, 8, value);
 };
 
 
 /**
- * @param {!proto.blog.Like=} opt_value
+ * @param {!proto.blog.Emoji=} opt_value
  * @param {number=} opt_index
- * @return {!proto.blog.Like}
+ * @return {!proto.blog.Emoji}
  */
-proto.blog.Comment.prototype.addLikers = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.blog.Like, opt_index);
+proto.blog.Comment.prototype.addEmotions = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.blog.Emoji, opt_index);
 };
 
 
-proto.blog.Comment.prototype.clearLikersList = function() {
-  this.setLikersList([]);
-};
-
-
-/**
- * repeated Dislike dislikers = 9;
- * @return {!Array<!proto.blog.Dislike>}
- */
-proto.blog.Comment.prototype.getDislikersList = function() {
-  return /** @type{!Array<!proto.blog.Dislike>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Dislike, 9));
-};
-
-
-/** @param {!Array<!proto.blog.Dislike>} value */
-proto.blog.Comment.prototype.setDislikersList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 9, value);
-};
-
-
-/**
- * @param {!proto.blog.Dislike=} opt_value
- * @param {number=} opt_index
- * @return {!proto.blog.Dislike}
- */
-proto.blog.Comment.prototype.addDislikers = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.blog.Dislike, opt_index);
-};
-
-
-proto.blog.Comment.prototype.clearDislikersList = function() {
-  this.setDislikersList([]);
+proto.blog.Comment.prototype.clearEmotionsList = function() {
+  this.setEmotionsList([]);
 };
 
 
@@ -875,7 +655,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.blog.BlogPost.repeatedFields_ = [6,8,9,10];
+proto.blog.BlogPost.repeatedFields_ = [6,8,9];
 
 
 
@@ -913,14 +693,12 @@ proto.blog.BlogPost.toObject = function(includeInstance, msg) {
     language: jspb.Message.getFieldWithDefault(msg, 5, ""),
     keywordsList: jspb.Message.getRepeatedField(msg, 6),
     creationtime: jspb.Message.getFieldWithDefault(msg, 7, 0),
-    likersList: jspb.Message.toObjectList(msg.getLikersList(),
-    proto.blog.Like.toObject, includeInstance),
-    dislikersList: jspb.Message.toObjectList(msg.getDislikersList(),
-    proto.blog.Dislike.toObject, includeInstance),
+    emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
+    proto.blog.Emoji.toObject, includeInstance),
     commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
     proto.blog.Comment.toObject, includeInstance),
-    thumbnail: jspb.Message.getFieldWithDefault(msg, 11, ""),
-    status: jspb.Message.getFieldWithDefault(msg, 12, 0)
+    thumbnail: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    status: jspb.Message.getFieldWithDefault(msg, 11, 0)
   };
 
   if (includeInstance) {
@@ -986,25 +764,20 @@ proto.blog.BlogPost.deserializeBinaryFromReader = function(msg, reader) {
       msg.setCreationtime(value);
       break;
     case 8:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.addLikers(value);
+      var value = new proto.blog.Emoji;
+      reader.readMessage(value,proto.blog.Emoji.deserializeBinaryFromReader);
+      msg.addEmotions(value);
       break;
     case 9:
-      var value = new proto.blog.Dislike;
-      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
-      msg.addDislikers(value);
-      break;
-    case 10:
       var value = new proto.blog.Comment;
       reader.readMessage(value,proto.blog.Comment.deserializeBinaryFromReader);
       msg.addComments(value);
       break;
-    case 11:
+    case 10:
       var value = /** @type {string} */ (reader.readString());
       msg.setThumbnail(value);
       break;
-    case 12:
+    case 11:
       var value = /** @type {!proto.blog.BogPostStatus} */ (reader.readEnum());
       msg.setStatus(value);
       break;
@@ -1086,26 +859,18 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getLikersList();
+  f = message.getEmotionsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
       8,
       f,
-      proto.blog.Like.serializeBinaryToWriter
-    );
-  }
-  f = message.getDislikersList();
-  if (f.length > 0) {
-    writer.writeRepeatedMessage(
-      9,
-      f,
-      proto.blog.Dislike.serializeBinaryToWriter
+      proto.blog.Emoji.serializeBinaryToWriter
     );
   }
   f = message.getCommentsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      10,
+      9,
       f,
       proto.blog.Comment.serializeBinaryToWriter
     );
@@ -1113,14 +878,14 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
   f = message.getThumbnail();
   if (f.length > 0) {
     writer.writeString(
-      11,
+      10,
       f
     );
   }
   f = message.getStatus();
   if (f !== 0.0) {
     writer.writeEnum(
-      12,
+      11,
       f
     );
   }
@@ -1247,80 +1012,49 @@ proto.blog.BlogPost.prototype.setCreationtime = function(value) {
 
 
 /**
- * repeated Like likers = 8;
- * @return {!Array<!proto.blog.Like>}
+ * repeated Emoji emotions = 8;
+ * @return {!Array<!proto.blog.Emoji>}
  */
-proto.blog.BlogPost.prototype.getLikersList = function() {
-  return /** @type{!Array<!proto.blog.Like>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Like, 8));
+proto.blog.BlogPost.prototype.getEmotionsList = function() {
+  return /** @type{!Array<!proto.blog.Emoji>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Emoji, 8));
 };
 
 
-/** @param {!Array<!proto.blog.Like>} value */
-proto.blog.BlogPost.prototype.setLikersList = function(value) {
+/** @param {!Array<!proto.blog.Emoji>} value */
+proto.blog.BlogPost.prototype.setEmotionsList = function(value) {
   jspb.Message.setRepeatedWrapperField(this, 8, value);
 };
 
 
 /**
- * @param {!proto.blog.Like=} opt_value
+ * @param {!proto.blog.Emoji=} opt_value
  * @param {number=} opt_index
- * @return {!proto.blog.Like}
+ * @return {!proto.blog.Emoji}
  */
-proto.blog.BlogPost.prototype.addLikers = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.blog.Like, opt_index);
+proto.blog.BlogPost.prototype.addEmotions = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.blog.Emoji, opt_index);
 };
 
 
-proto.blog.BlogPost.prototype.clearLikersList = function() {
-  this.setLikersList([]);
+proto.blog.BlogPost.prototype.clearEmotionsList = function() {
+  this.setEmotionsList([]);
 };
 
 
 /**
- * repeated Dislike dislikers = 9;
- * @return {!Array<!proto.blog.Dislike>}
- */
-proto.blog.BlogPost.prototype.getDislikersList = function() {
-  return /** @type{!Array<!proto.blog.Dislike>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Dislike, 9));
-};
-
-
-/** @param {!Array<!proto.blog.Dislike>} value */
-proto.blog.BlogPost.prototype.setDislikersList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 9, value);
-};
-
-
-/**
- * @param {!proto.blog.Dislike=} opt_value
- * @param {number=} opt_index
- * @return {!proto.blog.Dislike}
- */
-proto.blog.BlogPost.prototype.addDislikers = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.blog.Dislike, opt_index);
-};
-
-
-proto.blog.BlogPost.prototype.clearDislikersList = function() {
-  this.setDislikersList([]);
-};
-
-
-/**
- * repeated Comment comments = 10;
+ * repeated Comment comments = 9;
  * @return {!Array<!proto.blog.Comment>}
  */
 proto.blog.BlogPost.prototype.getCommentsList = function() {
   return /** @type{!Array<!proto.blog.Comment>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Comment, 10));
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Comment, 9));
 };
 
 
 /** @param {!Array<!proto.blog.Comment>} value */
 proto.blog.BlogPost.prototype.setCommentsList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 10, value);
+  jspb.Message.setRepeatedWrapperField(this, 9, value);
 };
 
 
@@ -1330,7 +1064,7 @@ proto.blog.BlogPost.prototype.setCommentsList = function(value) {
  * @return {!proto.blog.Comment}
  */
 proto.blog.BlogPost.prototype.addComments = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 10, opt_value, proto.blog.Comment, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.blog.Comment, opt_index);
 };
 
 
@@ -1340,32 +1074,32 @@ proto.blog.BlogPost.prototype.clearCommentsList = function() {
 
 
 /**
- * optional string thumbnail = 11;
+ * optional string thumbnail = 10;
  * @return {string}
  */
 proto.blog.BlogPost.prototype.getThumbnail = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
 };
 
 
 /** @param {string} value */
 proto.blog.BlogPost.prototype.setThumbnail = function(value) {
-  jspb.Message.setProto3StringField(this, 11, value);
+  jspb.Message.setProto3StringField(this, 10, value);
 };
 
 
 /**
- * optional BogPostStatus status = 12;
+ * optional BogPostStatus status = 11;
  * @return {!proto.blog.BogPostStatus}
  */
 proto.blog.BlogPost.prototype.getStatus = function() {
-  return /** @type {!proto.blog.BogPostStatus} */ (jspb.Message.getFieldWithDefault(this, 12, 0));
+  return /** @type {!proto.blog.BogPostStatus} */ (jspb.Message.getFieldWithDefault(this, 11, 0));
 };
 
 
 /** @param {!proto.blog.BogPostStatus} value */
 proto.blog.BlogPost.prototype.setStatus = function(value) {
-  jspb.Message.setProto3EnumField(this, 12, value);
+  jspb.Message.setProto3EnumField(this, 11, value);
 };
 
 
@@ -2990,12 +2724,12 @@ proto.blog.DeleteBlogPostResponse.serializeBinaryToWriter = function(message, wr
  * @extends {jspb.Message}
  * @constructor
  */
-proto.blog.AddLikeRequest = function(opt_data) {
+proto.blog.AddEmojiRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.blog.AddLikeRequest, jspb.Message);
+goog.inherits(proto.blog.AddEmojiRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.blog.AddLikeRequest.displayName = 'proto.blog.AddLikeRequest';
+  proto.blog.AddEmojiRequest.displayName = 'proto.blog.AddEmojiRequest';
 }
 
 
@@ -3010,8 +2744,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.blog.AddLikeRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.AddLikeRequest.toObject(opt_includeInstance, this);
+proto.blog.AddEmojiRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.blog.AddEmojiRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -3020,14 +2754,14 @@ proto.blog.AddLikeRequest.prototype.toObject = function(opt_includeInstance) {
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.blog.AddLikeRequest} msg The msg instance to transform.
+ * @param {!proto.blog.AddEmojiRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.AddLikeRequest.toObject = function(includeInstance, msg) {
+proto.blog.AddEmojiRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
+    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3041,23 +2775,23 @@ proto.blog.AddLikeRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.AddLikeRequest}
+ * @return {!proto.blog.AddEmojiRequest}
  */
-proto.blog.AddLikeRequest.deserializeBinary = function(bytes) {
+proto.blog.AddEmojiRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.AddLikeRequest;
-  return proto.blog.AddLikeRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.blog.AddEmojiRequest;
+  return proto.blog.AddEmojiRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.blog.AddLikeRequest} msg The message object to deserialize into.
+ * @param {!proto.blog.AddEmojiRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.AddLikeRequest}
+ * @return {!proto.blog.AddEmojiRequest}
  */
-proto.blog.AddLikeRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.blog.AddEmojiRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3069,9 +2803,9 @@ proto.blog.AddLikeRequest.deserializeBinaryFromReader = function(msg, reader) {
       msg.setUuid(value);
       break;
     case 2:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.setLike(value);
+      var value = new proto.blog.Emoji;
+      reader.readMessage(value,proto.blog.Emoji.deserializeBinaryFromReader);
+      msg.setEmoji(value);
       break;
     default:
       reader.skipField();
@@ -3086,9 +2820,9 @@ proto.blog.AddLikeRequest.deserializeBinaryFromReader = function(msg, reader) {
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.blog.AddLikeRequest.prototype.serializeBinary = function() {
+proto.blog.AddEmojiRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.blog.AddLikeRequest.serializeBinaryToWriter(this, writer);
+  proto.blog.AddEmojiRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3096,11 +2830,11 @@ proto.blog.AddLikeRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.blog.AddLikeRequest} message
+ * @param {!proto.blog.AddEmojiRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.AddLikeRequest.serializeBinaryToWriter = function(message, writer) {
+proto.blog.AddEmojiRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getUuid();
   if (f.length > 0) {
@@ -3109,12 +2843,12 @@ proto.blog.AddLikeRequest.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getLike();
+  f = message.getEmoji();
   if (f != null) {
     writer.writeMessage(
       2,
       f,
-      proto.blog.Like.serializeBinaryToWriter
+      proto.blog.Emoji.serializeBinaryToWriter
     );
   }
 };
@@ -3124,35 +2858,35 @@ proto.blog.AddLikeRequest.serializeBinaryToWriter = function(message, writer) {
  * optional string uuid = 1;
  * @return {string}
  */
-proto.blog.AddLikeRequest.prototype.getUuid = function() {
+proto.blog.AddEmojiRequest.prototype.getUuid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.AddLikeRequest.prototype.setUuid = function(value) {
+proto.blog.AddEmojiRequest.prototype.setUuid = function(value) {
   jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional Like like = 2;
- * @return {?proto.blog.Like}
+ * optional Emoji emoji = 2;
+ * @return {?proto.blog.Emoji}
  */
-proto.blog.AddLikeRequest.prototype.getLike = function() {
-  return /** @type{?proto.blog.Like} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Like, 2));
+proto.blog.AddEmojiRequest.prototype.getEmoji = function() {
+  return /** @type{?proto.blog.Emoji} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Emoji, 2));
 };
 
 
-/** @param {?proto.blog.Like|undefined} value */
-proto.blog.AddLikeRequest.prototype.setLike = function(value) {
+/** @param {?proto.blog.Emoji|undefined} value */
+proto.blog.AddEmojiRequest.prototype.setEmoji = function(value) {
   jspb.Message.setWrapperField(this, 2, value);
 };
 
 
-proto.blog.AddLikeRequest.prototype.clearLike = function() {
-  this.setLike(undefined);
+proto.blog.AddEmojiRequest.prototype.clearEmoji = function() {
+  this.setEmoji(undefined);
 };
 
 
@@ -3160,7 +2894,7 @@ proto.blog.AddLikeRequest.prototype.clearLike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.AddLikeRequest.prototype.hasLike = function() {
+proto.blog.AddEmojiRequest.prototype.hasEmoji = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 
@@ -3176,12 +2910,12 @@ proto.blog.AddLikeRequest.prototype.hasLike = function() {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.blog.AddLikeResponse = function(opt_data) {
+proto.blog.AddEmojiResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.blog.AddLikeResponse, jspb.Message);
+goog.inherits(proto.blog.AddEmojiResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.blog.AddLikeResponse.displayName = 'proto.blog.AddLikeResponse';
+  proto.blog.AddEmojiResponse.displayName = 'proto.blog.AddEmojiResponse';
 }
 
 
@@ -3196,8 +2930,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.blog.AddLikeResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.AddLikeResponse.toObject(opt_includeInstance, this);
+proto.blog.AddEmojiResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.blog.AddEmojiResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -3206,13 +2940,13 @@ proto.blog.AddLikeResponse.prototype.toObject = function(opt_includeInstance) {
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.blog.AddLikeResponse} msg The msg instance to transform.
+ * @param {!proto.blog.AddEmojiResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.AddLikeResponse.toObject = function(includeInstance, msg) {
+proto.blog.AddEmojiResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
+    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3226,23 +2960,23 @@ proto.blog.AddLikeResponse.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.AddLikeResponse}
+ * @return {!proto.blog.AddEmojiResponse}
  */
-proto.blog.AddLikeResponse.deserializeBinary = function(bytes) {
+proto.blog.AddEmojiResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.AddLikeResponse;
-  return proto.blog.AddLikeResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.blog.AddEmojiResponse;
+  return proto.blog.AddEmojiResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.blog.AddLikeResponse} msg The message object to deserialize into.
+ * @param {!proto.blog.AddEmojiResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.AddLikeResponse}
+ * @return {!proto.blog.AddEmojiResponse}
  */
-proto.blog.AddLikeResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.blog.AddEmojiResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3250,9 +2984,9 @@ proto.blog.AddLikeResponse.deserializeBinaryFromReader = function(msg, reader) {
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.setLike(value);
+      var value = new proto.blog.Emoji;
+      reader.readMessage(value,proto.blog.Emoji.deserializeBinaryFromReader);
+      msg.setEmoji(value);
       break;
     default:
       reader.skipField();
@@ -3267,9 +3001,9 @@ proto.blog.AddLikeResponse.deserializeBinaryFromReader = function(msg, reader) {
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.blog.AddLikeResponse.prototype.serializeBinary = function() {
+proto.blog.AddEmojiResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.blog.AddLikeResponse.serializeBinaryToWriter(this, writer);
+  proto.blog.AddEmojiResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3277,41 +3011,41 @@ proto.blog.AddLikeResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.blog.AddLikeResponse} message
+ * @param {!proto.blog.AddEmojiResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.AddLikeResponse.serializeBinaryToWriter = function(message, writer) {
+proto.blog.AddEmojiResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getLike();
+  f = message.getEmoji();
   if (f != null) {
     writer.writeMessage(
       1,
       f,
-      proto.blog.Like.serializeBinaryToWriter
+      proto.blog.Emoji.serializeBinaryToWriter
     );
   }
 };
 
 
 /**
- * optional Like like = 1;
- * @return {?proto.blog.Like}
+ * optional Emoji emoji = 1;
+ * @return {?proto.blog.Emoji}
  */
-proto.blog.AddLikeResponse.prototype.getLike = function() {
-  return /** @type{?proto.blog.Like} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Like, 1));
+proto.blog.AddEmojiResponse.prototype.getEmoji = function() {
+  return /** @type{?proto.blog.Emoji} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Emoji, 1));
 };
 
 
-/** @param {?proto.blog.Like|undefined} value */
-proto.blog.AddLikeResponse.prototype.setLike = function(value) {
+/** @param {?proto.blog.Emoji|undefined} value */
+proto.blog.AddEmojiResponse.prototype.setEmoji = function(value) {
   jspb.Message.setWrapperField(this, 1, value);
 };
 
 
-proto.blog.AddLikeResponse.prototype.clearLike = function() {
-  this.setLike(undefined);
+proto.blog.AddEmojiResponse.prototype.clearEmoji = function() {
+  this.setEmoji(undefined);
 };
 
 
@@ -3319,7 +3053,7 @@ proto.blog.AddLikeResponse.prototype.clearLike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.AddLikeResponse.prototype.hasLike = function() {
+proto.blog.AddEmojiResponse.prototype.hasEmoji = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
@@ -3335,12 +3069,12 @@ proto.blog.AddLikeResponse.prototype.hasLike = function() {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.blog.RemoveLikeRequest = function(opt_data) {
+proto.blog.RemoveEmojiRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.blog.RemoveLikeRequest, jspb.Message);
+goog.inherits(proto.blog.RemoveEmojiRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.blog.RemoveLikeRequest.displayName = 'proto.blog.RemoveLikeRequest';
+  proto.blog.RemoveEmojiRequest.displayName = 'proto.blog.RemoveEmojiRequest';
 }
 
 
@@ -3355,8 +3089,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.blog.RemoveLikeRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.RemoveLikeRequest.toObject(opt_includeInstance, this);
+proto.blog.RemoveEmojiRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.blog.RemoveEmojiRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -3365,14 +3099,14 @@ proto.blog.RemoveLikeRequest.prototype.toObject = function(opt_includeInstance) 
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.blog.RemoveLikeRequest} msg The msg instance to transform.
+ * @param {!proto.blog.RemoveEmojiRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.RemoveLikeRequest.toObject = function(includeInstance, msg) {
+proto.blog.RemoveEmojiRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    like: (f = msg.getLike()) && proto.blog.Like.toObject(includeInstance, f)
+    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3386,23 +3120,23 @@ proto.blog.RemoveLikeRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.RemoveLikeRequest}
+ * @return {!proto.blog.RemoveEmojiRequest}
  */
-proto.blog.RemoveLikeRequest.deserializeBinary = function(bytes) {
+proto.blog.RemoveEmojiRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.RemoveLikeRequest;
-  return proto.blog.RemoveLikeRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.blog.RemoveEmojiRequest;
+  return proto.blog.RemoveEmojiRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.blog.RemoveLikeRequest} msg The message object to deserialize into.
+ * @param {!proto.blog.RemoveEmojiRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.RemoveLikeRequest}
+ * @return {!proto.blog.RemoveEmojiRequest}
  */
-proto.blog.RemoveLikeRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.blog.RemoveEmojiRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3414,9 +3148,9 @@ proto.blog.RemoveLikeRequest.deserializeBinaryFromReader = function(msg, reader)
       msg.setUuid(value);
       break;
     case 2:
-      var value = new proto.blog.Like;
-      reader.readMessage(value,proto.blog.Like.deserializeBinaryFromReader);
-      msg.setLike(value);
+      var value = new proto.blog.Emoji;
+      reader.readMessage(value,proto.blog.Emoji.deserializeBinaryFromReader);
+      msg.setEmoji(value);
       break;
     default:
       reader.skipField();
@@ -3431,9 +3165,9 @@ proto.blog.RemoveLikeRequest.deserializeBinaryFromReader = function(msg, reader)
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.blog.RemoveLikeRequest.prototype.serializeBinary = function() {
+proto.blog.RemoveEmojiRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.blog.RemoveLikeRequest.serializeBinaryToWriter(this, writer);
+  proto.blog.RemoveEmojiRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3441,11 +3175,11 @@ proto.blog.RemoveLikeRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.blog.RemoveLikeRequest} message
+ * @param {!proto.blog.RemoveEmojiRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.RemoveLikeRequest.serializeBinaryToWriter = function(message, writer) {
+proto.blog.RemoveEmojiRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getUuid();
   if (f.length > 0) {
@@ -3454,12 +3188,12 @@ proto.blog.RemoveLikeRequest.serializeBinaryToWriter = function(message, writer)
       f
     );
   }
-  f = message.getLike();
+  f = message.getEmoji();
   if (f != null) {
     writer.writeMessage(
       2,
       f,
-      proto.blog.Like.serializeBinaryToWriter
+      proto.blog.Emoji.serializeBinaryToWriter
     );
   }
 };
@@ -3469,35 +3203,35 @@ proto.blog.RemoveLikeRequest.serializeBinaryToWriter = function(message, writer)
  * optional string uuid = 1;
  * @return {string}
  */
-proto.blog.RemoveLikeRequest.prototype.getUuid = function() {
+proto.blog.RemoveEmojiRequest.prototype.getUuid = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.RemoveLikeRequest.prototype.setUuid = function(value) {
+proto.blog.RemoveEmojiRequest.prototype.setUuid = function(value) {
   jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional Like like = 2;
- * @return {?proto.blog.Like}
+ * optional Emoji emoji = 2;
+ * @return {?proto.blog.Emoji}
  */
-proto.blog.RemoveLikeRequest.prototype.getLike = function() {
-  return /** @type{?proto.blog.Like} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Like, 2));
+proto.blog.RemoveEmojiRequest.prototype.getEmoji = function() {
+  return /** @type{?proto.blog.Emoji} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Emoji, 2));
 };
 
 
-/** @param {?proto.blog.Like|undefined} value */
-proto.blog.RemoveLikeRequest.prototype.setLike = function(value) {
+/** @param {?proto.blog.Emoji|undefined} value */
+proto.blog.RemoveEmojiRequest.prototype.setEmoji = function(value) {
   jspb.Message.setWrapperField(this, 2, value);
 };
 
 
-proto.blog.RemoveLikeRequest.prototype.clearLike = function() {
-  this.setLike(undefined);
+proto.blog.RemoveEmojiRequest.prototype.clearEmoji = function() {
+  this.setEmoji(undefined);
 };
 
 
@@ -3505,7 +3239,7 @@ proto.blog.RemoveLikeRequest.prototype.clearLike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.RemoveLikeRequest.prototype.hasLike = function() {
+proto.blog.RemoveEmojiRequest.prototype.hasEmoji = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 
@@ -3521,12 +3255,12 @@ proto.blog.RemoveLikeRequest.prototype.hasLike = function() {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.blog.RemoveLikeResponse = function(opt_data) {
+proto.blog.RemoveEmojiResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.blog.RemoveLikeResponse, jspb.Message);
+goog.inherits(proto.blog.RemoveEmojiResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.blog.RemoveLikeResponse.displayName = 'proto.blog.RemoveLikeResponse';
+  proto.blog.RemoveEmojiResponse.displayName = 'proto.blog.RemoveEmojiResponse';
 }
 
 
@@ -3541,8 +3275,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.blog.RemoveLikeResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.RemoveLikeResponse.toObject(opt_includeInstance, this);
+proto.blog.RemoveEmojiResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.blog.RemoveEmojiResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -3551,13 +3285,13 @@ proto.blog.RemoveLikeResponse.prototype.toObject = function(opt_includeInstance)
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.blog.RemoveLikeResponse} msg The msg instance to transform.
+ * @param {!proto.blog.RemoveEmojiResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.RemoveLikeResponse.toObject = function(includeInstance, msg) {
+proto.blog.RemoveEmojiResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-
+    emoji: (f = msg.getEmoji()) && proto.blog.Emoji.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3571,140 +3305,23 @@ proto.blog.RemoveLikeResponse.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.RemoveLikeResponse}
+ * @return {!proto.blog.RemoveEmojiResponse}
  */
-proto.blog.RemoveLikeResponse.deserializeBinary = function(bytes) {
+proto.blog.RemoveEmojiResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.RemoveLikeResponse;
-  return proto.blog.RemoveLikeResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.blog.RemoveEmojiResponse;
+  return proto.blog.RemoveEmojiResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.blog.RemoveLikeResponse} msg The message object to deserialize into.
+ * @param {!proto.blog.RemoveEmojiResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.RemoveLikeResponse}
+ * @return {!proto.blog.RemoveEmojiResponse}
  */
-proto.blog.RemoveLikeResponse.deserializeBinaryFromReader = function(msg, reader) {
-  while (reader.nextField()) {
-    if (reader.isEndGroup()) {
-      break;
-    }
-    var field = reader.getFieldNumber();
-    switch (field) {
-    default:
-      reader.skipField();
-      break;
-    }
-  }
-  return msg;
-};
-
-
-/**
- * Serializes the message to binary data (in protobuf wire format).
- * @return {!Uint8Array}
- */
-proto.blog.RemoveLikeResponse.prototype.serializeBinary = function() {
-  var writer = new jspb.BinaryWriter();
-  proto.blog.RemoveLikeResponse.serializeBinaryToWriter(this, writer);
-  return writer.getResultBuffer();
-};
-
-
-/**
- * Serializes the given message to binary data (in protobuf wire
- * format), writing to the given BinaryWriter.
- * @param {!proto.blog.RemoveLikeResponse} message
- * @param {!jspb.BinaryWriter} writer
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.RemoveLikeResponse.serializeBinaryToWriter = function(message, writer) {
-  var f = undefined;
-};
-
-
-
-/**
- * Generated by JsPbCodeGenerator.
- * @param {Array=} opt_data Optional initial data array, typically from a
- * server response, or constructed directly in Javascript. The array is used
- * in place and becomes part of the constructed object. It is not cloned.
- * If no data is provided, the constructed object will be empty, but still
- * valid.
- * @extends {jspb.Message}
- * @constructor
- */
-proto.blog.AddDislikeRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
-};
-goog.inherits(proto.blog.AddDislikeRequest, jspb.Message);
-if (goog.DEBUG && !COMPILED) {
-  proto.blog.AddDislikeRequest.displayName = 'proto.blog.AddDislikeRequest';
-}
-
-
-if (jspb.Message.GENERATE_TO_OBJECT) {
-/**
- * Creates an object representation of this proto suitable for use in Soy templates.
- * Field names that are reserved in JavaScript and will be renamed to pb_name.
- * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
- * For the list of reserved names please see:
- *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
- * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
- *     for transitional soy proto support: http://goto/soy-param-migration
- * @return {!Object}
- */
-proto.blog.AddDislikeRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.AddDislikeRequest.toObject(opt_includeInstance, this);
-};
-
-
-/**
- * Static version of the {@see toObject} method.
- * @param {boolean|undefined} includeInstance Whether to include the JSPB
- *     instance for transitional soy proto support:
- *     http://goto/soy-param-migration
- * @param {!proto.blog.AddDislikeRequest} msg The msg instance to transform.
- * @return {!Object}
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.AddDislikeRequest.toObject = function(includeInstance, msg) {
-  var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    dislike: (f = msg.getDislike()) && proto.blog.Dislike.toObject(includeInstance, f)
-  };
-
-  if (includeInstance) {
-    obj.$jspbMessageInstance = msg;
-  }
-  return obj;
-};
-}
-
-
-/**
- * Deserializes binary data (in protobuf wire format).
- * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.AddDislikeRequest}
- */
-proto.blog.AddDislikeRequest.deserializeBinary = function(bytes) {
-  var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.AddDislikeRequest;
-  return proto.blog.AddDislikeRequest.deserializeBinaryFromReader(msg, reader);
-};
-
-
-/**
- * Deserializes binary data (in protobuf wire format) from the
- * given reader into the given message object.
- * @param {!proto.blog.AddDislikeRequest} msg The message object to deserialize into.
- * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.AddDislikeRequest}
- */
-proto.blog.AddDislikeRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.blog.RemoveEmojiResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3712,13 +3329,9 @@ proto.blog.AddDislikeRequest.deserializeBinaryFromReader = function(msg, reader)
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setUuid(value);
-      break;
-    case 2:
-      var value = new proto.blog.Dislike;
-      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
-      msg.setDislike(value);
+      var value = new proto.blog.Emoji;
+      reader.readMessage(value,proto.blog.Emoji.deserializeBinaryFromReader);
+      msg.setEmoji(value);
       break;
     default:
       reader.skipField();
@@ -3733,9 +3346,9 @@ proto.blog.AddDislikeRequest.deserializeBinaryFromReader = function(msg, reader)
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.blog.AddDislikeRequest.prototype.serializeBinary = function() {
+proto.blog.RemoveEmojiResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.blog.AddDislikeRequest.serializeBinaryToWriter(this, writer);
+  proto.blog.RemoveEmojiResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3743,222 +3356,41 @@ proto.blog.AddDislikeRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.blog.AddDislikeRequest} message
+ * @param {!proto.blog.RemoveEmojiResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.blog.AddDislikeRequest.serializeBinaryToWriter = function(message, writer) {
+proto.blog.RemoveEmojiResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getUuid();
-  if (f.length > 0) {
-    writer.writeString(
-      1,
-      f
-    );
-  }
-  f = message.getDislike();
-  if (f != null) {
-    writer.writeMessage(
-      2,
-      f,
-      proto.blog.Dislike.serializeBinaryToWriter
-    );
-  }
-};
-
-
-/**
- * optional string uuid = 1;
- * @return {string}
- */
-proto.blog.AddDislikeRequest.prototype.getUuid = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
-};
-
-
-/** @param {string} value */
-proto.blog.AddDislikeRequest.prototype.setUuid = function(value) {
-  jspb.Message.setProto3StringField(this, 1, value);
-};
-
-
-/**
- * optional Dislike dislike = 2;
- * @return {?proto.blog.Dislike}
- */
-proto.blog.AddDislikeRequest.prototype.getDislike = function() {
-  return /** @type{?proto.blog.Dislike} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Dislike, 2));
-};
-
-
-/** @param {?proto.blog.Dislike|undefined} value */
-proto.blog.AddDislikeRequest.prototype.setDislike = function(value) {
-  jspb.Message.setWrapperField(this, 2, value);
-};
-
-
-proto.blog.AddDislikeRequest.prototype.clearDislike = function() {
-  this.setDislike(undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {!boolean}
- */
-proto.blog.AddDislikeRequest.prototype.hasDislike = function() {
-  return jspb.Message.getField(this, 2) != null;
-};
-
-
-
-/**
- * Generated by JsPbCodeGenerator.
- * @param {Array=} opt_data Optional initial data array, typically from a
- * server response, or constructed directly in Javascript. The array is used
- * in place and becomes part of the constructed object. It is not cloned.
- * If no data is provided, the constructed object will be empty, but still
- * valid.
- * @extends {jspb.Message}
- * @constructor
- */
-proto.blog.AddDislikeResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
-};
-goog.inherits(proto.blog.AddDislikeResponse, jspb.Message);
-if (goog.DEBUG && !COMPILED) {
-  proto.blog.AddDislikeResponse.displayName = 'proto.blog.AddDislikeResponse';
-}
-
-
-if (jspb.Message.GENERATE_TO_OBJECT) {
-/**
- * Creates an object representation of this proto suitable for use in Soy templates.
- * Field names that are reserved in JavaScript and will be renamed to pb_name.
- * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
- * For the list of reserved names please see:
- *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
- * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
- *     for transitional soy proto support: http://goto/soy-param-migration
- * @return {!Object}
- */
-proto.blog.AddDislikeResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.AddDislikeResponse.toObject(opt_includeInstance, this);
-};
-
-
-/**
- * Static version of the {@see toObject} method.
- * @param {boolean|undefined} includeInstance Whether to include the JSPB
- *     instance for transitional soy proto support:
- *     http://goto/soy-param-migration
- * @param {!proto.blog.AddDislikeResponse} msg The msg instance to transform.
- * @return {!Object}
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.AddDislikeResponse.toObject = function(includeInstance, msg) {
-  var f, obj = {
-    dislike: (f = msg.getDislike()) && proto.blog.Dislike.toObject(includeInstance, f)
-  };
-
-  if (includeInstance) {
-    obj.$jspbMessageInstance = msg;
-  }
-  return obj;
-};
-}
-
-
-/**
- * Deserializes binary data (in protobuf wire format).
- * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.AddDislikeResponse}
- */
-proto.blog.AddDislikeResponse.deserializeBinary = function(bytes) {
-  var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.AddDislikeResponse;
-  return proto.blog.AddDislikeResponse.deserializeBinaryFromReader(msg, reader);
-};
-
-
-/**
- * Deserializes binary data (in protobuf wire format) from the
- * given reader into the given message object.
- * @param {!proto.blog.AddDislikeResponse} msg The message object to deserialize into.
- * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.AddDislikeResponse}
- */
-proto.blog.AddDislikeResponse.deserializeBinaryFromReader = function(msg, reader) {
-  while (reader.nextField()) {
-    if (reader.isEndGroup()) {
-      break;
-    }
-    var field = reader.getFieldNumber();
-    switch (field) {
-    case 1:
-      var value = new proto.blog.Dislike;
-      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
-      msg.setDislike(value);
-      break;
-    default:
-      reader.skipField();
-      break;
-    }
-  }
-  return msg;
-};
-
-
-/**
- * Serializes the message to binary data (in protobuf wire format).
- * @return {!Uint8Array}
- */
-proto.blog.AddDislikeResponse.prototype.serializeBinary = function() {
-  var writer = new jspb.BinaryWriter();
-  proto.blog.AddDislikeResponse.serializeBinaryToWriter(this, writer);
-  return writer.getResultBuffer();
-};
-
-
-/**
- * Serializes the given message to binary data (in protobuf wire
- * format), writing to the given BinaryWriter.
- * @param {!proto.blog.AddDislikeResponse} message
- * @param {!jspb.BinaryWriter} writer
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.AddDislikeResponse.serializeBinaryToWriter = function(message, writer) {
-  var f = undefined;
-  f = message.getDislike();
+  f = message.getEmoji();
   if (f != null) {
     writer.writeMessage(
       1,
       f,
-      proto.blog.Dislike.serializeBinaryToWriter
+      proto.blog.Emoji.serializeBinaryToWriter
     );
   }
 };
 
 
 /**
- * optional Dislike dislike = 1;
- * @return {?proto.blog.Dislike}
+ * optional Emoji emoji = 1;
+ * @return {?proto.blog.Emoji}
  */
-proto.blog.AddDislikeResponse.prototype.getDislike = function() {
-  return /** @type{?proto.blog.Dislike} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Dislike, 1));
+proto.blog.RemoveEmojiResponse.prototype.getEmoji = function() {
+  return /** @type{?proto.blog.Emoji} */ (
+    jspb.Message.getWrapperField(this, proto.blog.Emoji, 1));
 };
 
 
-/** @param {?proto.blog.Dislike|undefined} value */
-proto.blog.AddDislikeResponse.prototype.setDislike = function(value) {
+/** @param {?proto.blog.Emoji|undefined} value */
+proto.blog.RemoveEmojiResponse.prototype.setEmoji = function(value) {
   jspb.Message.setWrapperField(this, 1, value);
 };
 
 
-proto.blog.AddDislikeResponse.prototype.clearDislike = function() {
-  this.setDislike(undefined);
+proto.blog.RemoveEmojiResponse.prototype.clearEmoji = function() {
+  this.setEmoji(undefined);
 };
 
 
@@ -3966,310 +3398,8 @@ proto.blog.AddDislikeResponse.prototype.clearDislike = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.blog.AddDislikeResponse.prototype.hasDislike = function() {
+proto.blog.RemoveEmojiResponse.prototype.hasEmoji = function() {
   return jspb.Message.getField(this, 1) != null;
-};
-
-
-
-/**
- * Generated by JsPbCodeGenerator.
- * @param {Array=} opt_data Optional initial data array, typically from a
- * server response, or constructed directly in Javascript. The array is used
- * in place and becomes part of the constructed object. It is not cloned.
- * If no data is provided, the constructed object will be empty, but still
- * valid.
- * @extends {jspb.Message}
- * @constructor
- */
-proto.blog.RemoveDislikeRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
-};
-goog.inherits(proto.blog.RemoveDislikeRequest, jspb.Message);
-if (goog.DEBUG && !COMPILED) {
-  proto.blog.RemoveDislikeRequest.displayName = 'proto.blog.RemoveDislikeRequest';
-}
-
-
-if (jspb.Message.GENERATE_TO_OBJECT) {
-/**
- * Creates an object representation of this proto suitable for use in Soy templates.
- * Field names that are reserved in JavaScript and will be renamed to pb_name.
- * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
- * For the list of reserved names please see:
- *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
- * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
- *     for transitional soy proto support: http://goto/soy-param-migration
- * @return {!Object}
- */
-proto.blog.RemoveDislikeRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.RemoveDislikeRequest.toObject(opt_includeInstance, this);
-};
-
-
-/**
- * Static version of the {@see toObject} method.
- * @param {boolean|undefined} includeInstance Whether to include the JSPB
- *     instance for transitional soy proto support:
- *     http://goto/soy-param-migration
- * @param {!proto.blog.RemoveDislikeRequest} msg The msg instance to transform.
- * @return {!Object}
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.RemoveDislikeRequest.toObject = function(includeInstance, msg) {
-  var f, obj = {
-    uuid: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    dislike: (f = msg.getDislike()) && proto.blog.Dislike.toObject(includeInstance, f)
-  };
-
-  if (includeInstance) {
-    obj.$jspbMessageInstance = msg;
-  }
-  return obj;
-};
-}
-
-
-/**
- * Deserializes binary data (in protobuf wire format).
- * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.RemoveDislikeRequest}
- */
-proto.blog.RemoveDislikeRequest.deserializeBinary = function(bytes) {
-  var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.RemoveDislikeRequest;
-  return proto.blog.RemoveDislikeRequest.deserializeBinaryFromReader(msg, reader);
-};
-
-
-/**
- * Deserializes binary data (in protobuf wire format) from the
- * given reader into the given message object.
- * @param {!proto.blog.RemoveDislikeRequest} msg The message object to deserialize into.
- * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.RemoveDislikeRequest}
- */
-proto.blog.RemoveDislikeRequest.deserializeBinaryFromReader = function(msg, reader) {
-  while (reader.nextField()) {
-    if (reader.isEndGroup()) {
-      break;
-    }
-    var field = reader.getFieldNumber();
-    switch (field) {
-    case 1:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setUuid(value);
-      break;
-    case 2:
-      var value = new proto.blog.Dislike;
-      reader.readMessage(value,proto.blog.Dislike.deserializeBinaryFromReader);
-      msg.setDislike(value);
-      break;
-    default:
-      reader.skipField();
-      break;
-    }
-  }
-  return msg;
-};
-
-
-/**
- * Serializes the message to binary data (in protobuf wire format).
- * @return {!Uint8Array}
- */
-proto.blog.RemoveDislikeRequest.prototype.serializeBinary = function() {
-  var writer = new jspb.BinaryWriter();
-  proto.blog.RemoveDislikeRequest.serializeBinaryToWriter(this, writer);
-  return writer.getResultBuffer();
-};
-
-
-/**
- * Serializes the given message to binary data (in protobuf wire
- * format), writing to the given BinaryWriter.
- * @param {!proto.blog.RemoveDislikeRequest} message
- * @param {!jspb.BinaryWriter} writer
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.RemoveDislikeRequest.serializeBinaryToWriter = function(message, writer) {
-  var f = undefined;
-  f = message.getUuid();
-  if (f.length > 0) {
-    writer.writeString(
-      1,
-      f
-    );
-  }
-  f = message.getDislike();
-  if (f != null) {
-    writer.writeMessage(
-      2,
-      f,
-      proto.blog.Dislike.serializeBinaryToWriter
-    );
-  }
-};
-
-
-/**
- * optional string uuid = 1;
- * @return {string}
- */
-proto.blog.RemoveDislikeRequest.prototype.getUuid = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
-};
-
-
-/** @param {string} value */
-proto.blog.RemoveDislikeRequest.prototype.setUuid = function(value) {
-  jspb.Message.setProto3StringField(this, 1, value);
-};
-
-
-/**
- * optional Dislike dislike = 2;
- * @return {?proto.blog.Dislike}
- */
-proto.blog.RemoveDislikeRequest.prototype.getDislike = function() {
-  return /** @type{?proto.blog.Dislike} */ (
-    jspb.Message.getWrapperField(this, proto.blog.Dislike, 2));
-};
-
-
-/** @param {?proto.blog.Dislike|undefined} value */
-proto.blog.RemoveDislikeRequest.prototype.setDislike = function(value) {
-  jspb.Message.setWrapperField(this, 2, value);
-};
-
-
-proto.blog.RemoveDislikeRequest.prototype.clearDislike = function() {
-  this.setDislike(undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {!boolean}
- */
-proto.blog.RemoveDislikeRequest.prototype.hasDislike = function() {
-  return jspb.Message.getField(this, 2) != null;
-};
-
-
-
-/**
- * Generated by JsPbCodeGenerator.
- * @param {Array=} opt_data Optional initial data array, typically from a
- * server response, or constructed directly in Javascript. The array is used
- * in place and becomes part of the constructed object. It is not cloned.
- * If no data is provided, the constructed object will be empty, but still
- * valid.
- * @extends {jspb.Message}
- * @constructor
- */
-proto.blog.RemoveDislikeResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
-};
-goog.inherits(proto.blog.RemoveDislikeResponse, jspb.Message);
-if (goog.DEBUG && !COMPILED) {
-  proto.blog.RemoveDislikeResponse.displayName = 'proto.blog.RemoveDislikeResponse';
-}
-
-
-if (jspb.Message.GENERATE_TO_OBJECT) {
-/**
- * Creates an object representation of this proto suitable for use in Soy templates.
- * Field names that are reserved in JavaScript and will be renamed to pb_name.
- * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
- * For the list of reserved names please see:
- *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
- * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
- *     for transitional soy proto support: http://goto/soy-param-migration
- * @return {!Object}
- */
-proto.blog.RemoveDislikeResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.blog.RemoveDislikeResponse.toObject(opt_includeInstance, this);
-};
-
-
-/**
- * Static version of the {@see toObject} method.
- * @param {boolean|undefined} includeInstance Whether to include the JSPB
- *     instance for transitional soy proto support:
- *     http://goto/soy-param-migration
- * @param {!proto.blog.RemoveDislikeResponse} msg The msg instance to transform.
- * @return {!Object}
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.RemoveDislikeResponse.toObject = function(includeInstance, msg) {
-  var f, obj = {
-
-  };
-
-  if (includeInstance) {
-    obj.$jspbMessageInstance = msg;
-  }
-  return obj;
-};
-}
-
-
-/**
- * Deserializes binary data (in protobuf wire format).
- * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.blog.RemoveDislikeResponse}
- */
-proto.blog.RemoveDislikeResponse.deserializeBinary = function(bytes) {
-  var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.blog.RemoveDislikeResponse;
-  return proto.blog.RemoveDislikeResponse.deserializeBinaryFromReader(msg, reader);
-};
-
-
-/**
- * Deserializes binary data (in protobuf wire format) from the
- * given reader into the given message object.
- * @param {!proto.blog.RemoveDislikeResponse} msg The message object to deserialize into.
- * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.blog.RemoveDislikeResponse}
- */
-proto.blog.RemoveDislikeResponse.deserializeBinaryFromReader = function(msg, reader) {
-  while (reader.nextField()) {
-    if (reader.isEndGroup()) {
-      break;
-    }
-    var field = reader.getFieldNumber();
-    switch (field) {
-    default:
-      reader.skipField();
-      break;
-    }
-  }
-  return msg;
-};
-
-
-/**
- * Serializes the message to binary data (in protobuf wire format).
- * @return {!Uint8Array}
- */
-proto.blog.RemoveDislikeResponse.prototype.serializeBinary = function() {
-  var writer = new jspb.BinaryWriter();
-  proto.blog.RemoveDislikeResponse.serializeBinaryToWriter(this, writer);
-  return writer.getResultBuffer();
-};
-
-
-/**
- * Serializes the given message to binary data (in protobuf wire
- * format), writing to the given BinaryWriter.
- * @param {!proto.blog.RemoveDislikeResponse} message
- * @param {!jspb.BinaryWriter} writer
- * @suppress {unusedLocalVariables} f is only used for nested messages
- */
-proto.blog.RemoveDislikeResponse.serializeBinaryToWriter = function(message, writer) {
-  var f = undefined;
 };
 
 
