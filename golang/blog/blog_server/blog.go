@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -59,7 +60,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 		Language:     rqst.Language,
 		Text:         rqst.Text,
 		Title:        rqst.Title,
-		Thumbnail:     rqst.Thumbnail,
+		Thumbnail:    rqst.Thumbnail,
 		Status:       blogpb.BogPostStatus_DRAFT,
 	}
 
@@ -139,24 +140,44 @@ func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 }
 
 // Retreive Blog Post by author
-func (svr *server) GetBlogPostsByAuthor(ctx context.Context, rqst *blogpb.GetBlogPostsByAuthorRequest) (*blogpb.GetBlogPostsByAuthorResponse, error) {
+func (svr *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsRequest, stream blogpb.BlogService_GetBlogPostsByAuthorsServer) error {
 
-	// So here I will get the list of blogpost for a given author...
-	blogs, err := svr.getBlogPostByAuthor(rqst.Author)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	// Retreive the list of all blogs. 
+	blogs := make([]*blogpb.BlogPost, 0)
+	for i:=0; i < len(rqst.Authors); i++ {
+		blogs_, err := svr.getBlogPostByAuthor(rqst.Authors[i])
+		if err == nil {
+			blogs = append(blogs, blogs_ ...)
+		}
 	}
 
-	return &blogpb.GetBlogPostsByAuthorResponse{
-		Posts: blogs,
-	}, nil
+	// Now I will sort the values by creation date...
+	sort.Slice(blogs, func(i, j int)bool{
+		return blogs[i].CreationTime < blogs[j].CreationTime
+	})
+
+	// Finaly I will return blogs..
+	max := int(rqst.Max)
+
+	// In that case I will return the whole list.
+	for i:=0; i < max && i < len(blogs); i++ {
+		err := stream.Send(&blogpb.GetBlogPostsByAuthorsResponse{
+			BlogPost: blogs[i],
+		})
+		// Return err
+		if err != nil {
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	return nil
 }
 
 // Search blog by keyword's or text find in the post...
-func (svr *server) SearchBlogPosts(ctx context.Context, rqst *blogpb.SearchBlogsPostRequest) (*blogpb.SearchBlogsPostResponse, error) {
-	return nil, nil
+func (svr *server) SearchBlogPosts(rqst *blogpb.SearchBlogsPostRequest, stream blogpb.BlogService_SearchBlogPostsServer) error{
+	return nil
 }
 
 // Delete a blog.
@@ -219,7 +240,7 @@ func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 		err := errors.New("you can't comment for another account")
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	emoji := make(map[string]interface{}, 0)
@@ -239,7 +260,7 @@ func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	if blog.Uuid == rqst.Uuid {
@@ -249,13 +270,13 @@ func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 		}
 
 		blog.Emotions = append(blog.Emotions, rqst.Emoji)
-	}else{
+	} else {
 		// Here I will find the comment who must contain the emoji
 		comment, err := svr.getBlogComment(rqst.Emoji.Parent, blog)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
 		// Put emotion in your comment...
@@ -270,7 +291,7 @@ func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &blogpb.AddEmojiResponse{Emoji: rqst.Emoji}, nil
@@ -308,7 +329,7 @@ func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 		err := errors.New("you can't comment for another account")
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err)) 
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	blog, err := svr.getBlogPost(rqst.Uuid)
@@ -318,7 +339,7 @@ func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Here I will append the comment...	
+	// Here I will append the comment...
 	parentUuid := rqst.Comment.Parent
 
 	// set comment variable.

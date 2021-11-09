@@ -195,61 +195,56 @@ proto.blog.BlogServicePromiseClient.prototype.saveBlogPost =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.blog.GetBlogPostsByAuthorRequest,
- *   !proto.blog.GetBlogPostsByAuthorResponse>}
+ *   !proto.blog.GetBlogPostsByAuthorsRequest,
+ *   !proto.blog.GetBlogPostsByAuthorsResponse>}
  */
-const methodDescriptor_BlogService_GetBlogPostsByAuthor = new grpc.web.MethodDescriptor(
-  '/blog.BlogService/GetBlogPostsByAuthor',
-  grpc.web.MethodType.UNARY,
-  proto.blog.GetBlogPostsByAuthorRequest,
-  proto.blog.GetBlogPostsByAuthorResponse,
+const methodDescriptor_BlogService_GetBlogPostsByAuthors = new grpc.web.MethodDescriptor(
+  '/blog.BlogService/GetBlogPostsByAuthors',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.blog.GetBlogPostsByAuthorsRequest,
+  proto.blog.GetBlogPostsByAuthorsResponse,
   /**
-   * @param {!proto.blog.GetBlogPostsByAuthorRequest} request
+   * @param {!proto.blog.GetBlogPostsByAuthorsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.blog.GetBlogPostsByAuthorResponse.deserializeBinary
+  proto.blog.GetBlogPostsByAuthorsResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.blog.GetBlogPostsByAuthorRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {!proto.blog.GetBlogPostsByAuthorsRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.blog.GetBlogPostsByAuthorResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.blog.GetBlogPostsByAuthorResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.GetBlogPostsByAuthorsResponse>}
  *     The XHR Node Readable Stream
  */
-proto.blog.BlogServiceClient.prototype.getBlogPostsByAuthor =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
-      '/blog.BlogService/GetBlogPostsByAuthor',
+proto.blog.BlogServiceClient.prototype.getBlogPostsByAuthors =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/blog.BlogService/GetBlogPostsByAuthors',
       request,
       metadata || {},
-      methodDescriptor_BlogService_GetBlogPostsByAuthor,
-      callback);
+      methodDescriptor_BlogService_GetBlogPostsByAuthors);
 };
 
 
 /**
- * @param {!proto.blog.GetBlogPostsByAuthorRequest} request The
- *     request proto
+ * @param {!proto.blog.GetBlogPostsByAuthorsRequest} request The request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.blog.GetBlogPostsByAuthorResponse>}
- *     Promise that resolves to the response
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.GetBlogPostsByAuthorsResponse>}
+ *     The XHR Node Readable Stream
  */
-proto.blog.BlogServicePromiseClient.prototype.getBlogPostsByAuthor =
+proto.blog.BlogServicePromiseClient.prototype.getBlogPostsByAuthors =
     function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
-      '/blog.BlogService/GetBlogPostsByAuthor',
+  return this.client_.serverStreaming(this.hostname_ +
+      '/blog.BlogService/GetBlogPostsByAuthors',
       request,
       metadata || {},
-      methodDescriptor_BlogService_GetBlogPostsByAuthor);
+      methodDescriptor_BlogService_GetBlogPostsByAuthors);
 };
 
 
@@ -261,7 +256,7 @@ proto.blog.BlogServicePromiseClient.prototype.getBlogPostsByAuthor =
  */
 const methodDescriptor_BlogService_SearchBlogPosts = new grpc.web.MethodDescriptor(
   '/blog.BlogService/SearchBlogPosts',
-  grpc.web.MethodType.UNARY,
+  grpc.web.MethodType.SERVER_STREAMING,
   proto.blog.SearchBlogsPostRequest,
   proto.blog.SearchBlogsPostResponse,
   /**
@@ -276,37 +271,32 @@ const methodDescriptor_BlogService_SearchBlogPosts = new grpc.web.MethodDescript
 
 
 /**
- * @param {!proto.blog.SearchBlogsPostRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {!proto.blog.SearchBlogsPostRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.blog.SearchBlogsPostResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.blog.SearchBlogsPostResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.SearchBlogsPostResponse>}
  *     The XHR Node Readable Stream
  */
 proto.blog.BlogServiceClient.prototype.searchBlogPosts =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
       '/blog.BlogService/SearchBlogPosts',
       request,
       metadata || {},
-      methodDescriptor_BlogService_SearchBlogPosts,
-      callback);
+      methodDescriptor_BlogService_SearchBlogPosts);
 };
 
 
 /**
- * @param {!proto.blog.SearchBlogsPostRequest} request The
- *     request proto
+ * @param {!proto.blog.SearchBlogsPostRequest} request The request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.blog.SearchBlogsPostResponse>}
- *     Promise that resolves to the response
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.SearchBlogsPostResponse>}
+ *     The XHR Node Readable Stream
  */
 proto.blog.BlogServicePromiseClient.prototype.searchBlogPosts =
     function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
+  return this.client_.serverStreaming(this.hostname_ +
       '/blog.BlogService/SearchBlogPosts',
       request,
       metadata || {},

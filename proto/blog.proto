@@ -133,16 +133,17 @@ message SaveBlogPostResponse {
    /* nothing here */
 }
 
-message GetBlogPostsByAuthorRequest{
-  /** An account id */
-  string author = 1;
+message GetBlogPostsByAuthorsRequest{
+  /** List of accounts */
+  repeated string authors = 1;
+  /** The maximum number of results */
+  int32 max = 2;
 
 }
 
-message GetBlogPostsByAuthorResponse{
+message GetBlogPostsByAuthorsResponse{
   /** The list of post */
-  repeated BlogPost posts = 1;
-  
+ BlogPost blog_post = 1;
 }
 
 /** Search post by keyword's */
@@ -152,7 +153,7 @@ message SearchBlogsPostRequest{
 
 message SearchBlogsPostResponse{
   /** The list of post */
-  repeated BlogPost posts = 2;
+  BlogPost blog_post = 1;
 }
 
 /** Delete a post */
@@ -211,10 +212,10 @@ service BlogService {
   rpc SaveBlogPost(SaveBlogPostRequest) returns (SaveBlogPostResponse);
 
   // Retreive Blog Post by author
-  rpc GetBlogPostsByAuthor(GetBlogPostsByAuthorRequest) returns (GetBlogPostsByAuthorResponse);
+  rpc GetBlogPostsByAuthors(GetBlogPostsByAuthorsRequest) returns (stream GetBlogPostsByAuthorsResponse);
 
   // Search blog by keyword's or text find in the post...
-  rpc SearchBlogPosts(SearchBlogsPostRequest) returns (SearchBlogsPostResponse);
+  rpc SearchBlogPosts(SearchBlogsPostRequest) returns (stream SearchBlogsPostResponse);
 
   // Delete a blog.
   rpc DeleteBlogPost(DeleteBlogPostRequest) returns (DeleteBlogPostResponse);
