@@ -777,11 +777,11 @@ func main() {
 	// Register the echo services
 	ldappb.RegisterLdapServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
+/*
 	go func() {
-		//s_impl.synchronize()
+		s_impl.synchronize()
 	}()
-
+*/
 	// Start the service.
 	s_impl.StartService()
 
