@@ -374,6 +374,13 @@ func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 
 	blog.Comments = append(blog.Comments, rqst.Comment)
 
+	err = svr.saveBlogPost(clientId, blog)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// Return the comment itself...
 	return &blogpb.AddCommentResponse{Comment: rqst.Comment}, nil
 }
