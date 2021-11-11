@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -226,7 +227,7 @@ func (admin_server *server) GetPids(ctx context.Context, rqst *adminpb.GetPidsRe
 
 // Run an external command must be use with care.
 func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.AdminService_RunCmdServer) error {
-
+	
 	baseCmd := rqst.Cmd
 	cmdArgs := rqst.Args
 	isBlocking := rqst.Blocking
@@ -252,6 +253,8 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 					break
 
 				case result := <-output:
+
+					fmt.Println(result)
 					if cmd.Process != nil {
 						pid = cmd.Process.Pid
 					}
@@ -269,7 +272,8 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 
 		// Start reading the output
 		go Utility.ReadOutput(output, stdout)
-
+		fmt.Println("run command: ", rqst.Cmd, rqst.Args)
+		cmd.Dir = config.GetRootDir()
 		cmd.Run()
 
 		cmd.Wait()
