@@ -273,7 +273,6 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 		// Start reading the output
 		go Utility.ReadOutput(output, stdout)
 		fmt.Println("run command: ", rqst.Cmd, rqst.Args)
-		cmd.Dir = config.GetRootDir()
 		cmd.Run()
 
 		cmd.Wait()
