@@ -205,7 +205,7 @@ public:
                     if(port == 0){
                         port = 80;
                     }
- std::cout<<"globularserver.cpp 208" <<std::endl;
+
                     domain = domain.substr(0, index);
                     std::cout << "port" << domain.substr(index) << std::endl;
                     std::cout << "index "<< index << std::endl;
