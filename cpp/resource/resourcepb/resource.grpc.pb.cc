@@ -23,6 +23,7 @@ namespace resource {
 
 static const char* ResourceService_method_names[] = {
   "/resource.ResourceService/CreateOrganization",
+  "/resource.ResourceService/UpdateOrganization",
   "/resource.ResourceService/GetOrganizations",
   "/resource.ResourceService/DeleteOrganization",
   "/resource.ResourceService/AddOrganizationAccount",
@@ -71,6 +72,8 @@ static const char* ResourceService_method_names[] = {
   "/resource.ResourceService/AddPeerActions",
   "/resource.ResourceService/RemovePeerAction",
   "/resource.ResourceService/RemovePeersAction",
+  "/resource.ResourceService/AcceptPeer",
+  "/resource.ResourceService/RejectPeer",
   "/resource.ResourceService/CreateNotification",
   "/resource.ResourceService/GetNotifications",
   "/resource.ResourceService/DeleteNotification",
@@ -96,69 +99,72 @@ std::unique_ptr< ResourceService::Stub> ResourceService::NewStub(const std::shar
 
 ResourceService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel)
   : channel_(channel), rpcmethod_CreateOrganization_(ResourceService_method_names[0], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetOrganizations_(ResourceService_method_names[1], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeleteOrganization_(ResourceService_method_names[2], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddOrganizationAccount_(ResourceService_method_names[3], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddOrganizationGroup_(ResourceService_method_names[4], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddOrganizationRole_(ResourceService_method_names[5], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddOrganizationApplication_(ResourceService_method_names[6], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveOrganizationAccount_(ResourceService_method_names[7], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveOrganizationGroup_(ResourceService_method_names[8], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveOrganizationRole_(ResourceService_method_names[9], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveOrganizationApplication_(ResourceService_method_names[10], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_CreateGroup_(ResourceService_method_names[11], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_UpdateGroup_(ResourceService_method_names[12], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetGroups_(ResourceService_method_names[13], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeleteGroup_(ResourceService_method_names[14], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddGroupMemberAccount_(ResourceService_method_names[15], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveGroupMemberAccount_(ResourceService_method_names[16], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RegisterAccount_(ResourceService_method_names[17], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_DeleteAccount_(ResourceService_method_names[18], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetAccount_(ResourceService_method_names[19], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetAccountPassword_(ResourceService_method_names[20], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetAccounts_(ResourceService_method_names[21], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_AddAccountRole_(ResourceService_method_names[22], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveAccountRole_(ResourceService_method_names[23], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetAccountContact_(ResourceService_method_names[24], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetEmail_(ResourceService_method_names[25], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_IsOrgnanizationMember_(ResourceService_method_names[26], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_CreateRole_(ResourceService_method_names[27], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetRoles_(ResourceService_method_names[28], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeleteRole_(ResourceService_method_names[29], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddRoleActions_(ResourceService_method_names[30], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveRoleAction_(ResourceService_method_names[31], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveRolesAction_(ResourceService_method_names[32], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_CreateApplication_(ResourceService_method_names[33], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_UpdateApplication_(ResourceService_method_names[34], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetApplications_(ResourceService_method_names[35], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeleteApplication_(ResourceService_method_names[36], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddApplicationActions_(ResourceService_method_names[37], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveApplicationAction_(ResourceService_method_names[38], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveApplicationsAction_(ResourceService_method_names[39], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetApplicationVersion_(ResourceService_method_names[40], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetApplicationAlias_(ResourceService_method_names[41], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetApplicationIcon_(ResourceService_method_names[42], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RegisterPeer_(ResourceService_method_names[43], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPeers_(ResourceService_method_names[44], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeletePeer_(ResourceService_method_names[45], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddPeerActions_(ResourceService_method_names[46], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemovePeerAction_(ResourceService_method_names[47], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemovePeersAction_(ResourceService_method_names[48], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_CreateNotification_(ResourceService_method_names[49], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetNotifications_(ResourceService_method_names[50], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeleteNotification_(ResourceService_method_names[51], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ClearAllNotifications_(ResourceService_method_names[52], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ClearNotificationsByType_(ResourceService_method_names[53], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_FindPackages_(ResourceService_method_names[54], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPackageDescriptor_(ResourceService_method_names[55], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPackagesDescriptor_(ResourceService_method_names[56], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_SetPackageDescriptor_(ResourceService_method_names[57], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetPackageBundle_(ResourceService_method_names[58], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPackageBundleChecksum_(ResourceService_method_names[59], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_UpdateSession_(ResourceService_method_names[60], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetSessions_(ResourceService_method_names[61], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveSession_(ResourceService_method_names[62], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetSession_(ResourceService_method_names[63], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_UpdateOrganization_(ResourceService_method_names[1], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetOrganizations_(ResourceService_method_names[2], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeleteOrganization_(ResourceService_method_names[3], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddOrganizationAccount_(ResourceService_method_names[4], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddOrganizationGroup_(ResourceService_method_names[5], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddOrganizationRole_(ResourceService_method_names[6], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddOrganizationApplication_(ResourceService_method_names[7], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveOrganizationAccount_(ResourceService_method_names[8], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveOrganizationGroup_(ResourceService_method_names[9], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveOrganizationRole_(ResourceService_method_names[10], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveOrganizationApplication_(ResourceService_method_names[11], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_CreateGroup_(ResourceService_method_names[12], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_UpdateGroup_(ResourceService_method_names[13], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetGroups_(ResourceService_method_names[14], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeleteGroup_(ResourceService_method_names[15], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddGroupMemberAccount_(ResourceService_method_names[16], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveGroupMemberAccount_(ResourceService_method_names[17], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RegisterAccount_(ResourceService_method_names[18], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeleteAccount_(ResourceService_method_names[19], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetAccount_(ResourceService_method_names[20], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetAccountPassword_(ResourceService_method_names[21], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetAccounts_(ResourceService_method_names[22], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_AddAccountRole_(ResourceService_method_names[23], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveAccountRole_(ResourceService_method_names[24], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetAccountContact_(ResourceService_method_names[25], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetEmail_(ResourceService_method_names[26], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_IsOrgnanizationMember_(ResourceService_method_names[27], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_CreateRole_(ResourceService_method_names[28], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetRoles_(ResourceService_method_names[29], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeleteRole_(ResourceService_method_names[30], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddRoleActions_(ResourceService_method_names[31], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveRoleAction_(ResourceService_method_names[32], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveRolesAction_(ResourceService_method_names[33], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_CreateApplication_(ResourceService_method_names[34], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_UpdateApplication_(ResourceService_method_names[35], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetApplications_(ResourceService_method_names[36], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeleteApplication_(ResourceService_method_names[37], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddApplicationActions_(ResourceService_method_names[38], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveApplicationAction_(ResourceService_method_names[39], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveApplicationsAction_(ResourceService_method_names[40], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetApplicationVersion_(ResourceService_method_names[41], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetApplicationAlias_(ResourceService_method_names[42], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetApplicationIcon_(ResourceService_method_names[43], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RegisterPeer_(ResourceService_method_names[44], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPeers_(ResourceService_method_names[45], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeletePeer_(ResourceService_method_names[46], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddPeerActions_(ResourceService_method_names[47], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemovePeerAction_(ResourceService_method_names[48], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemovePeersAction_(ResourceService_method_names[49], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AcceptPeer_(ResourceService_method_names[50], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RejectPeer_(ResourceService_method_names[51], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_CreateNotification_(ResourceService_method_names[52], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetNotifications_(ResourceService_method_names[53], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeleteNotification_(ResourceService_method_names[54], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ClearAllNotifications_(ResourceService_method_names[55], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ClearNotificationsByType_(ResourceService_method_names[56], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_FindPackages_(ResourceService_method_names[57], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPackageDescriptor_(ResourceService_method_names[58], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPackagesDescriptor_(ResourceService_method_names[59], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_SetPackageDescriptor_(ResourceService_method_names[60], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetPackageBundle_(ResourceService_method_names[61], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPackageBundleChecksum_(ResourceService_method_names[62], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_UpdateSession_(ResourceService_method_names[63], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetSessions_(ResourceService_method_names[64], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveSession_(ResourceService_method_names[65], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetSession_(ResourceService_method_names[66], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status ResourceService::Stub::CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst& request, ::resource::CreateOrganizationRsp* response) {
@@ -180,6 +186,29 @@ void ResourceService::Stub::experimental_async::CreateOrganization(::grpc::Clien
 ::grpc::ClientAsyncResponseReader< ::resource::CreateOrganizationRsp>* ResourceService::Stub::AsyncCreateOrganizationRaw(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst& request, ::grpc::CompletionQueue* cq) {
   auto* result =
     this->PrepareAsyncCreateOrganizationRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status ResourceService::Stub::UpdateOrganization(::grpc::ClientContext* context, const ::resource::UpdateOrganizationRqst& request, ::resource::UpdateOrganizationRsp* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::resource::UpdateOrganizationRqst, ::resource::UpdateOrganizationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_UpdateOrganization_, context, request, response);
+}
+
+void ResourceService::Stub::experimental_async::UpdateOrganization(::grpc::ClientContext* context, const ::resource::UpdateOrganizationRqst* request, ::resource::UpdateOrganizationRsp* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::resource::UpdateOrganizationRqst, ::resource::UpdateOrganizationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_UpdateOrganization_, context, request, response, std::move(f));
+}
+
+void ResourceService::Stub::experimental_async::UpdateOrganization(::grpc::ClientContext* context, const ::resource::UpdateOrganizationRqst* request, ::resource::UpdateOrganizationRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_UpdateOrganization_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::UpdateOrganizationRsp>* ResourceService::Stub::PrepareAsyncUpdateOrganizationRaw(::grpc::ClientContext* context, const ::resource::UpdateOrganizationRqst& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::resource::UpdateOrganizationRsp, ::resource::UpdateOrganizationRqst, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_UpdateOrganization_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::UpdateOrganizationRsp>* ResourceService::Stub::AsyncUpdateOrganizationRaw(::grpc::ClientContext* context, const ::resource::UpdateOrganizationRqst& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncUpdateOrganizationRaw(context, request, cq);
   result->StartCall();
   return result;
 }
@@ -1246,6 +1275,52 @@ void ResourceService::Stub::experimental_async::RemovePeersAction(::grpc::Client
   return result;
 }
 
+::grpc::Status ResourceService::Stub::AcceptPeer(::grpc::ClientContext* context, const ::resource::AcceptPeerRqst& request, ::resource::AcceptPeerRsp* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_AcceptPeer_, context, request, response);
+}
+
+void ResourceService::Stub::experimental_async::AcceptPeer(::grpc::ClientContext* context, const ::resource::AcceptPeerRqst* request, ::resource::AcceptPeerRsp* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_AcceptPeer_, context, request, response, std::move(f));
+}
+
+void ResourceService::Stub::experimental_async::AcceptPeer(::grpc::ClientContext* context, const ::resource::AcceptPeerRqst* request, ::resource::AcceptPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_AcceptPeer_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::AcceptPeerRsp>* ResourceService::Stub::PrepareAsyncAcceptPeerRaw(::grpc::ClientContext* context, const ::resource::AcceptPeerRqst& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::resource::AcceptPeerRsp, ::resource::AcceptPeerRqst, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_AcceptPeer_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::AcceptPeerRsp>* ResourceService::Stub::AsyncAcceptPeerRaw(::grpc::ClientContext* context, const ::resource::AcceptPeerRqst& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncAcceptPeerRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status ResourceService::Stub::RejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::resource::RejectPeerRsp* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::resource::RejectPeerRqst, ::resource::RejectPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_RejectPeer_, context, request, response);
+}
+
+void ResourceService::Stub::experimental_async::RejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::resource::RejectPeerRqst, ::resource::RejectPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_RejectPeer_, context, request, response, std::move(f));
+}
+
+void ResourceService::Stub::experimental_async::RejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_RejectPeer_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::RejectPeerRsp>* ResourceService::Stub::PrepareAsyncRejectPeerRaw(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::resource::RejectPeerRsp, ::resource::RejectPeerRqst, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_RejectPeer_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::RejectPeerRsp>* ResourceService::Stub::AsyncRejectPeerRaw(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncRejectPeerRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 ::grpc::Status ResourceService::Stub::CreateNotification(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst& request, ::resource::CreateNotificationRsp* response) {
   return ::grpc::internal::BlockingUnaryCall< ::resource::CreateNotificationRqst, ::resource::CreateNotificationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_CreateNotification_, context, request, response);
 }
@@ -1590,6 +1665,16 @@ ResourceService::Service::Service() {
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       ResourceService_method_names[1],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::UpdateOrganizationRqst, ::resource::UpdateOrganizationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ResourceService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::resource::UpdateOrganizationRqst* req,
+             ::resource::UpdateOrganizationRsp* resp) {
+               return service->UpdateOrganization(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ResourceService_method_names[2],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetOrganizationsRqst, ::resource::GetOrganizationsRsp>(
           [](ResourceService::Service* service,
@@ -1599,7 +1684,7 @@ ResourceService::Service::Service() {
                return service->GetOrganizations(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[2],
+      ResourceService_method_names[3],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeleteOrganizationRqst, ::resource::DeleteOrganizationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1609,7 +1694,7 @@ ResourceService::Service::Service() {
                return service->DeleteOrganization(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[3],
+      ResourceService_method_names[4],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddOrganizationAccountRqst, ::resource::AddOrganizationAccountRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1619,7 +1704,7 @@ ResourceService::Service::Service() {
                return service->AddOrganizationAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[4],
+      ResourceService_method_names[5],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddOrganizationGroupRqst, ::resource::AddOrganizationGroupRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1629,7 +1714,7 @@ ResourceService::Service::Service() {
                return service->AddOrganizationGroup(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[5],
+      ResourceService_method_names[6],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddOrganizationRoleRqst, ::resource::AddOrganizationRoleRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1639,7 +1724,7 @@ ResourceService::Service::Service() {
                return service->AddOrganizationRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[6],
+      ResourceService_method_names[7],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddOrganizationApplicationRqst, ::resource::AddOrganizationApplicationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1649,7 +1734,7 @@ ResourceService::Service::Service() {
                return service->AddOrganizationApplication(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[7],
+      ResourceService_method_names[8],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveOrganizationAccountRqst, ::resource::RemoveOrganizationAccountRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1659,7 +1744,7 @@ ResourceService::Service::Service() {
                return service->RemoveOrganizationAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[8],
+      ResourceService_method_names[9],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveOrganizationGroupRqst, ::resource::RemoveOrganizationGroupRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1669,7 +1754,7 @@ ResourceService::Service::Service() {
                return service->RemoveOrganizationGroup(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[9],
+      ResourceService_method_names[10],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveOrganizationRoleRqst, ::resource::RemoveOrganizationRoleRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1679,7 +1764,7 @@ ResourceService::Service::Service() {
                return service->RemoveOrganizationRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[10],
+      ResourceService_method_names[11],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveOrganizationApplicationRqst, ::resource::RemoveOrganizationApplicationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1689,7 +1774,7 @@ ResourceService::Service::Service() {
                return service->RemoveOrganizationApplication(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[11],
+      ResourceService_method_names[12],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::CreateGroupRqst, ::resource::CreateGroupRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1699,7 +1784,7 @@ ResourceService::Service::Service() {
                return service->CreateGroup(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[12],
+      ResourceService_method_names[13],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::UpdateGroupRqst, ::resource::UpdateGroupRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1709,7 +1794,7 @@ ResourceService::Service::Service() {
                return service->UpdateGroup(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[13],
+      ResourceService_method_names[14],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetGroupsRqst, ::resource::GetGroupsRsp>(
           [](ResourceService::Service* service,
@@ -1719,7 +1804,7 @@ ResourceService::Service::Service() {
                return service->GetGroups(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[14],
+      ResourceService_method_names[15],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeleteGroupRqst, ::resource::DeleteGroupRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1729,7 +1814,7 @@ ResourceService::Service::Service() {
                return service->DeleteGroup(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[15],
+      ResourceService_method_names[16],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddGroupMemberAccountRqst, ::resource::AddGroupMemberAccountRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1739,7 +1824,7 @@ ResourceService::Service::Service() {
                return service->AddGroupMemberAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[16],
+      ResourceService_method_names[17],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveGroupMemberAccountRqst, ::resource::RemoveGroupMemberAccountRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1749,7 +1834,7 @@ ResourceService::Service::Service() {
                return service->RemoveGroupMemberAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[17],
+      ResourceService_method_names[18],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RegisterAccountRqst, ::resource::RegisterAccountRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1759,7 +1844,7 @@ ResourceService::Service::Service() {
                return service->RegisterAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[18],
+      ResourceService_method_names[19],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeleteAccountRqst, ::resource::DeleteAccountRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1769,7 +1854,7 @@ ResourceService::Service::Service() {
                return service->DeleteAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[19],
+      ResourceService_method_names[20],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetAccountRqst, ::resource::GetAccountRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1779,7 +1864,7 @@ ResourceService::Service::Service() {
                return service->GetAccount(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[20],
+      ResourceService_method_names[21],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::SetAccountPasswordRqst, ::resource::SetAccountPasswordRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1789,7 +1874,7 @@ ResourceService::Service::Service() {
                return service->SetAccountPassword(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[21],
+      ResourceService_method_names[22],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetAccountsRqst, ::resource::GetAccountsRsp>(
           [](ResourceService::Service* service,
@@ -1799,7 +1884,7 @@ ResourceService::Service::Service() {
                return service->GetAccounts(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[22],
+      ResourceService_method_names[23],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddAccountRoleRqst, ::resource::AddAccountRoleRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1809,7 +1894,7 @@ ResourceService::Service::Service() {
                return service->AddAccountRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[23],
+      ResourceService_method_names[24],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveAccountRoleRqst, ::resource::RemoveAccountRoleRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1819,7 +1904,7 @@ ResourceService::Service::Service() {
                return service->RemoveAccountRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[24],
+      ResourceService_method_names[25],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::SetAccountContactRqst, ::resource::SetAccountContactRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1829,7 +1914,7 @@ ResourceService::Service::Service() {
                return service->SetAccountContact(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[25],
+      ResourceService_method_names[26],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::SetEmailRequest, ::resource::SetEmailResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1839,7 +1924,7 @@ ResourceService::Service::Service() {
                return service->SetEmail(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[26],
+      ResourceService_method_names[27],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::IsOrgnanizationMemberRqst, ::resource::IsOrgnanizationMemberRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1849,7 +1934,7 @@ ResourceService::Service::Service() {
                return service->IsOrgnanizationMember(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[27],
+      ResourceService_method_names[28],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::CreateRoleRqst, ::resource::CreateRoleRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1859,7 +1944,7 @@ ResourceService::Service::Service() {
                return service->CreateRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[28],
+      ResourceService_method_names[29],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetRolesRqst, ::resource::GetRolesRsp>(
           [](ResourceService::Service* service,
@@ -1869,7 +1954,7 @@ ResourceService::Service::Service() {
                return service->GetRoles(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[29],
+      ResourceService_method_names[30],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeleteRoleRqst, ::resource::DeleteRoleRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1879,7 +1964,7 @@ ResourceService::Service::Service() {
                return service->DeleteRole(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[30],
+      ResourceService_method_names[31],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddRoleActionsRqst, ::resource::AddRoleActionsRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1889,7 +1974,7 @@ ResourceService::Service::Service() {
                return service->AddRoleActions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[31],
+      ResourceService_method_names[32],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveRoleActionRqst, ::resource::RemoveRoleActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1899,7 +1984,7 @@ ResourceService::Service::Service() {
                return service->RemoveRoleAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[32],
+      ResourceService_method_names[33],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveRolesActionRqst, ::resource::RemoveRolesActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1909,7 +1994,7 @@ ResourceService::Service::Service() {
                return service->RemoveRolesAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[33],
+      ResourceService_method_names[34],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::CreateApplicationRqst, ::resource::CreateApplicationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1919,7 +2004,7 @@ ResourceService::Service::Service() {
                return service->CreateApplication(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[34],
+      ResourceService_method_names[35],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::UpdateApplicationRqst, ::resource::UpdateApplicationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1929,7 +2014,7 @@ ResourceService::Service::Service() {
                return service->UpdateApplication(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[35],
+      ResourceService_method_names[36],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetApplicationsRqst, ::resource::GetApplicationsRsp>(
           [](ResourceService::Service* service,
@@ -1939,7 +2024,7 @@ ResourceService::Service::Service() {
                return service->GetApplications(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[36],
+      ResourceService_method_names[37],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeleteApplicationRqst, ::resource::DeleteApplicationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1949,7 +2034,7 @@ ResourceService::Service::Service() {
                return service->DeleteApplication(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[37],
+      ResourceService_method_names[38],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddApplicationActionsRqst, ::resource::AddApplicationActionsRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1959,7 +2044,7 @@ ResourceService::Service::Service() {
                return service->AddApplicationActions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[38],
+      ResourceService_method_names[39],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveApplicationActionRqst, ::resource::RemoveApplicationActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1969,7 +2054,7 @@ ResourceService::Service::Service() {
                return service->RemoveApplicationAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[39],
+      ResourceService_method_names[40],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveApplicationsActionRqst, ::resource::RemoveApplicationsActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1979,7 +2064,7 @@ ResourceService::Service::Service() {
                return service->RemoveApplicationsAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[40],
+      ResourceService_method_names[41],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetApplicationVersionRqst, ::resource::GetApplicationVersionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1989,7 +2074,7 @@ ResourceService::Service::Service() {
                return service->GetApplicationVersion(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[41],
+      ResourceService_method_names[42],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetApplicationAliasRqst, ::resource::GetApplicationAliasRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -1999,7 +2084,7 @@ ResourceService::Service::Service() {
                return service->GetApplicationAlias(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[42],
+      ResourceService_method_names[43],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetApplicationIconRqst, ::resource::GetApplicationIconRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2009,7 +2094,7 @@ ResourceService::Service::Service() {
                return service->GetApplicationIcon(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[43],
+      ResourceService_method_names[44],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RegisterPeerRqst, ::resource::RegisterPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2019,7 +2104,7 @@ ResourceService::Service::Service() {
                return service->RegisterPeer(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[44],
+      ResourceService_method_names[45],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetPeersRqst, ::resource::GetPeersRsp>(
           [](ResourceService::Service* service,
@@ -2029,7 +2114,7 @@ ResourceService::Service::Service() {
                return service->GetPeers(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[45],
+      ResourceService_method_names[46],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeletePeerRqst, ::resource::DeletePeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2039,7 +2124,7 @@ ResourceService::Service::Service() {
                return service->DeletePeer(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[46],
+      ResourceService_method_names[47],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2049,7 +2134,7 @@ ResourceService::Service::Service() {
                return service->AddPeerActions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[47],
+      ResourceService_method_names[48],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2059,7 +2144,7 @@ ResourceService::Service::Service() {
                return service->RemovePeerAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[48],
+      ResourceService_method_names[49],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemovePeersActionRqst, ::resource::RemovePeersActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2069,7 +2154,27 @@ ResourceService::Service::Service() {
                return service->RemovePeersAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[49],
+      ResourceService_method_names[50],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ResourceService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::resource::AcceptPeerRqst* req,
+             ::resource::AcceptPeerRsp* resp) {
+               return service->AcceptPeer(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ResourceService_method_names[51],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RejectPeerRqst, ::resource::RejectPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ResourceService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::resource::RejectPeerRqst* req,
+             ::resource::RejectPeerRsp* resp) {
+               return service->RejectPeer(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ResourceService_method_names[52],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::CreateNotificationRqst, ::resource::CreateNotificationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2079,7 +2184,7 @@ ResourceService::Service::Service() {
                return service->CreateNotification(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[50],
+      ResourceService_method_names[53],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetNotificationsRqst, ::resource::GetNotificationsRsp>(
           [](ResourceService::Service* service,
@@ -2089,7 +2194,7 @@ ResourceService::Service::Service() {
                return service->GetNotifications(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[51],
+      ResourceService_method_names[54],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeleteNotificationRqst, ::resource::DeleteNotificationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2099,7 +2204,7 @@ ResourceService::Service::Service() {
                return service->DeleteNotification(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[52],
+      ResourceService_method_names[55],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::ClearAllNotificationsRqst, ::resource::ClearAllNotificationsRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2109,7 +2214,7 @@ ResourceService::Service::Service() {
                return service->ClearAllNotifications(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[53],
+      ResourceService_method_names[56],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::ClearNotificationsByTypeRqst, ::resource::ClearNotificationsByTypeRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2119,7 +2224,7 @@ ResourceService::Service::Service() {
                return service->ClearNotificationsByType(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[54],
+      ResourceService_method_names[57],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::FindPackagesDescriptorRequest, ::resource::FindPackagesDescriptorResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2129,7 +2234,7 @@ ResourceService::Service::Service() {
                return service->FindPackages(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[55],
+      ResourceService_method_names[58],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetPackageDescriptorRequest, ::resource::GetPackageDescriptorResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2139,7 +2244,7 @@ ResourceService::Service::Service() {
                return service->GetPackageDescriptor(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[56],
+      ResourceService_method_names[59],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetPackagesDescriptorRequest, ::resource::GetPackagesDescriptorResponse>(
           [](ResourceService::Service* service,
@@ -2149,7 +2254,7 @@ ResourceService::Service::Service() {
                return service->GetPackagesDescriptor(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[57],
+      ResourceService_method_names[60],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::SetPackageDescriptorRequest, ::resource::SetPackageDescriptorResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2159,7 +2264,7 @@ ResourceService::Service::Service() {
                return service->SetPackageDescriptor(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[58],
+      ResourceService_method_names[61],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::SetPackageBundleRequest, ::resource::SetPackageBundleResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2169,7 +2274,7 @@ ResourceService::Service::Service() {
                return service->SetPackageBundle(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[59],
+      ResourceService_method_names[62],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetPackageBundleChecksumRequest, ::resource::GetPackageBundleChecksumResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2179,7 +2284,7 @@ ResourceService::Service::Service() {
                return service->GetPackageBundleChecksum(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[60],
+      ResourceService_method_names[63],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::UpdateSessionRequest, ::resource::UpdateSessionResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2189,7 +2294,7 @@ ResourceService::Service::Service() {
                return service->UpdateSession(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[61],
+      ResourceService_method_names[64],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetSessionsRequest, ::resource::GetSessionsResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2199,7 +2304,7 @@ ResourceService::Service::Service() {
                return service->GetSessions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[62],
+      ResourceService_method_names[65],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveSessionRequest, ::resource::RemoveSessionResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2209,7 +2314,7 @@ ResourceService::Service::Service() {
                return service->RemoveSession(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[63],
+      ResourceService_method_names[66],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetSessionRequest, ::resource::GetSessionResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2224,6 +2329,13 @@ ResourceService::Service::~Service() {
 }
 
 ::grpc::Status ResourceService::Service::CreateOrganization(::grpc::ServerContext* context, const ::resource::CreateOrganizationRqst* request, ::resource::CreateOrganizationRsp* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ResourceService::Service::UpdateOrganization(::grpc::ServerContext* context, const ::resource::UpdateOrganizationRqst* request, ::resource::UpdateOrganizationRsp* response) {
   (void) context;
   (void) request;
   (void) response;
@@ -2560,6 +2672,20 @@ ResourceService::Service::~Service() {
 }
 
 ::grpc::Status ResourceService::Service::RemovePeersAction(::grpc::ServerContext* context, const ::resource::RemovePeersActionRqst* request, ::resource::RemovePeersActionRsp* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ResourceService::Service::AcceptPeer(::grpc::ServerContext* context, const ::resource::AcceptPeerRqst* request, ::resource::AcceptPeerRsp* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ResourceService::Service::RejectPeer(::grpc::ServerContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response) {
   (void) context;
   (void) request;
   (void) response;

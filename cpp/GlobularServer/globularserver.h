@@ -200,11 +200,12 @@ public:
                 auto index = domain.find(":");
                 auto port = 80;
                 if(index != 0){
+                    std::cout<<"globularserver.cpp 203" <<std::endl;
                     port = atoi(domain.substr(index+1).c_str());
                     if(port == 0){
                         port = 80;
                     }
-
+ std::cout<<"globularserver.cpp 208" <<std::endl;
                     domain = domain.substr(0, index);
                     std::cout << "port" << domain.substr(index) << std::endl;
                     std::cout << "index "<< index << std::endl;

@@ -85,13 +85,19 @@ Globular::GlobularService::GlobularService(std::string id,
     // first of all I will try to open the configuration from the file.
     std::ifstream inFile;
     std::string execPath = getexepath();
+    std::cout << " 88 exec path " << execPath;
 #ifdef WIN32
     std::size_t lastIndex = execPath.find_last_of("/\\");
-    std::string configPath = execPath.substr(0, lastIndex) + "\\config.json";
+    std::cout<<"globularserver.cpp 91" <<std::endl;
+    this->root = execPath.substr(0, lastIndex);
+    std::string configPath = this->root  + "\\config.json";
 #else
     std::size_t lastIndex = execPath.find_last_of("/");
-    std::string configPath = execPath.substr(0, lastIndex) + "/config.json";
+    std::cout<<"globularserver.cpp 96" <<std::endl;
+    this->root = execPath.substr(0, lastIndex);
+    std::string configPath =this->root  + "/config.json";
 #endif
+
     inFile.open(configPath); //open the input file
 
     if (inFile.good()) {
@@ -128,16 +134,6 @@ Globular::GlobularService::GlobularService(std::string id,
         this->path = replaceAll(getexepath(), "\\", "/");
         this->save();
     }
-
-    // Set the root path and configuration port from the local server configuration...
-
-    auto path = std::filesystem::temp_directory_path().string() + "GLOBULAR_ROOT";
-    std::ifstream input(path);
-    std::stringstream sstr;
-
-    while(input >> sstr.rdbuf());
-    this->root = replaceAll(sstr.str().substr(0, sstr.str().find_last_of(":")), "\\", "/");
-
 }
 
 void
@@ -182,11 +178,9 @@ void Globular::GlobularService::save() {
     j["Path"] = this->path;
 
 #ifdef WIN32
-    std::size_t lastIndex = this->path.find_last_of("/\\");
-    std::string configPath = this->path.substr(0, lastIndex) + "\\config.json";
+    std::string configPath = this->root + "\\config.json";
 #else
-    std::size_t lastIndex = this->path.find_last_of("/");
-    std::string configPath = this->path.substr(0, lastIndex) + "/config.json";
+    std::string configPath = this->root + "/config.json";
 #endif
 
     std::ofstream file;

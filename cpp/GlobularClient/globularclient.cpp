@@ -71,9 +71,10 @@ std::string getPathName(const std::string& s) {
 
     char sep = '/';
 
-#ifdef _WIN32
+#ifdef WIN32
     sep = '\\';
 #endif
+    std::cout<<"globularclient.cpp 77" <<std::endl;
 
     size_t i = s.rfind(sep, s.length());
     if (i != std::string::npos) {

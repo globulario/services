@@ -160,6 +160,11 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
 	}()
 
+	s["Path"] = strings.ReplaceAll(s["Path"].(string), "\\", "/")
+	
+	// Set the process dir.
+	p.Dir = s["Path"].(string)[0:strings.LastIndex( s["Path"].(string), "/")]
+
 	// Start reading the output
 	go Utility.ReadOutput(output, stdout)
 	err = p.Start()
