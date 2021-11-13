@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -22,7 +23,7 @@ import (
 )
 
 var (
-	tokensPath = config.GetConfigDir() +"/tokens"
+	tokensPath = config.GetConfigDir() + "/tokens"
 )
 
 // The client service interface.
@@ -105,7 +106,7 @@ func InitClient(client Client, address string, id string) error {
 		address = address_[0]
 		port = Utility.ToInt(address_[1])
 	}
-	
+
 	client.SetDomain(address)
 
 	// Here I will initialyse the client
@@ -139,7 +140,7 @@ func InitClient(client Client, address string, id string) error {
 
 	// Set security values.
 	if config["TLS"] != nil {
-		
+
 		// Change server cert to client cert and do the same for key
 		certificateFile := strings.Replace(config["CertFile"].(string), "server", "client", -1)
 		keyFile := strings.Replace(config["KeyFile"].(string), "server", "client", -1)
@@ -148,7 +149,7 @@ func InitClient(client Client, address string, id string) error {
 		client.SetCertFile(certificateFile)
 		client.SetCaFile(config["CertAuthorityTrust"].(string))
 		client.SetTLS(config["TLS"].(bool))
-		
+
 	} else {
 		client.SetTLS(false)
 	}
@@ -166,7 +167,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	if cc == nil {
 		address := client.GetAddress()
 		if client.HasTLS() {
-			
+	
 			// Setup the login/pass simple test...
 			if len(client.GetKeyFile()) == 0 {
 				err := errors.New("no key file is available for client ")
@@ -174,17 +175,20 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 				return nil, err
 			}
 
-			if len(client.GetCertFile()) == 0 {
+			certFile := client.GetCertFile()
+			if len(certFile) == 0 {
 				err = errors.New("no certificate file is available for client")
 				log.Println(err)
 				return nil, errors.New("no certificate file is available for client")
 			}
 
-			certificate, err := tls.LoadX509KeyPair(client.GetCertFile(), client.GetKeyFile())
+			keyFile := client.GetKeyFile()
+
+			certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
 			if err != nil {
 				return nil, err
 			}
-
+			log.Println("190 Get cert file")
 			// Create a certificate pool from the certificate authority
 			certPool := x509.NewCertPool()
 
@@ -197,9 +201,9 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 			// Append the certificates from the CA
 			if ok := certPool.AppendCertsFromPEM(ca); !ok {
-				err =  errors.New("failed to append ca certs")
+				err = errors.New("failed to append ca certs")
 				log.Println(err)
-				return nil,err
+				return nil, err
 			}
 
 			creds := credentials.NewTLS(&tls.Config{
@@ -207,12 +211,11 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 				Certificates: []tls.Certificate{certificate},
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				ClientCAs:    certPool,
-				RootCAs: certPool,
+				RootCAs:      certPool,
 			})
-
+			fmt.Println(215)
 			// Create a connection with the TLS credentials
 			cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds))
-
 			if err != nil {
 				log.Println("fail to dial address ", err)
 				return nil, err
@@ -224,6 +227,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			}
 		}
 	}
+
 	return cc, nil
 }
 
@@ -241,7 +245,7 @@ func GetClientContext(client Client) context.Context {
 	if err != nil {
 		log.Panicln("fail to create token dir ", tokensPath)
 	}
-	
+
 	// Get the token for that domain if it exist
 	token, err := security.GetLocalToken(client.GetDomain())
 	if err == nil {
