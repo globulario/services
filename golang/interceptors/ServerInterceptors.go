@@ -233,6 +233,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/resource.ResourceService/AccountExist" ||
 		method == "/resource.ResourceService/SetAccountPassword" ||
 		method == "/resource.ResourceService/RegisterAccount" ||
+		method == "/resource.ResourceService/GetPackageDescriptor" ||
 		method == "/rbac.RbacService/GetActionResourceInfos" ||
 		method == "/rbac.RbacService/ValidateAction" ||
 		method == "/rbac.RbacService/ValidateAccess" ||
