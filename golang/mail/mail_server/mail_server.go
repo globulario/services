@@ -690,6 +690,7 @@ func main() {
 
 		// Here in case of tls connection I will use the domain certificate instead of the server certificate.
 		if s_impl.TLS == true {
+			fmt.Println("----------> ",certFile )
 			certFile = certFile[0:strings.Index(certFile, "server.crt")] + s_impl.Domain + ".crt"
 		}
 
