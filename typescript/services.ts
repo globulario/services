@@ -117,6 +117,8 @@ export class EventHub {
   private globular: Globular;
   private subscribers: any;
   private uuid: string;
+  private refs: any;
+
 
   /**
    * @param {*} service If undefined only local event will be allow.
@@ -127,12 +129,28 @@ export class EventHub {
     this.globular = g;
     // Subscriber function map.
     this.subscribers = {}
+    // Keep references of object that call subscribe...
+    this.refs = {}
+
     // This is the client uuid
     this.uuid = randomUUID();
 
     // This will stay there until disconnect will be call...
     this.connect(null);
 
+    // Disconnect null object
+    this.removeDeletedListeners()
+  }
+
+  // Disconnect null listeners...
+  removeDeletedListeners() {
+    setInterval(() => {
+      for (var uuid in this.refs) {
+        if (this.refs[uuid] == null) {
+          this.unSubscribe(uuid.split(":")[0], uuid.split(":")[1])
+        }
+      }
+    }, 5000)
   }
 
   reinitRemoteListeners() {
@@ -222,21 +240,36 @@ export class EventHub {
     }
   }
 
+
   /**
+   * 
    * @param {*} name The name of the event to subcribe to. 
    * @param {*} onsubscribe That function return the uuid of the subscriber.
    * @param {*} onevent That function is call when the event is use.
+   * @param local if true means the event run localy, true by default
+   * @param ref The reference to the object that subscribe to this event...
    */
-  subscribe(name: string, onsubscribe: (uuid: string) => any, onevent: (data: any) => any, local: boolean) {
+  subscribe(name: string, onsubscribe: (uuid: string) => any, onevent: (data: any) => any, local = true, ref = null) {
 
     // Register the local subscriber.
     const uuid = randomUUID()
+    if (ref != null) {
+
+      if (ref[name] != null) {
+        // A subscription already exist...
+        return
+      }
+      this.refs[uuid + ":" + name] = ref
+      
+      // keep the listner uuid...
+      ref[name] = uuid
+
+    }
+
 
     if (!local) {
       if (this.subscribers[name] == undefined) {
-
         this.subscribers[name] = {}
-
         const rqst = new SubscribeRequest
         rqst.setName(name)
         rqst.setUuid(this.uuid)
@@ -270,8 +303,16 @@ export class EventHub {
     if (this.subscribers[name] === undefined) {
       return
     }
+
     if (this.subscribers[name][uuid] === undefined) {
       return
+    }
+
+    // remove references...
+    let ref = this.refs[name + ":" + uuid]
+    if (ref != null) {
+      delete ref[name]
+      delete this.refs[name + ":" + uuid]
     }
 
     const subscription = this.subscribers[name][uuid]
@@ -396,7 +437,7 @@ export class Globular {
         this.config.Services[config.Id] = config;
         // console.log("service has change !", config)
 
-      }, false)
+      }, false, this)
 
       callback();
     }, errorcallback)
