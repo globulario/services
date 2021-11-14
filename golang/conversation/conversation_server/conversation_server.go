@@ -486,22 +486,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Now I will set it in the rbac as ressource owner...
-	permissions := &rbacpb.Permissions{
-		Allowed: []*rbacpb.Permission{},
-		Denied:  []*rbacpb.Permission{},
-		Owners: &rbacpb.Permission{
-			Name:          "owner", // The name is informative in that particular case.
-			Applications:  []string{},
-			Accounts:      []string{clientId},
-			Groups:        []string{},
-			Peers:         []string{},
-			Organizations: []string{},
-		},
-	}
-
-	// Set the owner of the conversation.
-	err = svr.rbac_client_.SetResourcePermissions(uuid, permissions)
+	err = svr.rbac_client_.AddResourceOwner(uuid, clientId, rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -698,6 +683,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 
 // Delete the conversation
 func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
+
 	var clientId string
 	var err error
 	// Now I will index the conversation to be retreivable for it creator...
@@ -718,6 +704,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	// Get conversation if not exist I will return here.
 	conversation, err := svr.getConversation(rqst.ConversationUuid)
 	if err != nil {
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -757,14 +744,6 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		}
 	}
 
-	// I will remove the conversation from the db.
-	err = svr.rbac_client_.DeleteResourcePermissions("conversations/" + rqst.ConversationUuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Now I will remove indexation.
 
 	// Remove the connection from the search engine.
@@ -789,6 +768,14 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 
 	// Delete conversation from the store.
 	err = svr.store.RemoveItem(rqst.ConversationUuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// I will remove the conversation from the db.
+	err = svr.rbac_client_.DeleteResourcePermissions(rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
