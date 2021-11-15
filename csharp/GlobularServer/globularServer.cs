@@ -14,7 +14,7 @@ using System.IdentityModel.Tokens.Jwt;
 namespace Globular
 {
     /** Globular server config. **/
-    public class ServerConfig
+    /*public class ServerConfig
     {
         public string Domain { get; set; }
         public string Name { get; set; }
@@ -26,7 +26,7 @@ namespace Globular
         public string AdminEmail { get; set; }
         public int SessionTimeout { get; set; }
         public int CertExpirationDelay { get; set; }
-    }
+    }*/
 
 
     /// <summary>
@@ -98,6 +98,9 @@ namespace Globular
 
             // Set the service root...
             this.Root = Environment.ExpandEnvironmentVariables("%GLOBULAR_SERVICES_ROOT%").Replace("\\", "/");
+            if(this.Root.Length == 0){
+                 this.Root = "C:/Program Files/globular/services";
+            }
 
        
             // So here the configuration port will be found in the program file directory

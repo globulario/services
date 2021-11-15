@@ -1,0 +1,33 @@
+{
+  "AllowAllOrigins": true,
+  "AllowedOrigins": "",
+  "CertAuthorityTrust": "",
+  "CertFile": "",
+  "ConfigPath": "C:\\Users\\mm006819@ud6.uf6\\Documents\\globulario\\services\\csharp\\echo\\GlobularEchoServer\\config.json",
+  "Description": "Test service that can be use to learning how to use globular.",
+  "Domain": "MONL580",
+  "Id": "db3f7caf-43a0-47da-bac6-1a6dcc7da28b",
+  "KeepAlive": false,
+  "KeepUpToDate": false,
+  "KeyFile": "",
+  "Keywords": [
+    "Globular",
+    "microservice",
+    "csharp"
+  ],
+  "LastError": "exit status 0xc000013a",
+  "Mac": "34:48:ed:b1:83:ef",
+  "Name": "echo.EchoService",
+  "Path": "C:/Users/mm006819@ud6.uf6/Documents/globulario/services/csharp/echo/GlobularEchoServer/bin/Debug/netcoreapp5.0/GlobularEchoServer.exe",
+  "Port": 10018,
+  "Process": 17180,
+  "Proto": "C:/Users/mm006819@ud6.uf6/Documents/globulario/services/proto/echo.proto",
+  "Protocol": "grpc",
+  "Proxy": 10040,
+  "ProxyProcess": 3080,
+  "PublisherId": "globulario",
+  "State": "failed",
+  "TLS": false,
+  "Value": "echo value!",
+  "Version": "0.0.1"
+}
