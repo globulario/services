@@ -4,23 +4,24 @@ import (
 	//"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
-	"io/ioutil"
 	"syscall"
-	"log"
 	"time"
-	"github.com/struCoder/pidusage"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/struCoder/pidusage"
 )
 
 /**
@@ -101,7 +102,7 @@ func logInfo(name, domain, fileLine, functionName, message string, level logpb.L
 	log_client_.Log(name, domain, functionName, level, message, fileLine, functionName)
 }
 
-func setServiceConfigurationError(err error, s map[string]interface{}){
+func setServiceConfigurationError(err error, s map[string]interface{}) {
 	s["State"] = "failed"
 	s["LastError"] = err.Error()
 	config.SaveServiceConfiguration(s)
@@ -130,11 +131,21 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	}
 
 	s["Port"] = port
+
+	if !Utility.Exists(s["Path"].(string)) {
+		// In that case I will try to
+		if s["ConfigPath"] != nil {
+			s["ConfigPath"] = strings.ReplaceAll(s["ConfigPath"].(string), "\\", "/")
+			s["Path"] = s["ConfigPath"].(string)[0:strings.LastIndex(s["ConfigPath"].(string), "/")] + s["Path"].(string)
+		}
+	}
+
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
 		setServiceConfigurationError(err, s)
 		return -1, err
 	}
+
 
 	p := exec.Command(s["Path"].(string), Utility.ToString(port))
 	stdout, err := p.StdoutPipe()
@@ -161,9 +172,9 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	}()
 
 	s["Path"] = strings.ReplaceAll(s["Path"].(string), "\\", "/")
-	
+
 	// Set the process dir.
-	p.Dir = s["Path"].(string)[0:strings.LastIndex( s["Path"].(string), "/")]
+	p.Dir = s["Path"].(string)[0:strings.LastIndex(s["Path"].(string), "/")]
 
 	// Start reading the output
 	go Utility.ReadOutput(output, stdout)
@@ -173,7 +184,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		setServiceConfigurationError(err, s)
 		stdout.Close()
 		done <- true
-		return -1,  err
+		return -1, err
 	}
 
 	s["State"] = "running"
@@ -188,7 +199,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		s, _ := config.GetServiceConfigurationById(serviceId)
 
 		if err != nil {
-			setServiceConfigurationError(err, s)			
+			setServiceConfigurationError(err, s)
 			stdout.Close()
 			done <- true
 			return
@@ -261,7 +272,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
 		fmt.Println("fail to start proxy with error, ", err)
-		return -1,  err
+		return -1, err
 	}
 
 	s["Proxy"] = port
@@ -333,7 +344,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	}()
 
 	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], "and name:", s["Name"])
-	return  proxyProcess.Process.Pid, config.SaveServiceConfiguration(s)
+	return proxyProcess.Process.Pid, config.SaveServiceConfiguration(s)
 }
 
 // check if the process is actually running
@@ -362,13 +373,12 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
 	return nil, errors.New("process running but query operation not permitted")
 }
 
-
 ///////////////////////////// Monitoring //////////////////////////////////////////////////
 
 /**
  * Start prometheus.
  */
- func StartProcessMonitoring(httpPort int, exit chan bool) error {
+func StartProcessMonitoring(httpPort int, exit chan bool) error {
 	// Promometheus metrics for services.
 	http.Handle("/metrics", promhttp.Handler())
 
@@ -456,7 +466,6 @@ inhibit_rules:
 		return err
 	}
 
-
 	// Here I will monitor the cpu usage of each services
 	servicesCpuUsage = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "globular_services_cpu_usage_counter",
@@ -485,9 +494,9 @@ inhibit_rules:
 	go func() {
 		for {
 			select {
-				
+
 			case <-ticker.C:
-				
+
 				execName := "Globular"
 				if runtime.GOOS == "windows" {
 					execName += ".exe" // in case of windows
@@ -509,10 +518,10 @@ inhibit_rules:
 
 				services, err := config.GetServicesConfigurations()
 				if err == nil {
-					for i:=0; i < len(services); i++ {
+					for i := 0; i < len(services); i++ {
 
 						pid := Utility.ToInt(services[i]["Process"])
-						
+
 						if pid > 0 {
 							sysInfo, err := pidusage.GetStat(pid)
 							if err == nil {
@@ -524,7 +533,7 @@ inhibit_rules:
 						}
 					}
 				}
-			case <- exit:
+			case <-exit:
 				break
 			}
 		}
