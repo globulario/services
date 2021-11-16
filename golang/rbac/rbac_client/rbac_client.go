@@ -59,6 +59,7 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 	client := new(Rbac_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
+		
 		return nil, err
 	}
 	client.cc, err = globular.GetClientConnection(client)

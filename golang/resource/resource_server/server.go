@@ -356,6 +356,7 @@ func (server *server) publishUpdatePeersEvent() error {
 }
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
+
 /**
  * Get the rbac client.
  */
@@ -375,7 +376,6 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 	var err error
 	rbac_client_, err = GetRbacClient(svr.Domain)
 	if err != nil {
-
 		return err
 	}
 
@@ -389,7 +389,8 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 	if err != nil {
 		return err
 	}
-	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+	err = rbac_client_.AddResourceOwner(path, subject, subjectType)
+	return err
 }
 
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
@@ -583,8 +584,11 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		resource_server.createCrossReferences(groups[i], "Groups", "members", id, "Accounts", "groups")
 	}
 
-	return nil
-
+	// Create the user file directory.
+	path := "/users/" + id
+	Utility.CreateDirIfNotExist(config.GetDataDir() +"/files"+ path)
+	err = resource_server.addResourceOwner(path, id, rbacpb.SubjectType_ACCOUNT)
+	return err
 }
 
 func (resource_server *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
@@ -838,7 +842,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"log.LogService"}
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 3)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.Process = -1
@@ -851,6 +855,11 @@ func main() {
 	s_impl.Backend_user = "sa"
 	s_impl.Backend_password = "adminadmin"
 	s_impl.DataPath = config.GetDataDir()
+
+	// Set the Permissions...
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
@@ -868,10 +877,6 @@ func main() {
 	// Register the resource services
 	resourcepb.RegisterResourceServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
-	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
-	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
-	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
 
 	// That will start the persistence store.
 	_, err = s_impl.getPersistenceStore()

@@ -93,7 +93,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 		_, _, _, _, expireAt, _ = security.ValidateToken(tokenString)
 		session.ExpireAt = expireAt
 
-		server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
+		// server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
 		// save the session in the backend.
 		err = server.updateSession(session)
 		if err != nil {
@@ -408,8 +408,8 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	}
 
 	// get the expire time.
-	user, userName, email, _, expireAt, _ := security.ValidateToken(tokenString)
-	defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+userName+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
+	user, /*userName*/ _, /*email*/ _, _, expireAt, _ := security.ValidateToken(tokenString)
+	//defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+userName+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 
 	// Create the user file directory.
 	path := "/users/" + user

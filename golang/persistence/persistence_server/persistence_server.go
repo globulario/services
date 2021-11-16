@@ -442,7 +442,6 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 
 	var c connection
 	var err error
-	fmt.Println("--------> create connection for ", id, name, host, port, user, password)
 	// use existing connection as we can.
 	if _, ok := persistence_server.connections[id]; ok {
 		c = persistence_server.connections[id]

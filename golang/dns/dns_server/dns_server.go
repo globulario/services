@@ -1517,7 +1517,6 @@ type handler struct{}
 func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	msg := dns.Msg{}
 	msg.SetReply(r)
-	fmt.Println("-----> dns resquest receive... ", msg)
 
 	switch r.Question[0].Qtype {
 	case dns.TypeA:

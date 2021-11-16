@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 
@@ -132,16 +130,6 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 	}
 
 	err = resource_server.updateSession(id, 0, time.Now().Unix(), expireAt)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Create the user file directory.
-	path:="/files/users/" +  rqst.Account.Id
-	Utility.CreateDirIfNotExist(config.GetDataDir() + path)
-	err = resource_server.addResourceOwner(path,  rqst.Account.Id, rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2943,7 +2931,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 	}
 
 	// Log a message to display update session...
-	server.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
+	//server.logServiceInfo("updateSession", Utility.FileLine(), Utility.FunctionName(), "update session for user "+accountId+" last_session_time: "+time.Unix(last_session_time, 0).Local().String()+" expire_at: "+time.Unix(expire_at, 0).Local().String())
 
 	session := map[string]interface{}{"accountId": accountId, "expire_at": expire_at, "last_state_time": last_session_time, "state": state}
 	jsonStr, err := Utility.ToJson(session)

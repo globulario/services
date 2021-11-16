@@ -1585,9 +1585,6 @@ func (svr *server) sendMessage(msg *conversationpb.Message) error {
 
 	// publish the message.
 	svr.actions <- send_message
-
-	fmt.Println("---->(save) send message: ", msg)
-
 	return nil
 }
 

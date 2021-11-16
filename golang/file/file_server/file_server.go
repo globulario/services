@@ -1192,20 +1192,6 @@ func main() {
 	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-
-	// Set the permissions
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[1].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[2].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[3].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[4].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[5].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[6].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[7].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[8].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[9].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[10].(map[string]interface{}))
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[11].(map[string]interface{}))
 	
 	// Set the root path if is pass as argument.
 	if len(s_impl.Root) == 0 {

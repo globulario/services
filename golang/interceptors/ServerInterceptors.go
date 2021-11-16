@@ -239,6 +239,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/rbac.RbacService/ValidateAccess" ||
 		method == "/rbac.RbacService/GetResourcePermissions" ||
 		method == "/rbac.RbacService/GetResourcePermission" ||
+		method == "/services_manager.ServicesManagerService/GetServicesConfiguration" ||
 		strings.HasPrefix(method, "/log.LogService/") ||
 		strings.HasPrefix(method, "/authentication.AuthenticationService/") ||
 		strings.HasPrefix(method, "/event.EventService/") ||
@@ -346,6 +347,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 		l.method == "/resource.ResourceService/GetGroups" ||
 		l.method == "/resource.ResourceService/GetOrganizations" ||
 		l.method == "/resource.ResourceService/GetNotifications" ||
+		l.method == "/file.FileService/ReadDir" ||
 		strings.HasPrefix(l.method, "/monitoring.MonitoringService") ||
 		strings.HasPrefix(l.method, "/log.LogService/")||
 		strings.HasPrefix(l.method, "/blog.BlogService")
