@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 
@@ -136,6 +138,16 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Create the user file directory.
+	path:="/files/users/" +  rqst.Account.Id
+	Utility.CreateDirIfNotExist(config.GetDataDir() + path)
+	err = resource_server.addResourceOwner(path,  rqst.Account.Id, rbacpb.SubjectType_ACCOUNT)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// Now I will
 	return &resourcepb.RegisterAccountRsp{
 		Result: tokenString, // Return the token string.
@@ -218,7 +230,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 			return nil, errors.New("no token was given")
 		}
 	}
-	
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(

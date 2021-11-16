@@ -20,6 +20,7 @@ import (
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -381,6 +382,14 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 	err = rbac_client_.SetActionResourcesPermissions(permissions)
 
 	return err
+}
+
+func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.AddResourceOwner(path, subject, subjectType)
 }
 
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
