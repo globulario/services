@@ -95,6 +95,8 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
 		return jwtKey, err
 	})
 
+	
+
 	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
 		return  claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, errors.New("the token is expired")
 	}
