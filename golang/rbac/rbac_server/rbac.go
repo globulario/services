@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -73,55 +72,65 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 			// Accounts
 			if allowed[i].Accounts != nil {
 				for j := 0; j < len(allowed[i].Accounts); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+allowed[i].Accounts[j], path)
-					if err != nil {
-						return err
+					if rbac_server.accountExist(allowed[i].Accounts[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+allowed[i].Accounts[j], path)
+						if err != nil {
+							return err
+						}
+						share.Accounts = append(share.Accounts, allowed[i].Accounts[j])
 					}
-					share.Accounts = append(share.Accounts, allowed[i].Accounts[j])
 				}
 			}
 
 			// Groups
 			if allowed[i].Groups != nil {
 				for j := 0; j < len(allowed[i].Groups); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+allowed[i].Groups[j], path)
-					if err != nil {
-						return err
+					if rbac_server.groupExist(allowed[i].Groups[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+allowed[i].Groups[j], path)
+						if err != nil {
+							return err
+						}
+						share.Groups = append(share.Groups, allowed[i].Groups[j])
 					}
-					share.Groups = append(share.Groups, allowed[i].Groups[j])
 				}
 			}
 
 			// Organizations
 			if allowed[i].Organizations != nil {
 				for j := 0; j < len(allowed[i].Organizations); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+allowed[i].Organizations[j], path)
-					if err != nil {
-						return err
+					if rbac_server.organisationExist(allowed[i].Organizations[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+allowed[i].Organizations[j], path)
+						if err != nil {
+							return err
+						}
+						share.Organizations = append(share.Organizations, allowed[i].Organizations[j])
 					}
-					share.Organizations = append(share.Organizations, allowed[i].Organizations[j])
 				}
 			}
 
 			// Applications
 			if allowed[i].Applications != nil {
 				for j := 0; j < len(allowed[i].Applications); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+allowed[i].Applications[j], path)
-					if err != nil {
-						return err
+					if rbac_server.applicationExist(allowed[i].Applications[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+allowed[i].Applications[j], path)
+						if err != nil {
+							return err
+						}
+						share.Applications = append(share.Applications, allowed[i].Applications[j])
 					}
-					share.Applications = append(share.Applications, allowed[i].Applications[j])
 				}
 			}
 
 			// Peers
 			if allowed[i].Peers != nil {
 				for j := 0; j < len(allowed[i].Peers); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+allowed[i].Peers[j], path)
-					if err != nil {
-						return err
+					if rbac_server.peerExist(allowed[i].Peers[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+allowed[i].Peers[j], path)
+						if err != nil {
+							return err
+						}
+						share.Peers = append(share.Peers, allowed[i].Peers[j])
 					}
-					share.Peers = append(share.Peers, allowed[i].Peers[j])
 				}
 			}
 		}
@@ -134,9 +143,11 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 			// Acccounts
 			if denied[i].Accounts != nil {
 				for j := 0; j < len(denied[i].Accounts); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+denied[i].Accounts[j], path)
-					if err != nil {
-						return err
+					if rbac_server.accountExist(denied[i].Accounts[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+denied[i].Accounts[j], path)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -144,9 +155,11 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 			// Applications
 			if denied[i].Applications != nil {
 				for j := 0; j < len(denied[i].Applications); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+denied[i].Applications[j], path)
-					if err != nil {
-						return err
+					if rbac_server.applicationExist(denied[i].Applications[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/APPLICATIONS/"+denied[i].Applications[j], path)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -154,9 +167,11 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 			// Peers
 			if denied[i].Peers != nil {
 				for j := 0; j < len(denied[i].Peers); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+denied[i].Peers[j], path)
-					if err != nil {
-						return err
+					if rbac_server.peerExist(denied[i].Peers[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+denied[i].Peers[j], path)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -164,9 +179,11 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 			// Groups
 			if denied[i].Groups != nil {
 				for j := 0; j < len(denied[i].Groups); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+denied[i].Groups[j], path)
-					if err != nil {
-						return err
+					if rbac_server.groupExist(denied[i].Groups[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+denied[i].Groups[j], path)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -174,9 +191,11 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 			// Organizations
 			if denied[i].Organizations != nil {
 				for j := 0; j < len(denied[i].Organizations); j++ {
-					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+denied[i].Organizations[j], path)
-					if err != nil {
-						return err
+					if rbac_server.organisationExist(denied[i].Organizations[j]) {
+						err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+denied[i].Organizations[j], path)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
@@ -189,10 +208,13 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 	if owners != nil {
 		// Acccounts
 		if owners.Accounts != nil {
+
 			for j := 0; j < len(owners.Accounts); j++ {
-				err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+owners.Accounts[j], path)
-				if err != nil {
-					return err
+				if rbac_server.accountExist(owners.Accounts[j]) {
+					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ACCOUNTS/"+owners.Accounts[j], path)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -200,11 +222,13 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 		// Applications
 		if owners.Applications != nil {
 			for j := 0; j < len(owners.Applications); j++ {
-				err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/APPLICAITONS/"+owners.Applications[j], path)
-				if err != nil {
-					return err
+				if rbac_server.applicationExist(owners.Applications[j]) {
+					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/APPLICAITONS/"+owners.Applications[j], path)
+					if err != nil {
+						return err
+					}
+					share.Applications = append(share.Applications, owners.Applications[j])
 				}
-				share.Applications = append(share.Applications, owners.Applications[j])
 			}
 
 		}
@@ -212,33 +236,39 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 		// Peers
 		if owners.Peers != nil {
 			for j := 0; j < len(owners.Peers); j++ {
-				err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+owners.Peers[j], path)
-				if err != nil {
-					return err
+				if rbac_server.peerExist(owners.Peers[j]) {
+					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/PEERS/"+owners.Peers[j], path)
+					if err != nil {
+						return err
+					}
+					share.Peers = append(share.Peers, owners.Peers[j])
 				}
-				share.Peers = append(share.Peers, owners.Peers[j])
 			}
 		}
 
 		// Groups
 		if owners.Groups != nil {
 			for j := 0; j < len(owners.Groups); j++ {
-				err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+owners.Groups[j], path)
-				if err != nil {
-					return err
+				if rbac_server.groupExist(owners.Groups[j]) {
+					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/GROUPS/"+owners.Groups[j], path)
+					if err != nil {
+						return err
+					}
+					share.Groups = append(share.Groups, owners.Groups[j])
 				}
-				share.Groups = append(share.Groups, owners.Groups[j])
 			}
 		}
 
 		// Organizations
 		if owners.Organizations != nil {
 			for j := 0; j < len(owners.Organizations); j++ {
-				err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+owners.Organizations[j], path)
-				if err != nil {
-					return err
+				if rbac_server.organisationExist(owners.Organizations[j]) {
+					err := rbac_server.setSubjectResourcePermissions("PERMISSIONS/ORGANIZATIONS/"+owners.Organizations[j], path)
+					if err != nil {
+						return err
+					}
+					share.Organizations = append(share.Organizations, owners.Organizations[j])
 				}
-				share.Organizations = append(share.Organizations, owners.Organizations[j])
 			}
 		}
 	}
@@ -631,6 +661,31 @@ func (rbac_server *server) GetResourcePermissions(ctx context.Context, rqst *rba
 }
 
 func (rbac_server *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+
+	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		if !rbac_server.accountExist(subject) {
+			return errors.New("no account exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_APPLICATION {
+		if !rbac_server.applicationExist(subject) {
+			return errors.New("no application exist with id " + subject)
+		}
+
+	} else if subjectType == rbacpb.SubjectType_GROUP {
+		if !rbac_server.groupExist(subject) {
+			return errors.New("no group exist with id " + subject)
+		}
+
+	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+		if !rbac_server.organisationExist(subject) {
+			return errors.New("no organization exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_PEER {
+		if !rbac_server.peerExist(subject) {
+			return errors.New("no peer exist with id " + subject)
+		}
+	}
+
 	permissions, err := rbac_server.getResourcePermissions(path)
 
 	if err != nil {
@@ -709,6 +764,7 @@ func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.Ad
 }
 
 func (rbac_server *server) removeResourceOwner(owner string, subjectType rbacpb.SubjectType, path string) error {
+
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		return err
@@ -749,6 +805,7 @@ func (rbac_server *server) removeResourceOwner(owner string, subjectType rbacpb.
 
 // Remove a Subject from denied list and allowed list.
 func (rbac_server *server) removeResourceSubject(subject string, subjectType rbacpb.SubjectType, path string) error {
+
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		return err
@@ -931,7 +988,30 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	
+	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		if !rbac_server.accountExist(subject) {
+			return false, false, errors.New("no account exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_APPLICATION {
+		if !rbac_server.applicationExist(subject) {
+			return false, false, errors.New("no application exist with id " + subject)
+		}
+
+	} else if subjectType == rbacpb.SubjectType_GROUP {
+		if !rbac_server.groupExist(subject) {
+			return false, false, errors.New("no group exist with id " + subject)
+		}
+
+	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+		if !rbac_server.organisationExist(subject) {
+			return false, false, errors.New("no organization exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_PEER {
+		if !rbac_server.peerExist(subject) {
+			return false, false, errors.New("no peer exist with id " + subject)
+		}
+	}
+
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
@@ -1312,6 +1392,31 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 
+	// test if the subject exist.
+	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		if !rbac_server.accountExist(subject) {
+			return false, errors.New("no account exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_APPLICATION {
+		if !rbac_server.applicationExist(subject) {
+			return false, errors.New("no application exist with id " + subject)
+		}
+
+	} else if subjectType == rbacpb.SubjectType_GROUP {
+		if !rbac_server.groupExist(subject) {
+			return false, errors.New("no group exist with id " + subject)
+		}
+
+	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+		if !rbac_server.organisationExist(subject) {
+			return false, errors.New("no organization exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_PEER {
+		if !rbac_server.peerExist(subject) {
+			return false, errors.New("no peer exist with id " + subject)
+		}
+	}
+
 	var actions []string
 	// All action from those services are available...
 	if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") {
@@ -1520,6 +1625,9 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	// Now I will set the value in the user share...
 	// The list of accounts
 	for i := 0; i < len(share.Accounts); i++ {
+		if !rbac_server.accountExist(share.Accounts[i]){
+			return errors.New("no account exist with id " + share.Accounts[i])
+		}
 		a := "SHARED/ACCOUNTS/" + share.Accounts[i]
 		err := rbac_server.setSubjectSharedResource(a, uuid)
 		if err != nil {
@@ -1528,6 +1636,9 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Applications); i++ {
+		if !rbac_server.applicationExist(share.Applications[i]){
+			return errors.New("no application exist with id " + share.Applications[i])
+		}
 		a := "SHARED/APPLICATIONS/" + share.Applications[i]
 		err := rbac_server.setSubjectSharedResource(a, uuid)
 		if err != nil {
@@ -1536,6 +1647,9 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Organizations); i++ {
+		if !rbac_server.organisationExist(share.Organizations[i]){
+			return errors.New("no organization exist with id " + share.Organizations[i])
+		}
 		o := "SHARED/ORGANIZATIONS/" + share.Organizations[i]
 		err := rbac_server.setSubjectSharedResource(o, uuid)
 		if err != nil {
@@ -1544,6 +1658,9 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Groups); i++ {
+		if !rbac_server.groupExist(share.Groups[i]){
+			return errors.New("no group exist with id " + share.Groups[i])
+		}
 		g := "SHARED/GROUPS/" + share.Groups[i]
 		err := rbac_server.setSubjectSharedResource(g, uuid)
 		if err != nil {
@@ -1552,6 +1669,9 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Peers); i++ {
+		if !rbac_server.peerExist(share.Peers[i]){
+			return errors.New("no peer exist with id " + share.Peers[i])
+		}
 		p := "SHARED/PEERS/" + share.Peers[i]
 		err := rbac_server.setSubjectSharedResource(p, uuid)
 		if err != nil {
@@ -1653,7 +1773,30 @@ func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.Unsh
 // Get the list of accessible shared ressource.
 // TODO if account also get share for groups and organization that the acount is part of...
 func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.SubjectType) ([]*rbacpb.Share, error) {
+	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		if !rbac_server.accountExist(subject) {
+			return nil, errors.New("no account exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_APPLICATION {
+		if !rbac_server.applicationExist(subject) {
+			return nil, errors.New("no application exist with id " + subject)
+		}
 
+	} else if subjectType == rbacpb.SubjectType_GROUP {
+		if !rbac_server.groupExist(subject) {
+			return nil, errors.New("no group exist with id " + subject)
+		}
+
+	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+		if !rbac_server.organisationExist(subject) {
+			return nil, errors.New("no organization exist with id " + subject)
+		}
+	} else if subjectType == rbacpb.SubjectType_PEER {
+		if !rbac_server.peerExist(subject) {
+			return nil, errors.New("no peer exist with id " + subject)
+		}
+	}
+	
 	// So here I will get the share resource for a given subject.
 	id := "SHARED/"
 	if subjectType == rbacpb.SubjectType_ACCOUNT {

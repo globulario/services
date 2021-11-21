@@ -374,6 +374,14 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 	return resourceClient.GetAccount(accountId)
 }
 
+func (server *server) accountExist(id string) bool{
+	a, err := server.getAccount(id)
+	if err != nil || a == nil {
+		return false
+	}
+	return true
+}
+
 /**
  * Return a group with a given id
  */
@@ -393,6 +401,17 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 	}
 
 	return groups[0], nil
+}
+
+/**
+ * Test if a group exist.
+ */
+func (server *server)groupExist(id string) bool{
+	g, err := server.getGroup(id)
+	if err != nil || g == nil {
+		return false
+	}
+	return true
 }
 
 /**
@@ -420,6 +439,17 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 }
 
 /**
+ * Test if a application exist.
+ */
+ func (server *server) applicationExist(id string) bool{
+	g, err := server.getApplication(id)
+	if err != nil || g == nil {
+		return false
+	}
+	return true
+}
+
+/**
  * Return a peer with a given id
  */
 func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
@@ -438,6 +468,51 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
 	}
 
 	return peers[0], nil
+}
+
+
+/**
+ * Test if a peer exist.
+ */
+ func (server *server) peerExist(id string) bool{
+	g, err := server.getPeer(id)
+	if err != nil || g == nil {
+		return false
+	}
+	return true
+}
+
+/**
+ * Return a peer with a given id
+ */
+ func (server *server) getOrganization(organisationId string) (*resourcepb.Organization, error) {
+	resourceClient, err := server.getResourceClient()
+	if err != nil {
+		return nil, err
+	}
+
+	organisations, err := resourceClient.GetOrganizations(`{"$or":[{"_id":"` + organisationId + `"},{"name":"` + organisationId + `"} ]}`)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(organisations) == 0 {
+		return nil, errors.New("no organization found wiht name or _id " + organisationId)
+	}
+
+	return organisations[0], nil
+}
+
+
+/**
+ * Test if a organisation exist.
+ */
+ func (server *server) organisationExist(id string) bool{
+	o, err := server.getOrganization(id)
+	if err != nil || o == nil {
+		return false
+	}
+	return true
 }
 
 /**
@@ -459,6 +534,17 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 	}
 
 	return roles[0], nil
+}
+
+/**
+ * Test if a role exist.
+ */
+ func (server *server) roleExist(id string) bool{
+	r, err := server.getRole(id)
+	if err != nil || r == nil {
+		return false
+	}
+	return true
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

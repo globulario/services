@@ -355,6 +355,42 @@ func (client *Resource_Client) IsOrganizationMemeber(user, organization string) 
 	return rsp.Result, nil
 }
 
+func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Organization, error) {
+
+	// Open the stream...
+	organisations := make([]*resourcepb.Organization, 0)
+	
+	// I will execute a simple ldap search here...
+	rqst := new(resourcepb.GetOrganizationsRqst)
+	rqst.Query = query
+
+	stream, err := client.c.GetOrganizations(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	// Here I will create the final array
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		organisations = append(organisations, msg.Organizations...)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return organisations, err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Account
 ////////////////////////////////////////////////////////////////////////////////

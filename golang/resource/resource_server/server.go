@@ -346,13 +346,13 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 }
 
 // when services state change that publish
-func (server *server) publishUpdatePeersEvent() error {
+func (server *server) publishEvent(evt string, data []byte) error {
 	client, err := server.getEventClient()
 	if err != nil {
 		return err
 	}
 
-	return client.Publish("update_peers_evt", []byte{})
+	return client.Publish(evt, data)
 }
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
