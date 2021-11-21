@@ -561,10 +561,12 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			contact := contacts[i].(map[string]interface{})
 
 			// So here I will call delete on the db...
-			err = p.Delete(context.Background(), "local_resource", contact["_id"].(string), "Contacts", `{"_id":"`+name+`"}`, "")
+			err = p.DeleteOne(context.Background(), "local_resource", contact["_id"].(string) +"_db", "Contacts", `{"_id":"`+name+`"}`, "")
+		
 			if err == nil {
 				// Here I will send delete contact event.
 				resource_server.publishEvent("update_peers_evt", []byte{})
+				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"_evt", []byte{})
 			}
 
 		}
