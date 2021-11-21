@@ -131,7 +131,7 @@ func validateAction(token, application, domain, organization, method, subject st
 	}
 
 	// Here I will set the access in the cache.
-	log(domain, application, subject, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  "+subject+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
+	//log(domain, application, subject, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  "+subject+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
 	cache.Store(uuid, map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
 
 	return hasAccess, nil
