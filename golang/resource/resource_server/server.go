@@ -594,7 +594,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 	// Create the user file directory.
 	path := "/users/" + id
-	Utility.CreateDirIfNotExist(config.GetDataDir() +"/files"+ path)
+	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 	err = resource_server.addResourceOwner(path, id, rbacpb.SubjectType_ACCOUNT)
 	return err
 }
@@ -935,6 +935,7 @@ func main() {
 		"/file.FileService/Rename",
 		"/file.FileService/SaveFile",
 		"/file.FileService/WriteExcelFile",
+		"/file.FileService/CreateAchive",
 		"/log.LogService/GetLog",
 		"/log.LogService/Log",
 		"/persistence.PersistenceService/Count",
