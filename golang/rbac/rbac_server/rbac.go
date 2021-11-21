@@ -1202,9 +1202,11 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	// If the user is the owner no other validation are required.
 	if isOwner {
 		return true, false, nil
+	}else if name == "owner"{
+		return false, false, errors.New("only the owner can do that action")
 	}
 
-	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0 {
+	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0{
 
 		// In that case I will try to get parent ressource permission.
 		if len(strings.Split(path, "/")) > 1 {
