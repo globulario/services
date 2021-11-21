@@ -213,7 +213,6 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 				ClientCAs:    certPool,
 				RootCAs:      certPool,
 			})
-			fmt.Println(215)
 			// Create a connection with the TLS credentials
 			cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds))
 			if err != nil {

@@ -1370,7 +1370,6 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 
 ///////////////////////  resource management. /////////////////
 func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
-	fmt.Println("Get Applications")
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
