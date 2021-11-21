@@ -11,8 +11,12 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/conversation/conversation_client"
 	"github.com/globulario/services/golang/conversation/conversationpb"
+	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/log/log_client"
+	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 
@@ -113,9 +117,6 @@ type server struct {
 
 	// keep in map active conversation db connections.
 	conversations *sync.Map
-
-	// The rbac client
-	rbac_client_ *rbac_client.Rbac_Client
 }
 
 // Globular services implementation...
@@ -340,6 +341,145 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 	svr.Permissions = permissions
 }
 
+// Singleton.
+var (
+	rbac_client_  *rbac_client.Rbac_Client
+	log_client_   *log_client.Log_Client
+	event_client_ *event_client.Event_Client
+)
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Logger function
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Get the log client.
+ */
+func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	var err error
+	if log_client_ == nil {
+		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return log_client_, nil
+}
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+}
+
+func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+	log_client_, err := server.GetLogClient()
+	if err != nil {
+		return
+	}
+	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+}
+
+///////////////////// resource service functions ////////////////////////////////////
+func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ != nil {
+		return event_client_, nil
+	}
+
+	event_client_, err = event_client.NewEventService_Client(server.Domain, "event.EventService")
+	if err != nil {
+		return nil, err
+	}
+
+	return event_client_, nil
+}
+
+func (svr *server) publish(event string, data []byte) error {
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+	return eventClient.Publish(event, data)
+}
+
+func (svr *server) subscribe(evt string, listener func(evt *eventpb.Event)) error {
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+
+	// register a listener...
+	return eventClient.Subscribe(evt, svr.Name, listener)
+}
+
+//////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
+/**
+ * Get the rbac client.
+ */
+func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return rbac_client_, nil
+}
+func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+	rbac_client_, err := GetRbacClient(server.Domain)
+	if err != nil {
+		return nil, err
+	}
+
+	return rbac_client_.GetResourcePermissions(path)
+}
+
+func (server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+	rbac_client_, err := GetRbacClient(server.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetResourcePermissions(path, permissions)
+}
+
+func (server *server) deleteResourcePermissions(path string) error {
+	rbac_client_, err := GetRbacClient(server.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.DeleteResourcePermissions(path)
+}
+
+func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+	rbac_client_, err := GetRbacClient(server.Domain)
+	if err != nil {
+		return false, false, err
+	}
+
+	return rbac_client_.ValidateAccess(subject, subjectType, name, path)
+
+}
+
+func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+}
+
+func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	rbac_client_, err := GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetActionResourcesPermissions(permissions)
+}
+
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
 
@@ -486,7 +626,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.rbac_client_.AddResourceOwner(uuid, clientId, rbacpb.SubjectType_ACCOUNT)
+	err = svr.addResourceOwner(uuid, clientId, rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -499,9 +639,9 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 }
 
 // Return the list of conversations created by a given user.
-func (svr *server) GetConversations(ctx context.Context, rqst *conversationpb.GetConversationsRequest) (*conversationpb.GetConversationsResponse, error) {
+func (svr *server) getConversations(accountId string) (*conversationpb.Conversations, error) {
 
-	_conversations_, err := svr.store.GetItem(rqst.Creator + "_conversations")
+	_conversations_, err := svr.store.GetItem(accountId + "_conversations")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -521,8 +661,19 @@ func (svr *server) GetConversations(ctx context.Context, rqst *conversationpb.Ge
 		}
 	}
 
+	return _conversations, nil
+}
+
+// Return the list of conversations created by a given user.
+func (svr *server) GetConversations(ctx context.Context, rqst *conversationpb.GetConversationsRequest) (*conversationpb.GetConversationsResponse, error) {
+	conversations, err := svr.getConversations(rqst.Creator)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	return &conversationpb.GetConversationsResponse{
-		Conversations: _conversations,
+		Conversations: conversations,
 	}, nil
 }
 
@@ -650,7 +801,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	isOwner, _, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	isOwner, _, err := svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -682,6 +833,65 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 }
 
 // Delete the conversation
+func (svr *server) deleteConversation(clientId string, conversation *conversationpb.Conversation) error {
+
+	err := svr.removeConversationParticipant(clientId, conversation.Uuid)
+	if err != nil {
+		return err
+	}
+
+	err = svr.removeParticipantConversation(clientId, conversation.Uuid)
+	if err != nil {
+		return err
+	}
+
+	// Close leveldb connection
+	svr.closeConversationConnection(conversation.Uuid)
+
+	// I will remove the conversation datastore...
+	if Utility.Exists(svr.Root + "/conversations/" + conversation.Uuid) {
+		err = os.RemoveAll(svr.Root + "/conversations/" + conversation.Uuid)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Now I will remove indexation.
+
+	// Remove the connection from the search engine.
+	err = svr.search_engine.DeleteDocument(svr.Root+"/conversations/search_data", conversation.Uuid)
+	if err != nil {
+		return err
+	}
+
+	// Remove the pending invitation.
+	if conversation.Invitations != nil {
+		for i := 0; i < len(conversation.Invitations.Invitations); i++ {
+			svr.removeInvitation(conversation.Invitations.Invitations[i])
+		}
+	}
+
+	// Remove conversation from participant conversations.
+	for i := 0; i < len(conversation.Participants); i++ {
+		svr.removeParticipantConversation(conversation.Participants[i], conversation.Uuid)
+	}
+
+	// Delete conversation from the store.
+	err = svr.store.RemoveItem(conversation.Uuid)
+	if err != nil {
+		return err
+	}
+
+	// I will remove the conversation from the db.
+	err = svr.deleteResourcePermissions(conversation.Uuid)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Delete the conversation
 func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.DeleteConversationRequest) (*conversationpb.DeleteConversationResponse, error) {
 
 	var clientId string
@@ -701,7 +911,15 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		}
 	}
 
-	// Get conversation if not exist I will return here.
+	// Validate the clientId is the owner of the conversation.
+	_, _, err = svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	if err != nil {
+
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	conversation, err := svr.getConversation(rqst.ConversationUuid)
 	if err != nil {
 
@@ -710,73 +928,10 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Validate the clientId is the owner of the conversation.
-	_, _, err = svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	// Get conversation if not exist I will return here.
+	err = svr.deleteConversation(clientId, conversation)
 	if err != nil {
-		// Here I will simply remove the converstion from the paticipant.
-		err := svr.removeConversationParticipant(clientId, rqst.ConversationUuid)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
 
-		err = svr.removeParticipantConversation(clientId, rqst.ConversationUuid)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		return nil, err
-	}
-
-	// Close leveldb connection
-	svr.closeConversationConnection(rqst.ConversationUuid)
-
-	// I will remove the conversation datastore...
-	if Utility.Exists(svr.Root + "/conversations/" + rqst.ConversationUuid) {
-		err = os.RemoveAll(svr.Root + "/conversations/" + rqst.ConversationUuid)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-
-	// Now I will remove indexation.
-
-	// Remove the connection from the search engine.
-	err = svr.search_engine.DeleteDocument(svr.Root+"/conversations/search_data", rqst.ConversationUuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Remove the pending invitation.
-	if conversation.Invitations != nil {
-		for i := 0; i < len(conversation.Invitations.Invitations); i++ {
-			svr.removeInvitation(conversation.Invitations.Invitations[i])
-		}
-	}
-
-	// Remove conversation from participant conversations.
-	for i := 0; i < len(conversation.Participants); i++ {
-		svr.removeParticipantConversation(conversation.Participants[i], conversation.Uuid)
-	}
-
-	// Delete conversation from the store.
-	err = svr.store.RemoveItem(rqst.ConversationUuid)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// I will remove the conversation from the db.
-	err = svr.rbac_client_.DeleteResourcePermissions(rqst.ConversationUuid)
-	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1052,7 +1207,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	hasAccess, _, err := svr.rbac_client_.ValidateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
+	hasAccess, _, err := svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1832,6 +1987,18 @@ func (svr *server) run() {
 	}
 }
 
+func (svr *server) deleteAccountListener(evt *eventpb.Event) {
+	accountId := string(evt.Data)
+	fmt.Println("Remove conversation for account ", accountId)
+	conversations, err := svr.getConversations(accountId)
+	if err == nil {
+		for i := 0; i < len(conversations.GetConversations()); i++ {
+			conversation := conversations.GetConversations()[i]
+			svr.deleteConversation(accountId, conversation)
+		}
+	}
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -1892,8 +2059,11 @@ func main() {
 	conversationpb.RegisterConversationServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	// Init the Role Based Access Control client.
-	s_impl.rbac_client_, _ = rbac_client.NewRbacService_Client(s_impl.Domain, "rbac.RbacService")
+	// Start listen for event...
+	go func() {
+		// subscribe to account delete event events
+		s_impl.subscribe("delete_account_evt", s_impl.deleteAccountListener)
+	}()
 
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go s_impl.run()
