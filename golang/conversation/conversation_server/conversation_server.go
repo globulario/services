@@ -469,6 +469,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 	if err != nil {
 		return err
 	}
+	fmt.Println("--------------> add ressource owner ", path, subject )
 	return rbac_client_.AddResourceOwner(path, subject, subjectType)
 }
 
@@ -930,6 +931,8 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		}
 		return nil, err
 	}
+
+	fmt.Println("--------------------------> delete conversation: ", clientId, rqst.ConversationUuid)
 	
 	conversation, err := svr.getConversation(rqst.ConversationUuid)
 	if err != nil {
