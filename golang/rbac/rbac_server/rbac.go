@@ -503,8 +503,8 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 
 // test if all subject exist...
 func (rbac_server *server) cleanupPermission(permission *rbacpb.Permission) (bool, *rbacpb.Permission) {
-	hasChange := false;
-	
+	hasChange := false
+
 	// Cleanup owners from deleted subjects...
 	accounts_change, accounts := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_ACCOUNT, permission.Accounts)
 	if accounts_change {
@@ -533,7 +533,7 @@ func (rbac_server *server) cleanupPermission(permission *rbacpb.Permission) (boo
 	peers_change, peers := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_PEER, permission.Peers)
 	if peers_change {
 		hasChange = true
-		permission.Peers =peers
+		permission.Peers = peers
 	}
 
 	return hasChange, permission
@@ -549,7 +549,7 @@ func (rbac_server *server) cleanupPermissions(permissions *rbacpb.Permissions) (
 	}
 
 	// Allowed...
-	for i:=0; i < len(permissions.Allowed); i++ {
+	for i := 0; i < len(permissions.Allowed); i++ {
 		permissionHasChange, permission := rbac_server.cleanupPermission(permissions.Allowed[i])
 		if permissionHasChange {
 			permissions.Allowed[i] = permission
@@ -557,7 +557,7 @@ func (rbac_server *server) cleanupPermissions(permissions *rbacpb.Permissions) (
 		}
 	}
 
-	for i:=0; i < len(permissions.Denied); i++ {
+	for i := 0; i < len(permissions.Denied); i++ {
 		permissionHasChange, permission := rbac_server.cleanupPermission(permissions.Denied[i])
 		if permissionHasChange {
 			permissions.Allowed[i] = permission
@@ -637,7 +637,7 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 	}
 
 	// remove deleted subjects
-	needSave, permissions :=rbac_server.cleanupPermissions(permissions)
+	needSave, permissions := rbac_server.cleanupPermissions(permissions)
 
 	// save the value...
 	if needSave {
@@ -1641,14 +1641,14 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 					return false, err
 				} else if hasAccess {
 
-					rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action+"' and has permission to "+resources[i].Permission+" resource '"+resources[i].Path+"'")
+					//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action+"' and has permission to "+resources[i].Permission+" resource '"+resources[i].Path+"'")
 					return true, nil
 				}
 			}
 		}
 	}
 
-	rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action)
+	//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action)
 	return true, nil
 }
 
