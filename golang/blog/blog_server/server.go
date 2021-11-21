@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/globulario/services/golang/blog/blog_client"
 	"github.com/globulario/services/golang/blog/blogpb"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -428,6 +430,16 @@ func (svr *server) publish(event string, data []byte) error {
 	return eventClient.Publish(event, data)
 }
 
+func (svr *server) subscribe(evt string, listener func(evt *eventpb.Event)) error {
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+
+	// register a listener...
+	return eventClient.Subscribe(evt, svr.Name, listener)
+}
+
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
 /**
  * Get the rbac client.
@@ -489,6 +501,20 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Blogger specific functions.
 ////////////////////////////////////////////////////////////////////////////////////////////////
+func (svr *server) deleteAccountListener(evt *eventpb.Event) {
+	accountId := string(evt.Data)
+	fmt.Println("Remove blog post for author ", accountId)
+	blogs, err := svr.getBlogPostByAuthor(accountId)
+	if err == nil {
+		for i:=0; i < len(blogs); i++ {
+			// remove the post...
+			err := svr.deleteBlogPost(accountId, blogs[i].Uuid)
+			if err != nil {
+				fmt.Println("post ", blogs[i].Uuid, "was removed")
+			}
+		}
+	}
+}
 
 /**
  * Return a new blogPost
@@ -721,6 +747,12 @@ func main() {
 	// Register the blog services
 	blogpb.RegisterBlogServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// Start listen for event...
+	go func() {
+		// subscribe to account delete event events
+		s_impl.subscribe("delete_account_evt", s_impl.deleteAccountListener)
+	}()
 
 	// Start the service.
 	s_impl.StartService()
