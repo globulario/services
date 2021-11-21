@@ -393,6 +393,14 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 	return err
 }
 
+func (svr *server) deleteResourcePermissions(path string) error {
+	rbac_client_, err := GetRbacClient(svr.Domain)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.DeleteResourcePermissions(path)
+}
+
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
 
 // Create the configuration file if is not already exist.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 
 	//"reflect"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 
@@ -518,6 +520,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		for i := 0; i < len(organizations); i++ {
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, organizationId, "accounts", "Organizations")
+			resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{})
 		}
 	}
 
@@ -526,6 +529,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		for i := 0; i < len(groups); i++ {
 			groupId := groups[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, groupId, "members", "Groups")
+			resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{})
 		}
 	}
 
@@ -534,7 +538,9 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 		for i := 0; i < len(roles); i++ {
 			roleId := roles[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, roleId, "members", "Roles")
+			resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{})
 		}
+		
 	}
 
 	// Try to delete the account...
@@ -584,6 +590,13 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// Remove the file...
+	resource_server.deleteResourcePermissions("/users/" + name)
+	os.RemoveAll(config.GetDataDir() + "/files/users/" + name)
+
+	resource_server.publishEvent("delete_account_"+name+"_evt", []byte{})
+	resource_server.publishEvent("delete_account_evt", []byte(name))
 
 	return &resourcepb.DeleteAccountRsp{
 		Result: rqst.Id,

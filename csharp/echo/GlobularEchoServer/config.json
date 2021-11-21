@@ -19,7 +19,7 @@
   "Mac": "04:92:26:c3:d3:bf",
   "Name": "echo.EchoService",
   "Path": "/home/dave/Documents/globulario/services/csharp/echo/GlobularEchoServer/home/dave/Documents/globulario/services/csharp/echo/GlobularEchoServer//GlobularEchoServer.exe",
-  "Port": 10001,
+  "Port": 10017,
   "Process": 13696,
   "Proto": "/home/dave/Documents/globulario/services/proto/echo.proto",
   "Protocol": "grpc",
