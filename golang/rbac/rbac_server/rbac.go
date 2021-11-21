@@ -1213,12 +1213,8 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			return rbac_server.validateAccess(subject, subjectType, name, parentPath)
 		}
 
-		if strings.Contains(err.Error(), "leveldb: not found") {
-			return true, false, err
-		}
-
 		// if no permission are define for a ressource anyone can access it.
-		return true, false, err
+		return true, false, nil
 	}
 
 	// First I will validate that the permission is not denied...
