@@ -501,6 +501,126 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 
 }
 
+// test if all subject exist...
+func (rbac_server *server) cleanupPermission(permission *rbacpb.Permission) (bool, *rbacpb.Permission) {
+	hasChange := false;
+	
+	// Cleanup owners from deleted subjects...
+	accounts_change, accounts := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_ACCOUNT, permission.Accounts)
+	if accounts_change {
+		hasChange = true
+		permission.Accounts = accounts
+	}
+
+	applications_change, applications := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_APPLICATION, permission.Applications)
+	if applications_change {
+		hasChange = true
+		permission.Applications = applications
+	}
+
+	groups_change, groups := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_GROUP, permission.Groups)
+	if groups_change {
+		hasChange = true
+		permission.Groups = groups
+	}
+
+	organizations_change, organizations := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_ORGANIZATION, permission.Organizations)
+	if organizations_change {
+		hasChange = true
+		permission.Organizations = organizations
+	}
+
+	peers_change, peers := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_PEER, permission.Peers)
+	if peers_change {
+		hasChange = true
+		permission.Peers =peers
+	}
+
+	return hasChange, permission
+}
+
+// test if the permission has change...
+func (rbac_server *server) cleanupPermissions(permissions *rbacpb.Permissions) (bool, *rbacpb.Permissions) {
+	hasChange := false
+	ownersChange, owners := rbac_server.cleanupPermission(permissions.Owners)
+	if ownersChange {
+		permissions.Owners = owners
+		hasChange = true
+	}
+
+	// Allowed...
+	for i:=0; i < len(permissions.Allowed); i++ {
+		permissionHasChange, permission := rbac_server.cleanupPermission(permissions.Allowed[i])
+		if permissionHasChange {
+			permissions.Allowed[i] = permission
+			hasChange = true
+		}
+	}
+
+	for i:=0; i < len(permissions.Denied); i++ {
+		permissionHasChange, permission := rbac_server.cleanupPermission(permissions.Denied[i])
+		if permissionHasChange {
+			permissions.Allowed[i] = permission
+			hasChange = true
+		}
+	}
+
+	return hasChange, permissions
+}
+
+// Remove all deleted subject from permission.
+func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectType, subjects []string) (bool, []string) {
+	// So here I will remove subject that no more exist in the permissions and keep up to date...
+	subjects_ := make([]string, 0)
+	needSave := false
+
+	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		for i := 0; i < len(subjects); i++ {
+			if rbac_server.accountExist(subjects[i]) {
+				subjects_ = append(subjects_, subjects[i])
+			} else {
+				needSave = true
+			}
+		}
+	} else if subjectType == rbacpb.SubjectType_APPLICATION {
+		for i := 0; i < len(subjects); i++ {
+			if rbac_server.applicationExist(subjects[i]) {
+				subjects_ = append(subjects_, subjects[i])
+			} else {
+				needSave = true
+			}
+		}
+
+	} else if subjectType == rbacpb.SubjectType_GROUP {
+		for i := 0; i < len(subjects); i++ {
+			if rbac_server.groupExist(subjects[i]) {
+				subjects_ = append(subjects_, subjects[i])
+			} else {
+				needSave = true
+			}
+		}
+	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+		for i := 0; i < len(subjects); i++ {
+			if rbac_server.organisationExist(subjects[i]) {
+				subjects_ = append(subjects_, subjects[i])
+			} else {
+				needSave = true
+			}
+		}
+	} else if subjectType == rbacpb.SubjectType_PEER {
+		for i := 0; i < len(subjects); i++ {
+			if rbac_server.peerExist(subjects[i]) {
+				subjects_ = append(subjects_, subjects[i])
+			} else {
+				needSave = true
+			}
+		}
+	}
+
+	return needSave, subjects
+}
+
+// Return a ressource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
 
 	data, err := rbac_server.permissions.GetItem(path)
@@ -515,6 +635,15 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 	if err != nil {
 		return nil, err
 	}
+
+	// remove deleted subjects
+	needSave, permissions :=rbac_server.cleanupPermissions(permissions)
+
+	// save the value...
+	if needSave {
+		rbac_server.setResourcePermissions(path, permissions)
+	}
+
 	return permissions, nil
 }
 
@@ -1625,7 +1754,7 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	// Now I will set the value in the user share...
 	// The list of accounts
 	for i := 0; i < len(share.Accounts); i++ {
-		if !rbac_server.accountExist(share.Accounts[i]){
+		if !rbac_server.accountExist(share.Accounts[i]) {
 			return errors.New("no account exist with id " + share.Accounts[i])
 		}
 		a := "SHARED/ACCOUNTS/" + share.Accounts[i]
@@ -1636,7 +1765,7 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Applications); i++ {
-		if !rbac_server.applicationExist(share.Applications[i]){
+		if !rbac_server.applicationExist(share.Applications[i]) {
 			return errors.New("no application exist with id " + share.Applications[i])
 		}
 		a := "SHARED/APPLICATIONS/" + share.Applications[i]
@@ -1647,7 +1776,7 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Organizations); i++ {
-		if !rbac_server.organisationExist(share.Organizations[i]){
+		if !rbac_server.organisationExist(share.Organizations[i]) {
 			return errors.New("no organization exist with id " + share.Organizations[i])
 		}
 		o := "SHARED/ORGANIZATIONS/" + share.Organizations[i]
@@ -1658,7 +1787,7 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Groups); i++ {
-		if !rbac_server.groupExist(share.Groups[i]){
+		if !rbac_server.groupExist(share.Groups[i]) {
 			return errors.New("no group exist with id " + share.Groups[i])
 		}
 		g := "SHARED/GROUPS/" + share.Groups[i]
@@ -1669,7 +1798,7 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	for i := 0; i < len(share.Peers); i++ {
-		if !rbac_server.peerExist(share.Peers[i]){
+		if !rbac_server.peerExist(share.Peers[i]) {
 			return errors.New("no peer exist with id " + share.Peers[i])
 		}
 		p := "SHARED/PEERS/" + share.Peers[i]
@@ -1796,7 +1925,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 			return nil, errors.New("no peer exist with id " + subject)
 		}
 	}
-	
+
 	// So here I will get the share resource for a given subject.
 	id := "SHARED/"
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
