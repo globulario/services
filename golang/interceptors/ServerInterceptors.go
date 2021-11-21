@@ -241,6 +241,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		method == "/rbac.RbacService/GetResourcePermission" ||
 		method == "/services_manager.ServicesManagerService/GetServicesConfiguration" ||
 		method == "/file.FileService/CreateAchive" ||
+		method == "/persistence.PersistenceService/CreateConnection" ||
 		strings.HasPrefix(method, "/log.LogService/") ||
 		strings.HasPrefix(method, "/authentication.AuthenticationService/") ||
 		strings.HasPrefix(method, "/event.EventService/") ||
