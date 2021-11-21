@@ -914,12 +914,23 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	// Validate the clientId is the owner of the conversation.
 	_, _, err = svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
+		// Here I will simply remove the converstion from the paticipant.
+		err := svr.removeConversationParticipant(clientId, rqst.ConversationUuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		err = svr.removeParticipantConversation(clientId, rqst.ConversationUuid)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+		return nil, err
 	}
-
+	
 	conversation, err := svr.getConversation(rqst.ConversationUuid)
 	if err != nil {
 
