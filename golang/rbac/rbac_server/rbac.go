@@ -1557,7 +1557,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 	// So first of all I will validate the actions itself...
 	if subjectType == rbacpb.SubjectType_APPLICATION {
-		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for application "+subject)
+		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for application "+subject)
 		application, err := rbac_server.getApplication(subject)
 		if err != nil {
 			rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application "+subject+" from the resource...")
@@ -1565,7 +1565,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 		actions = application.Actions
 	} else if subjectType == rbacpb.SubjectType_PEER {
-		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
+		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
 		peer, err := rbac_server.getPeer(subject)
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
@@ -1573,7 +1573,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 		actions = peer.Actions
 	} else if subjectType == rbacpb.SubjectType_ROLE {
-		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
+		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
 		role, err := rbac_server.getRole(subject)
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
@@ -1581,7 +1581,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 		actions = role.Actions
 	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
-		rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for account "+subject)
+		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for account "+subject)
 		// If the user is the super admin i will return true.
 		if subject == "sa" {
 			return true, nil
@@ -1664,7 +1664,6 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 	}
 
 	// If the address is local I will give the permission.
-	//log.Println("validate action ", rqst.Action, rqst.Subject, rqst.Type, rqst.Infos)
 	hasAccess, err := rbac_server.validateAction(rqst.Action, rqst.Subject, rqst.Type, rqst.Infos)
 	if err != nil {
 		return nil, status.Errorf(
