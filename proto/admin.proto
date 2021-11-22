@@ -18,6 +18,7 @@ message RunCmdRequest{
 	string cmd = 1;
 	repeated string args = 2;
 	bool blocking=3;
+   string path=4; // the path where the command must be executed
 }
 
 message RunCmdResponse{

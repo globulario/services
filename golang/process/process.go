@@ -146,7 +146,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		return -1, err
 	}
 
-
+	
 	p := exec.Command(s["Path"].(string), Utility.ToString(port))
 	stdout, err := p.StdoutPipe()
 	if err != nil {
@@ -311,6 +311,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	proxyArgs = append(proxyArgs, "--use_websockets=true")
 
 	// start the proxy service one time
+	//fmt.Println(proxyPath, proxyArgs)
 	proxyProcess := exec.Command(proxyPath, proxyArgs...)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
