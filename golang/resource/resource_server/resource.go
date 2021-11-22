@@ -146,8 +146,6 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 		resource_server.publishEvent("create_account_evt", []byte(jsonStr))
 	}
 
-	
-
 	// Now I will
 	return &resourcepb.RegisterAccountRsp{
 		Result: tokenString, // Return the token string.
@@ -540,7 +538,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			resource_server.deleteReference(p, rqst.Id, roleId, "members", "Roles")
 			resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{})
 		}
-		
+
 	}
 
 	// Try to delete the account...
@@ -561,8 +559,8 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			contact := contacts[i].(map[string]interface{})
 
 			// So here I will call delete on the db...
-			err = p.DeleteOne(context.Background(), "local_resource", contact["_id"].(string) +"_db", "Contacts", `{"_id":"`+name+`"}`, "")
-		
+			err = p.DeleteOne(context.Background(), "local_resource", contact["_id"].(string)+"_db", "Contacts", `{"_id":"`+name+`"}`, "")
+
 			if err == nil {
 				// Here I will send delete contact event.
 				resource_server.publishEvent("update_peers_evt", []byte{})
@@ -2690,7 +2688,6 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 
 	resource_server.publishEvent("clear_notification_evt", []byte{})
 
-
 	return &resourcepb.ClearAllNotificationsRsp{}, nil
 }
 
@@ -3083,7 +3080,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 	}
 
 	// send update_session event
-	server.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
+	//server.publishEvent("session_state_" + accountId+ "_change_event",  []byte(jsonStr))
 
 	return p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Sessions", `{"_id":"`+accountId+`"}`, jsonStr, `[{"upsert":true}]`)
 
