@@ -638,7 +638,6 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 
 	// remove deleted subjects
 	needSave, permissions := rbac_server.cleanupPermissions(permissions)
-
 	// save the value...
 	if needSave {
 		rbac_server.setResourcePermissions(path, permissions)

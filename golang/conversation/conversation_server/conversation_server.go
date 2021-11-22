@@ -429,22 +429,6 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	}
 	return rbac_client_, nil
 }
-func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	rbac_client_, err := GetRbacClient(server.Domain)
-	if err != nil {
-		return nil, err
-	}
-
-	return rbac_client_.GetResourcePermissions(path)
-}
-
-func (server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
-	rbac_client_, err := GetRbacClient(server.Domain)
-	if err != nil {
-		return err
-	}
-	return rbac_client_.SetResourcePermissions(path, permissions)
-}
 
 func (server *server) deleteResourcePermissions(path string) error {
 	rbac_client_, err := GetRbacClient(server.Domain)
@@ -469,7 +453,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 	if err != nil {
 		return err
 	}
-	fmt.Println("--------------> add ressource owner ", path, subject )
+
 	return rbac_client_.AddResourceOwner(path, subject, subjectType)
 }
 
@@ -796,15 +780,18 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	// Get conversation if not exist I will return here.
 	_, err = svr.getConversation(rqst.ConversationUuid)
 	if err != nil {
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Validate the clientId is the owner of the conversation.
+	
 	isOwner, _, err := svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 
 	if err != nil {
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -819,12 +806,14 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	// Here I will simply remove the converstion from the paticipant.
 	err = svr.removeConversationParticipant(rqst.Account, rqst.ConversationUuid)
 	if err != nil {
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	err = svr.removeParticipantConversation(rqst.Account, rqst.ConversationUuid)
 	if err != nil {
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -835,7 +824,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 
 // Delete the conversation
 func (svr *server) deleteConversation(clientId string, conversation *conversationpb.Conversation) error {
-
+	
 	err := svr.removeConversationParticipant(clientId, conversation.Uuid)
 	if err != nil {
 		return err
@@ -845,6 +834,13 @@ func (svr *server) deleteConversation(clientId string, conversation *conversatio
 	if err != nil {
 		return err
 	}
+
+	// kickout all participants...
+	for i:=0; i < len(conversation.Participants); i++ {
+		svr.publish(`kickout_conversation_`+ conversation.Uuid +`_evt`, []byte(conversation.Participants[i]))
+	}
+
+
 
 	// Close leveldb connection
 	svr.closeConversationConnection(conversation.Uuid)
@@ -883,8 +879,12 @@ func (svr *server) deleteConversation(clientId string, conversation *conversatio
 		return err
 	}
 
+	// publish delete conversation event.
+	svr.publish(`delete_conversation_`+ conversation.Uuid +`_evt`, []byte(conversation.Uuid))
+
 	// I will remove the conversation from the db.
 	err = svr.deleteResourcePermissions(conversation.Uuid)
+	// TODO find a way to remove it...
 	if err != nil {
 		return err
 	}
@@ -901,7 +901,6 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-
 			clientId, _, _, _, _, err = security.ValidateToken(token)
 			if err != nil {
 				return nil, err
@@ -931,12 +930,9 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		}
 		return nil, err
 	}
-
-	fmt.Println("--------------------------> delete conversation: ", clientId, rqst.ConversationUuid)
 	
 	conversation, err := svr.getConversation(rqst.ConversationUuid)
 	if err != nil {
-
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -945,12 +941,10 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	// Get conversation if not exist I will return here.
 	err = svr.deleteConversation(clientId, conversation)
 	if err != nil {
-
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 	return &conversationpb.DeleteConversationResponse{}, nil
 }
 
