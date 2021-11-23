@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -233,6 +232,10 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 	isBlocking := rqst.Blocking
 	pid := -1
 	cmd := exec.Command(baseCmd, cmdArgs...)
+	if len(rqst.Path) > 0 {
+		cmd.Dir = rqst.Path
+	}
+	
 	if isBlocking {
 
 		stdout, err := cmd.StdoutPipe()
@@ -253,8 +256,6 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 					break
 
 				case result := <-output:
-
-					fmt.Println(result)
 					if cmd.Process != nil {
 						pid = cmd.Process.Pid
 					}
@@ -272,7 +273,6 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 
 		// Start reading the output
 		go Utility.ReadOutput(output, stdout)
-		fmt.Println("run command: ", rqst.Cmd, rqst.Args)
 		cmd.Run()
 
 		cmd.Wait()

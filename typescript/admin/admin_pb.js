@@ -377,7 +377,8 @@ proto.admin.RunCmdRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     cmd: jspb.Message.getFieldWithDefault(msg, 1, ""),
     argsList: jspb.Message.getRepeatedField(msg, 2),
-    blocking: jspb.Message.getFieldWithDefault(msg, 3, false)
+    blocking: jspb.Message.getFieldWithDefault(msg, 3, false),
+    path: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -426,6 +427,10 @@ proto.admin.RunCmdRequest.deserializeBinaryFromReader = function(msg, reader) {
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setBlocking(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPath(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -473,6 +478,13 @@ proto.admin.RunCmdRequest.serializeBinaryToWriter = function(message, writer) {
   if (f) {
     writer.writeBool(
       3,
+      f
+    );
+  }
+  f = message.getPath();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
       f
     );
   }
@@ -537,6 +549,21 @@ proto.admin.RunCmdRequest.prototype.getBlocking = function() {
 /** @param {boolean} value */
 proto.admin.RunCmdRequest.prototype.setBlocking = function(value) {
   jspb.Message.setProto3BooleanField(this, 3, value);
+};
+
+
+/**
+ * optional string path = 4;
+ * @return {string}
+ */
+proto.admin.RunCmdRequest.prototype.getPath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/** @param {string} value */
+proto.admin.RunCmdRequest.prototype.setPath = function(value) {
+  jspb.Message.setProto3StringField(this, 4, value);
 };
 
 

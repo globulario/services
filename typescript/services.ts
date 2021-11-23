@@ -76,9 +76,13 @@ export interface IConfig {
   CertURL: string;
   IdleTimeout: number;
   IndexApplication: string;
+  Root: string;
+  WebRoot: string;
   Path: string;
   DataPath: string;
   ConfigPath: string;
+  Vesion: string;
+  Platform: string;
 
   // The map of service object.
   Services: IServices;
