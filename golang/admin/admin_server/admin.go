@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -273,7 +274,13 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 
 		// Start reading the output
 		go Utility.ReadOutput(output, stdout)
-		cmd.Run()
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println("fail to run command ", err)
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 
 		cmd.Wait()
 
@@ -284,6 +291,7 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 	} else {
 		err := cmd.Start()
 		if err != nil {
+			fmt.Println("fail to run command ", err)
 			return status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

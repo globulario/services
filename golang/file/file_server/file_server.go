@@ -25,12 +25,12 @@ import (
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/file/file_client"
-	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
 	"github.com/tealeg/xlsx"
@@ -55,7 +55,7 @@ var (
 	// The default domain.
 	domain string = "localhost"
 
-	rbac_client_  *rbac_client.Rbac_Client
+	rbac_client_ *rbac_client.Rbac_Client
 )
 
 // Value need by Globular to start the services...
@@ -532,13 +532,13 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 		if f.IsDir() {
 			if recursive || f.Name() == ".hidden" || strings.Contains(path, ".hidden") {
-				info_, err := readDir(s, path+string(os.PathSeparator)+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
+				info_, err := readDir(s, path+"/"+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
 				if err != nil {
 					return nil, err
 				}
 				info.Files = append(info.Files, info_)
 			} else {
-				info_, err := readDir(s, path+string(os.PathSeparator)+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, false)
+				info_, err := readDir(s, path+"/"+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, false)
 				if err != nil {
 					return nil, err
 				}
@@ -546,12 +546,12 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			}
 		} else if readFiles {
 
-			info_, err := getFileInfo(s, path+string(os.PathSeparator)+f.Name())
+			info_, err := getFileInfo(s, path+"/"+f.Name())
 			if err != nil {
 				return nil, err
 			}
 
-			f_, err := os.Open(path + string(os.PathSeparator) + f.Name())
+			f_, err := os.Open(path + "/" + f.Name())
 			if err != nil {
 				return nil, err
 			}
@@ -623,12 +623,14 @@ func (file_server *server) formatPath(path string) string {
 	path = strings.ReplaceAll(path, "\\", "//")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
-			if strings.HasPrefix(path, "/") {
-				path = file_server.Root + path
-			} else if !strings.HasSuffix(path, "/") {
-				path = file_server.Root + path
-			} else {
-				path = file_server.Root + "/" + path
+			if Utility.Exists(file_server.Root + path) {
+				if strings.HasPrefix(path, "/") {
+					path = file_server.Root + path
+				} else if !strings.HasSuffix(path, "/") {
+					path = file_server.Root + path
+				} else {
+					path = file_server.Root + "/" + path
+				}
 			}
 		} else {
 			path = file_server.Root
@@ -643,17 +645,26 @@ func (file_server *server) formatPath(path string) string {
 func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
 	path := file_server.formatPath(rqst.GetPath())
+	if !Utility.Exists(path){
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no dir with path " + rqst.Path + "exist on the system")))
+		
+	}
 
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true)
 	if err != nil {
-		return err
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Here I will serialyse the data into JSON.
 	jsonStr, err := json.Marshal(info)
-
 	if err != nil {
-		return err
+		return  status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	maxSize := 1024 * 5
@@ -671,7 +682,9 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 			Data: data,
 		})
 		if err != nil {
-			return err
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -681,7 +694,7 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 // Create a new directory
 func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDirRequest) (*filepb.CreateDirResponse, error) {
 	path := file_server.formatPath(rqst.GetPath())
-	err := Utility.CreateDirIfNotExist(path + string(os.PathSeparator) + rqst.GetName())
+	err := Utility.CreateDirIfNotExist(path + "/" + rqst.GetName())
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -824,7 +837,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 // Rename a file or a directory.
 func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameRequest) (*filepb.RenameResponse, error) {
 	path := file_server.formatPath(rqst.GetPath())
-	err := os.Rename(path+string(os.PathSeparator)+rqst.OldName, path+string(os.PathSeparator)+rqst.NewName)
+	err := os.Rename(path+"/"+rqst.OldName, path+"/"+rqst.NewName)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -845,7 +858,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	startIndex := strings.LastIndex(rqst.GetOldName(), "/")
 	if startIndex != -1 {
 		startIndex++
-	}else{
+	} else {
 		startIndex = 0
 	}
 
@@ -860,7 +873,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	startIndex = strings.LastIndex(rqst.GetNewName(), "/")
 	if startIndex != -1 {
 		startIndex++
-	}else{
+	} else {
 		startIndex = 0
 	}
 
@@ -868,7 +881,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	if endIndex == -1 {
 		endIndex = len(rqst.GetNewName())
 	}
-	
+
 	hiddenFolderTo := path + "/.hidden/" + rqst.GetNewName()[startIndex:endIndex]
 
 	if Utility.Exists(hiddenFolderFrom) {
@@ -905,7 +918,6 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
@@ -950,7 +962,7 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 	if strings.HasPrefix(info.Mime, "image/") {
 		if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 			info.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-		}else{
+		} else {
 			info.Thumbnail = createThumbnail(path, f_, 80, 80)
 		}
 	}
@@ -1065,7 +1077,6 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	// I will remove the permission from the db.
 	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
@@ -1131,7 +1142,6 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
 	}, nil
 }
 
-
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
@@ -1192,7 +1202,7 @@ func main() {
 	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	
+
 	// Set the root path if is pass as argument.
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = os.TempDir()
@@ -1211,7 +1221,6 @@ func main() {
 	// Register the echo services
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
 
 	// Start the service.
 	s_impl.StartService()
@@ -1296,7 +1305,7 @@ func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stre
 	if strings.HasPrefix(path, "/") {
 		path = file_server.Root + path
 		// Set the path separator...
-		path = strings.Replace(path, "/", string(os.PathSeparator), -1)
+		path = strings.Replace(path, "/", "/", -1)
 	}
 
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true)
@@ -1338,7 +1347,7 @@ func (file_server *server) WriteExcelFile(ctx context.Context, rqst *filepb.Writ
 	if strings.HasPrefix(path, "/") {
 		path = file_server.Root + path
 		// Set the path separator...
-		path = strings.Replace(path, "/", string(os.PathSeparator), -1)
+		path = strings.Replace(path, "/", "/", -1)
 	}
 
 	if Utility.Exists(path) {
