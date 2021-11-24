@@ -6,6 +6,15 @@ package admin;
 
 option go_package="admin/adminpb";
 
+message FileInfo {
+   string name = 1;
+   string path = 2;
+   int64 size = 3;
+   bool isDir = 4;
+   int64 modTime = 5;
+   repeated FileInfo files = 6;
+}
+
 message HasRunningProcessRequest{
 	string name = 1;
 }
@@ -115,6 +124,14 @@ message SaveConfigResponse {
 
 }
 
+message GetFileInfoRequest{
+   string path = 1;
+}
+
+message GetFileInfoResponse{
+   FileInfo info = 2;
+}
+
 service AdminService {
   /** Root informations*/
 
@@ -156,5 +173,8 @@ service AdminService {
 
   // Save Globular configuration.
   rpc SaveConfig(SaveConfigRequest) returns(SaveConfigRequest);
+
+  // Retrun file info from the server (absolute path)
+  rpc GetFileInfo(GetFileInfoRequest) returns(GetFileInfoResponse);
 
 }

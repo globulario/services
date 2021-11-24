@@ -731,5 +731,66 @@ proto.admin.AdminServicePromiseClient.prototype.saveConfig =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.GetFileInfoRequest,
+ *   !proto.admin.GetFileInfoResponse>}
+ */
+const methodDescriptor_AdminService_GetFileInfo = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/GetFileInfo',
+  grpc.web.MethodType.UNARY,
+  proto.admin.GetFileInfoRequest,
+  proto.admin.GetFileInfoResponse,
+  /**
+   * @param {!proto.admin.GetFileInfoRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.GetFileInfoResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.GetFileInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.admin.GetFileInfoResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.GetFileInfoResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.getFileInfo =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/GetFileInfo',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetFileInfo,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.GetFileInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.GetFileInfoResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.getFileInfo =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/GetFileInfo',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetFileInfo);
+};
+
+
 module.exports = proto.admin;
 

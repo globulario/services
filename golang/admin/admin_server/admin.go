@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 
 	// "golang.org/x/sys/windows/registry"
 	"os/exec"
@@ -227,7 +228,7 @@ func (admin_server *server) GetPids(ctx context.Context, rqst *adminpb.GetPidsRe
 
 // Run an external command must be use with care.
 func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.AdminService_RunCmdServer) error {
-	
+
 	baseCmd := rqst.Cmd
 	cmdArgs := rqst.Args
 	isBlocking := rqst.Blocking
@@ -236,7 +237,7 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 	if len(rqst.Path) > 0 {
 		cmd.Dir = rqst.Path
 	}
-	
+
 	if isBlocking {
 
 		stdout, err := cmd.StdoutPipe()
@@ -395,11 +396,55 @@ func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveCo
 	}
 
 	configPath := config.GetConfigDir() + "/config.json"
-	
+
 	err = ioutil.WriteFile(configPath, jsonStr, 0644)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &adminpb.SaveConfigRequest{}, nil
+}
+
+// Retrun file info from the server (absolute path)
+func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFileInfoRequest) (*adminpb.GetFileInfoResponse, error) {
+	if !Utility.Exists(rqst.Path){
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no dir found at path " + rqst.Path)))
+	}
+
+	info, err := os.Stat(rqst.Path)
 	if err != nil {
 		return nil, err
 	}
 
-	return &adminpb.SaveConfigRequest{}, nil
+	result := new(adminpb.FileInfo)
+	result.IsDir = info.IsDir()
+	result.ModTime = info.ModTime().Unix()
+	result.Name = info.Name()
+	result.Size = info.Size()
+	result.Path = rqst.Path[0:strings.LastIndex(rqst.Path, "/")]
+
+	files, err := ioutil.ReadDir(rqst.Path)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	result.Files = make([]*adminpb.FileInfo, 0)
+	for i:=0; i < len(files); i++ {
+		info := files[i]
+		file := new(adminpb.FileInfo)
+		file.IsDir = info.IsDir()
+		file.ModTime = info.ModTime().Unix()
+		file.Name = info.Name()
+		file.Size = info.Size()
+		file.Path = rqst.Path
+		result.Files = append(result.Files, file)
+	}
+
+	return &adminpb.GetFileInfoResponse{Info: result}, nil
 }
