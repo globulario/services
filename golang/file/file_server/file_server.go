@@ -623,7 +623,7 @@ func (file_server *server) formatPath(path string) string {
 	path = strings.ReplaceAll(path, "\\", "//")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
-			if Utility.Exists(file_server.Root + path) {
+			//if Utility.Exists(file_server.Root + path) {
 				if strings.HasPrefix(path, "/") {
 					path = file_server.Root + path
 				} else if !strings.HasSuffix(path, "/") {
@@ -631,7 +631,7 @@ func (file_server *server) formatPath(path string) string {
 				} else {
 					path = file_server.Root + "/" + path
 				}
-			}
+			//}
 		} else {
 			path = file_server.Root
 		}

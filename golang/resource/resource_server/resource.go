@@ -15,6 +15,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -1048,6 +1049,11 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 			return err
 		}
 
+		err = resource_server.createApplicationConnection(app)
+		if err != nil {
+			return err
+		}
+
 	} else {
 		actions_, _ := Utility.ToJson(app.Actions)
 		keywords_, _ := Utility.ToJson(app.Keywords)
@@ -1058,6 +1064,12 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 		}
 	}
 
+	// Create the application file directory.
+	path := "/applications/" + app.Name
+	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+	resource_server.addResourceOwner(path, app.Name, rbacpb.SubjectType_APPLICATION)
+
+	// Publish application.
 	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
 
 	return nil

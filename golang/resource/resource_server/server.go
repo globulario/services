@@ -18,6 +18,7 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -328,6 +329,7 @@ var (
 	rbac_client_  *rbac_client.Rbac_Client
 	log_client_   *log_client.Log_Client
 	event_client_ *event_client.Event_Client
+	persistence_client_    *persistence_client.Persistence_Client
 )
 
 ///////////////////// resource service functions ////////////////////////////////////
@@ -353,6 +355,37 @@ func (server *server) publishEvent(evt string, data []byte) error {
 	}
 
 	return client.Publish(evt, data)
+}
+
+/////////////////////////////////////// Get Persistence Client //////////////////////////////////////////
+func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+	var err error
+	if persistence_client_ == nil {
+		persistence_client_, err = persistence_client.NewPersistenceService_Client(domain, "persistence.PersistenceService")
+		if err != nil {
+			persistence_client_ = nil
+			log.Println("fail to get persistence client with error ", err)
+			return nil, err
+		}
+
+	}
+
+	return persistence_client_, nil
+}
+
+// Create the application connections in the backend.
+func (server *server) createApplicationConnection(app *resourcepb.Application) error{
+	persistence_client_, err := GetPersistenceClient(server.Domain)
+	if err != nil {
+		return err
+	}
+
+	err = persistence_client_.CreateConnection(app.Id+"_db", app.Id, server.Domain, 27017, 0, app.Id, app.Password, 500, "", true)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////

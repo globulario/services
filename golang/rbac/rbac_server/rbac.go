@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -1152,6 +1153,12 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	// first I will test if permissions is define
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
+		if permissions == nil {
+			// so here I will recursively get it parent permission...
+			if strings.LastIndex(path, "/") > 0 {
+				return rbac_server.validateAccess(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
+			}
+		}
 		return false, false, err
 	}
 
@@ -1608,11 +1615,13 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			for i := 0; i < len(actions) && !hasAccess; i++ {
 				if actions[i] == action {
 					hasAccess = true
+					break
 				}
 			}
 		}
 	}
 
+	fmt.Println( "------------------------------> ", subject, action, hasAccess)
 	if !hasAccess {
 		err := errors.New("Access denied for " + subject + " to call method " + action)
 		return false, err
@@ -1620,11 +1629,13 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		return true, nil
 	}
 
+
+
 	// Now I will validate the resource access.
 	// infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)
 	if len(resources) > 0 {
-
+		fmt.Println("-----------------------> 1633 ", resources)
 		if permissions_ == nil {
 			err := errors.New("no resources path are given for validations")
 			return false, err
