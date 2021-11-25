@@ -495,7 +495,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			delete(persistence_server.Connections, id)
 		}
 		return err
-	} 
+	}
 
 	// Print the success message here.
 	return nil
@@ -988,6 +988,7 @@ func (persistence_server *server) UpdateOne(ctx context.Context, rqst *persisten
 
 // Replace one document by another.
 func (persistence_server *server) ReplaceOne(ctx context.Context, rqst *persistencepb.ReplaceOneRqst) (*persistencepb.ReplaceOneRsp, error) {
+
 	store := persistence_server.stores[strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_")]
 	if store == nil {
 		err := errors.New("ReplaceOne No store connection exist for id " + strings.ReplaceAll(strings.ReplaceAll(rqst.Id, "@", "_"), ".", "_") + " collection: " + rqst.Collection + " query: " + rqst.Query)

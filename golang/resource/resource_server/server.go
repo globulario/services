@@ -380,7 +380,7 @@ func (server *server) createApplicationConnection(app *resourcepb.Application) e
 		return err
 	}
 
-	err = persistence_client_.CreateConnection(app.Id+"_db", app.Id, server.Domain, 27017, 0, app.Id, app.Password, 500, "", true)
+	err = persistence_client_.CreateConnection(app.Id, app.Id + "_db", server.Domain, 27017, 0, app.Id, app.Password, 500, "", true)
 	if err != nil {
 		return err
 	}
