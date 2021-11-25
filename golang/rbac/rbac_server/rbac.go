@@ -1634,7 +1634,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	// infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)
 	if len(resources) > 0 {
-		fmt.Println("-----------------------> 1633 ", resources)
 		if permissions_ == nil {
 			err := errors.New("no resources path are given for validations")
 			return false, err
