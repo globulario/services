@@ -409,13 +409,15 @@ func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveCo
 
 // Retrun file info from the server (absolute path)
 func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFileInfoRequest) (*adminpb.GetFileInfoResponse, error) {
-	if !Utility.Exists(rqst.Path){
+	path := strings.ReplaceAll(rqst.Path, "\\", "/")
+	if !Utility.Exists(path){
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no dir found at path " + rqst.Path)))
 	}
 
-	info, err := os.Stat(rqst.Path)
+	
+	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
@@ -425,9 +427,9 @@ func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFi
 	result.ModTime = info.ModTime().Unix()
 	result.Name = info.Name()
 	result.Size = info.Size()
-	result.Path = rqst.Path[0:strings.LastIndex(rqst.Path, "/")]
+	result.Path = path[0:strings.LastIndex(path, "/")]
 
-	files, err := ioutil.ReadDir(rqst.Path)
+	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -442,7 +444,7 @@ func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFi
 		file.ModTime = info.ModTime().Unix()
 		file.Name = info.Name()
 		file.Size = info.Size()
-		file.Path = rqst.Path
+		file.Path = path
 		result.Files = append(result.Files, file)
 	}
 
