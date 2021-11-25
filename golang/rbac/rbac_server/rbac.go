@@ -1621,7 +1621,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 	}
 
-	fmt.Println( "------------------------------> ", subject, action, hasAccess)
 	if !hasAccess {
 		err := errors.New("Access denied for " + subject + " to call method " + action)
 		return false, err
