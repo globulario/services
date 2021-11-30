@@ -854,8 +854,9 @@ service ResourceService {
   ////////////////////////////////////////////////////////////////////////////
   // Peer's
   ////////////////////////////////////////////////////////////////////////////
+  
 
-  /** Register a peer on the network **/
+  /** Register a peer **/
   rpc RegisterPeer(RegisterPeerRqst) returns (RegisterPeerRsp);
 
   /** Return the list of peers **/

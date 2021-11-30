@@ -14,8 +14,9 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 
 	"github.com/golang/protobuf/jsonpb"
@@ -1445,6 +1446,25 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 // Peer's Authorization and Authentication code.
 ////////////////////////////////////////////////////////////////////////////////
 
+// Register the actual peer (the one that running the resource server) to the one
+// running at domain.
+func (resource_server *server) registerPeer(token, domain string) (*resourcepb.Peer, string, error){
+	// Connect to remove server and call Register peer on it...
+	client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+	if err != nil {
+		return nil, "", err
+	}
+
+	// get the local public key.
+	key, err := security.GetLocalKey()
+	if err != nil {
+		return nil, "", err
+	}
+
+	return client.RegisterPeer(token, Utility.MyMacAddr(), resource_server.Domain, Utility.MyIP(), Utility.MyLocalIP(), string(key))
+
+}
+
 //* Connect to peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
@@ -1470,6 +1490,65 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer := make(map[string]interface{})
 	peer["_id"] = _id
 	peer["domain"] = rqst.Peer.Domain
+
+	// If no mac address was given it mean the request came from a web application 
+	// so the intention is to register the server itself on another server...
+	// This can also be done with the command line tool but in that case all values will be 
+	// set on the peers...
+	if len(rqst.Peer.Mac) == 0 {
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			token := strings.Join(md["token"], "")
+			if len(token) > 0 {
+				// In that case I want ot register the server to another server.
+				peer_, public_key,  err:=resource_server.registerPeer(token, rqst.Peer.Domain)
+
+				// Save the received values on the db
+				peer := make(map[string]interface{})
+				peer["_id"] = _id
+				peer["domain"] = peer_.Domain
+				peer["mac"] = peer_.Mac
+				peer["local_ip_address"] = peer_.LocalIpAddress
+				peer["external_ip_address"] = peer_.ExternalIpAddress
+				peer["state"] = peer_.State
+				peer["actions"] = []interface{}{}
+
+				if err != nil {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+
+				_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
+				if err != nil {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+			
+				// Here I wiil save the public key in the keys directory.
+				err = security.SetPeerPublicKey(peer_.Mac, public_key)
+				if err != nil {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+
+				// Send back the peers informations.
+				return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
+
+			}else{
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+			}
+		}else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+
+		}
+	}
+
 	peer["mac"] = rqst.Peer.Mac
 	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
 	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
