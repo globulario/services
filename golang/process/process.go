@@ -146,7 +146,6 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		return -1, err
 	}
 
-	
 	p := exec.Command(s["Path"].(string), Utility.ToString(port))
 	stdout, err := p.StdoutPipe()
 	if err != nil {
@@ -245,17 +244,10 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		Utility.TerminateProcess(pid, 0)
 	}
 
-	dir, _ := os.Getwd()
-
 	// Now I will start the proxy that will be use by javascript client.
-	proxyPath := dir + "/bin/grpcwebproxy"
-	if !strings.HasSuffix(proxyPath, ".exe") && runtime.GOOS == "windows" {
-		proxyPath += ".exe" // in case of windows.
-	}
-
-	if !Utility.Exists(proxyPath) {
-		fmt.Println("No grpcwebproxy found with pat" + proxyPath)
-		return -1, errors.New("No grpcwebproxy found with pat" + proxyPath)
+	cmd := "grpcwebproxy"
+	if !strings.HasSuffix(cmd, ".exe") && runtime.GOOS == "windows" {
+		cmd += ".exe" // in case of windows.
 	}
 
 	proxyBackendAddress := s["Domain"].(string) + ":" + strconv.Itoa(servicePort)
@@ -312,7 +304,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	// start the proxy service one time
 	//fmt.Println(proxyPath, proxyArgs)
-	proxyProcess := exec.Command(proxyPath, proxyArgs...)
+	proxyProcess := exec.Command(cmd, proxyArgs...)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}

@@ -5,19 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/ldap/ldappb"
-	"github.com/globulario/services/golang/resource/resource_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/ldap/ldappb"
+	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/resource/resource_client"
+	"github.com/globulario/services/golang/resource/resourcepb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	//"google.golang.org/grpc/grpclog"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -481,6 +483,106 @@ func (svr *server) getGroup(id string) (*resourcepb.Group, error) {
 // LDAP specific functionality
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// Synchronize the resource with LDAP.
+func (server *server) Synchronize(ctx context.Context, rqst *ldappb.SynchronizeRequest) (*ldappb.SynchronizeResponse, error) {
+	err := server.synchronize()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &ldappb.SynchronizeResponse{}, nil
+}
+
+// Append synchronize information.
+// "LdapSyncInfos": {
+//     "my__ldap":
+//       {
+//         "ConnectionId": "my__ldap",
+//         "GroupSyncInfo": {
+//           "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//           "Id": "name",
+//           "Query": "((objectClass=group))"
+//         },
+//         "Refresh": 1,
+//         "UserSyncInfo": {
+//           "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//           "Email": "mail",
+//           "Id": "userPrincipalName",
+//           "Query": "(|(objectClass=person)(objectClass=user))"
+//         }
+//       }
+//  }
+func (server *server) SetLdapSyncInfo(ctx context.Context, rqst *ldappb.SetLdapSyncInfoRequest) (*ldappb.SetLdapSyncInfoResponse, error) {
+	info:= make(map[string] interface{}, 0)
+
+	info["ConnectionId"] = rqst.Info.ConnectionId
+	info["Refresh"] = rqst.Info.Refresh
+	info["GroupSyncInfo"] = make(map[string] interface{}, 0)
+	info["GroupSyncInfo"].(map[string] interface{})["Id"] = rqst.Info.GroupSyncInfo.Id
+	info["GroupSyncInfo"].(map[string] interface{})["Base"] = rqst.Info.GroupSyncInfo.Base
+	info["GroupSyncInfo"].(map[string] interface{})["Query"] = rqst.Info.GroupSyncInfo.Query
+	info["UserSyncInfo"] = make(map[string] interface{}, 0)
+	info["UserSyncInfo"].(map[string] interface{})["Id"] = rqst.Info.UserSyncInfo.Id
+	info["UserSyncInfo"].(map[string] interface{})["Base"] = rqst.Info.UserSyncInfo.Base
+	info["UserSyncInfo"].(map[string] interface{})["Query"] = rqst.Info.UserSyncInfo.Query
+
+	if server.LdapSyncInfos ==nil {
+		server.LdapSyncInfos = make(map[string] interface{}, 0)
+	}
+
+	// Store the info.
+	server.LdapSyncInfos[ rqst.Info.ConnectionId] = info
+
+	return &ldappb.SetLdapSyncInfoResponse{}, nil
+}
+
+// Delete synchronize information
+func (server *server) DeleteLdapSyncInfo(ctx context.Context, rqst *ldappb.DeleteLdapSyncInfoRequest) (*ldappb.DeleteLdapSyncInfoResponse, error) {
+	if server.LdapSyncInfos!=nil {
+		if server.LdapSyncInfos[rqst.Id]!=nil {
+			delete(server.LdapSyncInfos, rqst.Id)
+		}
+	}
+
+	return &ldappb.DeleteLdapSyncInfoResponse{}, nil
+}
+
+// Retreive synchronize informations
+func (server *server) GetLdapSyncInfo(ctx context.Context, rqst *ldappb.GetLdapSyncInfoRequest) (*ldappb.GetLdapSyncInfoResponse, error) {
+	infos := make([]*ldappb.LdapSyncInfo, 0)
+
+
+	for _, info := range server.LdapSyncInfos {
+		info_ := new(ldappb.LdapSyncInfo)
+
+		info_.Id = info.(map[string]interface{})["Id"].(string)
+		info_.ConnectionId = info.(map[string]interface{})["ConnectionId"].(string)
+		info_.Refresh = info.(map[string]interface{})["Refresh"].(int32)
+		info_.GroupSyncInfo = new(ldappb.GroupSyncInfo)
+		info_.GroupSyncInfo.Id = info.(map[string]interface{})["GroupSyncInfo"].(map[string]interface{})["Id"].(string)
+		info_.GroupSyncInfo.Base = info.(map[string]interface{})["GroupSyncInfo"].(map[string]interface{})["Base"].(string)
+		info_.GroupSyncInfo.Query = info.(map[string]interface{})["GroupSyncInfo"].(map[string]interface{})["Query"].(string)
+		info_.UserSyncInfo = new(ldappb.UserSyncInfo)
+		info_.UserSyncInfo.Id = info.(map[string]interface{})["UserSyncInfo"].(map[string]interface{})["Id"].(string)
+		info_.UserSyncInfo.Base = info.(map[string]interface{})["UserSyncInfo"].(map[string]interface{})["Base"].(string)
+		info_.UserSyncInfo.Email = info.(map[string]interface{})["UserSyncInfo"].(map[string]interface{})["Email"].(string)
+		info_.UserSyncInfo.Query = info.(map[string]interface{})["UserSyncInfo"].(map[string]interface{})["Query"].(string)
+		if len(rqst.Id) > 0 {
+			if rqst.Id == info_.Id {
+				infos = append(infos, info_)
+				break
+			}
+		}else{
+			// append all infos.
+			infos = append(infos, info_)
+		}
+	}
+	// return the 
+	return &ldappb.GetLdapSyncInfoResponse{Infos: infos}, nil
+}
+
 // Authenticate a user with LDAP server.
 func (server *server) Authenticate(ctx context.Context, rqst *ldappb.AuthenticateRqst) (*ldappb.AuthenticateRsp, error) {
 	id := rqst.Id
@@ -617,13 +719,13 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 //     "my__ldap":
 //       {
 //         "ConnectionId": "my__ldap",
-//         "GroupSyncInfos": {
+//         "GroupSyncInfo": {
 //           "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
 //           "Id": "name",
 //           "Query": "((objectClass=group))"
 //         },
 //         "Refresh": 1,
-//         "UserSyncInfos": {
+//         "UserSyncInfo": {
 //           "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
 //           "Email": "mail",
 //           "Id": "userPrincipalName",
@@ -635,8 +737,8 @@ func (server *server) synchronize() error {
 
 	for connectionId, syncInfo_ := range server.LdapSyncInfos {
 		syncInfo := syncInfo_.(map[string]interface{})
-		groupSyncInfos := syncInfo["GroupSyncInfos"].(map[string]interface{})
-		groupsInfo, err := server.search(connectionId, groupSyncInfos["Base"].(string), groupSyncInfos["Query"].(string), []string{groupSyncInfos["Id"].(string), "distinguishedName"})
+		GroupSyncInfo := syncInfo["GroupSyncInfo"].(map[string]interface{})
+		groupsInfo, err := server.search(connectionId, GroupSyncInfo["Base"].(string), GroupSyncInfo["Query"].(string), []string{GroupSyncInfo["Id"].(string), "distinguishedName"})
 		if err != nil {
 			fmt.Println("fail to retreive group info", err)
 			return err
@@ -653,8 +755,8 @@ func (server *server) synchronize() error {
 		}
 
 		// Synchronize account and user info...
-		userSyncInfos := syncInfo["UserSyncInfos"].(map[string]interface{})
-		accountsInfo, err := server.search(connectionId, userSyncInfos["Base"].(string), userSyncInfos["Query"].(string), []string{userSyncInfos["Id"].(string), userSyncInfos["Email"].(string), "distinguishedName", "memberOf"})
+		UserSyncInfo := syncInfo["UserSyncInfo"].(map[string]interface{})
+		accountsInfo, err := server.search(connectionId, UserSyncInfo["Base"].(string), UserSyncInfo["Query"].(string), []string{UserSyncInfo["Id"].(string), UserSyncInfo["Email"].(string), "distinguishedName", "memberOf"})
 		if err != nil {
 			fmt.Println("fail to retreive account info", err)
 			return err
@@ -691,36 +793,36 @@ func (server *server) synchronize() error {
 
 						// Now I will update the groups user list...
 						if err == nil {
-						if len(accountsInfo[i][3].([]string)) > 0 && a != nil {
-							groups := accountsInfo[i][3].([]string)
-							// Append not existing group...
-							for j := 0; j < len(groups); j++ {
-								groupId := Utility.GenerateUUID(groups[j])
-								
-								if !Utility.Contains(a.Groups, groupId) {
-									// Now I will remo
-									err := server.addGroupMemberAccount(groupId, a.Id)
-									if err != nil {
-										fmt.Println("fail to add account ", a.Id, " to ", groupId, err)
+							if len(accountsInfo[i][3].([]string)) > 0 && a != nil {
+								groups := accountsInfo[i][3].([]string)
+								// Append not existing group...
+								for j := 0; j < len(groups); j++ {
+									groupId := Utility.GenerateUUID(groups[j])
+
+									if !Utility.Contains(a.Groups, groupId) {
+										// Now I will remo
+										err := server.addGroupMemberAccount(groupId, a.Id)
+										if err != nil {
+											fmt.Println("fail to add account ", a.Id, " to ", groupId, err)
+										}
 									}
+
 								}
 
-							}
-
-							// Remove group that no more part of the ldap group.
-							for j := 0; j < len(a.Groups); j++ {
-								groupId := a.Groups[j]
-								if !Utility.Contains(groups, groupId) {
-									// Now I will remo
-									err := server.removeGroupMemberAccount(groupId, a.Id)
-									if err != nil {
-										fmt.Println("fail to remove account ",  a.Id, " from group ", groupId, " with error ", err)
+								// Remove group that no more part of the ldap group.
+								for j := 0; j < len(a.Groups); j++ {
+									groupId := a.Groups[j]
+									if !Utility.Contains(groups, groupId) {
+										// Now I will remo
+										err := server.removeGroupMemberAccount(groupId, a.Id)
+										if err != nil {
+											fmt.Println("fail to remove account ", a.Id, " from group ", groupId, " with error ", err)
+										}
 									}
-								}
 
+								}
 							}
 						}
-					}
 
 					}
 				} else {
@@ -777,11 +879,11 @@ func main() {
 	// Register the echo services
 	ldappb.RegisterLdapServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-/*
-	go func() {
-		s_impl.synchronize()
-	}()
-*/
+	/*
+		go func() {
+			s_impl.synchronize()
+		}()
+	*/
 	// Start the service.
 	s_impl.StartService()
 

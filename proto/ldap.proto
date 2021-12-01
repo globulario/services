@@ -73,6 +73,77 @@ message StopResponse {
 	
 }
 
+message SynchronizeRequest{
+
+}
+
+message SynchronizeResponse{
+
+}
+
+// Now the synchronization informations...
+// "LdapSyncInfos": {
+//     "my__ldap":
+//       {
+//         "ConnectionId": "my__ldap",
+//         "GroupSyncInfos": {
+//           "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//           "Id": "name",
+//           "Query": "((objectClass=group))"
+//         },
+//         "Refresh": 1,
+//         "UserSyncInfos": {
+//           "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//           "Email": "mail",
+//           "Id": "userPrincipalName",
+//           "Query": "(|(objectClass=person)(objectClass=user))"
+//         }
+//       }
+//  }
+
+message GroupSyncInfo {
+	string id = 1;
+	string base = 2;
+	string query = 3;
+}
+
+message UserSyncInfo {
+	string id = 1;
+	string email = 2;
+	string base = 3;
+	string query = 4;
+}
+
+message LdapSyncInfo {
+	string id = 1;
+	string connectionId = 2;
+	int32 refresh = 3; // in minutes
+	GroupSyncInfo group_sync_info = 4;
+	UserSyncInfo user_sync_info = 5;
+}
+
+// Create / Update ldap sync informations.
+message setLdapSyncInfoRequest {
+	LdapSyncInfo info = 1;
+}
+message setLdapSyncInfoResponse {
+}
+
+// Retreive 
+message getLdapSyncInfoRequest {
+	string id = 1; // empty string return all values.
+}
+message getLdapSyncInfoResponse {
+	repeated LdapSyncInfo infos = 1;
+}
+
+// Delete info
+message deleteLdapSyncInfoRequest {
+	string id = 1; // empty string return all values.
+}
+message deleteLdapSyncInfoResponse {
+}
+
 // TODO support TLS conncetion.
 service LdapService {
   	// Stop the server.
@@ -93,5 +164,17 @@ service LdapService {
 	
 	// Authenticate a user to a given ldap server (connection id)
 	rpc Authenticate(AuthenticateRqst) returns (AuthenticateRsp){};
+
+	// Synchronize the resource with LDAP.
+	rpc Synchronize(SynchronizeRequest) returns (SynchronizeResponse){};
+
+	// Append synchronize information. 
+	rpc setLdapSyncInfo(setLdapSyncInfoRequest) returns (setLdapSyncInfoResponse){};
+
+	// Delete synchronize information
+	rpc deleteLdapSyncInfo(deleteLdapSyncInfoRequest) returns (deleteLdapSyncInfoResponse){};
+
+	// Retreive synchronize informations
+	rpc getLdapSyncInfo(getLdapSyncInfoRequest) returns (getLdapSyncInfoResponse){};
 }
 
