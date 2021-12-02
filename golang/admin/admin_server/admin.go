@@ -13,10 +13,11 @@ import (
 	"runtime"
 	"strings"
 
+
 	// "golang.org/x/sys/windows/registry"
 	"os/exec"
 	"path/filepath"
-
+	"github.com/shirou/gopsutil/mem"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
 	ps "github.com/shirou/gopsutil/process"
@@ -418,15 +419,44 @@ func (admin_server *server) GetProcessInfos(ctx context.Context, rqst *adminpb.G
 	}
 
 	process_ := make([]*adminpb.ProcessInfo, 0)
-
+	vmStat, err := mem.VirtualMemory()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 	// Get the list of all process...
 	for i := 0; i < len(process); i++ {
 		p := process[i]
 		p_ := new(adminpb.ProcessInfo)
 		p_.Pid = int32(p.Pid)
+		p_.Ppid, _ = p.Ppid()
 		p_.Name, _ = p.Name()
+		p_.Exec, _ = p.Exe()
+		p_.User, _ = p.Username()
+		nice, _ :=p.Nice()
+		if  nice <= 10 {
+			p_.Priority = "very low"
+		}else if nice > 10 && nice <20 {
+			p_.Priority = "low"
+		}else if nice >= 20 && nice <30 {
+			p_.Priority = "Normal"
+		}else if nice > 30 && nice < 40 {
+			p_.Priority = "Hight"
+		}else if nice == 40 {
+			p_.Priority = "Very Hight"
+		}
+
 		p_.CpuUsagePercent, _ = p.CPUPercent()
 		p_.MemoryUsagePercent, _ = p.MemoryPercent()
+		p_.MemoryUsage = 0
+		if uint64(100/(100 *p_.MemoryUsagePercent)) > 0 {
+			p_.MemoryUsage = vmStat.Total / uint64(100/(100 *p_.MemoryUsagePercent))
+		}
+
+		// memoryInfo, _ := p.MemoryInfoEx()
+		// p_.MemoryUsage = memoryInfo.Data
+
 		if len(rqst.Name) > 0 || rqst.Pid > 0 {
 			if rqst.Pid > 0 {
 				if rqst.Pid == p_.Pid {

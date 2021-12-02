@@ -92,10 +92,14 @@ message KillProcessesResponse {
 
 message ProcessInfo{
    string name = 1;
-   int32 pid = 2;
-   double cpu_usage_percent = 3;
-   float memory_usage_percent = 4;
-   double network_usage = 5;
+   string exec = 2;
+   int32 pid = 3;
+   int32 ppid = 4;
+   string user = 5;
+   string priority = 6;
+   double cpu_usage_percent = 7;
+   float memory_usage_percent = 8;
+   uint64 memory_usage = 9;
 }
 
 message GetProcessInfosRequest {

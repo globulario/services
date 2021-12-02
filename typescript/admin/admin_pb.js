@@ -2830,10 +2830,14 @@ proto.admin.ProcessInfo.prototype.toObject = function(opt_includeInstance) {
 proto.admin.ProcessInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
     name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    pid: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    cpuUsagePercent: +jspb.Message.getFieldWithDefault(msg, 3, 0.0),
-    memoryUsagePercent: +jspb.Message.getFieldWithDefault(msg, 4, 0.0),
-    networkUsage: +jspb.Message.getFieldWithDefault(msg, 5, 0.0)
+    exec: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    pid: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    ppid: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    user: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    priority: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    cpuUsagePercent: +jspb.Message.getFieldWithDefault(msg, 7, 0.0),
+    memoryUsagePercent: +jspb.Message.getFieldWithDefault(msg, 8, 0.0),
+    memoryUsage: jspb.Message.getFieldWithDefault(msg, 9, 0)
   };
 
   if (includeInstance) {
@@ -2875,20 +2879,36 @@ proto.admin.ProcessInfo.deserializeBinaryFromReader = function(msg, reader) {
       msg.setName(value);
       break;
     case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setExec(value);
+      break;
+    case 3:
       var value = /** @type {number} */ (reader.readInt32());
       msg.setPid(value);
       break;
-    case 3:
+    case 4:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setPpid(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUser(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPriority(value);
+      break;
+    case 7:
       var value = /** @type {number} */ (reader.readDouble());
       msg.setCpuUsagePercent(value);
       break;
-    case 4:
+    case 8:
       var value = /** @type {number} */ (reader.readFloat());
       msg.setMemoryUsagePercent(value);
       break;
-    case 5:
-      var value = /** @type {number} */ (reader.readDouble());
-      msg.setNetworkUsage(value);
+    case 9:
+      var value = /** @type {number} */ (reader.readUint64());
+      msg.setMemoryUsage(value);
       break;
     default:
       reader.skipField();
@@ -2926,31 +2946,59 @@ proto.admin.ProcessInfo.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getExec();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
   f = message.getPid();
   if (f !== 0) {
     writer.writeInt32(
-      2,
+      3,
+      f
+    );
+  }
+  f = message.getPpid();
+  if (f !== 0) {
+    writer.writeInt32(
+      4,
+      f
+    );
+  }
+  f = message.getUser();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getPriority();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
   f = message.getCpuUsagePercent();
   if (f !== 0.0) {
     writer.writeDouble(
-      3,
+      7,
       f
     );
   }
   f = message.getMemoryUsagePercent();
   if (f !== 0.0) {
     writer.writeFloat(
-      4,
+      8,
       f
     );
   }
-  f = message.getNetworkUsage();
-  if (f !== 0.0) {
-    writer.writeDouble(
-      5,
+  f = message.getMemoryUsage();
+  if (f !== 0) {
+    writer.writeUint64(
+      9,
       f
     );
   }
@@ -2973,62 +3021,122 @@ proto.admin.ProcessInfo.prototype.setName = function(value) {
 
 
 /**
- * optional int32 pid = 2;
+ * optional string exec = 2;
+ * @return {string}
+ */
+proto.admin.ProcessInfo.prototype.getExec = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.admin.ProcessInfo.prototype.setExec = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional int32 pid = 3;
  * @return {number}
  */
 proto.admin.ProcessInfo.prototype.getPid = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
 };
 
 
 /** @param {number} value */
 proto.admin.ProcessInfo.prototype.setPid = function(value) {
-  jspb.Message.setProto3IntField(this, 2, value);
+  jspb.Message.setProto3IntField(this, 3, value);
 };
 
 
 /**
- * optional double cpu_usage_percent = 3;
+ * optional int32 ppid = 4;
+ * @return {number}
+ */
+proto.admin.ProcessInfo.prototype.getPpid = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/** @param {number} value */
+proto.admin.ProcessInfo.prototype.setPpid = function(value) {
+  jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional string user = 5;
+ * @return {string}
+ */
+proto.admin.ProcessInfo.prototype.getUser = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/** @param {string} value */
+proto.admin.ProcessInfo.prototype.setUser = function(value) {
+  jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string priority = 6;
+ * @return {string}
+ */
+proto.admin.ProcessInfo.prototype.getPriority = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/** @param {string} value */
+proto.admin.ProcessInfo.prototype.setPriority = function(value) {
+  jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional double cpu_usage_percent = 7;
  * @return {number}
  */
 proto.admin.ProcessInfo.prototype.getCpuUsagePercent = function() {
-  return /** @type {number} */ (+jspb.Message.getFieldWithDefault(this, 3, 0.0));
+  return /** @type {number} */ (+jspb.Message.getFieldWithDefault(this, 7, 0.0));
 };
 
 
 /** @param {number} value */
 proto.admin.ProcessInfo.prototype.setCpuUsagePercent = function(value) {
-  jspb.Message.setProto3FloatField(this, 3, value);
+  jspb.Message.setProto3FloatField(this, 7, value);
 };
 
 
 /**
- * optional float memory_usage_percent = 4;
+ * optional float memory_usage_percent = 8;
  * @return {number}
  */
 proto.admin.ProcessInfo.prototype.getMemoryUsagePercent = function() {
-  return /** @type {number} */ (+jspb.Message.getFieldWithDefault(this, 4, 0.0));
+  return /** @type {number} */ (+jspb.Message.getFieldWithDefault(this, 8, 0.0));
 };
 
 
 /** @param {number} value */
 proto.admin.ProcessInfo.prototype.setMemoryUsagePercent = function(value) {
-  jspb.Message.setProto3FloatField(this, 4, value);
+  jspb.Message.setProto3FloatField(this, 8, value);
 };
 
 
 /**
- * optional double network_usage = 5;
+ * optional uint64 memory_usage = 9;
  * @return {number}
  */
-proto.admin.ProcessInfo.prototype.getNetworkUsage = function() {
-  return /** @type {number} */ (+jspb.Message.getFieldWithDefault(this, 5, 0.0));
+proto.admin.ProcessInfo.prototype.getMemoryUsage = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 9, 0));
 };
 
 
 /** @param {number} value */
-proto.admin.ProcessInfo.prototype.setNetworkUsage = function(value) {
-  jspb.Message.setProto3FloatField(this, 5, value);
+proto.admin.ProcessInfo.prototype.setMemoryUsage = function(value) {
+  jspb.Message.setProto3IntField(this, 9, value);
 };
 
 
