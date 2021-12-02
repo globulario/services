@@ -90,6 +90,23 @@ message KillProcessesResponse {
 	
 }
 
+message ProcessInfo{
+   string name = 1;
+   int32 pid = 2;
+   double cpu_usage_percent = 3;
+   float memory_usage_percent = 4;
+   double network_usage = 5;
+}
+
+message GetProcessInfosRequest {
+   string name = 1;
+   int32 pid = 2;
+}
+
+message GetProcessInfosResponse {
+   repeated ProcessInfo infos = 1;
+}
+
 message GetPidsRequest {
 	string name = 1;
 }
@@ -149,6 +166,9 @@ service AdminService {
 
   // Test if a process of given name is running...
   rpc HasRunningProcess(HasRunningProcessRequest) returns(HasRunningProcessResponse);
+
+  // Return the list of process or the process with a given name or id
+  rpc GetProcessInfos(GetProcessInfosRequest) returns(GetProcessInfosResponse);
 
   // Run an external command.
   rpc RunCmd(RunCmdRequest) returns(stream RunCmdResponse);

@@ -436,5 +436,249 @@ proto.ldap.LdapServicePromiseClient.prototype.authenticate =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.ldap.SynchronizeRequest,
+ *   !proto.ldap.SynchronizeResponse>}
+ */
+const methodDescriptor_LdapService_Synchronize = new grpc.web.MethodDescriptor(
+  '/ldap.LdapService/Synchronize',
+  grpc.web.MethodType.UNARY,
+  proto.ldap.SynchronizeRequest,
+  proto.ldap.SynchronizeResponse,
+  /**
+   * @param {!proto.ldap.SynchronizeRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.ldap.SynchronizeResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.ldap.SynchronizeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.SynchronizeResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.ldap.SynchronizeResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.ldap.LdapServiceClient.prototype.synchronize =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/ldap.LdapService/Synchronize',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_Synchronize,
+      callback);
+};
+
+
+/**
+ * @param {!proto.ldap.SynchronizeRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.ldap.SynchronizeResponse>}
+ *     Promise that resolves to the response
+ */
+proto.ldap.LdapServicePromiseClient.prototype.synchronize =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/ldap.LdapService/Synchronize',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_Synchronize);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.ldap.setLdapSyncInfoRequest,
+ *   !proto.ldap.setLdapSyncInfoResponse>}
+ */
+const methodDescriptor_LdapService_setLdapSyncInfo = new grpc.web.MethodDescriptor(
+  '/ldap.LdapService/setLdapSyncInfo',
+  grpc.web.MethodType.UNARY,
+  proto.ldap.setLdapSyncInfoRequest,
+  proto.ldap.setLdapSyncInfoResponse,
+  /**
+   * @param {!proto.ldap.setLdapSyncInfoRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.ldap.setLdapSyncInfoResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.ldap.setLdapSyncInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.setLdapSyncInfoResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.ldap.setLdapSyncInfoResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.ldap.LdapServiceClient.prototype.setLdapSyncInfo =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/ldap.LdapService/setLdapSyncInfo',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_setLdapSyncInfo,
+      callback);
+};
+
+
+/**
+ * @param {!proto.ldap.setLdapSyncInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.ldap.setLdapSyncInfoResponse>}
+ *     Promise that resolves to the response
+ */
+proto.ldap.LdapServicePromiseClient.prototype.setLdapSyncInfo =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/ldap.LdapService/setLdapSyncInfo',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_setLdapSyncInfo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.ldap.deleteLdapSyncInfoRequest,
+ *   !proto.ldap.deleteLdapSyncInfoResponse>}
+ */
+const methodDescriptor_LdapService_deleteLdapSyncInfo = new grpc.web.MethodDescriptor(
+  '/ldap.LdapService/deleteLdapSyncInfo',
+  grpc.web.MethodType.UNARY,
+  proto.ldap.deleteLdapSyncInfoRequest,
+  proto.ldap.deleteLdapSyncInfoResponse,
+  /**
+   * @param {!proto.ldap.deleteLdapSyncInfoRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.ldap.deleteLdapSyncInfoResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.ldap.deleteLdapSyncInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.deleteLdapSyncInfoResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.ldap.deleteLdapSyncInfoResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.ldap.LdapServiceClient.prototype.deleteLdapSyncInfo =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/ldap.LdapService/deleteLdapSyncInfo',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_deleteLdapSyncInfo,
+      callback);
+};
+
+
+/**
+ * @param {!proto.ldap.deleteLdapSyncInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.ldap.deleteLdapSyncInfoResponse>}
+ *     Promise that resolves to the response
+ */
+proto.ldap.LdapServicePromiseClient.prototype.deleteLdapSyncInfo =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/ldap.LdapService/deleteLdapSyncInfo',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_deleteLdapSyncInfo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.ldap.getLdapSyncInfoRequest,
+ *   !proto.ldap.getLdapSyncInfoResponse>}
+ */
+const methodDescriptor_LdapService_getLdapSyncInfo = new grpc.web.MethodDescriptor(
+  '/ldap.LdapService/getLdapSyncInfo',
+  grpc.web.MethodType.UNARY,
+  proto.ldap.getLdapSyncInfoRequest,
+  proto.ldap.getLdapSyncInfoResponse,
+  /**
+   * @param {!proto.ldap.getLdapSyncInfoRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.ldap.getLdapSyncInfoResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.ldap.getLdapSyncInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.ldap.getLdapSyncInfoResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.ldap.getLdapSyncInfoResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.ldap.LdapServiceClient.prototype.getLdapSyncInfo =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/ldap.LdapService/getLdapSyncInfo',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_getLdapSyncInfo,
+      callback);
+};
+
+
+/**
+ * @param {!proto.ldap.getLdapSyncInfoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.ldap.getLdapSyncInfoResponse>}
+ *     Promise that resolves to the response
+ */
+proto.ldap.LdapServicePromiseClient.prototype.getLdapSyncInfo =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/ldap.LdapService/getLdapSyncInfo',
+      request,
+      metadata || {},
+      methodDescriptor_LdapService_getLdapSyncInfo);
+};
+
+
 module.exports = proto.ldap;
 

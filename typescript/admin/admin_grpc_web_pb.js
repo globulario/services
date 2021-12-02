@@ -251,6 +251,67 @@ proto.admin.AdminServicePromiseClient.prototype.hasRunningProcess =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.admin.GetProcessInfosRequest,
+ *   !proto.admin.GetProcessInfosResponse>}
+ */
+const methodDescriptor_AdminService_GetProcessInfos = new grpc.web.MethodDescriptor(
+  '/admin.AdminService/GetProcessInfos',
+  grpc.web.MethodType.UNARY,
+  proto.admin.GetProcessInfosRequest,
+  proto.admin.GetProcessInfosResponse,
+  /**
+   * @param {!proto.admin.GetProcessInfosRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.admin.GetProcessInfosResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.admin.GetProcessInfosRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.admin.GetProcessInfosResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.GetProcessInfosResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.admin.AdminServiceClient.prototype.getProcessInfos =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/admin.AdminService/GetProcessInfos',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetProcessInfos,
+      callback);
+};
+
+
+/**
+ * @param {!proto.admin.GetProcessInfosRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.admin.GetProcessInfosResponse>}
+ *     Promise that resolves to the response
+ */
+proto.admin.AdminServicePromiseClient.prototype.getProcessInfos =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/admin.AdminService/GetProcessInfos',
+      request,
+      metadata || {},
+      methodDescriptor_AdminService_GetProcessInfos);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.admin.RunCmdRequest,
  *   !proto.admin.RunCmdResponse>}
  */

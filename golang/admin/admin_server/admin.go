@@ -19,6 +19,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
+	ps "github.com/shirou/gopsutil/process"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/adminpb"
@@ -407,16 +408,55 @@ func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveCo
 	return &adminpb.SaveConfigRequest{}, nil
 }
 
+// Return the list of process or the process with a given name or id
+func (admin_server *server) GetProcessInfos(ctx context.Context, rqst *adminpb.GetProcessInfosRequest) (*adminpb.GetProcessInfosResponse, error) {
+	process, err := ps.Processes()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	process_ := make([]*adminpb.ProcessInfo, 0)
+
+	// Get the list of all process...
+	for i := 0; i < len(process); i++ {
+		p := process[i]
+		p_ := new(adminpb.ProcessInfo)
+		p_.Pid = int32(p.Pid)
+		p_.Name, _ = p.Name()
+		p_.CpuUsagePercent, _ = p.CPUPercent()
+		p_.MemoryUsagePercent, _ = p.MemoryPercent()
+		if len(rqst.Name) > 0 || rqst.Pid > 0 {
+			if rqst.Pid > 0 {
+				if rqst.Pid == p_.Pid {
+					process_ = append(process_, p_)
+					break
+				}
+
+			}
+			if len(rqst.Name) > 0 {
+				if rqst.Name == p_.Name {
+					process_ = append(process_, p_)
+				}
+			}
+		} else {
+			process_ = append(process_, p_)
+		}
+	}
+
+	return &adminpb.GetProcessInfosResponse{Infos: process_}, nil
+}
+
 // Retrun file info from the server (absolute path)
 func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFileInfoRequest) (*adminpb.GetFileInfoResponse, error) {
 	path := strings.ReplaceAll(rqst.Path, "\\", "/")
-	if !Utility.Exists(path){
+	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no dir found at path " + rqst.Path)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no dir found at path "+rqst.Path)))
 	}
 
-	
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -437,7 +477,7 @@ func (admin_server *server) GetFileInfo(ctx context.Context, rqst *adminpb.GetFi
 	}
 
 	result.Files = make([]*adminpb.FileInfo, 0)
-	for i:=0; i < len(files); i++ {
+	for i := 0; i < len(files); i++ {
 		info := files[i]
 		file := new(adminpb.FileInfo)
 		file.IsDir = info.IsDir()

@@ -15,7 +15,6 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
-	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"

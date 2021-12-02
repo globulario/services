@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"path/filepath"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -244,10 +245,22 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		Utility.TerminateProcess(pid, 0)
 	}
 
+	ex, err := os.Executable()
+	exPath := filepath.Dir(ex)
+
+
 	// Now I will start the proxy that will be use by javascript client.
 	cmd := "grpcwebproxy"
 	if !strings.HasSuffix(cmd, ".exe") && runtime.GOOS == "windows" {
 		cmd += ".exe" // in case of windows.
+	}
+
+	cmdPath := cmd
+
+	if Utility.Exists(exPath + "/bin/" + cmd){
+		cmdPath = exPath + "/bin/" + cmd
+	}else if Utility.Exists(config.GetRootDir() + "/bin/" + cmd){
+		cmdPath = config.GetRootDir() + "/bin/" + cmd
 	}
 
 	proxyBackendAddress := s["Domain"].(string) + ":" + strconv.Itoa(servicePort)
@@ -304,7 +317,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	// start the proxy service one time
 	//fmt.Println(proxyPath, proxyArgs)
-	proxyProcess := exec.Command(cmd, proxyArgs...)
+	proxyProcess := exec.Command(cmdPath, proxyArgs...)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}

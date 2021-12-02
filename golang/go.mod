@@ -17,7 +17,6 @@ require (
 	github.com/emersion/go-smtp v0.15.0
 	github.com/emicklei/proto v1.9.0
 	github.com/go-ldap/ldap/v3 v3.3.0
-	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/golang/protobuf v1.5.2
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.4.0
@@ -28,9 +27,12 @@ require (
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7
 	github.com/prometheus/client_golang v1.10.0
+	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/struCoder/pidusage v0.2.1 // indirect
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
+	github.com/tklauser/go-sysconf v0.3.9 // indirect
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.mongodb.org/mongo-driver v1.5.2
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
