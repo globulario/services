@@ -153,67 +153,71 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 
 		files, err := Utility.FindFileByName(serviceDir, "config.json")
-		if err != nil{
-			return nil,  err
+		if err != nil {
+			return nil, err
 		}
 
 		// I will try to get configuration from services.
-		for i:=0; i < len(files); i++ {
+		for i := 0; i < len(files); i++ {
 			s := make(map[string]interface{})
-				path := files[i]
-				config, err := ioutil.ReadFile(path)
+			path := files[i]
+			config, err := ioutil.ReadFile(path)
+			if err == nil {
+				// Read the config file.
+				err := json.Unmarshal(config, &s)
 				if err == nil {
-					// Read the config file.
-					err := json.Unmarshal(config, &s)
-					if err == nil {
-						if s["Protocol"] != nil {
-							// If a configuration file exist It will be use to start services,
-							// otherwise the service configuration file will be use.
-							if s["Name"] != nil {
+					if s["Protocol"] != nil {
+						// If a configuration file exist It will be use to start services,
+						// otherwise the service configuration file will be use.
+						if s["Name"] != nil {
 
-								// if no id was given I will generate a uuid.
-								if s["Id"] == nil {
-									s["Id"] = Utility.RandomUUID()
-								}
+							// if no id was given I will generate a uuid.
+							if s["Id"] == nil {
+								s["Id"] = Utility.RandomUUID()
+							}
 
-								// Here I will set the proto file path.
+							// Here I will set the proto file path.
+							if s["Proto"] != nil {
 								if !Utility.Exists(s["Proto"].(string)) {
 									s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
 								}
+							}
 
-								// Now the exec path.
+							// Now the exec path.
+							if s["Path"] != nil {
 								if !Utility.Exists(s["Path"].(string)) {
 									s["Path"] = path[0:strings.LastIndex(path, "/")+1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
 								}
-
-								// Keep the configuration path in the object...
-								s["ConfigPath"] = path
-
-								if s["Root"] != nil {
-									if s["Name"] == "file.FileService" {
-										s["Root"] = GetDataDir() + "/files"
-									} else {
-										s["Root"] = GetDataDir()
-									}
-								}
-
-								// Create the sync map.
-								if configs == nil {
-									configs = new(sync.Map)
-								}
-								// keep in the sync map.
-								configs.Store(s["Id"].(string), s)
-
-								services = append(services, s)
 							}
-						}
-					} else {
-						log.Println("fail to unmarshal configuration path:", path, err)
 
+							// Keep the configuration path in the object...
+							s["ConfigPath"] = path
+
+							if s["Root"] != nil {
+								if s["Name"] == "file.FileService" {
+									s["Root"] = GetDataDir() + "/files"
+								} else {
+									s["Root"] = GetDataDir()
+								}
+							}
+
+							// Create the sync map.
+							if configs == nil {
+								configs = new(sync.Map)
+							}
+							// keep in the sync map.
+							configs.Store(s["Id"].(string), s)
+
+							services = append(services, s)
+						}
 					}
 				} else {
-					log.Println("Fail to read config file path:", path, err)
+					log.Println("fail to unmarshal configuration path:", path, err)
+
 				}
+			} else {
+				log.Println("Fail to read config file path:", path, err)
+			}
 		}
 	} else {
 		// I will get the services from the sync map.

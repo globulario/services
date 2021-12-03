@@ -133,6 +133,12 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
 	s["Port"] = port
 
+	if s["Path"] == nil {
+		err := errors.New("no service path was found for service " + s["Name"].(string) + serviceId )
+		fmt.Println(err)
+		return -1, err
+	}
+
 	if !Utility.Exists(s["Path"].(string)) {
 		// In that case I will try to
 		if s["ConfigPath"] != nil {
@@ -318,6 +324,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	// start the proxy service one time
 	//fmt.Println(proxyPath, proxyArgs)
 	proxyProcess := exec.Command(cmdPath, proxyArgs...)
+	log.Println(cmd, proxyArgs)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
