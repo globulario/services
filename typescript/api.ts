@@ -305,8 +305,6 @@ export function uploadFiles(path: string, files: File[], completeHandler: () => 
   xhr.setRequestHeader("token", getToken());
   xhr.setRequestHeader("application", application);
   xhr.setRequestHeader("domain", domain);
-  xhr.setRequestHeader("path", path);
-
   xhr.send(fd);
 }
 
