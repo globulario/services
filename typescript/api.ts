@@ -298,7 +298,14 @@ export function uploadFiles(path: string, files: File[], completeHandler: () => 
     url += ":" + port
   }
 
+  // Set the values also as parameters...
   url += "/uploads"
+  url += "?domain=" + domain
+  url += "&application=" + application
+  if (localStorage.getItem("user_token") != undefined) {
+    url += "&token=" + localStorage.getItem("user_token")
+  }
+
   xhr.open("POST", url, true);
 
   // path to server would be where you'd normally post the form to
@@ -460,12 +467,21 @@ export function createArchive(
  * @param urlToSend
  */
 export function downloadFileHttp(
-  urlToSend: string,
+  url: string,
   fileName: string,
   callback: () => void
 ) {
   const req = new XMLHttpRequest();
-  req.open("GET", urlToSend, true);
+  
+  // Set the values also as parameters...
+  url += "/uploads"
+  url += "?domain=" + domain
+  url += "&application=" + application
+  if (localStorage.getItem("user_token") != undefined) {
+    url += "&token=" + localStorage.getItem("user_token")
+  }
+
+  req.open("GET", url, true);
 
   // Set the token to manage downlaod access.
   req.setRequestHeader("token", getToken());
