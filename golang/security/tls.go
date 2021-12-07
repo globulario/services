@@ -152,6 +152,8 @@ func getLocalConfig() (map[string]interface{}, error) {
 		return nil, errors.New("no local Globular configuration found")
 	}
 
+	fmt.Println("local configuation found at ", ConfigPath)
+
 	config := make(map[string]interface{})
 	data, err := ioutil.ReadFile(ConfigPath)
 	if err != nil {

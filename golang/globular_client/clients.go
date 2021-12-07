@@ -110,7 +110,7 @@ func InitClient(client Client, address string, id string) error {
 
 	// Here I will initialyse the client
 	config, err := security.GetClientConfig(address, id, port, os.TempDir())
-
+	
 	if err != nil {
 		return err
 	}

@@ -24,6 +24,9 @@ import { ApplicationManagerServicePromiseClient } from './applications_manager/a
 import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb';
 import { PackageRepositoryPromiseClient } from './repository/repository_grpc_web_pb';
 
+const domain = window.location.hostname;
+const application = window.location.pathname.split("/").join("");
+
 /**
  * The service configuration information.
  */
@@ -395,7 +398,6 @@ export class EventHub {
 // Get the configuration from url
 function getFileConfig(url: string, callback: (obj: any) => void, errorcallback: (err: any) => void) {
   var xmlhttp = new XMLHttpRequest();
-
   xmlhttp.onreadystatechange = function () {
     if (this.readyState == 4 && this.status == 201) {
       var obj = JSON.parse(this.responseText);
@@ -405,6 +407,13 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
     }
   };
 
+  url += "/uploads"
+  url += "?domain=" + domain
+  url += "&application=" + application
+  if (localStorage.getItem("user_token") != undefined) {
+    url += "&token=" + localStorage.getItem("user_token")
+  }
+  
   xmlhttp.open("GET", url, true);
   xmlhttp.send();
 }
