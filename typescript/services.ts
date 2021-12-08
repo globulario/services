@@ -406,8 +406,7 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
       errorcallback("fail to get the configuration file at url " + url + " status " + this.status)
     }
   };
-
-  url += "/uploads"
+  
   url += "?domain=" + domain
   url += "&application=" + application
   if (localStorage.getItem("user_token") != undefined) {
