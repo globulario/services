@@ -299,7 +299,6 @@ export function uploadFiles(path: string, files: File[], completeHandler: () => 
   }
 
   // Set the values also as parameters...
-  url += "/uploads"
   url += "?domain=" + domain
   url += "&application=" + application
   if (localStorage.getItem("user_token") != undefined) {
