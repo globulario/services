@@ -407,13 +407,6 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
     }
   };
 
-  url += "/uploads"
-  url += "?domain=" + domain
-  url += "&application=" + application
-  if (localStorage.getItem("user_token") != undefined) {
-    url += "&token=" + localStorage.getItem("user_token")
-  }
-  
   xmlhttp.open("GET", url, true);
   xmlhttp.send();
 }

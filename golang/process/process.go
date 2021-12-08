@@ -14,7 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
+	"path/filepath"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
@@ -317,8 +317,33 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	err = proxyProcess.Start()
 	if err != nil {
-		fmt.Println("fail to start proxy with error, ", err)
-		return -1, err
+		
+		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` {
+			if Utility.Exists(config.GetRootDir() + "/bin/" + cmd){
+				proxyProcess = exec.Command(config.GetRootDir() + "/bin/" + cmd, proxyArgs...)
+				err = proxyProcess.Start()
+				if err != nil {
+					return -1, err
+				}
+			}else{
+				ex, err := os.Executable()
+				if err != nil {
+					return -1, err
+				}
+				exPath := filepath.Dir(ex)
+				if Utility.Exists(exPath + "/bin/" + cmd){
+					proxyProcess = exec.Command(exPath + "/bin/" + cmd, proxyArgs...)
+					err = proxyProcess.Start()
+					if err != nil {
+						return -1, err
+					}
+				}else{
+					return -1, err
+				}
+			}
+		}else{
+			return -1, err
+		}
 	}
 
 	// save service configuration.
