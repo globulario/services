@@ -12,6 +12,7 @@ require (
 	github.com/davecourtois/Utility v0.0.0-20210515191918-3118f6f72191
 	github.com/denisenkom/go-mssqldb v0.10.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/djimenez/iconv-go v0.0.0-20160305225143-8960e66bd3da // indirect
 	github.com/emersion/go-imap v1.1.0
 	github.com/emersion/go-message v0.14.1
 	github.com/emersion/go-smtp v0.15.0

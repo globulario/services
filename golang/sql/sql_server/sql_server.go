@@ -24,6 +24,7 @@ import (
 	"github.com/globulario/services/golang/sql/sql_client"
 	"github.com/globulario/services/golang/sql/sqlpb"
 
+	iconv "github.com/djimenez/iconv-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -562,11 +563,13 @@ var maxSize = uint(16000) // Value in bytes...
 
 // Now the execute query.
 func (sql_server *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlpb.SqlService_QueryContextServer) error {
-
+	// Get the connection charset...
+	var charset string
 	// Be sure the connection is there.
-	if _, ok := sql_server.Connections[rqst.Query.ConnectionId]; !ok {
-
+	if conn, ok := sql_server.Connections[rqst.Query.ConnectionId]; !ok {
 		return errors.New("connection with id " + rqst.Query.ConnectionId + " dosent exist.")
+	} else {
+		charset = conn.Charset
 	}
 
 	// Now I will open the connection.
@@ -693,8 +696,18 @@ func (sql_server *server) QueryContext(rqst *sqlpb.QueryContextRqst, stream sqlp
 				} else if Utility.IsBool(v) {
 					row[i] = Utility.ToBool(v)
 				} else {
+					str := Utility.ToString(v)
 					// here I will simply return the sting value.
-					row[i] = Utility.ToString(v)
+					if len(charset) > 0 && len(rqst.Query.Charset) > 0 {
+						if charset != rqst.Query.Charset {
+							// It wil convert for exemple from windows-1252 to utf-8...
+							str_, err := iconv.ConvertString(str, charset, rqst.Query.Charset)
+							if err == nil {
+								str = str_
+							}
+						}
+					}
+					row[i] = str
 				}
 			}
 		}

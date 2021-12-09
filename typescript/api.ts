@@ -289,6 +289,10 @@ export function uploadFiles(path: string, files: File[], completeHandler: () => 
       if (completeHandler != null) {
         completeHandler();
       }
+    } else {
+      // display error message...
+      errorHandler(xhr.responseText)
+      return;
     }
   };
 

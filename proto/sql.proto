@@ -46,6 +46,7 @@ message Query {
 	string connectionId = 1; // The connection id.
 	string query = 2; // the query string.
 	string parameters = 3; // because parameters can be of various type I will use a JSON string here.
+	string charset = 4; // The charset for the result, if not set it will use the one from the connection. ex. windows-1252, utf-8 etc...
 }
 
 message QueryContextRqst {
