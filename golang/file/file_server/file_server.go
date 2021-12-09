@@ -25,12 +25,12 @@ import (
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/file/file_client"
-	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
 	"github.com/tealeg/xlsx"
@@ -55,7 +55,7 @@ var (
 	// The default domain.
 	domain string = "localhost"
 
-	rbac_client_  *rbac_client.Rbac_Client
+	rbac_client_ *rbac_client.Rbac_Client
 )
 
 // Value need by Globular to start the services...
@@ -94,8 +94,11 @@ type server struct {
 	// The grpc server.
 	grpcServer *grpc.Server
 
-	// Specific to file server.
+	// The root contain applications and users data folder.
 	Root string
+
+	// Public contain a list of paths reachable by the file server.
+	Public []string
 }
 
 // Globular services implementation...
@@ -478,7 +481,7 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 	info.ModTime = fileStat.ModTime()
 	info.Path = path
 
-	// Cut the Root part of the part.
+	// Cut the root part of the path if it start with the root path.
 	if len(s.Root) > 0 {
 		startindex := strings.Index(info.Path, s.Root)
 		if startindex == 0 {
@@ -624,11 +627,15 @@ func (file_server *server) formatPath(path string) string {
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
-				path = file_server.Root + path
+				if !file_server.isPublic(path) {
+					// Must be in the root path if it's not in public path.
+					path = file_server.Root + path
+				}
 			} else {
 				path = file_server.Root + "/" + path
 			}
 		} else {
+			// '/' represent the root path
 			path = file_server.Root
 		}
 	}
@@ -693,6 +700,19 @@ func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDir
 	}, nil
 }
 
+// Return true if the file is found in the public path...
+func (file_server *server) isPublic(path string) bool {
+	path = strings.ReplaceAll(path, "\\", "/")
+	if Utility.Exists(path) {
+		for i := 0; i < len(file_server.Public); i++ {
+			if strings.HasPrefix(path, file_server.Public[i]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Create an archive from a given dir and set it with name.
 func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
 
@@ -721,10 +741,24 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	tmp := os.TempDir() + "/" + rqst.GetName()
 	createTempDir := true
 
+	// If there only one file no temps dir is required...
 	if len(rqst.Paths) == 1 {
-		info, _ := os.Stat(file_server.Root + rqst.Paths[0])
+		path := rqst.Paths[0]
+		if !file_server.isPublic(path) {
+			// if the path is not in the Public list it must be in the path...
+			path = file_server.Root + path
+		}
+
+		// be sure the file exist.
+		if !Utility.Exists(path) {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file exist for path "+path)))
+		}
+
+		info, _ := os.Stat(path)
 		if info.IsDir() {
-			tmp = file_server.Root + rqst.Paths[0]
+			tmp = file_server.Root + path
 			createTempDir = false
 		}
 	}
@@ -733,17 +767,19 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 	if createTempDir {
 		Utility.CreateDirIfNotExist(tmp)
 		defer os.RemoveAll(tmp)
-
-		//defer os.Remove(tmp)
 		for i := 0; i < len(rqst.Paths); i++ {
 			// The file or directory must be in the path.
-			if Utility.Exists(file_server.Root + rqst.Paths[i]) {
-				info, _ := os.Stat(file_server.Root + rqst.Paths[i])
-				fileName := rqst.Paths[i][strings.LastIndex(rqst.Paths[i], "/"):]
+			if Utility.Exists(file_server.Root+rqst.Paths[i]) || file_server.isPublic(rqst.Paths[i]) {
+				path := rqst.Paths[i]
+				if !file_server.isPublic(rqst.Paths[i]) {
+					path = file_server.Root + path
+				}
+				info, _ := os.Stat(path)
+				fileName := path[strings.LastIndex(path, "/"):]
 				if info.IsDir() {
-					Utility.CopyDir(file_server.Root+rqst.Paths[i], tmp+"/"+fileName)
+					Utility.CopyDir(path, tmp+"/"+fileName)
 				} else {
-					Utility.CopyFile(file_server.Root+rqst.Paths[i], tmp+"/"+fileName)
+					Utility.CopyFile(path, tmp+"/"+fileName)
 				}
 			}
 		}
@@ -751,7 +787,6 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 	var buf bytes.Buffer
 	Utility.CompressDir(tmp, &buf)
-
 	dest := "/users/" + user + "/" + rqst.GetName() + ".tgz"
 
 	// Set user as owner.
@@ -765,6 +800,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Return the link where the archive was created.
 	return &filepb.CreateArchiveResponse{
 		Result: dest,
 	}, nil
@@ -843,7 +879,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	startIndex := strings.LastIndex(rqst.GetOldName(), "/")
 	if startIndex != -1 {
 		startIndex++
-	}else{
+	} else {
 		startIndex = 0
 	}
 
@@ -858,7 +894,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	startIndex = strings.LastIndex(rqst.GetNewName(), "/")
 	if startIndex != -1 {
 		startIndex++
-	}else{
+	} else {
 		startIndex = 0
 	}
 
@@ -866,7 +902,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	if endIndex == -1 {
 		endIndex = len(rqst.GetNewName())
 	}
-	
+
 	hiddenFolderTo := path + "/.hidden/" + rqst.GetNewName()[startIndex:endIndex]
 
 	if Utility.Exists(hiddenFolderFrom) {
@@ -903,7 +939,6 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
 
@@ -948,7 +983,7 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 	if strings.HasPrefix(info.Mime, "image/") {
 		if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 			info.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-		}else{
+		} else {
 			info.Thumbnail = createThumbnail(path, f_, 80, 80)
 		}
 	}
@@ -1035,7 +1070,7 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 		// Receive message informations.
 		switch msg := rqst.File.(type) {
 		case *filepb.SaveFileRequest_Path:
-			// The roo will be the Root specefied by the server.
+			// The root will be the Root specefied by the server.
 			path = file_server.formatPath(msg.Path)
 
 		case *filepb.SaveFileRequest_Data:
@@ -1062,7 +1097,6 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	// I will remove the permission from the db.
 	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
@@ -1129,7 +1163,6 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
 	}, nil
 }
 
-
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
@@ -1175,6 +1208,7 @@ func main() {
 	s_impl.Dependencies = []string{"rbac.RbacService"}
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.
@@ -1190,7 +1224,7 @@ func main() {
 	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	
+
 	// Set the root path if is pass as argument.
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = os.TempDir()
@@ -1209,7 +1243,6 @@ func main() {
 	// Register the echo services
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
 
 	// Start the service.
 	s_impl.StartService()
@@ -1290,7 +1323,7 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
 	path := rqst.GetPath()
 
-	// The roo will be the Root specefied by the server.
+	// The root will be the Root specefied by the server.
 	if strings.HasPrefix(path, "/") {
 		path = file_server.Root + path
 		// Set the path separator...
