@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc/codes"
@@ -1114,6 +1115,20 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 	return &rbacpb.DeleteAllAccessRsp{}, nil
 }
 
+// Return true if the file is found in the public path...
+func isPublic(path string) bool {
+	public := config.GetPublicDirs()
+	path = strings.ReplaceAll(path, "\\", "/")
+	if Utility.Exists(path) {
+		for i := 0; i < len(public); i++ {
+			if strings.HasPrefix(path, public[i]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
@@ -1144,8 +1159,8 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
 
-	// .hidden files can be read by all...
-	if strings.Contains(path, "/.hidden/") {
+	// .hidden files can be read by all... also file in public directory can be read by all...
+	if strings.Contains(path, "/.hidden/") || isPublic(path){
 		return true, false, nil
 	}
 

@@ -21,6 +21,9 @@ import (
 var (
 	// Use a sync map to limit excessive file reading.
 	configs *sync.Map
+
+	// keep list of public location accessibles...
+	public []string
 )
 
 // Those function are use to get the correct
@@ -40,6 +43,14 @@ func GetRootDir() string {
 	}
 
 	return "/globular"
+}
+
+func GetPublicDirs() []string {
+	if public == nil {
+		public = make([]string, 0)
+	}
+
+	return public
 }
 
 func GetServicesDir() string {
@@ -196,6 +207,21 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 							if s["Root"] != nil {
 								if s["Name"] == "file.FileService" {
 									s["Root"] = GetDataDir() + "/files"
+									// append public path from file services accessible to configuration client...
+									if s["Public"] != nil {
+										if public == nil {
+											public = make([]string, 0)
+										}
+
+										for i := 0; i < len(s["Public"].([]interface{})); i++ {
+											path := s["Public"].([]interface{})[i].(string)
+											if Utility.Exists(path) {
+												if !Utility.Contains(public, path) {
+													public = append(public, path)
+												}
+											}
+										}
+									}
 								} else {
 									s["Root"] = GetDataDir()
 								}

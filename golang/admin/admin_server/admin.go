@@ -248,7 +248,6 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-
 		output := make(chan string)
 		done := make(chan bool)
 
@@ -272,7 +271,6 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 					)
 				}
 			}
-
 		}()
 
 		// Start reading the output

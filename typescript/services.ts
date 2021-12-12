@@ -81,6 +81,7 @@ export interface IConfig {
   IndexApplication: string;
   Root: string;
   WebRoot: string;
+  Public: string[];
   Path: string;
   DataPath: string;
   ConfigPath: string;
