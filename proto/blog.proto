@@ -48,7 +48,7 @@ message Comment {
   string text = 6;
 
   /** If there is answer's */
-  repeated Comment answers = 7;
+  repeated Comment comments = 7;
 
   /** The list of pepole's reation */
   repeated Emoji emotions = 8;

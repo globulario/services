@@ -566,15 +566,21 @@ func (svr *server) getBlogPostByAuthor(author string) ([]*blogpb.BlogPost, error
 /**
  * Retreive a sub-comment in a comment.
  */
-func (svr *server) getSubComment(parentUuid string, comment *blogpb.Comment) (*blogpb.Comment, error) {
-	if comment.Answers == nil {
+func (svr *server) getSubComment(uuid string, comment *blogpb.Comment) (*blogpb.Comment, error) {
+	if comment.Comments == nil {
 		return nil, errors.New("no answer was found for that comment")
 	}
 
-	for i:=0; i < len(comment.Answers); i++ {
-		answer := comment.Answers[i]
-		if parentUuid == answer.Uuid {
-			return answer, nil
+	for i:=0; i < len(comment.Comments); i++ {
+		comment := comment.Comments[i]
+		if uuid == comment.Uuid {
+			return comment, nil
+		}
+		if comment.Comments != nil {
+			comment_, err :=  svr.getSubComment(uuid, comment)
+			if err == nil && comment != nil {
+				return comment_, nil
+			}
 		}
 	}
 

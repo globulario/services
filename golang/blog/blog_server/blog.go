@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	//"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -142,17 +143,17 @@ func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 // Retreive Blog Post by author
 func (svr *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsRequest, stream blogpb.BlogService_GetBlogPostsByAuthorsServer) error {
 
-	// Retreive the list of all blogs. 
+	// Retreive the list of all blogs.
 	blogs := make([]*blogpb.BlogPost, 0)
-	for i:=0; i < len(rqst.Authors); i++ {
+	for i := 0; i < len(rqst.Authors); i++ {
 		blogs_, err := svr.getBlogPostByAuthor(rqst.Authors[i])
 		if err == nil {
-			blogs = append(blogs, blogs_ ...)
+			blogs = append(blogs, blogs_...)
 		}
 	}
 
 	// Now I will sort the values by creation date...
-	sort.Slice(blogs, func(i, j int)bool{
+	sort.Slice(blogs, func(i, j int) bool {
 		return blogs[i].CreationTime < blogs[j].CreationTime
 	})
 
@@ -160,7 +161,7 @@ func (svr *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsReque
 	max := int(rqst.Max)
 
 	// In that case I will return the whole list.
-	for i:=0; i < max && i < len(blogs); i++ {
+	for i := 0; i < max && i < len(blogs); i++ {
 		err := stream.Send(&blogpb.GetBlogPostsByAuthorsResponse{
 			BlogPost: blogs[i],
 		})
@@ -176,7 +177,7 @@ func (svr *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsReque
 }
 
 // Search blog by keyword's or text find in the post...
-func (svr *server) SearchBlogPosts(rqst *blogpb.SearchBlogsPostRequest, stream blogpb.BlogService_SearchBlogPostsServer) error{
+func (svr *server) SearchBlogPosts(rqst *blogpb.SearchBlogsPostRequest, stream blogpb.BlogService_SearchBlogPostsServer) error {
 	return nil
 }
 
@@ -262,8 +263,7 @@ func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	if blog.Uuid == rqst.Uuid {
+	if blog.Uuid == rqst.Emoji.Parent {
 		// Here I will append the emoji to the blog itself...
 		if blog.Emotions == nil {
 			blog.Emotions = make([]*blogpb.Emoji, 0)
@@ -347,32 +347,37 @@ func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 	rqst.Comment.Uuid = Utility.RandomUUID()
 
 	// if the comment is a response to other comment then...
-	if len(parentUuid) > 0 {
-		// Here I need to find the comment in the blog comments...
+	if parentUuid != rqst.Uuid {
+		if len(parentUuid) > 0 {
+
+			// Here I need to find the comment in the blog comments...
+			if blog.Comments == nil {
+				err := errors.New("no parent comment comment found")
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			parentComment, err := svr.getBlogComment(parentUuid, blog)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			// So here the parent comment was found...
+			parentComment.Comments = append(parentComment.Comments, rqst.Comment)
+
+		}
+	} else {
+
+		// Directly comment the blog...
 		if blog.Comments == nil {
-			err := errors.New("no parent comment comment found")
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			blog.Comments = make([]*blogpb.Comment, 0)
 		}
 
-		parentComment, err := svr.getBlogComment(parentUuid, blog)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		// So here the parent comment was found...
-		parentComment.Answers = append(parentComment.Answers, rqst.Comment)
+		blog.Comments = append(blog.Comments, rqst.Comment)
 	}
-
-	// Directly comment the blog...
-	if blog.Comments == nil {
-		blog.Comments = make([]*blogpb.Comment, 0)
-	}
-
-	blog.Comments = append(blog.Comments, rqst.Comment)
 
 	err = svr.saveBlogPost(clientId, blog)
 	if err != nil {

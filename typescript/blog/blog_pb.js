@@ -316,7 +316,7 @@ proto.blog.Comment.toObject = function(includeInstance, msg) {
     creationtime: jspb.Message.getFieldWithDefault(msg, 4, 0),
     language: jspb.Message.getFieldWithDefault(msg, 5, ""),
     text: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    answersList: jspb.Message.toObjectList(msg.getAnswersList(),
+    commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
     proto.blog.Comment.toObject, includeInstance),
     emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
     proto.blog.Emoji.toObject, includeInstance)
@@ -383,7 +383,7 @@ proto.blog.Comment.deserializeBinaryFromReader = function(msg, reader) {
     case 7:
       var value = new proto.blog.Comment;
       reader.readMessage(value,proto.blog.Comment.deserializeBinaryFromReader);
-      msg.addAnswers(value);
+      msg.addComments(value);
       break;
     case 8:
       var value = new proto.blog.Emoji;
@@ -461,7 +461,7 @@ proto.blog.Comment.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getAnswersList();
+  f = message.getCommentsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
       7,
@@ -571,17 +571,17 @@ proto.blog.Comment.prototype.setText = function(value) {
 
 
 /**
- * repeated Comment answers = 7;
+ * repeated Comment comments = 7;
  * @return {!Array<!proto.blog.Comment>}
  */
-proto.blog.Comment.prototype.getAnswersList = function() {
+proto.blog.Comment.prototype.getCommentsList = function() {
   return /** @type{!Array<!proto.blog.Comment>} */ (
     jspb.Message.getRepeatedWrapperField(this, proto.blog.Comment, 7));
 };
 
 
 /** @param {!Array<!proto.blog.Comment>} value */
-proto.blog.Comment.prototype.setAnswersList = function(value) {
+proto.blog.Comment.prototype.setCommentsList = function(value) {
   jspb.Message.setRepeatedWrapperField(this, 7, value);
 };
 
@@ -591,13 +591,13 @@ proto.blog.Comment.prototype.setAnswersList = function(value) {
  * @param {number=} opt_index
  * @return {!proto.blog.Comment}
  */
-proto.blog.Comment.prototype.addAnswers = function(opt_value, opt_index) {
+proto.blog.Comment.prototype.addComments = function(opt_value, opt_index) {
   return jspb.Message.addToRepeatedWrapperField(this, 7, opt_value, proto.blog.Comment, opt_index);
 };
 
 
-proto.blog.Comment.prototype.clearAnswersList = function() {
-  this.setAnswersList([]);
+proto.blog.Comment.prototype.clearCommentsList = function() {
+  this.setCommentsList([]);
 };
 
 

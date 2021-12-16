@@ -49,7 +49,6 @@ func GetPublicDirs() []string {
 	if public == nil {
 		public = make([]string, 0)
 	}
-
 	return public
 }
 
@@ -209,8 +208,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 									s["Root"] = GetDataDir() + "/files"
 									// append public path from file services accessible to configuration client...
 									if s["Public"] != nil {
-										
-										
 										for i := 0; i < len(s["Public"].([]interface{})); i++ {
 											path := s["Public"].([]interface{})[i].(string)
 											if Utility.Exists(path) {
