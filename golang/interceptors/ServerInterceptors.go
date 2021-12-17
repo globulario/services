@@ -140,8 +140,6 @@ func validateAction(token, application, domain, organization, method, subject st
 
 func validateActionRequest(token string, application string, organization string, rqst interface{}, method string, subject string, subjectType rbacpb.SubjectType, domain string) (bool, error) {
 
-	hasAccess := false
-
 	infos, err := getActionResourceInfos(domain, method)
 
 	if err != nil {
@@ -161,7 +159,7 @@ func validateActionRequest(token string, application string, organization string
 	}
 
 	// TODO keep to value in cache for keep speed.
-	hasAccess, err = validateAction(token, application, domain, organization, method, subject, subjectType, infos)
+	hasAccess, err := validateAction(token, application, domain, organization, method, subject, subjectType, infos)
 	if err != nil {
 		return false, err
 	}
@@ -407,6 +405,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
+		
 
 		// in case of resource path.
 		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
@@ -423,6 +422,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = security.ValidateToken(token)
+		fmt.Println("-------------------------> ", clientId, issuer, err)
 		if err != nil {
 			return err
 		}

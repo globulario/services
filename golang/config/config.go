@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -164,6 +165,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 		files, err := Utility.FindFileByName(serviceDir, "config.json")
 		if err != nil {
+			fmt.Println("fail to find service configurations at at path ", serviceDir)
 			return nil, err
 		}
 
@@ -241,6 +243,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			}
 		}
 	} else {
+		fmt.Println("return existing services configurations")
 		// I will get the services from the sync map.
 		configs.Range(func(key, value interface{}) bool {
 			// Here I will create a detach copy of the map...

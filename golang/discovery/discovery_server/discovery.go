@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -33,7 +33,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 		publisherId = rqst.Organization
 		if !isMember {
 			err := errors.New(rqst.User + " is not member of " + rqst.Organization)
-			log.Println(err.Error())
+			fmt.Println(err.Error())
 			return nil, err
 		}
 	}
@@ -68,7 +68,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 // Publish a web application to a globular node. That must be use at development mostly...
 func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
 
-	log.Println("try to publish application ", rqst.Name, "...")
+	fmt.Println("try to publish application ", rqst.Name, "...")
 
 	// Make sure the user is part of the organization if one is given.
 	publisherId := rqst.User

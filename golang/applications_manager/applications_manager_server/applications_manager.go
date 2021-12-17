@@ -114,6 +114,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 // Intall
 func (server *server) installApplication(domain, name, publisherId, version, description string, icon string, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
+	
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
@@ -131,7 +132,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 
 	// The file must contain a linq to a bundle.js file.
 	if !strings.Contains(string(__indexHtml__), "./bundle.js") {
-		return errors.New("539 something wrong append the index.html file does not contain the bundle.js file... " + string(__indexHtml__))
+		return errors.New("something wrong append the index.html file does not contain the bundle.js file... " + string(__indexHtml__))
 	}
 
 	// Copy the files to it final destination

@@ -296,7 +296,9 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 
 //* Set resource permissions this method will replace existing permission at once *
 func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRqst, error) {
+
 	err := rbac_server.setResourcePermissions(rqst.Path, rqst.Permissions)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

@@ -52,7 +52,9 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 			domain = serverConfig["Name"].(string) + "." + domain
 		}
 		if domain != address {
-			isLocal = false
+			if domain != "localhost"{
+				isLocal = false
+			}
 		}
 
 	} else {

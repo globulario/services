@@ -2,6 +2,7 @@ package rbac_client
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	// "github.com/davecourtois/Utility"
@@ -195,6 +196,8 @@ func (client *Rbac_Client) SetResourcePermissions(path string, permissions *rbac
 	}
 
 	_, err := client.c.SetResourcePermissions(client.GetCtx(), rqst)
+
+	fmt.Println("200 SetResourcePermissions ", err)
 	return err
 
 }

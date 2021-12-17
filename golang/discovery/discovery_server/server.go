@@ -524,7 +524,7 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 	// Test the permission before actualy publish the package.
 	hasAccess, isDenied, err := server.validateAccess(user, rbacpb.SubjectType_ACCOUNT, "publish", path_)
 	if !hasAccess || isDenied || err != nil {
-		fmt.Println(err)
+		fmt.Println("publishPackage 527 ", err)
 		return err
 	}
 	
@@ -536,14 +536,14 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 	// Save the permissions.
 	err = server.setResourcePermissions(path_, permissions)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("publishPackage 539 ",err)
 		return err
 	}
 	
 	// Fist of all publish the package descriptor.
 	err = server.publishPackageDescriptor(descriptor)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("publishPackage 546 ",err)
 		return err
 	}
 
@@ -551,7 +551,7 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 	services_repository, err := repository_client.NewRepositoryService_Client(repository, "repository.PackageRepository")
 	if err != nil {
 		err = errors.New("Fail to connect to package repository at " + repository)
-		fmt.Println(err)
+		fmt.Println("publishPackage 554 ",err)
 		return err
 	}
 
@@ -561,7 +561,7 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 
 	err = services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("publishPackage 564 ", err)
 	}
 	log.Println("uploadBundle successfully!")
 	// Upload the package bundle to the repository.
