@@ -6,9 +6,7 @@ import (
 	"fmt"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discoverypb"
-	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc/codes"
@@ -109,15 +107,5 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Set the path of the directory where the application can store files.
-	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + rqst.Name)
-	err = server.addResourceOwner("/applications/"+rqst.Name, rqst.Name, rbacpb.SubjectType_APPLICATION)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	
 	return &discoverypb.PublishApplicationResponse{}, nil
 }

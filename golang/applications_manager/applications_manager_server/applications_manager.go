@@ -14,10 +14,12 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
-	"github.com/golang/protobuf/jsonpb"
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/golang/protobuf/jsonpb"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
 
@@ -114,7 +116,6 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 // Intall
 func (server *server) installApplication(domain, name, publisherId, version, description string, icon string, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
-	
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
@@ -326,8 +327,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		return err
 	}
 
-	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of " +alias + " vesion " + version + " was publish")
-	
+	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" vesion "+version+" was publish")
 
 	// Publish application...
 	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
@@ -375,9 +375,16 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
             </div>
             `
 
-		
 		return server.sendApplicationNotification(name, message)
 	}
+
+	// Set the path of the directory where the application can store files.
+	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
+	err = server.addResourceOwner("/applications/"+name, name, rbacpb.SubjectType_APPLICATION)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -396,12 +403,12 @@ func (server *server) sendApplicationNotification(application string, message st
 	notification.Date = time.Now().Unix()
 
 	// here I will get infos from the datastore.
-	application_, err :=server.getApplication(application);
+	application_, err := server.getApplication(application)
 	if err != nil {
 		return err
 	}
 
-	notification.Sender = `{"_id":"`+application_.Id+`", "name":"`+application_.Name +`","icon":"`+application_.Icon+`", "alias":"`+application_.Alias+`"}`
+	notification.Sender = `{"_id":"` + application_.Id + `", "name":"` + application_.Name + `","icon":"` + application_.Icon + `", "alias":"` + application_.Alias + `"}`
 
 	err = server.createNotification(notification)
 	if err != nil {

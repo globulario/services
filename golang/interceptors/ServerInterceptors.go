@@ -422,7 +422,6 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
 		clientId, _, _, issuer, _, err = security.ValidateToken(token)
-		fmt.Println("-------------------------> ", clientId, issuer, err)
 		if err != nil {
 			return err
 		}

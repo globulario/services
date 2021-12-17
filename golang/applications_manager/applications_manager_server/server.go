@@ -17,6 +17,7 @@ import (
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
@@ -464,8 +465,6 @@ func (server *server) publishApplication(user, organization, path, name, domain,
 		return err
 	}
 
-	log.Println("Publish application... ", path)
-
 	// Publish the application...
 	return discoveryClient.PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 }
@@ -543,6 +542,14 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 		return err
 	}
 	return rbac_client_.SetActionResourcesPermissions(permissions)
+}
+
+func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := svr.GetRbacClient()
+	if err != nil {
+		return err
+	}
+	return rbac_client_.AddResourceOwner(path, subject, subjectType)
 }
 
 // That service is use to give access to SQL.

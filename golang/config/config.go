@@ -243,7 +243,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			}
 		}
 	} else {
-		fmt.Println("return existing services configurations")
 		// I will get the services from the sync map.
 		configs.Range(func(key, value interface{}) bool {
 			// Here I will create a detach copy of the map...
