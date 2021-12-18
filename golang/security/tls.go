@@ -51,10 +51,9 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		if len(serverConfig["Name"].(string)) > 0 {
 			domain = serverConfig["Name"].(string) + "." + domain
 		}
+
 		if domain != address {
-			if domain != "localhost"{
-				isLocal = false
-			}
+			isLocal = false
 		}
 
 	} else {
@@ -172,12 +171,12 @@ func getLocalConfig() (map[string]interface{}, error) {
 
 	// use the GLOBULAR_SERVICES_ROOT path if it set... or the Root (/usr/local/share/globular)
 	services_config, err := config_.GetServicesConfigurations()
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 
-	for i:=0; i < len(services_config); i++ {
-		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] =services_config[i]
+	for i := 0; i < len(services_config); i++ {
+		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
 	}
 
 	return config, nil
@@ -960,7 +959,7 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	// Read the public key file
 	file_public, err := os.Open(keyPath + "/" + id + "_public")
-	
+
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
