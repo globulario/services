@@ -99,7 +99,7 @@ func (store *MongoStore) Disconnect(connectionId string) error {
 	return err
 }
 
-func (store *MongoStore) GetStoreType() string{
+func (store *MongoStore) GetStoreType() string {
 	return "MONGODB"
 }
 

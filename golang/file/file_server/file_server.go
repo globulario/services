@@ -373,7 +373,12 @@ func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbna
 
 	// Here if thumbnail already exist in hiden files I will use it...
 	_fileName := strings.ReplaceAll(file.Name(), "\\", "/")
-	_fileName = _fileName[strings.LastIndex(_fileName, "/")+1 : strings.LastIndex(_fileName, ".")]
+	endIndex := strings.LastIndex(_fileName, ".")
+	if endIndex == -1 {
+		endIndex = len(_fileName)
+	}
+	_fileName = _fileName[strings.LastIndex(_fileName, "/")+1 : endIndex]
+
 	_path := path + "/.hidden/" + _fileName + "/_thumbnail_"
 	if Utility.Exists(path + "/.hidden/" + _fileName) {
 		thumbnail, err := ioutil.ReadFile(_path)
@@ -1103,7 +1108,11 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 
 	// Also delete informations from .hidden
 	path_ := path[0:strings.LastIndex(path, "/")]
-	fileName := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+
+	fileName := path[strings.LastIndex(path, "/")+1:]
+	if strings.Contains(fileName, ".") {
+		fileName = fileName[0:strings.LastIndex(fileName, ".")]
+	}
 
 	hiddenFolder := path_ + "/.hidden/" + fileName
 
@@ -1263,7 +1272,10 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 
 			// If hidden folder exist for it...
 			path_ := path[0:strings.LastIndex(path, "/")]
-			fileName := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+			fileName := path[strings.LastIndex(path, "/")+1:]
+			if strings.Contains(fileName, ".") {
+				fileName = fileName[0:strings.LastIndex(fileName, ".")]
+			}
 			hiddenFolder := path_ + "/.hidden/" + fileName
 
 			if Utility.Exists(hiddenFolder) {
@@ -1296,7 +1308,10 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 
 					// If hidden folder exist for it...
 					path_ := f[0:strings.LastIndex(f, "/")]
-					fileName := f[strings.LastIndex(f, "/")+1 : strings.LastIndex(f, ".")]
+					fileName := f[strings.LastIndex(f, "/")+1:]
+					if strings.Contains(fileName, ".") {
+						fileName = fileName[0:strings.LastIndex(fileName, ".")]
+					}
 					hiddenFolder := path_ + "/.hidden/" + fileName
 
 					if Utility.Exists(hiddenFolder) {
