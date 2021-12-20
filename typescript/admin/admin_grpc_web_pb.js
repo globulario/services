@@ -256,7 +256,7 @@ proto.admin.AdminServicePromiseClient.prototype.hasRunningProcess =
  */
 const methodDescriptor_AdminService_GetProcessInfos = new grpc.web.MethodDescriptor(
   '/admin.AdminService/GetProcessInfos',
-  grpc.web.MethodType.UNARY,
+  grpc.web.MethodType.SERVER_STREAMING,
   proto.admin.GetProcessInfosRequest,
   proto.admin.GetProcessInfosResponse,
   /**
@@ -271,37 +271,32 @@ const methodDescriptor_AdminService_GetProcessInfos = new grpc.web.MethodDescrip
 
 
 /**
- * @param {!proto.admin.GetProcessInfosRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {!proto.admin.GetProcessInfosRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.admin.GetProcessInfosResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.admin.GetProcessInfosResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.GetProcessInfosResponse>}
  *     The XHR Node Readable Stream
  */
 proto.admin.AdminServiceClient.prototype.getProcessInfos =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
       '/admin.AdminService/GetProcessInfos',
       request,
       metadata || {},
-      methodDescriptor_AdminService_GetProcessInfos,
-      callback);
+      methodDescriptor_AdminService_GetProcessInfos);
 };
 
 
 /**
- * @param {!proto.admin.GetProcessInfosRequest} request The
- *     request proto
+ * @param {!proto.admin.GetProcessInfosRequest} request The request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.admin.GetProcessInfosResponse>}
- *     Promise that resolves to the response
+ * @return {!grpc.web.ClientReadableStream<!proto.admin.GetProcessInfosResponse>}
+ *     The XHR Node Readable Stream
  */
 proto.admin.AdminServicePromiseClient.prototype.getProcessInfos =
     function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
+  return this.client_.serverStreaming(this.hostname_ +
       '/admin.AdminService/GetProcessInfos',
       request,
       metadata || {},

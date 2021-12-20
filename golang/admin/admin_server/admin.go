@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	// "golang.org/x/sys/windows/registry"
 	"os/exec"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
+
 	//"github.com/shirou/gopsutil/mem"
 	ps "github.com/shirou/gopsutil/process"
 
@@ -408,73 +410,86 @@ func (admin_server *server) SaveConfig(ctx context.Context, rqst *adminpb.SaveCo
 }
 
 // Return the list of process or the process with a given name or id
-func (admin_server *server) GetProcessInfos(ctx context.Context, rqst *adminpb.GetProcessInfosRequest) (*adminpb.GetProcessInfosResponse, error) {
-	process, err := ps.Processes()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+func (admin_server *server) GetProcessInfos(rqst *adminpb.GetProcessInfosRequest, stream adminpb.AdminService_GetProcessInfosServer) error {
+
+	for {
+		// if the connection is close...
+		err := stream.Context().Err()
+		if err != nil {
+			fmt.Println("exit connection")
+			break
+		}
+
+		// get the list of processes.
+		process, err := ps.Processes()
+		if err != nil {
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		fmt.Println("----------------> get processes informations")
+
+		process_ := make([]*adminpb.ProcessInfo, 0)
+
+		// Get the list of all process...
+		for i := 0; i < len(process); i++ {
+			p := process[i]
+			p_ := new(adminpb.ProcessInfo)
+			p_.Pid = int32(p.Pid)
+			p_.Ppid, _ = p.Ppid()
+			p_.Name, _ = p.Name()
+			p_.Exec, _ = p.Exe()
+			p_.User, _ = p.Username()
+			nice, _ := p.Nice()
+			if nice <= 10 {
+				p_.Priority = "Very Low"
+			} else if nice > 10 && nice < 20 {
+				p_.Priority = "Low"
+			} else if nice >= 20 && nice < 30 {
+				p_.Priority = "Normal"
+			} else if nice >= 30 && nice < 40 {
+				p_.Priority = "High"
+			} else if nice >= 40 {
+				p_.Priority = "Very High"
+			}
+
+			p_.CpuUsagePercent, _ = p.CPUPercent()
+			p_.MemoryUsagePercent, _ = p.MemoryPercent()
+
+			memInfo, err := p.MemoryInfo()
+			if err == nil {
+				p_.MemoryUsage = memInfo.Data
+			}
+
+			// memoryInfo, _ := p.MemoryInfoEx()
+			// p_.MemoryUsage = memoryInfo.Data
+			if len(rqst.Name) > 0 || rqst.Pid > 0 {
+				if rqst.Pid > 0 {
+					if rqst.Pid == p_.Pid {
+						process_ = append(process_, p_)
+						break
+					}
+
+				}
+				if len(rqst.Name) > 0 {
+					if rqst.Name == p_.Name {
+						process_ = append(process_, p_)
+					}
+				}
+			} else {
+				process_ = append(process_, p_)
+			}
+		}
+
+		// Send value
+		rsp := &adminpb.GetProcessInfosResponse{Infos: process_}
+		stream.Send(rsp)
+		time.Sleep(time.Second * 1) // wait one second...
 	}
 
-	process_ := make([]*adminpb.ProcessInfo, 0)
-	/*vmStat, err := mem.VirtualMemory()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}*/
-	// Get the list of all process...
-	for i := 0; i < len(process); i++ {
-		p := process[i]
-		p_ := new(adminpb.ProcessInfo)
-		p_.Pid = int32(p.Pid)
-		p_.Ppid, _ = p.Ppid()
-		p_.Name, _ = p.Name()
-		p_.Exec, _ = p.Exe()
-		p_.User, _ = p.Username()
-		nice, _ := p.Nice()
-		if nice <= 10 {
-			p_.Priority = "Very Low"
-		} else if nice > 10 && nice < 20 {
-			p_.Priority = "Low"
-		} else if nice >= 20 && nice < 30 {
-			p_.Priority = "Normal"
-		} else if nice >= 30 && nice < 40 {
-			p_.Priority = "High"
-		} else if nice >= 40 {
-			p_.Priority = "Very High"
-		}
-
-		p_.CpuUsagePercent, _ = p.CPUPercent()
-		p_.MemoryUsagePercent, _ = p.MemoryPercent()
-
-		memInfo, err := p.MemoryInfo()
-		if err == nil {
-			p_.MemoryUsage = memInfo.Data
-		}
-
-		// memoryInfo, _ := p.MemoryInfoEx()
-		// p_.MemoryUsage = memoryInfo.Data
-
-		if len(rqst.Name) > 0 || rqst.Pid > 0 {
-			if rqst.Pid > 0 {
-				if rqst.Pid == p_.Pid {
-					process_ = append(process_, p_)
-					break
-				}
-
-			}
-			if len(rqst.Name) > 0 {
-				if rqst.Name == p_.Name {
-					process_ = append(process_, p_)
-				}
-			}
-		} else {
-			process_ = append(process_, p_)
-		}
-	}
-
-	return &adminpb.GetProcessInfosResponse{Infos: process_}, nil
+	// return normaly
+	return nil
 }
 
 // Retrun file info from the server (absolute path)

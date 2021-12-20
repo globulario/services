@@ -172,7 +172,7 @@ service AdminService {
   rpc HasRunningProcess(HasRunningProcessRequest) returns(HasRunningProcessResponse);
 
   // Return the list of process or the process with a given name or id
-  rpc GetProcessInfos(GetProcessInfosRequest) returns(GetProcessInfosResponse);
+  rpc GetProcessInfos(GetProcessInfosRequest) returns(stream GetProcessInfosResponse);
 
   // Run an external command.
   rpc RunCmd(RunCmdRequest) returns(stream RunCmdResponse);
