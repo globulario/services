@@ -428,8 +428,6 @@ func (admin_server *server) GetProcessInfos(rqst *adminpb.GetProcessInfosRequest
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		fmt.Println("----------------> get processes informations")
-
 		process_ := make([]*adminpb.ProcessInfo, 0)
 
 		// Get the list of all process...
@@ -485,6 +483,10 @@ func (admin_server *server) GetProcessInfos(rqst *adminpb.GetProcessInfosRequest
 		// Send value
 		rsp := &adminpb.GetProcessInfosResponse{Infos: process_}
 		stream.Send(rsp)
+		if len(rqst.Name) > 0 || rqst.Pid > 0 {
+			break
+		}
+
 		time.Sleep(time.Second * 1) // wait one second...
 	}
 
