@@ -628,6 +628,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 }
 
 func (file_server *server) formatPath(path string) string {
+	
 	path = strings.ReplaceAll(path, "\\", "//")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
