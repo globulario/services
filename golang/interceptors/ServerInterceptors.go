@@ -338,6 +338,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	hasAccess := l.clientId == "sa" ||
 		l.method == "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo" ||
 		l.method == "/admin.AdminService/DownloadGlobular" ||
+		l.method == "/admin.AdminService/GetProcessInfos" ||
 		l.method == "/repository.PackageRepository/DownloadBundle" ||
 		l.method == "/resource.ResourceService/GetApplications" ||
 		l.method == "/resource.ResourceService/GetSessions" ||

@@ -118,7 +118,7 @@ func InitClient(client Client, address string, id string) error {
 	if err == nil {
 		port = int(config["Port"].(float64))
 	}
-	log.Println("-------------> ", config)
+
 	// Set client attributes.
 	if config["Id"] != nil {
 		client.SetId(config["Id"].(string))
