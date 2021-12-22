@@ -214,12 +214,11 @@ func (client *Dns_Client ) GetA(domain string) (string, error) {
 
 // Register a subdomain to a domain.
 // ex: toto.globular.io is the subdomain to globular.io, so here
-// domain will be globular.io and subdomain toto.globular.io. The validation will
-// be done by globular.io and not the dns itclient.
-func (client *Dns_Client ) SetA(token, domain, subdomain, ipv4 string, ttl uint32) (string, error) {
+// toto.globular.io. The validation will
+func (client *Dns_Client ) SetA(token, domain, ipv4 string, ttl uint32) (string, error) {
 
 	rqst := &dnspb.SetARequest{
-		Domain: subdomain,
+		Domain: domain,
 		A:      ipv4,
 		Ttl:    ttl,
 	}

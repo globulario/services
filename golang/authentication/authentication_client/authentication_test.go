@@ -9,7 +9,7 @@ import (
 
 var (
 	// Connect to the plc client.
-	client, _ = NewAuthenticationService_Client("globule-dell", "authentication.AuthenticationService")
+	client, _ = NewAuthenticationService_Client("voltron:8080", "authentication.AuthenticationService")
 )
 
 func BenchmarkAuthenticate(b *testing.B) {

@@ -11,7 +11,7 @@ import (
 var (
 	// Try to connect to a nameserver.
 	token                     = ""
-	domain                    = "ns1.mycelius.com"
+	domain                    = "localhost"
 	client, _                 = NewDnsService_Client(domain, "dns.DnsService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 )
@@ -28,7 +28,12 @@ func TestSetA(t *testing.T) {
 	}
 
 	// Set ip address
-	domain, err := client.SetA(token, "globular.cloud", "peer0.globular.cloud", "70.55.95.217", 60)
+	domain, err := client.SetA(token, "syno.globular.io.", "192.168.0.192", 60)
+	if err == nil {
+		log.Println(err)
+	}
+
+	domain, err = client.SetAAAA(token, "syno.globular.io.", "192.168.0.192", 60)
 	if err == nil {
 		log.Println(err)
 	}
@@ -40,7 +45,7 @@ func TestResolve(t *testing.T) {
 
 	// Connect to the plc client.
 	log.Println("---> test resolve A")
-	ipv4, err := client.GetA("peer0.globular.cloud")
+	ipv4, err := client.GetA("syno.globular.io")
 	if err == nil {
 		log.Println("--> your ip is ", ipv4)
 	} else {
@@ -83,7 +88,7 @@ func TestTextValue(t *testing.T) {
 	}
 
 }
-*/
+
 func TestNsValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 	id := "globular.io."
@@ -98,6 +103,7 @@ func TestNsValue(t *testing.T) {
 
 func TestSoaValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
+	
 	id := "globular.io."
 	ns := "ns1.mycelius.com."
 	mbox := "admin.cargowebserver.com."
@@ -112,3 +118,4 @@ func TestSoaValue(t *testing.T) {
 		log.Panicln(err)
 	}
 }
+*/

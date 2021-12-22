@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"encoding/binary"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
@@ -21,9 +23,8 @@ import (
 	"github.com/globulario/services/golang/log/logpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/reflection"
-	"encoding/binary"
+	"google.golang.org/grpc/status"
 
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/miekg/dns"
@@ -480,6 +481,7 @@ func (server *server) get_ipv4(domain string) (string, uint32, error) {
 	}
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
+	fmt.Println("------------------------------------------> try to get entry: ", domain, uuid)
 	ipv4, err := server.store.GetItem(uuid)
 	if err != nil {
 		return "", 0, status.Errorf(
@@ -595,6 +597,7 @@ func (server *server) get_ipv6(domain string) (string, uint32, error) {
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	address, err := server.store.GetItem(uuid)
+	
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
@@ -1755,7 +1758,7 @@ func main() {
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
 	s_impl.Version = "0.0.1"
-	s_impl.DnsPort = 53 // The default dns port.
+	s_impl.DnsPort = 5353 // The default dns port.
 	s_impl.StorageDataPath = os.TempDir() + "/dns"
 	s_impl.PublisherId = "globulario" // value by default.
 	s_impl.Permissions = make([]interface{}, 0)
