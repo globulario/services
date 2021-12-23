@@ -28,12 +28,12 @@ func TestSetA(t *testing.T) {
 	}
 
 	// Set ip address
-	domain, err := client.SetA(token, "syno.globular.io.", "192.168.0.192", 60)
+	domain, err := client.SetA(token, "syno.globular.io", "192.168.0.192", 60)
 	if err == nil {
 		log.Println(err)
 	}
 
-	domain, err = client.SetAAAA(token, "syno.globular.io.", "192.168.0.192", 60)
+	domain, err = client.SetAAAA(token, "syno.globular.io", "192.168.0.192", 60)
 	if err == nil {
 		log.Println(err)
 	}

@@ -68,6 +68,7 @@ type server struct {
 	Process         int
 	ProxyProcess    int
 	ConfigPath      string
+	ConfigPort		int
 	LastError       string
 	TLS bool
 
@@ -135,6 +136,20 @@ func (server *server) GetKeywords() []string {
 }
 func (server *server) SetKeywords(keywords []string) {
 	server.Keywords = keywords
+}
+
+// The path of the .proto file.
+func (svr *server) GetConfigPort() int {
+	return svr.ConfigPort
+}
+
+func (svr *server) SetConfigPort(port int) {
+	svr.ConfigPort = port
+}
+
+// Return the address where the configuration can be found...
+func (svr *server) GetConfigAddress() string {
+	return svr.GetDomain() + ":" + Utility.ToString(svr.ConfigPort)
 }
 
 func (server *server) GetRepositories() []string {

@@ -19101,7 +19101,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Peer.repeatedFields_ = [6];
+proto.resource.Peer.repeatedFields_ = [7];
 
 
 
@@ -19132,12 +19132,13 @@ proto.resource.Peer.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Peer.toObject = function(includeInstance, msg) {
   var f, obj = {
-    domain: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    externalIpAddress: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    localIpAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    mac: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    state: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    actionsList: jspb.Message.getRepeatedField(msg, 6)
+    hostname: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    externalIpAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    localIpAddress: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    mac: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    state: jspb.Message.getFieldWithDefault(msg, 6, 0),
+    actionsList: jspb.Message.getRepeatedField(msg, 7)
   };
 
   if (includeInstance) {
@@ -19176,25 +19177,29 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDomain(value);
+      msg.setHostname(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setExternalIpAddress(value);
+      msg.setDomain(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLocalIpAddress(value);
+      msg.setExternalIpAddress(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setMac(value);
+      msg.setLocalIpAddress(value);
       break;
     case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
+      break;
+    case 6:
       var value = /** @type {!proto.resource.PeerApprovalState} */ (reader.readEnum());
       msg.setState(value);
       break;
-    case 6:
+    case 7:
       var value = /** @type {string} */ (reader.readString());
       msg.addActions(value);
       break;
@@ -19227,45 +19232,52 @@ proto.resource.Peer.prototype.serializeBinary = function() {
  */
 proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getDomain();
+  f = message.getHostname();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
-  f = message.getExternalIpAddress();
+  f = message.getDomain();
   if (f.length > 0) {
     writer.writeString(
       2,
       f
     );
   }
-  f = message.getLocalIpAddress();
+  f = message.getExternalIpAddress();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getMac();
+  f = message.getLocalIpAddress();
   if (f.length > 0) {
     writer.writeString(
       4,
       f
     );
   }
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
   f = message.getState();
   if (f !== 0.0) {
     writer.writeEnum(
-      5,
+      6,
       f
     );
   }
   f = message.getActionsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      6,
+      7,
       f
     );
   }
@@ -19273,92 +19285,107 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
 
 
 /**
- * optional string domain = 1;
+ * optional string hostname = 1;
  * @return {string}
  */
-proto.resource.Peer.prototype.getDomain = function() {
+proto.resource.Peer.prototype.getHostname = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setDomain = function(value) {
+proto.resource.Peer.prototype.setHostname = function(value) {
   jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional string external_ip_address = 2;
+ * optional string domain = 2;
  * @return {string}
  */
-proto.resource.Peer.prototype.getExternalIpAddress = function() {
+proto.resource.Peer.prototype.getDomain = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setExternalIpAddress = function(value) {
+proto.resource.Peer.prototype.setDomain = function(value) {
   jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
 /**
- * optional string local_ip_address = 3;
+ * optional string external_ip_address = 3;
  * @return {string}
  */
-proto.resource.Peer.prototype.getLocalIpAddress = function() {
+proto.resource.Peer.prototype.getExternalIpAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setLocalIpAddress = function(value) {
+proto.resource.Peer.prototype.setExternalIpAddress = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * optional string mac = 4;
+ * optional string local_ip_address = 4;
  * @return {string}
  */
-proto.resource.Peer.prototype.getMac = function() {
+proto.resource.Peer.prototype.getLocalIpAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setMac = function(value) {
+proto.resource.Peer.prototype.setLocalIpAddress = function(value) {
   jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
 /**
- * optional PeerApprovalState state = 5;
+ * optional string mac = 5;
+ * @return {string}
+ */
+proto.resource.Peer.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.Peer.prototype.setMac = function(value) {
+  jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional PeerApprovalState state = 6;
  * @return {!proto.resource.PeerApprovalState}
  */
 proto.resource.Peer.prototype.getState = function() {
-  return /** @type {!proto.resource.PeerApprovalState} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+  return /** @type {!proto.resource.PeerApprovalState} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
 };
 
 
 /** @param {!proto.resource.PeerApprovalState} value */
 proto.resource.Peer.prototype.setState = function(value) {
-  jspb.Message.setProto3EnumField(this, 5, value);
+  jspb.Message.setProto3EnumField(this, 6, value);
 };
 
 
 /**
- * repeated string actions = 6;
+ * repeated string actions = 7;
  * @return {!Array<string>}
  */
 proto.resource.Peer.prototype.getActionsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
 };
 
 
 /** @param {!Array<string>} value */
 proto.resource.Peer.prototype.setActionsList = function(value) {
-  jspb.Message.setField(this, 6, value || []);
+  jspb.Message.setField(this, 7, value || []);
 };
 
 
@@ -19367,7 +19394,7 @@ proto.resource.Peer.prototype.setActionsList = function(value) {
  * @param {number=} opt_index
  */
 proto.resource.Peer.prototype.addActions = function(value, opt_index) {
-  jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  jspb.Message.addToRepeatedField(this, 7, value, opt_index);
 };
 
 

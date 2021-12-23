@@ -1448,9 +1448,9 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 
 // Register the actual peer (the one that running the resource server) to the one
 // running at domain.
-func (resource_server *server) registerPeer(token, domain string) (*resourcepb.Peer, string, error){
+func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error){
 	// Connect to remove server and call Register peer on it...
-	client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		return nil, "", err
 	}
@@ -1461,11 +1461,13 @@ func (resource_server *server) registerPeer(token, domain string) (*resourcepb.P
 		return nil, "", err
 	}
 
-	return client.RegisterPeer(token, Utility.MyMacAddr(), resource_server.Domain, Utility.MyIP(), Utility.MyLocalIP(), string(key))
+	hostname, _ := os.Hostname()
+	
+	return client.RegisterPeer(token, string(key),&resourcepb.Peer{Hostname: hostname, Mac: Utility.MyMacAddr(), Domain: resource_server.Domain, LocalIpAddress: Utility.MyIP(), ExternalIpAddress: Utility.MyLocalIP()})
 
 }
 
-//* Connect to peer toggether on the network.
+//* Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
 	// Get the persistence connection
@@ -1489,6 +1491,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Here will create the new peer.
 	peer := make(map[string]interface{})
 	peer["_id"] = _id
+	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
 
 	// If no mac address was given it mean the request came from a web application 
@@ -1499,13 +1502,14 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		if md, ok := metadata.FromIncomingContext(ctx); ok {
 			token := strings.Join(md["token"], "")
 			if len(token) > 0 {
-				// In that case I want ot register the server to another server.
+				// In that case I want to register the server to another server.
 				peer_, public_key,  err:=resource_server.registerPeer(token, rqst.Peer.Domain)
 
 				// Save the received values on the db
 				peer := make(map[string]interface{})
 				peer["_id"] = _id
 				peer["domain"] = peer_.Domain
+				peer["hostname"] = peer_.Hostname
 				peer["mac"] = peer_.Mac
 				peer["local_ip_address"] = peer_.LocalIpAddress
 				peer["external_ip_address"] = peer_.ExternalIpAddress
@@ -1549,6 +1553,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		}
 	}
 
+	// Here I will keep the peer info bethween it will be accepted by the admin of the other peer.
 	peer["mac"] = rqst.Peer.Mac
 	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
 	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
@@ -1578,6 +1583,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		}
 	}
 
+	// Insert the peer into the local resource database.
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -1594,7 +1600,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	// Now I will return peers actual informations.
+	hostname, _ := os.Hostname()
 	peer_ := new(resourcepb.Peer)
+	peer_.Hostname = hostname
 	peer_.Domain = resource_server.Domain
 	peer_.ExternalIpAddress = Utility.MyIP()
 	peer_.LocalIpAddress = Utility.MyLocalIP()
@@ -1608,6 +1616,35 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// address := peer_.Hostname + peer_.Domain
+	// Here I will try to get peer configuration information from it local address first...
+	/*
+	address := rqst.Peer.Hostname + "." + rqst.Peer.Domain
+
+	if len(rqst.Peer.LocalIpAddress) > 0 {
+		if strings.Contains(rqst.Peer.LocalIpAddress, ":"){
+			address = rqst.Peer.LocalIpAddress[strings.LastIndex(rqst.Peer.LocalIpAddress, ":") + 1:]
+		}
+	}else if len(rqst.Peer.ExternalIpAddress) > 0 {
+		if strings.Contains(rqst.Peer.ExternalIpAddress, ":"){
+			address = rqst.Peer.ExternalIpAddress[strings.LastIndex(rqst.Peer.ExternalIpAddress, ":") + 1:]
+		}
+	}
+
+	// Now I will send the request to the remote peer...
+	remote_resource_client_, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	if err != nil {
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// Here I will call the request on the remote resource client.
+	remote_resource_client_.RegisterPeer("", peer_)
+	*/
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})

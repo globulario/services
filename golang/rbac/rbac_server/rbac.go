@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -1133,6 +1134,9 @@ func isPublic(path string) bool {
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+
+	fmt.Println("validate access ", subject, subjectType, name, path)
+	
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
 			return false, false, errors.New("no account exist with id " + subject)

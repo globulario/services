@@ -169,7 +169,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	if cc == nil {
 		address := client.GetAddress()
 		if client.HasTLS() {
-	
+
 			// Setup the login/pass simple test...
 			if len(client.GetKeyFile()) == 0 {
 				err := errors.New("no key file is available for client ")
