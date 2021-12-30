@@ -2849,6 +2849,67 @@ proto.resource.ResourceServicePromiseClient.prototype.getPeers =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetPeerApprovalStateRqst,
+ *   !proto.resource.GetPeerApprovalStateRsp>}
+ */
+const methodDescriptor_ResourceService_GetPeerApprovalState = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetPeerApprovalState',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetPeerApprovalStateRqst,
+  proto.resource.GetPeerApprovalStateRsp,
+  /**
+   * @param {!proto.resource.GetPeerApprovalStateRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetPeerApprovalStateRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetPeerApprovalStateRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetPeerApprovalStateRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetPeerApprovalStateRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getPeerApprovalState =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerApprovalState',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerApprovalState,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetPeerApprovalStateRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetPeerApprovalStateRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getPeerApprovalState =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerApprovalState',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerApprovalState);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.DeletePeerRqst,
  *   !proto.resource.DeletePeerRsp>}
  */

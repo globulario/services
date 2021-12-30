@@ -33,6 +33,7 @@ const application = window.location.pathname.split("/").join("");
 export interface IServiceConfig {
   Id: string;
   Name: string;
+  Mac: string;
   State: string;
   Domain: string;
   Port: number;
@@ -206,7 +207,14 @@ export class EventHub {
       // Get the stream and set event on it...
       stream.on('data', (rsp: any) => {
         const evt = rsp.getEvt()
-        const data = new TextDecoder("utf-8").decode(evt.getData());
+        let bytes = evt.getData()
+        let data = ""
+        if (bytes != null) {
+          if (bytes.length > 0) {
+            data = new TextDecoder("utf-8").decode(bytes);
+          }
+        }
+
         // dispatch the event localy.
         this.dispatch(evt.getName(), data)
       });
@@ -268,7 +276,7 @@ export class EventHub {
         return
       }
       this.refs[uuid + ":" + name] = ref
-      
+
       // keep the listner uuid...
       ref[name] = uuid
 
@@ -366,7 +374,12 @@ export class EventHub {
 
       const enc = new TextEncoder(); // always utf-8
       // encode the string to a array of byte
-      evt.setData(enc.encode(data))
+      if (data != null) {
+        if(data.length > 0){
+          evt.setData(enc.encode(data))
+        }
+      }
+
       rqst.setEvt(evt);
 
       // Now I will test with promise
@@ -407,13 +420,13 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
       errorcallback("fail to get the configuration file at url " + url + " status " + this.status)
     }
   };
-  
+
   url += "?domain=" + domain
   url += "&application=" + application
   if (localStorage.getItem("user_token") != undefined) {
     url += "&token=" + localStorage.getItem("user_token")
   }
-  
+
   xmlhttp.open("GET", url, true);
   xmlhttp.send();
 }

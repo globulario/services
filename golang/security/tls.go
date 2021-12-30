@@ -49,7 +49,6 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	if err == nil {
 		// The way the domain is create must be the same here 
 		// and in the file globular.go at function getDomain()
-
 		domain := serverConfig["Name"].(string)
 		if len(serverConfig["Domain"].(string)) > 0 {
 			domain +=  "." + serverConfig["Domain"].(string)

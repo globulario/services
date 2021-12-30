@@ -564,7 +564,6 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 			if err == nil {
 				// Here I will send delete contact event.
-				resource_server.publishEvent("update_peers_evt", []byte{})
 				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"_evt", []byte{})
 			}
 
@@ -1467,7 +1466,6 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 		return nil, "", err
 	}
 	address_ += ":" + Utility.ToString(localConfig["PortHttp"])
-
 	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: localConfig["Name"].(string), Mac: Utility.MyMacAddr(), Domain: localConfig["Domain"].(string), ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
 }
@@ -1529,7 +1527,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			peer["mac"] = peer_.Mac
 			peer["local_ip_address"] = peer_.LocalIpAddress
 			peer["external_ip_address"] = peer_.ExternalIpAddress
-			peer["state"] = peer_.State
+			peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
 			peer["actions"] = []interface{}{}
 
 			if err != nil {
@@ -1552,6 +1550,10 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			// Update peer event.
+			resource_server.publishEvent("update_peers_evt", []byte{})
+			resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
 
 			// Send back the peers informations.
 			return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
@@ -1581,6 +1583,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 				if clientId == "sa" {
 					peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
 					peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
+					// todo set the peer as owner of the domain.
 				}
 			}
 		}
@@ -1616,7 +1619,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer_ := new(resourcepb.Peer)
 	peer_.Address = address
 	peer_.Hostname = hostname
-	peer_.Domain = resource_server.Domain
+	peer_.Domain = localConfig["Domain"].(string)
 	peer_.ExternalIpAddress = Utility.MyIP()
 	peer_.LocalIpAddress = Utility.MyLocalIP()
 	peer_.Mac = Utility.MyMacAddr()
@@ -1632,6 +1635,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
 
 	return &resourcepb.RegisterPeerRsp{
 		Peer:      peer_,
@@ -1667,6 +1671,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
 
 	return &resourcepb.AcceptPeerRsp{Result: true}, nil
 }
@@ -1692,8 +1697,28 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
 
 	return &resourcepb.RejectPeerRsp{Result: true}, nil
+}
+
+/**
+ * Return the state of approval of a peer by anther one.
+ */
+func (resource_server *server)  GetPeerApprovalState(ctx context.Context, rqst *resourcepb.GetPeerApprovalStateRqst) (*resourcepb.GetPeerApprovalStateRsp, error){
+	mac := rqst.Mac
+	if len(mac) == 0{
+		mac = Utility.MyMacAddr()
+	}
+
+	peer, err := resource_server.getPeerInfos(rqst.RemotePeerAddress, mac)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.GetPeerApprovalStateRsp{State: peer.GetState()}, nil
 }
 
 //* Return the list of authorized peers *
@@ -1721,7 +1746,8 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	values := make([]*resourcepb.Peer, 0)
 
 	for i := 0; i < len(peers); i++ {
-		p := &resourcepb.Peer{Address: peers[i].(map[string]interface{})["address"].(string), Hostname: peers[i].(map[string]interface{})["hostname"].(string), Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))}
+		state := resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))
+		p := &resourcepb.Peer{Address: peers[i].(map[string]interface{})["address"].(string), Hostname: peers[i].(map[string]interface{})["hostname"].(string), Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
 		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
 		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
 			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))

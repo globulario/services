@@ -357,6 +357,41 @@ func (server *server) publishEvent(evt string, data []byte) error {
 	return client.Publish(evt, data)
 }
 
+// Public event to a peer other than the default one...
+func (server *server) publishRemoteEvent(address, evt string, data []byte) error {
+	
+	client, err := event_client.NewEventService_Client(address, "event.EventService")
+	if err != nil {
+		return err
+	}
+
+	defer client.Close()
+	return client.Publish(evt, data)
+}
+
+/////////////////////////////////////// return the peers infos from a given peer /////////////////////////////
+func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error){
+	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	if err != nil {
+		return nil,  err
+	}
+
+	// Close the client when no more needed.
+	defer client.Close()
+
+	peers, err := client.GetPeers(`{"mac":"`+ mac +`"}`);
+	if err != nil {
+		return nil, err
+	}
+
+	if len(peers) == 0 {
+		return nil, errors.New("no peer found with mac address " + Utility.MyMacAddr() + " at address " + address)
+	}
+
+	return peers[0], nil
+
+}
+
 /////////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
 	var err error

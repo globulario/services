@@ -532,6 +532,18 @@ message Peer {
 }
 
 /**
+ * Test if a peer is accpeted, rejected or pending into another peer.
+ */
+message GetPeerApprovalStateRqst{
+  string mac = 1;
+  string remote_peer_address = 2;
+}
+
+message GetPeerApprovalStateRsp{
+  PeerApprovalState state = 1;
+}
+
+/**
  * Connect to peers together
  */
 message RegisterPeerRqst {
@@ -863,6 +875,9 @@ service ResourceService {
 
   /** Return the list of peers **/
   rpc GetPeers(GetPeersRqst) returns (stream GetPeersRsp);
+
+  /** Return the state of a peer into another peer. **/
+  rpc GetPeerApprovalState(GetPeerApprovalStateRqst) returns (GetPeerApprovalStateRsp);
 
   /** Remove a peer from the network **/
   rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
