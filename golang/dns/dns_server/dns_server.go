@@ -481,7 +481,6 @@ func (server *server) get_ipv4(domain string) (string, uint32, error) {
 	}
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("A:" + domain)
-	fmt.Println("------------------------------------------> try to get entry: ", domain, uuid)
 	ipv4, err := server.store.GetItem(uuid)
 	if err != nil {
 		return "", 0, status.Errorf(
