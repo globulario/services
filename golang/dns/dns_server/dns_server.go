@@ -1761,7 +1761,7 @@ func main() {
 	s_impl.DnsPort = 5353 // The default dns port.
 	s_impl.StorageDataPath = os.TempDir() + "/dns"
 	s_impl.PublisherId = "globulario" // value by default.
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 6)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.Keywords = make([]string, 0)
@@ -1770,6 +1770,14 @@ func main() {
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+
+	// DNS operation on a given domain.
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/dns.DnsService/SetA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/dns.DnsService/SetAAAA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/dns.DnsService/RemoveA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/dns.DnsService/RemoveAAAA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/dns.DnsService/RemoveText", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/dns.DnsService/SetText", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
@@ -1782,7 +1790,6 @@ func main() {
 
 	// Start dns services
 	go func() {
-
 		ServeDns(s_impl.DnsPort)
 	}()
 

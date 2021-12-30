@@ -845,6 +845,22 @@ func (client *Resource_Client) RemovePeersAction(token, action string) error {
 }
 
 /**
+ * Retreive the peer public key
+ */
+func (client *Resource_Client) GetPeerPublicKey(mac string) (string, error) {
+	rqst := &resourcepb.GetPeerPublicKeyRqst{
+		Mac: mac,
+	}
+
+	rsp, err := client.c.GetPeerPublicKey(context.Background(), rqst)
+
+	if err != nil {
+		return "", err
+	}
+	return rsp.PublicKey, nil
+}
+
+/**
  * Remove action from a given application.
  */
 func (client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error) {

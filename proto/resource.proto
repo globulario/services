@@ -544,6 +544,18 @@ message GetPeerApprovalStateRsp{
 }
 
 /**
+ * Return the delfie hellman public key
+ */
+message GetPeerPublicKeyRqst{
+  string mac = 1;
+  string remote_peer_address = 2;
+}
+
+message GetPeerPublicKeyRsp{
+  string public_key = 1;
+}
+
+/**
  * Connect to peers together
  */
 message RegisterPeerRqst {
@@ -898,6 +910,9 @@ service ResourceService {
       I will be imposible to request again and again, util it will be 
       explicitly removed from the peer's list */
   rpc RejectPeer(RejectPeerRqst) returns (RejectPeerRsp);
+
+  /** Return the public key of a peer. */
+  rpc GetPeerPublicKey(GetPeerPublicKeyRqst) returns (GetPeerPublicKeyRsp);
 
   ////////////////////////////////////////////////////////////////////////////
   // Notification's

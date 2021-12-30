@@ -818,6 +818,14 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 // https://www.youtube.com/watch?v=NmM9HA2MQGI&ab_channel=Computerphile
 //
 ////////////////////////////////////////////////////////////////////////////////////
+func DeletePublicKey(id string) error{
+	_, err := os.ReadFile(keyPath + "/" + id + "_public")
+	if err != nil {
+		return err
+	}
+
+	return os.Remove(keyPath + "/" + id + "_public")
+}
 
 /**
  * Generate keys and save it at given path.

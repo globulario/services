@@ -3276,6 +3276,67 @@ proto.resource.ResourceServicePromiseClient.prototype.rejectPeer =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetPeerPublicKeyRqst,
+ *   !proto.resource.GetPeerPublicKeyRsp>}
+ */
+const methodDescriptor_ResourceService_GetPeerPublicKey = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetPeerPublicKey',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetPeerPublicKeyRqst,
+  proto.resource.GetPeerPublicKeyRsp,
+  /**
+   * @param {!proto.resource.GetPeerPublicKeyRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetPeerPublicKeyRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetPeerPublicKeyRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetPeerPublicKeyRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetPeerPublicKeyRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getPeerPublicKey =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerPublicKey',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerPublicKey,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetPeerPublicKeyRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetPeerPublicKeyRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getPeerPublicKey =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerPublicKey',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerPublicKey);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.CreateNotificationRqst,
  *   !proto.resource.CreateNotificationRsp>}
  */
