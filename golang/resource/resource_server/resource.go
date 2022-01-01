@@ -1460,12 +1460,16 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	}
 
 	// Get the configuration address with it http port...
-	address_ := Utility.MyLocalIP()
 	localConfig, err := config.GetLocalConfig()
 	if err != nil {
 		return nil, "", err
 	}
+	address_ := localConfig["Name"].(string)
+	if len(localConfig["Domain"].(string)) > 0 {
+		address_ += "." + localConfig["Domain"].(string)
+	}
 	address_ += ":" + Utility.ToString(localConfig["PortHttp"])
+
 	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: localConfig["Name"].(string), Mac: Utility.MyMacAddr(), Domain: localConfig["Domain"].(string), ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
 }
@@ -1483,19 +1487,19 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
-	_id := Utility.GenerateUUID(rqst.Peer.Mac) // The peer mac address will be use as peers id
+	if len(rqst.Peer.Mac) > 0 {
 
-	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, "")
-	if count > 0 {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer with name '"+rqst.Peer.Mac+"' already exist!")))
+		count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
+		if count > 0 {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer with name '"+rqst.Peer.Mac+"' already exist!")))
+		}
 	}
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
 	peer := make(map[string]interface{})
-	peer["_id"] = _id
 	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
 
@@ -1517,7 +1521,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 			// Save the received values on the db
 			peer := make(map[string]interface{})
-			peer["_id"] = _id
+			peer["_id"] = Utility.GenerateUUID(peer_.Mac) // The peer mac address will be use as peers id
 			peer["domain"] = peer_.Domain
 
 			// keep the address where the configuration can be found...
@@ -1569,12 +1573,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
 
 			// Set peer action
-			err = resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
 
 			// Send back the peers informations.
 			return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
@@ -1588,6 +1589,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	// Here I will keep the peer info bethween it will be accepted by the admin of the other peer.
+	peer["_id"] = Utility.GenerateUUID(rqst.Peer.Mac)
 	peer["mac"] = rqst.Peer.Mac
 	peer["address"] = rqst.Peer.Address
 	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
@@ -1628,13 +1630,18 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
-	address := Utility.MyLocalIP()
+	
 	localConfig, err := config.GetLocalConfig()
+	address := localConfig["Name"].(string)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+	if len(localConfig["Domain"].(string)) > 0 {
+		address += "." + localConfig["Domain"].(string)
+	}
+	
 	address += ":" + Utility.ToString(localConfig["PortHttp"])
 
 	peer_ := new(resourcepb.Peer)

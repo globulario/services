@@ -403,10 +403,17 @@ func GetProcessRunningStatus(pid int) (*os.Process, error) {
  * Start prometheus.
  */
 func StartProcessMonitoring(httpPort int, exit chan bool) error {
+	// Be sure only one instance is running at time.
+	ids, err := Utility.GetProcessIdsByName("prometheus")
+	if err == nil {
+		if len(ids) > 0 {
+			return nil // nothing to do here...
+		}
+	}
+	
 	// Promometheus metrics for services.
 	http.Handle("/metrics", promhttp.Handler())
 
-	var err error
 
 	// Here I will start promethus.
 	dataPath := config.GetDataDir() + "/prometheus-data"
