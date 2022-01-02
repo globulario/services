@@ -11,7 +11,7 @@ var jspb = require('google-protobuf');
 var goog = jspb;
 var global = Function('return this')();
 
-var resource_pb = require('../resource/resource_pb.js');
+var resource_pb = require('./resource_pb.js');
 goog.exportSymbol('proto.applications_manager.DeployApplicationRequest', null, global);
 goog.exportSymbol('proto.applications_manager.DeployApplicationResponse', null, global);
 goog.exportSymbol('proto.applications_manager.InstallApplicationRequest', null, global);
