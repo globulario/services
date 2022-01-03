@@ -93,7 +93,7 @@ func (client *Admin_Client) GetCtx() context.Context {
 	}
 
 	// refresh the client as needed...
-	token, err := security.GetLocalToken(client.GetDomain())
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
@@ -230,10 +230,10 @@ func (client *Admin_Client) createServicePackage(publisherId string, serviceName
  * to get the configuration (80 by default). The path is where the file will be
  * written. The return values are the path to tree certicate path.
  */
-func (client *Admin_Client) GetCertificates(domain string, port int, path string) (string, string, string, error) {
+func (client *Admin_Client) GetCertificates(address string, port int, path string) (string, string, string, error) {
 
 	rqst := &adminpb.GetCertificatesRequest{
-		Domain: domain,
+		Domain: address,  
 		Path:   path,
 		Port:   int32(port),
 	}

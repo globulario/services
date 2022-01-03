@@ -50,13 +50,12 @@ func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error
 
 	// The userId can be a single string or a JWT token.
 	if len(occurence.UserId) > 0 {
-		id, name, _, _, _, err := security.ValidateToken(occurence.UserId)
+		claims, err := security.ValidateToken(occurence.UserId)
 		if err == nil {
-			occurence.UserId = id
+			occurence.UserId = claims.Id
+			occurence.UserName = claims.Username // keep only the user name
 		}
 
-		occurence.UserId = id
-		occurence.UserName = name // keep only the user name
 	}
 
 	// Return the log information.

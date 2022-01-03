@@ -38,7 +38,8 @@ type Claims struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
-
+	Domain   string `json:"domain"`
+	Address  string `json:"address"`
 	jwt.StandardClaims
 }
 
@@ -49,12 +50,25 @@ func GenerateToken(jwtKey []byte, timeout int, issuer, userId, userName, email s
 	now := time.Now()
 
 	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
+	localConfig, err := config.GetLocalConfig()
+	if err != nil {
+		return "", err
+	}
+
+	domain := localConfig["Name"].(string)
+	if len(localConfig["Domain"].(string)) > 0 {
+		domain += "." + localConfig["Domain"].(string)
+	}
+
+	address := domain + ":" + Utility.ToString(localConfig["PortHttp"])
 
 	// Create the JWT claims, which includes the username and expiry time
 	claims := &Claims{
 		ID:       userId,
 		Username: userName,
 		Email:    email,
+		Domain:   domain,
+		Address:  address,
 		StandardClaims: jwt.StandardClaims{
 			// In JWT, the expiry time is expressed as unix milliseconds
 			Id:        userId,
@@ -78,7 +92,7 @@ func GenerateToken(jwtKey []byte, timeout int, issuer, userId, userName, email s
 }
 
 /** Validate a Token **/
-func ValidateToken(token string) (string, string, string, string, int64, error) {
+func ValidateToken(token string) (*Claims, error) {
 
 	// Initialize a new instance of `Claims`
 	claims := &Claims{}
@@ -98,18 +112,18 @@ func ValidateToken(token string) (string, string, string, string, int64, error) 
 	
 
 	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
-		return  claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, errors.New("the token is expired")
+		return  claims, errors.New("the token is expired")
 	}
 
 	if err != nil {
-		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, err
+		return claims, err
 	}
 
 	if !tkn.Valid {
-		return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, errors.New("invalid token")
+		return claims, errors.New("invalid token")
 	}
 
-	return claims.ID, claims.Username, claims.Email, claims.Issuer, claims.ExpiresAt, nil
+	return claims, nil
 }
 
 /**
@@ -157,46 +171,37 @@ func refreshLocalToken(token string) (string, error) {
 // Here I will keep the token in a map so it will be less file reading...
 var tokens = new(sync.Map)
 
-func getLocalToken(domain string) (string, error) {
-	token, ok := tokens.Load(domain)
+func getLocalToken(mac string) (string, error) {
+	token, ok := tokens.Load(mac)
 	if ok {
 		if token != nil {
 		return token.(string), nil
 		}
 	}
 
-	tokensPath := config.GetConfigDir() + "/tokens"
-	path := tokensPath + "/" + domain + "_token"
-	token_, err := ioutil.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
 
-	// keep the token in the map...
-	tokens.Store(domain, string(token_))
-
-	return string(token_), nil
+	return "", errors.New("no token found")
 }
 
 /**
- * Return the local token string.
+ * Return the local token from the memory map. All token will be lost each time the server reboot.
  */
-func GetLocalToken(domain string) (string, error) {
+func GetLocalToken(mac string) (string, error) {
 
-	token, err := getLocalToken(domain)
+	token, err := getLocalToken(mac)
 	if err != nil {
 		return "", err
 	}
 
 	// Here I will validate the token...
-	_, _, _, _, expireAt, err := ValidateToken(string(token))
+	claims, err := ValidateToken(string(token))
 
 	if err == nil {
 		return string(token), nil
 	}
 
 	// If the token is older than seven day without being refresh then I retrun an error.
-	if time.Unix(expireAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
+	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return "", errors.New("the token cannot be refresh after 7 day")
 	}
 	
@@ -206,16 +211,7 @@ func GetLocalToken(domain string) (string, error) {
 	}
 
 	// keep the token in the map...
-	tokens.Store(domain, newToken)
-
-	if err == nil {
-		tokensPath := config.GetConfigDir() + "/tokens"
-		path := tokensPath + "/" + domain + "_token"
-		err = ioutil.WriteFile(path, []byte(newToken), 0644)
-		if err != nil {
-			return "", err
-		}
-	}
+	tokens.Store(mac, newToken)
 
 	return newToken, nil
 }

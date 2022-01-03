@@ -84,7 +84,7 @@ func (client *Resource_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
 	}
-	token, err := security.GetLocalToken(client.GetDomain())
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
@@ -749,10 +749,10 @@ func (client *Resource_Client) RegisterPeer(token, key string, peer *resourcepb.
 }
 
 // Delete a peer
-func (client *Resource_Client) DeletePeer(token, domain string) error {
+func (client *Resource_Client) DeletePeer(token, mac string) error {
 	rqst := &resourcepb.DeletePeerRqst{
 		Peer: &resourcepb.Peer{
-			Domain: domain,
+			Mac: mac,
 		},
 	}
 

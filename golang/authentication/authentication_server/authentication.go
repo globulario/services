@@ -29,15 +29,15 @@ var (
 //* Validate a token *
 func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 
-	id, _, _, _, expireAt, err := security.ValidateToken(rqst.Token)
+	claims, err := security.ValidateToken(rqst.Token)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &authenticationpb.ValidateTokenRsp{
-		ClientId: id,
-		Expired:  expireAt,
+		ClientId: claims.Id,
+		Expired:  claims.StandardClaims.ExpiresAt,
 	}, nil
 }
 
@@ -45,7 +45,7 @@ func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.
 func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
 
 	// first of all I will validate the current token.
-	id, name, email, issuer, expireAt, err := security.ValidateToken(rqst.Token)
+	claims, err := security.ValidateToken(rqst.Token)
 
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "token is expired") {
@@ -56,42 +56,38 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	}
 
 	// If the token is older than seven day without being refresh then I retrun an error.
-	if time.Unix(expireAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
+	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	key, err := security.GetPeerKey(issuer)
+	key, err := security.GetPeerKey(claims.Issuer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), id, name, email)
+	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), claims.Id, claims.Username, claims.Email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Here I will refresh the existing token file.
-	if id == "sa" {
-		// So here I will keep the token...
-		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
-	} else {
+
 		// get the active session.
-		session, err := server.getSession(id)
+		session, err := server.getSession(claims.Id)
 		if err != nil {
 			session = new(resourcepb.Session)
-			session.AccountId = id
+			session.AccountId = claims.Id
 			session.State = resourcepb.SessionState_ONLINE
 		}
 
 		// get back the new expireAt
-		_, _, _, _, expireAt, _ = security.ValidateToken(tokenString)
-		session.ExpireAt = expireAt
+		claims, _= security.ValidateToken(tokenString)
+		session.ExpireAt = claims.StandardClaims.ExpiresAt
 
 		// server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
 		// save the session in the backend.
@@ -101,7 +97,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
-	}
+
 
 	// return the token string.
 	return &authenticationpb.RefreshTokenRsp{
@@ -364,10 +360,6 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 		server.addResourceOwner(path, "sa", rbacpb.SubjectType_ACCOUNT)
 
-		// So here I will keep the token...
-		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
-		fmt.Println("server authenticate response ", time.Now().Unix())
-
 		return tokenString, nil
 	}
 
@@ -408,15 +400,15 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	}
 
 	// get the expire time.
-	user, /*userName*/ _, /*email*/ _, _, expireAt, _ := security.ValidateToken(tokenString)
+	claims, _ := security.ValidateToken(tokenString)
 	//defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+userName+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 
 	// Create the user file directory.
-	path := "/users/" + user
+	path := "/users/" + claims.Id
 	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-	server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
+	server.addResourceOwner(path, claims.Id, rbacpb.SubjectType_ACCOUNT)
 
-	session.ExpireAt = expireAt
+	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
 

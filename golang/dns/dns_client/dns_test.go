@@ -11,10 +11,11 @@ import (
 var (
 	// Try to connect to a nameserver.
 	token                     = ""
-	domain                    = "localhost"
+	domain                    = "ns1.mycelius.com"
 	client, _                 = NewDnsService_Client(domain, "dns.DnsService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 )
+
 
 // Test various function here.
 func TestSetA(t *testing.T) {
@@ -28,19 +29,20 @@ func TestSetA(t *testing.T) {
 	}
 
 	// Set ip address
-	domain, err := client.SetA(token, "syno.globular.io", "192.168.0.192", 60)
+	/*domain, err := client.SetA(token, "syno.globular.io", "", 60)
 	if err == nil {
 		log.Println(err)
 	}
 
-	domain, err = client.SetAAAA(token, "syno.globular.io", "192.168.0.192", 60)
+	domain, err = client.SetAAAA(token, "syno.globular.io", "", 60)
 	if err == nil {
 		log.Println(err)
-	}
+	}*/
 
 	log.Println("domain ", domain, "was register!")
 }
 
+/*
 func TestResolve(t *testing.T) {
 
 	// Connect to the plc client.
@@ -52,6 +54,7 @@ func TestResolve(t *testing.T) {
 		log.Panicln(err)
 	}
 }
+*/
 
 /*func TestRemoveA(t *testing.T) {
 
@@ -64,17 +67,17 @@ func TestResolve(t *testing.T) {
 		log.Panicln(err)
 	}
 }*/
-/*
+
 func TestTextValue(t *testing.T) {
 	// Connect to the plc client.
 	log.Println("---> test set text")
-	err := client.SetText(token,"key_0.cargowebserver.com.", []string{"toto", "titi", "tata"}, 300)
+	err := client.SetText(token,"_acme-challenge.globule-nuc.globular.cloud.", []string{"toto", "titi", "tata"}, 300)
 	if err != nil {
 		log.Panicln(err)
 	}
 
 	log.Println("---> test get text")
-	values, err := client.GetText("key_0.cargowebserver.com.")
+	values, err := client.GetText("_acme-challenge.globule-nuc.globular.cloud.")
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -82,13 +85,13 @@ func TestTextValue(t *testing.T) {
 	log.Println("--> values retreive: ", values)
 
 	log.Println("---> test remove text")
-	err = client.RemoveText(token, "toto")
+	err = client.RemoveText(token, "_acme-challenge.globule-nuc.globular.cloud.")
 	if err != nil {
 		log.Panicln(err)
 	}
 
 }
-
+/*
 func TestNsValue(t *testing.T) {
 	// id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32
 	id := "globular.io."

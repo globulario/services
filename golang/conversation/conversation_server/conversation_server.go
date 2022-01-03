@@ -569,12 +569,13 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			errors.New("no token was given")
 		}
@@ -768,10 +769,11 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, err
 			}
+			clientId = claims.Id
 		} else {
 			return nil, errors.New("no token was given")
 		}
@@ -901,11 +903,11 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, err
 			}
-
+			clientId = claims.Id
 		} else {
 			return nil, errors.New("No token was given!")
 		}
@@ -974,18 +976,17 @@ func (svr *server) FindConversations(ctx context.Context, rqst *conversationpb.F
 
 func (svr *server) Connect(rqst *conversationpb.ConnectRequest, stream conversationpb.ConversationService_ConnectServer) error {
 	var clientId string
-	var err error
-
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			return errors.New("no token was given")
 		}
@@ -1008,18 +1009,17 @@ func (svr *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 // Close connection with the conversation server.
 func (svr *server) Disconnect(ctx context.Context, rqst *conversationpb.DisconnectRequest) (*conversationpb.DisconnectResponse, error) {
 	var clientId string
-	var err error
-
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			return nil, errors.New("no token was given")
 		}
@@ -1045,13 +1045,13 @@ func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			clientId = claims.Id
 		} else {
 			return errors.New("no token was given")
 		}
@@ -1141,12 +1141,13 @@ func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.L
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			return nil, errors.New("no token was given")
 		}
@@ -1193,13 +1194,13 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			clientId = claims.Id
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1479,13 +1480,13 @@ func (svr *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.Ac
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			clientId = claims.Id
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1523,13 +1524,13 @@ func (svr *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.D
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			clientId = claims.Id
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1566,13 +1567,13 @@ func (svr *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.Re
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			clientId = claims.Id
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1608,13 +1609,13 @@ func (svr *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			clientId = claims.Id
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1659,13 +1660,13 @@ func (svr *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
 
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			clientId = claims.Id
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,

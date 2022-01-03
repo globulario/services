@@ -125,16 +125,15 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 	}
 
 	// Generate a token to identify the user.
-	tokenString, err := security.GenerateToken(key, resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
-	id, _, _, _, expireAt, _ := security.ValidateToken(tokenString)
-
+	tokenString, _ := security.GenerateToken(key, resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.updateSession(id, 0, time.Now().Unix(), expireAt)
+	err = resource_server.updateSession(claims.Id, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -218,13 +217,15 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			clientId = claims.Id
 		} else {
 			return nil, errors.New("no token was given")
 		}
@@ -1469,7 +1470,6 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 		address_ += "." + localConfig["Domain"].(string)
 	}
 	address_ += ":" + Utility.ToString(localConfig["PortHttp"])
-
 	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: localConfig["Name"].(string), Mac: Utility.MyMacAddr(), Domain: localConfig["Domain"].(string), ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
 }
@@ -1488,7 +1488,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
 	if len(rqst.Peer.Mac) > 0 {
-
 		count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
 		if count > 0 {
 			return nil, status.Errorf(
@@ -1526,7 +1525,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 			// keep the address where the configuration can be found...
 			// in case of docker instance that will be usefull to get peer addres config...
-			peer["address"] = peer_.Address
+			peer["address"] = rqst.Peer.Address
 			peer["hostname"] = peer_.Hostname
 			peer["mac"] = peer_.Mac
 			peer["local_ip_address"] = peer_.LocalIpAddress
@@ -1539,7 +1538,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			
 			_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
 			if err != nil {
 				return nil, status.Errorf(
@@ -1574,6 +1573,8 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 			// Set peer action
 			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetAAAA"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCAA"})
 			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
 			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
 
@@ -1601,12 +1602,21 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err := security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err == nil {
-				if clientId == "sa" {
+				if claims.Id == "sa" {
 					peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
 					peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
-					// todo set the peer as owner of the domain.
+					peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
+					peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
+					peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
+					peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
+					domain := rqst.Peer.Hostname
+					if len(rqst.Peer.Domain) > 0 {
+						domain += "." + rqst.Peer.Domain
+					}
+					resource_server.addResourceOwner(domain, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+
 				}
 			}
 		}
@@ -1664,6 +1674,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
 	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
+	
+	// set the remote peer in /etc/hosts
+	resource_server.setLocalHosts(peer_)
 
 	return &resourcepb.RegisterPeerRsp{
 		Peer:      peer_,
@@ -1701,12 +1714,12 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Add actions require by peer...
-	err = resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetA"})
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetA"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetAAAA"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetCAA"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetText"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/RemoveText"})
+
 
 	// set the remote peer in /etc/hosts
 	resource_server.setLocalHosts(rqst.Peer)
