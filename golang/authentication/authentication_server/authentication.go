@@ -11,9 +11,11 @@ import (
 	"io/ioutil"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
@@ -76,28 +78,26 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// get the active session.
+	session, err := server.getSession(claims.Id)
+	if err != nil {
+		session = new(resourcepb.Session)
+		session.AccountId = claims.Id
+		session.State = resourcepb.SessionState_ONLINE
+	}
 
-		// get the active session.
-		session, err := server.getSession(claims.Id)
-		if err != nil {
-			session = new(resourcepb.Session)
-			session.AccountId = claims.Id
-			session.State = resourcepb.SessionState_ONLINE
-		}
+	// get back the new expireAt
+	claims, _ = security.ValidateToken(tokenString)
+	session.ExpireAt = claims.StandardClaims.ExpiresAt
 
-		// get back the new expireAt
-		claims, _= security.ValidateToken(tokenString)
-		session.ExpireAt = claims.StandardClaims.ExpiresAt
-
-		// server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
-		// save the session in the backend.
-		err = server.updateSession(session)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
+	// server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
+	// save the session in the backend.
+	err = server.updateSession(session)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
 
 	// return the token string.
 	return &authenticationpb.RefreshTokenRsp{
@@ -384,7 +384,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 				fmt.Println("fail to change password: ", account.Id, err)
 				return "", err
 			}
-		}else{
+		} else {
 			return "", err
 		}
 	}
@@ -401,7 +401,6 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 
 	// get the expire time.
 	claims, _ := security.ValidateToken(tokenString)
-	//defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+userName+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
 
 	// Create the user file directory.
 	path := "/users/" + claims.Id
@@ -424,11 +423,45 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 	server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+rqst.Name+" try to connect")
 
+	// Try to authenticate on the server directy...
 	tokenString, err := server.authenticate(rqst.Name, rqst.Password)
+
+	// Now I will try each peer...
 	if err != nil {
+		// I will try to authenticate the peer on other resource service...
+		peers, err := server.getPeers()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		for i := 0; i < len(peers); i++ {
+			peer := peers[i]
+			resource_client_, err := resource_client.NewResourceService_Client(peer.Address, "resource.ResourceService")
+			if err == nil {
+				defer resource_client_.Close()
+				account, err := resource_client_.GetAccount(rqst.Name)
+				if err == nil {
+					// an account was found with that name...
+					authentication_client_, err := authentication_client.NewAuthenticationService_Client(peer.Address, "authentication.AuthenticationService")
+					if err == nil {
+						defer authentication_client_.Close()
+						tokenString, err := authentication_client_.Authenticate(account.Id, rqst.Password)
+						if err == nil {
+							return &authenticationpb.AuthenticateRsp{
+								Token: tokenString,
+							}, nil
+						}
+					}
+
+				}
+			}
+		}
+
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to authenticate user " + rqst.Name)))
 	}
 
 	return &authenticationpb.AuthenticateRsp{

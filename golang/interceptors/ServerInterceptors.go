@@ -14,10 +14,13 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -183,7 +186,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// The token and the application id.
 	var token string
 	var application string
-	var domain string 
+	var domain string
 	var address string // the address if the token issuer
 	var organization string
 
@@ -193,8 +196,40 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		token = strings.Join(md["token"], "")
 
 		// in case of resource path.
-		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
-		address = strings.TrimSpace(strings.Join(md["address"], ""))
+		// domain_ := strings.TrimSpace(strings.Join(md["domain"], ""))
+		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
+
+		// So here I will redirect the request to the correct client...
+		localConfig, err := config.GetLocalConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		domain = localConfig["Name"].(string)
+		if len(localConfig["Domain"].(string)) > 0 {
+			domain += "." + localConfig["Domain"].(string)
+		}
+
+		address = domain + ":" + Utility.ToString(localConfig["PortHttp"])
+		if address != address_ && len(address_) > 0 {
+			if strings.HasPrefix(info.FullMethod, "/persistence.PersistenceService") {
+				client, err := persistence_client.NewPersistenceService_Client(address_, "persistence.PersistenceService")
+				if err != nil {
+					return nil, err
+				}
+				// simply redirect the rquest the the good address and return the result to the caller...
+				defer client.Close()
+				return client.Invoke(info.FullMethod, rqst, ctx)
+			} else if strings.HasPrefix(info.FullMethod, "/resource.ResourceService") {
+				client, err := resource_client.NewResourceService_Client(address_, "resource.ResourceService")
+				if err != nil {
+					return nil, err
+				}
+				// simply redirect the rquest the the good address and return the result to the caller...
+				defer client.Close()
+				return client.Invoke(info.FullMethod, rqst, ctx)
+			}
+		}
 	}
 
 	// Here I will test if the
@@ -203,9 +238,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// If the call come from a local client it has hasAccess
 	hasAccess := true
 
-
 	// Set the list of restricted method here...
-	if method == "/services_manager.ServicesManagerServices/GetServicesConfig"  {
+	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" {
 		hasAccess = true
 	}
 
@@ -222,7 +256,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 		clientId = claims.Id
 		issuer = claims.Issuer
-		fmt.Println("client id: ", clientId + "@" + domain)
+		fmt.Println("client id: ", clientId+"@"+domain)
 	}
 
 	// Test if peer has access
@@ -346,7 +380,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	var application string
 
 	// The peer domain.
-	var domain string // This is the target domain, the one use in TLS certificate.
+	var domain string  // This is the target domain, the one use in TLS certificate.
 	var address string // the address if the token issuer
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {

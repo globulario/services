@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -445,7 +446,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 	} else if _, ok := persistence_server.Connections[id]; ok {
 		c = persistence_server.Connections[id]
 	} else {
-
+		
 		// Set the connection info from the request.
 		c.Id = id
 		c.Name = name
@@ -454,7 +455,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		c.User = user
 		c.Password = password
 		c.Store = store
-
+		fmt.Println("try to create persistence connection: ", c)
 		// If the connection need to save in the server configuration.
 		if save {
 			if persistence_server.Connections == nil {
@@ -504,6 +505,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 // Create a new Store connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
 func (persistence_server *server) CreateConnection(ctx context.Context, rqst *persistencepb.CreateConnectionRqst) (*persistencepb.CreateConnectionRsp, error) {
+	
 	err := persistence_server.createConnection(ctx, rqst.Connection.User, rqst.Connection.Password, rqst.Connection.Id, rqst.Connection.Name, rqst.Connection.Host, rqst.Connection.Port, rqst.Connection.Store, rqst.Save)
 	if err != nil {
 		// codes.

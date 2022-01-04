@@ -168,7 +168,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	account := values.(map[string]interface{})
-	a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Password: account["password"].(string)}
+	a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Password: account["password"].(string), Domain: account["domain"].(string)}
 
 	if account["groups"] != nil {
 		groups := []interface{}(account["groups"].(primitive.A))
@@ -1538,7 +1538,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			
+
 			_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
 			if err != nil {
 				return nil, status.Errorf(
@@ -1640,7 +1640,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
-	
+
 	localConfig, err := config.GetLocalConfig()
 	address := localConfig["Name"].(string)
 	if err != nil {
@@ -1651,7 +1651,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	if len(localConfig["Domain"].(string)) > 0 {
 		address += "." + localConfig["Domain"].(string)
 	}
-	
+
 	address += ":" + Utility.ToString(localConfig["PortHttp"])
 
 	peer_ := new(resourcepb.Peer)
@@ -1674,7 +1674,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
 	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
-	
+
 	// set the remote peer in /etc/hosts
 	resource_server.setLocalHosts(peer_)
 
@@ -1719,7 +1719,6 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetCAA"})
 	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetText"})
 	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/RemoveText"})
-
 
 	// set the remote peer in /etc/hosts
 	resource_server.setLocalHosts(rqst.Peer)
