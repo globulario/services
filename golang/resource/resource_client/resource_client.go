@@ -84,7 +84,7 @@ func (client *Resource_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
 	}
-	token, err := security.GetLocalToken(client.GetDomain())
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
@@ -215,11 +215,11 @@ func (client *Resource_Client) CreateOrganization(id string, name string, email 
 	// Create a new Organization.
 	rqst := &resourcepb.CreateOrganizationRqst{
 		Organization: &resourcepb.Organization{
-			Id:   id,
-			Name: name,
+			Id:          id,
+			Name:        name,
 			Description: description,
-			Icon: icon,
-			Email: email,
+			Icon:        icon,
+			Email:       email,
 		},
 	}
 
@@ -359,7 +359,7 @@ func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Org
 
 	// Open the stream...
 	organisations := make([]*resourcepb.Organization, 0)
-	
+
 	// I will execute a simple ldap search here...
 	rqst := new(resourcepb.GetOrganizationsRqst)
 	rqst.Query = query
@@ -399,7 +399,7 @@ func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Org
 func (client *Resource_Client) RegisterAccount(domain, id, name, email, password, confirmation_password string) error {
 	rqst := &resourcepb.RegisterAccountRqst{
 		Account: &resourcepb.Account{
-			Id: id,
+			Id:       id,
 			Name:     name,
 			Email:    email,
 			Password: password,
@@ -723,14 +723,9 @@ func (client *Resource_Client) GetRoles(query string) ([]*resourcepb.Role, error
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register a peer with a given name and mac address.
-func (client *Resource_Client) RegisterPeer(token, mac, domain, externl_ip_addres, local_ip_address, key string) (*resourcepb.Peer, string, error) {
+func (client *Resource_Client) RegisterPeer(token, key string, peer *resourcepb.Peer) (*resourcepb.Peer, string, error) {
 	rqst := &resourcepb.RegisterPeerRqst{
-		Peer: &resourcepb.Peer{
-			Domain:  domain,
-			Mac:     mac,
-			ExternalIpAddress: externl_ip_addres,
-			LocalIpAddress: local_ip_address,
-		},
+		Peer:      peer,
 		PublicKey: string(key),
 	}
 
@@ -754,10 +749,10 @@ func (client *Resource_Client) RegisterPeer(token, mac, domain, externl_ip_addre
 }
 
 // Delete a peer
-func (client *Resource_Client) DeletePeer(token, domain string) error {
+func (client *Resource_Client) DeletePeer(token, mac string) error {
 	rqst := &resourcepb.DeletePeerRqst{
 		Peer: &resourcepb.Peer{
-			Domain: domain,
+			Mac: mac,
 		},
 	}
 
@@ -847,6 +842,22 @@ func (client *Resource_Client) RemovePeersAction(token, action string) error {
 	_, err := client.c.RemovePeersAction(ctx, rqst)
 
 	return err
+}
+
+/**
+ * Retreive the peer public key
+ */
+func (client *Resource_Client) GetPeerPublicKey(mac string) (string, error) {
+	rqst := &resourcepb.GetPeerPublicKeyRqst{
+		Mac: mac,
+	}
+
+	rsp, err := client.c.GetPeerPublicKey(context.Background(), rqst)
+
+	if err != nil {
+		return "", err
+	}
+	return rsp.PublicKey, nil
 }
 
 /**

@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-
+	"errors"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
@@ -68,6 +68,7 @@ type server struct {
 	Process         int
 	ProxyProcess    int
 	ConfigPath      string
+	ConfigPort		int
 	LastError       string
 	TLS bool
 
@@ -135,6 +136,20 @@ func (server *server) GetKeywords() []string {
 }
 func (server *server) SetKeywords(keywords []string) {
 	server.Keywords = keywords
+}
+
+// The path of the .proto file.
+func (svr *server) GetConfigPort() int {
+	return svr.ConfigPort
+}
+
+func (svr *server) SetConfigPort(port int) {
+	svr.ConfigPort = port
+}
+
+// Return the address where the configuration can be found...
+func (svr *server) GetConfigAddress() string {
+	return svr.GetDomain() + ":" + Utility.ToString(svr.ConfigPort)
 }
 
 func (server *server) GetRepositories() []string {
@@ -471,13 +486,13 @@ func (svr *server) publish(event string, data []byte) error {
 }
 
 ///////////////////// resource service functions ////////////////////////////////////
-func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+func (svr *server) getResourceClient(domain string) (*resource_client.Resource_Client, error) {
 	var err error
 	if resource_client_ != nil {
 		return resource_client_, nil
 	}
 
-	resource_client_, err = resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	resource_client_, err = resource_client.NewResourceService_Client(domain, "resource.ResourceService")
 	if err != nil {
 		resource_client_ = nil
 		return nil, err
@@ -490,7 +505,7 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
  * Get actives sessions
  */
 func (svr *server) getSessions() ([]*resourcepb.Session, error) {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.GetDomain())
 	if err != nil {
 		return nil, err
 	}
@@ -500,7 +515,7 @@ func (svr *server) getSessions() ([]*resourcepb.Session, error) {
 
 /** Now yet use **/
 func (svr *server) removeSession(accountId string) error {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.GetDomain())
 	if err != nil {
 		return err
 	}
@@ -509,7 +524,7 @@ func (svr *server) removeSession(accountId string) error {
 }
 
 func (svr *server) updateSession(session *resourcepb.Session) error {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.GetDomain())
 	if err != nil {
 		return err
 	}
@@ -518,7 +533,7 @@ func (svr *server) updateSession(session *resourcepb.Session) error {
 }
 
 func (svr *server) getSession(accountId string) (*resourcepb.Session, error) {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.GetDomain())
 	if err != nil {
 		return nil, err
 	}
@@ -530,7 +545,7 @@ func (svr *server) getSession(accountId string) (*resourcepb.Session, error) {
  * Retreive an account with a given id.
  */
 func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.GetDomain())
 	if err != nil {
 		return nil, err
 	}
@@ -539,12 +554,33 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 }
 
 func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword string) error {
-	resourceClient, err := svr.getResourceClient()
+	resourceClient, err := svr.getResourceClient(svr.GetDomain())
 	if err != nil {
 		return err
 	}
 
 	return resourceClient.SetAccountPassword(accountId, oldPassword, newPassword)
+}
+
+/**
+ * Return a peer with a given id
+ */
+ func (svr *server) getPeers() ([]*resourcepb.Peer, error) {
+	resourceClient, err := svr.getResourceClient(svr.Domain)
+	if err != nil {
+		return nil, err
+	}
+	// return all peers register on a globule...
+	peers, err := resourceClient.GetPeers(`{}`)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(peers) == 0 {
+		return nil, errors.New("no peers found")
+	}
+
+	return peers, nil
 }
 
 ///////////////////////////////////// Authentication specific services ///////////////////////////////////////

@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"encoding/binary"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
@@ -19,14 +21,16 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/reflection"
-	"encoding/binary"
-
+	"google.golang.org/grpc/status"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/miekg/dns"
+	"google.golang.org/grpc/metadata"
 )
 
 // TODO take care of TLS/https
@@ -45,6 +49,9 @@ var (
 
 	// pointer to the sever implementation.
 	s *server
+
+	// Use to set permissions
+	rbac_client_ *rbac_client.Rbac_Client
 )
 
 // Value need by Globular to start the services...
@@ -320,6 +327,68 @@ func (server *server) SetPermissions(permissions []interface{}) {
 	server.Permissions = permissions
 }
 
+func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return rbac_client_, nil
+}
+
+func (server *server) createPermission(ctx context.Context, path string) error {
+	var clientId string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return err
+			}
+
+			clientId = claims.Id
+		} else {
+			errors.New("no token was given")
+		}
+	}
+
+	// Now I will set it in the rbac as ressource owner...
+	permissions := &rbacpb.Permissions{
+		Allowed: []*rbacpb.Permission{},
+		Denied:  []*rbacpb.Permission{},
+		Owners: &rbacpb.Permission{
+			Name:          "owner", // The name is informative in that particular case.
+			Applications:  []string{},
+			Accounts:      []string{clientId},
+			Groups:        []string{},
+			Peers:         []string{},
+			Organizations: []string{},
+		},
+	}
+
+	// Set the owner of the conversation.
+	rbac_client_, err = server.GetRbacClient()
+	if err != nil {
+		return err
+	}
+
+	err = rbac_client_.SetResourcePermissions(path, permissions)
+
+	fmt.Println("Set permission to ", path, clientId)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Create the configuration file if is not already exist.
 func (server *server) Init() error {
 
@@ -401,8 +470,6 @@ func (server *server) isManaged(domain string) bool {
 // Set a dns entry.
 func (server *server) SetA(ctx context.Context, rqst *dnspb.SetARequest) (*dnspb.SetAResponse, error) {
 
-	server.logServiceInfo("SetA", Utility.FileLine(), Utility.FunctionName(), "Try set dns entry "+rqst.Domain)
-
 	if !server.isManaged(rqst.Domain) {
 		err := errors.New("The domain " + rqst.Domain + " is not manage by this dns.")
 		return nil, status.Errorf(
@@ -461,6 +528,9 @@ func (server *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// remove the permission
+	rbac_client_.DeleteResourcePermissions(domain)
 
 	return &dnspb.RemoveAResponse{
 		Result: true, // return the full domain.
@@ -575,6 +645,8 @@ func (server *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequ
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(domain)
+
 	return &dnspb.RemoveAAAAResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -595,6 +667,7 @@ func (server *server) get_ipv6(domain string) (string, uint32, error) {
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	address, err := server.store.GetItem(uuid)
+	
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
@@ -639,14 +712,6 @@ func (server *server) SetText(ctx context.Context, rqst *dnspb.SetTextRequest) (
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	/*
-		_, _, err = server.getText(rqst.Id)
-		if err == nil {
-			return &dnspb.SetTextResponse{
-				Result: true, // return the full domain.
-			}, nil
-		}
-	*/
 	values, err := json.Marshal(rqst.Values)
 
 	if err != nil {
@@ -751,6 +816,8 @@ func (server *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequ
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	
 	return &dnspb.RemoveTextResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -842,6 +909,8 @@ func (server *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest)
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	
 	return &dnspb.RemoveNsResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -935,6 +1004,8 @@ func (server *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	
 	return &dnspb.RemoveCNameResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1053,6 +1124,8 @@ func (server *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest)
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	
 	return &dnspb.RemoveMxResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1167,6 +1240,8 @@ func (server *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	
 	return &dnspb.RemoveSoaResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1280,6 +1355,8 @@ func (server *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	
 	return &dnspb.RemoveUriResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1393,6 +1470,8 @@ func (server *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	
 	return &dnspb.RemoveAfsdbResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1505,6 +1584,8 @@ func (server *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaReques
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	rbac_client_.DeleteResourcePermissions(rqst.Id)
 
 	return &dnspb.RemoveCaaResponse{
 		Result: true, // return the full domain.
@@ -1755,10 +1836,10 @@ func main() {
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
 	s_impl.Version = "0.0.1"
-	s_impl.DnsPort = 53 // The default dns port.
+	s_impl.DnsPort = 5353 // The default dns port.
 	s_impl.StorageDataPath = os.TempDir() + "/dns"
 	s_impl.PublisherId = "globulario" // value by default.
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 6)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.Keywords = make([]string, 0)
@@ -1767,6 +1848,14 @@ func main() {
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+
+	// DNS operation on a given domain.
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/dns.DnsService/SetA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/dns.DnsService/SetAAAA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/dns.DnsService/SetText", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/dns.DnsService/RemoveA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/dns.DnsService/RemoveAAAA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/dns.DnsService/RemoveText", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
@@ -1779,7 +1868,6 @@ func main() {
 
 	// Start dns services
 	go func() {
-
 		ServeDns(s_impl.DnsPort)
 	}()
 

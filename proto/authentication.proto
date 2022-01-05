@@ -12,6 +12,7 @@ option go_package = "authentication/authenticationpb";
 message AuthenticateRqst{
 	string name = 1;
 	string password =2;
+	string issuer = 3; // The mac address where the token will be validate. if  emtpty the mac address of the current server will be use.
 }
 
 message AuthenticateRsp {

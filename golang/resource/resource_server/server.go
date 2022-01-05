@@ -5,12 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -24,10 +18,17 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
+	"github.com/txn2/txeh"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"log"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // The default values.
@@ -326,10 +327,10 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 }
 
 var (
-	rbac_client_  *rbac_client.Rbac_Client
-	log_client_   *log_client.Log_Client
-	event_client_ *event_client.Event_Client
-	persistence_client_    *persistence_client.Persistence_Client
+	rbac_client_        *rbac_client.Rbac_Client
+	log_client_         *log_client.Log_Client
+	event_client_       *event_client.Event_Client
+	persistence_client_ *persistence_client.Persistence_Client
 )
 
 ///////////////////// resource service functions ////////////////////////////////////
@@ -357,6 +358,112 @@ func (server *server) publishEvent(evt string, data []byte) error {
 	return client.Publish(evt, data)
 }
 
+// Public event to a peer other than the default one...
+func (server *server) publishRemoteEvent(address, evt string, data []byte) error {
+
+	client, err := event_client.NewEventService_Client(address, "event.EventService")
+	if err != nil {
+		return err
+	}
+
+	defer client.Close()
+	return client.Publish(evt, data)
+}
+
+/////////////////////////////////////// return the peers infos from a given peer /////////////////////////////
+func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
+	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	if err != nil {
+		return nil, err
+	}
+
+	// Close the client when no more needed.
+	defer client.Close()
+
+	peers, err := client.GetPeers(`{"mac":"` + mac + `"}`)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(peers) == 0 {
+		return nil, errors.New("no peer found with mac address " + Utility.MyMacAddr() + " at address " + address)
+	}
+
+	return peers[0], nil
+
+}
+
+/** Retreive the peer public key */
+func (server *server) getPeerPublicKey(address, mac string) (string, error) {
+
+	if len(mac) == 0 {
+		mac = Utility.MyMacAddr()
+	}
+
+	if mac == Utility.MyMacAddr() {
+		key, err := security.GetPeerKey(mac)
+		if err != nil {
+			return "", err
+		}
+
+		return string(key), nil
+	}
+
+	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	if err != nil {
+		return "", err
+	}
+
+	// Close the client when no more needed.
+	defer client.Close()
+
+	return client.GetPeerPublicKey(mac)
+}
+
+/** Set the host if it's part of the same local network. */
+func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
+	// Finaly I will set the domain in the hosts file...
+	hosts, err := txeh.NewHostsDefault()
+	if err != nil {
+		return err
+	}
+
+	domain := peer.GetHostname()
+	if len(peer.GetDomain()) > 0 {
+		domain += "." + peer.GetDomain()
+	}
+
+	if peer.ExternalIpAddress == Utility.MyIP() {
+		hosts.AddHost(peer.LocalIpAddress, domain)
+	} else {
+		return errors.New("the peer is not on the same local network")
+	}
+
+	return hosts.Save()
+}
+
+/** Set the host if it's part of the same local network. */
+func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
+	// Finaly I will set the domain in the hosts file...
+	hosts, err := txeh.NewHostsDefault()
+	if err != nil {
+		return err
+	}
+
+	domain := peer.GetHostname()
+	if len(peer.GetDomain()) > 0 {
+		domain += "." + peer.GetDomain()
+	}
+
+	if peer.ExternalIpAddress == Utility.MyIP() {
+		hosts.RemoveHost(domain)
+	} else {
+		return errors.New("the peer is not on the same local network")
+	}
+
+	return hosts.Save()
+}
+
 /////////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
 	var err error
@@ -374,13 +481,13 @@ func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client
 }
 
 // Create the application connections in the backend.
-func (server *server) createApplicationConnection(app *resourcepb.Application) error{
+func (server *server) createApplicationConnection(app *resourcepb.Application) error {
 	persistence_client_, err := GetPersistenceClient(server.Domain)
 	if err != nil {
 		return err
 	}
 
-	err = persistence_client_.CreateConnection(app.Id, app.Id + "_db", server.Domain, 27017, 0, app.Id, app.Password, 500, "", true)
+	err = persistence_client_.CreateConnection(app.Id, app.Id+"_db", server.Domain, 27017, 0, app.Id, app.Password, 500, "", true)
 	if err != nil {
 		return err
 	}

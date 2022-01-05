@@ -83,7 +83,7 @@ func (client *Catalog_Client) GetCtx() context.Context {
 	}
 
 	// refresh the client as needed...
-	token, err := security.GetLocalToken(client.GetDomain())
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)

@@ -12,7 +12,7 @@ require (
 	github.com/davecourtois/Utility v0.0.0-20210515191918-3118f6f72191
 	github.com/denisenkom/go-mssqldb v0.10.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/djimenez/iconv-go v0.0.0-20160305225143-8960e66bd3da // indirect
+	github.com/djimenez/iconv-go v0.0.0-20160305225143-8960e66bd3da
 	github.com/emersion/go-imap v1.1.0
 	github.com/emersion/go-message v0.14.1
 	github.com/emersion/go-smtp v0.15.0
@@ -28,11 +28,12 @@ require (
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7
 	github.com/prometheus/client_golang v1.10.0
-	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
-	github.com/struCoder/pidusage v0.2.1 // indirect
+	github.com/shirou/gopsutil v3.21.11+incompatible
+	github.com/struCoder/pidusage v0.2.1
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
+	github.com/txn2/txeh v1.3.0
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.mongodb.org/mongo-driver v1.5.2
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9

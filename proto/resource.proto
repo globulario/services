@@ -519,14 +519,40 @@ enum PeerApprovalState{
 
 /** a globular server **/
 message Peer {
-  string domain = 1;  // must be unique on the network.
-  string external_ip_address = 2; // the ip address
-  string local_ip_address = 3; // the ip address
-  string mac = 4;     // The mac address
-  PeerApprovalState state = 5; // The peer approval state
+  string hostname = 1; // this
+  string address = 2; // the address where the peer configuation can be found.
+  string domain = 3;  // must be unique on the network.
+  string external_ip_address = 4; // the ip address if not port is given 80 will be use to get peers configuration
+  string local_ip_address = 5; // the ip address if not port is given 80 will be use to get peers configuration
+  string mac = 6;     // The mac address
+  PeerApprovalState state = 7; // The peer approval state
 
-  // The list of actions.
-  repeated string actions = 6;
+  // The list of actions that can do
+  repeated string actions = 8;
+}
+
+/**
+ * Test if a peer is accpeted, rejected or pending into another peer.
+ */
+message GetPeerApprovalStateRqst{
+  string mac = 1;
+  string remote_peer_address = 2;
+}
+
+message GetPeerApprovalStateRsp{
+  PeerApprovalState state = 1;
+}
+
+/**
+ * Return the delfie hellman public key
+ */
+message GetPeerPublicKeyRqst{
+  string mac = 1;
+  string remote_peer_address = 2;
+}
+
+message GetPeerPublicKeyRsp{
+  string public_key = 1;
 }
 
 /**
@@ -862,6 +888,9 @@ service ResourceService {
   /** Return the list of peers **/
   rpc GetPeers(GetPeersRqst) returns (stream GetPeersRsp);
 
+  /** Return the state of a peer into another peer. **/
+  rpc GetPeerApprovalState(GetPeerApprovalStateRqst) returns (GetPeerApprovalStateRsp);
+
   /** Remove a peer from the network **/
   rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
 
@@ -881,6 +910,9 @@ service ResourceService {
       I will be imposible to request again and again, util it will be 
       explicitly removed from the peer's list */
   rpc RejectPeer(RejectPeerRqst) returns (RejectPeerRsp);
+
+  /** Return the public key of a peer. */
+  rpc GetPeerPublicKey(GetPeerPublicKeyRqst) returns (GetPeerPublicKeyRsp);
 
   ////////////////////////////////////////////////////////////////////////////
   // Notification's

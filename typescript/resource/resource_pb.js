@@ -90,6 +90,10 @@ goog.exportSymbol('proto.resource.GetPackageDescriptorRequest', null, global);
 goog.exportSymbol('proto.resource.GetPackageDescriptorResponse', null, global);
 goog.exportSymbol('proto.resource.GetPackagesDescriptorRequest', null, global);
 goog.exportSymbol('proto.resource.GetPackagesDescriptorResponse', null, global);
+goog.exportSymbol('proto.resource.GetPeerApprovalStateRqst', null, global);
+goog.exportSymbol('proto.resource.GetPeerApprovalStateRsp', null, global);
+goog.exportSymbol('proto.resource.GetPeerPublicKeyRqst', null, global);
+goog.exportSymbol('proto.resource.GetPeerPublicKeyRsp', null, global);
 goog.exportSymbol('proto.resource.GetPeersRqst', null, global);
 goog.exportSymbol('proto.resource.GetPeersRsp', null, global);
 goog.exportSymbol('proto.resource.GetRolesRqst', null, global);
@@ -19101,7 +19105,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.resource.Peer.repeatedFields_ = [6];
+proto.resource.Peer.repeatedFields_ = [8];
 
 
 
@@ -19132,12 +19136,14 @@ proto.resource.Peer.prototype.toObject = function(opt_includeInstance) {
  */
 proto.resource.Peer.toObject = function(includeInstance, msg) {
   var f, obj = {
-    domain: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    externalIpAddress: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    localIpAddress: jspb.Message.getFieldWithDefault(msg, 3, ""),
-    mac: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    state: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    actionsList: jspb.Message.getRepeatedField(msg, 6)
+    hostname: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    address: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    externalIpAddress: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    localIpAddress: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    mac: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    state: jspb.Message.getFieldWithDefault(msg, 7, 0),
+    actionsList: jspb.Message.getRepeatedField(msg, 8)
   };
 
   if (includeInstance) {
@@ -19176,25 +19182,33 @@ proto.resource.Peer.deserializeBinaryFromReader = function(msg, reader) {
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDomain(value);
+      msg.setHostname(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setExternalIpAddress(value);
+      msg.setAddress(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLocalIpAddress(value);
+      msg.setDomain(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.setMac(value);
+      msg.setExternalIpAddress(value);
       break;
     case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setLocalIpAddress(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
+      break;
+    case 7:
       var value = /** @type {!proto.resource.PeerApprovalState} */ (reader.readEnum());
       msg.setState(value);
       break;
-    case 6:
+    case 8:
       var value = /** @type {string} */ (reader.readString());
       msg.addActions(value);
       break;
@@ -19227,45 +19241,59 @@ proto.resource.Peer.prototype.serializeBinary = function() {
  */
 proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getDomain();
+  f = message.getHostname();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
-  f = message.getExternalIpAddress();
+  f = message.getAddress();
   if (f.length > 0) {
     writer.writeString(
       2,
       f
     );
   }
-  f = message.getLocalIpAddress();
+  f = message.getDomain();
   if (f.length > 0) {
     writer.writeString(
       3,
       f
     );
   }
-  f = message.getMac();
+  f = message.getExternalIpAddress();
   if (f.length > 0) {
     writer.writeString(
       4,
       f
     );
   }
+  f = message.getLocalIpAddress();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
   f = message.getState();
   if (f !== 0.0) {
     writer.writeEnum(
-      5,
+      7,
       f
     );
   }
   f = message.getActionsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      6,
+      8,
       f
     );
   }
@@ -19273,92 +19301,122 @@ proto.resource.Peer.serializeBinaryToWriter = function(message, writer) {
 
 
 /**
- * optional string domain = 1;
+ * optional string hostname = 1;
  * @return {string}
  */
-proto.resource.Peer.prototype.getDomain = function() {
+proto.resource.Peer.prototype.getHostname = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setDomain = function(value) {
+proto.resource.Peer.prototype.setHostname = function(value) {
   jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional string external_ip_address = 2;
+ * optional string address = 2;
  * @return {string}
  */
-proto.resource.Peer.prototype.getExternalIpAddress = function() {
+proto.resource.Peer.prototype.getAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setExternalIpAddress = function(value) {
+proto.resource.Peer.prototype.setAddress = function(value) {
   jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
 /**
- * optional string local_ip_address = 3;
+ * optional string domain = 3;
  * @return {string}
  */
-proto.resource.Peer.prototype.getLocalIpAddress = function() {
+proto.resource.Peer.prototype.getDomain = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setLocalIpAddress = function(value) {
+proto.resource.Peer.prototype.setDomain = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
 /**
- * optional string mac = 4;
+ * optional string external_ip_address = 4;
  * @return {string}
  */
-proto.resource.Peer.prototype.getMac = function() {
+proto.resource.Peer.prototype.getExternalIpAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /** @param {string} value */
-proto.resource.Peer.prototype.setMac = function(value) {
+proto.resource.Peer.prototype.setExternalIpAddress = function(value) {
   jspb.Message.setProto3StringField(this, 4, value);
 };
 
 
 /**
- * optional PeerApprovalState state = 5;
+ * optional string local_ip_address = 5;
+ * @return {string}
+ */
+proto.resource.Peer.prototype.getLocalIpAddress = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.Peer.prototype.setLocalIpAddress = function(value) {
+  jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string mac = 6;
+ * @return {string}
+ */
+proto.resource.Peer.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.Peer.prototype.setMac = function(value) {
+  jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional PeerApprovalState state = 7;
  * @return {!proto.resource.PeerApprovalState}
  */
 proto.resource.Peer.prototype.getState = function() {
-  return /** @type {!proto.resource.PeerApprovalState} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+  return /** @type {!proto.resource.PeerApprovalState} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
 };
 
 
 /** @param {!proto.resource.PeerApprovalState} value */
 proto.resource.Peer.prototype.setState = function(value) {
-  jspb.Message.setProto3EnumField(this, 5, value);
+  jspb.Message.setProto3EnumField(this, 7, value);
 };
 
 
 /**
- * repeated string actions = 6;
+ * repeated string actions = 8;
  * @return {!Array<string>}
  */
 proto.resource.Peer.prototype.getActionsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
 };
 
 
 /** @param {!Array<string>} value */
 proto.resource.Peer.prototype.setActionsList = function(value) {
-  jspb.Message.setField(this, 6, value || []);
+  jspb.Message.setField(this, 8, value || []);
 };
 
 
@@ -19367,12 +19425,634 @@ proto.resource.Peer.prototype.setActionsList = function(value) {
  * @param {number=} opt_index
  */
 proto.resource.Peer.prototype.addActions = function(value, opt_index) {
-  jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  jspb.Message.addToRepeatedField(this, 8, value, opt_index);
 };
 
 
 proto.resource.Peer.prototype.clearActionsList = function() {
   this.setActionsList([]);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.resource.GetPeerApprovalStateRqst = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.resource.GetPeerApprovalStateRqst, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.resource.GetPeerApprovalStateRqst.displayName = 'proto.resource.GetPeerApprovalStateRqst';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.resource.GetPeerApprovalStateRqst.prototype.toObject = function(opt_includeInstance) {
+  return proto.resource.GetPeerApprovalStateRqst.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.resource.GetPeerApprovalStateRqst} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerApprovalStateRqst.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    remotePeerAddress: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.resource.GetPeerApprovalStateRqst}
+ */
+proto.resource.GetPeerApprovalStateRqst.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.resource.GetPeerApprovalStateRqst;
+  return proto.resource.GetPeerApprovalStateRqst.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.resource.GetPeerApprovalStateRqst} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.resource.GetPeerApprovalStateRqst}
+ */
+proto.resource.GetPeerApprovalStateRqst.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRemotePeerAddress(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.resource.GetPeerApprovalStateRqst.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.resource.GetPeerApprovalStateRqst.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.resource.GetPeerApprovalStateRqst} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerApprovalStateRqst.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getRemotePeerAddress();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string mac = 1;
+ * @return {string}
+ */
+proto.resource.GetPeerApprovalStateRqst.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.GetPeerApprovalStateRqst.prototype.setMac = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string remote_peer_address = 2;
+ * @return {string}
+ */
+proto.resource.GetPeerApprovalStateRqst.prototype.getRemotePeerAddress = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.GetPeerApprovalStateRqst.prototype.setRemotePeerAddress = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.resource.GetPeerApprovalStateRsp = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.resource.GetPeerApprovalStateRsp, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.resource.GetPeerApprovalStateRsp.displayName = 'proto.resource.GetPeerApprovalStateRsp';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.resource.GetPeerApprovalStateRsp.prototype.toObject = function(opt_includeInstance) {
+  return proto.resource.GetPeerApprovalStateRsp.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.resource.GetPeerApprovalStateRsp} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerApprovalStateRsp.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    state: jspb.Message.getFieldWithDefault(msg, 1, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.resource.GetPeerApprovalStateRsp}
+ */
+proto.resource.GetPeerApprovalStateRsp.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.resource.GetPeerApprovalStateRsp;
+  return proto.resource.GetPeerApprovalStateRsp.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.resource.GetPeerApprovalStateRsp} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.resource.GetPeerApprovalStateRsp}
+ */
+proto.resource.GetPeerApprovalStateRsp.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {!proto.resource.PeerApprovalState} */ (reader.readEnum());
+      msg.setState(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.resource.GetPeerApprovalStateRsp.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.resource.GetPeerApprovalStateRsp.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.resource.GetPeerApprovalStateRsp} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerApprovalStateRsp.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getState();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional PeerApprovalState state = 1;
+ * @return {!proto.resource.PeerApprovalState}
+ */
+proto.resource.GetPeerApprovalStateRsp.prototype.getState = function() {
+  return /** @type {!proto.resource.PeerApprovalState} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/** @param {!proto.resource.PeerApprovalState} value */
+proto.resource.GetPeerApprovalStateRsp.prototype.setState = function(value) {
+  jspb.Message.setProto3EnumField(this, 1, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.resource.GetPeerPublicKeyRqst = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.resource.GetPeerPublicKeyRqst, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.resource.GetPeerPublicKeyRqst.displayName = 'proto.resource.GetPeerPublicKeyRqst';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.resource.GetPeerPublicKeyRqst.prototype.toObject = function(opt_includeInstance) {
+  return proto.resource.GetPeerPublicKeyRqst.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.resource.GetPeerPublicKeyRqst} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerPublicKeyRqst.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    mac: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    remotePeerAddress: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.resource.GetPeerPublicKeyRqst}
+ */
+proto.resource.GetPeerPublicKeyRqst.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.resource.GetPeerPublicKeyRqst;
+  return proto.resource.GetPeerPublicKeyRqst.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.resource.GetPeerPublicKeyRqst} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.resource.GetPeerPublicKeyRqst}
+ */
+proto.resource.GetPeerPublicKeyRqst.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRemotePeerAddress(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.resource.GetPeerPublicKeyRqst.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.resource.GetPeerPublicKeyRqst.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.resource.GetPeerPublicKeyRqst} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerPublicKeyRqst.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getRemotePeerAddress();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string mac = 1;
+ * @return {string}
+ */
+proto.resource.GetPeerPublicKeyRqst.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.GetPeerPublicKeyRqst.prototype.setMac = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string remote_peer_address = 2;
+ * @return {string}
+ */
+proto.resource.GetPeerPublicKeyRqst.prototype.getRemotePeerAddress = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.GetPeerPublicKeyRqst.prototype.setRemotePeerAddress = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.resource.GetPeerPublicKeyRsp = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.resource.GetPeerPublicKeyRsp, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.resource.GetPeerPublicKeyRsp.displayName = 'proto.resource.GetPeerPublicKeyRsp';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.resource.GetPeerPublicKeyRsp.prototype.toObject = function(opt_includeInstance) {
+  return proto.resource.GetPeerPublicKeyRsp.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.resource.GetPeerPublicKeyRsp} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerPublicKeyRsp.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    publicKey: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.resource.GetPeerPublicKeyRsp}
+ */
+proto.resource.GetPeerPublicKeyRsp.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.resource.GetPeerPublicKeyRsp;
+  return proto.resource.GetPeerPublicKeyRsp.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.resource.GetPeerPublicKeyRsp} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.resource.GetPeerPublicKeyRsp}
+ */
+proto.resource.GetPeerPublicKeyRsp.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPublicKey(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.resource.GetPeerPublicKeyRsp.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.resource.GetPeerPublicKeyRsp.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.resource.GetPeerPublicKeyRsp} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.resource.GetPeerPublicKeyRsp.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPublicKey();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string public_key = 1;
+ * @return {string}
+ */
+proto.resource.GetPeerPublicKeyRsp.prototype.getPublicKey = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.GetPeerPublicKeyRsp.prototype.setPublicKey = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
 };
 
 

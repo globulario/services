@@ -14,12 +14,17 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
+	"github.com/globulario/services/golang/persistence/persistence_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
+
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -38,6 +43,9 @@ var (
 
 	// keep map in memory.
 	ressourceInfos sync.Map
+
+	// Client connections.
+	clients sync.Map
 )
 
 func GetLogClient(domain string) (*log_client.Log_Client, error) {
@@ -65,6 +73,54 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 
 	}
 	return rbac_client_, nil
+}
+
+/**
+ * Get a client
+ */
+func getClient(name, address string) (globular_client.Client, error) {
+	id := Utility.GenerateUUID(name + "|" + address)
+
+	// Here I get existing client if it exist...
+	val, ok := clients.Load(id)
+	if ok {
+		return val.(globular_client.Client), nil
+	}
+
+	if name == "persistence.PersistenceService" {
+		client, err := persistence_client.NewPersistenceService_Client(address, name)
+		if err != nil {
+			return nil, err
+		}
+		clients.Store(id, client)
+		return client, nil
+	} else if name == "resource.ResourceService" {
+		client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+		if err != nil {
+			return nil, err
+		}
+		clients.Store(id, client)
+		// simply redirect the rquest the the good address and return the result to the caller...
+		return client, nil
+	}
+
+	return nil, errors.New("no service register with name " + name + " was found at address " + address)
+}
+
+/**
+ * Invoke a methode on a given client.
+ */
+func invoke(address, method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+	name := strings.Split(method, "/")[1]
+	client, err := getClient(name, address)
+	if err != nil {
+		return nil, err
+	}
+
+	// So here I will inject the mac address to give the other peer information about
+	// where the request came from...
+	// add key-value pairs of metadata to context
+	return client.Invoke(method, rqst, ctx)
 }
 
 /**
@@ -183,68 +239,51 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	// The token and the application id.
 	var token string
 	var application string
-	var domain string // This is the target domain, the one use in TLS certificate.
+	var domain string
+	var address string // the address if the token issuer
 	var organization string
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-
-		application = strings.Join(md["application"], "")
-		token = strings.Join(md["token"], "")
-
-		// in case of resource path.
-		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
-		if strings.HasSuffix(domain, ":") {
-			domain += "80"
-		}
-	}
 
 	// Here I will test if the
 	method := info.FullMethod
 
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+
+		// The application...
+		application = strings.Join(md["application"], "")
+		token = strings.Join(md["token"], "")
+
+		// origin := strings.Join(md["origin"], "")
+		// fmt.Println("-------------------------------> ", origin)
+
+		// in case of resource path.
+		// domain_ := strings.TrimSpace(strings.Join(md["domain"], ""))
+		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
+
+		// So here I will redirect the request to the correct client...
+		localConfig, err := config.GetLocalConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		domain = localConfig["Name"].(string)
+		if len(localConfig["Domain"].(string)) > 0 {
+			domain += "." + localConfig["Domain"].(string)
+		}
+
+		// In that case the request must be process by other peer so I will redirect
+		// the request to that peer and return it response.
+		address = domain + ":" + Utility.ToString(localConfig["PortHttp"])
+		if address != address_ && len(address_) > 0 {
+			fmt.Println("--------------> ", method, address, "redirect to ", address_)
+			return invoke(address_, method, rqst, ctx)
+		}
+	}
+
 	// If the call come from a local client it has hasAccess
-	hasAccess := false
-	// needed to get access to the system.
-	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" ||
-		method == "/services_manager.ServicesManagerServices/GetServiceConfig" ||
-		method == "/admin.AdminService/HasRunningProcess" ||
-		method == "/admin.AdminService/DownloadGlobular" ||
-		method == "/admin.AdminService/GetCertificates" ||
-		method == "/authentication.AuthenticationService/Authenticate" ||
-		method == "/authentication.AuthenticationService/RefreshToken" ||
-		method == "/authentication.AuthenticationService/SetPassword" ||
-		method == "/authentication.AuthenticationService/SetRootPassword" ||
-		method == "/authentication.AuthenticationService/SetRootEmail" ||
-		method == "/discovery.PackageDiscovery/FindPackages" ||
-		method == "/discovery.PackageDiscovery/GetPackagesDescriptor" ||
-		method == "/discovery.PackageDiscovery/GetPackageDescriptor" ||
-		method == "/dns.DnsService/GetA" ||
-		method == "/dns.DnsService/GetAAAA" ||
-		method == "/resource.ResourceService/UpdateSession" ||
-		method == "/resource.ResourceService/GetSession" ||
-		method == "/resource.ResourceService/RemoveSession" ||
-		method == "/resource.ResourceService/GetSessions" ||
-		method == "/resource.ResourceService/GetAccount" ||
-		method == "/resource.ResourceService/SetAccountContact" ||
-		method == "/resource.ResourceService/CreateNotification" ||
-		method == "/resource.ResourceService/DeleteNotification" ||
-		method == "/resource.ResourceService/RegisterPeer" ||
-		method == "/resource.ResourceService/AccountExist" ||
-		method == "/resource.ResourceService/SetAccountPassword" ||
-		method == "/resource.ResourceService/RegisterAccount" ||
-		method == "/resource.ResourceService/GetPackageDescriptor" ||
-		method == "/rbac.RbacService/GetActionResourceInfos" ||
-		method == "/rbac.RbacService/ValidateAction" ||
-		method == "/rbac.RbacService/ValidateAccess" ||
-		method == "/rbac.RbacService/GetResourcePermissions" ||
-		method == "/rbac.RbacService/GetResourcePermission" ||
-		method == "/services_manager.ServicesManagerService/GetServicesConfiguration" ||
-		method == "/file.FileService/CreateAchive" ||
-		method == "/persistence.PersistenceService/CreateConnection" ||
-		strings.HasPrefix(method, "/log.LogService/") ||
-		strings.HasPrefix(method, "/authentication.AuthenticationService/") ||
-		strings.HasPrefix(method, "/event.EventService/") ||
-		strings.HasPrefix(method, "/monitoring.MonitoringService") ||
-		strings.HasPrefix(method, "/blog.BlogService") {
+	hasAccess := true
+
+	// Set the list of restricted method here...
+	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" {
 		hasAccess = true
 	}
 
@@ -253,27 +292,28 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var issuer string
 
 	if len(token) > 0 {
-		clientId, _, _, issuer, _, err = security.ValidateToken(token)
+		claims, err := security.ValidateToken(token)
 		if err != nil && !hasAccess {
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
-		if clientId == "sa" {
-			hasAccess = true
-		}
+
+		clientId = claims.Id
+		issuer = claims.Issuer
+		fmt.Println("client id: ", clientId+"@"+domain)
 	}
 
 	// Test if peer has access
 	if !hasAccess && len(clientId) > 0 {
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, domain)
+		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, address)
 	}
 
 	if !hasAccess && len(application) > 0 {
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, domain)
+		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, address)
 	}
 
 	if !hasAccess && len(issuer) > 0 {
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, domain)
+		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, address)
 	}
 
 	if !hasAccess {
@@ -296,9 +336,11 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 // A wrapper for the real grpc.ServerStream
 type ServerStreamInterceptorStream struct {
-	inner        grpc.ServerStream
+	inner        grpc.ServerStream // default stream
+	redirect     grpc.ServerStream // redirected stream...
 	method       string
-	domain       string
+	address      string
+	redirect_to  string // the redirection address
 	organization string
 	peer         string
 	token        string
@@ -332,26 +374,10 @@ func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
  * rqst, so I can validate it resources.
  */
 func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
+
 	// First of all i will get the message.
 	l.inner.RecvMsg(rqst)
-
-	hasAccess := l.clientId == "sa" ||
-		l.method == "/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo" ||
-		l.method == "/admin.AdminService/DownloadGlobular" ||
-		l.method == "/admin.AdminService/GetProcessInfos" ||
-		l.method == "/repository.PackageRepository/DownloadBundle" ||
-		l.method == "/resource.ResourceService/GetApplications" ||
-		l.method == "/resource.ResourceService/GetSessions" ||
-		l.method == "/resource.ResourceService/GetAccounts" ||
-		l.method == "/resource.ResourceService/GetPeers" ||
-		l.method == "/resource.ResourceService/GetRoles" ||
-		l.method == "/resource.ResourceService/GetGroups" ||
-		l.method == "/resource.ResourceService/GetOrganizations" ||
-		l.method == "/resource.ResourceService/GetNotifications" ||
-		l.method == "/file.FileService/ReadDir" ||
-		strings.HasPrefix(l.method, "/monitoring.MonitoringService") ||
-		strings.HasPrefix(l.method, "/log.LogService/") ||
-		strings.HasPrefix(l.method, "/blog.BlogService")
+	hasAccess := true
 
 	if hasAccess {
 		//fmt.Println("user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.domain + " application:" + l.application)
@@ -367,21 +393,21 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 
 	// Test if peer has access
 	if !hasAccess && len(l.clientId) > 0 {
-		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.clientId, rbacpb.SubjectType_ACCOUNT, l.domain)
+		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.clientId, rbacpb.SubjectType_ACCOUNT, l.address)
 	}
 
 	if !hasAccess && len(l.application) > 0 {
 
-		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.application, rbacpb.SubjectType_APPLICATION, l.domain)
+		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.application, rbacpb.SubjectType_APPLICATION, l.address)
 
 	}
 
 	if !hasAccess && len(l.peer) > 0 {
-		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.peer, rbacpb.SubjectType_PEER, l.domain)
+		hasAccess, _ = validateActionRequest(l.token, l.application, l.organization, rqst, l.method, l.peer, rbacpb.SubjectType_PEER, l.address)
 	}
 
 	if !hasAccess {
-		err := errors.New("Permission denied to execute method " + l.method + " user:" + l.clientId + " domain:" + l.domain + " application:" + l.application)
+		err := errors.New("Permission denied to execute method " + l.method + " user:" + l.clientId + " address:" + l.address + " application:" + l.application)
 		return err
 	}
 
@@ -400,39 +426,61 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	var application string
 
 	// The peer domain.
-	var domain string
+	var domain string      // This is the target domain, the one use in TLS certificate.
+	var address string     // the address if the token issuer
+	var redirect_to string // the redirection address
+
+	method := info.FullMethod
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
-
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-		
 
-		// in case of resource path.
-		domain = strings.TrimSpace(strings.Join(md["domain"], ""))
-		if strings.HasSuffix(domain, ":") {
-			domain += "80"
+		// So here I will redirect the request to the correct client...
+		localConfig, err := config.GetLocalConfig()
+		if err != nil {
+			return err
+		}
+
+		domain = localConfig["Name"].(string)
+		if len(localConfig["Domain"].(string)) > 0 {
+			domain += "." + localConfig["Domain"].(string)
+		}
+
+		// In that case the request must be process by other peer so I will redirect
+		// the request to that peer and return it response.
+		address = domain + ":" + Utility.ToString(localConfig["PortHttp"])
+		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
+		if address != address_ && len(address_) > 0 {
+			// return invoke(address, method, rqst, ctx)
+			fmt.Println("create a stream to redirect the receive and send message to it")
+			fmt.Println("redirect ", address, "----> ", address_)
+			redirect_to = address_
 		}
 	}
 
-	method := info.FullMethod
 	var clientId string
 	var issuer string
 	var err error
 
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
-		clientId, _, _, issuer, _, err = security.ValidateToken(token)
+		claims, err := security.ValidateToken(token)
 		if err != nil {
+			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
+			fmt.Println(token)
 			return err
 		}
+
+		clientId = claims.Id
+		issuer = claims.Issuer
 	}
 
 	// The uuid will be use to set hasAccess into the cache.
 	uuid := Utility.RandomUUID()
 
 	// Start streaming.
-	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, domain: domain, token: token, application: application, clientId: clientId, peer: issuer})
+	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer, redirect_to: redirect_to})
 
 	if err != nil {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)

@@ -18,7 +18,6 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-
 	"github.com/golang/protobuf/jsonpb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 
@@ -118,24 +117,16 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	key, err := security.GetLocalKey()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Generate a token to identify the user.
-	tokenString, err := security.GenerateToken(key, resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
-	id, _, _, _, expireAt, _ := security.ValidateToken(tokenString)
-
+	tokenString, _ := security.GenerateToken(resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.updateSession(id, 0, time.Now().Unix(), expireAt)
+	err = resource_server.updateSession(claims.Id, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -170,7 +161,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	account := values.(map[string]interface{})
-	a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Password: account["password"].(string)}
+	a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Password: account["password"].(string), Domain: account["domain"].(string)}
 
 	if account["groups"] != nil {
 		groups := []interface{}(account["groups"].(primitive.A))
@@ -219,13 +210,15 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			clientId = claims.Id
 		} else {
 			return nil, errors.New("no token was given")
 		}
@@ -565,7 +558,6 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 			if err == nil {
 				// Here I will send delete contact event.
-				resource_server.publishEvent("update_peers_evt", []byte{})
 				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"_evt", []byte{})
 			}
 
@@ -1448,9 +1440,9 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 
 // Register the actual peer (the one that running the resource server) to the one
 // running at domain.
-func (resource_server *server) registerPeer(token, domain string) (*resourcepb.Peer, string, error){
-	// Connect to remove server and call Register peer on it...
-	client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
+	// Connect to remote server and call Register peer on it...
+	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		return nil, "", err
 	}
@@ -1461,114 +1453,126 @@ func (resource_server *server) registerPeer(token, domain string) (*resourcepb.P
 		return nil, "", err
 	}
 
-	return client.RegisterPeer(token, Utility.MyMacAddr(), resource_server.Domain, Utility.MyIP(), Utility.MyLocalIP(), string(key))
+	// Get the configuration address with it http port...
+	localConfig, err := config.GetLocalConfig()
+	if err != nil {
+		return nil, "", err
+	}
+	address_ := localConfig["Name"].(string)
+	if len(localConfig["Domain"].(string)) > 0 {
+		address_ += "." + localConfig["Domain"].(string)
+	}
+	address_ += ":" + Utility.ToString(localConfig["PortHttp"])
+	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: localConfig["Name"].(string), Mac: Utility.MyMacAddr(), Domain: localConfig["Domain"].(string), ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
 }
 
-//* Connect to peer toggether on the network.
+//* Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
-	_id := Utility.GenerateUUID(rqst.Peer.Mac) // The peer mac address will be use as peers id
-
-	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, "")
-	if count > 0 {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer with name '"+rqst.Peer.Domain+"' already exist!")))
+	if len(rqst.Peer.Mac) > 0 {
+		count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
+		if count > 0 {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer with name '"+rqst.Peer.Mac+"' already exist!")))
+		}
 	}
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
 	peer := make(map[string]interface{})
-	peer["_id"] = _id
+	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
 
-	// If no mac address was given it mean the request came from a web application 
+	// If no mac address was given it mean the request came from a web application
 	// so the intention is to register the server itself on another server...
-	// This can also be done with the command line tool but in that case all values will be 
+	// This can also be done with the command line tool but in that case all values will be
 	// set on the peers...
 	if len(rqst.Peer.Mac) == 0 {
 		if md, ok := metadata.FromIncomingContext(ctx); ok {
 			token := strings.Join(md["token"], "")
-			if len(token) > 0 {
-				// In that case I want ot register the server to another server.
-				peer_, public_key,  err:=resource_server.registerPeer(token, rqst.Peer.Domain)
 
-				// Save the received values on the db
-				peer := make(map[string]interface{})
-				peer["_id"] = _id
-				peer["domain"] = peer_.Domain
-				peer["mac"] = peer_.Mac
-				peer["local_ip_address"] = peer_.LocalIpAddress
-				peer["external_ip_address"] = peer_.ExternalIpAddress
-				peer["state"] = peer_.State
-				peer["actions"] = []interface{}{}
-
-				if err != nil {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-
-				_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
-				if err != nil {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-			
-				// Here I wiil save the public key in the keys directory.
-				err = security.SetPeerPublicKey(peer_.Mac, public_key)
-				if err != nil {
-					return nil, status.Errorf(
-						codes.Internal,
-						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-				}
-
-				// Send back the peers informations.
-				return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
-
-			}else{
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
-			}
-		}else {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
-
-		}
-	}
-
-	peer["mac"] = rqst.Peer.Mac
-	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
-	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
-	peer["state"] = resourcepb.PeerApprovalState_PEER_PENDING
-	peer["actions"] = []interface{}{}
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
-		if len(token) > 0 {
-			clientId, _, _, _, _, err := security.ValidateToken(token)
+			// In that case I want to register the server to another server.
+			peer_, public_key, err := resource_server.registerPeer(token, rqst.Peer.Address)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			if clientId == "sa" {
-				peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
-				peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
+			// Save the received values on the db
+			peer := make(map[string]interface{})
+			peer["_id"] = Utility.GenerateUUID(peer_.Mac) // The peer mac address will be use as peers id
+			peer["domain"] = peer_.Domain
+
+			// keep the address where the configuration can be found...
+			// in case of docker instance that will be usefull to get peer addres config...
+			peer["address"] = rqst.Peer.Address
+			peer["hostname"] = peer_.Hostname
+			peer["mac"] = peer_.Mac
+			peer["local_ip_address"] = peer_.LocalIpAddress
+			peer["external_ip_address"] = peer_.ExternalIpAddress
+			peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
+			peer["actions"] = []interface{}{}
+
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			// Here I wiil save the public key in the keys directory.
+			err = security.SetPeerPublicKey(peer_.Mac, public_key)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			// set the remote peer in /etc/hosts
+			resource_server.setLocalHosts(peer_)
+
+			// Here I will append the resource owner...
+			domain := peer_.Hostname
+			if len(peer_.Domain) > 0 {
+				domain += "." + peer_.Domain
+			}
+
+			// in case local dns is use that peers will be able to change values releated to it domain.
+			// but no other peer will be able to do it...
+			resource_server.addResourceOwner(domain, peer_.Mac, rbacpb.SubjectType_PEER)
+
+			// Update peer event.
+			resource_server.publishEvent("update_peers_evt", []byte{})
+			resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
+
+			// Set peer action
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetAAAA"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetCAA"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetText"})
+			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/RemoveText"})
+
+			// Send back the peers informations.
+			return &resourcepb.RegisterPeerRsp{Peer: peer_, PublicKey: public_key}, nil
 
 		} else {
 			return nil, status.Errorf(
@@ -1578,6 +1582,39 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		}
 	}
 
+	// Here I will keep the peer info bethween it will be accepted by the admin of the other peer.
+	peer["_id"] = Utility.GenerateUUID(rqst.Peer.Mac)
+	peer["mac"] = rqst.Peer.Mac
+	peer["address"] = rqst.Peer.Address
+	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
+	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
+	peer["state"] = resourcepb.PeerApprovalState_PEER_PENDING
+	peer["actions"] = []interface{}{}
+
+	// if the token is generate by the sa and it has permission i will accept the peer directly
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err == nil {
+				if claims.Id == "sa" {
+					peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
+					peer["actions"] = []interface{}{"/dns.DnsService/SetA"}
+					peer["actions"] = []interface{}{"/dns.DnsService/SetAAAA"}
+					peer["actions"] = []interface{}{"/dns.DnsService/SetCAA"}
+					peer["actions"] = []interface{}{"/dns.DnsService/SetText"}
+					peer["actions"] = []interface{}{"/dns.DnsService/RemoveText"}
+					domain := rqst.Peer.Hostname
+					if len(rqst.Peer.Domain) > 0 {
+						domain += "." + rqst.Peer.Domain
+					}
+					resource_server.addResourceOwner(domain, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+				}
+			}
+		}
+	}
+
+	// Insert the peer into the local resource database.
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Peers", peer, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -1594,8 +1631,25 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}
 
 	// Now I will return peers actual informations.
+	hostname, _ := os.Hostname()
+
+	localConfig, err := config.GetLocalConfig()
+	address := localConfig["Name"].(string)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	if len(localConfig["Domain"].(string)) > 0 {
+		address += "." + localConfig["Domain"].(string)
+	}
+
+	address += ":" + Utility.ToString(localConfig["PortHttp"])
+
 	peer_ := new(resourcepb.Peer)
-	peer_.Domain = resource_server.Domain
+	peer_.Address = address
+	peer_.Hostname = hostname
+	peer_.Domain = localConfig["Domain"].(string)
 	peer_.ExternalIpAddress = Utility.MyIP()
 	peer_.LocalIpAddress = Utility.MyLocalIP()
 	peer_.Mac = Utility.MyMacAddr()
@@ -1611,6 +1665,10 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
+
+	// set the remote peer in /etc/hosts
+	resource_server.setLocalHosts(peer_)
 
 	return &resourcepb.RegisterPeerRsp{
 		Peer:      peer_,
@@ -1618,10 +1676,21 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}, nil
 }
 
+//* Return the peer public key */
+func (resource_server *server) GetPeerPublicKey(ctx context.Context, rqst *resourcepb.GetPeerPublicKeyRqst) (*resourcepb.GetPeerPublicKeyRsp, error) {
+	public_key, err := resource_server.getPeerPublicKey(rqst.RemotePeerAddress, rqst.Mac)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.GetPeerPublicKeyRsp{PublicKey: public_key}, nil
+}
+
 //* Accept a given peer *
 func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRqst) (*resourcepb.AcceptPeerRsp, error) {
 	// Get the persistence connection
-	_id := Utility.GenerateUUID(rqst.Peer.Mac)
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1629,7 +1698,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, `{ "$set":{"state":"`+Utility.ToString(resourcepb.PeerApprovalState_PEER_ACCETEP)+`"}}`, "")
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, `{ "$set":{"state":1}}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1637,15 +1706,28 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Add actions require by peer...
-	err = resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetA"})
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetA"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetAAAA"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetCAA"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/SetText"})
+	resource_server.addPeerActions(rqst.Peer.Mac, []string{"/dns.DnsService/RemoveText"})
+
+	// set the remote peer in /etc/hosts
+	resource_server.setLocalHosts(rqst.Peer)
+
+	// Here I will append the resource owner...
+	domain := rqst.Peer.Hostname
+	if len(rqst.Peer.Domain) > 0 {
+		domain += "." + rqst.Peer.Domain
 	}
+
+	// in case local dns is use that peers will be able to change values releated to it domain.
+	// but no other peer will be able to do it...
+	resource_server.addResourceOwner(domain, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
 
 	return &resourcepb.AcceptPeerRsp{Result: true}, nil
 }
@@ -1654,7 +1736,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 //I will be imposible to request again and again, util it will be
 //explicitly removed from the peer's list
 func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRqst) (*resourcepb.RejectPeerRsp, error) {
-	_id := Utility.GenerateUUID(rqst.Peer.Mac)
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1662,7 +1744,7 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, `{ "$set":{"state":"`+Utility.ToString(resourcepb.PeerApprovalState_PEER_REJECTED)+`"}}`, "")
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, `{ "$set":{"state":2}}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1671,8 +1753,28 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
 
 	return &resourcepb.RejectPeerRsp{Result: true}, nil
+}
+
+/**
+ * Return the state of approval of a peer by anther one.
+ */
+func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.GetPeerApprovalStateRqst) (*resourcepb.GetPeerApprovalStateRsp, error) {
+	mac := rqst.Mac
+	if len(mac) == 0 {
+		mac = Utility.MyMacAddr()
+	}
+
+	peer, err := resource_server.getPeerInfos(rqst.RemotePeerAddress, mac)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.GetPeerApprovalStateRsp{State: peer.GetState()}, nil
 }
 
 //* Return the list of authorized peers *
@@ -1700,7 +1802,8 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	values := make([]*resourcepb.Peer, 0)
 
 	for i := 0; i < len(peers); i++ {
-		p := &resourcepb.Peer{Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))}
+		state := resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))
+		p := &resourcepb.Peer{Address: peers[i].(map[string]interface{})["address"].(string), Hostname: peers[i].(map[string]interface{})["hostname"].(string), Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
 		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
 		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
 			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))
@@ -1749,9 +1852,7 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
-	_id := Utility.GenerateUUID(rqst.Peer.Mac)
-
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1759,16 +1860,31 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Delete permissions
-	err = p.Delete(context.Background(), "local_resource", "local_resource", "Permissions", `{"owner":"`+_id+`"}`, "")
+	err = p.Delete(context.Background(), "local_resource", "local_resource", "Permissions", `{"owner":"`+rqst.Peer.Mac+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Delete peer public key...
+	security.DeletePublicKey(rqst.Peer.Mac)
+
+	// remove from /etc/hosts
+	resource_server.removeFromLocalHosts(rqst.Peer)
+
+	// Here I will append the resource owner...
+	domain := rqst.Peer.Hostname
+	if len(rqst.Peer.Domain) > 0 {
+		domain += "." + rqst.Peer.Domain
+	}
+
+	// remove permission associated with that peer...
+	resource_server.deleteResourcePermissions(domain)
+
 	// signal peers changes...
-	resource_server.publishEvent("delete_peer"+_id+"_evt", []byte{})
-	resource_server.publishEvent("delete_peer_evt", []byte(_id))
+	resource_server.publishEvent("delete_peer"+rqst.Peer.Mac+"_evt", []byte{})
+	resource_server.publishEvent("delete_peer_evt", []byte(rqst.Peer.Mac))
 
 	return &resourcepb.DeletePeerRsp{
 		Result: true,
@@ -1780,9 +1896,8 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 	if err != nil {
 		return err
 	}
-	_id := Utility.GenerateUUID(mac)
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+mac+`"}`, ``)
 	if err != nil {
 		return err
 	}
@@ -1813,14 +1928,14 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 
 	if needSave {
 		jsonStr := serialyseObject(peer)
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+mac+`"}`, string(jsonStr), ``)
 		if err != nil {
 			return err
 		}
 	}
 
 	// signal peers changes...
-	resource_server.publishEvent("update_peer"+_id+"_evt", []byte{})
+	resource_server.publishEvent("update_peer_"+mac+"_evt", []byte{})
 
 	return nil
 }
@@ -1835,7 +1950,7 @@ func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourc
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.publishEvent("update_peer"+rqst.Mac+"_evt", []byte{})
+	resource_server.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{})
 
 	return &resourcepb.AddPeerActionsRsp{Result: true}, nil
 
@@ -1849,8 +1964,7 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 		return nil, err
 	}
 
-	_id := Utility.GenerateUUID(rqst.Mac)
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Mac+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1885,7 +1999,7 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 
 	if needSave {
 		jsonStr := serialyseObject(peer)
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+_id+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Mac+`"}`, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1894,7 +2008,7 @@ func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resou
 	}
 
 	// signal peers changes...
-	resource_server.publishEvent("update_peer"+rqst.Mac+"_evt", []byte{})
+	resource_server.publishEvent("update_peer_"+rqst.Mac+"_evt", []byte{})
 
 	return &resourcepb.RemovePeerActionRsp{Result: true}, nil
 }
@@ -1939,7 +2053,7 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 		if needSave {
 			jsonStr := serialyseObject(peer)
 			err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+peer["_id"].(string)+`"}`, string(jsonStr), ``)
-			resource_server.publishEvent("update_peer"+peer["_id"].(string)+"_evt", []byte{})
+			resource_server.publishEvent("update_peer_"+peer["_id"].(string)+"_evt", []byte{})
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,

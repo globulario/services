@@ -16,7 +16,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 const proto = {};
-proto.resource = require('../resource/resource_pb.js');
+proto.resource = require('./resource_pb.js');
 
 /**
  * @param {string} hostname
@@ -2849,6 +2849,67 @@ proto.resource.ResourceServicePromiseClient.prototype.getPeers =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetPeerApprovalStateRqst,
+ *   !proto.resource.GetPeerApprovalStateRsp>}
+ */
+const methodDescriptor_ResourceService_GetPeerApprovalState = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetPeerApprovalState',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetPeerApprovalStateRqst,
+  proto.resource.GetPeerApprovalStateRsp,
+  /**
+   * @param {!proto.resource.GetPeerApprovalStateRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetPeerApprovalStateRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetPeerApprovalStateRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetPeerApprovalStateRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetPeerApprovalStateRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getPeerApprovalState =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerApprovalState',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerApprovalState,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetPeerApprovalStateRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetPeerApprovalStateRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getPeerApprovalState =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerApprovalState',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerApprovalState);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.DeletePeerRqst,
  *   !proto.resource.DeletePeerRsp>}
  */
@@ -3209,6 +3270,67 @@ proto.resource.ResourceServicePromiseClient.prototype.rejectPeer =
       request,
       metadata || {},
       methodDescriptor_ResourceService_RejectPeer);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetPeerPublicKeyRqst,
+ *   !proto.resource.GetPeerPublicKeyRsp>}
+ */
+const methodDescriptor_ResourceService_GetPeerPublicKey = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetPeerPublicKey',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetPeerPublicKeyRqst,
+  proto.resource.GetPeerPublicKeyRsp,
+  /**
+   * @param {!proto.resource.GetPeerPublicKeyRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetPeerPublicKeyRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetPeerPublicKeyRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetPeerPublicKeyRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetPeerPublicKeyRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getPeerPublicKey =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerPublicKey',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerPublicKey,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetPeerPublicKeyRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetPeerPublicKeyRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getPeerPublicKey =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetPeerPublicKey',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetPeerPublicKey);
 };
 
 

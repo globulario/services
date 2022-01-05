@@ -6,12 +6,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
-	"time"
-
 	"sync"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
@@ -146,6 +146,70 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	}
 
 	return services, nil
+}
+
+/**
+ * Get the remote client configuration.
+ */
+ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
+
+	// Here I will get the configuration information from http...
+	var resp *http.Response
+	var err error
+	var configAddress = "http://" + address + ":" + Utility.ToString(port) + "/config"
+	resp, err = http.Get(configAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+
+	var config map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&config)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
+
+
+/**
+ * Return the server local configuration if one exist.
+ */
+ func GetLocalConfig() (map[string]interface{}, error) {
+	ConfigPath := GetConfigDir() + "/config.json"
+	if !Utility.Exists(ConfigPath) {
+		return nil, errors.New("no local Globular configuration found")
+	}
+
+	fmt.Println("local configuation found at ", ConfigPath)
+
+	config := make(map[string]interface{})
+	data, err := ioutil.ReadFile(ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now I will read the services configurations...
+	config["Services"] = make(map[string]interface{})
+
+	// use the GLOBULAR_SERVICES_ROOT path if it set... or the Root (/usr/local/share/globular)
+	services_config, err := GetServicesConfigurations()
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < len(services_config); i++ {
+		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
+	}
+
+	return config, nil
 }
 
 /**

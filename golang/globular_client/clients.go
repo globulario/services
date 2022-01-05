@@ -169,7 +169,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	if cc == nil {
 		address := client.GetAddress()
 		if client.HasTLS() {
-	
+
 			// Setup the login/pass simple test...
 			if len(client.GetKeyFile()) == 0 {
 				err := errors.New("no key file is available for client ")
@@ -239,24 +239,34 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 func GetClientContext(client Client) context.Context {
 
 	var ctx context.Context
-	// if the address is local.
-	address := client.GetDomain()
 
-	err := Utility.CreateDirIfNotExist(tokensPath)
+	// if the address is local.
+	localConfig, err := config.GetLocalConfig()
+	if err != nil {
+		return nil
+	}
+
+	address := localConfig["Name"].(string)
+	if len(localConfig["Domain"].(string)) > 0 {
+		address += "." + localConfig["Domain"].(string)
+	}
+
+	err = Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
 		log.Panicln("fail to create token dir ", tokensPath)
 	}
 
-	// Get the token for that domain if it exist
-	token, err := security.GetLocalToken(client.GetDomain())
+	// Get the last valid token if it exist
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr()})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": client.GetMac()})
+	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr()})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
+
 	return ctx
 
 }

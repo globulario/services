@@ -47,12 +47,16 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	isLocal := true
 
 	if err == nil {
-		domain := serverConfig["Domain"].(string)
-		if len(serverConfig["Name"].(string)) > 0 {
-			domain = serverConfig["Name"].(string) + "." + domain
+		// The way the domain is create must be the same here 
+		// and in the file globular.go at function getDomain()
+		domain := serverConfig["Name"].(string)
+		if len(serverConfig["Domain"].(string)) > 0 {
+			domain +=  "." + serverConfig["Domain"].(string)
+		}else if len(serverConfig["Domain"].(string)) == 0 &&  len(serverConfig["Name"].(string)) == 0 {
+			domain = "localhost"
 		}
 
-		if domain != address {
+		if strings.ToLower(domain) != strings.ToLower(address) {
 			isLocal = false
 		}
 
@@ -63,7 +67,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	if !isLocal {
 		// First I will retreive the server configuration.
 		log.Println("get remote client configuration for ", address, port)
-		serverConfig, err = getRemoteConfig(address, port)
+		serverConfig, err = config_.GetRemoteConfig(address, port)
 		if err != nil {
 			return nil, err
 		}
@@ -177,31 +181,6 @@ func getLocalConfig() (map[string]interface{}, error) {
 
 	for i := 0; i < len(services_config); i++ {
 		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
-	}
-
-	return config, nil
-}
-
-/**
- * Get the remote client configuration.
- */
-func getRemoteConfig(address string, port int) (map[string]interface{}, error) {
-
-	// Here I will get the configuration information from http...
-	var resp *http.Response
-	var err error
-	var configAddress = "http://" + address + ":" + Utility.ToString(port) + "/config"
-	resp, err = http.Get(configAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	var config map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&config)
-	if err != nil {
-		return nil, err
 	}
 
 	return config, nil
@@ -839,6 +818,14 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 // https://www.youtube.com/watch?v=NmM9HA2MQGI&ab_channel=Computerphile
 //
 ////////////////////////////////////////////////////////////////////////////////////
+func DeletePublicKey(id string) error{
+	_, err := os.ReadFile(keyPath + "/" + id + "_public")
+	if err != nil {
+		return err
+	}
+
+	return os.Remove(keyPath + "/" + id + "_public")
+}
 
 /**
  * Generate keys and save it at given path.
@@ -929,6 +916,10 @@ func GetLocalKey() ([]byte, error) {
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
 	id := strings.ReplaceAll(Utility.MyMacAddr(), ":", "_")
+	if !Utility.Exists(keyPath + "/" + id + "_public"){
+		return nil, errors.New("no public key found at path " + keyPath + "/" + id + "_public")
+	}
+
 	var err error
 	localKey, err = ioutil.ReadFile(keyPath + "/" + id + "_public")
 
@@ -961,9 +952,9 @@ func GetPeerKey(id string) ([]byte, error) {
 	file_public, err := os.Open(keyPath + "/" + id + "_public")
 
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
+
 	defer file_public.Close()
 
 	info, err := file_public.Stat()

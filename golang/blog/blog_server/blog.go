@@ -33,12 +33,13 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			err := errors.New("no token was given")
 			return nil, status.Errorf(
@@ -108,12 +109,13 @@ func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			err := errors.New("no token was given")
 			return nil, status.Errorf(
@@ -191,12 +193,13 @@ func (svr *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			err := errors.New("no token was given")
 			return nil, status.Errorf(
@@ -223,12 +226,13 @@ func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			err := errors.New("no token was given")
 			return nil, status.Errorf(
@@ -311,12 +315,13 @@ func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
 		if len(token) > 0 {
-			clientId, _, _, _, _, err = security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+			clientId = claims.Id
 		} else {
 			err := errors.New("no token was given")
 			return nil, status.Errorf(

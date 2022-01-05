@@ -2,11 +2,8 @@ package authentication_client
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
-	"os"
 	"strconv"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
@@ -87,7 +84,7 @@ func (client *Authentication_Client) GetCtx() context.Context {
 	}
 
 	// refresh the client as needed...
-	token, err := security.GetLocalToken(client.GetDomain())
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
@@ -203,11 +200,10 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 		return "", err
 	}
 
-	path := tokensPath + "/" + client.GetDomain() + "_token"
-
 	rqst := &authenticationpb.AuthenticateRqst{
 		Name:     name,
 		Password: password,
+		Issuer : Utility.MyMacAddr(),
 	}
 
 	log.Println("Authenticate", name, " on domain ", client.GetDomain())
@@ -216,23 +212,6 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 	if err != nil {
 		log.Println("fail to authenticate!")
 		return "", err
-	}
-
-	// Here I will save the token into the temporary directory the token will be valid for a given time (default is 15 minutes)
-	// it's the responsability of the client to keep it refresh... see Refresh token from the server...
-	if !Utility.IsLocal(client.GetDomain()) {
-		// remove the file if it already exist.
-		if Utility.Exists(path) {
-			err := os.Remove(path)
-			if err != nil {
-				return "", err
-			}
-		}
-		// create the new token for the domain.
-		err = ioutil.WriteFile(path, []byte(rsp.Token), 0644)
-		if err != nil {
-			return "", err
-		}
 	}
 
 	return rsp.Token, nil

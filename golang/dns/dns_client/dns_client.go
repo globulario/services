@@ -79,7 +79,7 @@ func (client *Dns_Client ) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
 	}
-	token, err := security.GetLocalToken(client.GetDomain())
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
@@ -214,12 +214,11 @@ func (client *Dns_Client ) GetA(domain string) (string, error) {
 
 // Register a subdomain to a domain.
 // ex: toto.globular.io is the subdomain to globular.io, so here
-// domain will be globular.io and subdomain toto.globular.io. The validation will
-// be done by globular.io and not the dns itclient.
-func (client *Dns_Client ) SetA(token, domain, subdomain, ipv4 string, ttl uint32) (string, error) {
+// toto.globular.io. The validation will
+func (client *Dns_Client ) SetA(token, domain, ipv4 string, ttl uint32) (string, error) {
 
 	rqst := &dnspb.SetARequest{
-		Domain: subdomain,
+		Domain: domain,
 		A:      ipv4,
 		Ttl:    ttl,
 	}

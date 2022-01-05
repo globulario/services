@@ -60,7 +60,7 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 	client := new(Rbac_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
-		
+
 		return nil, err
 	}
 	client.cc, err = globular.GetClientConnection(client)
@@ -83,9 +83,9 @@ func (client *Rbac_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
 	}
-	token, err := security.GetLocalToken(client.GetDomain())
+	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac":client.GetMac()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx

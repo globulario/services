@@ -11,12 +11,15 @@ import (
 	"io/ioutil"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -29,15 +32,15 @@ var (
 //* Validate a token *
 func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 
-	id, _, _, _, expireAt, err := security.ValidateToken(rqst.Token)
+	claims, err := security.ValidateToken(rqst.Token)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 	return &authenticationpb.ValidateTokenRsp{
-		ClientId: id,
-		Expired:  expireAt,
+		ClientId: claims.Id,
+		Expired:  claims.StandardClaims.ExpiresAt,
 	}, nil
 }
 
@@ -45,7 +48,7 @@ func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.
 func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
 
 	// first of all I will validate the current token.
-	id, name, email, issuer, expireAt, err := security.ValidateToken(rqst.Token)
+	claims, err := security.ValidateToken(rqst.Token)
 
 	if err != nil {
 		if !strings.HasPrefix(err.Error(), "token is expired") {
@@ -56,51 +59,38 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	}
 
 	// If the token is older than seven day without being refresh then I retrun an error.
-	if time.Unix(expireAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
+	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	key, err := security.GetPeerKey(issuer)
+	tokenString, err := security.GenerateToken(server.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), id, name, email)
+	// get the active session.
+	session, err := server.getSession(claims.Id)
+	if err != nil {
+		session = new(resourcepb.Session)
+		session.AccountId = claims.Id
+		session.State = resourcepb.SessionState_ONLINE
+	}
+
+	// get back the new expireAt
+	claims, _ = security.ValidateToken(tokenString)
+	session.ExpireAt = claims.StandardClaims.ExpiresAt
+
+	// server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
+	// save the session in the backend.
+	err = server.updateSession(session)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	// Here I will refresh the existing token file.
-	if id == "sa" {
-		// So here I will keep the token...
-		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
-	} else {
-		// get the active session.
-		session, err := server.getSession(id)
-		if err != nil {
-			session = new(resourcepb.Session)
-			session.AccountId = id
-			session.State = resourcepb.SessionState_ONLINE
-		}
-
-		// get back the new expireAt
-		_, _, _, _, expireAt, _ = security.ValidateToken(tokenString)
-		session.ExpireAt = expireAt
-
-		// server.logServiceInfo("RefreshToken", Utility.FileLine(), Utility.FunctionName(), "token expireAt: "+time.Unix(expireAt, 0).Local().String()+" actual time is "+time.Now().Local().String())
-		// save the session in the backend.
-		err = server.updateSession(session)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
 	}
 
 	// return the token string.
@@ -136,8 +126,16 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Issue the token for the actual sever.
+	issuer := Utility.MyMacAddr()
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+
+		// The application...
+		issuer = strings.Join(md["issuer"], "")
+	}
+
 	// finaly I will call authenticate to generate the token string and set it at return...
-	tokenString, err := server.authenticate(account.Id, rqst.NewPassword)
+	tokenString, err := server.authenticate(account.Id, rqst.NewPassword, issuer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -210,15 +208,8 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	key, err := security.GetLocalKey()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// The token string
-	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := security.GenerateToken(server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -301,14 +292,7 @@ func (server *server) setKey(mac string) error {
 }
 
 /* Authenticate a user */
-func (server *server) authenticate(accountId, pwd string) (string, error) {
-
-	key, err := security.GetLocalKey()
-	if err != nil {
-		return "", status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
 	// If the user is the root...
 	if accountId == "sa" {
@@ -352,7 +336,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 			}
 		}
 
-		tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -364,10 +348,6 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 		server.addResourceOwner(path, "sa", rbacpb.SubjectType_ACCOUNT)
 
-		// So here I will keep the token...
-		ioutil.WriteFile(tokensPath+"/"+server.Domain+"_token", []byte(tokenString), 0644)
-		fmt.Println("server authenticate response ", time.Now().Unix())
-
 		return tokenString, nil
 	}
 
@@ -376,9 +356,10 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
+	
 	err = server.validatePassword(pwd, account.Password)
 	if err != nil {
+		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		// Now if the LDAP service is configure I will try to authenticate with it...
 		if len(server.LdapConnectionId) != 0 {
 			err := server.authenticateLdap(account.Name, pwd)
@@ -392,7 +373,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 				fmt.Println("fail to change password: ", account.Id, err)
 				return "", err
 			}
-		}else{
+		} else {
 			return "", err
 		}
 	}
@@ -402,26 +383,27 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	session.AccountId = account.Id
 
 	// The token string
-	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), account.Id, account.Name, account.Email)
+	tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, account.Id, account.Name, account.Email)
 	if err != nil {
+		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return "", err
 	}
 
 	// get the expire time.
-	user, /*userName*/ _, /*email*/ _, _, expireAt, _ := security.ValidateToken(tokenString)
-	//defer server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+userName+":"+email+" successfuly authenticaded token is valid for "+Utility.ToString(server.SessionTimeout/1000/60)+" minutes from now.")
+	claims, _ := security.ValidateToken(tokenString)
 
 	// Create the user file directory.
-	path := "/users/" + user
+	path := "/users/" + claims.Id
 	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-	server.addResourceOwner(path, user, rbacpb.SubjectType_ACCOUNT)
+	server.addResourceOwner(path, claims.Id, rbacpb.SubjectType_ACCOUNT)
 
-	session.ExpireAt = expireAt
+	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
 	session.LastStateTime = time.Now().Unix()
 
 	err = server.updateSession(session)
 	if err != nil {
+		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return "", err
 	}
 
@@ -430,13 +412,51 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 
 //* Authenticate a user *
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
-	server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+rqst.Name+" try to connect")
 
-	tokenString, err := server.authenticate(rqst.Name, rqst.Password)
+	// Set the mac addresse
+	if len(rqst.Issuer) == 0 {
+		rqst.Issuer = Utility.MyMacAddr()
+	}
+
+	// Try to authenticate on the server directy...
+	tokenString, err := server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
+
+	// Now I will try each peer...
 	if err != nil {
+		// I will try to authenticate the peer on other resource service...
+		peers, err := server.getPeers()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		for i := 0; i < len(peers); i++ {
+			peer := peers[i]
+			resource_client_, err := resource_client.NewResourceService_Client(peer.Address, "resource.ResourceService")
+			if err == nil {
+				defer resource_client_.Close()
+				account, err := resource_client_.GetAccount(rqst.Name)
+				if err == nil {
+					// an account was found with that name...
+					authentication_client_, err := authentication_client.NewAuthenticationService_Client(peer.Address, "authentication.AuthenticationService")
+					if err == nil {
+						defer authentication_client_.Close()
+						tokenString, err := authentication_client_.Authenticate(account.Id, rqst.Password)
+						if err == nil {
+							return &authenticationpb.AuthenticateRsp{
+								Token: tokenString,
+							}, nil
+						}
+					}
+
+				}
+			}
+		}
+
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to authenticate user " + rqst.Name)))
 	}
 
 	return &authenticationpb.AuthenticateRsp{
