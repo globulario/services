@@ -50,8 +50,12 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		// The way the domain is create must be the same here 
 		// and in the file globular.go at function getDomain()
 		domain := serverConfig["Name"].(string)
+
 		if len(serverConfig["Domain"].(string)) > 0 {
-			domain +=  "." + serverConfig["Domain"].(string)
+			if len(domain)>0{
+				domain +=  "." 
+			}
+			domain+= serverConfig["Domain"].(string)
 		}else if len(serverConfig["Domain"].(string)) == 0 &&  len(serverConfig["Name"].(string)) == 0 {
 			domain = "localhost"
 		}
