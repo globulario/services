@@ -203,6 +203,7 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 	rqst := &authenticationpb.AuthenticateRqst{
 		Name:     name,
 		Password: password,
+		Issuer : Utility.MyMacAddr(),
 	}
 
 	log.Println("Authenticate", name, " on domain ", client.GetDomain())

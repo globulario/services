@@ -19,6 +19,7 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -64,14 +65,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	key, err := security.GetPeerKey(claims.Issuer)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), claims.Id, claims.Username, claims.Email)
+	tokenString, err := security.GenerateToken(server.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -132,8 +126,16 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Issue the token for the actual sever.
+	issuer := Utility.MyMacAddr()
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+
+		// The application...
+		issuer = strings.Join(md["issuer"], "")
+	}
+
 	// finaly I will call authenticate to generate the token string and set it at return...
-	tokenString, err := server.authenticate(account.Id, rqst.NewPassword)
+	tokenString, err := server.authenticate(account.Id, rqst.NewPassword, issuer)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -206,15 +208,8 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	key, err := security.GetLocalKey()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// The token string
-	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := security.GenerateToken(server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -297,14 +292,7 @@ func (server *server) setKey(mac string) error {
 }
 
 /* Authenticate a user */
-func (server *server) authenticate(accountId, pwd string) (string, error) {
-
-	key, err := security.GetLocalKey()
-	if err != nil {
-		return "", status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
 	// If the user is the root...
 	if accountId == "sa" {
@@ -348,7 +336,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 			}
 		}
 
-		tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -368,9 +356,10 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
+	
 	err = server.validatePassword(pwd, account.Password)
 	if err != nil {
+		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		// Now if the LDAP service is configure I will try to authenticate with it...
 		if len(server.LdapConnectionId) != 0 {
 			err := server.authenticateLdap(account.Name, pwd)
@@ -394,8 +383,9 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 	session.AccountId = account.Id
 
 	// The token string
-	tokenString, err := security.GenerateToken(key, server.SessionTimeout, Utility.MyMacAddr(), account.Id, account.Name, account.Email)
+	tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, account.Id, account.Name, account.Email)
 	if err != nil {
+		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return "", err
 	}
 
@@ -413,6 +403,7 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 
 	err = server.updateSession(session)
 	if err != nil {
+		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return "", err
 	}
 
@@ -421,10 +412,14 @@ func (server *server) authenticate(accountId, pwd string) (string, error) {
 
 //* Authenticate a user *
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
-	server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), "user "+rqst.Name+" try to connect")
+
+	// Set the mac addresse
+	if len(rqst.Issuer) == 0 {
+		rqst.Issuer = Utility.MyMacAddr()
+	}
 
 	// Try to authenticate on the server directy...
-	tokenString, err := server.authenticate(rqst.Name, rqst.Password)
+	tokenString, err := server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
 
 	// Now I will try each peer...
 	if err != nil {

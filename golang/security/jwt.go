@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/davecourtois/Utility"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/globulario/services/golang/config"
 )
 
@@ -44,7 +44,30 @@ type Claims struct {
 }
 
 // Generate a token for a ginven user.
-func GenerateToken(jwtKey []byte, timeout int, issuer, userId, userName, email string) (string, error) {
+func GenerateToken(timeout int, mac, userId, userName, email string) (string, error) {
+
+	issuer := Utility.MyMacAddr()
+	audience := ""
+
+	if mac != issuer {
+		audience = mac
+	}
+
+	var jwtKey []byte
+	var err error
+
+	// Here I will get the key...
+	if len(audience) > 0 {
+		jwtKey, err = GetPeerKey(audience)
+		if err != nil {
+			return "", err
+		}
+	}else{
+		jwtKey, err = GetPeerKey(issuer)
+		if err != nil {
+			return "", err
+		}
+	}
 
 	// Declare the expiration time of the token
 	now := time.Now()
@@ -75,6 +98,7 @@ func GenerateToken(jwtKey []byte, timeout int, issuer, userId, userName, email s
 			ExpiresAt: expirationTime.Unix(),
 			Subject:   userId,
 			Issuer:    issuer,
+			Audience:  audience,
 			IssuedAt:  now.Unix() - 1000, // make sure the IssuedAt is not in the futur...
 		},
 	}
@@ -104,15 +128,17 @@ func ValidateToken(token string) (*Claims, error) {
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 
 		// Get the jwt key from file.
-		jwtKey, err := GetPeerKey(claims.Issuer)
+		if len(claims.Audience) > 0 {
+			if claims.Audience != Utility.MyMacAddr() {
+				return GetPeerKey(claims.Audience)
+			}
+		}
 
-		return jwtKey, err
+		return GetPeerKey(claims.Issuer)
 	})
 
-	
-
 	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
-		return  claims, errors.New("the token is expired")
+		return claims, errors.New("the token is expired")
 	}
 
 	if err != nil {
@@ -134,23 +160,21 @@ func refreshLocalToken(token string) (string, error) {
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 
-		// Get the jwt key from file.
-		jwtKey, err := GetPeerKey(claims.Issuer)
+		if len(claims.Audience) > 0 {
+			if claims.Audience != Utility.MyMacAddr() {
+				return GetPeerKey(claims.Audience)
+			}
+		}
 
-		return jwtKey, err
+		return GetPeerKey(claims.Issuer)
 	})
 
-	if err != nil && !strings.HasPrefix(err.Error(), "token is expired"){
-		return "", err
-	}
-
-	jwtKey, err := GetPeerKey(claims.Issuer)
-	if err != nil {
+	if err != nil && !strings.HasPrefix(err.Error(), "token is expired") {
 		return "", err
 	}
 
 	// Now I will get the duration from the configuration.
-	globular := make(map[string] interface{})
+	globular := make(map[string]interface{})
 	data, err := ioutil.ReadFile(config.GetConfigDir() + "/config.json")
 	if err != nil {
 		return "", err
@@ -161,7 +185,7 @@ func refreshLocalToken(token string) (string, error) {
 		return "", err
 	}
 
-	token, err = GenerateToken(jwtKey, Utility.ToInt(globular["SessionTimeout"]), claims.Issuer, claims.Id, claims.Username, claims.Email)
+	token, err = GenerateToken(Utility.ToInt(globular["SessionTimeout"]), claims.Issuer, claims.Id, claims.Username, claims.Email)
 	if err != nil {
 		return "", err
 	}
@@ -175,10 +199,9 @@ func getLocalToken(mac string) (string, error) {
 	token, ok := tokens.Load(mac)
 	if ok {
 		if token != nil {
-		return token.(string), nil
+			return token.(string), nil
 		}
 	}
-
 
 	return "", errors.New("no token found")
 }
@@ -204,9 +227,9 @@ func GetLocalToken(mac string) (string, error) {
 	if time.Unix(claims.StandardClaims.ExpiresAt, 0).Before(time.Now().AddDate(0, 0, -7)) {
 		return "", errors.New("the token cannot be refresh after 7 day")
 	}
-	
+
 	newToken, err := refreshLocalToken(string(token))
-	if err != nil{
+	if err != nil {
 		return "", err
 	}
 

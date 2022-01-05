@@ -793,7 +793,7 @@ func (rbac_server *server) GetResourcePermissions(ctx context.Context, rqst *rba
 }
 
 func (rbac_server *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
-
+	fmt.Println("----------------> addResourceOwner ", path, subject)
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
 			return errors.New("no account exist with id " + subject)
@@ -878,6 +878,7 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 		if err != nil {
 			return err
 		}
+		fmt.Println("----------------> set resource owner succed! ", path, subject)
 	}
 	return nil
 }

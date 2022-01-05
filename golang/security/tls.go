@@ -916,6 +916,10 @@ func GetLocalKey() ([]byte, error) {
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
 	id := strings.ReplaceAll(Utility.MyMacAddr(), ":", "_")
+	if !Utility.Exists(keyPath + "/" + id + "_public"){
+		return nil, errors.New("no public key found at path " + keyPath + "/" + id + "_public")
+	}
+
 	var err error
 	localKey, err = ioutil.ReadFile(keyPath + "/" + id + "_public")
 
@@ -948,9 +952,9 @@ func GetPeerKey(id string) ([]byte, error) {
 	file_public, err := os.Open(keyPath + "/" + id + "_public")
 
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
+
 	defer file_public.Close()
 
 	info, err := file_public.Stat()

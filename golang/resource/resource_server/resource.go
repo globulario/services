@@ -117,15 +117,8 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	key, err := security.GetLocalKey()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Generate a token to identify the user.
-	tokenString, _ := security.GenerateToken(key, resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	tokenString, _ := security.GenerateToken(resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1616,7 +1609,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 						domain += "." + rqst.Peer.Domain
 					}
 					resource_server.addResourceOwner(domain, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
-
 				}
 			}
 		}
