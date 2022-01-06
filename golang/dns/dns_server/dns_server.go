@@ -380,8 +380,6 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 
 	err = rbac_client_.SetResourcePermissions(path, permissions)
 
-	fmt.Println("Set permission to ", path, clientId)
-
 	if err != nil {
 		return err
 	}

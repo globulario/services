@@ -19,7 +19,6 @@ func TestMonitoring(t *testing.T) {
 
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
-	fmt.Println("Connection creation test.")
 	// err := client.CreateConnection("test", "127.0.0.1", 0, 9090)
 	err := client.CreateConnection("dashboard_connection", "localhost", 0, 9090)
 	if err != nil {

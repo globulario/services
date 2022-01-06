@@ -478,8 +478,7 @@ func (event_server *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest)
 // Connect to an event channel or create it if it not already exist
 // and stay in that function until UnSubscribe is call.
 func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventService_OnEventServer) error {
-	fmt.Println("OnEvent call ", rqst.Uuid)
-
+	
 	onevent := make(map[string]interface{})
 	onevent["action"] = "onevent"
 	onevent["stream"] = stream
@@ -490,8 +489,6 @@ func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb
 
 	// wait util unsbscribe or connection is close.
 	<-onevent["quit"].(chan bool)
-
-	fmt.Println("OnEvent quit ", rqst.Uuid)
 
 	return nil
 }

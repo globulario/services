@@ -380,7 +380,6 @@ func (svr *server) Stop(context.Context, *mailpb.StopRequest) (*mailpb.StopRespo
 // exist it will be replace by the new one.
 func (svr *server) CreateConnection(ctx context.Context, rsqt *mailpb.CreateConnectionRqst) (*mailpb.CreateConnectionRsp, error) {
 
-	fmt.Println("Try to create a new connection")
 	var c connection
 	var err error
 

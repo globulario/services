@@ -47,16 +47,17 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	isLocal := true
 
 	if err == nil {
-		// The way the domain is create must be the same here 
+		// The way the domain is create must be the same here
 		// and in the file globular.go at function getDomain()
 		domain := serverConfig["Name"].(string)
 
 		if len(serverConfig["Domain"].(string)) > 0 {
-			if len(domain)>0{
-				domain +=  "." 
+			if len(domain) > 0 {
+				domain += "."
 			}
-			domain+= serverConfig["Domain"].(string)
-		}else if len(serverConfig["Domain"].(string)) == 0 &&  len(serverConfig["Name"].(string)) == 0 {
+			domain += serverConfig["Domain"].(string)
+
+		} else if len(serverConfig["Domain"].(string)) == 0 && len(serverConfig["Name"].(string)) == 0 {
 			domain = "localhost"
 		}
 
@@ -160,8 +161,6 @@ func getLocalConfig() (map[string]interface{}, error) {
 	if !Utility.Exists(ConfigPath) {
 		return nil, errors.New("no local Globular configuration found")
 	}
-
-	fmt.Println("local configuation found at ", ConfigPath)
 
 	config := make(map[string]interface{})
 	data, err := ioutil.ReadFile(ConfigPath)
@@ -822,7 +821,7 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 // https://www.youtube.com/watch?v=NmM9HA2MQGI&ab_channel=Computerphile
 //
 ////////////////////////////////////////////////////////////////////////////////////
-func DeletePublicKey(id string) error{
+func DeletePublicKey(id string) error {
 	_, err := os.ReadFile(keyPath + "/" + id + "_public")
 	if err != nil {
 		return err
@@ -920,7 +919,7 @@ func GetLocalKey() ([]byte, error) {
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
 	id := strings.ReplaceAll(Utility.MyMacAddr(), ":", "_")
-	if !Utility.Exists(keyPath + "/" + id + "_public"){
+	if !Utility.Exists(keyPath + "/" + id + "_public") {
 		return nil, errors.New("no public key found at path " + keyPath + "/" + id + "_public")
 	}
 

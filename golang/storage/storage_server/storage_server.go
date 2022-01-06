@@ -5,7 +5,6 @@ import (
 
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -389,7 +388,6 @@ func (storage_server *server) CreateConnection(ctx context.Context, rsqt *storag
 		}
 	}
 
-	fmt.Println("Try to create a new connection with id: ", rsqt.Connection.Id)
 	var c connection
 	var err error
 
@@ -419,9 +417,6 @@ func (storage_server *server) CreateConnection(ctx context.Context, rsqt *storag
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// Print the success message here.
-	fmt.Println("Connection " + c.Id + " was created with success!")
 
 	return &storagepb.CreateConnectionRsp{
 		Result: true,

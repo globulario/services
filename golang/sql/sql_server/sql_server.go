@@ -432,7 +432,6 @@ func (sql_server *server) Stop(context.Context, *sqlpb.StopRequest) (*sqlpb.Stop
 // exist it will be replace by the new one.
 func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.CreateConnectionRqst) (*sqlpb.CreateConnectionRsp, error) {
 	// sqlpb
-	fmt.Println("Try to create a new SQL connection")
 	var c connection
 
 	// Set the connection info from the request.
@@ -479,8 +478,6 @@ func (sql_server *server) CreateConnection(ctx context.Context, rsqt *sqlpb.Crea
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 
 	}
-
-	fmt.Println("Connection", c.Id, "was create successfully!")
 
 	return &sqlpb.CreateConnectionRsp{
 		Result: true,

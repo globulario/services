@@ -183,8 +183,6 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 		return nil, errors.New("no local Globular configuration found")
 	}
 
-	fmt.Println("local configuation found at ", ConfigPath)
-
 	config := make(map[string]interface{})
 	data, err := ioutil.ReadFile(ConfigPath)
 	if err != nil {
@@ -223,7 +221,11 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
 		if len(serviceDir) == 0 {
 			serviceDir = GetServicesDir()
+		}else{
+			
+		fmt.Println("************** Development mode runing services found at ", serviceDir, "**************")
 		}
+
 
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 

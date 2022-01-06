@@ -557,13 +557,8 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 
 	// UploadBundle
 	server.logServiceInfo(Utility.FunctionName(), Utility.FileLine(), "Upload package bundle ", discovery+" "+descriptor.Id+" "+descriptor.PublisherId+" "+descriptor.Version+" "+platform+" "+path)
-
-
 	err = services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
-	if err != nil {
-		fmt.Println("publishPackage 564 ", err)
-	}
-	log.Println("uploadBundle successfully!")
+	
 	// Upload the package bundle to the repository.
 	return err
 }

@@ -112,7 +112,6 @@ func InitClient(client Client, address string, id string) error {
 	// Here I will initialyse the client
 	config, err := security.GetClientConfig(address, id, port, os.TempDir())
 	if err != nil {
-		fmt.Println("fail to get client configuration ", address, id, port)
 		return err
 	}
 	if err == nil {

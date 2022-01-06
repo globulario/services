@@ -455,7 +455,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		c.User = user
 		c.Password = password
 		c.Store = store
-		fmt.Println("try to create persistence connection: ", c)
+		
 		// If the connection need to save in the server configuration.
 		if save {
 			if persistence_server.Connections == nil {

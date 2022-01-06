@@ -252,7 +252,6 @@ func (client *Applications_Manager_Client) UninstallApplication(token string, do
  * Deploy the content of an application with a given name to the server.
  */
 func (client *Applications_Manager_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
-	fmt.Println("deploy application", name)
 	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
@@ -266,14 +265,12 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	var buffer bytes.Buffer
 	total, err := Utility.CompressDir(path, &buffer)
 	if err != nil {
-		fmt.Print("269", err)
 		return -1, err
 	}
 
 	// From the path I will get try to find the package.json file and get information from it...
 	absolutePath, err := filepath.Abs(path)
 	if err != nil {
-		fmt.Print("269", err)
 		return -1, err
 	}
 
@@ -285,21 +282,17 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 		absolutePath = absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
 	} else {
 		err = errors.New("no package.config file was found")
-		fmt.Print("288", err)
 		return -1, err
 	}
 
 	packageConfig := make(map[string]interface{})
-	fmt.Println("read file from", absolutePath)
 	data, err := ioutil.ReadFile(absolutePath)
 	if err != nil {
-		fmt.Print("296", err)
 		return -1, err
 	}
 
 	err = json.Unmarshal(data, &packageConfig)
 	if err != nil {
-		fmt.Print("302", err)
 		return -1, err
 	}
 
@@ -321,18 +314,14 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 
 	// Now The application is deploy I will set application actions from the
 	// package.json file.
-	fmt.Println("set actions")
 	actions := make([]string, 0)
 	if packageConfig["actions"] != nil {
 		for i := 0; i < len(packageConfig["actions"].([]interface{})); i++ {
-			fmt.Println("set action permission: ", packageConfig["actions"].([]interface{})[i].(string))
 			actions = append(actions, packageConfig["actions"].([]interface{})[i].(string))
 		}
 	}
 
 	// Create roles.
-	fmt.Println("create roles")
-	roles := make([]*resourcepb.Role, 0)
 	if packageConfig["roles"] != nil {
 		// Here I will create the roles require by the applications.
 		roles_ := packageConfig["roles"].([]interface{})
@@ -436,14 +425,12 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 			err = nil
 			break
 		} else if err != nil {
-			fmt.Print("439", err)
 			return -1, err
 		}
 	}
 
 	_, err = stream.CloseAndRecv()
 	if err != nil && err != io.EOF {
-		fmt.Print("446", err)
 		return -1, err
 	}
 

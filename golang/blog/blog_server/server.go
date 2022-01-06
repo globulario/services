@@ -503,7 +503,6 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 ////////////////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) deleteAccountListener(evt *eventpb.Event) {
 	accountId := string(evt.Data)
-	fmt.Println("Remove blog post for author ", accountId)
 	blogs, err := svr.getBlogPostByAuthor(accountId)
 	if err == nil {
 		for i:=0; i < len(blogs); i++ {

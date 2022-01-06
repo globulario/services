@@ -156,7 +156,6 @@ func ValidateToken(token string) (*Claims, error) {
  * refresh the local token.
  */
 func refreshLocalToken(token string) (string, error) {
-	fmt.Println("Refresh token...")
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 

@@ -504,7 +504,6 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	// set the logger.
 
 	// Set the root path if is pass as argument.
 	if len(os.Args) > 2 {

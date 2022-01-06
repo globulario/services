@@ -620,8 +620,6 @@ func (server *server) Authenticate(ctx context.Context, rqst *ldappb.Authenticat
 // exist it will be replace by the new one.
 func (server *server) CreateConnection(ctx context.Context, rsqt *ldappb.CreateConnectionRqst) (*ldappb.CreateConnectionRsp, error) {
 	fmt.Println("Try to create a new connection")
-	// sqlpb
-	fmt.Println("Try to create a new connection")
 	var c connection
 	var err error
 

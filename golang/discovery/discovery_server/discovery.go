@@ -30,8 +30,6 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 		}
 		publisherId = rqst.Organization
 		if !isMember {
-			err := errors.New(rqst.User + " is not member of " + rqst.Organization)
-			fmt.Println(err.Error())
 			return nil, err
 		}
 	}

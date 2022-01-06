@@ -99,7 +99,6 @@ func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error
 // Log error or information into the data base *
 func (server *server) Log(ctx context.Context, rqst *logpb.LogRqst) (*logpb.LogRsp, error) {
 	// Publish event...
-	fmt.Println("log occurence ", rqst.Occurence)
 	server.log(rqst.Info, rqst.Occurence)
 	return &logpb.LogRsp{
 		Result: true,

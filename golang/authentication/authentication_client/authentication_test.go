@@ -32,7 +32,6 @@ func BenchmarkAuthenticate(b *testing.B) {
 }
 
 func TestAuthenticate(t *testing.T) {
-	fmt.Println("client authenticate request ", time.Now().Unix())
 	token, err := client.Authenticate("sa", "adminadmin")
 	if err != nil {
 		log.Println("Fail to authenticate with error ", err)

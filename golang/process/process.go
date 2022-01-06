@@ -139,13 +139,14 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	}
 
 	if !Utility.Exists(s["Path"].(string)) {
+		log.Println("No service found at path ", s["Path"].(string))
 		// In that case I will try to
 		if s["ConfigPath"] != nil {
 			s["ConfigPath"] = strings.ReplaceAll(s["ConfigPath"].(string), "\\", "/")
 			s["Path"] = s["ConfigPath"].(string)[0:strings.LastIndex(s["ConfigPath"].(string), "/")] + s["Path"].(string)
 		}
 	}
-
+	log.Println("Try to start serverive ", s["Path"].(string))
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
 		setServiceConfigurationError(err, s)
@@ -200,7 +201,6 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
 		// wait the process to finish
 		err = p.Wait()
-
 		s, _ := config.GetServiceConfigurationById(serviceId)
 
 		if err != nil {
