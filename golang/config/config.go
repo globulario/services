@@ -27,6 +27,47 @@ var (
 	public []string
 )
 
+/**
+ * Return the local address.
+ */
+func GetAddress() (string, error) {
+	domain, _ := GetDomain()
+	localConfig, err := GetLocalConfig()
+	if err != nil {
+		return "", err
+	}
+
+	// Return the address where to grab the configuration.
+	address := domain
+	if Utility.ToString(localConfig["Protocol"]) == "https" {
+		address += ":" + Utility.ToString(localConfig["PortHttps"])
+	} else {
+		address += ":" + Utility.ToString(localConfig["PortHttp"])
+	}
+
+	return strings.ToLower(address), nil
+}
+
+/**
+ * Return the Domain.
+ */
+func GetDomain() (string, error) {
+	localConfig, err := GetLocalConfig()
+	if err != nil {
+		return "", err
+	}
+	domain := localConfig["Name"].(string)
+	if len(localConfig["Domain"].(string)) > 0 {
+		if len(domain) > 0 {
+			domain += "."
+		}
+		domain += localConfig["Domain"].(string)
+		return domain, nil
+	}
+
+	return "localhost", nil
+}
+
 // Those function are use to get the correct
 // directory where globular must be installed.
 func GetRootDir() string {
@@ -151,7 +192,7 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 /**
  * Get the remote client configuration.
  */
- func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
+func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
 	// Here I will get the configuration information from http...
 	var resp *http.Response
@@ -173,11 +214,10 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	return config, nil
 }
 
-
 /**
  * Return the server local configuration if one exist.
  */
- func GetLocalConfig() (map[string]interface{}, error) {
+func GetLocalConfig() (map[string]interface{}, error) {
 	ConfigPath := GetConfigDir() + "/config.json"
 	if !Utility.Exists(ConfigPath) {
 		return nil, errors.New("no local Globular configuration found")
@@ -221,11 +261,10 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
 		if len(serviceDir) == 0 {
 			serviceDir = GetServicesDir()
-		}else{
-			
-		fmt.Println("************** Development mode runing services found at ", serviceDir, "**************")
-		}
+		} else {
 
+			fmt.Println("************** Development mode runing services found at ", serviceDir, "**************")
+		}
 
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 
@@ -279,8 +318,8 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 										for i := 0; i < len(s["Public"].([]interface{})); i++ {
 											path := s["Public"].([]interface{})[i].(string)
 											if Utility.Exists(path) {
-												if !Utility.Contains( GetPublicDirs() , path) {
-													public  = append( GetPublicDirs() , path)
+												if !Utility.Contains(GetPublicDirs(), path) {
+													public = append(GetPublicDirs(), path)
 												}
 											}
 										}

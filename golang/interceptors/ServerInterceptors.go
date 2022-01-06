@@ -245,6 +245,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Here I will test if the
 	method := info.FullMethod
+	domain, _ = config.GetDomain()
 
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 
@@ -256,23 +257,13 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		// fmt.Println("-------------------------------> ", origin)
 
 		// in case of resource path.
-		// domain_ := strings.TrimSpace(strings.Join(md["domain"], ""))
 		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
+		address_ = strings.ToLower(address_)
 
-		// So here I will redirect the request to the correct client...
-		localConfig, err := config.GetLocalConfig()
-		if err != nil {
-			return nil, err
-		}
-
-		domain = localConfig["Name"].(string)
-		if len(localConfig["Domain"].(string)) > 0 {
-			domain += "." + localConfig["Domain"].(string)
-		}
+		address, _ = config.GetAddress()
 
 		// In that case the request must be process by other peer so I will redirect
 		// the request to that peer and return it response.
-		address = domain + ":" + Utility.ToString(localConfig["PortHttp"])
 		if address != address_ && len(address_) > 0 {
 			fmt.Println("--------------> ", method, address, "redirect to ", address_)
 			return invoke(address_, method, rqst, ctx)
@@ -300,7 +291,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 		clientId = claims.Id
 		issuer = claims.Issuer
-		fmt.Println("client id: ", clientId+"@"+domain)
 	}
 
 	// Test if peer has access
@@ -431,26 +421,19 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	var redirect_to string // the redirection address
 
 	method := info.FullMethod
+	domain, _ = config.GetDomain()
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
 
-		// So here I will redirect the request to the correct client...
-		localConfig, err := config.GetLocalConfig()
-		if err != nil {
-			return err
-		}
-
-		domain = localConfig["Name"].(string)
-		if len(localConfig["Domain"].(string)) > 0 {
-			domain += "." + localConfig["Domain"].(string)
-		}
+		address, _ = config.GetAddress()
 
 		// In that case the request must be process by other peer so I will redirect
 		// the request to that peer and return it response.
-		address = domain + ":" + Utility.ToString(localConfig["PortHttp"])
 		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
+		address_ = strings.ToLower(address_)
+
 		if address != address_ && len(address_) > 0 {
 			// return invoke(address, method, rqst, ctx)
 			fmt.Println("create a stream to redirect the receive and send message to it")

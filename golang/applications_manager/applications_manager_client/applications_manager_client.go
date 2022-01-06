@@ -322,6 +322,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	// Create roles.
+	roles := make([]*resourcepb.Role, 0)
 	if packageConfig["roles"] != nil {
 		// Here I will create the roles require by the applications.
 		roles_ := packageConfig["roles"].([]interface{})
@@ -425,12 +426,14 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 			err = nil
 			break
 		} else if err != nil {
+			fmt.Print(err)
 			return -1, err
 		}
 	}
 
 	_, err = stream.CloseAndRecv()
 	if err != nil && err != io.EOF {
+		fmt.Print("446", err)
 		return -1, err
 	}
 

@@ -240,14 +240,9 @@ func GetClientContext(client Client) context.Context {
 	var ctx context.Context
 
 	// if the address is local.
-	localConfig, err := config.GetLocalConfig()
+	address, err := config.GetAddress()
 	if err != nil {
 		return nil
-	}
-
-	address := localConfig["Name"].(string)
-	if len(localConfig["Domain"].(string)) > 0 {
-		address += "." + localConfig["Domain"].(string)
 	}
 
 	err = Utility.CreateDirIfNotExist(tokensPath)

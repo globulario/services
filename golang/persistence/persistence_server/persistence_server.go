@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	//"fmt"
 	"io"
 	"log"
 	"os"
@@ -455,7 +455,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 		c.User = user
 		c.Password = password
 		c.Store = store
-		
+
 		// If the connection need to save in the server configuration.
 		if save {
 			if persistence_server.Connections == nil {

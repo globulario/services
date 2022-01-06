@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -62,7 +61,7 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 		if err != nil {
 			return "", err
 		}
-	}else{
+	} else {
 		jwtKey, err = GetPeerKey(issuer)
 		if err != nil {
 			return "", err
@@ -73,17 +72,16 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 	now := time.Now()
 
 	expirationTime := now.Add(time.Duration(timeout) * time.Minute)
-	localConfig, err := config.GetLocalConfig()
+
+	domain, err := config.GetDomain()
 	if err != nil {
 		return "", err
 	}
 
-	domain := localConfig["Name"].(string)
-	if len(localConfig["Domain"].(string)) > 0 {
-		domain += "." + localConfig["Domain"].(string)
+	address, err := config.GetAddress()
+	if err != nil {
+		return "", err
 	}
-
-	address := domain + ":" + Utility.ToString(localConfig["PortHttp"])
 
 	// Create the JWT claims, which includes the username and expiry time
 	claims := &Claims{
