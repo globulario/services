@@ -9,12 +9,13 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
-	"path/filepath"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/log/log_client"
@@ -133,7 +134,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	s["Port"] = port
 
 	if s["Path"] == nil {
-		err := errors.New("no service path was found for service " + s["Name"].(string) + serviceId )
+		err := errors.New("no service path was found for service " + s["Name"].(string) + serviceId)
 		fmt.Println(err)
 		return -1, err
 	}
@@ -317,31 +318,31 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	err = proxyProcess.Start()
 	if err != nil {
-		
+
 		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` {
-			if Utility.Exists(config.GetRootDir() + "/bin/" + cmd){
-				proxyProcess = exec.Command(config.GetRootDir() + "/bin/" + cmd, proxyArgs...)
+			if Utility.Exists(config.GetRootDir() + "/bin/" + cmd) {
+				proxyProcess = exec.Command(config.GetRootDir()+"/bin/"+cmd, proxyArgs...)
 				err = proxyProcess.Start()
 				if err != nil {
 					return -1, err
 				}
-			}else{
+			} else {
 				ex, err := os.Executable()
 				if err != nil {
 					return -1, err
 				}
 				exPath := filepath.Dir(ex)
-				if Utility.Exists(exPath + "/bin/" + cmd){
-					proxyProcess = exec.Command(exPath + "/bin/" + cmd, proxyArgs...)
+				if Utility.Exists(exPath + "/bin/" + cmd) {
+					proxyProcess = exec.Command(exPath+"/bin/"+cmd, proxyArgs...)
 					err = proxyProcess.Start()
 					if err != nil {
 						return -1, err
 					}
-				}else{
+				} else {
 					return -1, err
 				}
 			}
-		}else{
+		} else {
 			return -1, err
 		}
 	}
@@ -410,10 +411,9 @@ func StartProcessMonitoring(httpPort int, exit chan bool) error {
 			return nil // nothing to do here...
 		}
 	}
-	
+
 	// Promometheus metrics for services.
 	http.Handle("/metrics", promhttp.Handler())
-
 
 	// Here I will start promethus.
 	dataPath := config.GetDataDir() + "/prometheus-data"

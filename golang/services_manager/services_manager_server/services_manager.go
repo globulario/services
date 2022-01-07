@@ -287,7 +287,6 @@ func (server *server) startServiceInstance(serviceId string) error {
 	}
 
 	s["Process"] = processPid
-
 	s["ProxyProcess"], err = process.StartServiceProxyProcess(serviceId, globular["CertificateAuthorityBundle"].(string), globular["Certificate"].(string), globular["PortsRange"].(string), processPid)
 	if err != nil {
 		return err

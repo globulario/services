@@ -224,7 +224,7 @@ func GetLocalConfig() (map[string]interface{}, error) {
 	}
 
 	config := make(map[string]interface{})
-	data, err := ioutil.ReadFile(ConfigPath)
+	data, err := readServiceConfigurationFile(ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -250,19 +250,104 @@ func GetLocalConfig() (map[string]interface{}, error) {
 	return config, nil
 }
 
+func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
+
+	s := make(map[string]interface{})
+	config, err := readServiceConfigurationFile(path)
+
+	if err == nil {
+		// Read the config file.
+		if len(config) > 0 {
+			err := json.Unmarshal(config, &s)
+			if err == nil {
+				if s["Protocol"] != nil {
+					// If a configuration file exist It will be use to start services,
+					// otherwise the service configuration file will be use.
+					if s["Name"] != nil {
+
+						info, _ := os.Stat(path)
+						s["modtime"] = info.ModTime().Unix()
+
+						// if no id was given I will generate a uuid.
+						if s["Id"] == nil {
+							s["Id"] = Utility.RandomUUID()
+						}
+
+						// Here I will set the proto file path.
+						if s["Proto"] != nil {
+							if !Utility.Exists(s["Proto"].(string)) {
+								s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
+							}
+						}
+
+						// Now the exec path.
+						if s["Path"] != nil {
+							if !Utility.Exists(s["Path"].(string)) {
+								s["Path"] = path[0:strings.LastIndex(path, "/")+1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
+							}
+						}
+
+						// Keep the configuration path in the object...
+						s["ConfigPath"] = path
+
+						if s["Root"] != nil {
+							if s["Name"] == "file.FileService" {
+								s["Root"] = GetDataDir() + "/files"
+								// append public path from file services accessible to configuration client...
+								if s["Public"] != nil {
+									for i := 0; i < len(s["Public"].([]interface{})); i++ {
+										path := s["Public"].([]interface{})[i].(string)
+										if Utility.Exists(path) {
+											if !Utility.Contains(GetPublicDirs(), path) {
+												public = append(GetPublicDirs(), path)
+											}
+										}
+									}
+								}
+							} else {
+								s["Root"] = GetDataDir()
+							}
+						}
+
+						// Create the sync map.
+						if configs == nil {
+							configs = new(sync.Map)
+						}
+
+						// keep in the sync map.
+						configs.Store(s["Id"].(string), s)
+					}
+				}
+			} else {
+				log.Println("fail to unmarshal configuration path:", path, err)
+				return nil, err
+			}
+		}else{
+			return nil, errors.New("empty configuration found at path " + path)
+		}
+
+	} else {
+		log.Println("Fail to read config file path:", path, err)
+		return nil, err
+	}
+
+	return s, nil
+}
+
 /**
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	services := make([]map[string]interface{}, 0)
+	// I will get the services configuations from the config.json files.
+	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
+
 	if configs == nil {
-		// I will get the services configuations from the config.json files.
-		serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
+
 		if len(serviceDir) == 0 {
 			serviceDir = GetServicesDir()
 		} else {
-
 			fmt.Println("************** Development mode runing services found at ", serviceDir, "**************")
 		}
 
@@ -276,75 +361,12 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 		// I will try to get configuration from services.
 		for i := 0; i < len(files); i++ {
-			s := make(map[string]interface{})
 			path := files[i]
-			config, err := ioutil.ReadFile(path)
+			Unlock(path) // be sure no service configuration file are lock
+			s, err := initServiceConfiguration(path, serviceDir)
 			if err == nil {
-				// Read the config file.
-				err := json.Unmarshal(config, &s)
-				if err == nil {
-					if s["Protocol"] != nil {
-						// If a configuration file exist It will be use to start services,
-						// otherwise the service configuration file will be use.
-						if s["Name"] != nil {
 
-							// if no id was given I will generate a uuid.
-							if s["Id"] == nil {
-								s["Id"] = Utility.RandomUUID()
-							}
-
-							// Here I will set the proto file path.
-							if s["Proto"] != nil {
-								if !Utility.Exists(s["Proto"].(string)) {
-									s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
-								}
-							}
-
-							// Now the exec path.
-							if s["Path"] != nil {
-								if !Utility.Exists(s["Path"].(string)) {
-									s["Path"] = path[0:strings.LastIndex(path, "/")+1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
-								}
-							}
-
-							// Keep the configuration path in the object...
-							s["ConfigPath"] = path
-
-							if s["Root"] != nil {
-								if s["Name"] == "file.FileService" {
-									s["Root"] = GetDataDir() + "/files"
-									// append public path from file services accessible to configuration client...
-									if s["Public"] != nil {
-										for i := 0; i < len(s["Public"].([]interface{})); i++ {
-											path := s["Public"].([]interface{})[i].(string)
-											if Utility.Exists(path) {
-												if !Utility.Contains(GetPublicDirs(), path) {
-													public = append(GetPublicDirs(), path)
-												}
-											}
-										}
-									}
-								} else {
-									s["Root"] = GetDataDir()
-								}
-							}
-
-							// Create the sync map.
-							if configs == nil {
-								configs = new(sync.Map)
-							}
-							// keep in the sync map.
-							configs.Store(s["Id"].(string), s)
-
-							services = append(services, s)
-						}
-					}
-				} else {
-					log.Println("fail to unmarshal configuration path:", path, err)
-
-				}
-			} else {
-				log.Println("Fail to read config file path:", path, err)
+				services = append(services, s)
 			}
 		}
 	} else {
@@ -354,7 +376,22 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			data, _ := json.Marshal(value)
 			s := make(map[string]interface{})
 			json.Unmarshal(data, &s)
-			services = append(services, s)
+
+			// Here I will validate the service configuration has not change...
+			path := s["ConfigPath"].(string)
+			info, _ := os.Stat(path)
+			if int64(s["modtime"].(float64)) != info.ModTime().Unix() {
+				// The value from the configuration file may have change...
+				s, err := initServiceConfiguration(path, serviceDir)
+				if err == nil {
+					services = append(services, s)
+				} else {
+					fmt.Println("fail to get service configuration ", path, " with error: ", err)
+				}
+			} else {
+				services = append(services, s)
+			}
+
 			return true
 		})
 	}
@@ -387,19 +424,21 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  * Return a service with a given configuration id.
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
+
 	// if no configuration found.
 	services, err := GetServicesConfigurations()
 	if err != nil {
+		fmt.Println("fail to retreive service configurations ", err)
 		return nil, err
 	}
 
 	for i := 0; i < len(services); i++ {
-		if services[i]["Id"] == id {
+		if services[i]["Id"].(string) == id {
 			return services[i], nil
 		}
 	}
-
-	return nil, errors.New("no service found with id " + id)
+	err = errors.New("no service found with id " + id)
+	return nil, err
 }
 
 func SetServiceConfiguration(s map[string]interface{}) {
@@ -410,13 +449,42 @@ func SetServiceConfiguration(s map[string]interface{}) {
 var (
 	// Help to sync file access.
 	saveFileChan chan map[string]interface{}
+	readFileChan chan map[string]interface{}
 )
 
-func saveServiceConfiguration() {
+func isLocked(path string) bool {
+	lock := strings.Replace(path, "json", "lock", -1)
+	return Utility.Exists(lock)
+}
+
+func Lock(path string) bool {
+	lock := strings.Replace(path, "json", "lock", -1)
+	err := Utility.WriteStringToFile(lock, "")
+	if err == nil {
+		return true
+	}
+	return false
+}
+
+func Unlock(path string) bool {
+	lock := strings.Replace(path, "json", "lock", -1)
+	err := os.Remove(lock)
+	if err == nil {
+		return true
+	}
+	return false
+}
+
+// Create a save entry point to access configuration file. Because
+// many process can access the same configuration file can be corrupted.
+func accesServiceConfigurationFile() {
 	for {
 		select {
 		case infos := <-saveFileChan:
+
 			s := infos["service_config"].(map[string]interface{})
+			path := s["ConfigPath"].(string)
+
 			return_chan := infos["return"].(chan error)
 
 			// Save it config...
@@ -427,21 +495,69 @@ func saveServiceConfiguration() {
 			} else if len(jsonStr) == 0 {
 				return_chan <- errors.New("no configuration to save")
 			} else {
-				// return the
-				return_chan <- ioutil.WriteFile(s["ConfigPath"].(string), []byte(jsonStr), 0644)
+				// wait util the file is unlocked...
+				for isLocked(path) {
+					time.Sleep(500 * time.Millisecond)
+				}
+
+				Lock(path) // lock the file access
+				return_chan <- ioutil.WriteFile(path, []byte(jsonStr), 0644)
+				Unlock(path) // unlock the file access
 			}
+
+		case infos := <-readFileChan:
+			path := infos["path"].(string)
+			// wait util the file is unlocked...
+			for isLocked(path) {
+				time.Sleep(500 * time.Millisecond)
+			}
+
+			Lock(path) // lock the file access
+			data, err := ioutil.ReadFile(path)
+			Unlock(path) // unlock the file access
+			return_chan := infos["return"].(chan map[string]interface{})
+			return_chan <- map[string]interface{}{"error": err, "data": data}
 		}
 	}
+}
+
+func readServiceConfigurationFile(path string) ([]byte, error) {
+	if saveFileChan == nil && readFileChan == nil {
+
+		saveFileChan = make(chan map[string]interface{})
+		readFileChan = make(chan map[string]interface{})
+
+		// start the loop.
+		go accesServiceConfigurationFile()
+	}
+	infos := make(map[string]interface{})
+	infos["path"] = path
+	infos["return"] = make(chan map[string]interface{})
+
+	// Wait
+	readFileChan <- infos
+
+	results_chan := infos["return"].(chan map[string]interface{})
+	results := <-results_chan
+
+	if results["error"] != nil {
+		return nil, results["error"].(error)
+	}
+
+	return results["data"].([]byte), nil
 }
 
 /**
  * Save a service configuration.
  */
 func SaveServiceConfiguration(s map[string]interface{}) error {
-	if saveFileChan == nil {
+	if saveFileChan == nil && readFileChan == nil {
+
 		saveFileChan = make(chan map[string]interface{})
+		readFileChan = make(chan map[string]interface{})
+
 		// start the loop.
-		go saveServiceConfiguration()
+		go accesServiceConfigurationFile()
 	}
 
 	// set the config in the map.

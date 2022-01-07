@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/davecourtois/Utility"
 
@@ -115,6 +116,9 @@ type server struct {
 
 	// Update servirce watch delay in second
 	WatchUpdateDelay int
+
+	// When the service is stop...
+	done chan bool
 }
 
 // Globular services implementation...
@@ -382,7 +386,7 @@ var (
 	resource_client_ *resource_client.Resource_Client
 	rbac_client_     *rbac_client.Rbac_Client
 	log_client_      *log_client.Log_Client
-	event_client_   *event_client.Event_Client
+	event_client_    *event_client.Event_Client
 )
 
 ///////////////////// resource service functions ////////////////////////////////////
@@ -400,8 +404,8 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	return event_client_, nil
 }
 
-// when services state change that publish 
-func (server *server) publishUpdateServiceConfigEvent(config map[string]interface{}) error{
+// when services state change that publish
+func (server *server) publishUpdateServiceConfigEvent(config map[string]interface{}) error {
 	data, err := json.Marshal(config)
 	if err != nil {
 		return err
@@ -412,7 +416,7 @@ func (server *server) publishUpdateServiceConfigEvent(config map[string]interfac
 		return err
 	}
 
-	return client.Publish("update_globular_service_configuration_evt",data)
+	return client.Publish("update_globular_service_configuration_evt", data)
 }
 
 ///////////////////// resource service functions ////////////////////////////////////
@@ -547,8 +551,7 @@ func (server *server) stopService(s map[string]interface{}) error {
 		return err
 	}
 
-
-	return server.publishUpdateServiceConfigEvent(s) 
+	return server.publishUpdateServiceConfigEvent(s)
 }
 
 // uninstall service
@@ -626,6 +629,41 @@ func (server *server) registerMethods() error {
 	return nil
 }
 
+// Keep service alive...
+func (server *server) keepAlive() {
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-server.done:
+				return
+			case <-ticker.C:
+				services, err := config.GetServicesConfigurations()
+				// here I will start a go routine who will restart a kill, stoped or failed service if it no more
+				// running.
+				if err == nil {
+					for i:=0; i < len(services); i++ {
+						// fmt.Println(services[i])
+						s:= services[i]
+						if s["State"].(string) != "running" {
+							if s["KeepAlive"].(bool) {
+								server.logServiceInfo("KeepAlive", "Service " + s["Name"].(string) + ":" +s["Id"].(string) + " with pid:" + Utility.ToString(s["Process"]) + " will be restart")
+								err := server.startServiceInstance(s["Id"].(string))
+								if err == nil{
+									server.logServiceInfo("KeepAlive", "Service " + s["Name"].(string) + ":" +s["Id"].(string) + " with pid:" +  Utility.ToString(s["Process"]) + " is up and running")
+								}else{
+									server.logServiceInfo("KeepAlive", "Service " + s["Name"].(string) + ":" +s["Id"].(string) + " with pid:" +  Utility.ToString(s["Process"]) + " fail to restart " + err.Error())
+								}
+								
+							}
+						}
+					}
+				}
+			}
+		}
+	}()
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -654,6 +692,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.WatchUpdateDelay = 60 * 60 // validate service version at each hours...
+	s_impl.done = make(chan bool)
 
 	// Create a new sync map.
 	s_impl.services = new(sync.Map)
@@ -683,6 +722,9 @@ func main() {
 	// Register the echo services
 	services_managerpb.RegisterServicesManagerServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// Keep alive...
+	s_impl.keepAlive()
 
 	// Start the service manager service.
 	s_impl.StartService()
