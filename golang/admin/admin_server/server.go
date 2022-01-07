@@ -408,6 +408,7 @@ func main() {
 	s_impl.ApplicationsRoot = config.GetDataDir() + "/files/applications"
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 

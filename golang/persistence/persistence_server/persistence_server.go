@@ -1124,6 +1124,7 @@ func main() {
 	s_impl.Dependencies = []string{"log.LogService"}
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

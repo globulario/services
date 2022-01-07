@@ -558,6 +558,7 @@ func main() {
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
 
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins

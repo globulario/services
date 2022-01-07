@@ -996,6 +996,7 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.SessionTimeout = 15
+	s_impl.KeepAlive = true
 
 	// Backend informations.
 	s_impl.Backend_address = "localhost"

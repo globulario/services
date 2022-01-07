@@ -1217,6 +1217,7 @@ func main() {
 	s_impl.Dependencies = []string{"rbac.RbacService"}
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 
 	// So here I will set the default permissions for services actions.

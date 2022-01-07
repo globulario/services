@@ -1846,6 +1846,7 @@ func main() {
 	s_impl.Dependencies = make([]string, 0)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
 
 	// DNS operation on a given domain.
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/dns.DnsService/SetA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}

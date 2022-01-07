@@ -458,6 +458,7 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
 	// The default path where the data can be found.
 	s_impl.Root = config.GetDataDir()
 
