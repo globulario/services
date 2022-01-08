@@ -49,6 +49,13 @@ func GetAddress() (string, error) {
 }
 
 /**
+ * Return the computer name.
+ */
+func GetHostName()(string, error){
+	return os.Hostname()
+}
+
+/**
  * Return the Domain.
  */
 func GetDomain() (string, error) {
@@ -56,7 +63,10 @@ func GetDomain() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	domain := localConfig["Name"].(string)
+
+
 	if len(localConfig["Domain"].(string)) > 0 {
 		if len(domain) > 0 {
 			domain += "."
@@ -245,6 +255,11 @@ func GetLocalConfig() (map[string]interface{}, error) {
 
 	for i := 0; i < len(services_config); i++ {
 		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
+	}
+
+	// if the Globule name is not set I will use the name of the computer itself.
+	if len(config["Name"].(string)) == 0 {
+		config["Name"], _ = GetHostName()
 	}
 
 	return config, nil

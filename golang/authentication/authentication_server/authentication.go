@@ -340,7 +340,6 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
-			fmt.Println("--------------------> 343 ", err)
 			return "", status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

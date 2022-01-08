@@ -19,6 +19,9 @@ message Invitation {
 	string to = 3; // account id.
 	int64 invitation_date = 4; // The date the invitation was sent.
 	string name = 5; // The conversation name needed to display to list.
+
+	// The mac address where the inviation is store.
+	string mac = 6;
 }
 
 /** Invite a user to join a conversation */
@@ -86,6 +89,9 @@ message Conversation {
 	
 	/** Pending invitations */
 	Invitations invitations = 9;
+
+	// The mac address where the conversation is store.
+	string mac = 10;
 }
 
 /** List of conversation */

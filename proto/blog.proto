@@ -67,6 +67,7 @@ message BlogPost {
   /** A unique identifier */
   string uuid = 1;
 
+  /** The author of the post */
   string author = 2;
 
   /** The text will be a json object that contain the Blog text */
@@ -95,6 +96,9 @@ message BlogPost {
 
   /** The satus of the blog */
   BogPostStatus status = 11;
+
+  /** The mac address of the peer where the blog is publish */
+  string mac = 12;
   
 }
 
