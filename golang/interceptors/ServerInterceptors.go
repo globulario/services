@@ -255,19 +255,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 		// origin := strings.Join(md["origin"], "")
 		// fmt.Println("-------------------------------> ", origin)
-
-		// in case of resource path.
-		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
-		address_ = strings.ToLower(address_)
-
 		address, _ = config.GetAddress()
-
-		// In that case the request must be process by other peer so I will redirect
-		// the request to that peer and return it response.
-		if address != address_ && len(address_) > 0 {
-			fmt.Println("--------------> ", method, address, "redirect to ", address_)
-			return invoke(address_, method, rqst, ctx)
-		}
 	}
 
 	// If the call come from a local client it has hasAccess
@@ -327,10 +315,8 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 // A wrapper for the real grpc.ServerStream
 type ServerStreamInterceptorStream struct {
 	inner        grpc.ServerStream // default stream
-	redirect     grpc.ServerStream // redirected stream...
 	method       string
 	address      string
-	redirect_to  string // the redirection address
 	organization string
 	peer         string
 	token        string
@@ -340,14 +326,18 @@ type ServerStreamInterceptorStream struct {
 }
 
 func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error {
+
+
 	return l.inner.SetHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SendHeader(m metadata.MD) error {
+
 	return l.inner.SendHeader(m)
 }
 
 func (l ServerStreamInterceptorStream) SetTrailer(m metadata.MD) {
+
 	l.inner.SetTrailer(m)
 }
 
@@ -356,8 +346,10 @@ func (l ServerStreamInterceptorStream) Context() context.Context {
 }
 
 func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
+
 	return l.inner.SendMsg(rqst)
 }
+
 
 /**
  * Here I will wrap the original stream into this one to get access to the original
@@ -408,6 +400,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	return nil
 }
 
+
 // Stream interceptor.
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 
@@ -418,7 +411,6 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	// The peer domain.
 	var domain string      // This is the target domain, the one use in TLS certificate.
 	var address string     // the address if the token issuer
-	var redirect_to string // the redirection address
 
 	method := info.FullMethod
 	domain, _ = config.GetDomain()
@@ -426,30 +418,26 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-
 		address, _ = config.GetAddress()
 
 		// In that case the request must be process by other peer so I will redirect
 		// the request to that peer and return it response.
 		address_ := strings.TrimSpace(strings.Join(md["address"], ""))
 		address_ = strings.ToLower(address_)
-
-		if address != address_ && len(address_) > 0 {
-			// return invoke(address, method, rqst, ctx)
-			fmt.Println("create a stream to redirect the receive and send message to it")
-			fmt.Println("redirect ", address, "----> ", address_)
-			redirect_to = address_
-		}
 	}
 
 	var clientId string
 	var issuer string
 	var err error
+	hasAccess := true
+
+	// TODO set method the require access validation here....
+
 
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
-		if err != nil {
+		if err != nil && !hasAccess{
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			fmt.Println(token)
 			return err
@@ -463,7 +451,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	uuid := Utility.RandomUUID()
 
 	// Start streaming.
-	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer, redirect_to: redirect_to})
+	err = handler(srv, ServerStreamInterceptorStream{uuid: uuid, inner: stream, method: method, address: address, token: token, application: application, clientId: clientId, peer: issuer})
 
 	if err != nil {
 		log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)

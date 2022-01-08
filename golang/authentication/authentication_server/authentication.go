@@ -295,7 +295,9 @@ func (server *server) setKey(mac string) error {
 func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
 	// If the user is the root...
+
 	if accountId == "sa" {
+		fmt.Println("autenticate sa")
 		// The root password will be
 		if !Utility.Exists(configPath) {
 			return "", status.Errorf(
@@ -338,6 +340,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
+			fmt.Println("--------------------> 343 ", err)
 			return "", status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -356,7 +359,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	if err != nil {
 		return "", err
 	}
-	
+
 	err = server.validatePassword(pwd, account.Password)
 	if err != nil {
 		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
@@ -423,40 +426,37 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 
 	// Now I will try each peer...
 	if err != nil {
+		fmt.Println("fail to authenticate on " + rqst.Issuer + " i will try to authenticate peers...")
 		// I will try to authenticate the peer on other resource service...
 		peers, err := server.getPeers()
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		for i := 0; i < len(peers); i++ {
-			peer := peers[i]
-			resource_client_, err := resource_client.NewResourceService_Client(peer.Address, "resource.ResourceService")
-			if err == nil {
-				defer resource_client_.Close()
-				account, err := resource_client_.GetAccount(rqst.Name)
+		if err == nil {
+			for i := 0; i < len(peers); i++ {
+				peer := peers[i]
+				resource_client_, err := resource_client.NewResourceService_Client(peer.Address, "resource.ResourceService")
 				if err == nil {
-					// an account was found with that name...
-					authentication_client_, err := authentication_client.NewAuthenticationService_Client(peer.Address, "authentication.AuthenticationService")
+					defer resource_client_.Close()
+					account, err := resource_client_.GetAccount(rqst.Name)
 					if err == nil {
-						defer authentication_client_.Close()
-						tokenString, err := authentication_client_.Authenticate(account.Id, rqst.Password)
+						// an account was found with that name...
+						authentication_client_, err := authentication_client.NewAuthenticationService_Client(peer.Address, "authentication.AuthenticationService")
 						if err == nil {
-							return &authenticationpb.AuthenticateRsp{
-								Token: tokenString,
-							}, nil
+							defer authentication_client_.Close()
+							tokenString, err := authentication_client_.Authenticate(account.Id, rqst.Password)
+							if err == nil {
+								return &authenticationpb.AuthenticateRsp{
+									Token: tokenString,
+								}, nil
+							}
 						}
-					}
 
+					}
 				}
 			}
 		}
 
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to authenticate user " + rqst.Name)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to authenticate user "+rqst.Name + " from " + rqst.Issuer)))
 	}
 
 	return &authenticationpb.AuthenticateRsp{

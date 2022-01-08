@@ -252,83 +252,80 @@ func GetLocalConfig() (map[string]interface{}, error) {
 
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
 
-	s := make(map[string]interface{})
+
 	config, err := readServiceConfigurationFile(path)
-
-	if err == nil {
-		// Read the config file.
-		if len(config) > 0 {
-			err := json.Unmarshal(config, &s)
-			if err == nil {
-				if s["Protocol"] != nil {
-					// If a configuration file exist It will be use to start services,
-					// otherwise the service configuration file will be use.
-					if s["Name"] != nil {
-
-						info, _ := os.Stat(path)
-						s["modtime"] = info.ModTime().Unix()
-
-						// if no id was given I will generate a uuid.
-						if s["Id"] == nil {
-							s["Id"] = Utility.RandomUUID()
-						}
-
-						// Here I will set the proto file path.
-						if s["Proto"] != nil {
-							if !Utility.Exists(s["Proto"].(string)) {
-								s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
-							}
-						}
-
-						// Now the exec path.
-						if s["Path"] != nil {
-							if !Utility.Exists(s["Path"].(string)) {
-								s["Path"] = path[0:strings.LastIndex(path, "/")+1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
-							}
-						}
-
-						// Keep the configuration path in the object...
-						s["ConfigPath"] = path
-
-						if s["Root"] != nil {
-							if s["Name"] == "file.FileService" {
-								s["Root"] = GetDataDir() + "/files"
-								// append public path from file services accessible to configuration client...
-								if s["Public"] != nil {
-									for i := 0; i < len(s["Public"].([]interface{})); i++ {
-										path := s["Public"].([]interface{})[i].(string)
-										if Utility.Exists(path) {
-											if !Utility.Contains(GetPublicDirs(), path) {
-												public = append(GetPublicDirs(), path)
-											}
-										}
-									}
-								}
-							} else {
-								s["Root"] = GetDataDir()
-							}
-						}
-
-						// Create the sync map.
-						if configs == nil {
-							configs = new(sync.Map)
-						}
-
-						// keep in the sync map.
-						configs.Store(s["Id"].(string), s)
-					}
-				}
-			} else {
-				log.Println("fail to unmarshal configuration path:", path, err)
-				return nil, err
-			}
-		}else{
-			return nil, errors.New("empty configuration found at path " + path)
-		}
-
-	} else {
-		log.Println("Fail to read config file path:", path, err)
+	if err != nil {
 		return nil, err
+	}
+
+	if len(config) == 0 {
+		return nil, errors.New("empty configuration found at path " + path)
+	}
+
+	s := make(map[string]interface{})
+	err = json.Unmarshal(config, &s)
+	if err != nil {
+		log.Println("fail to unmarshal configuration path:", path, err)
+		return nil, err
+	}
+
+	info, _ := os.Stat(path)
+	s["modtime"] = info.ModTime().Unix()
+
+	if s["Protocol"] != nil {
+		// If a configuration file exist It will be use to start services,
+		// otherwise the service configuration file will be use.
+		if s["Name"] != nil {
+
+			// if no id was given I will generate a uuid.
+			if s["Id"] == nil {
+				s["Id"] = Utility.RandomUUID()
+			}
+
+			// Here I will set the proto file path.
+			if s["Proto"] != nil {
+				if !Utility.Exists(s["Proto"].(string)) {
+					s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
+				}
+			}
+
+			// Now the exec path.
+			if s["Path"] != nil {
+				if !Utility.Exists(s["Path"].(string)) {
+					s["Path"] = path[0:strings.LastIndex(path, "/")+1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
+				}
+			}
+
+			// Keep the configuration path in the object...
+			s["ConfigPath"] = path
+
+			if s["Root"] != nil {
+				if s["Name"] == "file.FileService" {
+					s["Root"] = GetDataDir() + "/files"
+					// append public path from file services accessible to configuration client...
+					if s["Public"] != nil {
+						for i := 0; i < len(s["Public"].([]interface{})); i++ {
+							path := s["Public"].([]interface{})[i].(string)
+							if Utility.Exists(path) {
+								if !Utility.Contains(GetPublicDirs(), path) {
+									public = append(GetPublicDirs(), path)
+								}
+							}
+						}
+					}
+				} else {
+					s["Root"] = GetDataDir()
+				}
+			}
+
+			// Create the sync map.
+			if configs == nil {
+				configs = new(sync.Map)
+			}
+
+			// keep in the sync map.
+			configs.Store(s["Id"].(string), s)
+		}
 	}
 
 	return s, nil
@@ -365,7 +362,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			Unlock(path) // be sure no service configuration file are lock
 			s, err := initServiceConfiguration(path, serviceDir)
 			if err == nil {
-
 				services = append(services, s)
 			}
 		}
@@ -380,7 +376,12 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			// Here I will validate the service configuration has not change...
 			path := s["ConfigPath"].(string)
 			info, _ := os.Stat(path)
-			if int64(s["modtime"].(float64)) != info.ModTime().Unix() {
+			modtime := int64(0)
+			if s["modtime"] != nil {
+				modtime = int64(s["modtime"].(float64))
+			}
+
+			if modtime!= info.ModTime().Unix() {
 				// The value from the configuration file may have change...
 				s, err := initServiceConfiguration(path, serviceDir)
 				if err == nil {
