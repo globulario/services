@@ -295,7 +295,6 @@ func (server *server) setKey(mac string) error {
 func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
 
 	// If the user is the root...
-
 	if accountId == "sa" {
 		fmt.Println("autenticate sa")
 		// The root password will be
@@ -337,6 +336,9 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 				return "", err
 			}
 		}
+
+		// In that particular case I will set the issuer to the current mac... 
+		issuer = Utility.MyMacAddr()
 
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {

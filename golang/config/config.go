@@ -60,21 +60,19 @@ func GetHostName() (string, error) {
  */
 func GetDomain() (string, error) {
 	localConfig, err := GetLocalConfig()
-	if err != nil {
-		return "", err
-	}
-
-	domain := localConfig["Name"].(string)
-
-	if len(localConfig["Domain"].(string)) > 0 {
-		if len(domain) > 0 {
-			domain += "."
+	if err == nil {
+		domain := localConfig["Name"].(string)
+		if len(localConfig["Domain"].(string)) > 0 {
+			if len(domain) > 0 {
+				domain += "."
+			}
+			domain += localConfig["Domain"].(string)
 		}
-		domain += localConfig["Domain"].(string)
 		return domain, nil
 	}
 
-	return "localhost", nil
+	// if not configuration already exist on the server I will return it hostname...
+	return GetHostName()
 }
 
 // Those function are use to get the correct
@@ -207,6 +205,7 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	var resp *http.Response
 	var err error
 	var configAddress = "http://" + address + ":" + Utility.ToString(port) + "/config"
+	fmt.Println("get remote configuration from address ", configAddress)
 	resp, err = http.Get(configAddress)
 	if err != nil {
 		return nil, err
