@@ -51,7 +51,7 @@ func GetAddress() (string, error) {
 /**
  * Return the computer name.
  */
-func GetHostName()(string, error){
+func GetHostName() (string, error) {
 	return os.Hostname()
 }
 
@@ -65,7 +65,6 @@ func GetDomain() (string, error) {
 	}
 
 	domain := localConfig["Name"].(string)
-
 
 	if len(localConfig["Domain"].(string)) > 0 {
 		if len(domain) > 0 {
@@ -267,7 +266,6 @@ func GetLocalConfig() (map[string]interface{}, error) {
 
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
 
-
 	config, err := readServiceConfigurationFile(path)
 	if err != nil {
 		return nil, err
@@ -396,7 +394,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 				modtime = int64(s["modtime"].(float64))
 			}
 
-			if modtime!= info.ModTime().Unix() {
+			if modtime != info.ModTime().Unix() {
 				// The value from the configuration file may have change...
 				s, err := initServiceConfiguration(path, serviceDir)
 				if err == nil {
@@ -489,6 +487,21 @@ func Unlock(path string) bool {
 		return true
 	}
 	return false
+}
+
+// Remove all file lock.
+func RemoveAllLocks() {
+	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	if len(serviceDir) == 0 {
+		serviceDir = GetServicesDir()
+	}
+
+	locks, err := Utility.FindFileByName(serviceDir, "config.lock")
+	if err == nil {
+		for i:=0; i < len(locks); i++ {
+			os.Remove(locks[i])
+		}
+	}
 }
 
 // Create a save entry point to access configuration file. Because

@@ -72,7 +72,7 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 	} else {
 
 		// basic connection string to begin with.
-		connectionStr := "mongodb://" + user + ":" + password + "@" + host + ":" + strconv.Itoa(int(port)) + "/" + database + "?authSource=admin&compressors=disabled&gssapiServiceName=mongodb"
+		connectionStr := "mongodb://" + user + ":" + password + "@" + host + ":" + strconv.Itoa(int(port)) + "/" + database + "?authSource=admin&compressors=disabled&gssapiServiceName=mongodb&ssl=false"
 		var err error
 		client, err = mongo.NewClient(options.Client().ApplyURI(connectionStr))
 		if err != nil {
