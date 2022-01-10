@@ -68,9 +68,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	}
 
 	// get service by id or by name... (take the first service with a given name in case of name.
-	fmt.Println("-----------> look for service named: ", name, " isLocal ", isLocal)
 	for _, s := range serverConfig["Services"].(map[string]interface{}) {
-		fmt.Println("-----------> service: ", s.(map[string]interface{})["Name"].(string))
 		if s.(map[string]interface{})["Name"].(string) == name || s.(map[string]interface{})["Id"].(string) == name {
 			config = s.(map[string]interface{})
 			break
@@ -131,7 +129,6 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 
 		if !isLocal {
 			domain := serverConfig["Domain"].(string)
-			fmt.Println("--------------------> 134 ", domain)
 			keyPath, certPath, caPath, err := getCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
 			if err != nil {
 				log.Println("Fail to retreive credential configuration with error ", err)
