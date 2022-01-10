@@ -32,6 +32,8 @@ var (
  */
 func GetAddress() (string, error) {
 	domain, _ := GetDomain()
+
+	// I need the local configuration to get info about the address.
 	localConfig, err := GetLocalConfig()
 	if err != nil {
 		return "", err
@@ -69,7 +71,7 @@ func GetDomain() (string, error) {
 			domain += localConfig["Domain"].(string)
 		}
 		return domain, nil
-	}
+	} 
 
 	// if not configuration already exist on the server I will return it hostname...
 	return GetHostName()
@@ -350,11 +352,37 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			}
 
 			// keep in the sync map.
-			configs.Store(s["Id"].(string), s)
+			getConfigs().Store(s["Id"].(string), s)
 		}
 	}
 
 	return s, nil
+}
+
+// Singleton that initalyse and keep in sync map all services configurations.
+func getConfigs() *sync.Map {
+	if configs == nil {
+		serviceDir := GetServicesConfigDir()
+		configs = new(sync.Map)
+		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+
+		files, err := Utility.FindFileByName(serviceDir, "config.json")
+		if err != nil {
+			fmt.Println("fail to find service configurations at at path ", serviceDir)
+			return nil
+		}
+
+		// I will try to get configuration from services.
+		for i := 0; i < len(files); i++ {
+			path := files[i]
+			Unlock(path) // be sure no service configuration file are lock
+			_, err = initServiceConfiguration(path, serviceDir)
+			if err != nil {
+				fmt.Println("fail to initialyse service configuration from file " + path)
+			}
+		}
+	}
+	return configs
 }
 
 /**
@@ -366,60 +394,35 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	// I will get the services configuations from the config.json files.
 	serviceDir := GetServicesConfigDir()
 
-	if configs == nil {
-		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+	// I will get the services from the sync map.
+	getConfigs().Range(func(key, value interface{}) bool {
+		// Here I will create a detach copy of the map...
+		data, _ := json.Marshal(value)
+		s := make(map[string]interface{})
+		json.Unmarshal(data, &s)
 
-		files, err := Utility.FindFileByName(serviceDir, "config.json")
-		if err != nil {
-			fmt.Println("fail to find service configurations at at path ", serviceDir)
-			return nil, err
+		// Here I will validate the service configuration has not change...
+		path := s["ConfigPath"].(string)
+		info, _ := os.Stat(path)
+		modtime := int64(0)
+		if s["modtime"] != nil {
+			modtime = int64(s["modtime"].(float64))
 		}
 
-		// I will try to get configuration from services.
-		for i := 0; i < len(files); i++ {
-			path := files[i]
-			Unlock(path) // be sure no service configuration file are lock
-			//fmt.Println("-------> init service configuration: ", path)
+		if modtime != info.ModTime().Unix() {
+			// The value from the configuration file may have change...
 			s, err := initServiceConfiguration(path, serviceDir)
 			if err == nil {
-				//fmt.Println("-------> service is init ",  s)
 				services = append(services, s)
 			} else {
-				fmt.Println("fail to initi service ", s)
-				fmt.Println(err)
+				fmt.Println("fail to get service configuration ", path, " with error: ", err)
 			}
+		} else {
+			services = append(services, s)
 		}
-	} else {
-		// I will get the services from the sync map.
-		configs.Range(func(key, value interface{}) bool {
-			// Here I will create a detach copy of the map...
-			data, _ := json.Marshal(value)
-			s := make(map[string]interface{})
-			json.Unmarshal(data, &s)
 
-			// Here I will validate the service configuration has not change...
-			path := s["ConfigPath"].(string)
-			info, _ := os.Stat(path)
-			modtime := int64(0)
-			if s["modtime"] != nil {
-				modtime = int64(s["modtime"].(float64))
-			}
-
-			if modtime != info.ModTime().Unix() {
-				// The value from the configuration file may have change...
-				s, err := initServiceConfiguration(path, serviceDir)
-				if err == nil {
-					services = append(services, s)
-				} else {
-					fmt.Println("fail to get service configuration ", path, " with error: ", err)
-				}
-			} else {
-				services = append(services, s)
-			}
-
-			return true
-		})
-	}
+		return true
+	})
 
 	// return the services configuration.
 	return services, nil
@@ -468,7 +471,7 @@ func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 
 func SetServiceConfiguration(s map[string]interface{}) {
 	// set the config in the map.
-	configs.Store(s["Id"].(string), s)
+	getConfigs().Store(s["Id"].(string), s)
 }
 
 var (
@@ -536,7 +539,7 @@ func accesServiceConfigurationFile() {
 				for isLocked(path) {
 					time.Sleep(500 * time.Millisecond)
 				}
-				fmt.Println("-----------------------> 539", path)
+				// fmt.Println(" write -----------------------> 539", path)
 				Lock(path) // lock the file access
 				return_chan <- ioutil.WriteFile(path, []byte(jsonStr), 0644)
 				Unlock(path) // unlock the file access
@@ -548,7 +551,7 @@ func accesServiceConfigurationFile() {
 			for isLocked(path) {
 				time.Sleep(500 * time.Millisecond)
 			}
-
+			// fmt.Println(" read -----------------------> 551", path)
 			Lock(path) // lock the file access
 			data, err := ioutil.ReadFile(path)
 			Unlock(path) // unlock the file access
@@ -560,9 +563,6 @@ func accesServiceConfigurationFile() {
 
 func ReadServiceConfigurationFile(path string) ([]byte, error) {
 	if saveFileChan == nil && readFileChan == nil {
-		if configs == nil {
-			configs = new(sync.Map)
-		}
 		saveFileChan = make(chan map[string]interface{})
 		readFileChan = make(chan map[string]interface{})
 
@@ -592,9 +592,6 @@ func ReadServiceConfigurationFile(path string) ([]byte, error) {
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	if saveFileChan == nil && readFileChan == nil {
 		// Create the sync map.
-		if configs == nil {
-			configs = new(sync.Map)
-		}
 		saveFileChan = make(chan map[string]interface{})
 		readFileChan = make(chan map[string]interface{})
 
@@ -603,7 +600,7 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	}
 
 	// set the config in the map.
-	configs.Store(s["Id"].(string), s)
+	getConfigs().Store(s["Id"].(string), s)
 
 	infos := make(map[string]interface{})
 	infos["service_config"] = s

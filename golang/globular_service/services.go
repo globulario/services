@@ -174,8 +174,6 @@ func InitService(path string, s Service) error {
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
 	s.SetPath(execPath)
 
-	fmt.Println("---------> read config from path ", path)
-
 	// Here I will retreive the list of connections from file if there are some...
 	file, err := config.ReadServiceConfigurationFile(path)
 

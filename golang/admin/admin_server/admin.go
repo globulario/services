@@ -364,6 +364,7 @@ func (admin_server *server) UnsetEnvironmentVariable(ctx context.Context, rqst *
 //
 // The command can return
 func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.GetCertificatesRequest) (*adminpb.GetCertificatesResponse, error) {
+	
 	path := rqst.Path
 	if len(path) == 0 {
 		path = os.TempDir()
