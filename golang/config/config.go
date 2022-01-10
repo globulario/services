@@ -384,7 +384,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 			if err == nil {
 				//fmt.Println("-------> service is init ",  s)
 				services = append(services, s)
-			}else{
+			} else {
 				fmt.Println("fail to initi service ", s)
 				fmt.Println(err)
 			}
@@ -536,7 +536,7 @@ func accesServiceConfigurationFile() {
 				for isLocked(path) {
 					time.Sleep(500 * time.Millisecond)
 				}
-
+				fmt.Println("-----------------------> 539", path)
 				Lock(path) // lock the file access
 				return_chan <- ioutil.WriteFile(path, []byte(jsonStr), 0644)
 				Unlock(path) // unlock the file access
@@ -560,7 +560,9 @@ func accesServiceConfigurationFile() {
 
 func ReadServiceConfigurationFile(path string) ([]byte, error) {
 	if saveFileChan == nil && readFileChan == nil {
-
+		if configs == nil {
+			configs = new(sync.Map)
+		}
 		saveFileChan = make(chan map[string]interface{})
 		readFileChan = make(chan map[string]interface{})
 
@@ -589,7 +591,10 @@ func ReadServiceConfigurationFile(path string) ([]byte, error) {
  */
 func SaveServiceConfiguration(s map[string]interface{}) error {
 	if saveFileChan == nil && readFileChan == nil {
-
+		// Create the sync map.
+		if configs == nil {
+			configs = new(sync.Map)
+		}
 		saveFileChan = make(chan map[string]interface{})
 		readFileChan = make(chan map[string]interface{})
 

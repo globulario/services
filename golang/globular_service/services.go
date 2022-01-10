@@ -225,6 +225,8 @@ func SaveService(path string, s Service) error {
 	}
 
 	config__, err := Utility.ToMap(s)
+	config__["ConfigPath"] = path
+	
 	if err != nil {
 		return err
 	}
@@ -264,9 +266,10 @@ func SaveService(path string, s Service) error {
 			config__["Proxy"] = config_["Proxy"]
 		}
 	}
-
+	
 	config.SaveServiceConfiguration(config__)
 	if err != nil {
+		fmt.Println("fail to save configuration with error ", err)
 		return err
 	}
 
