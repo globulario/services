@@ -214,7 +214,7 @@ func InitService(path string, s Service) error {
  * Save a globular service.
  */
 func SaveService(path string, s Service) error {
-	
+
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
 
 	if len(serviceRoot) == 0 {
