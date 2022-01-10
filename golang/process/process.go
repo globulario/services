@@ -206,6 +206,22 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
 		if err != nil {
 			setServiceConfigurationError(err, s)
+			
+			if s["State"] != nil {
+				// if the service fail
+				if  s["State"].(string) == "failed"{
+					fmt.Println("the service ",  s["Name"], "with process id", s["Process"], "has been terminate")
+					if s["KeepAlive"].(bool) == true {
+						s["State"] = "stopped"
+						config.SaveServiceConfiguration(s)
+						// give ti some time to free resources like port files... etc.
+						time.Sleep(5 * time.Second)
+						StartServiceProcess(serviceId, portsRange) 
+					}
+
+				}
+			}
+
 			stdout.Close()
 			done <- true
 			return

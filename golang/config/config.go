@@ -75,7 +75,7 @@ func GetDomain() (string, error) {
 			domain += localConfig["Domain"].(string)
 		}
 		return strings.ToLower(domain), nil
-	} 
+	}
 
 	// if not configuration already exist on the server I will return it hostname...
 	return GetHostName()
@@ -112,7 +112,7 @@ func GetServicesDir() string {
 }
 
 func GetServicesConfigDir() string {
-	// That variable is use in development to set services from different location...
+	// That variable is use in development to set services from diffrent location...
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceRoot) > 0 {
 		return serviceRoot
@@ -122,6 +122,7 @@ func GetServicesConfigDir() string {
 		return GetConfigDir() + "/services"
 	}
 
+	// Look in the service dir directly...
 	return GetServicesDir()
 }
 
@@ -248,7 +249,7 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 func GetLocalConfig() (map[string]interface{}, error) {
 	ConfigPath := GetConfigDir() + "/config.json"
 	if !Utility.Exists(ConfigPath) {
-		err :=  errors.New("no local Globular configuration found")
+		err := errors.New("no local Globular configuration found")
 		fmt.Println(err)
 		return nil, err
 	}
@@ -511,8 +512,7 @@ func Unlock(path string) bool {
 
 // Remove all file lock.
 func RemoveAllLocks() {
-	serviceDir := GetServicesConfigDir()
-
+	serviceDir := GetConfigDir()
 	locks, err := Utility.FindFileByName(serviceDir, "config.lock")
 	if err == nil {
 		for i := 0; i < len(locks); i++ {
@@ -545,7 +545,7 @@ func accesServiceConfigurationFile() {
 				for isLocked(path) {
 					time.Sleep(500 * time.Millisecond)
 				}
-				
+
 				Lock(path) // lock the file access
 				return_chan <- ioutil.WriteFile(path, []byte(jsonStr), 0644)
 				Unlock(path) // unlock the file access

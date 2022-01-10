@@ -161,6 +161,7 @@ type Service interface {
 func InitService(path string, s Service) error {
 
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	path = strings.ReplaceAll(path, "\\", "/")
 
 	if len(serviceRoot) == 0 {
 		// Here I receive something like
@@ -179,8 +180,11 @@ func InitService(path string, s Service) error {
 
 	if err == nil {
 		// So Here I will
-		return json.Unmarshal([]byte(file), s)
+		err := json.Unmarshal([]byte(file), s)
+		if err != nil {
+			return err
 
+		}
 	} else {
 		fmt.Println("create new configuration file...")
 		// Generate an id if none exist in the given configuration.
@@ -202,10 +206,10 @@ func InitService(path string, s Service) error {
 		} else if strings.Contains(execPath, serviceRoot) && len(serviceRoot) > 0 {
 			s.SetProto(serviceRoot + s.GetProto())
 		}
-
-		// save the service configuation.
-		return SaveService(path, s)
 	}
+
+	// save the service configuation.
+	return SaveService(path, s)
 }
 
 /**
@@ -214,17 +218,19 @@ func InitService(path string, s Service) error {
 func SaveService(path string, s Service) error {
 
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
-
+	path = strings.ReplaceAll(path, "\\", "/")
+	
 	if len(serviceRoot) == 0 {
 		// Here I receive something like
 		//  /usr/local/share/globular/services/globulario/mail.MailService/0.0.1/6364c9d4-3159-419b-85ac-4981bdc9c28d/config.json
 		// the first part of that path is the path of executable and not the config... so I will change it
 		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
+
 	}
 
 	config__, err := Utility.ToMap(s)
 	config__["ConfigPath"] = path
-	
+
 	if err != nil {
 		return err
 	}
@@ -239,6 +245,9 @@ func SaveService(path string, s Service) error {
 			return err
 		}
 
+		// Set the configuration path.
+		config__["ConfigPath"] = path
+
 		// Now I will set the values not found in the service object...
 		if config_["Process"] != nil {
 			config__["Process"] = config_["Process"]
@@ -252,10 +261,6 @@ func SaveService(path string, s Service) error {
 			config__["LastError"] = config_["LastError"]
 		}
 
-		if config_["ConfigPath"] != nil {
-			config__["ConfigPath"] = path
-		}
-
 		if config_["Port"] != nil {
 			config__["Port"] = config_["Port"]
 		}
@@ -264,7 +269,7 @@ func SaveService(path string, s Service) error {
 			config__["Proxy"] = config_["Proxy"]
 		}
 	}
-	
+
 	config.SaveServiceConfiguration(config__)
 	if err != nil {
 		fmt.Println("fail to save configuration with error ", err)
