@@ -32,10 +32,12 @@ var (
 // That function will be access via http so event server or client will be able
 // to get particular service configuration.
 func GetClientConfig(address string, name string, port int, path string) (map[string]interface{}, error) {
+
 	address = strings.ToLower(address) 
 	var serverConfig map[string]interface{}
 	var config map[string]interface{}
 	var err error
+	
 	if len(address) == 0 {
 		err := errors.New("no address was given for service name " + name)
 		return nil, err
@@ -55,6 +57,7 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		}
 
 	} else {
+		fmt.Println("fail to get local configuration with error ", err)
 		isLocal = false
 	}
 

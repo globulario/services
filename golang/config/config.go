@@ -54,7 +54,11 @@ func GetAddress() (string, error) {
  * Return the computer name.
  */
 func GetHostName() (string, error) {
-	return os.Hostname()
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(hostname), nil
 }
 
 /**
@@ -70,7 +74,7 @@ func GetDomain() (string, error) {
 			}
 			domain += localConfig["Domain"].(string)
 		}
-		return domain, nil
+		return strings.ToLower(domain), nil
 	} 
 
 	// if not configuration already exist on the server I will return it hostname...
@@ -244,7 +248,9 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 func GetLocalConfig() (map[string]interface{}, error) {
 	ConfigPath := GetConfigDir() + "/config.json"
 	if !Utility.Exists(ConfigPath) {
-		return nil, errors.New("no local Globular configuration found")
+		err :=  errors.New("no local Globular configuration found")
+		fmt.Println(err)
+		return nil, err
 	}
 
 	config := make(map[string]interface{})
@@ -539,7 +545,7 @@ func accesServiceConfigurationFile() {
 				for isLocked(path) {
 					time.Sleep(500 * time.Millisecond)
 				}
-				// fmt.Println(" write -----------------------> 539", path)
+				
 				Lock(path) // lock the file access
 				return_chan <- ioutil.WriteFile(path, []byte(jsonStr), 0644)
 				Unlock(path) // unlock the file access
