@@ -147,7 +147,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 			s["Path"] = s["ConfigPath"].(string)[0:strings.LastIndex(s["ConfigPath"].(string), "/")] + s["Path"].(string)
 		}
 	}
-	log.Println("Try to start serverive ", s["Path"].(string))
+	log.Println("Try to start service ", s["Path"].(string))
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
 		setServiceConfigurationError(err, s)

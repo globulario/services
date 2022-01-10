@@ -32,7 +32,7 @@ var (
 // That function will be access via http so event server or client will be able
 // to get particular service configuration.
 func GetClientConfig(address string, name string, port int, path string) (map[string]interface{}, error) {
-
+	address = strings.ToLower(address) 
 	var serverConfig map[string]interface{}
 	var config map[string]interface{}
 	var err error
@@ -49,19 +49,8 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 	if err == nil {
 		// The way the domain is create must be the same here
 		// and in the file globular.go at function getDomain()
-		domain := serverConfig["Name"].(string)
-
-		if len(serverConfig["Domain"].(string)) > 0 {
-			if len(domain) > 0 {
-				domain += "."
-			}
-			domain += serverConfig["Domain"].(string)
-
-		} else if len(serverConfig["Domain"].(string)) == 0 && len(serverConfig["Name"].(string)) == 0 {
-			domain = "localhost"
-		}
-
-		if strings.ToLower(domain) != strings.ToLower(address) {
+		domain, _ := config_.GetDomain()
+		if !strings.HasPrefix(address, domain) && !strings.HasPrefix(address, "localhost"){
 			isLocal = false
 		}
 

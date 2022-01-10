@@ -336,6 +336,8 @@ func (svr *server) Init() error {
 func (svr *server) Save() error {
 	// Create the file...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+
+	// Save the service.
 	return globular.SaveService(dir+"/config.json", svr)
 }
 

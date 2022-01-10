@@ -83,6 +83,7 @@ export interface IConfig {
   Root: string;
   WebRoot: string;
   Public: string[];
+  AlternateDomains: string[],
   Path: string;
   DataPath: string;
   ConfigPath: string;

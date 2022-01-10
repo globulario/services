@@ -105,6 +105,20 @@ func GetServicesDir() string {
 	return GetRootDir() + "/services"
 }
 
+func GetServicesConfigDir() string {
+	// That variable is use in development to set services from different location...
+	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	if len(serviceRoot) > 0 {
+		return serviceRoot
+	}
+
+	if Utility.Exists(GetConfigDir() + "/services") {
+		return GetConfigDir() + "/services"
+	}
+
+	return GetServicesDir()
+}
+
 func GetConfigDir() string {
 	if runtime.GOOS == "windows" {
 		return GetRootDir() + "/config"
@@ -232,7 +246,7 @@ func GetLocalConfig() (map[string]interface{}, error) {
 	}
 
 	config := make(map[string]interface{})
-	data, err := readServiceConfigurationFile(ConfigPath)
+	data, err := ReadServiceConfigurationFile(ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +279,7 @@ func GetLocalConfig() (map[string]interface{}, error) {
 
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
 
-	config, err := readServiceConfigurationFile(path)
+	config, err := ReadServiceConfigurationFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -350,16 +364,9 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	services := make([]map[string]interface{}, 0)
 	// I will get the services configuations from the config.json files.
-	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	serviceDir := GetServicesConfigDir()
 
 	if configs == nil {
-
-		if len(serviceDir) == 0 {
-			serviceDir = GetServicesDir()
-		} else {
-			fmt.Println("************** Development mode runing services found at ", serviceDir, "**************")
-		}
-
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 
 		files, err := Utility.FindFileByName(serviceDir, "config.json")
@@ -372,9 +379,14 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 		for i := 0; i < len(files); i++ {
 			path := files[i]
 			Unlock(path) // be sure no service configuration file are lock
+			//fmt.Println("-------> init service configuration: ", path)
 			s, err := initServiceConfiguration(path, serviceDir)
 			if err == nil {
+				//fmt.Println("-------> service is init ",  s)
 				services = append(services, s)
+			}else{
+				fmt.Println("fail to initi service ", s)
+				fmt.Println(err)
 			}
 		}
 	} else {
@@ -490,14 +502,11 @@ func Unlock(path string) bool {
 
 // Remove all file lock.
 func RemoveAllLocks() {
-	serviceDir := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	if len(serviceDir) == 0 {
-		serviceDir = GetServicesDir()
-	}
+	serviceDir := GetServicesConfigDir()
 
 	locks, err := Utility.FindFileByName(serviceDir, "config.lock")
 	if err == nil {
-		for i:=0; i < len(locks); i++ {
+		for i := 0; i < len(locks); i++ {
 			os.Remove(locks[i])
 		}
 	}
@@ -549,7 +558,7 @@ func accesServiceConfigurationFile() {
 	}
 }
 
-func readServiceConfigurationFile(path string) ([]byte, error) {
+func ReadServiceConfigurationFile(path string) ([]byte, error) {
 	if saveFileChan == nil && readFileChan == nil {
 
 		saveFileChan = make(chan map[string]interface{})

@@ -24,6 +24,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/admin_client"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -158,25 +159,38 @@ type Service interface {
  * Initialise a globular service from it configuration file.
  */
 func InitService(path string, s Service) error {
-	log.Println("read config at path ", path)
+
+	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+
+	if len(serviceRoot) == 0 {
+		// Here I receive something like
+		//  /usr/local/share/globular/services/globulario/mail.MailService/0.0.1/6364c9d4-3159-419b-85ac-4981bdc9c28d/config.json
+		// the first part of that path is the path of executable and not the config... so I will change it
+		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
+	}
+
+	// I Will set the executable path in the service config.
+	execPath, _ := os.Executable()
+	execPath = strings.ReplaceAll(execPath, "\\", "/")
+	s.SetPath(execPath)
+
+	fmt.Println("---------> read config from path ", path)
+
 	// Here I will retreive the list of connections from file if there are some...
-	file, err := ioutil.ReadFile(path)
+	file, err := config.ReadServiceConfigurationFile(path)
+
 	if err == nil {
+		// So Here I will
 		return json.Unmarshal([]byte(file), s)
+
 	} else {
-		log.Println("create new configuration file...")
+		fmt.Println("create new configuration file...")
 		// Generate an id if none exist in the given configuration.
 		if len(s.GetId()) == 0 {
 			// Generate random id for the server instance.
 			s.SetId(Utility.RandomUUID())
 		}
-
 		s.SetMac(Utility.MyMacAddr())
-
-		execPath, _ := os.Executable()
-		execPath = strings.ReplaceAll(execPath, "\\", "/")
-		s.SetPath(execPath)
-
 		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 		if err != nil {
 			log.Println(err)
@@ -185,18 +199,86 @@ func InitService(path string, s Service) error {
 
 		// Here I will try to find the proto file...
 		files, err := Utility.FindFileByName(dir, ".proto")
-
 		if err == nil && len(files) > 0 {
 			s.SetProto(files[0])
-		} else if strings.Contains(execPath, "/globulario/services/") {
-			path_ := execPath[0:strings.Index(execPath, "/globulario/services/")]
-			s.SetProto(path_ + "/globulario/services/" + s.GetProto())
+		} else if strings.Contains(execPath, serviceRoot) && len(serviceRoot) > 0 {
+			s.SetProto(serviceRoot + s.GetProto())
 		}
 
-		log.Println("save new configuration...")
 		// save the service configuation.
 		return SaveService(path, s)
 	}
+}
+
+/**
+ * Save a globular service.
+ */
+func SaveService(path string, s Service) error {
+	
+	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+
+	if len(serviceRoot) == 0 {
+		// Here I receive something like
+		//  /usr/local/share/globular/services/globulario/mail.MailService/0.0.1/6364c9d4-3159-419b-85ac-4981bdc9c28d/config.json
+		// the first part of that path is the path of executable and not the config... so I will change it
+		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
+	}
+
+	config__, err := Utility.ToMap(s)
+	if err != nil {
+		return err
+	}
+
+	// So here before I save the configuration I will get values that are not part
+	// of the services itself but use by globular.
+	config_ := make(map[string]interface{})
+	file, err := config.ReadServiceConfigurationFile(path)
+	if err == nil {
+		err = json.Unmarshal(file, &config_)
+		if err != nil {
+			return err
+		}
+
+		// Now I will set the values not found in the service object...
+		if config_["Process"] != nil {
+			config__["Process"] = config_["Process"]
+		}
+
+		if config_["ProxyProcess"] != nil {
+			config__["ProxyProcess"] = config_["ProxyProcess"]
+		}
+
+		if config_["LastError"] != nil {
+			config__["LastError"] = config_["LastError"]
+		}
+
+		if config_["ConfigPath"] != nil {
+			config__["ConfigPath"] = path
+		}
+
+		if config_["Port"] != nil {
+			config__["Port"] = config_["Port"]
+		}
+
+		if config_["Proxy"] != nil {
+			config__["Proxy"] = config_["Proxy"]
+		}
+	}
+
+	config.SaveServiceConfiguration(config__)
+	if err != nil {
+		return err
+	}
+
+	event_client_, _ := getEventClient(s.GetDomain())
+
+	if err == nil {
+		// Here I will publish the start service event
+		str, _ := Utility.ToJson(config__)
+		event_client_.Publish("update_globular_service_configuration_evt", []byte(str))
+	}
+
+	return err
 }
 
 /**
@@ -397,72 +479,6 @@ func getEventClient(domain string) (*event_client.Event_Client, error) {
 	}
 
 	return event_client_, nil
-}
-
-/**
- * Save a globular service.
- */
-func SaveService(path string, s Service) error {
-
-	config, err := Utility.ToMap(s)
-	if err != nil {
-		return err
-	}
-
-	// So here before I save the configuration I will get values that are not part
-	// of the services itself but use by globular.
-	config_ := make(map[string]interface{})
-	file, err := ioutil.ReadFile(path)
-	if err == nil {
-		err = json.Unmarshal(file, &config_)
-		if err != nil {
-			return err
-		}
-
-		// Now I will set the values not found in the service object...
-		if config_["Process"] != nil {
-			config["Process"] = config_["Process"]
-		}
-
-		if config_["ProxyProcess"] != nil {
-			config["ProxyProcess"] = config_["ProxyProcess"]
-		}
-
-		if config_["LastError"] != nil {
-			config["LastError"] = config_["LastError"]
-		}
-
-		if config_["ConfigPath"] != nil {
-			config["ConfigPath"] = path
-		}
-
-		if config_["Port"] != nil {
-			config["Port"] = config_["Port"]
-		}
-
-		if config_["Proxy"] != nil {
-			config["Proxy"] = config_["Proxy"]
-		}
-	}
-
-	// Create the file...
-	str, err := Utility.ToJson(config)
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(path, []byte(str), 0644)
-	if err != nil {
-		return err
-	}
-
-	event_client_, _ := getEventClient(s.GetDomain())
-	if err == nil {
-		// Here I will publish the start service event
-		event_client_.Publish("update_globular_service_configuration_evt", []byte(str))
-	}
-
-	return err
 }
 
 func StartService(s Service, server *grpc.Server) error {

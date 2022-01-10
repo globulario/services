@@ -16,7 +16,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 
-var resource_pb = require('./resource_pb.js')
+var resource_pb = require('../resource/resource_pb.js')
 const proto = {};
 proto.repository = require('./repository_pb.js');
 
