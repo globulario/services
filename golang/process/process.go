@@ -106,6 +106,12 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		return -1, err
 	}
 
+	s["State"] = "stopped"
+	s["LastError"] = ""
+
+	// save the service configuration.
+	config.SaveServiceConfiguration(s)
+
 	// Get the next available port.
 	port, err := config.GetNextAvailablePort(portsRange)
 	if err != nil {
@@ -130,6 +136,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		}
 	}
 	log.Println("Try to start service ", s["Path"].(string))
+
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
 		setServiceConfigurationError(err, s)
@@ -179,8 +186,31 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	s["State"] = "running"
 	s["Process"] = p.Process.Pid
 
+	waitUntilStart := make(chan int)
+
 	// so here I will start each service in it own go routine.
 	go func(serviceId string) {
+
+		exist, err := PidExists(int32(p.Process.Pid))
+		delay := 15 * 10 * 1000;
+		for !exist && delay > 0 {
+			time.Sleep(10 * time.Millisecond)
+			delay-=10;
+			exist, err = PidExists(int32(p.Process.Pid))
+		}
+		
+		// give back the process id.
+		waitUntilStart <- p.Process.Pid
+
+		if err != nil || !exist {
+			s["State"] = "failed"
+			if err != nil {
+				s["LastError"] = err
+			}else{
+				s["LastError"] = "fail to start service " + serviceId
+			}
+			return
+		}
 
 		// wait the process to finish
 		err = p.Wait()
@@ -251,8 +281,10 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
 	}(s["Id"].(string))
 
+	pid := <-waitUntilStart
+
 	// save the service configuration.
-	return p.Process.Pid, config.SaveServiceConfiguration(s)
+	return  pid, config.SaveServiceConfiguration(s)
 }
 
 func PidExists(pid int32) (bool, error) {
@@ -414,7 +446,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	}
 
 	// save service configuration.
-	s["ProxyProcess"] = proxyProcess.Process.Pid
+
 
 	// Get the process id...
 	go func() {
@@ -428,7 +460,9 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 			event_client_.Publish("update_globular_service_configuration_evt", []byte(str))
 		}
 
+		// wait to proxy
 		proxyProcess.Wait()
+		fmt.Println("gRpc proxy with pid:", proxyProcess.Process.Pid, "service:", s["Name"].(string)+":"+s["Id"].(string), "stop successfully")
 
 		if processPid != -1 {
 			exist, err := PidExists(int32(processPid))
@@ -436,16 +470,23 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 				StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, processPid)
 			} else if err != nil {
 				fmt.Println("proxy prcess fail with error:  ", err)
-			} else {
-				fmt.Println("gRpc proxy with pid:", proxyProcess.Process.Pid, "service:", s["Name"].(string)+":"+s["Id"].(string), "stop successfully")
+				return
 			}
 		}
+
 		return
 
 	}()
 
-	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], " for service:", s["Name"].(string)+":"+s["Id"].(string))
+	// be sure the service 
+	s, _ = config.GetServiceConfigurationById(serviceId)
+	s["State"] = "running"
+	s["ProxyProcess"] = proxyProcess.Process.Pid
+	s["Proxy"] = port
+
+	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], " for service:", s["Name"].(string)+":"+s["Id"].(string), "pid:", s["Process"], "http port:", port, "grpc port", s["Port"] )
 	return proxyProcess.Process.Pid, config.SaveServiceConfiguration(s)
+
 }
 
 // check if the process is actually running
