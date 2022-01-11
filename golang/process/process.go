@@ -18,6 +18,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,25 +35,6 @@ func KillServiceProcess(s map[string]interface{}) error {
 	if (s["Process"]) != nil {
 		pid = Utility.ToInt(s["Process"])
 	}
-
-	proxyProcessPid := -1
-	if (s["ProxyProcess"]) != nil {
-		proxyProcessPid = Utility.ToInt(s["ProxyProcess"])
-	}
-
-	// nothing to do here...
-	if proxyProcessPid == -1 && pid == -1 {
-		return nil
-	}
-
-	// also kill it proxy process if exist in that case.
-	proxyProcess, err := os.FindProcess(proxyProcessPid)
-	if err == nil {
-		proxyProcess.Kill()
-		s["ProxyProcess"] = -1
-	}
-
-	fmt.Println("Kill process ", s["Name"], "with pid", pid, "and proxy", proxyProcessPid)
 
 	// kill it in the name of...
 	process, err := os.FindProcess(pid)
@@ -205,18 +187,39 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		s, _ := config.GetServiceConfigurationById(serviceId)
 
 		if err != nil {
+			// Set the service configurations last error and failed stated
 			setServiceConfigurationError(err, s)
-			
+
+			// be sure the state is not nil and failed.
 			if s["State"] != nil {
 				// if the service fail
-				if  s["State"].(string) == "failed"{
-					fmt.Println("the service ",  s["Name"], "with process id", s["Process"], "has been terminate")
+				if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
+					fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
 					if s["KeepAlive"].(bool) == true {
+						// set the service state to stop.
 						s["State"] = "stopped"
 						config.SaveServiceConfiguration(s)
+
 						// give ti some time to free resources like port files... etc.
-						time.Sleep(5 * time.Second)
-						StartServiceProcess(serviceId, portsRange) 
+						time.Sleep(2 * time.Second)
+						pid, err := StartServiceProcess(serviceId, portsRange)
+
+						// so here I need to restart it proxy process...
+						proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
+						if proxyProcessPid != -1 {
+							proxyProcess, err := os.FindProcess(proxyProcessPid)
+							if err == nil {
+								proxyProcess.Kill()
+								s["ProxyProcess"] = -1
+							}
+						}
+
+						if err == nil {
+							localConfig, _ := config.GetLocalConfig()
+							// Now I will restart it grpc service.
+							StartServiceProxyProcess(s["Id"].(string), localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), localConfig["PortsRange"].(string), pid)
+						}
+
 					}
 
 				}
@@ -252,12 +255,59 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	return p.Process.Pid, config.SaveServiceConfiguration(s)
 }
 
+func PidExists(pid int32) (bool, error) {
+	if pid <= 0 {
+		return false, fmt.Errorf("invalid pid %v", pid)
+	}
+	proc, err := os.FindProcess(int(pid))
+	if err != nil {
+		return false, err
+	}
+	err = proc.Signal(syscall.Signal(0))
+	if err == nil {
+		return true, nil
+	}
+	if err.Error() == "os: process already finished" {
+		return false, nil
+	}
+	errno, ok := err.(syscall.Errno)
+	if !ok {
+		return false, err
+	}
+	switch errno {
+	case syscall.ESRCH:
+		return false, nil
+	case syscall.EPERM:
+		return true, nil
+	}
+	return false, err
+}
+
+var (
+	event_client_ *event_client.Event_Client
+)
+
+/**
+ * Get local event client.
+ */
+func getEventClient(domain string) (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ == nil {
+		event_client_, err = event_client.NewEventService_Client(domain, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return event_client_, nil
+}
+
 // Start a service process.
 func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
 
+	// Get the service configuration with a given id.
 	s, err := config.GetServiceConfigurationById(serviceId)
 	if err != nil {
-		fmt.Println("error at line 232 ", err)
 		return -1, err
 	}
 
@@ -368,23 +418,33 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	// Get the process id...
 	go func() {
-		err = proxyProcess.Wait()
-		// refresh the configuration
 
-		if err != nil {
-			// if the attach process in running I will keep the proxy alive.
-			if processPid != -1 {
-				_, err := Utility.GetProcessRunningStatus(processPid)
-				if err != nil {
-					fmt.Println("proxy prcess fail with error:  ", err)
-					StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, processPid)
-				}
-			}
-			return
+		// finaly i will send event to give change of connected globule to update their service configurations with the new values...
+		address, _ := config.GetAddress()
+		event_client_, err := getEventClient(address)
+		if err == nil {
+			// Here I will publish the start service event
+			str, _ := Utility.ToJson(s)
+			event_client_.Publish("update_globular_service_configuration_evt", []byte(str))
 		}
+
+		proxyProcess.Wait()
+
+		if processPid != -1 {
+			exist, err := PidExists(int32(processPid))
+			if err == nil && exist {
+				StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, processPid)
+			} else if err != nil {
+				fmt.Println("proxy prcess fail with error:  ", err)
+			} else {
+				fmt.Println("gRpc proxy with pid:", proxyProcess.Process.Pid, "service:", s["Name"].(string)+":"+s["Id"].(string), "stop successfully")
+			}
+		}
+		return
+
 	}()
 
-	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], "and name:", s["Name"])
+	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], " for service:", s["Name"].(string)+":"+s["Id"].(string))
 	return proxyProcess.Process.Pid, config.SaveServiceConfiguration(s)
 }
 

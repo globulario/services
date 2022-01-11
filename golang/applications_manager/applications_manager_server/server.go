@@ -477,7 +477,8 @@ func (server *server) publishApplication(user, organization, path, name, domain,
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		address, _ := config.GetAddress()
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}
@@ -527,7 +528,8 @@ func (svr *server) publish(event string, data []byte) error {
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
+		address, _:= config.GetAddress()
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}

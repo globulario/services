@@ -2,13 +2,14 @@ package main
 
 import (
 	"errors"
-	"log"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/discovery/discovery_client"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -411,8 +412,8 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
 	if resourceClient != nil {
 		return resourceClient, nil
 	}
-
-	resourceClient, err = resource_client.NewResourceService_Client(server.Domain, "resource.ResourceService")
+	address, _:= config.GetAddress()
+	resourceClient, err = resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		resourceClient = nil
 		return nil, err
@@ -452,7 +453,8 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		address, _:= config.GetAddress()
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/davecourtois/Utility"
 
@@ -395,8 +394,8 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-
-	event_client_, err = event_client.NewEventService_Client(server.Domain, "event.EventService")
+	address, _ := config.GetAddress()
+	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 	if err != nil {
 		return nil, err
 	}
@@ -425,8 +424,8 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
 	if resource_client_ != nil {
 		return resource_client_, nil
 	}
-
-	resource_client_, err = resource_client.NewResourceService_Client(server.Domain, "resource.ResourceService")
+	address, _ := config.GetAddress()
+	resource_client_, err = resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		resource_client_ = nil
 		return nil, err
@@ -482,7 +481,8 @@ func (server *server) setRoleActions(roleId string, actions []string) error {
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
+		address, _ := config.GetAddress()
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}
@@ -507,7 +507,8 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		address, _ := config.GetAddress()
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}
@@ -629,41 +630,6 @@ func (server *server) registerMethods() error {
 	return nil
 }
 
-// Keep service alive...
-func (server *server) keepAlive() {
-	ticker := time.NewTicker(5 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-server.done:
-				return
-			case <-ticker.C:
-				services, err := config.GetServicesConfigurations()
-				// here I will start a go routine who will restart a kill, stoped or failed service if it no more
-				// running.
-				if err == nil {
-					for i:=0; i < len(services); i++ {
-						// fmt.Println(services[i])
-						s:= services[i]
-						if s["State"].(string) != "running" {
-							if s["KeepAlive"].(bool) {
-								server.logServiceInfo("KeepAlive", "Service " + s["Name"].(string) + ":" +s["Id"].(string) + " with pid:" + Utility.ToString(s["Process"]) + " will be restart")
-								err := server.startServiceInstance(s["Id"].(string))
-								if err == nil{
-									server.logServiceInfo("KeepAlive", "Service " + s["Name"].(string) + ":" +s["Id"].(string) + " with pid:" +  Utility.ToString(s["Process"]) + " is up and running")
-								}else{
-									server.logServiceInfo("KeepAlive", "Service " + s["Name"].(string) + ":" +s["Id"].(string) + " with pid:" +  Utility.ToString(s["Process"]) + " fail to restart " + err.Error())
-								}
-								
-							}
-						}
-					}
-				}
-			}
-		}
-	}()
-}
-
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -723,9 +689,6 @@ func main() {
 	// Register the echo services
 	services_managerpb.RegisterServicesManagerServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
-	// Keep alive...
-	s_impl.keepAlive()
 
 	// Start the service manager service.
 	s_impl.StartService()

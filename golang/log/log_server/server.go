@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -370,7 +371,8 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-	event_client_, err = event_client.NewEventService_Client(server.Domain, "event.EventService")
+	address, _:= config.GetAddress()
+	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 	if err != nil {
 		return nil, err
 	}

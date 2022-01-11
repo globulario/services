@@ -390,7 +390,8 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		address, _:= config.GetAddress()
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}

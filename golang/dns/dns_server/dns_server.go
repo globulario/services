@@ -15,22 +15,23 @@ import (
 	"encoding/binary"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dns_client"
 	"github.com/globulario/services/golang/dns/dnspb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
-	"github.com/globulario/services/golang/security"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/miekg/dns"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 )
 
 // TODO take care of TLS/https
@@ -330,7 +331,8 @@ func (server *server) SetPermissions(permissions []interface{}) {
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
+		address, _:= config.GetAddress()
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}
@@ -1791,7 +1793,8 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		address, _:= config.GetAddress()
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}

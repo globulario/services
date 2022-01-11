@@ -24,6 +24,7 @@ import (
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -1175,7 +1176,8 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(server.Domain, "rbac.RbacService")
+		address, _:= config.GetAddress()
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}

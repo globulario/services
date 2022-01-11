@@ -13,6 +13,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/blog/blog_client"
 	"github.com/globulario/services/golang/blog/blogpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -383,7 +384,8 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		address, _:= config.GetAddress()
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}
@@ -413,8 +415,8 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-
-	event_client_, err = event_client.NewEventService_Client(server.Domain, "event.EventService")
+	address, _:= config.GetAddress()
+	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 	if err != nil {
 		return nil, err
 	}

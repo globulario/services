@@ -1,17 +1,20 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"errors"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
+	"github.com/globulario/services/golang/ldap/ldap_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
@@ -20,7 +23,6 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
-	"github.com/globulario/services/golang/ldap/ldap_client"
 
 	//"google.golang.org/grpc/grpclog"
 	// "errors"
@@ -439,7 +441,8 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(server.Domain, "log.LogService")
+		address, _:= config.GetAddress()
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}
