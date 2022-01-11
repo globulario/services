@@ -730,14 +730,6 @@ func GetNextAvailablePort(portRange_ string) (int, error) {
 }
 
 /**
- * Test if a process with a given pid is running
- */
-func processIsRuning(pid int) bool {
-	_, err := os.FindProcess(int(pid))
-	return err == nil
-}
-
-/**
  * Get the list of port in Use
  */
 func getPortsInUse() []int {
@@ -753,7 +745,8 @@ func getPortsInUse() []int {
 		}
 
 		if pid != -1 {
-			if processIsRuning(pid) {
+			exist, err:= Utility.PidExists(pid)
+			if exist && err == nil {
 				port := Utility.ToInt(s["Port"])
 				_portsInUse_ = append(_portsInUse_, port)
 			}

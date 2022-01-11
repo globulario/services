@@ -191,13 +191,16 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	// so here I will start each service in it own go routine.
 	go func(serviceId string) {
 
-		exist, err := PidExists(int32(p.Process.Pid))
+		exist, err := Utility.PidExists(p.Process.Pid)
 		delay := 15 * 10 * 1000;
 		for !exist && delay > 0 {
 			time.Sleep(10 * time.Millisecond)
 			delay-=10;
-			exist, err = PidExists(int32(p.Process.Pid))
+			fmt.Println("--------------> 199", exist,  err)
+			exist, err =  Utility.PidExists(p.Process.Pid)
 		}
+
+		fmt.Println("--------------> 202")
 		
 		// give back the process id.
 		waitUntilStart <- p.Process.Pid
@@ -287,33 +290,6 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	return  pid, config.SaveServiceConfiguration(s)
 }
 
-func PidExists(pid int32) (bool, error) {
-	if pid <= 0 {
-		return false, fmt.Errorf("invalid pid %v", pid)
-	}
-	proc, err := os.FindProcess(int(pid))
-	if err != nil {
-		return false, err
-	}
-	err = proc.Signal(syscall.Signal(0))
-	if err == nil {
-		return true, nil
-	}
-	if err.Error() == "os: process already finished" {
-		return false, nil
-	}
-	errno, ok := err.(syscall.Errno)
-	if !ok {
-		return false, err
-	}
-	switch errno {
-	case syscall.ESRCH:
-		return false, nil
-	case syscall.EPERM:
-		return true, nil
-	}
-	return false, err
-}
 
 var (
 	event_client_ *event_client.Event_Client
@@ -465,7 +441,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		fmt.Println("gRpc proxy with pid:", proxyProcess.Process.Pid, "service:", s["Name"].(string)+":"+s["Id"].(string), "stop successfully")
 
 		if processPid != -1 {
-			exist, err := PidExists(int32(processPid))
+			exist, err := Utility.PidExists(processPid)
 			if err == nil && exist {
 				StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, processPid)
 			} else if err != nil {
