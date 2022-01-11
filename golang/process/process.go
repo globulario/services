@@ -183,22 +183,19 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		return -1, err
 	}
 
-	s["State"] = "running"
-	s["Process"] = p.Process.Pid
-
 	waitUntilStart := make(chan int)
 
 	// so here I will start each service in it own go routine.
 	go func(serviceId string) {
 
 		exist, err := PidExists(int32(p.Process.Pid))
-		delay := 15 * 10 * 1000;
+		delay := 15 * 10 * 1000
 		for !exist && delay > 0 {
 			time.Sleep(10 * time.Millisecond)
-			delay-=10;
+			delay -= 10
 			exist, err = PidExists(int32(p.Process.Pid))
 		}
-		
+
 		// give back the process id.
 		waitUntilStart <- p.Process.Pid
 
@@ -206,14 +203,21 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 			s["State"] = "failed"
 			if err != nil {
 				s["LastError"] = err
-			}else{
+			} else {
 				s["LastError"] = "fail to start service " + serviceId
 			}
+			config.SaveServiceConfiguration(s)
 			return
 		}
 
+		s["State"] = "running"
+		s["Process"] = p.Process.Pid
+		config.SaveServiceConfiguration(s)
+
 		// wait the process to finish
 		err = p.Wait()
+
+		// get back the configuration from the file.
 		s, _ := config.GetServiceConfigurationById(serviceId)
 
 		if err != nil {
@@ -284,7 +288,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	pid := <-waitUntilStart
 
 	// save the service configuration.
-	return  pid, config.SaveServiceConfiguration(s)
+	return pid, config.SaveServiceConfiguration(s)
 }
 
 func PidExists(pid int32) (bool, error) {
@@ -447,7 +451,6 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	// save service configuration.
 
-
 	// Get the process id...
 	go func() {
 
@@ -478,13 +481,13 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 
 	}()
 
-	// be sure the service 
+	// be sure the service
 	s, _ = config.GetServiceConfigurationById(serviceId)
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyProcess.Process.Pid
 	s["Proxy"] = port
 
-	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], " for service:", s["Name"].(string)+":"+s["Id"].(string), "pid:", s["Process"], "http port:", port, "grpc port", s["Port"] )
+	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], " for service:", s["Name"].(string)+":"+s["Id"].(string), "pid:", s["Process"], "http port:", port, "grpc port", s["Port"])
 	return proxyProcess.Process.Pid, config.SaveServiceConfiguration(s)
 
 }
