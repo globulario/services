@@ -185,25 +185,19 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
 	s["State"] = "running"
 	s["Process"] = p.Process.Pid
+	s["ProxyProcess"] = -1
 
 	waitUntilStart := make(chan int)
 
 	// so here I will start each service in it own go routine.
 	go func(serviceId string) {
-
 		exist, err := Utility.PidExists(p.Process.Pid)
 		delay := 15 * 10 * 1000;
 		for !exist && delay > 0 {
 			time.Sleep(10 * time.Millisecond)
 			delay-=10;
-			fmt.Println("--------------> 199", exist,  err)
 			exist, err =  Utility.PidExists(p.Process.Pid)
 		}
-
-		fmt.Println("--------------> 202")
-		
-		// give back the process id.
-		waitUntilStart <- p.Process.Pid
 
 		if err != nil || !exist {
 			s["State"] = "failed"
@@ -212,10 +206,16 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 			}else{
 				s["LastError"] = "fail to start service " + serviceId
 			}
+			fmt.Println("line 209 fail to start service ", serviceId)
+			waitUntilStart <- -1
 			return
 		}
 
 		// wait the process to finish
+				
+		// give back the process id.
+		waitUntilStart <- p.Process.Pid
+
 		err = p.Wait()
 		s, _ := config.GetServiceConfigurationById(serviceId)
 
@@ -234,7 +234,6 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 						config.SaveServiceConfiguration(s)
 
 						// give ti some time to free resources like port files... etc.
-						time.Sleep(2 * time.Second)
 						pid, err := StartServiceProcess(serviceId, portsRange)
 
 						// so here I need to restart it proxy process...
@@ -322,7 +321,8 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	servicePort := Utility.ToInt(s["Port"])
 	pid := Utility.ToInt(s["ProxyProcess"])
 	if pid != -1 {
-		Utility.TerminateProcess(pid, 0)
+		// Utility.TerminateProcess(pid, 0)
+		return -1, errors.New("proxy already exist for service " + serviceId)
 	}
 
 	// Now I will start the proxy that will be use by javascript client.
