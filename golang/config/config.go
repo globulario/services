@@ -489,7 +489,7 @@ var (
 
 func isLocked(path string) bool {
 	lock := strings.Replace(path, "json", "lock", -1)
-	isLock :=  Utility.Exists(lock)
+	isLock := Utility.Exists(lock)
 	if isLock {
 		fmt.Println("file " + path + " is lock")
 	}
@@ -612,15 +612,20 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 		go accesServiceConfigurationFile()
 	}
 
-	// set the config in the map.
-	getConfigs().Store(s["Id"].(string), s)
-
 	infos := make(map[string]interface{})
 	infos["service_config"] = s
 	infos["return"] = make(chan error)
 
 	// set the info in the channel
 	saveFileChan <- infos
+
+	// Here I will
+	path := s["ConfigPath"].(string)
+	info, _ := os.Stat(path)
+	s["modtime"] = info.ModTime().Unix()
+
+	// set the config in the map.
+	getConfigs().Store(s["Id"].(string), s)
 
 	return <-infos["return"].(chan error)
 }
@@ -752,7 +757,7 @@ func getPortsInUse() []int {
 		}
 
 		if pid != -1 {
-			exist, err:= Utility.PidExists(pid)
+			exist, err := Utility.PidExists(pid)
 			if exist && err == nil {
 				port := Utility.ToInt(s["Port"])
 				_portsInUse_ = append(_portsInUse_, port)
