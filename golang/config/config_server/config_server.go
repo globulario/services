@@ -2,26 +2,24 @@ package main
 
 import (
 	"context"
-	"fmt"
+
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/echo/echo_client"
-	"github.com/globulario/services/golang/echo/echopb"
+	"github.com/globulario/services/golang/config/config_client"
+	"github.com/globulario/services/golang/config/configpb"
 	globular "github.com/globulario/services/golang/globular_service"
 
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
+	// "google.golang.org/grpc/codes"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
+	// "google.golang.org/grpc/status"
 )
 
 // The default values.
@@ -34,8 +32,7 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
+	domain          string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -60,10 +57,10 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
+	Process         int
 	ProxyProcess    int
-	ConfigPath string
-	LastError string
+	ConfigPath      string
+	LastError       string
 
 	TLS bool
 
@@ -310,7 +307,7 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 func (svr *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
 
 	// Get the configuration path.
 	err := globular.InitService(svr)
@@ -319,7 +316,7 @@ func (svr *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/ nil, nil)
+	svr.grpcServer, err = globular.InitGrpcServer(svr /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -342,36 +339,36 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-func (svr *server) Stop(context.Context, *echopb.StopRequest) (*echopb.StopResponse, error) {
-	return &echopb.StopResponse{}, svr.StopService()
+/////////////////////// Config service specific function /////////////////////////////////
+// One stream by client.
+func (svr *server) OnConfigurationChange(rqst *configpb.OnConfigurationChangeRequest, stream configpb.ConfigService_OnConfigurationChangeServer) error {
+	return nil
 }
 
-//Stop(context.Context, *StopRequest) (*StopResponse, error)
-/////////////////////// Echo specific function /////////////////////////////////
+// Set a service configuration.
+func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.SetServiceConfigurationRequest) (*configpb.SetServiceConfigurationResponse, error) {
+	return nil, nil
+}
 
-// Implementation of the Echo method.
-func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.EchoResponse, error) {
-	fmt.Println("Try echo a value ", time.Now().Unix())
+// Get service configuration with a given id.
+func (svr *server) GetServiceConfigurationById(ctx context.Context, rqst *configpb.GetServiceConfigurationByIdRequest) (*configpb.GetServiceConfigurationByIdResponse, error) {
+	return nil, nil
+}
 
-	// In that case I will save it in file.
-	err := svr.Save()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+// Get list of service configuration with a given name
+func (svr *server) GetServicesConfigurationsByName(ctx context.Context, rqst *configpb.GetServicesConfigurationsByNameRequest) (*configpb.GetServicesConfigurationsByNameResponse, error) {
+	return nil, nil
+}
 
-	fmt.Println("Send back response", time.Now().Unix())
-
-	return &echopb.EchoResponse{
-		Message: rsqt.Message,
-	}, nil
+// Get the list of all services configurations
+func (svr *server) GetServicesConfigurations(ctx context.Context, rqst *configpb.GetServicesConfigurationsRequest) (*configpb.GetServicesConfigurationsResponse, error) {
+	return nil, nil
 }
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
+
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 
@@ -380,16 +377,16 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(echopb.File_echo_proto.Services().Get(0).FullName())
-	s_impl.Proto = echopb.File_echo_proto.Path()
+	s_impl.Name = string(configpb.File_config_proto.Services().Get(0).FullName())
+	s_impl.Proto = configpb.File_config_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
-	s_impl.Description = "The Hello world of gRPC service!"
-	s_impl.Keywords = []string{"Example", "Echo", "Test", "Service"}
+	s_impl.Description = "Configuration manager to get synchronize access to services configurations"
+	s_impl.Keywords = []string{"Configurations", "Synchronization", "Service"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
@@ -410,7 +407,7 @@ func main() {
 	}
 
 	// Register the echo services
-	echopb.RegisterEchoServiceServer(s_impl.grpcServer, s_impl)
+	configpb.RegisterConfigServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
 	// Start the service.

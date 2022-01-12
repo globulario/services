@@ -348,9 +348,7 @@ func (persistence_server *server) Init() error {
 	persistence_server.stores = make(map[string]persistence_store.Store)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", persistence_server)
+	err := globular.InitService(persistence_server)
 	if err != nil {
 		return err
 	}
@@ -385,8 +383,7 @@ func (persistence_server *server) Init() error {
 // Save the configuration values.
 func (persistence_server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", persistence_server)
+	return globular.SaveService(persistence_server)
 }
 
 func (persistence_server *server) StartService() error {

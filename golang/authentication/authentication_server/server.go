@@ -342,9 +342,7 @@ func (server *server) Init() error {
 	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", server)
+	err := globular.InitService(server)
 	if err != nil {
 		return err
 	}
@@ -362,8 +360,7 @@ func (server *server) Init() error {
 // Save the configuration values.
 func (server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", server)
+	return globular.SaveService(server)
 }
 
 func (server *server) StartService() error {
@@ -641,7 +638,7 @@ func (server *server) removeExpiredSessions() {
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
+	
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 

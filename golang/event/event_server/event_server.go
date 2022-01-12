@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -307,10 +308,7 @@ func (event_server *server) Init() error {
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 
-	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", event_server)
+	err := globular.InitService(event_server)
 	if err != nil {
 		return err
 	}
@@ -330,8 +328,7 @@ func (event_server *server) Init() error {
 // Save the configuration values.
 func (event_server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", event_server)
+	return globular.SaveService(event_server)
 }
 
 func (event_server *server) StartService() error {

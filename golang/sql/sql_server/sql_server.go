@@ -19,6 +19,7 @@ import (
 	"runtime"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/sql/sql_client"
@@ -388,11 +389,7 @@ func (sql_server *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewSqlService_Client", sql_client.NewSqlService_Client)
-
-	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", sql_server)
+	err := globular.InitService( sql_server)
 	if err != nil {
 		return err
 	}
@@ -410,8 +407,7 @@ func (sql_server *server) Init() error {
 // Save the configuration values.
 func (sql_server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", sql_server)
+	return globular.SaveService(sql_server)
 }
 
 func (sql_server *server) StartService() error {

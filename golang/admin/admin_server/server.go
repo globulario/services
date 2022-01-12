@@ -315,9 +315,7 @@ func (svr *server) Init() error {
 	Utility.RegisterFunction("NewadminService_Client", admin_client.NewAdminService_Client)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", svr)
+	err := globular.InitService( svr)
 	if err != nil {
 		return err
 	}
@@ -335,10 +333,9 @@ func (svr *server) Init() error {
 // Save the configuration values.
 func (svr *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 
 	// Save the service.
-	return globular.SaveService(dir+"/config.json", svr)
+	return globular.SaveService(svr)
 }
 
 func (svr *server) StartService() error {
@@ -383,6 +380,7 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
+
 
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "admin_service: ", log.LstdFlags))

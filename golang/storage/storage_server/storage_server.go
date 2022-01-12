@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	//	"time"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 
@@ -328,10 +329,7 @@ func (storage_server *server) Init() error {
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewStorageService_Client", storage_client.NewStorageService_Client)
 
-	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", storage_server)
+	err := globular.InitService(storage_server)
 	if err != nil {
 		return err
 	}
@@ -349,10 +347,9 @@ func (storage_server *server) Init() error {
 // Save the configuration values.
 func (storage_server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", storage_server)
+	return globular.SaveService(storage_server)
 }
-
+ 
 func (storage_server *server) StartService() error {
 	return globular.StartService(storage_server, storage_server.grpcServer)
 }

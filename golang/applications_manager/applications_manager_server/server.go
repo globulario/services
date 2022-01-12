@@ -319,10 +319,7 @@ func (svr *server) Init() error {
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewApplicationsManager_Client", applications_manager_client.NewApplicationsManager_Client)
 
-	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", svr)
+	err := globular.InitService(svr)
 	if err != nil {
 		return err
 	}
@@ -340,8 +337,7 @@ func (svr *server) Init() error {
 // Save the configuration values.
 func (svr *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", svr)
+	return globular.SaveService(svr)
 }
 
 func (svr *server) StartService() error {
@@ -557,7 +553,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
+	
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 

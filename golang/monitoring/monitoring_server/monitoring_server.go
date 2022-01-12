@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/monitoring/monitoring_client"
@@ -321,10 +322,7 @@ func (monitoring_server *server) Init() error {
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewMonitoringService_Client", monitoring_client.NewMonitoringService_Client)
 
-	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", monitoring_server)
+	err := globular.InitService(monitoring_server)
 	if err != nil {
 		return err
 	}
@@ -364,9 +362,8 @@ func (monitoring_server *server) Init() error {
 
 // Save the configuration values.
 func (monitoring_server *server) Save() error {
-	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", monitoring_server)
+	
+	return globular.SaveService(monitoring_server)
 }
 
 func (monitoring_server *server) StartService() error {
@@ -850,6 +847,7 @@ func (monitoring_server *server) TargetsMetadata(ctx context.Context, rqst *moni
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
+	
 
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "monitoring_service: ", log.LstdFlags))

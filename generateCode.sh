@@ -29,6 +29,7 @@ protoc proto/authentication.proto -I proto  --go-grpc_out=require_unimplemented_
 protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/config.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 # Web-Api generation.
 # ** Note that gooleapis /usr/local/include/google/api must exist... (https://github.com/googleapis/googleapis)
@@ -51,6 +52,9 @@ protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/catalog/catalo
 protoc -I /usr/local/include -I proto --grpc-gateway_out ./golang/conversation/conversationpb --grpc-gateway_opt logtostderr=true --grpc-gateway_opt paths=source_relative --grpc-gateway_opt generate_unbound_methods=true conversation.proto
 
 # TypeScript grpc files generation.
+mkdir typescript/config_manager
+protoc --js_out=import_style=commonjs:typescript/config_manager  -I ./proto/ config_manager.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/config_manager -I ./proto/ config_manager.proto
 mkdir typescript/applications_manager
 protoc --js_out=import_style=commonjs:typescript/applications_manager  -I ./proto/ applications_manager.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/applications_manager -I ./proto/ applications_manager.proto

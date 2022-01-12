@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/search/searchpb"
@@ -316,9 +317,7 @@ func (search_server *server) Init() error {
 	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", search_server)
+	err := globular.InitService(search_server)
 	if err != nil {
 		return err
 	}
@@ -339,8 +338,7 @@ func (search_server *server) Init() error {
 // Save the configuration values.
 func (search_server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", search_server)
+	return globular.SaveService(search_server)
 }
 
 func (search_server *server) StartService() error {

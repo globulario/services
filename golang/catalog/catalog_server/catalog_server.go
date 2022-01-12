@@ -13,6 +13,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -318,9 +319,7 @@ func (svr *server) Init() error {
 	Utility.RegisterFunction("NewCatalogService_Client", catalog_client.NewCatalogService_Client)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", svr)
+	err := globular.InitService(svr)
 	if err != nil {
 		return err
 	}
@@ -373,8 +372,7 @@ func (svr *server) Init() error {
 // Save the configuration values.
 func (svr *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", svr)
+	return globular.SaveService(svr)
 }
 
 func (svr *server) StartService() error {

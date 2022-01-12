@@ -314,9 +314,7 @@ func (server *server) Init() error {
 	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", server)
+	err := globular.InitService(server)
 	if err != nil {
 		return err
 	}
@@ -334,8 +332,7 @@ func (server *server) Init() error {
 // Save the configuration values.
 func (server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", server)
+	return globular.SaveService(server)
 }
 
 func (server *server) StartService() error {
@@ -433,7 +430,7 @@ func (server *server) setPackageBundle(checksum, platform string, size int32, mo
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
+	
 	// set the logger.
 
 	// Set the log information in case of crash...

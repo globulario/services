@@ -330,10 +330,7 @@ func (file_server *server) Init() error {
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
 
-	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", file_server)
+	err := globular.InitService(file_server)
 	if err != nil {
 		return err
 	}
@@ -351,8 +348,7 @@ func (file_server *server) Init() error {
 // Save the configuration values.
 func (file_server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", file_server)
+	return globular.SaveService(file_server)
 }
 
 func (file_server *server) StartService() error {

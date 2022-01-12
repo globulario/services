@@ -474,9 +474,7 @@ func (svr *server) Init() error {
 	Utility.RegisterFunction("NewConversationService_Client", conversation_client.NewConversationService_Client)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", svr)
+	err := globular.InitService(svr)
 	if err != nil {
 		return err
 	}
@@ -500,8 +498,7 @@ func (svr *server) Init() error {
 // Save the configuration values.
 func (svr *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", svr)
+	return globular.SaveService(svr)
 }
 
 func (svr *server) StartService() error {

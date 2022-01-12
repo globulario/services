@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+
 	//"fmt"
 	"io"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
@@ -337,10 +339,7 @@ func (svr *server) Init() error {
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewMailService_Client", mail_client.NewMailService_Client)
 
-	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", svr)
+	err := globular.InitService(svr)
 	if err != nil {
 		return err
 	}
@@ -358,8 +357,7 @@ func (svr *server) Init() error {
 // Save the configuration values.
 func (svr *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", svr)
+	return globular.SaveService(svr)
 }
 
 func (svr *server) StartService() error {

@@ -329,9 +329,7 @@ func (server *server) Init() error {
 	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
 
 	// Get the configuration path.
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-
-	err := globular.InitService(dir+"/config.json", server)
+	err := globular.InitService(server)
 	if err != nil {
 		return err
 	}
@@ -349,8 +347,7 @@ func (server *server) Init() error {
 // Save the configuration values.
 func (server *server) Save() error {
 	// Create the file...
-	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-	return globular.SaveService(dir+"/config.json", server)
+	return globular.SaveService(server)
 }
 
 func (server *server) StartService() error {
