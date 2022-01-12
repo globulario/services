@@ -489,6 +489,10 @@ var (
 
 func isLocked(path string) bool {
 	lock := strings.Replace(path, "json", "lock", -1)
+	isLock :=  Utility.Exists(lock)
+	if isLock {
+		fmt.Println("file " + path + " is lock")
+	}
 	return Utility.Exists(lock)
 }
 
@@ -498,16 +502,19 @@ func Lock(path string) bool {
 	if err == nil {
 		return true
 	}
+	fmt.Println("----------------------> fail to create file: ", path, err)
 	return false
 }
 
 func Unlock(path string) bool {
 	lock := strings.Replace(path, "json", "lock", -1)
-	err := os.Remove(lock)
-	if err == nil {
-		return true
+
+	for Utility.Exists(lock) {
+		time.Sleep(10 * time.Millisecond)
+		os.Remove(lock)
 	}
-	return false
+
+	return true
 }
 
 // Remove all file lock.
@@ -543,6 +550,7 @@ func accesServiceConfigurationFile() {
 			} else {
 				// wait util the file is unlocked...
 				for isLocked(path) {
+					fmt.Println("----> wait for config file 547")
 					time.Sleep(500 * time.Millisecond)
 				}
 
@@ -555,12 +563,11 @@ func accesServiceConfigurationFile() {
 			path := infos["path"].(string)
 			// wait util the file is unlocked...
 			for isLocked(path) {
+				fmt.Println("----> wait for config file 559 ", path)
 				time.Sleep(500 * time.Millisecond)
 			}
-			// fmt.Println(" read -----------------------> 551", path)
-			Lock(path) // lock the file access
+
 			data, err := ioutil.ReadFile(path)
-			Unlock(path) // unlock the file access
 			return_chan := infos["return"].(chan map[string]interface{})
 			return_chan <- map[string]interface{}{"error": err, "data": data}
 		}
@@ -730,14 +737,6 @@ func GetNextAvailablePort(portRange_ string) (int, error) {
 }
 
 /**
- * Test if a process with a given pid is running
- */
-func processIsRuning(pid int) bool {
-	_, err := os.FindProcess(int(pid))
-	return err == nil
-}
-
-/**
  * Get the list of port in Use
  */
 func getPortsInUse() []int {
@@ -753,7 +752,8 @@ func getPortsInUse() []int {
 		}
 
 		if pid != -1 {
-			if processIsRuning(pid) {
+			exist, err:= Utility.PidExists(pid)
+			if exist && err == nil {
 				port := Utility.ToInt(s["Port"])
 				_portsInUse_ = append(_portsInUse_, port)
 			}
