@@ -52,7 +52,9 @@ func GetClientConfig(address string, name string, port int, path string) (map[st
 		// The way the domain is create must be the same here
 		// and in the file globular.go at function getDomain()
 		domain, _ := config_.GetDomain()
-		if !strings.HasPrefix(address, domain) && !strings.HasPrefix(address, "localhost"){
+		fmt.Println("----------> test for actual: ", domain)
+		fmt.Println("----------> test for local: ", address)
+		if !strings.HasPrefix(address, domain) && !strings.HasPrefix(address, "localhost") &&  address != "0.0.0.0" {
 			isLocal = false
 		}
 
