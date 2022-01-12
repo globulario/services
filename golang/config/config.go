@@ -551,7 +551,7 @@ func accesServiceConfigurationFile() {
 				// wait util the file is unlocked...
 				for isLocked(path) {
 					fmt.Println("----> wait for config file 547")
-					time.Sleep(500 * time.Millisecond)
+					time.Sleep(5 * time.Millisecond)
 				}
 
 				Lock(path) // lock the file access
@@ -564,7 +564,7 @@ func accesServiceConfigurationFile() {
 			// wait util the file is unlocked...
 			for isLocked(path) {
 				fmt.Println("----> wait for config file 559 ", path)
-				time.Sleep(500 * time.Millisecond)
+				time.Sleep(5 * time.Millisecond)
 			}
 
 			data, err := ioutil.ReadFile(path)
