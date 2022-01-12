@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"

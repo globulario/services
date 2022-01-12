@@ -26,7 +26,6 @@ import (
 	"google.golang.org/grpc/reflection"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )

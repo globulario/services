@@ -16,7 +16,6 @@ import (
 	"math"
 	"mime"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"

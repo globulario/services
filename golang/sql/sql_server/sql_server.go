@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	//"strings"
@@ -19,7 +18,6 @@ import (
 	"runtime"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/sql/sql_client"

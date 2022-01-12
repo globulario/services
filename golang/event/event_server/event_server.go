@@ -6,11 +6,9 @@ import (
 
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"

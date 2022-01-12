@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"

@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"github.com/globulario/services/golang/resource/resource_client"

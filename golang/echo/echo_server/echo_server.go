@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/echo/echo_client"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_service"

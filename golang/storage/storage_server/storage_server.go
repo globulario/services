@@ -8,11 +8,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	//	"time"
-	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 

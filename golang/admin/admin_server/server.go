@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"

@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/search/searchpb"

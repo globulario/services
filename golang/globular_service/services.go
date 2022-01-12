@@ -152,10 +152,15 @@ type Service interface {
 }
 
 /**
- * Initialise a globular service from it configuration file.
+ * Initialise a globular service.
  */
 func InitService(s Service) error {
-	return nil
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	fmt.Println("-------------------------------> dir: ", dir)
+	return errors.New("Not implemented")
 }
 
 /**
@@ -163,7 +168,7 @@ func InitService(s Service) error {
  */
 func SaveService(s Service) error {
 
-	return nil
+	return errors.New("Not implemented")
 }
 
 /**

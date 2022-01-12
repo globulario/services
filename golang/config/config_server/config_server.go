@@ -5,7 +5,6 @@ import (
 
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
@@ -370,7 +369,6 @@ func (svr *server) GetServicesConfigurations(ctx context.Context, rqst *configpb
 func main() {
 
 	// set the logger.
-	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -406,7 +404,7 @@ func main() {
 		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
-	// Register the echo services
+	// Register the config services
 	configpb.RegisterConfigServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
