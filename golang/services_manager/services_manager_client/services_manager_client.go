@@ -2,6 +2,7 @@ package service_manager_client
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	//"github.com/davecourtois/Utility"
@@ -65,6 +66,10 @@ func NewServicesManagerService_Client(address string, id string) (*Services_Mana
 	client.c = services_managerpb.NewServicesManagerServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Services_Manager_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Services_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

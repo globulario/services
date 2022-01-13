@@ -1,6 +1,7 @@
 package search_client
 
 import (
+	"errors"
 	"strconv"
 
 	"context"
@@ -68,6 +69,10 @@ func NewSearchService_Client(address string, id string) (*Search_Client, error) 
 	client.c = searchpb.NewSearchServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Search_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Search_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

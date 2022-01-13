@@ -1,6 +1,7 @@
 package blog_client
 
 import (
+	"errors"
 	"strconv"
 
 	"context"
@@ -66,6 +67,11 @@ func NewBlogService_Client(address string, id string) (*Blog_Client, error) {
 	client.c = blogpb.NewBlogServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *Blog_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Blog_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

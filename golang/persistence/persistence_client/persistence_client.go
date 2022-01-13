@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"reflect"
 
@@ -70,6 +71,10 @@ func NewPersistenceService_Client(address string, id string) (*Persistence_Clien
 	}
 	client.c = persistencepb.NewPersistenceServiceClient(client.cc)
 	return client, nil
+}
+
+func (client *Persistence_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Persistence_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

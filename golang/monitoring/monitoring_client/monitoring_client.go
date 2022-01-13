@@ -1,6 +1,7 @@
 package monitoring_client
 
 import (
+	"errors"
 	"io"
 	"strconv"
 
@@ -67,6 +68,11 @@ func NewMonitoringService_Client(address string, id string) (*Monitoring_Client,
 	client.c = monitoringpb.NewMonitoringServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *Monitoring_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Monitoring_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

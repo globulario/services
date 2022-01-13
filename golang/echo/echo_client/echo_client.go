@@ -1,6 +1,7 @@
 package echo_client
 
 import (
+	"errors"
 	"strconv"
 
 	"context"
@@ -66,6 +67,11 @@ func NewEchoService_Client(address string, id string) (*Echo_Client, error) {
 	client.c = echopb.NewEchoServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *Echo_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Echo_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

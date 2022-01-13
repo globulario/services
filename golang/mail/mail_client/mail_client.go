@@ -2,6 +2,7 @@ package mail_client
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"fmt"
@@ -69,6 +70,13 @@ func NewMailService_Client(address string, id string) (*Mail_Client, error) {
 
 	return client, nil
 }
+
+
+// Return the configuration from the configuration server.
+func (client *Mail_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
+}
+
 
 func (client *Mail_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {

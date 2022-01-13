@@ -57,6 +57,7 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
+	ProxyProcess int
 	// search_server-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
@@ -85,6 +86,22 @@ type server struct {
 	cache *storage_store.BigCache_store
 
 	search_engine search_engine.SearchEngine
+}
+
+func (svr *server) GetProcess() int {
+	return svr.Process
+}
+
+func (svr *server) SetProcess(pid int) {
+	svr.SetProcess(pid)
+}
+
+func (svr *server) GetProxyProcess() int {
+	return svr.ProxyProcess
+}
+
+func (svr *server) SetProxyProcess(pid int) {
+	svr.ProxyProcess = pid
 }
 
 // The path of the configuration.

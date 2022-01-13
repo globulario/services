@@ -85,6 +85,22 @@ type server struct {
 	grpcServer *grpc.Server
 }
 
+func (svr *server) GetProcess() int {
+	return svr.Process
+}
+
+func (svr *server) SetProcess(pid int) {
+	svr.SetProcess(pid)
+}
+
+func (svr *server) GetProxyProcess() int {
+	return svr.ProxyProcess
+}
+
+func (svr *server) SetProxyProcess(pid int) {
+	svr.ProxyProcess = pid
+}
+
 // Globular services implementation...
 // The id of a particular service instance.
 func (svr *server) GetId() string {

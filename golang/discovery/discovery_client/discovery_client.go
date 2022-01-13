@@ -75,6 +75,11 @@ func NewDiscoveryService_Client(address string, id string) (*Dicovery_Client, er
 	return client, nil
 }
 
+// Return the configuration from the configuration server.
+func (client *Dicovery_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
+}
+
 func (client *Dicovery_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()

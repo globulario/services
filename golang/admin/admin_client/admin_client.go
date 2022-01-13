@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
@@ -78,6 +79,11 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 	client.c = adminpb.NewAdminServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *Admin_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Admin_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

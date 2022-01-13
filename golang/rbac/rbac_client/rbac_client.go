@@ -2,6 +2,7 @@ package rbac_client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -70,6 +71,10 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 	client.c = rbacpb.NewRbacServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Rbac_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Rbac_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

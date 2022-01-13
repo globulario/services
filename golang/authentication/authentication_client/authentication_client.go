@@ -2,8 +2,10 @@ package authentication_client
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strconv"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
@@ -69,6 +71,11 @@ func NewAuthenticationService_Client(address string, id string) (*Authentication
 	client.c = authenticationpb.NewAuthenticationServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *Authentication_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Authentication_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

@@ -3,6 +3,7 @@ package storage_client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strconv"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/globulario/services/golang/storage/storagepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +68,10 @@ func NewStorageService_Client(address string, id string) (*Storage_Client, error
 	client.c = storagepb.NewStorageServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Storage_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Storage_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

@@ -18,11 +18,11 @@ import (
 	"time"
 
 	"errors"
-	"runtime"
-	"github.com/kardianos/osext"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
+	"github.com/kardianos/osext"
+	"runtime"
 
 	//"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc"
@@ -71,7 +71,7 @@ type Service interface {
 
 	// The modeTime
 	SetModTime(int64)
-	GetModTime()int64
+	GetModTime() int64
 
 	// The path of the .proto file.
 	GetProto() string
@@ -84,6 +84,12 @@ type Service interface {
 	// The reverse proxy port (use by gRpc Web)
 	GetProxy() int
 	SetProxy(int)
+
+	GetProcess() int
+	SetProcess(int)
+
+	GetProxyProcess() int
+	SetProxyProcess(int)
 
 	// Can be one of http/https/tls
 	GetProtocol() string
@@ -185,20 +191,28 @@ func InitService(s Service) error {
 		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
 	}
 
-	path +=  "/config.json"
-	if !Utility.Exists(path){
+	path += "/config.json"
+
+	// Set know values...
+	execPath, _ := osext.Executable()
+	execPath = strings.ReplaceAll(execPath, "\\", "/")
+	s.SetPath(execPath)
+	s.SetConfigurationPath(path)
+	s.SetModTime(time.Now().Unix())
+	s.SetProcess(os.Getpid())
+	s.SetMac(Utility.MyMacAddr())
+
+	// if the service configuration does not exist.
+	if !Utility.Exists(path) {
+
+		s.SetId(Utility.RandomUUID())
+
 		// Here I need to save the config file... exec must be call once in order to have config file found by Globular.exe
 		str, err := Utility.ToJson(s)
 		if err != nil {
 			return err
 		}
 		if err == nil {
-
-			execPath, _ := osext.Executable()
-
-			s.SetPath(execPath)
-			s.SetConfigurationPath(path)
-
 			err := os.WriteFile(path, []byte(str), 06440)
 			if err != nil {
 				return err
@@ -212,22 +226,22 @@ func InitService(s Service) error {
 		config, err := configClient.GetServiceConfiguration(path)
 		if err != nil {
 			return err
-		}else{
+		} else {
 			fmt.Println("--------------> configuration found ", config)
 		}
-	}else{
+	} else {
 		// In that case I will initalyse the service form the file directly...
 		str, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		
+
 		err = json.Unmarshal(str, &s)
 		if err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 

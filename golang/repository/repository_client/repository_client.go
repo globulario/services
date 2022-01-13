@@ -81,6 +81,10 @@ func NewRepositoryService_Client(address string, id string) (*Repository_Service
 	return client, nil
 }
 
+func (client *Repository_Service_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
+}
+
 func (client *Repository_Service_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()

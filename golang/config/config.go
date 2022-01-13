@@ -294,6 +294,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	return config, nil
 }
 
+// Init the service form the file.
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
 
 	config, err := os.ReadFile(path)
@@ -313,7 +314,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 	}
 
 	info, _ := os.Stat(path)
-	s["modtime"] = info.ModTime().Unix()
+	s["ModTime"] = info.ModTime().Unix()
 
 	if s["Protocol"] != nil {
 		// If a configuration file exist It will be use to start services,
@@ -332,8 +333,6 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 				}
 			}
 
-			fmt.Println(s["Name"])
-			fmt.Println(s["Path"])
 			// Now the exec path.
 			if s["Path"] != nil {
 				if !Utility.Exists(s["Path"].(string)) {
@@ -443,15 +442,15 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				s := make(map[string]interface{})
 				json.Unmarshal(data, &s)
 
+				//////////////////////////////////////////////////////////////////// 
+				// TODO fix the mode time...
+				///////////////////////////////////////////////////////////////////
+				/*
 				// Here I will validate the service configuration has not change...
 				path := s["ConfigPath"].(string)
 				info, _ := os.Stat(path)
-				modtime := int64(0)
-				if s["modtime"] != nil {
-					modtime = int64(s["modtime"].(float64))
-				}
 
-				if modtime != info.ModTime().Unix() {
+				if s["ModTime"].(int64) != info.ModTime().Unix() {
 					// The value from the configuration file may have change...
 					s, err := initServiceConfiguration(path, serviceDir)
 					if err == nil {
@@ -462,6 +461,10 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				} else {
 					services_ = append(services_, s)
 				}
+				*/
+				services_ = append(services_, s)
+				
+				
 			}
 
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": services_}

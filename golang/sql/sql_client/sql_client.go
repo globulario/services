@@ -3,6 +3,7 @@ package sql_client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"strconv"
 
@@ -66,6 +67,10 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 	client.c = sqlpb.NewSqlServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *SQL_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *SQL_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

@@ -77,6 +77,11 @@ func NewApplicationsManager_Client(address string, id string) (*Applications_Man
 	return client, nil
 }
 
+// Return the configuration from the configuration server.
+func (client *Applications_Manager_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
+}
+
 func (Applications_Manager_Client *Applications_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = Applications_Manager_Client.GetCtx()

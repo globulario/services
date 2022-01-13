@@ -73,6 +73,11 @@ func NewLogService_Client(address string, id string) (*Log_Client, error) {
 	return client, nil
 }
 
+// Return the configuration from the configuration server.
+func (client *Log_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
+}
+
 func (client *Log_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()

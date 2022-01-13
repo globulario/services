@@ -81,6 +81,22 @@ type server struct {
 	grpcServer *grpc.Server
 }
 
+func (svr *server) GetProcess() int {
+	return svr.Process
+}
+
+func (svr *server) SetProcess(pid int) {
+	svr.SetProcess(pid)
+}
+
+func (svr *server) GetProxyProcess() int {
+	return svr.ProxyProcess
+}
+
+func (svr *server) SetProxyProcess(pid int) {
+	svr.ProxyProcess = pid
+}
+
 // The path of the configuration.
 func (svr *server) GetConfigurationPath() string {
 	return svr.ConfigPath
@@ -366,6 +382,7 @@ func (svr *server) StopService() error {
 }
 
 /////////////////////// Config service specific function /////////////////////////////////
+
 // One stream by client.
 func (svr *server) OnConfigurationChange(rqst *configpb.OnConfigurationChangeRequest, stream configpb.ConfigService_OnConfigurationChangeServer) error {
 	return nil

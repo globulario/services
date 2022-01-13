@@ -152,6 +152,11 @@ func (client *Event_Client) run() error {
 
 }
 
+// Return the configuration from the configuration server.
+func (client *Event_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
+}
+
 func (client *Event_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()

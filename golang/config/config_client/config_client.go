@@ -1,6 +1,7 @@
 package config_client
 
 import (
+	"errors"
 	"strconv"
 
 	"context"
@@ -66,6 +67,11 @@ func NewConfigService_Client(address string, id string) (*Config_Client, error) 
 	client.c = configpb.NewConfigServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *Config_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Config_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

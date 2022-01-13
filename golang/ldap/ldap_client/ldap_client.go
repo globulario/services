@@ -3,6 +3,7 @@ package ldap_client
 import (
 	// "context"
 	// "log"
+	"errors"
 	"strconv"
 
 	"encoding/json"
@@ -72,6 +73,11 @@ func NewLdapService_Client(address string, id string) (*LDAP_Client, error) {
 	client.c = ldappb.NewLdapServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *LDAP_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *LDAP_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

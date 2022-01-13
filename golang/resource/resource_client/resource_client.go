@@ -2,6 +2,7 @@ package resource_client
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"strconv"
@@ -71,6 +72,10 @@ func NewResourceService_Client(address string, id string) (*Resource_Client, err
 	client.c = resourcepb.NewResourceServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Resource_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Resource_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

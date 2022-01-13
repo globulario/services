@@ -2,6 +2,7 @@ package spc_client
 
 import (
 	"context"
+	"errors"
 	"strconv"
 
 	globular "github.com/globulario/services/golang/globular_client"
@@ -63,6 +64,10 @@ func NewSpcService_Client(address string, id string) (*SPC_Client, error) {
 	client.c = spcpb.NewSpcServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *SPC_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (spc_client *SPC_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

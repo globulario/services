@@ -1,6 +1,7 @@
 package file_client
 
 import (
+	"errors"
 	"io"
 	"log"
 	"os"
@@ -68,6 +69,11 @@ func NewFileService_Client(address string, id string) (*File_Client, error) {
 	client.c = filepb.NewFileServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *File_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *File_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

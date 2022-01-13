@@ -27,6 +27,10 @@ var (
 
 // The client service interface.
 type Client interface {
+
+	// Return the configuration from the configuration server.
+	GetConfiguration(address string) (map[string] interface{}, error)
+
 	// Return the ipv4 address
 	GetAddress() string
 
@@ -104,20 +108,12 @@ func InitClient(client Client, address string, id string) error {
 		address = address_[0]
 		port = Utility.ToInt(address_[1])
 	}
+
+	// remove the port number from the domain.
 	client.SetDomain(address)
 
-	log.Println("--------------> address ", address)
+	config, err := client.GetConfiguration(address)
 
-	// Here I will initialyse the client
-	// config, err := security.GetClientConfig(address, id, port, os.TempDir())
-
-	// Get the configuration from the configuration manager.
-	var config map[string]interface{}
-	var err error
-
-	if err != nil {
-		return err
-	}
 	if err == nil {
 		port = int(config["Port"].(float64))
 	}

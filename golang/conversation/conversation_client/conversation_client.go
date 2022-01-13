@@ -1,6 +1,7 @@
 package conversation_client
 
 import (
+	"errors"
 	"strconv"
 
 	"context"
@@ -148,6 +149,11 @@ func (client *Conversation_Client) run() error {
 			}
 		}
 	}
+}
+
+// Return the configuration from the configuration server.
+func (client *Conversation_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Conversation_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

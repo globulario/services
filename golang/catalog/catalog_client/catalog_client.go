@@ -1,6 +1,7 @@
 package catalog_client
 
 import (
+	"errors"
 	"strconv"
 
 	"context"
@@ -68,6 +69,11 @@ func NewCatalogService_Client(address string, id string) (*Catalog_Client, error
 	client.c = catalogpb.NewCatalogServiceClient(client.cc)
 
 	return client, nil
+}
+
+// Return the configuration from the configuration server.
+func (client *Catalog_Client) GetConfiguration(address string) (map[string]interface{}, error) {
+	return nil, errors.New("no implemented...")
 }
 
 func (client *Catalog_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
