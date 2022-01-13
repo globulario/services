@@ -253,7 +253,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 						}
 
 						if err == nil {
-							localConfig, _ := config.GetLocalConfig()
+							localConfig, _ := config.GetLocalConfig(true)
 							// Now I will restart it grpc service.
 							StartServiceProxyProcess(s["Id"].(string), localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), localConfig["PortsRange"].(string), pid)
 						}

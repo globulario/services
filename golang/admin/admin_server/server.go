@@ -58,6 +58,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
+	ModTime 		int64
 
 	TLS bool
 
@@ -138,6 +139,32 @@ func (svr *server) GetDiscoveries() []string {
 }
 func (svr *server) SetDiscoveries(discoveries []string) {
 	svr.Discoveries = discoveries
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetServiceConfiguration(path string) {
+	svr.ConfigPath = path
+}
+
+// The last error
+func (svr *server) GetLastError() string {
+	return svr.LastError
+}
+
+func (svr *server) SetLastError(err string) {
+	svr.LastError = err
+}
+
+// The modeTime
+func (svr *server) SetModTime(modtime int64) {
+	svr.ModTime = modtime
+}
+func (svr *server) GetModTime() int64 {
+	return svr.ModTime
 }
 
 // Dist
@@ -314,7 +341,7 @@ func (svr *server) Init() error {
 	Utility.RegisterFunction("NewadminService_Client", admin_client.NewAdminService_Client)
 
 	// Get the configuration path.
-	err := globular.InitService( svr)
+	err := globular.InitService(svr)
 	if err != nil {
 		return err
 	}
@@ -357,7 +384,7 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 		if err != nil {
-			
+
 			return nil, err
 		}
 
@@ -379,7 +406,6 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
 
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "admin_service: ", log.LstdFlags))

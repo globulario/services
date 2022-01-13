@@ -3,6 +3,7 @@ package globular_service
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -18,9 +19,11 @@ import (
 
 	"errors"
 	"runtime"
-
+	"github.com/kardianos/osext"
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/admin/admin_client"
+	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/config/config_client"
+
 	//"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -57,6 +60,18 @@ type Service interface {
 	// The path of the executable.
 	GetPath() string
 	SetPath(string)
+
+	// The path of the configuration.
+	GetConfigurationPath() string
+	SetServiceConfiguration(string)
+
+	// The last error
+	GetLastError() string
+	SetLastError(string)
+
+	// The modeTime
+	SetModTime(int64)
+	GetModTime()int64
 
 	// The path of the .proto file.
 	GetProto() string
@@ -159,8 +174,61 @@ func InitService(s Service) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("-------------------------------> dir: ", dir)
-	return errors.New("Not implemented")
+
+	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	path := strings.ReplaceAll(dir, "\\", "/")
+
+	if len(serviceRoot) == 0 {
+		// Here I receive something like
+		//  /usr/local/share/globular/services/globulario/mail.MailService/0.0.1/6364c9d4-3159-419b-85ac-4981bdc9c28d/config.json
+		// the first part of that path is the path of executable and not the config... so I will change it
+		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
+	}
+
+	path +=  "/config.json"
+	if !Utility.Exists(path){
+		// Here I need to save the config file... exec must be call once in order to have config file found by Globular.exe
+		str, err := Utility.ToJson(s)
+		if err != nil {
+			return err
+		}
+		if err == nil {
+
+			execPath, _ := osext.Executable()
+
+			s.SetPath(execPath)
+			s.SetServiceConfiguration(path)
+
+			err := os.WriteFile(path, []byte(str), 06440)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Here I will get the configuration from the Configuration server...
+	configClient, err := getConfigClient()
+	if err == nil {
+		config, err := configClient.GetServiceConfiguration(path)
+		if err != nil {
+			return err
+		}else{
+			fmt.Println("--------------> configuration found ", config)
+		}
+	}else{
+		// In that case I will initalyse the service form the file directly...
+		str, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		
+		err = json.Unmarshal(str, &s)
+		if err != nil {
+			return err
+		}
+	}
+	
+	return nil
 }
 
 /**
@@ -337,22 +405,23 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 }
 
 var (
-	admin_client_ *admin_client.Admin_Client
+	config_client_ *config_client.Config_Client
 )
 
 /**
- * Get a the local resource client.
+ * Get the configuration client.
  */
-func getAdminClient(domain string) (*admin_client.Admin_Client, error) {
+func getConfigClient() (*config_client.Config_Client, error) {
 	var err error
-	if admin_client_ == nil {
-		admin_client_, err = admin_client.NewAdminService_Client(domain, "admin.AdminService")
+	if config_client_ == nil {
+		address, _ := config.GetAddress()
+		config_client_, err = config_client.NewConfigService_Client(address, "config.ConfigService")
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return admin_client_, nil
+	return config_client_, nil
 }
 
 func StartService(s Service, server *grpc.Server) error {

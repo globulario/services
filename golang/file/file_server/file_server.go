@@ -90,6 +90,7 @@ type server struct {
 	ProxyProcess       int
 	ConfigPath         string
 	LastError          string
+	ModTime 		int64
 
 	// The grpc server.
 	grpcServer *grpc.Server

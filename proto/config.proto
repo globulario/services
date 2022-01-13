@@ -18,6 +18,16 @@ message SetServiceConfigurationResponse {
 }
 
 /** Return a service configuration by it id */
+message GetServiceConfigurationRequest {
+	string path= 1;
+}
+
+message GetServiceConfigurationResponse {
+	google.protobuf.Struct config = 1;
+}
+
+
+/** Return a service configuration by it id */
 message GetServiceConfigurationByIdRequest {
 	string id= 1;
 }
@@ -46,8 +56,7 @@ message GetServicesConfigurationsResponse {
 
 /** The channel to keep the configuration in sync */
 message OnConfigurationChangeRequest {
-	string id = 1; // the client id
-	string path = 2; // the configuration file path.
+	string path = 1; // the configuration file path.
 }
 
 message OnConfigurationChangeResponse {
@@ -63,6 +72,9 @@ service ConfigService {
 	// Set a service configuration.
 	rpc SetServiceConfiguration(SetServiceConfigurationRequest) returns (SetServiceConfigurationResponse){};
   	
+	// Get the configuration at a given path on the server.
+	rpc GetServiceConfiguration(GetServiceConfigurationRequest) returns (GetServiceConfigurationResponse) {};
+
 	// Get service configuration with a given id.
 	rpc GetServiceConfigurationById(GetServiceConfigurationByIdRequest) returns(GetServiceConfigurationByIdResponse){};
 

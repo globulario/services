@@ -184,4 +184,7 @@ func (client *Config_Client) SetCaFile(caFile string) {
 
 ////////////////// Api //////////////////////
 // Specific config client function here.
-
+func (client *Config_Client) GetServiceConfiguration(path string) (map[string]interface{}, error){
+	// TODO implement it.
+	return nil, nil
+}

@@ -35,7 +35,7 @@ func GetAddress() (string, error) {
 	domain, _ := GetDomain()
 
 	// I need the local configuration to get info about the address.
-	localConfig, err := GetLocalConfig()
+	localConfig, err := GetLocalConfig(true)
 	if err != nil {
 		return "", err
 	}
@@ -66,7 +66,7 @@ func GetHostName() (string, error) {
  * Return the Domain.
  */
 func GetDomain() (string, error) {
-	localConfig, err := GetLocalConfig()
+	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		domain := localConfig["Name"].(string)
 		if len(localConfig["Domain"].(string)) > 0 {
@@ -248,8 +248,9 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
 /**
  * Return the server local configuration if one exist.
+ * if lazy is set to true service will not be set in the configuration.
  */
-func GetLocalConfig() (map[string]interface{}, error) {
+func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	ConfigPath := GetConfigDir() + "/config.json"
 	if !Utility.Exists(ConfigPath) {
 		err := errors.New("no local Globular configuration found")
@@ -258,7 +259,7 @@ func GetLocalConfig() (map[string]interface{}, error) {
 	}
 
 	config := make(map[string]interface{})
-	data, err := ReadServiceConfigurationFile(ConfigPath)
+	data, err := os.ReadFile(ConfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -266,6 +267,10 @@ func GetLocalConfig() (map[string]interface{}, error) {
 	err = json.Unmarshal(data, &config)
 	if err != nil {
 		return nil, err
+	}
+
+	if lazy {
+		return config, nil
 	}
 
 	// Now I will read the services configurations...
@@ -290,9 +295,6 @@ func GetLocalConfig() (map[string]interface{}, error) {
 }
 
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
-	for isLocked(path) {
-		time.Sleep(500 * time.Millisecond)
-	}
 
 	config, err := os.ReadFile(path)
 	if err != nil {
@@ -330,6 +332,8 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 				}
 			}
 
+			fmt.Println(s["Name"])
+			fmt.Println(s["Path"])
 			// Now the exec path.
 			if s["Path"] != nil {
 				if !Utility.Exists(s["Path"].(string)) {
@@ -375,56 +379,6 @@ var (
 	getServicesConfigurationsByNameChan chan map[string]interface{}
 )
 
-// Locking system to manage access of configuration files bethewen process.
-func isLocked(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-	isLock := Utility.Exists(lock)
-	if isLock {
-		fmt.Println("file " + path + " is lock")
-	}
-	return Utility.Exists(lock)
-}
-
-func Lock(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-	err := Utility.WriteStringToFile(lock, "")
-	if err == nil {
-		return true
-	}
-	return false
-}
-
-func Unlock(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-
-	for Utility.Exists(lock) {
-		time.Sleep(10 * time.Millisecond)
-		os.Remove(lock)
-	}
-
-	return true
-}
-
-// Remove all file lock.
-func RemoveAllLocks() {
-
-	os.Remove(GetConfigDir() + "/config.lock")
-
-	serviceDir := GetServicesConfigDir()
-	locks, err := Utility.FindFileByName(serviceDir, "config.lock")
-	fmt.Println("remove locks ", serviceDir)
-	if err == nil {
-		for i := 0; i < len(locks); i++ {
-			fmt.Println("---------> remove lock ", locks[i])
-			err := os.Remove(locks[i])
-			if err != nil {
-				fmt.Println("463 ---------> remove lock error ", err)
-			}
-		}
-	} else {
-		fmt.Println("467 ---------> remove lock error ", err)
-	}
-}
 
 // Create a save entry point to access configuration file. Because
 // many process can access the same configuration file can be corrupted.
@@ -458,12 +412,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				return_chan <- errors.New("no configuration to save")
 			} else {
 				// wait util the file is unlocked...
-				for isLocked(path) {
-					fmt.Println("----> wait for config file 547")
-					time.Sleep(500 * time.Millisecond)
-				}
-
-				Lock(path) // lock the file access
 				return_chan <- ioutil.WriteFile(path, []byte(jsonStr), 0644)
 				exist := false
 				for i:=0; i < len(services); i++ {
@@ -477,17 +425,11 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				if !exist {
 					services = append(services, s)
 				}
-				Unlock(path) // unlock the file access
 			}
 
 		case infos := <-readFileChan:
 			path := infos["path"].(string)
 			// wait util the file is unlocked...
-			for isLocked(path) {
-				fmt.Println("----> wait for config file 559 ", path)
-				time.Sleep(500 * time.Millisecond)
-			}
-
 			data, err := ioutil.ReadFile(path)
 			return_chan := infos["return"].(chan map[string]interface{})
 			return_chan <- map[string]interface{}{"error": err, "data": data}
@@ -593,7 +535,6 @@ func InitConfig() {
 			fmt.Println("fail to find service configurations at at path ", serviceDir)
 			return
 		}
-
 		services := make([]map[string]interface{}, 0)
 
 		// I will try to get configuration from services.
@@ -607,10 +548,8 @@ func InitConfig() {
 			}
 		}
 
-		log.Println("---------> 607 ", services)
 		// start the loop.
 		go accesServiceConfigurationFile(services)
-		time.Sleep(2 * time.Second)
 	}
 }
 

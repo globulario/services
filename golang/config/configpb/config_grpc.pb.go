@@ -22,6 +22,8 @@ type ConfigServiceClient interface {
 	OnConfigurationChange(ctx context.Context, in *OnConfigurationChangeRequest, opts ...grpc.CallOption) (ConfigService_OnConfigurationChangeClient, error)
 	// Set a service configuration.
 	SetServiceConfiguration(ctx context.Context, in *SetServiceConfigurationRequest, opts ...grpc.CallOption) (*SetServiceConfigurationResponse, error)
+	// Get the configuration at a given path on the server.
+	GetServiceConfiguration(ctx context.Context, in *GetServiceConfigurationRequest, opts ...grpc.CallOption) (*GetServiceConfigurationResponse, error)
 	// Get service configuration with a given id.
 	GetServiceConfigurationById(ctx context.Context, in *GetServiceConfigurationByIdRequest, opts ...grpc.CallOption) (*GetServiceConfigurationByIdResponse, error)
 	// Get list of service configuration with a given name
@@ -79,6 +81,15 @@ func (c *configServiceClient) SetServiceConfiguration(ctx context.Context, in *S
 	return out, nil
 }
 
+func (c *configServiceClient) GetServiceConfiguration(ctx context.Context, in *GetServiceConfigurationRequest, opts ...grpc.CallOption) (*GetServiceConfigurationResponse, error) {
+	out := new(GetServiceConfigurationResponse)
+	err := c.cc.Invoke(ctx, "/config.ConfigService/GetServiceConfiguration", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *configServiceClient) GetServiceConfigurationById(ctx context.Context, in *GetServiceConfigurationByIdRequest, opts ...grpc.CallOption) (*GetServiceConfigurationByIdResponse, error) {
 	out := new(GetServiceConfigurationByIdResponse)
 	err := c.cc.Invoke(ctx, "/config.ConfigService/GetServiceConfigurationById", in, out, opts...)
@@ -114,6 +125,8 @@ type ConfigServiceServer interface {
 	OnConfigurationChange(*OnConfigurationChangeRequest, ConfigService_OnConfigurationChangeServer) error
 	// Set a service configuration.
 	SetServiceConfiguration(context.Context, *SetServiceConfigurationRequest) (*SetServiceConfigurationResponse, error)
+	// Get the configuration at a given path on the server.
+	GetServiceConfiguration(context.Context, *GetServiceConfigurationRequest) (*GetServiceConfigurationResponse, error)
 	// Get service configuration with a given id.
 	GetServiceConfigurationById(context.Context, *GetServiceConfigurationByIdRequest) (*GetServiceConfigurationByIdResponse, error)
 	// Get list of service configuration with a given name
@@ -131,6 +144,9 @@ func (UnimplementedConfigServiceServer) OnConfigurationChange(*OnConfigurationCh
 }
 func (UnimplementedConfigServiceServer) SetServiceConfiguration(context.Context, *SetServiceConfigurationRequest) (*SetServiceConfigurationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetServiceConfiguration not implemented")
+}
+func (UnimplementedConfigServiceServer) GetServiceConfiguration(context.Context, *GetServiceConfigurationRequest) (*GetServiceConfigurationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetServiceConfiguration not implemented")
 }
 func (UnimplementedConfigServiceServer) GetServiceConfigurationById(context.Context, *GetServiceConfigurationByIdRequest) (*GetServiceConfigurationByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetServiceConfigurationById not implemented")
@@ -188,6 +204,24 @@ func _ConfigService_SetServiceConfiguration_Handler(srv interface{}, ctx context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConfigServiceServer).SetServiceConfiguration(ctx, req.(*SetServiceConfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConfigService_GetServiceConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetServiceConfigurationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigServiceServer).GetServiceConfiguration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/config.ConfigService/GetServiceConfiguration",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigServiceServer).GetServiceConfiguration(ctx, req.(*GetServiceConfigurationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -256,6 +290,10 @@ var ConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetServiceConfiguration",
 			Handler:    _ConfigService_SetServiceConfiguration_Handler,
+		},
+		{
+			MethodName: "GetServiceConfiguration",
+			Handler:    _ConfigService_GetServiceConfiguration_Handler,
 		},
 		{
 			MethodName: "GetServiceConfigurationById",

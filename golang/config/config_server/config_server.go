@@ -60,6 +60,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
+	ModTime			int64
 
 	TLS bool
 
@@ -78,6 +79,29 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+
+// The last error
+func (svr *server) GetLastError() string {
+	return svr.LastError
+}
+
+func (svr *server) SetLastError(err string) {
+	svr.LastError = err
+}
+
+// The modeTime
+func (svr *server) SetModTime(modtime int64) {
+	svr.ModTime = modtime
+}
+func (svr *server) GetModTime() int64 {
+	return svr.ModTime
 }
 
 // Globular services implementation...
@@ -342,6 +366,11 @@ func (svr *server) StopService() error {
 // One stream by client.
 func (svr *server) OnConfigurationChange(rqst *configpb.OnConfigurationChangeRequest, stream configpb.ConfigService_OnConfigurationChangeServer) error {
 	return nil
+}
+
+// Get the list of all services configurations
+func (svr *server) GetServiceConfiguration(ctx context.Context, rqst *configpb.GetServiceConfigurationRequest) (*configpb.GetServiceConfigurationResponse, error) {
+	return nil, nil
 }
 
 // Set a service configuration.

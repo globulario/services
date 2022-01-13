@@ -10,7 +10,6 @@ import (
 	"log"
 
 	//"log"
-	"os"
 	"reflect"
 	"strings"
 
@@ -100,17 +99,22 @@ func InitClient(client Client, address string, id string) error {
 
 	// Set the domain and the name from the incomming...
 	address_ := strings.Split(address, ":")
-
 	port := 80 // the default http port...
 	if len(address_) == 2 {
 		address = address_[0]
 		port = Utility.ToInt(address_[1])
 	}
-
 	client.SetDomain(address)
 
+	log.Println("--------------> address ", address)
+
 	// Here I will initialyse the client
-	config, err := security.GetClientConfig(address, id, port, os.TempDir())
+	// config, err := security.GetClientConfig(address, id, port, os.TempDir())
+
+	// Get the configuration from the configuration manager.
+	var config map[string]interface{}
+	var err error
+
 	if err != nil {
 		return err
 	}

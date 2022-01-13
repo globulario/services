@@ -74,6 +74,7 @@ type server struct {
 	PublisherId        string
 	KeepUpToDate       bool
 	KeepAlive          bool
+	ModTime 		int64
 
 	// Contain the list of service use by the catalog server.
 	Services     map[string]interface{}
@@ -85,6 +86,32 @@ type server struct {
 	eventClient       *event_client.Event_Client
 	// The grpc server.
 	grpcServer *grpc.Server
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetServiceConfiguration(path string) {
+	svr.ConfigPath = path
+}
+
+// The last error
+func (svr *server) GetLastError() string {
+	return svr.LastError
+}
+
+func (svr *server) SetLastError(err string) {
+	svr.LastError = err
+}
+
+// The modeTime
+func (svr *server) SetModTime(modtime int64) {
+	svr.ModTime = modtime
+}
+func (svr *server) GetModTime() int64 {
+	return svr.ModTime
 }
 
 // Globular services implementation...

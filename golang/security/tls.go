@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -28,169 +27,6 @@ var (
 	ConfigPath = config_.GetConfigDir() + "/config.json"
 	keyPath    = config_.GetConfigDir() + "/keys"
 )
-
-// That function will be access via http so event server or client will be able
-// to get particular service configuration.
-func GetClientConfig(address string, name string, port int, path string) (map[string]interface{}, error) {
-
-	address = strings.ToLower(address) 
-	var serverConfig map[string]interface{}
-	var config map[string]interface{}
-	var err error
-	
-	if len(address) == 0 {
-		err := errors.New("no address was given for service name " + name)
-		return nil, err
-	}
-
-	// In case of local service I will get the service value directly from
-	// the configuration file.
-	serverConfig, err = getLocalConfig()
-	isLocal := true
-
-	if err == nil {
-		// The way the domain is create must be the same here
-		// and in the file globular.go at function getDomain()
-		domain, _ := config_.GetDomain()
-		if !strings.HasPrefix(address, domain) && !strings.HasPrefix(address, "localhost") &&  address != "0.0.0.0" {
-			isLocal = false
-		}
-
-	} else {
-		fmt.Println("fail to get local configuration with error ", err)
-		isLocal = false
-	}
-
-	if !isLocal {
-		// First I will retreive the server configuration.
-		log.Println("get remote client configuration for ", address, port)
-		serverConfig, err = config_.GetRemoteConfig(address, port)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// get service by id or by name... (take the first service with a given name in case of name.
-	for _, s := range serverConfig["Services"].(map[string]interface{}) {
-		if s.(map[string]interface{})["Name"].(string) == name || s.(map[string]interface{})["Id"].(string) == name {
-			config = s.(map[string]interface{})
-			break
-		}
-	}
-
-	// No service with name or id was found...
-	if config == nil {
-		location := "local"
-		if !isLocal {
-			location = "remote"
-		}
-
-		services := " available services are " 
-		for _, s := range serverConfig["Services"].(map[string]interface{}) {
-			services += " " + s.(map[string]interface{})["Name"].(string)
-		}
-
-		return nil, errors.New("No service found with name " + name + " exist on the server at " + location + " address " + address + services )
-	}
-
-	// Set the config tls...
-	config["TLS"] = serverConfig["Protocol"].(string) == "https"
-	//config["Domain"] = address
-
-	// get / init credential values.
-	if config["TLS"] == false {
-		// set the credential function here
-		config["KeyFile"] = ""
-		config["CertFile"] = ""
-		config["CertAuthorityTrust"] = ""
-	} else {
-		// Here I will retreive the credential or create it if not exist.
-		var country string
-		if serverConfig["Country"] != nil {
-			country = serverConfig["Country"].(string)
-		}
-
-		var state string
-		if serverConfig["State"] != nil {
-			state = serverConfig["State"].(string)
-		}
-
-		var city string
-		if serverConfig["City"] != nil {
-			city = serverConfig["City"].(string)
-		}
-
-		var organization string
-		if serverConfig["Organization"] != nil {
-			state = serverConfig["Organization"].(string)
-		}
-
-		var alternateDomains []interface{}
-		if serverConfig["AlternateDomains"] != nil {
-			alternateDomains = serverConfig["AlternateDomains"].([]interface{})
-		}
-
-		if !isLocal {
-			domain := serverConfig["Domain"].(string)
-			keyPath, certPath, caPath, err := getCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
-			if err != nil {
-				log.Println("Fail to retreive credential configuration with error ", err)
-				return nil, err
-			}
-
-			// set the credential function here
-			config["KeyFile"] = keyPath
-			config["CertFile"] = certPath
-			config["CertAuthorityTrust"] = caPath
-		}
-	}
-
-	return config, nil
-}
-
-func InstallCertificates(domain string, port int, path string) (string, string, string, error) {
-	return getCredentialConfig(path, domain, "", "", "", "", []interface{}{}, port)
-}
-
-/**
- * Return the server local configuration if one exist.
- */
-func getLocalConfig() (map[string]interface{}, error) {
-
-	if !Utility.Exists(ConfigPath) {
-		return nil, errors.New("no local Globular configuration found")
-	}
-
-	config := make(map[string]interface{})
-	data, err := ioutil.ReadFile(ConfigPath)
-	if err != nil {
-		fmt.Println("fail to read local server configuration " + ConfigPath, err)
-		return nil, err
-	}
-
-	err = json.Unmarshal(data, &config)
-	if err != nil {
-		fmt.Println("fail to unmarshal local server configuration " + ConfigPath, err)
-		return nil, err
-	}
-
-	// Now I will read the services configurations...
-	config["Services"] = make(map[string]interface{})
-
-	// use the GLOBULAR_SERVICES_ROOT path if it set... or the Root (/usr/local/share/globular)
-	services_config, err := config_.GetServicesConfigurations()
-	if err != nil {
-		fmt.Println("fail to retreive local configuration: ", err)
-		return nil, err
-	}
-
-	for i := 0; i < len(services_config); i++ {
-		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
-	}
-
-
-	return config, nil
-}
 
 /**
  * Get the ca certificate
@@ -255,6 +91,11 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 	}
 
 	return "", errors.New("fail to sign ca certificate with error " + Utility.ToString(resp.StatusCode))
+}
+
+//////////////////////////////// Certificate Authority /////////////////////////
+func InstallCertificates(domain string, port int, path string) (string, string, string, error) {
+	return getCredentialConfig(path, domain, "", "", "", "", []interface{}{}, port)
 }
 
 /**
@@ -376,7 +217,6 @@ func getCredentialConfig(basePath string, domain string, country string, state s
 	return
 }
 
-//////////////////////////////// Certificate Authority /////////////////////////
 
 // Generate the Certificate Authority private key file (this shouldn't be shared in real life)
 func GenerateAuthorityPrivateKey(path string, pwd string) error {
