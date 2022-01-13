@@ -91,9 +91,10 @@ func (svr *server) GetConfigurationPath() string {
 	return svr.ConfigPath
 }
 
-func (svr *server) SetServiceConfiguration(path string) {
+func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
+
 
 // The last error
 func (svr *server) GetLastError() string {

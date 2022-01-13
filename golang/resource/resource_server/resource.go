@@ -1454,16 +1454,11 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	}
 
 	// Get the configuration address with it http port...
-	localConfig, err := config.GetLocalConfig()
-	if err != nil {
-		return nil, "", err
-	}
-	address_ := localConfig["Name"].(string)
-	if len(localConfig["Domain"].(string)) > 0 {
-		address_ += "." + localConfig["Domain"].(string)
-	}
-	address_ += ":" + Utility.ToString(localConfig["PortHttp"])
-	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: localConfig["Name"].(string), Mac: Utility.MyMacAddr(), Domain: localConfig["Domain"].(string), ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
+	address_, _ := config.GetAddress()
+	domain, _ := config.GetDomain()
+	hostname, _  := config.GetHostName()
+
+	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: hostname, Mac: Utility.MyMacAddr(), Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
 }
 
@@ -1633,23 +1628,14 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
 
-	localConfig, err := config.GetLocalConfig()
-	address := localConfig["Name"].(string)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-	if len(localConfig["Domain"].(string)) > 0 {
-		address += "." + localConfig["Domain"].(string)
-	}
 
-	address += ":" + Utility.ToString(localConfig["PortHttp"])
+	address, _ := config.GetAddress()
+	domain, _ := config.GetDomain()
 
 	peer_ := new(resourcepb.Peer)
 	peer_.Address = address
 	peer_.Hostname = hostname
-	peer_.Domain = localConfig["Domain"].(string)
+	peer_.Domain = domain
 	peer_.ExternalIpAddress = Utility.MyIP()
 	peer_.LocalIpAddress = Utility.MyLocalIP()
 	peer_.Mac = Utility.MyMacAddr()

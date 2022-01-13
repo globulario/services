@@ -63,7 +63,7 @@ type Service interface {
 
 	// The path of the configuration.
 	GetConfigurationPath() string
-	SetServiceConfiguration(string)
+	SetConfigurationPath(string)
 
 	// The last error
 	GetLastError() string
@@ -197,7 +197,7 @@ func InitService(s Service) error {
 			execPath, _ := osext.Executable()
 
 			s.SetPath(execPath)
-			s.SetServiceConfiguration(path)
+			s.SetConfigurationPath(path)
 
 			err := os.WriteFile(path, []byte(str), 06440)
 			if err != nil {
