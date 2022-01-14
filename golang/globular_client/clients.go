@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -106,8 +107,8 @@ func InitClient(client Client, address string, id string) error {
 
 	var config_ map[string]interface{}
 	var err error
-	address_, _ := config.GetAddress()
-	port := 80
+	var port int
+
 	domain := address
 	values := strings.Split(address, ":")
 	if len(values) == 2 {
@@ -115,12 +116,15 @@ func InitClient(client Client, address string, id string) error {
 		port = Utility.ToInt(values[1])
 	}
 
-	if address_ == address {
+	address_, _ := config.GetAddress()
+	isLocal := address_ == address
+
+	if isLocal {
 		// Local client configuration
 		config_, err = client.GetConfiguration(address, id)
 	} else {
 		// Remote client configuration
-		config_, err = config.GetRemoteConfig(domain, port)
+		config_, err = config.GetRemoteConfig(domain, port, id)
 	}
 
 	if err != nil {
@@ -163,15 +167,15 @@ func InitClient(client Client, address string, id string) error {
 
 	// Set security values.
 	if config_["TLS"].(bool) {
-		address_, _ := config.GetAddress()
-		if address_ == address {
+		client.SetTLS(true)
+		if isLocal {
 			// Change server cert to client cert and do the same for key because we are at client side...
 			certificateFile := strings.Replace(config_["CertFile"].(string), "server", "client", -1)
 			keyFile := strings.Replace(config_["KeyFile"].(string), "server", "client", -1)
 			client.SetKeyFile(keyFile)
 			client.SetCertFile(certificateFile)
 			client.SetCaFile(config_["CertAuthorityTrust"].(string))
-			client.SetTLS(config_["TLS"].(bool))
+			
 		} else {
 
 			// The address is not the local address so I want to get remote configuration value.
@@ -187,8 +191,6 @@ func InitClient(client Client, address string, id string) error {
 			client.SetKeyFile(keyFile)
 			client.SetCertFile(certificateFile)
 			client.SetCaFile(caFile)
-			client.SetTLS(config_["TLS"].(bool))
-
 		}
 
 	} else {

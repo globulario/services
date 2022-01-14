@@ -235,11 +235,17 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 /**
  * Get the remote client configuration, made use of http request to do so.
  */
-func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
+func GetRemoteConfig(address string, port int, id string) (map[string]interface{}, error) {
 
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
+
+	// The default port address.
+	if port == 0 {
+		port = 80
+	}
+
 	var configAddress = "http://" + address + ":" + Utility.ToString(port) + "/config"
 	//fmt.Println("get remote configuration from address ", configAddress)
 	resp, err = http.Get(configAddress)
@@ -253,6 +259,16 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	err = json.NewDecoder(resp.Body).Decode(&config)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(id) > 0 {
+		// get service by id or by name... (take the first service with a given name in case of name.
+		for _, s := range config["Services"].(map[string]interface{}) {
+			if s.(map[string]interface{})["Name"].(string) == id || s.(map[string]interface{})["Id"].(string) == id {
+				return s.(map[string]interface{}), nil
+			}
+		}
+
 	}
 
 	return config, nil
@@ -584,7 +600,6 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 	return s, nil
 }
 
-
 var (
 	// Help to sync file access.
 	saveServiceConfigChan               = make(chan map[string]interface{})
@@ -635,10 +650,10 @@ func initConfig() {
 
 }
 
-// Test if the service configuration has change and if so 
+// Test if the service configuration has change and if so
 // read it last values to update the service configuration in
 // memory
-func setServiceConfiguration(index int, services[]map[string]interface{}){
+func setServiceConfiguration(index int, services []map[string]interface{}) {
 	s := services[index]
 	path := s["ConfigPath"].(string)
 	info, _ := os.Stat(path)
@@ -646,7 +661,7 @@ func setServiceConfiguration(index int, services[]map[string]interface{}){
 	if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
 		serviceDir := GetServicesConfigDir()
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
-		s_ , err := initServiceConfiguration(path, serviceDir)
+		s_, err := initServiceConfiguration(path, serviceDir)
 		if err == nil {
 			s_["ModTime"] = info.ModTime().Unix()
 			services[index] = s_
@@ -672,7 +687,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
 			if err != nil {
-				fmt.Println("675 fail to save service configuration",err)
+				fmt.Println("675 fail to save service configuration", err)
 				return_chan <- err
 			} else if len(jsonStr) == 0 {
 				return_chan <- errors.New("no configuration to save")
@@ -681,7 +696,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				err := os.WriteFile(path, []byte(jsonStr), 0644)
 				if err != nil {
 					fmt.Println("682 fail to save service configuration.", err)
-					infos["return"].(chan error) <-err
+					infos["return"].(chan error) <- err
 				}
 				index := -1
 				for i := 0; i < len(services); i++ {
@@ -699,7 +714,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 				// Set the service...
 				setServiceConfiguration(index, services)
-
 
 				return_chan <- nil
 			}
