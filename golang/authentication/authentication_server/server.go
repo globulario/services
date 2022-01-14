@@ -51,6 +51,7 @@ type server struct {
 	Name            string
 	Mac             string
 	Domain          string
+	Address         string
 	Path            string
 	Proto           string
 	Port            int
@@ -98,6 +99,15 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+}
+
+// The http address where the configuration can be found /config
+func (svr *server) GetAddress() string {
+	return svr.Address
+}
+
+func (svr *server) SetAddress(address string) {
+	svr.Address = address
 }
 
 func (svr *server) GetProcess() int {

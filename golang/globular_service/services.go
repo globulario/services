@@ -47,6 +47,10 @@ type Service interface {
 	GetMac() string
 	SetMac(string)
 
+	// The address where the configuration can from http lnk
+	GetAddress() string
+	SetAddress(string)
+
 	// The description of the services.
 	GetDescription() string
 	SetDescription(string)
@@ -196,7 +200,6 @@ func InitService(s Service) error {
 		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
 	}
 
-
 	path += "/config.json"
 
 	// if the service configuration does not exist.
@@ -226,8 +229,16 @@ func InitService(s Service) error {
 			return err
 		}
 	}
-	
+
+	// set contextual values.
+	address, _ := config.GetAddress()
+	domain, _ := config.GetDomain()
+	s.SetMac(Utility.MyMacAddr())
+	s.SetAddress(address)
+	s.SetDomain(domain)
 	s.SetProcess(os.Getpid())
+
+	// here the service is runing...
 	s.SetState("running")
 
 	return SaveService(s)
@@ -237,7 +248,7 @@ func InitService(s Service) error {
  * Save a globular service.
  */
 func SaveService(s Service) error {
-	// Set current process 
+	// Set current process
 	s.SetModTime(time.Now().Unix())
 	config_, err := Utility.ToMap(s)
 	if err != nil {

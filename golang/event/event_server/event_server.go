@@ -45,6 +45,7 @@ type server struct {
 	AllowedOrigins  string // comma separated string.
 	Protocol        string
 	Domain          string
+	Address         string
 	Description     string
 	Keywords        []string
 	Repositories    []string
@@ -78,6 +79,15 @@ type server struct {
 
 	// stop the processing loop.
 	exit chan bool
+}
+
+// The http address where the configuration can be found /config
+func (svr *server) GetAddress() string {
+	return svr.Address
+}
+
+func (svr *server) SetAddress(address string) {
+	svr.Address = address
 }
 
 func (svr *server) GetProcess() int {

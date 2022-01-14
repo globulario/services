@@ -48,7 +48,7 @@ type Client interface {
 	// Close the client.
 	Close()
 
-	// Contain the grpc port number, to http port is contain the address 
+	// Contain the grpc port number, to http port is contain the address
 	SetPort(int)
 
 	// Return the grpc port
@@ -104,12 +104,31 @@ type Client interface {
  */
 func InitClient(client Client, address string, id string) error {
 
-	// Keep the client address...
-	client.SetAddress(address)
-	config_, err := client.GetConfiguration(address, id)
+	var config_ map[string]interface{}
+	var err error
+	address_, _ := config.GetAddress()
+	port := 80
+	domain := address
+	values := strings.Split(address, ":")
+	if len(values) == 2 {
+		domain = values[0]
+		port = Utility.ToInt(values[1])
+	}
+
+	if address_ == address {
+		// Local client configuration
+		config_, err = client.GetConfiguration(address, id)
+	} else {
+		// Remote client configuration
+		config_, err = config.GetRemoteConfig(domain, port)
+	}
+
 	if err != nil {
 		return err
 	}
+
+	// Keep the client address...
+	client.SetAddress(address)
 
 	// Set client attributes.
 	if config_["Id"] != nil {
@@ -138,30 +157,43 @@ func InitClient(client Client, address string, id string) error {
 
 	if config_["Port"] != nil {
 		client.SetPort(Utility.ToInt(config_["Port"]))
-	}else{
+	} else {
 		return errors.New("no port found for service " + id)
 	}
-	
 
 	// Set security values.
 	if config_["TLS"].(bool) {
+		address_, _ := config.GetAddress()
+		if address_ == address {
+			// Change server cert to client cert and do the same for key because we are at client side...
+			certificateFile := strings.Replace(config_["CertFile"].(string), "server", "client", -1)
+			keyFile := strings.Replace(config_["KeyFile"].(string), "server", "client", -1)
+			client.SetKeyFile(keyFile)
+			client.SetCertFile(certificateFile)
+			client.SetCaFile(config_["CertAuthorityTrust"].(string))
+			client.SetTLS(config_["TLS"].(bool))
+		} else {
 
-		// TODO test if the client is local and get keys from the remote save it in temp and set the correct client key path.
-		// Change server cert to client cert and do the same for key because we are at client side...
-		certificateFile := strings.Replace(config_["CertFile"].(string), "server", "client", -1)
-		keyFile := strings.Replace(config_["KeyFile"].(string), "server", "client", -1)
+			// The address is not the local address so I want to get remote configuration value.
+			// Here I will retreive the credential or create it if not exist.
+			path := config.GetConfigDir() + "/tls/" + domain
 
-		client.SetKeyFile(keyFile)
-		client.SetCertFile(certificateFile)
-		client.SetCaFile(config_["CertAuthorityTrust"].(string))
-		client.SetTLS(config_["TLS"].(bool))
+			// install tls certificates if needed.
+			keyFile, certificateFile, caFile, err := security.InstallCertificates(domain, port, path)
+			if err != nil {
+				return err
+			}
 
+			client.SetKeyFile(keyFile)
+			client.SetCertFile(certificateFile)
+			client.SetCaFile(caFile)
+			client.SetTLS(config_["TLS"].(bool))
+
+		}
 
 	} else {
 		client.SetTLS(false)
 	}
-
-
 
 	return nil
 }

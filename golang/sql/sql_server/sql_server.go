@@ -134,6 +134,7 @@ type server struct {
 	AllowAllOrigins    bool
 	AllowedOrigins     string // comma separated string.
 	Domain             string
+	Address         string
 	Description        string
 	Keywords           []string
 	Repositories       []string
@@ -160,6 +161,15 @@ type server struct {
 
 	// The map of connection...
 	Connections map[string]connection
+}
+
+// The http address where the configuration can be found /config
+func (svr *server) GetAddress() string {
+	return svr.Address
+}
+
+func (svr *server) SetAddress(address string) {
+	svr.Address = address
 }
 
 func (svr *server) GetProcess() int {
