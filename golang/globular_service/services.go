@@ -178,10 +178,6 @@ type Service interface {
  */
 func InitService(s Service) error {
 
-	// set the logger.
-	config.RemoveAllLocks()
-	config.InitConfig()
-
 	dir, err := os.Getwd()
 	if err != nil {
 		return err

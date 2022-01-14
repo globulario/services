@@ -193,11 +193,11 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 	// so here I will start each service in it own go routine.
 	go func(serviceId string) {
 		exist, err := Utility.PidExists(p.Process.Pid)
-		delay := 15 * 10 * 1000;
+		delay := 15 * 10 * 1000
 		for !exist && delay > 0 {
 			time.Sleep(10 * time.Millisecond)
-			delay-=10;
-			exist, err =  Utility.PidExists(p.Process.Pid)
+			delay -= 10
+			exist, err = Utility.PidExists(p.Process.Pid)
 		}
 
 		if err != nil || !exist {
@@ -217,7 +217,7 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 		config_client.SaveServiceConfiguration(s)
 
 		// wait the process to finish
-				
+
 		// give back the process id.
 		waitUntilStart <- p.Process.Pid
 
@@ -258,7 +258,6 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 							// Now I will restart it grpc service.
 							StartServiceProxyProcess(s["Id"].(string), localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), localConfig["PortsRange"].(string), pid)
 						}
-
 					}
 
 				}
@@ -295,7 +294,6 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 	// save the service configuration.
 	return pid, config_client.SaveServiceConfiguration(s)
 }
-
 
 var (
 	event_client_ *event_client.Event_Client
@@ -376,6 +374,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		proxyArgs = append(proxyArgs, "--server_tls_cert_file="+creds+"/"+certificate)
 
 	} else {
+		fmt.Println("-----------------------> has not TLS")
 		// Now I will save the file with those new information in it.
 		proxyArgs = append(proxyArgs, "--run_http_server=true")
 		proxyArgs = append(proxyArgs, "--run_tls_server=false")
