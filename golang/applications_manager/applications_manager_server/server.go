@@ -68,7 +68,7 @@ type server struct {
 	ConfigPath      string
 	LastError       string
 	ModTime         int64
-
+	State 		    string
 	TLS bool
 
 	// svr-signed X.509 public keys for distribution
@@ -114,6 +114,15 @@ func (svr *server) GetConfigurationPath() string {
 
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
+}
+
+// The current service state
+func (svr *server) GetState() string {
+	return svr.State
+}
+
+func (svr *server) SetState(state string) {
+	svr.State = state
 }
 
 // The last error

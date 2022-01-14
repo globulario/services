@@ -75,6 +75,7 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
+	State           string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -111,6 +112,15 @@ func (svr *server) GetConfigurationPath() string {
 
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
+}
+
+// The current service state
+func (svr *server) GetState() string {
+	return svr.State
+}
+
+func (svr *server) SetState(state string) {
+	svr.State = state
 }
 
 // The last error

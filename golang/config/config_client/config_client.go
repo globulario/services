@@ -305,10 +305,11 @@ func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 		// If a configuration client exist I will use it...
 		config, err := client.GetServiceConfiguration(id)
 		if err == nil {
+			//fmt.Println("309 ",  config["Name"], config["State"])
 			return config, nil
 		}
 	}
-
+	// fmt.Println("313 ---------> config client line ")
 	// I will use the synchronize file version.
 	return config.GetServiceConfigurationById(id)
 }
@@ -347,6 +348,7 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	return config.GetServicesConfigurations()
 }
 
+
 /**
  * Save a given service configuration.
  */
@@ -354,11 +356,14 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	client, err := getConfigClient()
 	if err == nil {
 		// If a configuration client exist I will use it...
+		//fmt.Println("361 ---------> save config ", s["Name"], s["Process"], s["State"] )
 		err = client.SetServiceConfiguration(s)
 		if err == nil {
 			return nil
 		}
 	}
+
+	// fmt.Println("368 ---------> save config ", s["Name"], s["Process"], s["State"] )
 	// I will use the synchronize file version.
 	return config.SaveServiceConfiguration(s)
 }

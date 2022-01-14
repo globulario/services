@@ -71,6 +71,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
+	State 		    string
 	ModTime         int64
 
 	// storage_server-signed X.509 public keys for distribution
@@ -122,7 +123,16 @@ func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
 
-// The last error
+// The current service state
+func (svr *server) GetState() string {
+	return svr.State
+}
+
+func (svr *server) SetState(state string) {
+	svr.State = state
+}
+
+
 func (svr *server) GetLastError() string {
 	return svr.LastError
 }
@@ -130,7 +140,6 @@ func (svr *server) GetLastError() string {
 func (svr *server) SetLastError(err string) {
 	svr.LastError = err
 }
-
 // The modeTime
 func (svr *server) SetModTime(modtime int64) {
 	svr.ModTime = modtime

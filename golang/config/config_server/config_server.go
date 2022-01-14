@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/config/configpb"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 
 	//"github.com/globulario/services/golang/interceptors"
@@ -62,8 +64,8 @@ type server struct {
 	ConfigPath      string
 	LastError       string
 	ModTime         int64
-
-	TLS bool
+	State           string
+	TLS             bool
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -105,6 +107,15 @@ func (svr *server) GetConfigurationPath() string {
 
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
+}
+
+// The current service state
+func (svr *server) GetState() string {
+	return svr.State
+}
+
+func (svr *server) SetState(state string) {
+	svr.State = state
 }
 
 // The last error
@@ -382,12 +393,24 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-/////////////////////// Config service specific function /////////////////////////////////
+var event_client_ *event_client.Event_Client
 
-// One stream by client.
-func (svr *server) OnConfigurationChange(rqst *configpb.OnConfigurationChangeRequest, stream configpb.ConfigService_OnConfigurationChangeServer) error {
-	return nil
+func getEventClient() (*event_client.Event_Client, error) {
+	if event_client_ == nil {
+		address, err := config.GetAddress()
+		if err != nil {
+			return nil, err
+		}
+		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return event_client_, nil
 }
+
+/////////////////////// Config service specific function /////////////////////////////////
 
 // Get the list of all services configurations
 func (svr *server) GetServiceConfiguration(ctx context.Context, rqst *configpb.GetServiceConfigurationRequest) (*configpb.GetServiceConfigurationResponse, error) {
@@ -412,11 +435,20 @@ func (svr *server) GetServiceConfiguration(ctx context.Context, rqst *configpb.G
 // Set a service configuration.
 func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.SetServiceConfigurationRequest) (*configpb.SetServiceConfigurationResponse, error) {
 
-	err := config.SaveServiceConfiguration( rqst.Config.AsMap())
+	err := config.SaveServiceConfiguration(rqst.Config.AsMap())
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Publish the configuration change event.
+	event_client_, err := getEventClient()
+	if err == nil {
+		str, err := json.Marshal(rqst.Config.AsMap())
+		if err == nil {
+			event_client_.Publish("update_globular_service_configuration_evt", str)
+		}
 	}
 
 	return &configpb.SetServiceConfigurationResponse{}, nil
@@ -453,7 +485,7 @@ func (svr *server) GetServicesConfigurationsByName(ctx context.Context, rqst *co
 
 	rsp := &configpb.GetServicesConfigurationsByNameResponse{}
 	rsp.Configs = make([]*structpb.Struct, 0)
-	for i:=0; i < len(configs); i++ {
+	for i := 0; i < len(configs); i++ {
 		c, _ := structpb.NewStruct(configs[i])
 		rsp.Configs = append(rsp.Configs, c)
 	}
@@ -472,7 +504,7 @@ func (svr *server) GetServicesConfigurations(ctx context.Context, rqst *configpb
 
 	rsp := &configpb.GetServicesConfigurationsResponse{}
 	rsp.Configs = make([]*structpb.Struct, 0)
-	for i:=0; i < len(configs); i++ {
+	for i := 0; i < len(configs); i++ {
 		c, _ := structpb.NewStruct(configs[i])
 		rsp.Configs = append(rsp.Configs, c)
 	}

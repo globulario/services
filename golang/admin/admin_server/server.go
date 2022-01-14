@@ -59,6 +59,7 @@ type server struct {
 	ConfigPath      string
 	LastError       string
 	ModTime         int64
+	State 		    string
 
 	TLS bool
 
@@ -125,6 +126,15 @@ func (svr *server) GetMac() string {
 
 func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
+}
+
+// The current service state
+func (svr *server) GetState() string {
+	return svr.State
+}
+
+func (svr *server) SetState(state string) {
+	svr.State = state
 }
 
 // The description of the service

@@ -18,8 +18,6 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ConfigServiceClient interface {
-	// One stream by client.
-	OnConfigurationChange(ctx context.Context, in *OnConfigurationChangeRequest, opts ...grpc.CallOption) (ConfigService_OnConfigurationChangeClient, error)
 	// Set a service configuration.
 	SetServiceConfiguration(ctx context.Context, in *SetServiceConfigurationRequest, opts ...grpc.CallOption) (*SetServiceConfigurationResponse, error)
 	// Get the configuration at a given path on the server.
@@ -38,38 +36,6 @@ type configServiceClient struct {
 
 func NewConfigServiceClient(cc grpc.ClientConnInterface) ConfigServiceClient {
 	return &configServiceClient{cc}
-}
-
-func (c *configServiceClient) OnConfigurationChange(ctx context.Context, in *OnConfigurationChangeRequest, opts ...grpc.CallOption) (ConfigService_OnConfigurationChangeClient, error) {
-	stream, err := c.cc.NewStream(ctx, &ConfigService_ServiceDesc.Streams[0], "/config.ConfigService/OnConfigurationChange", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &configServiceOnConfigurationChangeClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type ConfigService_OnConfigurationChangeClient interface {
-	Recv() (*OnConfigurationChangeResponse, error)
-	grpc.ClientStream
-}
-
-type configServiceOnConfigurationChangeClient struct {
-	grpc.ClientStream
-}
-
-func (x *configServiceOnConfigurationChangeClient) Recv() (*OnConfigurationChangeResponse, error) {
-	m := new(OnConfigurationChangeResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func (c *configServiceClient) SetServiceConfiguration(ctx context.Context, in *SetServiceConfigurationRequest, opts ...grpc.CallOption) (*SetServiceConfigurationResponse, error) {
@@ -121,8 +87,6 @@ func (c *configServiceClient) GetServicesConfigurations(ctx context.Context, in 
 // All implementations should embed UnimplementedConfigServiceServer
 // for forward compatibility
 type ConfigServiceServer interface {
-	// One stream by client.
-	OnConfigurationChange(*OnConfigurationChangeRequest, ConfigService_OnConfigurationChangeServer) error
 	// Set a service configuration.
 	SetServiceConfiguration(context.Context, *SetServiceConfigurationRequest) (*SetServiceConfigurationResponse, error)
 	// Get the configuration at a given path on the server.
@@ -139,9 +103,6 @@ type ConfigServiceServer interface {
 type UnimplementedConfigServiceServer struct {
 }
 
-func (UnimplementedConfigServiceServer) OnConfigurationChange(*OnConfigurationChangeRequest, ConfigService_OnConfigurationChangeServer) error {
-	return status.Errorf(codes.Unimplemented, "method OnConfigurationChange not implemented")
-}
 func (UnimplementedConfigServiceServer) SetServiceConfiguration(context.Context, *SetServiceConfigurationRequest) (*SetServiceConfigurationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetServiceConfiguration not implemented")
 }
@@ -167,27 +128,6 @@ type UnsafeConfigServiceServer interface {
 
 func RegisterConfigServiceServer(s grpc.ServiceRegistrar, srv ConfigServiceServer) {
 	s.RegisterService(&ConfigService_ServiceDesc, srv)
-}
-
-func _ConfigService_OnConfigurationChange_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(OnConfigurationChangeRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(ConfigServiceServer).OnConfigurationChange(m, &configServiceOnConfigurationChangeServer{stream})
-}
-
-type ConfigService_OnConfigurationChangeServer interface {
-	Send(*OnConfigurationChangeResponse) error
-	grpc.ServerStream
-}
-
-type configServiceOnConfigurationChangeServer struct {
-	grpc.ServerStream
-}
-
-func (x *configServiceOnConfigurationChangeServer) Send(m *OnConfigurationChangeResponse) error {
-	return x.ServerStream.SendMsg(m)
 }
 
 func _ConfigService_SetServiceConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -308,12 +248,6 @@ var ConfigService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ConfigService_GetServicesConfigurations_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "OnConfigurationChange",
-			Handler:       _ConfigService_OnConfigurationChange_Handler,
-			ServerStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "config.proto",
 }

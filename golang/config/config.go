@@ -197,7 +197,6 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 	servicesNames := make([]string, len(services))
 	for i := 0; i < len(services); i++ {
 		servicesNames[i] = services[i]["Name"].(string)
-		
 	}
 
 	// Now I will move the services below all it dependencie in the array...
@@ -242,7 +241,7 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	var resp *http.Response
 	var err error
 	var configAddress = "http://" + address + ":" + Utility.ToString(port) + "/config"
-	fmt.Println("get remote configuration from address ", configAddress)
+	//fmt.Println("get remote configuration from address ", configAddress)
 	resp, err = http.Get(configAddress)
 	if err != nil {
 		return nil, err
@@ -585,6 +584,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 	return s, nil
 }
 
+
 var (
 	// Help to sync file access.
 	saveServiceConfigChan               = make(chan map[string]interface{})
@@ -635,6 +635,25 @@ func initConfig() {
 
 }
 
+// Test if the service configuration has change and if so 
+// read it last values to update the service configuration in
+// memory
+func setServiceConfiguration(index int, services[]map[string]interface{}){
+	s := services[index]
+	path := s["ConfigPath"].(string)
+	info, _ := os.Stat(path)
+	info.ModTime().Unix()
+	if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
+		serviceDir := GetServicesConfigDir()
+		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+		s_ , err := initServiceConfiguration(path, serviceDir)
+		if err == nil {
+			s_["ModTime"] = info.ModTime().Unix()
+			services[index] = s_
+		}
+	}
+}
+
 // Main loop to read and write configuration.
 func accesServiceConfigurationFile(services []map[string]interface{}) {
 
@@ -652,60 +671,49 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
-
 			if err != nil {
+				fmt.Println("675 fail to save service configuration",err)
 				return_chan <- err
 			} else if len(jsonStr) == 0 {
 				return_chan <- errors.New("no configuration to save")
 			} else {
-				return_chan <- os.WriteFile(path, []byte(jsonStr), 0644)
-				exist := false
+
+				err := os.WriteFile(path, []byte(jsonStr), 0644)
+				if err != nil {
+					fmt.Println("682 fail to save service configuration.", err)
+					infos["return"].(chan error) <-err
+				}
+				index := -1
 				for i := 0; i < len(services); i++ {
-					s_ := services[i]
-					if s_["Id"] == s["id"] {
-						services[i] = s
-						exist = true
+					if services[i]["Id"] == s["Id"] {
+						index = i
 						break
 					}
 				}
-				if !exist {
+				if index == -1 {
+					index = len(services)
 					services = append(services, s)
 				}
+
+				services[index]["ModTime"] = int64(0)
+
+				// Set the service...
+				setServiceConfiguration(index, services)
+
+
+				return_chan <- nil
 			}
 
 		case infos := <-getServicesConfigChan:
-			//fmt.Println("-------> get all services config: ", infos)
 			services_ := make([]map[string]interface{}, 0)
-			for _, value := range services {
+			for index, _ := range services {
+				setServiceConfiguration(index, services)
 				// Here I will create a detach copy of the map...
-				data, _ := json.Marshal(value)
+				data, _ := json.Marshal(services[index])
 				s := make(map[string]interface{})
 				json.Unmarshal(data, &s)
-
-				////////////////////////////////////////////////////////////////////
-				// TODO fix the mode time...
-				///////////////////////////////////////////////////////////////////
-				/*
-					// Here I will validate the service configuration has not change...
-					path := s["ConfigPath"].(string)
-					info, _ := os.Stat(path)
-
-					if s["ModTime"].(int64) != info.ModTime().Unix() {
-						// The value from the configuration file may have change...
-						s, err := initServiceConfiguration(path, serviceDir)
-						if err == nil {
-							services_ = append(services_, s)
-						} else {
-							fmt.Println("fail to get service configuration ", path, " with error: ", err)
-						}
-					} else {
-						services_ = append(services_, s)
-					}
-				*/
 				services_ = append(services_, s)
-
 			}
-
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": services_}
 
 		case infos := <-getServiceConfigurationByIdChan:
@@ -717,6 +725,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			for i := 0; i < len(services); i++ {
 				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
 				if services[i]["Id"].(string) == id || services[i]["Name"].(string) == id || strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
+					setServiceConfiguration(i, services)
 					data, _ := json.Marshal(services[i])
 					s = make(map[string]interface{})
 					json.Unmarshal(data, &s)
@@ -735,9 +744,11 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			services_ := make([]map[string]interface{}, 0)
 			for i := 0; i < len(services); i++ {
 				if services[i]["Name"] == name {
+					setServiceConfiguration(i, services)
 					data, _ := json.Marshal(services[i])
 					s := make(map[string]interface{})
 					json.Unmarshal(data, &s)
+
 					services_ = append(services_, s)
 				}
 			}
@@ -823,19 +834,15 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  * Return a service with a given configuration id.
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
-
 	initConfig()
-
 	infos := make(map[string]interface{})
 	infos["id"] = id
 	infos["return"] = make(chan map[string]interface{})
 
 	// Wait
 	getServiceConfigurationByIdChan <- infos
-
 	results_chan := infos["return"].(chan map[string]interface{})
 	results := <-results_chan
-
 	if results["error"] != nil {
 		return nil, results["error"].(error)
 	}

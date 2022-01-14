@@ -62,6 +62,10 @@ type Service interface {
 	GetPath() string
 	SetPath(string)
 
+	// The service state
+	GetState() string
+	SetState(string)
+
 	// The path of the configuration.
 	GetConfigurationPath() string
 	SetConfigurationPath(string)
@@ -185,7 +189,6 @@ func InitService(s Service) error {
 
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	path := strings.ReplaceAll(dir, "\\", "/")
-
 	if len(serviceRoot) == 0 {
 		// Here I receive something like
 		//  /usr/local/share/globular/services/globulario/mail.MailService/0.0.1/6364c9d4-3159-419b-85ac-4981bdc9c28d/config.json
@@ -193,7 +196,9 @@ func InitService(s Service) error {
 		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
 	}
 
+
 	path += "/config.json"
+
 	// if the service configuration does not exist.
 	if !Utility.Exists(path) {
 		// Set know values...
@@ -201,40 +206,29 @@ func InitService(s Service) error {
 		execPath = strings.ReplaceAll(execPath, "\\", "/")
 		s.SetPath(execPath)
 		s.SetConfigurationPath(path)
-		s.SetModTime(time.Now().Unix())
-		s.SetProcess(os.Getpid())
 		s.SetMac(Utility.MyMacAddr())
 		s.SetId(Utility.RandomUUID())
-
-		// Here I need to save the config file... exec must be call once in order to have config file found by Globular.exe
-		s_, err := Utility.ToMap(s)
+	} else {
+		// Here I will get the configuration from the Configuration server...
+		config_, err := config_client.GetServiceConfigurationById(path)
 		if err != nil {
 			return err
 		}
 
-		// Create the file.
-		err = config.SaveServiceConfiguration(s_)
+		// If no configuration was found from the configuration server i will get it from the configuration file.
+		str, err := json.Marshal(config_)
+		if err != nil {
+			return err
+		}
+
+		err = json.Unmarshal(str, &s)
 		if err != nil {
 			return err
 		}
 	}
-
-	// Here I will get the configuration from the Configuration server...
-	config_, err := config_client.GetServiceConfigurationById(path)
-	if err != nil {
-		return err
-	}
-
-	// If no configuration was found from the configuration server i will get it from the configuration file.
-	str, err := json.Marshal(config_)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(str, &s)
-	if err != nil {
-		return err
-	}
+	
+	s.SetProcess(os.Getpid())
+	s.SetState("running")
 
 	return SaveService(s)
 }
@@ -243,15 +237,12 @@ func InitService(s Service) error {
  * Save a globular service.
  */
 func SaveService(s Service) error {
-	
+	// Set current process 
 	s.SetModTime(time.Now().Unix())
-	s.SetProcess(os.Getpid())
-
 	config_, err := Utility.ToMap(s)
 	if err != nil {
 		return err
 	}
-
 	return config_client.SaveServiceConfiguration(config_)
 }
 
@@ -449,6 +440,12 @@ func StartService(s Service, server *grpc.Server) error {
 	<-ch
 
 	server.Stop() // I kill it but not softly...
+
+	s.SetState("stopped")
+	s.SetProcess(-1)
+	s.SetLastError("")
+	s.Save()
+
 	return nil
 }
 

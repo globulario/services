@@ -72,6 +72,7 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
+	State           string
 
 	// server-signed X.509 public keys for distribution
 	CertFile string
@@ -129,6 +130,15 @@ func (svr *server) GetConfigurationPath() string {
 
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
+}
+
+// The current service state
+func (svr *server) GetState() string {
+	return svr.State
+}
+
+func (svr *server) SetState(state string) {
+	svr.State = state
 }
 
 // The last error

@@ -54,21 +54,9 @@ message GetServicesConfigurationsResponse {
 	repeated google.protobuf.Struct configs = 1;
 }
 
-/** The channel to keep the configuration in sync */
-message OnConfigurationChangeRequest {
-	string path = 1; // the configuration file path.
-}
-
-message OnConfigurationChangeResponse {
-	google.protobuf.Struct config = 1;
-}
-
 // The configuration service
 service ConfigService {
 	
-	// One stream by client.
-	rpc OnConfigurationChange(OnConfigurationChangeRequest) returns (stream OnConfigurationChangeResponse) {};
-
 	// Set a service configuration.
 	rpc SetServiceConfiguration(SetServiceConfigurationRequest) returns (SetServiceConfigurationResponse){};
   	

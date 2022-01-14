@@ -71,6 +71,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
+	State 		    string
 	ModTime         int64
 
 	TLS bool
@@ -288,6 +289,15 @@ func (svr *server) GetAllowedOrigins() string {
 
 func (svr *server) SetAllowedOrigins(allowedOrigins string) {
 	svr.AllowedOrigins = allowedOrigins
+}
+
+// The current service state
+func (svr *server) GetState() string {
+	return svr.State
+}
+
+func (svr *server) SetState(state string) {
+	svr.State = state
 }
 
 // Can be a ip address or domain name.
