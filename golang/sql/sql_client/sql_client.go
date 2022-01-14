@@ -3,11 +3,10 @@ package sql_client
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
-	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/sql/sqlpb"
@@ -33,6 +32,9 @@ type SQL_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The port
 	port int
@@ -69,8 +71,17 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 	return client, nil
 }
 
-func (client *SQL_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+// The address where the client can connect.
+func (client *SQL_Client) SetAddress(address string) {
+	client.address = address
+}
+
+func (client *SQL_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
 }
 
 func (client *SQL_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -99,7 +110,7 @@ func (client *SQL_Client) GetDomain() string {
 
 // Return the address
 func (client *SQL_Client) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+	return client.address
 }
 
 // Return the id of the service instance
@@ -124,6 +135,11 @@ func (client *SQL_Client) Close() {
 // Set grpc_service port.
 func (client *SQL_Client) SetPort(port int) {
 	client.port = port
+}
+
+// Return the grpc port number
+func (client *SQL_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client name.

@@ -1,17 +1,17 @@
 package config_client
 
 import (
-	"errors"
-	"strconv"
-
 	"context"
+	"strings"
 
 	// "github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/configpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +30,9 @@ type Config_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The mac address of the server
 	mac string
@@ -69,9 +72,24 @@ func NewConfigService_Client(address string, id string) (*Config_Client, error) 
 	return client, nil
 }
 
+// The address where the client can connect.
+func (client *Config_Client) SetAddress(address string) {
+	client.address = address
+}
+
 // Return the configuration from the configuration server.
-func (client *Config_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+func (client *Config_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	// If the configuration is on the client domain...
+	if !strings.HasPrefix(strings.ToLower(address), strings.ToLower(client.GetDomain())) {
+		client_, err := NewConfigService_Client(address, id)
+		if err != nil {
+			return nil, err
+		}
+		return client_.GetServiceConfiguration(id)
+	}
+
+	// This is the only client that must be initialyse directlty from the configuration file...
+	return config.GetServiceConfigurationById(id)
 }
 
 func (client *Config_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -100,7 +118,7 @@ func (client *Config_Client) GetDomain() string {
 
 // Return the address
 func (client *Config_Client) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+	return client.address
 }
 
 // Return the id of the service instance
@@ -125,6 +143,11 @@ func (client *Config_Client) Close() {
 // Set grpc_service port.
 func (client *Config_Client) SetPort(port int) {
 	client.port = port
+}
+
+// Return the grpc port number
+func (client *Config_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client instance id.
@@ -190,7 +213,152 @@ func (client *Config_Client) SetCaFile(caFile string) {
 
 ////////////////// Api //////////////////////
 // Specific config client function here.
-func (client *Config_Client) GetServiceConfiguration(path string) (map[string]interface{}, error){
-	// TODO implement it.
-	return nil, nil
+
+// Get a service by it id, path or name (first with the name in that case.)
+func (client *Config_Client) GetServiceConfiguration(path string) (map[string]interface{}, error) {
+	rqst := new(configpb.GetServiceConfigurationRequest)
+	rqst.Path = path
+	rsp, err := client.c.GetServiceConfiguration(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.GetConfig().AsMap(), nil
+}
+
+// Return list of services with a given name
+func (client *Config_Client) GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
+	rqst := new(configpb.GetServicesConfigurationsByNameRequest)
+	rqst.Name = name
+	rsp, err := client.c.GetServicesConfigurationsByName(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	configs := make([]map[string]interface{}, 0)
+
+	for i := 0; i < len(rsp.Configs); i++ {
+		configs = append(configs, rsp.Configs[i].AsMap())
+	}
+
+	return configs, nil
+}
+
+// Return list of all services configuration
+func (client *Config_Client) GetServicesConfigurations() ([]map[string]interface{}, error) {
+	rqst := new(configpb.GetServicesConfigurationsRequest)
+	rsp, err := client.c.GetServicesConfigurations(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+	configs := make([]map[string]interface{}, 0)
+	for i := 0; i < len(rsp.Configs); i++ {
+		configs = append(configs, rsp.Configs[i].AsMap())
+	}
+	return configs, nil
+}
+
+// Save a service configuration
+func (client *Config_Client) SetServiceConfiguration(s map[string]interface{}) error {
+	rqst := new(configpb.SetServiceConfigurationRequest)
+	s_, err := structpb.NewStruct(s)
+	if err != nil {
+		return err
+	}
+	rqst.Config = s_
+	_, err = client.c.SetServiceConfiguration(client.GetCtx(), rqst)
+
+	return err
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+// Configuration can be access via the configuration service or if no result found
+// via the file base access function.
+////////////////////////////////////////////////////////////////////////////////////
+
+// do not use it directly...
+var config_client_ *Config_Client
+
+// A singleton to the configuration client.
+func getConfigClient() (*Config_Client, error) {
+	if config_client_ != nil {
+		return config_client_, nil
+	}
+
+	address, err := config.GetAddress()
+	if err != nil {
+		return nil, err
+	}
+
+	config_client_, err = NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+
+	return config_client_, nil
+}
+
+/**
+ * Return a service with a given configuration id.
+ */
+func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
+	client, err := getConfigClient()
+	if err == nil {
+		// If a configuration client exist I will use it...
+		config, err := client.GetServiceConfiguration(id)
+		if err == nil {
+			return config, nil
+		}
+	}
+
+	// I will use the synchronize file version.
+	return config.GetServiceConfigurationById(id)
+}
+
+/**
+ * Return a services with a given configuration name
+ */
+func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
+	client, err := getConfigClient()
+	if err == nil {
+		// If a configuration client exist I will use it...
+		configs, err := client.GetServicesConfigurationsByName(name)
+		if err == nil {
+			return configs, nil
+		}
+	}
+
+	// I will use the synchronize file version.
+	return config.GetServicesConfigurationsByName(name)
+}
+
+/**
+ * Return the list of all services configurations
+ */
+func GetServicesConfigurations() ([]map[string]interface{}, error) {
+	client, err := getConfigClient()
+	if err == nil {
+		// If a configuration client exist I will use it...
+		configs, err := client.GetServicesConfigurations()
+		if err == nil {
+			return configs, nil
+		}
+	}
+
+	// I will use the synchronize file version.
+	return config.GetServicesConfigurations()
+}
+
+/**
+ * Save a given service configuration.
+ */
+func SaveServiceConfiguration(s map[string]interface{}) error {
+	client, err := getConfigClient()
+	if err == nil {
+		// If a configuration client exist I will use it...
+		err = client.SetServiceConfiguration(s)
+		if err == nil {
+			return nil
+		}
+	}
+	// I will use the synchronize file version.
+	return config.SaveServiceConfiguration(s)
 }

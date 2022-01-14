@@ -74,7 +74,7 @@ type server struct {
 	PublisherId        string
 	KeepUpToDate       bool
 	KeepAlive          bool
-	ModTime 		int64
+	ModTime            int64
 
 	// Contain the list of service use by the catalog server.
 	Services     map[string]interface{}
@@ -93,7 +93,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -112,7 +112,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {

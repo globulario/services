@@ -90,7 +90,7 @@ type server struct {
 	ProxyProcess       int
 	ConfigPath         string
 	LastError          string
-	ModTime 		int64
+	ModTime            int64
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -111,7 +111,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -130,7 +130,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -374,7 +373,7 @@ func (server *server) SetPermissions(permissions []interface{}) {
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
@@ -707,7 +706,7 @@ func (server *server) get_ipv6(domain string) (string, uint32, error) {
 	domain = strings.ToLower(domain)
 	uuid := Utility.GenerateUUID("AAAA:" + domain)
 	address, err := server.store.GetItem(uuid)
-	
+
 	if err != nil {
 		return "", 0, status.Errorf(
 			codes.Internal,
@@ -857,7 +856,7 @@ func (server *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequ
 	}
 
 	rbac_client_.DeleteResourcePermissions(rqst.Id)
-	
+
 	return &dnspb.RemoveTextResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -950,7 +949,7 @@ func (server *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest)
 	}
 
 	rbac_client_.DeleteResourcePermissions(rqst.Id)
-	
+
 	return &dnspb.RemoveNsResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1045,7 +1044,7 @@ func (server *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRe
 	}
 
 	rbac_client_.DeleteResourcePermissions(rqst.Id)
-	
+
 	return &dnspb.RemoveCNameResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1165,7 +1164,7 @@ func (server *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest)
 	}
 
 	rbac_client_.DeleteResourcePermissions(rqst.Id)
-	
+
 	return &dnspb.RemoveMxResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1281,7 +1280,7 @@ func (server *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaReques
 	}
 
 	rbac_client_.DeleteResourcePermissions(rqst.Id)
-	
+
 	return &dnspb.RemoveSoaResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1396,7 +1395,7 @@ func (server *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriReques
 	}
 
 	rbac_client_.DeleteResourcePermissions(rqst.Id)
-	
+
 	return &dnspb.RemoveUriResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1511,7 +1510,7 @@ func (server *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRe
 	}
 
 	rbac_client_.DeleteResourcePermissions(rqst.Id)
-	
+
 	return &dnspb.RemoveAfsdbResponse{
 		Result: true, // return the full domain.
 	}, nil
@@ -1833,7 +1832,7 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err

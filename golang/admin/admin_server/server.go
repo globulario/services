@@ -58,7 +58,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	TLS bool
 
@@ -90,7 +90,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {

@@ -57,7 +57,7 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	ProxyProcess int
+	ProxyProcess    int
 	// search_server-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
@@ -71,11 +71,11 @@ type server struct {
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
-	Process	int
-	ConfigPath string
-	LastError string
-	ModTime 		int64
-	
+	Process            int
+	ConfigPath         string
+	LastError          string
+	ModTime            int64
+
 	// The grpc server.
 	grpcServer *grpc.Server
 
@@ -93,7 +93,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {

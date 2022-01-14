@@ -5,6 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -24,10 +29,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"log"
-	"os"
-	"strconv"
-	"strings"
 )
 
 // The default values.
@@ -70,7 +71,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	TLS bool
 
@@ -109,7 +110,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -381,7 +382,7 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-	address, _:= config.GetAddress()
+	address, _ := config.GetAddress()
 	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 	if err != nil {
 		return nil, err

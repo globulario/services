@@ -152,7 +152,7 @@ type server struct {
 	ProxyProcess       int
 	ConfigPath         string
 	LastError          string
-	ModTime 		int64
+	ModTime            int64
 	// The grpc server.
 	grpcServer *grpc.Server
 
@@ -165,7 +165,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -429,7 +429,7 @@ func (sql_server *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewSqlService_Client", sql_client.NewSqlService_Client)
-	err := globular.InitService( sql_server)
+	err := globular.InitService(sql_server)
 	if err != nil {
 		return err
 	}
@@ -893,7 +893,6 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
-	
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

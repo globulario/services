@@ -2,9 +2,8 @@ package dns_client
 
 import (
 	"context"
-	"errors"
-	"strconv"
 
+	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/dns/dnspb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
@@ -16,7 +15,7 @@ import (
 // echo Client Service
 ////////////////////////////////////////////////////////////////////////////////
 
-type Dns_Client  struct {
+type Dns_Client struct {
 	cc *grpc.ClientConn
 	c  dnspb.DnsServiceClient
 
@@ -31,6 +30,9 @@ type Dns_Client  struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The port
 	port int
@@ -52,8 +54,8 @@ type Dns_Client  struct {
 }
 
 // Create a connection to the service.
-func NewDnsService_Client(address string, id string) (*Dns_Client , error) {
-	client := new(Dns_Client )
+func NewDnsService_Client(address string, id string) (*Dns_Client, error) {
+	client := new(Dns_Client)
 	err := globular.InitClient(client, address, id)
 
 	if err != nil {
@@ -69,19 +71,28 @@ func NewDnsService_Client(address string, id string) (*Dns_Client , error) {
 	return client, nil
 }
 
-// Return the configuration from the configuration server.
-func (client *Dns_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+// The address where the client can connect.
+func (client *Dns_Client) SetAddress(address string) {
+	client.address = address
 }
 
-func (client *Dns_Client ) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
+// Return the configuration from the configuration server.
+func (client *Dns_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
+}
+
+func (client *Dns_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
 		ctx = client.GetCtx()
 	}
 	return globular.InvokeClientRequest(client.c, ctx, method, rqst)
 }
 
-func (client *Dns_Client ) GetCtx() context.Context {
+func (client *Dns_Client) GetCtx() context.Context {
 	if client.ctx == nil {
 		client.ctx = globular.GetClientContext(client)
 	}
@@ -94,104 +105,109 @@ func (client *Dns_Client ) GetCtx() context.Context {
 }
 
 // Return the domain
-func (client *Dns_Client ) GetDomain() string {
+func (client *Dns_Client) GetDomain() string {
 	return client.domain
 }
 
 // Return the address
-func (client *Dns_Client ) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+func (client *Dns_Client) GetAddress() string {
+	return client.address
 }
 
 // Return the id of the service instance
-func (client *Dns_Client ) GetId() string {
+func (client *Dns_Client) GetId() string {
 	return client.id
 }
 
 // Return the name of the service
-func (client *Dns_Client ) GetName() string {
+func (client *Dns_Client) GetName() string {
 	return client.name
 }
 
-func (client *Dns_Client ) GetMac() string {
+func (client *Dns_Client) GetMac() string {
 	return client.mac
 }
 
 // must be close when no more needed.
-func (client *Dns_Client ) Close() {
+func (client *Dns_Client) Close() {
 	client.cc.Close()
 }
 
 // Set grpc_service port.
-func (client *Dns_Client ) SetPort(port int) {
+func (client *Dns_Client) SetPort(port int) {
 	client.port = port
 }
 
+// Return the grpc port number
+func (client *Dns_Client) GetPort() int {
+	return client.port
+}
+
 // Set the client instance id.
-func (client *Dns_Client ) SetId(id string) {
+func (client *Dns_Client) SetId(id string) {
 	client.id = id
 }
 
 // Set the client name.
-func (client *Dns_Client ) SetName(name string) {
+func (client *Dns_Client) SetName(name string) {
 	client.name = name
 }
 
-func (client *Dns_Client ) SetMac(mac string) {
+func (client *Dns_Client) SetMac(mac string) {
 	client.mac = mac
 }
 
 // Set the domain.
-func (client *Dns_Client ) SetDomain(domain string) {
+func (client *Dns_Client) SetDomain(domain string) {
 	client.domain = domain
 }
 
 ////////////////// TLS ///////////////////
 
 // Get if the client is secure.
-func (client *Dns_Client ) HasTLS() bool {
+func (client *Dns_Client) HasTLS() bool {
 	return client.hasTLS
 }
 
 // Get the TLS certificate file path
-func (client *Dns_Client ) GetCertFile() string {
+func (client *Dns_Client) GetCertFile() string {
 	return client.certFile
 }
 
 // Get the TLS key file path
-func (client *Dns_Client ) GetKeyFile() string {
+func (client *Dns_Client) GetKeyFile() string {
 	return client.keyFile
 }
 
 // Get the TLS key file path
-func (client *Dns_Client ) GetCaFile() string {
+func (client *Dns_Client) GetCaFile() string {
 	return client.caFile
 }
 
 // Set the client is a secure client.
-func (client *Dns_Client ) SetTLS(hasTls bool) {
+func (client *Dns_Client) SetTLS(hasTls bool) {
 	client.hasTLS = hasTls
 }
 
 // Set TLS certificate file path
-func (client *Dns_Client ) SetCertFile(certFile string) {
+func (client *Dns_Client) SetCertFile(certFile string) {
 	client.certFile = certFile
 }
 
 // Set TLS key file path
-func (client *Dns_Client ) SetKeyFile(keyFile string) {
+func (client *Dns_Client) SetKeyFile(keyFile string) {
 	client.keyFile = keyFile
 }
 
 // Set TLS authority trust certificate file path
-func (client *Dns_Client ) SetCaFile(caFile string) {
+func (client *Dns_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
 // The domain of the globule responsible to do resource validation.
 // That domain will be use by the interceptor and access validation will
 // be evaluated by the resource manager at the domain address.
-func (client *Dns_Client ) getDomainContext(domain string) context.Context {
+func (client *Dns_Client) getDomainContext(domain string) context.Context {
 	// Here I will set the targeted domain as domain in the context.
 	md := metadata.New(map[string]string{"domain": domain})
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
@@ -200,11 +216,11 @@ func (client *Dns_Client ) getDomainContext(domain string) context.Context {
 
 ///////////////// API ////////////////////
 // Stop the service.
-func (client *Dns_Client ) StopService() {
+func (client *Dns_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &dnspb.StopRequest{})
 }
 
-func (client *Dns_Client ) GetA(domain string) (string, error) {
+func (client *Dns_Client) GetA(domain string) (string, error) {
 
 	rqst := &dnspb.GetARequest{
 		Domain: domain,
@@ -221,7 +237,7 @@ func (client *Dns_Client ) GetA(domain string) (string, error) {
 // Register a subdomain to a domain.
 // ex: toto.globular.io is the subdomain to globular.io, so here
 // toto.globular.io. The validation will
-func (client *Dns_Client ) SetA(token, domain, ipv4 string, ttl uint32) (string, error) {
+func (client *Dns_Client) SetA(token, domain, ipv4 string, ttl uint32) (string, error) {
 
 	rqst := &dnspb.SetARequest{
 		Domain: domain,
@@ -246,7 +262,7 @@ func (client *Dns_Client ) SetA(token, domain, ipv4 string, ttl uint32) (string,
 	return rsp.Message, nil
 }
 
-func (client *Dns_Client ) RemoveA(token, domain string) error {
+func (client *Dns_Client) RemoveA(token, domain string) error {
 
 	rqst := &dnspb.RemoveARequest{
 		Domain: domain,
@@ -269,7 +285,7 @@ func (client *Dns_Client ) RemoveA(token, domain string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetAAAA(domain string) (string, error) {
+func (client *Dns_Client) GetAAAA(domain string) (string, error) {
 
 	rqst := &dnspb.GetAAAARequest{
 		Domain: domain,
@@ -282,7 +298,7 @@ func (client *Dns_Client ) GetAAAA(domain string) (string, error) {
 	return rsp.Aaaa, nil
 }
 
-func (client *Dns_Client ) SetAAAA(token, domain string, ipv6 string, ttl uint32) (string, error) {
+func (client *Dns_Client) SetAAAA(token, domain string, ipv6 string, ttl uint32) (string, error) {
 
 	rqst := &dnspb.SetAAAARequest{
 		Domain: domain,
@@ -307,7 +323,7 @@ func (client *Dns_Client ) SetAAAA(token, domain string, ipv6 string, ttl uint32
 	return rsp.Message, nil
 }
 
-func (client *Dns_Client ) RemoveAAAA(token, domain string) error {
+func (client *Dns_Client) RemoveAAAA(token, domain string) error {
 
 	rqst := &dnspb.RemoveAAAARequest{
 		Domain: domain,
@@ -330,7 +346,7 @@ func (client *Dns_Client ) RemoveAAAA(token, domain string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetText(id string) ([]string, error) {
+func (client *Dns_Client) GetText(id string) ([]string, error) {
 
 	rqst := &dnspb.GetTextRequest{
 		Id: id,
@@ -344,7 +360,7 @@ func (client *Dns_Client ) GetText(id string) ([]string, error) {
 	return rsp.GetValues(), nil
 }
 
-func (client *Dns_Client ) SetText(token, id string, values []string, ttl uint32) error {
+func (client *Dns_Client) SetText(token, id string, values []string, ttl uint32) error {
 
 	rqst := &dnspb.SetTextRequest{
 		Id:     id,
@@ -366,7 +382,7 @@ func (client *Dns_Client ) SetText(token, id string, values []string, ttl uint32
 	return err
 }
 
-func (client *Dns_Client ) RemoveText(token, id string) error {
+func (client *Dns_Client) RemoveText(token, id string) error {
 
 	rqst := &dnspb.RemoveTextRequest{
 		Id: id,
@@ -389,7 +405,7 @@ func (client *Dns_Client ) RemoveText(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetNs(id string) (string, error) {
+func (client *Dns_Client) GetNs(id string) (string, error) {
 
 	rqst := &dnspb.GetNsRequest{
 		Id: id,
@@ -403,7 +419,7 @@ func (client *Dns_Client ) GetNs(id string) (string, error) {
 	return rsp.GetNs(), nil
 }
 
-func (client *Dns_Client ) SetNs(token, id string, ns string, ttl uint32) error {
+func (client *Dns_Client) SetNs(token, id string, ns string, ttl uint32) error {
 
 	rqst := &dnspb.SetNsRequest{
 		Id:  id,
@@ -425,7 +441,7 @@ func (client *Dns_Client ) SetNs(token, id string, ns string, ttl uint32) error 
 	return err
 }
 
-func (client *Dns_Client ) RemoveNs(token, id string) error {
+func (client *Dns_Client) RemoveNs(token, id string) error {
 
 	rqst := &dnspb.RemoveNsRequest{
 		Id: id,
@@ -448,7 +464,7 @@ func (client *Dns_Client ) RemoveNs(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetCName(id string) (string, error) {
+func (client *Dns_Client) GetCName(id string) (string, error) {
 
 	rqst := &dnspb.GetCNameRequest{
 		Id: id,
@@ -462,7 +478,7 @@ func (client *Dns_Client ) GetCName(id string) (string, error) {
 	return rsp.GetCname(), nil
 }
 
-func (client *Dns_Client ) SetCName(token, id string, cname string, ttl uint32) error {
+func (client *Dns_Client) SetCName(token, id string, cname string, ttl uint32) error {
 
 	rqst := &dnspb.SetCNameRequest{
 		Id:    id,
@@ -482,7 +498,7 @@ func (client *Dns_Client ) SetCName(token, id string, cname string, ttl uint32) 
 	return err
 }
 
-func (client *Dns_Client ) RemoveCName(token, id string) error {
+func (client *Dns_Client) RemoveCName(token, id string) error {
 
 	rqst := &dnspb.RemoveCNameRequest{
 		Id: id,
@@ -505,7 +521,7 @@ func (client *Dns_Client ) RemoveCName(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetMx(token, id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetMx(token, id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetMxRequest{
 		Id: id,
@@ -523,7 +539,7 @@ func (client *Dns_Client ) GetMx(token, id string) (map[string]interface{}, erro
 	return mx, nil
 }
 
-func (client *Dns_Client ) SetMx(token, id string, preference uint16, mx string, ttl uint32) error {
+func (client *Dns_Client) SetMx(token, id string, preference uint16, mx string, ttl uint32) error {
 
 	rqst := &dnspb.SetMxRequest{
 		Id: id,
@@ -548,7 +564,7 @@ func (client *Dns_Client ) SetMx(token, id string, preference uint16, mx string,
 	return err
 }
 
-func (client *Dns_Client ) RemoveMx(token, id string) error {
+func (client *Dns_Client) RemoveMx(token, id string) error {
 
 	rqst := &dnspb.RemoveMxRequest{
 		Id: id,
@@ -571,7 +587,7 @@ func (client *Dns_Client ) RemoveMx(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetSoa(id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetSoa(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetSoaRequest{
 		Id: id,
@@ -594,7 +610,7 @@ func (client *Dns_Client ) GetSoa(id string) (map[string]interface{}, error) {
 	return soa, nil
 }
 
-func (client *Dns_Client ) SetSoa(token, id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32) error {
+func (client *Dns_Client) SetSoa(token, id, ns, mbox string, serial, refresh, retry, expire, minttl, ttl uint32) error {
 
 	rqst := &dnspb.SetSoaRequest{
 		Id: id,
@@ -624,7 +640,7 @@ func (client *Dns_Client ) SetSoa(token, id, ns, mbox string, serial, refresh, r
 	return err
 }
 
-func (client *Dns_Client ) RemoveSoa(token, id string) error {
+func (client *Dns_Client) RemoveSoa(token, id string) error {
 
 	rqst := &dnspb.RemoveSoaRequest{
 		Id: id,
@@ -647,7 +663,7 @@ func (client *Dns_Client ) RemoveSoa(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetUri(id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetUri(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetUriRequest{
 		Id: id,
@@ -666,7 +682,7 @@ func (client *Dns_Client ) GetUri(id string) (map[string]interface{}, error) {
 	return uri, nil
 }
 
-func (client *Dns_Client ) SetUri(token, id string, priority, weight uint32, target string, ttl uint32) error {
+func (client *Dns_Client) SetUri(token, id string, priority, weight uint32, target string, ttl uint32) error {
 
 	rqst := &dnspb.SetUriRequest{
 		Id: id,
@@ -692,7 +708,7 @@ func (client *Dns_Client ) SetUri(token, id string, priority, weight uint32, tar
 	return err
 }
 
-func (client *Dns_Client ) RemoveUri(token, id string) error {
+func (client *Dns_Client) RemoveUri(token, id string) error {
 
 	rqst := &dnspb.RemoveUriRequest{
 		Id: id,
@@ -715,7 +731,7 @@ func (client *Dns_Client ) RemoveUri(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetCaa(id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetCaa(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetCaaRequest{
 		Id: id,
@@ -734,7 +750,7 @@ func (client *Dns_Client ) GetCaa(id string) (map[string]interface{}, error) {
 	return caa, nil
 }
 
-func (client *Dns_Client ) SetCaa(token, id string, flag uint32, tag string, value string, ttl uint32) error {
+func (client *Dns_Client) SetCaa(token, id string, flag uint32, tag string, value string, ttl uint32) error {
 
 	rqst := &dnspb.SetCaaRequest{
 		Id: id,
@@ -760,7 +776,7 @@ func (client *Dns_Client ) SetCaa(token, id string, flag uint32, tag string, val
 	return err
 }
 
-func (client *Dns_Client ) RemoveCaa(token, id string) error {
+func (client *Dns_Client) RemoveCaa(token, id string) error {
 
 	rqst := &dnspb.RemoveCaaRequest{
 		Id: id,
@@ -783,7 +799,7 @@ func (client *Dns_Client ) RemoveCaa(token, id string) error {
 	return nil
 }
 
-func (client *Dns_Client ) GetAfsdb(id string) (map[string]interface{}, error) {
+func (client *Dns_Client) GetAfsdb(id string) (map[string]interface{}, error) {
 
 	rqst := &dnspb.GetAfsdbRequest{
 		Id: id,
@@ -801,7 +817,7 @@ func (client *Dns_Client ) GetAfsdb(id string) (map[string]interface{}, error) {
 	return afsdb, nil
 }
 
-func (client *Dns_Client ) SetAfsdb(token, id string, subtype uint32, hostname string, ttl uint32) error {
+func (client *Dns_Client) SetAfsdb(token, id string, subtype uint32, hostname string, ttl uint32) error {
 
 	rqst := &dnspb.SetAfsdbRequest{
 		Id: id,
@@ -825,7 +841,7 @@ func (client *Dns_Client ) SetAfsdb(token, id string, subtype uint32, hostname s
 	return err
 }
 
-func (client *Dns_Client ) RemoveAfsdb(token, id string) error {
+func (client *Dns_Client) RemoveAfsdb(token, id string) error {
 
 	rqst := &dnspb.RemoveAfsdbRequest{
 		Id: id,

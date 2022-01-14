@@ -90,7 +90,7 @@ type server struct {
 	ProxyProcess       int
 	ConfigPath         string
 	LastError          string
-	ModTime 		int64
+	ModTime            int64
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -107,7 +107,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -143,6 +143,7 @@ func (svr *server) SetModTime(modtime int64) {
 func (svr *server) GetModTime() int64 {
 	return svr.ModTime
 }
+
 // Globular services implementation...
 // The id of a particular service instance.
 func (file_server *server) GetId() string {
@@ -666,7 +667,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 }
 
 func (file_server *server) formatPath(path string) string {
-	
+
 	path = strings.ReplaceAll(path, "\\", "//")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
@@ -1213,7 +1214,7 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err

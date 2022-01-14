@@ -61,7 +61,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	TLS bool
 
@@ -90,7 +90,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -429,7 +429,7 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
@@ -472,7 +472,7 @@ func (server *server) setPackageBundle(checksum, platform string, size int32, mo
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
+
 	// set the logger.
 
 	// Set the log information in case of crash...

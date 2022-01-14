@@ -2,23 +2,24 @@ package main
 
 import (
 	"context"
-
 	"log"
 	"os"
 	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/config/configpb"
 	globular "github.com/globulario/services/golang/globular_service"
 
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
-	// "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
-	// "google.golang.org/grpc/status"
+	"google.golang.org/grpc/status"
 )
 
 // The default values.
@@ -60,7 +61,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime			int64
+	ModTime         int64
 
 	TLS bool
 
@@ -86,7 +87,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -390,34 +391,98 @@ func (svr *server) OnConfigurationChange(rqst *configpb.OnConfigurationChangeReq
 
 // Get the list of all services configurations
 func (svr *server) GetServiceConfiguration(ctx context.Context, rqst *configpb.GetServiceConfigurationRequest) (*configpb.GetServiceConfigurationResponse, error) {
-	return nil, nil
+	config__, err := config.GetServiceConfigurationById(rqst.Path)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// convert to the a protobuffer struct...
+	config_, err := structpb.NewStruct(config__)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &configpb.GetServiceConfigurationResponse{Config: config_}, nil
 }
 
 // Set a service configuration.
 func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.SetServiceConfigurationRequest) (*configpb.SetServiceConfigurationResponse, error) {
-	return nil, nil
+
+	err := config.SaveServiceConfiguration( rqst.Config.AsMap())
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &configpb.SetServiceConfigurationResponse{}, nil
 }
 
 // Get service configuration with a given id.
 func (svr *server) GetServiceConfigurationById(ctx context.Context, rqst *configpb.GetServiceConfigurationByIdRequest) (*configpb.GetServiceConfigurationByIdResponse, error) {
-	return nil, nil
+	config_, err := config.GetServiceConfigurationById(rqst.Id)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	config__, err := structpb.NewStruct(config_)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &configpb.GetServiceConfigurationByIdResponse{Config: config__}, nil
 }
 
 // Get list of service configuration with a given name
 func (svr *server) GetServicesConfigurationsByName(ctx context.Context, rqst *configpb.GetServicesConfigurationsByNameRequest) (*configpb.GetServicesConfigurationsByNameResponse, error) {
-	return nil, nil
+
+	configs, err := config.GetServicesConfigurationsByName(rqst.Name)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	rsp := &configpb.GetServicesConfigurationsByNameResponse{}
+	rsp.Configs = make([]*structpb.Struct, 0)
+	for i:=0; i < len(configs); i++ {
+		c, _ := structpb.NewStruct(configs[i])
+		rsp.Configs = append(rsp.Configs, c)
+	}
+
+	return rsp, nil
 }
 
 // Get the list of all services configurations
 func (svr *server) GetServicesConfigurations(ctx context.Context, rqst *configpb.GetServicesConfigurationsRequest) (*configpb.GetServicesConfigurationsResponse, error) {
-	return nil, nil
+	configs, err := config.GetServicesConfigurations()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	rsp := &configpb.GetServicesConfigurationsResponse{}
+	rsp.Configs = make([]*structpb.Struct, 0)
+	for i:=0; i < len(configs); i++ {
+		c, _ := structpb.NewStruct(configs[i])
+		rsp.Configs = append(rsp.Configs, c)
+	}
+
+	return rsp, nil
 }
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-
-	// set the logger.
 
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)

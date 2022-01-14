@@ -2,9 +2,9 @@ package spc_client
 
 import (
 	"context"
-	"errors"
 	"strconv"
 
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/spc/spcpb"
@@ -30,6 +30,9 @@ type SPC_Client struct {
 
 	// The domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The port
 	port int
@@ -66,8 +69,17 @@ func NewSpcService_Client(address string, id string) (*SPC_Client, error) {
 	return client, nil
 }
 
-func (client *SPC_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+// The address where the client can connect.
+func (client *SPC_Client) SetAddress(address string) {
+	client.address = address
+}
+
+func (client *SPC_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
 }
 
 func (spc_client *SPC_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -121,6 +133,11 @@ func (spc_client *SPC_Client) Close() {
 // Set grpc_service port.
 func (spc_client *SPC_Client) SetPort(port int) {
 	spc_client.port = port
+}
+
+// Return the grpc port number
+func (client *SPC_Client) GetPort() int {
+	return client.port
 }
 
 // Set the service instance id

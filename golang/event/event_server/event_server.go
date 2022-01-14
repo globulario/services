@@ -53,7 +53,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	// event_server-signed X.509 public keys for distribution
 	CertFile string
@@ -84,7 +84,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -512,11 +512,10 @@ func (event_server *server) Quit(ctx context.Context, rqst *eventpb.QuitRequest)
 	}, nil
 }
 
-
 // Connect to an event channel or create it if it not already exist
 // and stay in that function until UnSubscribe is call.
 func (event_server *server) OnEvent(rqst *eventpb.OnEventRequest, stream eventpb.EventService_OnEventServer) error {
-	
+
 	onevent := make(map[string]interface{})
 	onevent["action"] = "onevent"
 	onevent["stream"] = stream

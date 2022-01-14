@@ -58,9 +58,9 @@ type server struct {
 	Process         int
 	ProxyProcess    int
 	ConfigPath      string
-	ConfigPort		int
+	ConfigPort      int
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 	TLS             bool
 
 	// svr-signed X.509 public keys for distribution
@@ -91,7 +91,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -110,7 +110,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -411,7 +410,7 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-	address, _:= config.GetAddress()
+	address, _ := config.GetAddress()
 	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 	if err != nil {
 		return nil, err
@@ -453,7 +452,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

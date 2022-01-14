@@ -18,11 +18,12 @@ import (
 	"time"
 
 	"errors"
+	"runtime"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/kardianos/osext"
-	"runtime"
 
 	//"github.com/globulario/services/golang/config"
 	"google.golang.org/grpc"
@@ -176,6 +177,11 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
+
+	// set the logger.
+	config.RemoveAllLocks()
+	config.InitConfig()
+
 	dir, err := os.Getwd()
 	if err != nil {
 		return err
@@ -192,65 +198,65 @@ func InitService(s Service) error {
 	}
 
 	path += "/config.json"
-
-	// Set know values...
-	execPath, _ := osext.Executable()
-	execPath = strings.ReplaceAll(execPath, "\\", "/")
-	s.SetPath(execPath)
-	s.SetConfigurationPath(path)
-	s.SetModTime(time.Now().Unix())
-	s.SetProcess(os.Getpid())
-	s.SetMac(Utility.MyMacAddr())
-
 	// if the service configuration does not exist.
 	if !Utility.Exists(path) {
-
+		// Set know values...
+		execPath, _ := osext.Executable()
+		execPath = strings.ReplaceAll(execPath, "\\", "/")
+		s.SetPath(execPath)
+		s.SetConfigurationPath(path)
+		s.SetModTime(time.Now().Unix())
+		s.SetProcess(os.Getpid())
+		s.SetMac(Utility.MyMacAddr())
 		s.SetId(Utility.RandomUUID())
 
 		// Here I need to save the config file... exec must be call once in order to have config file found by Globular.exe
-		str, err := Utility.ToJson(s)
+		s_, err := Utility.ToMap(s)
 		if err != nil {
 			return err
 		}
-		if err == nil {
-			err := os.WriteFile(path, []byte(str), 06440)
-			if err != nil {
-				return err
-			}
+
+		// Create the file.
+		err = config.SaveServiceConfiguration(s_)
+		if err != nil {
+			return err
 		}
 	}
 
 	// Here I will get the configuration from the Configuration server...
-	configClient, err := getConfigClient()
-	if err == nil {
-		config, err := configClient.GetServiceConfiguration(path)
-		if err != nil {
-			return err
-		} else {
-			fmt.Println("--------------> configuration found ", config)
-		}
-	} else {
-		// In that case I will initalyse the service form the file directly...
-		str, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		err = json.Unmarshal(str, &s)
-		if err != nil {
-			return err
-		}
+	config_, err := config_client.GetServiceConfigurationById(path)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	// If no configuration was found from the configuration server i will get it from the configuration file.
+	str, err := json.Marshal(config_)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(str, &s)
+	if err != nil {
+		return err
+	}
+
+	return SaveService(s)
 }
 
 /**
  * Save a globular service.
  */
 func SaveService(s Service) error {
+	
+	s.SetModTime(time.Now().Unix())
+	s.SetProcess(os.Getpid())
 
-	return errors.New("Not implemented")
+	config_, err := Utility.ToMap(s)
+	if err != nil {
+		return err
+	}
+
+	return config_client.SaveServiceConfiguration(config_)
 }
 
 /**
@@ -416,26 +422,6 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 	}
 
 	return server, nil
-}
-
-var (
-	config_client_ *config_client.Config_Client
-)
-
-/**
- * Get the configuration client.
- */
-func getConfigClient() (*config_client.Config_Client, error) {
-	var err error
-	if config_client_ == nil {
-		address, _ := config.GetAddress()
-		config_client_, err = config_client.NewConfigService_Client(address, "config.ConfigService")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return config_client_, nil
 }
 
 func StartService(s Service, server *grpc.Server) error {

@@ -69,10 +69,10 @@ type server struct {
 	Process         int
 	ProxyProcess    int
 	ConfigPath      string
-	ConfigPort		int
+	ConfigPort      int
 	LastError       string
-	ModTime 		int64
-	TLS bool
+	ModTime         int64
+	TLS             bool
 
 	// server-signed X.509 public keys for distribution
 	CertFile string
@@ -104,7 +104,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -123,7 +123,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -419,14 +418,14 @@ var (
 	event_client_    *event_client.Event_Client
 	log_client_      *log_client.Log_Client
 	rbac_client_     *rbac_client.Rbac_Client
-	ldap_client_ 	 *ldap_client.LDAP_Client
+	ldap_client_     *ldap_client.LDAP_Client
 )
 
 ///////////////////////  LDAP Services functions ////////////////////////////////////////////////
 /**
  * Get the rbac client.
  */
- func GetLdapClient(domain string) (*ldap_client.LDAP_Client, error) {
+func GetLdapClient(domain string) (*ldap_client.LDAP_Client, error) {
 	var err error
 	if ldap_client_ == nil {
 		ldap_client_, err = ldap_client.NewLdapService_Client(domain, "ldap.LdapService")
@@ -439,7 +438,7 @@ var (
 }
 
 // Authenticate user with LDAP server.
-func (svr *server)  authenticateLdap(userId string, password string) error {
+func (svr *server) authenticateLdap(userId string, password string) error {
 	ldap_client_, err := GetLdapClient(svr.Domain)
 	if err != nil {
 		return err
@@ -481,7 +480,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
@@ -608,7 +607,7 @@ func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword str
 /**
  * Return a peer with a given id
  */
- func (svr *server) getPeers() ([]*resourcepb.Peer, error) {
+func (svr *server) getPeers() ([]*resourcepb.Peer, error) {
 	resourceClient, err := svr.getResourceClient(svr.Domain)
 	if err != nil {
 		return nil, err
@@ -632,7 +631,7 @@ func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword str
  * validate the user password.
  */
 func (server *server) validatePassword(password string, hashedPassword string) error {
-	
+
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
 
@@ -681,7 +680,7 @@ func (server *server) removeExpiredSessions() {
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
+
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 

@@ -66,7 +66,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	TLS bool
 
@@ -92,7 +92,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -451,7 +451,7 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
 	if resourceClient != nil {
 		return resourceClient, nil
 	}
-	address, _:= config.GetAddress()
+	address, _ := config.GetAddress()
 	resourceClient, err = resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		resourceClient = nil
@@ -492,7 +492,7 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
@@ -568,7 +568,7 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 		fmt.Println("publishPackage 527 ", err)
 		return err
 	}
-	
+
 	// Append the user into the list of owner if is not already part of it.
 	if !Utility.Contains(permissions.Owners.Accounts, user) {
 		permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
@@ -577,14 +577,14 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 	// Save the permissions.
 	err = server.setResourcePermissions(path_, permissions)
 	if err != nil {
-		fmt.Println("publishPackage 539 ",err)
+		fmt.Println("publishPackage 539 ", err)
 		return err
 	}
-	
+
 	// Fist of all publish the package descriptor.
 	err = server.publishPackageDescriptor(descriptor)
 	if err != nil {
-		fmt.Println("publishPackage 546 ",err)
+		fmt.Println("publishPackage 546 ", err)
 		return err
 	}
 
@@ -592,14 +592,14 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 	services_repository, err := repository_client.NewRepositoryService_Client(repository, "repository.PackageRepository")
 	if err != nil {
 		err = errors.New("Fail to connect to package repository at " + repository)
-		fmt.Println("publishPackage 554 ",err)
+		fmt.Println("publishPackage 554 ", err)
 		return err
 	}
 
 	// UploadBundle
 	server.logServiceInfo(Utility.FunctionName(), Utility.FileLine(), "Upload package bundle ", discovery+" "+descriptor.Id+" "+descriptor.PublisherId+" "+descriptor.Version+" "+platform+" "+path)
 	err = services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
-	
+
 	// Upload the package bundle to the repository.
 	return err
 }
@@ -607,7 +607,7 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
+
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 

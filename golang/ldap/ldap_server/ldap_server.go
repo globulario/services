@@ -86,7 +86,7 @@ type server struct {
 	ProxyProcess       int
 	ConfigPath         string
 	LastError          string
-	ModTime 		int64
+	ModTime            int64
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -104,7 +104,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -553,33 +553,33 @@ func (server *server) Synchronize(ctx context.Context, rqst *ldappb.SynchronizeR
 //       }
 //  }
 func (server *server) SetLdapSyncInfo(ctx context.Context, rqst *ldappb.SetLdapSyncInfoRequest) (*ldappb.SetLdapSyncInfoResponse, error) {
-	info:= make(map[string] interface{}, 0)
+	info := make(map[string]interface{}, 0)
 
 	info["ConnectionId"] = rqst.Info.ConnectionId
 	info["Refresh"] = rqst.Info.Refresh
-	info["GroupSyncInfo"] = make(map[string] interface{}, 0)
-	info["GroupSyncInfo"].(map[string] interface{})["Id"] = rqst.Info.GroupSyncInfo.Id
-	info["GroupSyncInfo"].(map[string] interface{})["Base"] = rqst.Info.GroupSyncInfo.Base
-	info["GroupSyncInfo"].(map[string] interface{})["Query"] = rqst.Info.GroupSyncInfo.Query
-	info["UserSyncInfo"] = make(map[string] interface{}, 0)
-	info["UserSyncInfo"].(map[string] interface{})["Id"] = rqst.Info.UserSyncInfo.Id
-	info["UserSyncInfo"].(map[string] interface{})["Base"] = rqst.Info.UserSyncInfo.Base
-	info["UserSyncInfo"].(map[string] interface{})["Query"] = rqst.Info.UserSyncInfo.Query
+	info["GroupSyncInfo"] = make(map[string]interface{}, 0)
+	info["GroupSyncInfo"].(map[string]interface{})["Id"] = rqst.Info.GroupSyncInfo.Id
+	info["GroupSyncInfo"].(map[string]interface{})["Base"] = rqst.Info.GroupSyncInfo.Base
+	info["GroupSyncInfo"].(map[string]interface{})["Query"] = rqst.Info.GroupSyncInfo.Query
+	info["UserSyncInfo"] = make(map[string]interface{}, 0)
+	info["UserSyncInfo"].(map[string]interface{})["Id"] = rqst.Info.UserSyncInfo.Id
+	info["UserSyncInfo"].(map[string]interface{})["Base"] = rqst.Info.UserSyncInfo.Base
+	info["UserSyncInfo"].(map[string]interface{})["Query"] = rqst.Info.UserSyncInfo.Query
 
-	if server.LdapSyncInfos ==nil {
-		server.LdapSyncInfos = make(map[string] interface{}, 0)
+	if server.LdapSyncInfos == nil {
+		server.LdapSyncInfos = make(map[string]interface{}, 0)
 	}
 
 	// Store the info.
-	server.LdapSyncInfos[ rqst.Info.ConnectionId] = info
+	server.LdapSyncInfos[rqst.Info.ConnectionId] = info
 
 	return &ldappb.SetLdapSyncInfoResponse{}, nil
 }
 
 // Delete synchronize information
 func (server *server) DeleteLdapSyncInfo(ctx context.Context, rqst *ldappb.DeleteLdapSyncInfoRequest) (*ldappb.DeleteLdapSyncInfoResponse, error) {
-	if server.LdapSyncInfos!=nil {
-		if server.LdapSyncInfos[rqst.Id]!=nil {
+	if server.LdapSyncInfos != nil {
+		if server.LdapSyncInfos[rqst.Id] != nil {
 			delete(server.LdapSyncInfos, rqst.Id)
 		}
 	}
@@ -590,7 +590,6 @@ func (server *server) DeleteLdapSyncInfo(ctx context.Context, rqst *ldappb.Delet
 // Retreive synchronize informations
 func (server *server) GetLdapSyncInfo(ctx context.Context, rqst *ldappb.GetLdapSyncInfoRequest) (*ldappb.GetLdapSyncInfoResponse, error) {
 	infos := make([]*ldappb.LdapSyncInfo, 0)
-
 
 	for _, info := range server.LdapSyncInfos {
 		info_ := new(ldappb.LdapSyncInfo)
@@ -612,12 +611,12 @@ func (server *server) GetLdapSyncInfo(ctx context.Context, rqst *ldappb.GetLdapS
 				infos = append(infos, info_)
 				break
 			}
-		}else{
+		} else {
 			// append all infos.
 			infos = append(infos, info_)
 		}
 	}
-	// return the 
+	// return the
 	return &ldappb.GetLdapSyncInfoResponse{Infos: infos}, nil
 }
 

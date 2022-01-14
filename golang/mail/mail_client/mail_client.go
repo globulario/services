@@ -2,14 +2,12 @@ package mail_client
 
 import (
 	"context"
-	"errors"
-	"log"
 
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/mail/mailpb"
 	"github.com/globulario/services/golang/security"
@@ -35,6 +33,9 @@ type Mail_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The port
 	port int
@@ -71,12 +72,19 @@ func NewMailService_Client(address string, id string) (*Mail_Client, error) {
 	return client, nil
 }
 
-
-// Return the configuration from the configuration server.
-func (client *Mail_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+// The address where the client can connect.
+func (client *Mail_Client) SetAddress(address string) {
+	client.address = address
 }
 
+// Return the configuration from the configuration server.
+func (client *Mail_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
+}
 
 func (client *Mail_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
 	if ctx == nil {
@@ -105,7 +113,7 @@ func (client *Mail_Client) GetDomain() string {
 
 // Return the address
 func (client *Mail_Client) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+	return client.address
 }
 
 // Return the id of the service instance
@@ -130,6 +138,11 @@ func (client *Mail_Client) Close() {
 // Set grpc_service port.
 func (client *Mail_Client) SetPort(port int) {
 	client.port = port
+}
+
+// Return the grpc port number
+func (client *Mail_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client name.
@@ -263,7 +276,7 @@ func sendFile(id string, path string, stream mailpb.MailService_SendEmailWithAtt
 
 	file, err := os.Open(path)
 	if err != nil {
-		log.Fatalf("Fail to open file "+path+" with error: %v", err)
+		fmt.Print("Fail to open file "+path+" with error: %v", err)
 	}
 
 	// close the file when done.
@@ -304,7 +317,7 @@ func (client *Mail_Client) SendEmailWithAttachements(id string, from string, to 
 	// Open the stream...
 	stream, err := client.c.SendEmailWithAttachements(client.GetCtx())
 	if err != nil {
-		log.Fatalf("error while TestSendEmailWithAttachements: %v", err)
+		fmt.Println("error while TestSendEmailWithAttachements: %v", err)
 	}
 
 	// Send file attachment as a stream, not need to be send first.

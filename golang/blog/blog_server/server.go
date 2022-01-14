@@ -68,7 +68,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	TLS bool
 
@@ -106,7 +106,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -125,7 +125,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -424,7 +423,7 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
@@ -455,7 +454,7 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-	address, _:= config.GetAddress()
+	address, _ := config.GetAddress()
 	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 	if err != nil {
 		return nil, err
@@ -547,7 +546,7 @@ func (svr *server) deleteAccountListener(evt *eventpb.Event) {
 	accountId := string(evt.Data)
 	blogs, err := svr.getBlogPostByAuthor(accountId)
 	if err == nil {
-		for i:=0; i < len(blogs); i++ {
+		for i := 0; i < len(blogs); i++ {
 			// remove the post...
 			err := svr.deleteBlogPost(accountId, blogs[i].Uuid)
 			if err != nil {
@@ -612,20 +611,20 @@ func (svr *server) getSubComment(uuid string, comment *blogpb.Comment) (*blogpb.
 		return nil, errors.New("no answer was found for that comment")
 	}
 
-	for i:=0; i < len(comment.Comments); i++ {
+	for i := 0; i < len(comment.Comments); i++ {
 		comment := comment.Comments[i]
 		if uuid == comment.Uuid {
 			return comment, nil
 		}
 		if comment.Comments != nil {
-			comment_, err :=  svr.getSubComment(uuid, comment)
+			comment_, err := svr.getSubComment(uuid, comment)
 			if err == nil && comment != nil {
 				return comment_, nil
 			}
 		}
 	}
 
-	return nil, errors.New("no answer was found for that comment") 
+	return nil, errors.New("no answer was found for that comment")
 }
 
 /**
@@ -646,7 +645,7 @@ func (svr *server) getBlogComment(parentUuid string, blog *blogpb.BlogPost) (*bl
 		}
 	}
 
-	return nil, errors.New("no comment was found for that blog")  
+	return nil, errors.New("no comment was found for that blog")
 }
 
 /**

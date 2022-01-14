@@ -81,7 +81,7 @@ type server struct {
 	ProxyProcess       int
 	ConfigPath         string
 	LastError          string
-	ModTime 		int64
+	ModTime            int64
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -96,7 +96,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -403,7 +403,7 @@ func (monitoring_server *server) Init() error {
 
 // Save the configuration values.
 func (monitoring_server *server) Save() error {
-	
+
 	return globular.SaveService(monitoring_server)
 }
 
@@ -888,7 +888,6 @@ func (monitoring_server *server) TargetsMetadata(ctx context.Context, rqst *moni
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
 
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "monitoring_service: ", log.LstdFlags))

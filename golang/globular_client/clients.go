@@ -29,9 +29,9 @@ var (
 type Client interface {
 
 	// Return the configuration from the configuration server.
-	GetConfiguration(address string) (map[string] interface{}, error)
+	GetConfiguration(address, id string) (map[string]interface{}, error)
 
-	// Return the ipv4 address
+	// Return the address with the port where configuration can be found...
 	GetAddress() string
 
 	// Get Domain return the client domain.
@@ -49,10 +49,11 @@ type Client interface {
 	// Close the client.
 	Close()
 
-	// At firt the port contain the http(s) address of the globular server.
-	// The configuration will be get from that address and the port will
-	// be set back to the correct address.
+	// Contain the grpc port number, to http port is contain the address 
 	SetPort(int)
+
+	// Return the grpc port
+	GetPort() int
 
 	// Set the id of the client
 	SetId(string)
@@ -65,6 +66,9 @@ type Client interface {
 
 	// Set the domain of the client
 	SetDomain(string)
+
+	// Set the address of the client
+	SetAddress(string)
 
 	////////////////// TLS ///////////////////
 
@@ -101,59 +105,64 @@ type Client interface {
  */
 func InitClient(client Client, address string, id string) error {
 
-	// Set the domain and the name from the incomming...
-	address_ := strings.Split(address, ":")
-	port := 80 // the default http port...
-	if len(address_) == 2 {
-		address = address_[0]
-		port = Utility.ToInt(address_[1])
-	}
-
-	// remove the port number from the domain.
-	client.SetDomain(address)
-
-	config, err := client.GetConfiguration(address)
-
-	if err == nil {
-		port = int(config["Port"].(float64))
+	// Keep the client address...
+	client.SetAddress(address)
+	config_, err := client.GetConfiguration(address, id)
+	if err != nil {
+		return err
 	}
 
 	// Set client attributes.
-	if config["Id"] != nil {
-		client.SetId(config["Id"].(string))
-	} else if config["Name"] != nil {
-		client.SetId(config["Name"].(string))
+	if config_["Id"] != nil {
+		client.SetId(config_["Id"].(string))
 	} else {
-		client.SetId(id)
+		return errors.New("no id found for service " + id)
 	}
 
-	if config["Name"] != nil {
-		client.SetName(config["Name"].(string))
+	if config_["Domain"] != nil {
+		client.SetDomain(config_["Domain"].(string))
+	} else {
+		return errors.New("no domain found for service " + id)
 	}
 
-	if config["Mac"] != nil {
-		client.SetMac(config["Mac"].(string))
+	if config_["Name"] != nil {
+		client.SetId(config_["Name"].(string))
+	} else {
+		return errors.New("no name found for service " + id)
 	}
 
-	client.SetPort(port)
+	if config_["Mac"] != nil {
+		client.SetMac(config_["Mac"].(string))
+	} else {
+		return errors.New("no mac address found for service " + id)
+	}
+
+	if config_["Port"] != nil {
+		client.SetPort(Utility.ToInt(config_["Port"]))
+	}else{
+		return errors.New("no port found for service " + id)
+	}
+	
 
 	// Set security values.
-	if config["TLS"] != nil {
+	if config_["TLS"].(bool) {
 
-		// Change server cert to client cert and do the same for key
-		certificateFile := strings.Replace(config["CertFile"].(string), "server", "client", -1)
-		keyFile := strings.Replace(config["KeyFile"].(string), "server", "client", -1)
+		// TODO test if the client is local and get keys from the remote save it in temp and set the correct client key path.
+		// Change server cert to client cert and do the same for key because we are at client side...
+		certificateFile := strings.Replace(config_["CertFile"].(string), "server", "client", -1)
+		keyFile := strings.Replace(config_["KeyFile"].(string), "server", "client", -1)
 
 		client.SetKeyFile(keyFile)
 		client.SetCertFile(certificateFile)
-		client.SetCaFile(config["CertAuthorityTrust"].(string))
-		client.SetTLS(config["TLS"].(bool))
+		client.SetCaFile(config_["CertAuthorityTrust"].(string))
+		client.SetTLS(config_["TLS"].(bool))
+
 
 	} else {
 		client.SetTLS(false)
 	}
 
-	fmt.Println("client ", config["Name"], "was initialyse with sucess")
+
 
 	return nil
 }
@@ -166,7 +175,8 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	var cc *grpc.ClientConn
 	var err error
 	if cc == nil {
-		address := client.GetAddress()
+		// The grpc address
+		address := client.GetDomain() + ":" + Utility.ToString(client.GetPort())
 		if client.HasTLS() {
 
 			// Setup the login/pass simple test...
@@ -240,12 +250,7 @@ func GetClientContext(client Client) context.Context {
 	var ctx context.Context
 
 	// if the address is local.
-	address, err := config.GetAddress()
-	if err != nil {
-		return nil
-	}
-
-	err = Utility.CreateDirIfNotExist(tokensPath)
+	err := Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
 		log.Panicln("fail to create token dir ", tokensPath)
 	}
@@ -253,12 +258,12 @@ func GetClientContext(client Client) context.Context {
 	// Get the last valid token if it exist
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": address, "mac": Utility.MyMacAddr()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac": Utility.MyMacAddr()})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": address, "mac": Utility.MyMacAddr()})
+	md := metadata.New(map[string]string{"token": "", "domain": client.GetAddress(), "mac": Utility.MyMacAddr()})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
 
 	return ctx

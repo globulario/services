@@ -58,11 +58,11 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
+	Process         int
 	ProxyProcess    int
-	ConfigPath string
-	LastError string
-	ModTime 		int64
+	ConfigPath      string
+	LastError       string
+	ModTime         int64
 
 	TLS bool
 
@@ -88,7 +88,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -107,7 +107,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -361,7 +360,7 @@ func (svr *server) Init() error {
 	}
 
 	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr, /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/ nil, nil)
+	svr.grpcServer, err = globular.InitGrpcServer(svr /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -413,7 +412,7 @@ func (svr *server) Echo(ctx context.Context, rsqt *echopb.EchoRequest) (*echopb.
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
+
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -66,8 +67,8 @@ type server struct {
 	Process         int
 	ProxyProcess    int
 	LastError       string
-	ModTime 		int64
-	TLS bool
+	ModTime         int64
+	TLS             bool
 
 	// server-signed X.509 public keys for distribution
 	CertFile string
@@ -124,7 +125,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -596,7 +597,7 @@ func (server *server) stopService(s map[string]interface{}) error {
 // uninstall service
 func (server *server) uninstallService(publisherId string, serviceId string, version string, deletePermissions bool) error {
 	// First of all I will stop the running service(s) instance.
-	services, err := config.GetServicesConfigurations()
+	services, err := config_client.GetServicesConfigurations()
 	if err != nil {
 		return err
 	}
@@ -671,7 +672,7 @@ func (server *server) registerMethods() error {
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
+
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 

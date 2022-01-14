@@ -81,7 +81,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	// Specific configuration.
 	Root string // Where to look for conversation data, file.. etc.
@@ -125,7 +125,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -144,7 +144,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -401,7 +400,7 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
@@ -432,7 +431,7 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-	address, _:= config.GetAddress()
+	address, _ := config.GetAddress()
 	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 	if err != nil {
 		return nil, err
@@ -831,7 +830,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	
+
 	isOwner, _, err := svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 
 	if err != nil {
@@ -868,7 +867,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 
 // Delete the conversation
 func (svr *server) deleteConversation(clientId string, conversation *conversationpb.Conversation) error {
-	
+
 	err := svr.removeConversationParticipant(clientId, conversation.Uuid)
 	if err != nil {
 		return err
@@ -880,11 +879,9 @@ func (svr *server) deleteConversation(clientId string, conversation *conversatio
 	}
 
 	// kickout all participants...
-	for i:=0; i < len(conversation.Participants); i++ {
-		svr.publish(`kickout_conversation_`+ conversation.Uuid +`_evt`, []byte(conversation.Participants[i]))
+	for i := 0; i < len(conversation.Participants); i++ {
+		svr.publish(`kickout_conversation_`+conversation.Uuid+`_evt`, []byte(conversation.Participants[i]))
 	}
-
-
 
 	// Close leveldb connection
 	svr.closeConversationConnection(conversation.Uuid)
@@ -924,7 +921,7 @@ func (svr *server) deleteConversation(clientId string, conversation *conversatio
 	}
 
 	// publish delete conversation event.
-	svr.publish(`delete_conversation_`+ conversation.Uuid +`_evt`, []byte(conversation.Uuid))
+	svr.publish(`delete_conversation_`+conversation.Uuid+`_evt`, []byte(conversation.Uuid))
 
 	// I will remove the conversation from the db.
 	err = svr.deleteResourcePermissions(conversation.Uuid)
@@ -974,7 +971,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 		}
 		return nil, err
 	}
-	
+
 	conversation, err := svr.getConversation(rqst.ConversationUuid)
 	if err != nil {
 		return nil, status.Errorf(

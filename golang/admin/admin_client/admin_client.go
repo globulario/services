@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"io/ioutil"
 	"log"
@@ -12,10 +11,10 @@ import (
 
 	//	"log"
 	"os"
-	"strconv"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/admin/adminpb"
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 
@@ -45,6 +44,9 @@ type Admin_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// is the connection is secure?
 	hasTLS bool
@@ -81,9 +83,18 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 	return client, nil
 }
 
+// The address where the client can connect.
+func (client *Admin_Client) SetAddress(address string) {
+	client.address = address
+}
+
 // Return the configuration from the configuration server.
-func (client *Admin_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+func (client *Admin_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
 }
 
 func (client *Admin_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -110,7 +121,7 @@ func (client *Admin_Client) GetCtx() context.Context {
 
 // Return the address
 func (client *Admin_Client) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+	return client.address
 }
 
 // Return the domain
@@ -141,6 +152,11 @@ func (client *Admin_Client) Close() {
 // Set grpc_service port.
 func (client *Admin_Client) SetPort(port int) {
 	client.port = port
+}
+
+// Return the grpc port number
+func (client *Admin_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client service instance id.
@@ -239,7 +255,7 @@ func (client *Admin_Client) createServicePackage(publisherId string, serviceName
 func (client *Admin_Client) GetCertificates(address string, port int, path string) (string, string, string, error) {
 
 	rqst := &adminpb.GetCertificatesRequest{
-		Domain: address,  
+		Domain: address,
 		Path:   path,
 		Port:   int32(port),
 	}

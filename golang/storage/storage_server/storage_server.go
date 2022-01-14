@@ -71,7 +71,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	// storage_server-signed X.509 public keys for distribution
 	CertFile string
@@ -102,7 +102,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -121,7 +121,6 @@ func (svr *server) GetConfigurationPath() string {
 func (svr *server) SetConfigurationPath(path string) {
 	svr.ConfigPath = path
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -391,7 +390,7 @@ func (storage_server *server) Save() error {
 	// Create the file...
 	return globular.SaveService(storage_server)
 }
- 
+
 func (storage_server *server) StartService() error {
 	return globular.StartService(storage_server, storage_server.grpcServer)
 }
@@ -788,7 +787,7 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

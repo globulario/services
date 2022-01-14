@@ -5,15 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
@@ -41,6 +43,9 @@ type Applications_Manager_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The port
 	port int
@@ -77,9 +82,18 @@ func NewApplicationsManager_Client(address string, id string) (*Applications_Man
 	return client, nil
 }
 
+// The address where the client can connect.
+func (client *Applications_Manager_Client) SetAddress(address string) {
+	client.address = address
+}
+
 // Return the configuration from the configuration server.
-func (client *Applications_Manager_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+func (client *Applications_Manager_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
 }
 
 func (Applications_Manager_Client *Applications_Manager_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -135,6 +149,11 @@ func (Applications_Manager_Client *Applications_Manager_Client) Close() {
 // Set grpc_service port.
 func (Applications_Manager_Client *Applications_Manager_Client) SetPort(port int) {
 	Applications_Manager_Client.port = port
+}
+
+// Return the grpc port number
+func (client *Applications_Manager_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client instance id.
@@ -345,7 +364,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	// Create groups.
-	
+
 	groups := make([]*resourcepb.Group, 0)
 	if packageConfig["groups"] != nil {
 		groups_ := packageConfig["groups"].([]interface{})

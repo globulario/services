@@ -7,9 +7,9 @@ import (
 	"errors"
 	"io"
 	"log"
-	"strconv"
 	"time"
 
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/security"
@@ -32,6 +32,9 @@ type Log_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The port number
 	port int
@@ -73,9 +76,18 @@ func NewLogService_Client(address string, id string) (*Log_Client, error) {
 	return client, nil
 }
 
+// The address where the client can connect.
+func (client *Log_Client) SetAddress(address string) {
+	client.address = address
+}
+
 // Return the configuration from the configuration server.
-func (client *Log_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+func (client *Log_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
 }
 
 func (client *Log_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -100,7 +112,7 @@ func (client *Log_Client) GetCtx() context.Context {
 // Return the ipv4 address
 // Return the address
 func (client *Log_Client) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+	return client.address
 }
 
 // Return the domain
@@ -130,6 +142,11 @@ func (client *Log_Client) Close() {
 // Set grpc_service port.
 func (client *Log_Client) SetPort(port int) {
 	client.port = port
+}
+
+// Return the grpc port number
+func (client *Log_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client name.

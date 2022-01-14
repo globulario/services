@@ -3,13 +3,12 @@ package ldap_client
 import (
 	// "context"
 	// "log"
-	"errors"
-	"strconv"
 
 	"encoding/json"
 
 	"context"
 
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"github.com/globulario/services/golang/security"
@@ -39,6 +38,9 @@ type LDAP_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The port number
 	port int
@@ -75,9 +77,18 @@ func NewLdapService_Client(address string, id string) (*LDAP_Client, error) {
 	return client, nil
 }
 
+// The address where the client can connect.
+func (client *LDAP_Client) SetAddress(address string) {
+	client.address = address
+}
+
 // Return the configuration from the configuration server.
-func (client *LDAP_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+func (client *LDAP_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
 }
 
 func (client *LDAP_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -105,7 +116,7 @@ func (client *LDAP_Client) GetDomain() string {
 }
 
 func (client *LDAP_Client) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+	return client.address
 }
 
 // Return the id of the service
@@ -130,6 +141,11 @@ func (client *LDAP_Client) Close() {
 // Set grpc_service port.
 func (client *LDAP_Client) SetPort(port int) {
 	client.port = port
+}
+
+// Return the grpc port number
+func (client *LDAP_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client id.

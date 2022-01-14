@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	//"fmt"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/process"
 	"github.com/globulario/services/golang/repository/repository_client"
@@ -57,7 +59,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 		if err == nil {
 
-			previous, _ := config.GetServiceConfigurationById(descriptor.Id)
+			previous, _ := config_client.GetServiceConfigurationById(descriptor.Id)
 			if previous != nil {
 				// Uninstall the previous version...
 				server.uninstallService(descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
@@ -204,7 +206,7 @@ func (server *server) stopServiceInstance(serviceId string) error {
 	if serviceId == server.GetId() {
 		return errors.New("The service manager could not stop itself!")
 	}
-	s, err := config.GetServiceConfigurationById(serviceId)
+	s, err := config_client.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return err
 	}
@@ -216,14 +218,14 @@ func (server *server) stopServiceInstance(serviceId string) error {
 		}
 	} else {
 		// Close all services with a given name.
-		services, err := config.GetServicesConfigurationsByName(serviceId)
+		services, err := config_client.GetServicesConfigurationsByName(serviceId)
 		if err != nil {
 			return err
 		}
 
 		for i := 0; i < len(services); i++ {
 			serviceId := services[i]["Id"].(string)
-			s, err := config.GetServiceConfigurationById(serviceId)
+			s, err := config_client.GetServiceConfigurationById(serviceId)
 			if err != nil {
 				return err
 			}
@@ -309,7 +311,7 @@ func (server *server) StartServiceInstance(ctx context.Context, rqst *services_m
 
 // Restart all Services also the http(s)
 func (server *server) RestartAllServices(ctx context.Context, rqst *services_managerpb.RestartAllServicesRequest) (*services_managerpb.RestartAllServicesResponse, error) {
-	services, err := config.GetServicesConfigurations()
+	services, err := config_client.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -343,7 +345,7 @@ func (server *server) RestartAllServices(ctx context.Context, rqst *services_man
 }
 
 func (server *server) GetServicesConfiguration(ctx context.Context, rqst *services_managerpb.GetServicesConfigurationRequest) (*services_managerpb.GetServicesConfigurationResponse, error) {
-	services, err := config.GetServicesConfigurations()
+	services, err := config_client.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -377,7 +379,7 @@ func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_mana
 	}
 
 	// Save the service configuration
-	err = config.SaveServiceConfiguration(s)
+	err = config_client.SaveServiceConfiguration(s)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -416,7 +418,7 @@ func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_mana
 func (server *server) GetAllActions(ctx context.Context, rqst *services_managerpb.GetAllActionsRequest) (*services_managerpb.GetAllActionsResponse, error) {
 
 	// first of all I will retreive the list of all services configuration.
-	services, err := config.GetServicesConfigurations()
+	services, err := config_client.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

@@ -63,7 +63,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	ModTime 		int64
+	ModTime         int64
 
 	TLS bool
 
@@ -95,7 +95,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -362,7 +362,7 @@ var (
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
@@ -418,7 +418,7 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 	return resourceClient.GetAccount(accountId)
 }
 
-func (server *server) accountExist(id string) bool{
+func (server *server) accountExist(id string) bool {
 	a, err := server.getAccount(id)
 	if err != nil || a == nil {
 		return false
@@ -450,7 +450,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 /**
  * Test if a group exist.
  */
-func (server *server)groupExist(id string) bool{
+func (server *server) groupExist(id string) bool {
 	g, err := server.getGroup(id)
 	if err != nil || g == nil {
 		return false
@@ -485,7 +485,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 /**
  * Test if a application exist.
  */
- func (server *server) applicationExist(id string) bool{
+func (server *server) applicationExist(id string) bool {
 	g, err := server.getApplication(id)
 	if err != nil || g == nil {
 		return false
@@ -514,11 +514,10 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
 	return peers[0], nil
 }
 
-
 /**
  * Test if a peer exist.
  */
- func (server *server) peerExist(id string) bool{
+func (server *server) peerExist(id string) bool {
 	g, err := server.getPeer(id)
 	if err != nil || g == nil {
 		return false
@@ -529,7 +528,7 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
 /**
  * Return a peer with a given id
  */
- func (server *server) getOrganization(organisationId string) (*resourcepb.Organization, error) {
+func (server *server) getOrganization(organisationId string) (*resourcepb.Organization, error) {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
 		return nil, err
@@ -547,11 +546,10 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
 	return organisations[0], nil
 }
 
-
 /**
  * Test if a organisation exist.
  */
- func (server *server) organisationExist(id string) bool{
+func (server *server) organisationExist(id string) bool {
 	o, err := server.getOrganization(id)
 	if err != nil || o == nil {
 		return false
@@ -583,7 +581,7 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 /**
  * Test if a role exist.
  */
- func (server *server) roleExist(id string) bool{
+func (server *server) roleExist(id string) bool {
 	r, err := server.getRole(id)
 	if err != nil || r == nil {
 		return false

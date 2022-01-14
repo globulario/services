@@ -18,6 +18,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
@@ -51,7 +52,7 @@ func KillServiceProcess(s map[string]interface{}) error {
 	}
 
 	// save the service configuration.
-	return config.SaveServiceConfiguration(s)
+	return config_client.SaveServiceConfiguration(s)
 }
 
 var (
@@ -88,14 +89,14 @@ func logInfo(name, domain, fileLine, functionName, message string, level logpb.L
 func setServiceConfigurationError(err error, s map[string]interface{}) {
 	s["State"] = "failed"
 	s["LastError"] = err.Error()
-	config.SaveServiceConfiguration(s)
+	config_client.SaveServiceConfiguration(s)
 	logInfo(s["Name"].(string)+":"+s["Id"].(string), s["Domain"].(string), Utility.FileLine(), Utility.FunctionName(), err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 }
 
 // Start a service process.
-func StartServiceProcess(serviceId string, portsRange string) (int, error) {
+func StartServiceProcess(serviceId, portsRange string) (int, error) {
 
-	s, err := config.GetServiceConfigurationById(serviceId)
+	s, err := config_client.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return -1, err
 	}
@@ -110,7 +111,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 	s["LastError"] = ""
 
 	// save the service configuration.
-	config.SaveServiceConfiguration(s)
+	config_client.SaveServiceConfiguration(s)
 
 	// Get the next available port.
 	port, err := config.GetNextAvailablePort(portsRange)
@@ -213,7 +214,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 
 		s["State"] = "running"
 		s["Process"] = p.Process.Pid
-		config.SaveServiceConfiguration(s)
+		config_client.SaveServiceConfiguration(s)
 
 		// wait the process to finish
 				
@@ -223,7 +224,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		err = p.Wait()
 
 		// get back the configuration from the file.
-		s, _ := config.GetServiceConfigurationById(serviceId)
+		s, _ := config_client.GetServiceConfigurationById(serviceId)
 
 		if err != nil {
 			// Set the service configurations last error and failed stated
@@ -237,7 +238,7 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 					if s["KeepAlive"].(bool) == true {
 						// set the service state to stop.
 						s["State"] = "stopped"
-						config.SaveServiceConfiguration(s)
+						config_client.SaveServiceConfiguration(s)
 
 						// give ti some time to free resources like port files... etc.
 						pid, err := StartServiceProcess(serviceId, portsRange)
@@ -285,14 +286,14 @@ func StartServiceProcess(serviceId string, portsRange string) (int, error) {
 		// Set the process to -1
 		s["Process"] = -1
 		s["State"] = "stopped"
-		config.SaveServiceConfiguration(s)
+		config_client.SaveServiceConfiguration(s)
 
 	}(s["Id"].(string))
 
 	pid := <-waitUntilStart
 
 	// save the service configuration.
-	return pid, config.SaveServiceConfiguration(s)
+	return pid, config_client.SaveServiceConfiguration(s)
 }
 
 
@@ -319,7 +320,7 @@ func getEventClient(domain string) (*event_client.Event_Client, error) {
 func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
 
 	// Get the service configuration with a given id.
-	s, err := config.GetServiceConfigurationById(serviceId)
+	s, err := config_client.GetServiceConfigurationById(serviceId)
 	if err != nil {
 		return -1, err
 	}
@@ -460,13 +461,13 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	}()
 
 	// be sure the service
-	s, _ = config.GetServiceConfigurationById(serviceId)
+	s, _ = config_client.GetServiceConfigurationById(serviceId)
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyProcess.Process.Pid
 	s["Proxy"] = port
 
 	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], " for service:", s["Name"].(string)+":"+s["Id"].(string), "pid:", s["Process"], "http port:", port, "grpc port", s["Port"])
-	return proxyProcess.Process.Pid, config.SaveServiceConfiguration(s)
+	return proxyProcess.Process.Pid, config_client.SaveServiceConfiguration(s)
 
 }
 
@@ -645,7 +646,7 @@ inhibit_rules:
 					}
 				}
 
-				services, err := config.GetServicesConfigurations()
+				services, err := config_client.GetServicesConfigurations()
 				if err == nil {
 					for i := 0; i < len(services); i++ {
 

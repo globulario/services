@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
@@ -31,6 +31,9 @@ type Event_Client struct {
 
 	// The client domain
 	domain string
+
+	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
+	address string
 
 	// The mac address of the server
 	mac string
@@ -152,9 +155,18 @@ func (client *Event_Client) run() error {
 
 }
 
+// The address where the client can connect.
+func (client *Event_Client) SetAddress(address string) {
+	client.address = address
+}
+
 // Return the configuration from the configuration server.
-func (client *Event_Client) GetConfiguration(address string) (map[string]interface{}, error) {
-	return nil, errors.New("no implemented...")
+func (client *Event_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
+	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	if err != nil {
+		return nil, err
+	}
+	return client_.GetServiceConfiguration(id)
 }
 
 func (client *Event_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -183,7 +195,7 @@ func (client *Event_Client) GetDomain() string {
 
 // Return the address
 func (client *Event_Client) GetAddress() string {
-	return client.domain + ":" + strconv.Itoa(client.port)
+	return client.address
 }
 
 // Return the id of the service instance
@@ -219,6 +231,11 @@ func (client *Event_Client) Close() {
 // Set grpc_service port.
 func (client *Event_Client) SetPort(port int) {
 	client.port = port
+}
+
+// Return the grpc port number
+func (client *Event_Client) GetPort() int {
+	return client.port
 }
 
 // Set the client instance id.

@@ -85,7 +85,7 @@ type server struct {
 	ProxyProcess       int
 	ConfigPath         string
 	LastError          string
-	ModTime 		int64
+	ModTime            int64
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -115,7 +115,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -712,7 +712,7 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.Password = "adminadmin" // The default password for the admin.
 	s_impl.KeepAlive = true
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

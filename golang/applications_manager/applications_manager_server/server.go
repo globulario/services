@@ -38,7 +38,7 @@ var (
 
 	domain string = "localhost"
 
-	rbac_client_  *rbac_client.Rbac_Client
+	rbac_client_ *rbac_client.Rbac_Client
 )
 
 // Value need by Globular to start the services...
@@ -63,11 +63,11 @@ type server struct {
 	Keywords        []string
 	Repositories    []string
 	Discoveries     []string
-	Process	int
+	Process         int
 	ProxyProcess    int
-	ConfigPath string
-	LastError string
-	ModTime 		int64
+	ConfigPath      string
+	LastError       string
+	ModTime         int64
 
 	TLS bool
 
@@ -96,7 +96,7 @@ func (svr *server) GetProcess() int {
 }
 
 func (svr *server) SetProcess(pid int) {
-	svr.SetProcess(pid)
+	svr.Process = pid
 }
 
 func (svr *server) GetProxyProcess() int {
@@ -449,9 +449,9 @@ func (svr *server) getApplication(id string) (*resourcepb.Application, error) {
 		return nil, err
 	}
 
-	applications, err := resourceClient.GetApplications(`{"_id":"`+ id +`"}`)
+	applications, err := resourceClient.GetApplications(`{"_id":"` + id + `"}`)
 	if err != nil {
-		return nil,  err
+		return nil, err
 	}
 	return applications[0], nil
 }
@@ -562,11 +562,10 @@ func (svr *server) publish(event string, data []byte) error {
 	return eventClient.Publish(event, data)
 }
 
-
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		address, _:= config.GetAddress()
+		address, _ := config.GetAddress()
 		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
@@ -595,7 +594,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
-	
+
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
 
