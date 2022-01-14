@@ -117,6 +117,7 @@ func InitClient(client Client, address string, id string) error {
 
 	address_, _ := config.GetAddress()
 	isLocal := address_ == address
+	isLocal = true
 
 	if isLocal {
 		// Local client configuration
