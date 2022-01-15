@@ -364,7 +364,6 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 	}
 
 	// Create groups.
-
 	groups := make([]*resourcepb.Group, 0)
 	if packageConfig["groups"] != nil {
 		groups_ := packageConfig["groups"].([]interface{})
@@ -457,7 +456,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 
 	_, err = stream.CloseAndRecv()
 	if err != nil && err != io.EOF {
-		fmt.Print("446", err)
+		fmt.Println(err)
 		return -1, err
 	}
 

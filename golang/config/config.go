@@ -495,6 +495,9 @@ func IsPortAvailable(port int, portRange_ string) bool {
 // Init the service form the file.
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
 	path = strings.ReplaceAll(path, "\\", "/")
+	for isLocked(path) {
+		time.Sleep(5 * time.Millisecond)
+	}
 	config, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -537,7 +540,8 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			// Now the exec path.
 			if s["Path"] != nil {
 				if !Utility.Exists(s["Path"].(string)) {
-					s["Path"] = path[0:strings.LastIndex(path, "/")+1] + s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/"):]
+					name := s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/")+1:]
+					serviceDir += s["PublisherId"].(string) + "/" + name + "/" + s["Version"].(string)
 				}
 			}
 
@@ -610,6 +614,52 @@ var (
 	isInit bool
 )
 
+func isLocked(path string) bool {
+	lock := strings.Replace(path, "json", "lock", -1)
+	isLock := Utility.Exists(lock)
+	if isLock {
+		fmt.Println("file " + path + " is lock")
+	}
+	return Utility.Exists(lock)
+}
+
+func lock(path string) bool {
+	lock := strings.Replace(path, "json", "lock", -1)
+	err := Utility.WriteStringToFile(lock, "")
+	if err == nil {
+		return true
+	}
+	return false
+}
+
+func unlock(path string) bool {
+	lock := strings.Replace(path, "json", "lock", -1)
+
+	for Utility.Exists(lock) {
+		time.Sleep(10 * time.Millisecond)
+		os.Remove(lock)
+	}
+
+	return true
+}
+
+// Remove all file lock.
+func removeAllLocks() {
+	locks, err := Utility.FindFileByName(GetServicesConfigDir(), "config.lock")
+	if err == nil {
+		for i := 0; i < len(locks); i++ {
+			os.Remove(locks[i])
+		}
+	}
+
+	locks, err = Utility.FindFileByName(GetConfigDir(), "config.lock")
+	if err == nil {
+		for i := 0; i < len(locks); i++ {
+			os.Remove(locks[i])
+		}
+	}
+}
+
 /**
  * Read all existing configuration and keep it in memory...
  */
@@ -617,6 +667,9 @@ func initConfig() {
 	if isInit {
 		return
 	}
+
+	// get sure all files are unlock
+	removeAllLocks()
 
 	// Create communication channels...
 	isInit = true
@@ -657,8 +710,7 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 	s := services[index]
 	path := s["ConfigPath"].(string)
 	info, _ := os.Stat(path)
-	info.ModTime().Unix()
-	if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
+	if Utility.ToInt(s["ModTime"]) <= Utility.ToInt(info.ModTime().Unix()) {
 		serviceDir := GetServicesConfigDir()
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 		s_, err := initServiceConfiguration(path, serviceDir)
@@ -681,7 +733,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 			s := infos["service_config"].(map[string]interface{})
 			path := s["ConfigPath"].(string)
-
 			return_chan := infos["return"].(chan error)
 
 			// Save it config...
@@ -692,8 +743,12 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			} else if len(jsonStr) == 0 {
 				return_chan <- errors.New("no configuration to save")
 			} else {
-
+				for isLocked(path) {
+					time.Sleep(5 * time.Millisecond)
+				}
+				lock(path) // lock the file access
 				err := os.WriteFile(path, []byte(jsonStr), 0644)
+				unlock(path) // unlock the file access
 				if err != nil {
 					fmt.Println("682 fail to save service configuration.", err)
 					infos["return"].(chan error) <- err

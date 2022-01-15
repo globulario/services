@@ -181,7 +181,6 @@ func TestValidateAction(t *testing.T) {
 }
 
 func TestRemoveAccountRole(t *testing.T) {
-	log.Println("---> Remove account Role ")
 	err := client.RemoveAccountRole("dave", "db_user")
 	if err != nil {
 		log.Println("---> ", err)

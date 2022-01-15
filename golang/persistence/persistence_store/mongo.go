@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -86,7 +85,7 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 	}
 
 	store.clients[connectionId] = client
-	log.Println("connection is made ", connectionId)
+	fmt.Println("connection is made ", connectionId)
 	return nil
 }
 
@@ -650,15 +649,22 @@ func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, ro
 
 /** Stop mongod process **/
 func (store *MongoStore) stopMongod() error {
+	pids, err := Utility.GetProcessIdsByName("mongod")
+	if err == nil {
+		if len(pids) == 0 {
+			return nil
+		}
+	}else{
+		return nil
+	}
+
 	closeCmd := exec.Command("mongo", "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
-	err := closeCmd.Run()
-	time.Sleep(1 * time.Second)
-	return err
+	return closeCmd.Run()
 }
 
-/** Create the super administrator in the db. **/
+/** Create the super administrator in the db. not the sa globular account!!! **/
 func (store *MongoStore) registerSa() error {
-	log.Println("register sa connection")
+
 	// Here I will test if mongo db exist on the store.
 	existMongo := exec.Command("mongod", "--version")
 	err := existMongo.Run()
@@ -670,11 +676,15 @@ func (store *MongoStore) registerSa() error {
 	dataPath := store.DataPath + "/mongodb-data"
 
 	if !Utility.Exists(dataPath) {
+
 		// Kill mongo db store if the process already run...
-		store.stopMongod()
+		err := store.stopMongod()
+		if err != nil {
+			return err
+		}
 
 		// Here I will create the directory
-		err := os.MkdirAll(dataPath, os.ModeDir)
+		err = os.MkdirAll(dataPath, os.ModeDir)
 		if err != nil {
 			return err
 		}
@@ -700,6 +710,8 @@ func (store *MongoStore) registerSa() error {
 			os.RemoveAll(dataPath)
 			return err
 		}
+
+
 		store.stopMongod()
 	}
 
@@ -740,14 +752,14 @@ func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
 	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
 	script := exec.Command("mongo", args...)
 	err := script.Run()
-	log.Println("Try to start mongoDB with command: mongo -u " + store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
+	fmt.Println("Try to start mongoDB with command: mongo -u " + store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
 	if err != nil {
 		if timeout == 0 {
 			return errors.New("mongod is not responding")
 		}
 		// call again.
 		timeout -= 1
-		log.Println("wait for mongdb ", timeout)
+		fmt.Println("wait for mongdb ", timeout)
 		return store.waitForMongo(timeout, withAuth)
 	}
 	// call again.
@@ -755,7 +767,7 @@ func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
 	if pids != nil {
 		if len(pids) == 0 {
 			timeout -= 1
-			log.Println("wait for mongdb ", timeout)
+			fmt.Println("wait for mongdb ", timeout)
 		}
 	}
 

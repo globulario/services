@@ -5,10 +5,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"io/ioutil"
-	"log"
-
-	//"log"
 	"reflect"
 	"strings"
 
@@ -106,18 +104,31 @@ func InitClient(client Client, address string, id string) error {
 
 	var config_ map[string]interface{}
 	var err error
-	var port int
 
-	domain := address
-	values := strings.Split(address, ":")
-	if len(values) == 2 {
-		domain = values[0]
-		port = Utility.ToInt(values[1])
+	// Here the address must contain the port where the configuration can be found on the 
+	// http server. If not given thas mean if it's local (on the same domain) I will retreive
+	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
+	address_, _ := config.GetAddress()
+	if !strings.Contains(address, ":") {
+		localConfig, _ := config.GetLocalConfig(true)
+		if strings.HasPrefix(address_, address) {
+			// this is local
+			if localConfig["Protocol"].(string) == "https" {
+				address += ":" + Utility.ToString(localConfig["PortHttps"])
+			} else {
+				address += ":" + Utility.ToString(localConfig["PortHttp"])
+			}
+		} else {
+			// this is not local...
+			address += ":80"
+		}
 	}
 
-	address_, _ := config.GetAddress()
+	values := strings.Split(address, ":")
+	domain := values[0]
+	port := Utility.ToInt(values[1])
+
 	isLocal := address_ == address
-	isLocal = true
 
 	if isLocal {
 		// Local client configuration
@@ -126,7 +137,7 @@ func InitClient(client Client, address string, id string) error {
 		// Remote client configuration
 		config_, err = config.GetRemoteConfig(domain, port, id)
 	}
-
+	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
 		return err
 	}
@@ -175,7 +186,7 @@ func InitClient(client Client, address string, id string) error {
 			client.SetKeyFile(keyFile)
 			client.SetCertFile(certificateFile)
 			client.SetCaFile(config_["CertAuthorityTrust"].(string))
-			
+
 		} else {
 
 			// The address is not the local address so I want to get remote configuration value.
@@ -215,14 +226,14 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			// Setup the login/pass simple test...
 			if len(client.GetKeyFile()) == 0 {
 				err := errors.New("no key file is available for client ")
-				log.Println(err)
+				fmt.Println(err)
 				return nil, err
 			}
 
 			certFile := client.GetCertFile()
 			if len(certFile) == 0 {
 				err = errors.New("no certificate file is available for client")
-				log.Println(err)
+				fmt.Println(err)
 				return nil, errors.New("no certificate file is available for client")
 			}
 
@@ -232,21 +243,21 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			if err != nil {
 				return nil, err
 			}
-			log.Println("190 Get cert file")
+
 			// Create a certificate pool from the certificate authority
 			certPool := x509.NewCertPool()
 
 			ca, err := ioutil.ReadFile(client.GetCaFile())
 			if err != nil {
 				err = errors.New("fail to read ca certificate")
-				log.Println(err)
+				fmt.Println(err)
 				return nil, err
 			}
 
 			// Append the certificates from the CA
 			if ok := certPool.AppendCertsFromPEM(ca); !ok {
 				err = errors.New("failed to append ca certs")
-				log.Println(err)
+				fmt.Println(err)
 				return nil, err
 			}
 
@@ -260,7 +271,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			// Create a connection with the TLS credentials
 			cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds))
 			if err != nil {
-				log.Println("fail to dial address ", err)
+				fmt.Println("fail to dial address ", err)
 				return nil, err
 			}
 		} else {
@@ -285,7 +296,7 @@ func GetClientContext(client Client) context.Context {
 	// if the address is local.
 	err := Utility.CreateDirIfNotExist(tokensPath)
 	if err != nil {
-		log.Panicln("fail to create token dir ", tokensPath)
+		fmt.Println("fail to create token dir ", tokensPath)
 	}
 
 	// Get the last valid token if it exist

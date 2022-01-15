@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/signal"
 	"time"
-
 	"errors"
 	"runtime"
 
@@ -241,6 +240,7 @@ func InitService(s Service) error {
 	// here the service is runing...
 	s.SetState("running")
 
+	fmt.Println("Start service name: ", s.GetName() + ":" + s.GetId())
 	return SaveService(s)
 }
 
@@ -315,18 +315,17 @@ func CreateServicePackage(s Service, distPath string, platform string) (string, 
 	// write the .tar.gzip
 	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	defer fileToWrite.Close()
 
 	if _, err := io.Copy(fileToWrite, &buf); err != nil {
-		panic(err)
+		return "", err
 	}
 
 	// Remove the dir when the archive is created.
 	err = os.RemoveAll(path)
-
 	if err != nil {
 		return "", err
 	}
@@ -423,7 +422,7 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 }
 
 func StartService(s Service, server *grpc.Server) error {
-
+	
 	// First of all I will creat a listener.
 	// Create the channel to listen on
 	lis, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
@@ -435,14 +434,12 @@ func StartService(s Service, server *grpc.Server) error {
 
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
-
 		// no web-rpc server.
-		fmt.Println("service name: " + s.GetName() + " id:" + s.GetId() + " started")
+		//fmt.Println("service name: " + s.GetName() + " id:" + s.GetId() + " started")
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
 			return
 		}
-
 	}()
 
 	// Wait for signal to stop.
@@ -450,6 +447,7 @@ func StartService(s Service, server *grpc.Server) error {
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 
+	fmt.Println("stop service name: ", s.GetName() + ":" + s.GetId())
 	server.Stop() // I kill it but not softly...
 
 	s.SetState("stopped")

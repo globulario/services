@@ -760,5 +760,4 @@ func main() {
 
 	// Exit loop...
 	s_impl.exit_ <- true
-
 }

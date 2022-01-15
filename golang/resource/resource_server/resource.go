@@ -1041,12 +1041,11 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 		if err != nil {
 			return err
 		}
-
-		err = resource_server.createApplicationConnection(app)
-		if err != nil {
-			return err
-		}
-
+		
+		// give time to mongodb...
+		// create ressour ce application...
+		defer resource_server.createApplicationConnection(app)
+		
 	} else {
 		actions_, _ := Utility.ToJson(app.Actions)
 		keywords_, _ := Utility.ToJson(app.Keywords)

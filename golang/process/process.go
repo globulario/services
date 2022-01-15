@@ -116,11 +116,7 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 
 	if !Utility.Exists(s["Path"].(string)) {
 		log.Println("No service found at path ", s["Path"].(string))
-		// In that case I will try to
-		if s["ConfigPath"] != nil {
-			s["ConfigPath"] = strings.ReplaceAll(s["ConfigPath"].(string), "\\", "/")
-			s["Path"] = s["ConfigPath"].(string)[0:strings.LastIndex(s["ConfigPath"].(string), "/")] + s["Path"].(string)
-		}
+		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
 
 	err = os.Chmod(s["Path"].(string), 0755)
@@ -156,13 +152,11 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 	s["ProxyProcess"] = -1
 	s["Process"] = -1
 
-
 	// save the port and ProxyProcess
 	err = config_client.SaveServiceConfiguration(s)
 	if err != nil {
 		return -1, err
 	}
-
 
 	// Set the process dir.
 	p.Dir = s["Path"].(string)[0:strings.LastIndex(s["Path"].(string), "/")]
@@ -204,11 +198,20 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 		}
 
 		// give back the process id.
-		waitUntilStart <-  Utility.ToInt(s["Process"])
-		p.Wait()
+		waitUntilStart <- Utility.ToInt(s["Process"])
+		err = p.Wait()
+		// Here I will read the configuration to get more information about the process.
+		if err != nil {
+			s["State"] = "failed"
+		}else{
+			s["State"] = "stopped"
+		}
+		
+		fmt.Println("service", s["Name"], "stop with state", s["State"])
 
 		// be sure the state is not nil and failed.
 		if s["State"] != nil {
+
 			// if the service fail
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
@@ -341,7 +344,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		proxyArgs = append(proxyArgs, "--server_tls_cert_file="+creds+"/"+certificate)
 
 	} else {
-		fmt.Println("-----------------------> has not TLS")
+
 		// Now I will save the file with those new information in it.
 		proxyArgs = append(proxyArgs, "--run_http_server=true")
 		proxyArgs = append(proxyArgs, "--run_tls_server=false")
