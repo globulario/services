@@ -19,15 +19,27 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
     ../GlobularClient/globularclient.cpp \
     ../resource/GlobularResourceClient/globularresourceclient.cpp \
+    ../config/GlobularConfigClient/globular_config_client.cpp \
+    ../rbac/GlobularRbacClient/globular_rbac_client.cpp \
     ../resource/resourcepb/resource.grpc.pb.cc \
     ../resource/resourcepb/resource.pb.cc \
+    ../rbac/rbacpb/rbac.grpc.pb.cc \
+    ../rbac/rbacpb/rbac.pb.cc \
+    ../config/configpb/config.grpc.pb.cc \
+    ../config/configpb/config.pb.cc \
     globularserver.cpp
 
 HEADERS += \
     ../GlobularClient/globularclient.h \
+    ../config/GlobularConfigClient/globular_config_client.h \
+    ../rbac/GlobularRbacClient/globular_rbac_client.h \
     ../resource/GlobularResourceClient/globularresourceclient.h \
     ../resource/resourcepb/resource.grpc.pb.h \
     ../resource/resourcepb/resource.pb.h \
+    ../rbac/rbacpb/rbac.grpc.pb.h \
+    ../rbac/rbacpb/rbac.pb.h \
+    ../config/configpb/rbac.grpc.pb.h \
+    ../config/configpb/config.pb.h \
     globularserver.h \
     json.hpp
 

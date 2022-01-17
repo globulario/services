@@ -11,49 +11,12 @@
 #include "../json.hpp"
 #include <fstream>
 #include <filesystem>
-
+#include "../config.hpp"
 
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::Status;
-
-std::string replaceAll(std::string str, const std::string& from, const std::string& to) {
-    size_t start_pos = 0;
-    while((start_pos = str.find(from, start_pos)) != std::string::npos) {
-        str.replace(start_pos, from.length(), to);
-        start_pos += to.length(); // Handles case where 'to' is a substring of 'from'
-    }
-    return str;
-}
-
-
-#ifdef WIN32
-#include <windows.h>
-std::string getexepath()
-{
-    char result[MAX_PATH];
-    return std::string(result, GetModuleFileNameA(NULL, result, MAX_PATH));
-}
-
-void sleep(unsigned milliseconds)
-{
-    Sleep(milliseconds);
-}
-
-#else
-#include <limits.h>
-#include <unistd.h>
-#include <linux/limits.h>
-
-std::string getexepath()
-{
-    char result[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-    return std::string(result, (count > 0) ? count : 0);
-}
-
-#endif // WIN32
 
 Globular::GlobularService::GlobularService(std::string id,
                                            std::string name,
@@ -79,33 +42,17 @@ Globular::GlobularService::GlobularService(std::string id,
     version(version),
     tls(tls),
     keep_alive(keep_alive),
-    keep_up_to_date(keep_up_to_date)
+    keep_up_to_date(keep_up_to_date),
+    process(-1),
+    proxyProcess(-1)
 {
 
     // first of all I will try to open the configuration from the file.
-    std::ifstream inFile;
-    std::string execPath = getexepath();
-    std::cout << " 88 exec path " << execPath;
-#ifdef WIN32
-    std::size_t lastIndex = execPath.find_last_of("/\\");
-    std::cout<<"globularserver.cpp 91" <<std::endl;
-    this->root = execPath.substr(0, lastIndex);
-    std::string configPath = this->root  + "\\config.json";
-#else
-    std::size_t lastIndex = execPath.find_last_of("/");
-    std::cout<<"globularserver.cpp 96" <<std::endl;
-    this->root = execPath.substr(0, lastIndex);
-    std::string configPath =this->root  + "/config.json";
-#endif
+    this->root = getRootDir();
+    std::string jsonStr = getServiceConfig(id, domain);
 
-    inFile.open(configPath); //open the input file
+    if (!jsonStr.empty()) {
 
-    if (inFile.good()) {
-
-        std::stringstream strStream;
-        strStream << inFile.rdbuf(); //read the file
-        std::string jsonStr = strStream.str(); //str holds the content of the file
-        std::cout << "Load configuration file " << configPath << std::endl;
         // Parse the json file.
         auto j = nlohmann::json::parse(jsonStr);
 
@@ -126,20 +73,32 @@ Globular::GlobularService::GlobularService(std::string id,
         this->proto = j["Proto"];
         this->tls = j["TLS"];
         this->protocol = j["Protocol"];
+        // this->mac = j["Mac"];
 
         // can be a list of string
         this->allowed_origins = j["AllowedOrigins"];
-    }else {
-        // Set the application path.
-        this->path = replaceAll(getexepath(), "\\", "/");
-        this->save();
+    }else{
+        // Here the configuration does not exist...
+
     }
+    // Set the application path.
+    this->path = getexepath();
+    // set the state to running.
+    this->state = "running";
+
+#ifdef _WIN32
+    this->process = GetCurrentProcessId();
+#else
+    this->process =  ::getpid();
+#endif
+
+    this->save();
 }
 
 void
 read ( const std::string& filename, std::string& data )
 {
-        std::ifstream file ( filename.c_str (), std::ios::in );
+    std::ifstream file ( filename.c_str (), std::ios::in );
 
     if ( file.is_open () )
     {
@@ -153,8 +112,6 @@ read ( const std::string& filename, std::string& data )
 
     return;
 }
-
-
 
 void Globular::GlobularService::save() {
     nlohmann::json j;
@@ -176,15 +133,13 @@ void Globular::GlobularService::save() {
     j["Proxy"] = this->proxy;
     j["TLS"] = this->tls;
     j["Path"] = this->path;
-
-#ifdef WIN32
-    std::string configPath = this->root + "\\config.json";
-#else
-    std::string configPath = this->root + "/config.json";
-#endif
+    j["State"] = this->state;
+    j["LastError"] = this->lastError;
+    j["Process"] = this->process;
+    j["ProxyProcess"] = this->proxyProcess;
 
     std::ofstream file;
-    file.open(configPath);
+    file.open(getConfigPath());
     file << j.dump();
     file.close();
 }
@@ -248,4 +203,9 @@ void Globular::GlobularService::run(Service* s) {
     // Wait for the server to shutdown. Note that some other thread must be
     // responsible for shutting down the server for this call to ever return.
     server->Wait();
+
+    // So here I will set back configuration values...
+    this->state = "stopped";
+    this->process = -1;
+    this->save();
 }

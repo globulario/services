@@ -247,6 +247,8 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 		stdout.Close()
 		done <- true
 
+		s["Process"] = -1
+
 		// kill it proxy process
 		proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
 		if proxyProcessPid != -1 {
@@ -256,6 +258,9 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 				s["ProxyProcess"] = -1
 			}
 		}
+
+		config_client.SaveServiceConfiguration(s)
+
 
 	}(s["Id"].(string))
 
@@ -290,6 +295,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	// Get the service configuration with a given id.
 	s, err := config_client.GetServiceConfigurationById(serviceId)
 	if err != nil {
+		log.Println("fail to retreive configuration for service ", serviceId, " err ", err)
 		return -1, err
 	}
 

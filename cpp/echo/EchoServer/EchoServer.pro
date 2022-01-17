@@ -7,6 +7,10 @@ CONFIG += c++17
 SOURCES += \
         ../../GlobularClient/globularclient.cpp \
         ../../GlobularServer/globularserver.cpp \
+        ../../config.cc \
+        ../../config/GlobularConfigClient/globular_config_client.cpp \
+        ../../config/configpb/config.grpc.pb.cc \
+        ../../config/configpb/config.pb.cc \
         ../../resource/GlobularResourceClient/globularresourceclient.cpp \
         ../../resource/resourcepb/resource.grpc.pb.cc \
         ../../resource/resourcepb/resource.pb.cc \
@@ -18,14 +22,18 @@ SOURCES += \
 HEADERS += \
     ../../GlobularClient/globularclient.h \
     ../../GlobularServer/globularserver.h \
-    ../../resource/GlobularresourceClient/globularresourceclient.h \
+    ../../config.h \
+    ../../config/GlobularConfigClient/globular_config_client.h \
+    ../../config/configpb/config.grpc.pb.h \
+    ../../config/configpb/config.pb.h \
+    ../../resource/GlobularResourceClient/globularresourceclient.h \
     ../../resource/resourcepb/resource.grpc.pb.h \
     ../../resource/resourcepb/resource.pb.h \
     ../echopb/echo.grpc.pb.h \
     ../echopb/echo.pb.h \
     echoserviceimpl.h
 
-INCLUDEPATH +=  ../../ ../../resource ../echopb ../../GlobularServer ../../GlobularClient ../../resource/GlobularResourceClient ../../resource/resourcepb
+INCLUDEPATH +=  ../../ ../../resource ../echopb ../../GlobularServer ../../GlobularClient ../../resource/GlobularResourceClient ../../resource/resourcepb ../config/GlobularConfigClient ../../config/configpb ../../config
 
 #here I will make use of pkg-config to get the list of dependencie of each libraries.
 unix: LIBS += `pkg-config --libs grpc++ protobuf`

@@ -17,14 +17,15 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    globularresourceclient.cpp \
-    resource/resource.grpc.pb.cc \
-    resource/resource.pb.cc
+    ../resourcepb/resource.grpc.pb.cc \
+    ../resourcepb/resource.pb.cc \
+    globularresourceclient.cpp
+
 
 HEADERS += \
-    globularresourceclient.h \
-    resource/resource.grpc.pb.h \
-    resource/resource.pb.h
+    ../resourcepb/resource.grpc.pb.h \
+    ../resourcepb/resource.pb.h \
+    globularresourceclient.h
 
 # Default rules for deployment.
 unix {

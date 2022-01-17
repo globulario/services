@@ -11,9 +11,9 @@
 
 //  https://github.com/nlohmann/json
 #include "HTTPRequest.hpp"
-
-#include "json.hpp"
-#include "Base64.h"
+#include "../config.hpp"
+#include "../json.hpp"
+#include "../Base64.h"
 #include <grpc/grpc.h>
 #include <grpcpp/channel.h>
 #include <grpcpp/create_channel.h>
@@ -74,8 +74,6 @@ std::string getPathName(const std::string& s) {
 #ifdef WIN32
     sep = '\\';
 #endif
-    std::cout<<"globularclient.cpp 77" <<std::endl;
-
     size_t i = s.rfind(sep, s.length());
     if (i != std::string::npos) {
         return(s.substr(0, i));
@@ -86,12 +84,9 @@ std::string getPathName(const std::string& s) {
 Globular::Client::Client(std::string name, std::string domain, unsigned int configurationPort=80)
 {
     this->config = new Globular::ServiceConfig();
-    this->config->Name = name;
-    this->config->Domain = domain;
 
     // init internal values.
-    this->init(configurationPort);
-    std::cout << "Domain config port " << configurationPort << std::endl;
+    this->initClient(name, domain, configurationPort);
     std::stringstream ss;
     ss << this->config->Domain << ":" << this->config->Port;
 
@@ -104,7 +99,6 @@ Globular::Client::Client(std::string name, std::string domain, unsigned int conf
             readAllText( this->config->CertFile)
         };
         std::cout << "try to open channel with address " << ss.str() << std::endl;
-
         this->channel = grpc::CreateChannel(ss.str(), grpc::SslCredentials ( opts ) );
 
     }else{
@@ -118,95 +112,65 @@ Globular::Client::Client(std::string name, std::string domain, unsigned int conf
 
 }
 
-void Globular::Client::init(unsigned int configurationPort=80){
+void Globular::Client::initClient(std::string name, std::string domain, unsigned int port){
 
-    // Initialyse client stuff here.
-    this->initServiceConfig(configurationPort);
+    this->config->Domain = domain;
+    this->config->Address = domain + ":" + std::to_string(port);
+    std::string jsonStr = this->getServiceConfig(name, domain, port);
 
-}
-
-void Globular::Client::initServiceConfig(unsigned int configurationPort=80){
-
-    std::stringstream ss;
-    std::ifstream t("config.json");
-    std::string jsonStr((std::istreambuf_iterator<char>(t)),std::istreambuf_iterator<char>());
-    //std::string jsonStr = ss.str();
-    size_t index = jsonStr.find_first_of("{");
-    jsonStr = jsonStr.substr(index, jsonStr.length() - index);
     auto j = nlohmann::json::parse(jsonStr);
+    this->config->Id = j["Id"].get<std::string>();
+    this->config->Name = j["Name"].get<std::string>();
+    this->config->Domain = j["Domain"].get<std::string>();
+    this->config->Description =j["Description"].get<std::string>();
+    this->config->Port = j["Port"].get<unsigned int>();
+    this->config->Proxy = j["Proxy"].get<unsigned int>();
+    this->config->TLS= j["TLS"].get<bool>();
 
-    // Now I will initialyse the value from the configuration file.
-    auto services = j["Services"];
+    if(this->config->TLS){
+        // The service is secure.
+        if(this->config->Domain == getLocalDomain()){
 
-    //
-    for (auto it = services.begin(); it != services.end(); ++it)
-    {
-        if(it.key() == this->config->Name || (*it)["Id"].get<std::string>() == this->config->Name){
+            // TODO make correction here the CertFile and KeyFile are the one of the server not the client.
+            this->config->CertAuthorityTrust = j["CertAuthorityTrust"].get<std::string>();
+            this->config->CertFile =  replaceAll(j["CertFile"].get<std::string>(), "server", "client");
+            this->config->KeyFile =  replaceAll(j["KeyFile"].get<std::string>(), "server", "client");
 
-            this->config->Id = (*it)["Id"].get<std::string>();
-            this->config->Name = (*it)["Name"].get<std::string>();
-            this->config->Domain = (*it)["Domain"].get<std::string>();
-            this->config->Description = (*it)["Domain"].get<std::string>();
-            this->config->Port = (*it)["Port"].get<unsigned int>();
-            this->config->Proxy = (*it)["Proxy"].get<unsigned int>();
-            this->config->TLS= (*it)["TLS"].get<bool>();
+        }else{
 
-            if(this->config->TLS){
-                // The service is secure.
-                std::stringstream ss;
-                ss << getTempDir() <<   "/" << this->config->Domain + "_token";
-                auto path = ss.str();
-                std::cout << "read: " << path << std::endl;
-                if(exists(path)){
-                    // TODO make correction here the CertFile and KeyFile are the one of the server not the client.
-                    this->config->CertAuthorityTrust =  (*it)["CertAuthorityTrust"].get<std::string>();
-                    std::string path = getPathName(this->config->CertAuthorityTrust);
+            auto path =  getLocalConfigPath() + "/tls/" + this->config->Domain;
 
-                    this->config->CertFile =  path + "/client.crt";
-                    this->config->KeyFile =   path + "/client.pem";;
-
-                    std::cout << this->config->KeyFile << std::endl;
-                    std::cout << this->config->CertFile << std::endl;
-                    std::cout << this->config->CertAuthorityTrust << std::endl;
-                }else{
-                    ss.flush();
-                    ss << getTempDir() <<   "/config/tls/" << this->config->Domain;
-                    auto path = ss.str();
-                    // Here I will create a directory named
-                    if(!exists(path)){
-                        createDir(path);
-                    }
-
-                    // I will create a certificate request and make it sign by the server.
-                    auto ca_crt = this->getCaCertificate(this->config->Domain, configurationPort);
-                    writeAllText(path + "/ca.crt", ca_crt);
-
-                    // The password must be store in the client configuration...
-                    auto pwd = "1111";
-
-                    // Now I will generate the certificate for the client...
-                    // Step 1: Generate client private key.
-                    this->generateClientPrivateKey(path, pwd);
-
-                    // Step 2: Generate the client signing request.
-                    this->generateClientCertificateSigningRequest(path, this->config->Domain);
-
-
-                    // Step 3: Generate client signed certificate.
-                    auto client_csr = readAllText(path + "/client.csr");
-                    auto client_crt = this->signCaCertificate(this->config->Domain, configurationPort, client_csr);
-                    writeAllText(path + "/client.crt", client_crt);
-
-                    // Step 4: Convert client.key to pem file.
-                    this->keyToPem("client", path, pwd);
-
-                    // Set path in the config.
-                    this->config->KeyFile= path + "/client.key";
-                    this->config->CertAuthorityTrust  = path + "/ca.crt";
-                    this->config->CertFile  = path + "/client.crt";
-                }
+            // Here I will create a directory named
+            if(!exists(path)){
+                createDir(path);
             }
-            break; // exit the loop
+
+            // I will create a certificate request and make it sign by the server.
+            auto ca_crt = this->getCaCertificate(this->config->Domain, getHttpPort());
+            writeAllText(path + "/ca.crt", ca_crt);
+
+            // The password must be store in the client configuration...
+            auto pwd = "1111";
+
+            // Now I will generate the certificate for the client...
+            // Step 1: Generate client private key.
+            this->generateClientPrivateKey(path, pwd);
+
+            // Step 2: Generate the client signing request.
+            this->generateClientCertificateSigningRequest(path, this->config->Domain);
+
+            // Step 3: Generate client signed certificate.
+            auto client_csr = readAllText(path + "/client.csr");
+            auto client_crt = this->signCaCertificate(this->config->Domain, getHttpPort(), client_csr);
+            writeAllText(path + "/client.crt", client_crt);
+
+            // Step 4: Convert client.key to pem file.
+            this->keyToPem("client", path, pwd);
+
+            // Set path in the config.
+            this->config->KeyFile= path + "/client.key";
+            this->config->CertAuthorityTrust  = path + "/ca.crt";
+            this->config->CertFile  = path + "/client.crt";
         }
     }
 }
@@ -311,9 +275,21 @@ std::string exec(const char* cmd) {
     return result;
 }
 */
+
+// Made use of http/https to retreive service configuration on the network.
+std::string Globular::Client::getServiceConfig(std::string serviceId, std::string domain, unsigned int configurationPort){
+    std::stringstream ss;
+    ss << "http://" << domain << ":" << getHttpPort() << "/config?id=" + serviceId;
+    std::cout << ss.str() << std::endl;
+    http::Request request(ss.str());
+    const http::Response response = request.send("GET");
+    ss.flush();
+    return std::string(response.body.begin(), response.body.end());
+}
+
 std::string Globular::Client::getCaCertificate(std::string domain, unsigned int configurationPort){
     std::stringstream ss;
-    ss << "http://" << domain << ":" << configurationPort << "/get_ca_certificate";
+    ss << getLocalProtocol() << "://" << domain << ":" << configurationPort << "/get_ca_certificate";
     http::Request request(ss.str());
     const http::Response response = request.send("GET");
     ss.flush();
@@ -324,7 +300,7 @@ std::string Globular::Client::getCaCertificate(std::string domain, unsigned int 
 std::string Globular::Client::signCaCertificate(std::string domain, unsigned int configurationPort, std::string csr){
     std::stringstream ss;
     std::string csr_str = macaron::Base64::Encode(csr);
-    ss << "http://" << domain << ":" << configurationPort << "/sign_ca_certificate?=" + csr_str;
+    ss << getLocalProtocol() << "://" << domain << ":" << configurationPort << "/sign_ca_certificate?csr=" + csr_str;
     http::Request request(ss.str());
     const http::Response response = request.send("GET");
     ss.flush();

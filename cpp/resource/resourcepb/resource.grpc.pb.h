@@ -429,7 +429,7 @@ class ResourceService final {
     // Peer's
     // //////////////////////////////////////////////////////////////////////////
     //
-    // * Register a peer on the network *
+    // * Register a peer *
     virtual ::grpc::Status RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst& request, ::resource::RegisterPeerRsp* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RegisterPeerRsp>> AsyncRegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RegisterPeerRsp>>(AsyncRegisterPeerRaw(context, request, cq));
@@ -446,6 +446,14 @@ class ResourceService final {
     }
     std::unique_ptr< ::grpc::ClientAsyncReaderInterface< ::resource::GetPeersRsp>> PrepareAsyncGetPeers(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncReaderInterface< ::resource::GetPeersRsp>>(PrepareAsyncGetPeersRaw(context, request, cq));
+    }
+    // * Return the state of a peer into another peer. *
+    virtual ::grpc::Status GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::resource::GetPeerApprovalStateRsp* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerApprovalStateRsp>> AsyncGetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerApprovalStateRsp>>(AsyncGetPeerApprovalStateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerApprovalStateRsp>> PrepareAsyncGetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerApprovalStateRsp>>(PrepareAsyncGetPeerApprovalStateRaw(context, request, cq));
     }
     // * Remove a peer from the network *
     virtual ::grpc::Status DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::resource::DeletePeerRsp* response) = 0;
@@ -496,6 +504,14 @@ class ResourceService final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RejectPeerRsp>> PrepareAsyncRejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::RejectPeerRsp>>(PrepareAsyncRejectPeerRaw(context, request, cq));
+    }
+    // * Return the public key of a peer. 
+    virtual ::grpc::Status GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::resource::GetPeerPublicKeyRsp* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerPublicKeyRsp>> AsyncGetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerPublicKeyRsp>>(AsyncGetPeerPublicKeyRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerPublicKeyRsp>> PrepareAsyncGetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerPublicKeyRsp>>(PrepareAsyncGetPeerPublicKeyRaw(context, request, cq));
     }
     // //////////////////////////////////////////////////////////////////////////
     // Notification's
@@ -967,7 +983,7 @@ class ResourceService final {
       // Peer's
       // //////////////////////////////////////////////////////////////////////////
       //
-      // * Register a peer on the network *
+      // * Register a peer *
       virtual void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void RegisterPeer(::grpc::ClientContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
@@ -979,6 +995,13 @@ class ResourceService final {
       virtual void GetPeers(::grpc::ClientContext* context, ::resource::GetPeersRqst* request, ::grpc::ClientReadReactor< ::resource::GetPeersRsp>* reactor) = 0;
       #else
       virtual void GetPeers(::grpc::ClientContext* context, ::resource::GetPeersRqst* request, ::grpc::experimental::ClientReadReactor< ::resource::GetPeersRsp>* reactor) = 0;
+      #endif
+      // * Return the state of a peer into another peer. *
+      virtual void GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, std::function<void(::grpc::Status)>) = 0;
+      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      virtual void GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      #else
+      virtual void GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // * Remove a peer from the network *
       virtual void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, std::function<void(::grpc::Status)>) = 0;
@@ -1023,6 +1046,13 @@ class ResourceService final {
       virtual void RejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       #else
       virtual void RejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
+      #endif
+      // * Return the public key of a peer. 
+      virtual void GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, std::function<void(::grpc::Status)>) = 0;
+      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      virtual void GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      #else
+      virtual void GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
       // //////////////////////////////////////////////////////////////////////////
       // Notification's
@@ -1250,6 +1280,8 @@ class ResourceService final {
     virtual ::grpc::ClientReaderInterface< ::resource::GetPeersRsp>* GetPeersRaw(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request) = 0;
     virtual ::grpc::ClientAsyncReaderInterface< ::resource::GetPeersRsp>* AsyncGetPeersRaw(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request, ::grpc::CompletionQueue* cq, void* tag) = 0;
     virtual ::grpc::ClientAsyncReaderInterface< ::resource::GetPeersRsp>* PrepareAsyncGetPeersRaw(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerApprovalStateRsp>* AsyncGetPeerApprovalStateRaw(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerApprovalStateRsp>* PrepareAsyncGetPeerApprovalStateRaw(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeletePeerRsp>* AsyncDeletePeerRaw(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::DeletePeerRsp>* PrepareAsyncDeletePeerRaw(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::AddPeerActionsRsp>* AsyncAddPeerActionsRaw(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst& request, ::grpc::CompletionQueue* cq) = 0;
@@ -1262,6 +1294,8 @@ class ResourceService final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::AcceptPeerRsp>* PrepareAsyncAcceptPeerRaw(::grpc::ClientContext* context, const ::resource::AcceptPeerRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::RejectPeerRsp>* AsyncRejectPeerRaw(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::RejectPeerRsp>* PrepareAsyncRejectPeerRaw(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerPublicKeyRsp>* AsyncGetPeerPublicKeyRaw(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::GetPeerPublicKeyRsp>* PrepareAsyncGetPeerPublicKeyRaw(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::CreateNotificationRsp>* AsyncCreateNotificationRaw(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::resource::CreateNotificationRsp>* PrepareAsyncCreateNotificationRaw(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientReaderInterface< ::resource::GetNotificationsRsp>* GetNotificationsRaw(::grpc::ClientContext* context, const ::resource::GetNotificationsRqst& request) = 0;
@@ -1632,6 +1666,13 @@ class ResourceService final {
     std::unique_ptr< ::grpc::ClientAsyncReader< ::resource::GetPeersRsp>> PrepareAsyncGetPeers(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncReader< ::resource::GetPeersRsp>>(PrepareAsyncGetPeersRaw(context, request, cq));
     }
+    ::grpc::Status GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::resource::GetPeerApprovalStateRsp* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>> AsyncGetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>>(AsyncGetPeerApprovalStateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>> PrepareAsyncGetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>>(PrepareAsyncGetPeerApprovalStateRaw(context, request, cq));
+    }
     ::grpc::Status DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::resource::DeletePeerRsp* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::DeletePeerRsp>> AsyncDeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::DeletePeerRsp>>(AsyncDeletePeerRaw(context, request, cq));
@@ -1673,6 +1714,13 @@ class ResourceService final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::RejectPeerRsp>> PrepareAsyncRejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::RejectPeerRsp>>(PrepareAsyncRejectPeerRaw(context, request, cq));
+    }
+    ::grpc::Status GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::resource::GetPeerPublicKeyRsp* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>> AsyncGetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>>(AsyncGetPeerPublicKeyRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>> PrepareAsyncGetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>>(PrepareAsyncGetPeerPublicKeyRaw(context, request, cq));
     }
     ::grpc::Status CreateNotification(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst& request, ::resource::CreateNotificationRsp* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::resource::CreateNotificationRsp>> AsyncCreateNotification(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst& request, ::grpc::CompletionQueue* cq) {
@@ -2056,6 +2104,12 @@ class ResourceService final {
       #else
       void GetPeers(::grpc::ClientContext* context, ::resource::GetPeersRqst* request, ::grpc::experimental::ClientReadReactor< ::resource::GetPeersRsp>* reactor) override;
       #endif
+      void GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, std::function<void(::grpc::Status)>) override;
+      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      void GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
+      #else
+      void GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
+      #endif
       void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       void DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
@@ -2091,6 +2145,12 @@ class ResourceService final {
       void RejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
       #else
       void RejectPeer(::grpc::ClientContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
+      #endif
+      void GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, std::function<void(::grpc::Status)>) override;
+      #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      void GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, ::grpc::ClientUnaryReactor* reactor) override;
+      #else
+      void GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) override;
       #endif
       void CreateNotification(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst* request, ::resource::CreateNotificationRsp* response, std::function<void(::grpc::Status)>) override;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -2289,6 +2349,8 @@ class ResourceService final {
     ::grpc::ClientReader< ::resource::GetPeersRsp>* GetPeersRaw(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request) override;
     ::grpc::ClientAsyncReader< ::resource::GetPeersRsp>* AsyncGetPeersRaw(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request, ::grpc::CompletionQueue* cq, void* tag) override;
     ::grpc::ClientAsyncReader< ::resource::GetPeersRsp>* PrepareAsyncGetPeersRaw(::grpc::ClientContext* context, const ::resource::GetPeersRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>* AsyncGetPeerApprovalStateRaw(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>* PrepareAsyncGetPeerApprovalStateRaw(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::DeletePeerRsp>* AsyncDeletePeerRaw(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::DeletePeerRsp>* PrepareAsyncDeletePeerRaw(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::AddPeerActionsRsp>* AsyncAddPeerActionsRaw(::grpc::ClientContext* context, const ::resource::AddPeerActionsRqst& request, ::grpc::CompletionQueue* cq) override;
@@ -2301,6 +2363,8 @@ class ResourceService final {
     ::grpc::ClientAsyncResponseReader< ::resource::AcceptPeerRsp>* PrepareAsyncAcceptPeerRaw(::grpc::ClientContext* context, const ::resource::AcceptPeerRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::RejectPeerRsp>* AsyncRejectPeerRaw(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::RejectPeerRsp>* PrepareAsyncRejectPeerRaw(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>* AsyncGetPeerPublicKeyRaw(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>* PrepareAsyncGetPeerPublicKeyRaw(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::CreateNotificationRsp>* AsyncCreateNotificationRaw(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::resource::CreateNotificationRsp>* PrepareAsyncCreateNotificationRaw(::grpc::ClientContext* context, const ::resource::CreateNotificationRqst& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientReader< ::resource::GetNotificationsRsp>* GetNotificationsRaw(::grpc::ClientContext* context, const ::resource::GetNotificationsRqst& request) override;
@@ -2379,12 +2443,14 @@ class ResourceService final {
     const ::grpc::internal::RpcMethod rpcmethod_GetApplicationIcon_;
     const ::grpc::internal::RpcMethod rpcmethod_RegisterPeer_;
     const ::grpc::internal::RpcMethod rpcmethod_GetPeers_;
+    const ::grpc::internal::RpcMethod rpcmethod_GetPeerApprovalState_;
     const ::grpc::internal::RpcMethod rpcmethod_DeletePeer_;
     const ::grpc::internal::RpcMethod rpcmethod_AddPeerActions_;
     const ::grpc::internal::RpcMethod rpcmethod_RemovePeerAction_;
     const ::grpc::internal::RpcMethod rpcmethod_RemovePeersAction_;
     const ::grpc::internal::RpcMethod rpcmethod_AcceptPeer_;
     const ::grpc::internal::RpcMethod rpcmethod_RejectPeer_;
+    const ::grpc::internal::RpcMethod rpcmethod_GetPeerPublicKey_;
     const ::grpc::internal::RpcMethod rpcmethod_CreateNotification_;
     const ::grpc::internal::RpcMethod rpcmethod_GetNotifications_;
     const ::grpc::internal::RpcMethod rpcmethod_DeleteNotification_;
@@ -2519,10 +2585,12 @@ class ResourceService final {
     // Peer's
     // //////////////////////////////////////////////////////////////////////////
     //
-    // * Register a peer on the network *
+    // * Register a peer *
     virtual ::grpc::Status RegisterPeer(::grpc::ServerContext* context, const ::resource::RegisterPeerRqst* request, ::resource::RegisterPeerRsp* response);
     // * Return the list of peers *
     virtual ::grpc::Status GetPeers(::grpc::ServerContext* context, const ::resource::GetPeersRqst* request, ::grpc::ServerWriter< ::resource::GetPeersRsp>* writer);
+    // * Return the state of a peer into another peer. *
+    virtual ::grpc::Status GetPeerApprovalState(::grpc::ServerContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response);
     // * Remove a peer from the network *
     virtual ::grpc::Status DeletePeer(::grpc::ServerContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response);
     // * Add peer actions *
@@ -2537,6 +2605,8 @@ class ResourceService final {
     // I will be imposible to request again and again, util it will be 
     // explicitly removed from the peer's list 
     virtual ::grpc::Status RejectPeer(::grpc::ServerContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response);
+    // * Return the public key of a peer. 
+    virtual ::grpc::Status GetPeerPublicKey(::grpc::ServerContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response);
     // //////////////////////////////////////////////////////////////////////////
     // Notification's
     // //////////////////////////////////////////////////////////////////////////
@@ -3505,12 +3575,32 @@ class ResourceService final {
     }
   };
   template <class BaseClass>
+  class WithAsyncMethod_GetPeerApprovalState : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_GetPeerApprovalState() {
+      ::grpc::Service::MarkMethodAsync(46);
+    }
+    ~WithAsyncMethod_GetPeerApprovalState() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerApprovalState(::grpc::ServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestGetPeerApprovalState(::grpc::ServerContext* context, ::resource::GetPeerApprovalStateRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetPeerApprovalStateRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(46, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithAsyncMethod_DeletePeer : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_DeletePeer() {
-      ::grpc::Service::MarkMethodAsync(46);
+      ::grpc::Service::MarkMethodAsync(47);
     }
     ~WithAsyncMethod_DeletePeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3521,7 +3611,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestDeletePeer(::grpc::ServerContext* context, ::resource::DeletePeerRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::DeletePeerRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(46, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(47, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3530,7 +3620,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_AddPeerActions() {
-      ::grpc::Service::MarkMethodAsync(47);
+      ::grpc::Service::MarkMethodAsync(48);
     }
     ~WithAsyncMethod_AddPeerActions() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3541,7 +3631,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestAddPeerActions(::grpc::ServerContext* context, ::resource::AddPeerActionsRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::AddPeerActionsRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(47, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(48, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3550,7 +3640,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_RemovePeerAction() {
-      ::grpc::Service::MarkMethodAsync(48);
+      ::grpc::Service::MarkMethodAsync(49);
     }
     ~WithAsyncMethod_RemovePeerAction() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3561,7 +3651,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRemovePeerAction(::grpc::ServerContext* context, ::resource::RemovePeerActionRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::RemovePeerActionRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(48, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(49, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3570,7 +3660,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_RemovePeersAction() {
-      ::grpc::Service::MarkMethodAsync(49);
+      ::grpc::Service::MarkMethodAsync(50);
     }
     ~WithAsyncMethod_RemovePeersAction() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3581,7 +3671,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRemovePeersAction(::grpc::ServerContext* context, ::resource::RemovePeersActionRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::RemovePeersActionRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(49, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(50, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3590,7 +3680,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_AcceptPeer() {
-      ::grpc::Service::MarkMethodAsync(50);
+      ::grpc::Service::MarkMethodAsync(51);
     }
     ~WithAsyncMethod_AcceptPeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3601,7 +3691,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestAcceptPeer(::grpc::ServerContext* context, ::resource::AcceptPeerRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::AcceptPeerRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(50, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(51, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3610,7 +3700,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_RejectPeer() {
-      ::grpc::Service::MarkMethodAsync(51);
+      ::grpc::Service::MarkMethodAsync(52);
     }
     ~WithAsyncMethod_RejectPeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3621,7 +3711,27 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRejectPeer(::grpc::ServerContext* context, ::resource::RejectPeerRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::RejectPeerRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(51, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(52, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_GetPeerPublicKey : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_GetPeerPublicKey() {
+      ::grpc::Service::MarkMethodAsync(53);
+    }
+    ~WithAsyncMethod_GetPeerPublicKey() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerPublicKey(::grpc::ServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestGetPeerPublicKey(::grpc::ServerContext* context, ::resource::GetPeerPublicKeyRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetPeerPublicKeyRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(53, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3630,7 +3740,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_CreateNotification() {
-      ::grpc::Service::MarkMethodAsync(52);
+      ::grpc::Service::MarkMethodAsync(54);
     }
     ~WithAsyncMethod_CreateNotification() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3641,7 +3751,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestCreateNotification(::grpc::ServerContext* context, ::resource::CreateNotificationRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::CreateNotificationRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(52, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(54, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3650,7 +3760,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetNotifications() {
-      ::grpc::Service::MarkMethodAsync(53);
+      ::grpc::Service::MarkMethodAsync(55);
     }
     ~WithAsyncMethod_GetNotifications() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3661,7 +3771,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetNotifications(::grpc::ServerContext* context, ::resource::GetNotificationsRqst* request, ::grpc::ServerAsyncWriter< ::resource::GetNotificationsRsp>* writer, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncServerStreaming(53, context, request, writer, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncServerStreaming(55, context, request, writer, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3670,7 +3780,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_DeleteNotification() {
-      ::grpc::Service::MarkMethodAsync(54);
+      ::grpc::Service::MarkMethodAsync(56);
     }
     ~WithAsyncMethod_DeleteNotification() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3681,7 +3791,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestDeleteNotification(::grpc::ServerContext* context, ::resource::DeleteNotificationRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::DeleteNotificationRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(54, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(56, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3690,7 +3800,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_ClearAllNotifications() {
-      ::grpc::Service::MarkMethodAsync(55);
+      ::grpc::Service::MarkMethodAsync(57);
     }
     ~WithAsyncMethod_ClearAllNotifications() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3701,7 +3811,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClearAllNotifications(::grpc::ServerContext* context, ::resource::ClearAllNotificationsRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::ClearAllNotificationsRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(55, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(57, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3710,7 +3820,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_ClearNotificationsByType() {
-      ::grpc::Service::MarkMethodAsync(56);
+      ::grpc::Service::MarkMethodAsync(58);
     }
     ~WithAsyncMethod_ClearNotificationsByType() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3721,7 +3831,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClearNotificationsByType(::grpc::ServerContext* context, ::resource::ClearNotificationsByTypeRqst* request, ::grpc::ServerAsyncResponseWriter< ::resource::ClearNotificationsByTypeRsp>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(56, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(58, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3730,7 +3840,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_FindPackages() {
-      ::grpc::Service::MarkMethodAsync(57);
+      ::grpc::Service::MarkMethodAsync(59);
     }
     ~WithAsyncMethod_FindPackages() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3741,7 +3851,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestFindPackages(::grpc::ServerContext* context, ::resource::FindPackagesDescriptorRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::FindPackagesDescriptorResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(57, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(59, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3750,7 +3860,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetPackageDescriptor() {
-      ::grpc::Service::MarkMethodAsync(58);
+      ::grpc::Service::MarkMethodAsync(60);
     }
     ~WithAsyncMethod_GetPackageDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3761,7 +3871,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetPackageDescriptor(::grpc::ServerContext* context, ::resource::GetPackageDescriptorRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetPackageDescriptorResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(58, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(60, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3770,7 +3880,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetPackagesDescriptor() {
-      ::grpc::Service::MarkMethodAsync(59);
+      ::grpc::Service::MarkMethodAsync(61);
     }
     ~WithAsyncMethod_GetPackagesDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3781,7 +3891,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetPackagesDescriptor(::grpc::ServerContext* context, ::resource::GetPackagesDescriptorRequest* request, ::grpc::ServerAsyncWriter< ::resource::GetPackagesDescriptorResponse>* writer, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncServerStreaming(59, context, request, writer, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncServerStreaming(61, context, request, writer, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3790,7 +3900,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_SetPackageDescriptor() {
-      ::grpc::Service::MarkMethodAsync(60);
+      ::grpc::Service::MarkMethodAsync(62);
     }
     ~WithAsyncMethod_SetPackageDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3801,7 +3911,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestSetPackageDescriptor(::grpc::ServerContext* context, ::resource::SetPackageDescriptorRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::SetPackageDescriptorResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(60, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(62, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3810,7 +3920,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_SetPackageBundle() {
-      ::grpc::Service::MarkMethodAsync(61);
+      ::grpc::Service::MarkMethodAsync(63);
     }
     ~WithAsyncMethod_SetPackageBundle() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3821,7 +3931,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestSetPackageBundle(::grpc::ServerContext* context, ::resource::SetPackageBundleRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::SetPackageBundleResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(61, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(63, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3830,7 +3940,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetPackageBundleChecksum() {
-      ::grpc::Service::MarkMethodAsync(62);
+      ::grpc::Service::MarkMethodAsync(64);
     }
     ~WithAsyncMethod_GetPackageBundleChecksum() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3841,7 +3951,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetPackageBundleChecksum(::grpc::ServerContext* context, ::resource::GetPackageBundleChecksumRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetPackageBundleChecksumResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(62, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(64, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3850,7 +3960,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_UpdateSession() {
-      ::grpc::Service::MarkMethodAsync(63);
+      ::grpc::Service::MarkMethodAsync(65);
     }
     ~WithAsyncMethod_UpdateSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3861,7 +3971,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestUpdateSession(::grpc::ServerContext* context, ::resource::UpdateSessionRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::UpdateSessionResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(63, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(65, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3870,7 +3980,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetSessions() {
-      ::grpc::Service::MarkMethodAsync(64);
+      ::grpc::Service::MarkMethodAsync(66);
     }
     ~WithAsyncMethod_GetSessions() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3881,7 +3991,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetSessions(::grpc::ServerContext* context, ::resource::GetSessionsRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetSessionsResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(64, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(66, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3890,7 +4000,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_RemoveSession() {
-      ::grpc::Service::MarkMethodAsync(65);
+      ::grpc::Service::MarkMethodAsync(67);
     }
     ~WithAsyncMethod_RemoveSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3901,7 +4011,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRemoveSession(::grpc::ServerContext* context, ::resource::RemoveSessionRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::RemoveSessionResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(65, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(67, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -3910,7 +4020,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetSession() {
-      ::grpc::Service::MarkMethodAsync(66);
+      ::grpc::Service::MarkMethodAsync(68);
     }
     ~WithAsyncMethod_GetSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -3921,10 +4031,10 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetSession(::grpc::ServerContext* context, ::resource::GetSessionRequest* request, ::grpc::ServerAsyncResponseWriter< ::resource::GetSessionResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(66, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(68, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_CreateOrganization<WithAsyncMethod_UpdateOrganization<WithAsyncMethod_GetOrganizations<WithAsyncMethod_DeleteOrganization<WithAsyncMethod_AddOrganizationAccount<WithAsyncMethod_AddOrganizationGroup<WithAsyncMethod_AddOrganizationRole<WithAsyncMethod_AddOrganizationApplication<WithAsyncMethod_RemoveOrganizationAccount<WithAsyncMethod_RemoveOrganizationGroup<WithAsyncMethod_RemoveOrganizationRole<WithAsyncMethod_RemoveOrganizationApplication<WithAsyncMethod_CreateGroup<WithAsyncMethod_UpdateGroup<WithAsyncMethod_GetGroups<WithAsyncMethod_DeleteGroup<WithAsyncMethod_AddGroupMemberAccount<WithAsyncMethod_RemoveGroupMemberAccount<WithAsyncMethod_RegisterAccount<WithAsyncMethod_DeleteAccount<WithAsyncMethod_GetAccount<WithAsyncMethod_SetAccountPassword<WithAsyncMethod_GetAccounts<WithAsyncMethod_AddAccountRole<WithAsyncMethod_RemoveAccountRole<WithAsyncMethod_SetAccountContact<WithAsyncMethod_SetEmail<WithAsyncMethod_IsOrgnanizationMember<WithAsyncMethod_CreateRole<WithAsyncMethod_GetRoles<WithAsyncMethod_DeleteRole<WithAsyncMethod_AddRoleActions<WithAsyncMethod_RemoveRoleAction<WithAsyncMethod_RemoveRolesAction<WithAsyncMethod_CreateApplication<WithAsyncMethod_UpdateApplication<WithAsyncMethod_GetApplications<WithAsyncMethod_DeleteApplication<WithAsyncMethod_AddApplicationActions<WithAsyncMethod_RemoveApplicationAction<WithAsyncMethod_RemoveApplicationsAction<WithAsyncMethod_GetApplicationVersion<WithAsyncMethod_GetApplicationAlias<WithAsyncMethod_GetApplicationIcon<WithAsyncMethod_RegisterPeer<WithAsyncMethod_GetPeers<WithAsyncMethod_DeletePeer<WithAsyncMethod_AddPeerActions<WithAsyncMethod_RemovePeerAction<WithAsyncMethod_RemovePeersAction<WithAsyncMethod_AcceptPeer<WithAsyncMethod_RejectPeer<WithAsyncMethod_CreateNotification<WithAsyncMethod_GetNotifications<WithAsyncMethod_DeleteNotification<WithAsyncMethod_ClearAllNotifications<WithAsyncMethod_ClearNotificationsByType<WithAsyncMethod_FindPackages<WithAsyncMethod_GetPackageDescriptor<WithAsyncMethod_GetPackagesDescriptor<WithAsyncMethod_SetPackageDescriptor<WithAsyncMethod_SetPackageBundle<WithAsyncMethod_GetPackageBundleChecksum<WithAsyncMethod_UpdateSession<WithAsyncMethod_GetSessions<WithAsyncMethod_RemoveSession<WithAsyncMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > AsyncService;
+  typedef WithAsyncMethod_CreateOrganization<WithAsyncMethod_UpdateOrganization<WithAsyncMethod_GetOrganizations<WithAsyncMethod_DeleteOrganization<WithAsyncMethod_AddOrganizationAccount<WithAsyncMethod_AddOrganizationGroup<WithAsyncMethod_AddOrganizationRole<WithAsyncMethod_AddOrganizationApplication<WithAsyncMethod_RemoveOrganizationAccount<WithAsyncMethod_RemoveOrganizationGroup<WithAsyncMethod_RemoveOrganizationRole<WithAsyncMethod_RemoveOrganizationApplication<WithAsyncMethod_CreateGroup<WithAsyncMethod_UpdateGroup<WithAsyncMethod_GetGroups<WithAsyncMethod_DeleteGroup<WithAsyncMethod_AddGroupMemberAccount<WithAsyncMethod_RemoveGroupMemberAccount<WithAsyncMethod_RegisterAccount<WithAsyncMethod_DeleteAccount<WithAsyncMethod_GetAccount<WithAsyncMethod_SetAccountPassword<WithAsyncMethod_GetAccounts<WithAsyncMethod_AddAccountRole<WithAsyncMethod_RemoveAccountRole<WithAsyncMethod_SetAccountContact<WithAsyncMethod_SetEmail<WithAsyncMethod_IsOrgnanizationMember<WithAsyncMethod_CreateRole<WithAsyncMethod_GetRoles<WithAsyncMethod_DeleteRole<WithAsyncMethod_AddRoleActions<WithAsyncMethod_RemoveRoleAction<WithAsyncMethod_RemoveRolesAction<WithAsyncMethod_CreateApplication<WithAsyncMethod_UpdateApplication<WithAsyncMethod_GetApplications<WithAsyncMethod_DeleteApplication<WithAsyncMethod_AddApplicationActions<WithAsyncMethod_RemoveApplicationAction<WithAsyncMethod_RemoveApplicationsAction<WithAsyncMethod_GetApplicationVersion<WithAsyncMethod_GetApplicationAlias<WithAsyncMethod_GetApplicationIcon<WithAsyncMethod_RegisterPeer<WithAsyncMethod_GetPeers<WithAsyncMethod_GetPeerApprovalState<WithAsyncMethod_DeletePeer<WithAsyncMethod_AddPeerActions<WithAsyncMethod_RemovePeerAction<WithAsyncMethod_RemovePeersAction<WithAsyncMethod_AcceptPeer<WithAsyncMethod_RejectPeer<WithAsyncMethod_GetPeerPublicKey<WithAsyncMethod_CreateNotification<WithAsyncMethod_GetNotifications<WithAsyncMethod_DeleteNotification<WithAsyncMethod_ClearAllNotifications<WithAsyncMethod_ClearNotificationsByType<WithAsyncMethod_FindPackages<WithAsyncMethod_GetPackageDescriptor<WithAsyncMethod_GetPackagesDescriptor<WithAsyncMethod_SetPackageDescriptor<WithAsyncMethod_SetPackageBundle<WithAsyncMethod_GetPackageBundleChecksum<WithAsyncMethod_UpdateSession<WithAsyncMethod_GetSessions<WithAsyncMethod_RemoveSession<WithAsyncMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > AsyncService;
   template <class BaseClass>
   class ExperimentalWithCallbackMethod_CreateOrganization : public BaseClass {
    private:
@@ -6034,6 +6144,53 @@ class ResourceService final {
       { return nullptr; }
   };
   template <class BaseClass>
+  class ExperimentalWithCallbackMethod_GetPeerApprovalState : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    ExperimentalWithCallbackMethod_GetPeerApprovalState() {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::Service::
+    #else
+      ::grpc::Service::experimental().
+    #endif
+        MarkMethodCallback(46,
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp>(
+            [this](
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+                   ::grpc::CallbackServerContext*
+    #else
+                   ::grpc::experimental::CallbackServerContext*
+    #endif
+                     context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response) { return this->GetPeerApprovalState(context, request, response); }));}
+    void SetMessageAllocatorFor_GetPeerApprovalState(
+        ::grpc::experimental::MessageAllocator< ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp>* allocator) {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(46);
+    #else
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(46);
+    #endif
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~ExperimentalWithCallbackMethod_GetPeerApprovalState() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerApprovalState(::grpc::ServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+    virtual ::grpc::ServerUnaryReactor* GetPeerApprovalState(
+      ::grpc::CallbackServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/)
+    #else
+    virtual ::grpc::experimental::ServerUnaryReactor* GetPeerApprovalState(
+      ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/)
+    #endif
+      { return nullptr; }
+  };
+  template <class BaseClass>
   class ExperimentalWithCallbackMethod_DeletePeer : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -6044,7 +6201,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(46,
+        MarkMethodCallback(47,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6056,9 +6213,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_DeletePeer(
         ::grpc::experimental::MessageAllocator< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(46);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(47);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(46);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(47);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6091,7 +6248,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(47,
+        MarkMethodCallback(48,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6103,9 +6260,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_AddPeerActions(
         ::grpc::experimental::MessageAllocator< ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(47);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(48);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(47);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(48);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6138,7 +6295,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(48,
+        MarkMethodCallback(49,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6150,9 +6307,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_RemovePeerAction(
         ::grpc::experimental::MessageAllocator< ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(48);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(49);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(48);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(49);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6185,7 +6342,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(49,
+        MarkMethodCallback(50,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::RemovePeersActionRqst, ::resource::RemovePeersActionRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6197,9 +6354,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_RemovePeersAction(
         ::grpc::experimental::MessageAllocator< ::resource::RemovePeersActionRqst, ::resource::RemovePeersActionRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(49);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(50);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(49);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(50);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemovePeersActionRqst, ::resource::RemovePeersActionRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6232,7 +6389,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(50,
+        MarkMethodCallback(51,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6244,9 +6401,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_AcceptPeer(
         ::grpc::experimental::MessageAllocator< ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(50);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(51);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(50);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(51);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6279,7 +6436,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(51,
+        MarkMethodCallback(52,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::RejectPeerRqst, ::resource::RejectPeerRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6291,9 +6448,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_RejectPeer(
         ::grpc::experimental::MessageAllocator< ::resource::RejectPeerRqst, ::resource::RejectPeerRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(51);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(52);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(51);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(52);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RejectPeerRqst, ::resource::RejectPeerRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6316,6 +6473,53 @@ class ResourceService final {
       { return nullptr; }
   };
   template <class BaseClass>
+  class ExperimentalWithCallbackMethod_GetPeerPublicKey : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    ExperimentalWithCallbackMethod_GetPeerPublicKey() {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::Service::
+    #else
+      ::grpc::Service::experimental().
+    #endif
+        MarkMethodCallback(53,
+          new ::grpc::internal::CallbackUnaryHandler< ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp>(
+            [this](
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+                   ::grpc::CallbackServerContext*
+    #else
+                   ::grpc::experimental::CallbackServerContext*
+    #endif
+                     context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response) { return this->GetPeerPublicKey(context, request, response); }));}
+    void SetMessageAllocatorFor_GetPeerPublicKey(
+        ::grpc::experimental::MessageAllocator< ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp>* allocator) {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(53);
+    #else
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(53);
+    #endif
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~ExperimentalWithCallbackMethod_GetPeerPublicKey() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerPublicKey(::grpc::ServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+    virtual ::grpc::ServerUnaryReactor* GetPeerPublicKey(
+      ::grpc::CallbackServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/)
+    #else
+    virtual ::grpc::experimental::ServerUnaryReactor* GetPeerPublicKey(
+      ::grpc::experimental::CallbackServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/)
+    #endif
+      { return nullptr; }
+  };
+  template <class BaseClass>
   class ExperimentalWithCallbackMethod_CreateNotification : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -6326,7 +6530,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(52,
+        MarkMethodCallback(54,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::CreateNotificationRqst, ::resource::CreateNotificationRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6338,9 +6542,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_CreateNotification(
         ::grpc::experimental::MessageAllocator< ::resource::CreateNotificationRqst, ::resource::CreateNotificationRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(52);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(54);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(52);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(54);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::CreateNotificationRqst, ::resource::CreateNotificationRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6373,7 +6577,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(53,
+        MarkMethodCallback(55,
           new ::grpc::internal::CallbackServerStreamingHandler< ::resource::GetNotificationsRqst, ::resource::GetNotificationsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6411,7 +6615,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(54,
+        MarkMethodCallback(56,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::DeleteNotificationRqst, ::resource::DeleteNotificationRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6423,9 +6627,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_DeleteNotification(
         ::grpc::experimental::MessageAllocator< ::resource::DeleteNotificationRqst, ::resource::DeleteNotificationRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(54);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(56);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(54);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(56);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::DeleteNotificationRqst, ::resource::DeleteNotificationRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6458,7 +6662,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(55,
+        MarkMethodCallback(57,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::ClearAllNotificationsRqst, ::resource::ClearAllNotificationsRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6470,9 +6674,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_ClearAllNotifications(
         ::grpc::experimental::MessageAllocator< ::resource::ClearAllNotificationsRqst, ::resource::ClearAllNotificationsRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(55);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(57);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(55);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(57);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::ClearAllNotificationsRqst, ::resource::ClearAllNotificationsRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6505,7 +6709,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(56,
+        MarkMethodCallback(58,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::ClearNotificationsByTypeRqst, ::resource::ClearNotificationsByTypeRsp>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6517,9 +6721,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_ClearNotificationsByType(
         ::grpc::experimental::MessageAllocator< ::resource::ClearNotificationsByTypeRqst, ::resource::ClearNotificationsByTypeRsp>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(56);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(58);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(56);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(58);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::ClearNotificationsByTypeRqst, ::resource::ClearNotificationsByTypeRsp>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6552,7 +6756,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(57,
+        MarkMethodCallback(59,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::FindPackagesDescriptorRequest, ::resource::FindPackagesDescriptorResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6564,9 +6768,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_FindPackages(
         ::grpc::experimental::MessageAllocator< ::resource::FindPackagesDescriptorRequest, ::resource::FindPackagesDescriptorResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(57);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(59);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(57);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(59);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::FindPackagesDescriptorRequest, ::resource::FindPackagesDescriptorResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6599,7 +6803,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(58,
+        MarkMethodCallback(60,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::GetPackageDescriptorRequest, ::resource::GetPackageDescriptorResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6611,9 +6815,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_GetPackageDescriptor(
         ::grpc::experimental::MessageAllocator< ::resource::GetPackageDescriptorRequest, ::resource::GetPackageDescriptorResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(58);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(60);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(58);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(60);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetPackageDescriptorRequest, ::resource::GetPackageDescriptorResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6646,7 +6850,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(59,
+        MarkMethodCallback(61,
           new ::grpc::internal::CallbackServerStreamingHandler< ::resource::GetPackagesDescriptorRequest, ::resource::GetPackagesDescriptorResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6684,7 +6888,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(60,
+        MarkMethodCallback(62,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::SetPackageDescriptorRequest, ::resource::SetPackageDescriptorResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6696,9 +6900,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_SetPackageDescriptor(
         ::grpc::experimental::MessageAllocator< ::resource::SetPackageDescriptorRequest, ::resource::SetPackageDescriptorResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(60);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(62);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(60);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(62);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::SetPackageDescriptorRequest, ::resource::SetPackageDescriptorResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6731,7 +6935,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(61,
+        MarkMethodCallback(63,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::SetPackageBundleRequest, ::resource::SetPackageBundleResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6743,9 +6947,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_SetPackageBundle(
         ::grpc::experimental::MessageAllocator< ::resource::SetPackageBundleRequest, ::resource::SetPackageBundleResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(61);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(63);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(61);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(63);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::SetPackageBundleRequest, ::resource::SetPackageBundleResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6778,7 +6982,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(62,
+        MarkMethodCallback(64,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::GetPackageBundleChecksumRequest, ::resource::GetPackageBundleChecksumResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6790,9 +6994,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_GetPackageBundleChecksum(
         ::grpc::experimental::MessageAllocator< ::resource::GetPackageBundleChecksumRequest, ::resource::GetPackageBundleChecksumResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(62);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(64);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(62);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(64);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetPackageBundleChecksumRequest, ::resource::GetPackageBundleChecksumResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6825,7 +7029,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(63,
+        MarkMethodCallback(65,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::UpdateSessionRequest, ::resource::UpdateSessionResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6837,9 +7041,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_UpdateSession(
         ::grpc::experimental::MessageAllocator< ::resource::UpdateSessionRequest, ::resource::UpdateSessionResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(63);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(65);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(63);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(65);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::UpdateSessionRequest, ::resource::UpdateSessionResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6872,7 +7076,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(64,
+        MarkMethodCallback(66,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::GetSessionsRequest, ::resource::GetSessionsResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6884,9 +7088,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_GetSessions(
         ::grpc::experimental::MessageAllocator< ::resource::GetSessionsRequest, ::resource::GetSessionsResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(64);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(66);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(64);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(66);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetSessionsRequest, ::resource::GetSessionsResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6919,7 +7123,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(65,
+        MarkMethodCallback(67,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::RemoveSessionRequest, ::resource::RemoveSessionResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6931,9 +7135,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_RemoveSession(
         ::grpc::experimental::MessageAllocator< ::resource::RemoveSessionRequest, ::resource::RemoveSessionResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(65);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(67);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(65);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(67);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::RemoveSessionRequest, ::resource::RemoveSessionResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -6966,7 +7170,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodCallback(66,
+        MarkMethodCallback(68,
           new ::grpc::internal::CallbackUnaryHandler< ::resource::GetSessionRequest, ::resource::GetSessionResponse>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -6978,9 +7182,9 @@ class ResourceService final {
     void SetMessageAllocatorFor_GetSession(
         ::grpc::experimental::MessageAllocator< ::resource::GetSessionRequest, ::resource::GetSessionResponse>* allocator) {
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(66);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(68);
     #else
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(66);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::experimental().GetHandler(68);
     #endif
       static_cast<::grpc::internal::CallbackUnaryHandler< ::resource::GetSessionRequest, ::resource::GetSessionResponse>*>(handler)
               ->SetMessageAllocator(allocator);
@@ -7003,10 +7207,10 @@ class ResourceService final {
       { return nullptr; }
   };
   #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
-  typedef ExperimentalWithCallbackMethod_CreateOrganization<ExperimentalWithCallbackMethod_UpdateOrganization<ExperimentalWithCallbackMethod_GetOrganizations<ExperimentalWithCallbackMethod_DeleteOrganization<ExperimentalWithCallbackMethod_AddOrganizationAccount<ExperimentalWithCallbackMethod_AddOrganizationGroup<ExperimentalWithCallbackMethod_AddOrganizationRole<ExperimentalWithCallbackMethod_AddOrganizationApplication<ExperimentalWithCallbackMethod_RemoveOrganizationAccount<ExperimentalWithCallbackMethod_RemoveOrganizationGroup<ExperimentalWithCallbackMethod_RemoveOrganizationRole<ExperimentalWithCallbackMethod_RemoveOrganizationApplication<ExperimentalWithCallbackMethod_CreateGroup<ExperimentalWithCallbackMethod_UpdateGroup<ExperimentalWithCallbackMethod_GetGroups<ExperimentalWithCallbackMethod_DeleteGroup<ExperimentalWithCallbackMethod_AddGroupMemberAccount<ExperimentalWithCallbackMethod_RemoveGroupMemberAccount<ExperimentalWithCallbackMethod_RegisterAccount<ExperimentalWithCallbackMethod_DeleteAccount<ExperimentalWithCallbackMethod_GetAccount<ExperimentalWithCallbackMethod_SetAccountPassword<ExperimentalWithCallbackMethod_GetAccounts<ExperimentalWithCallbackMethod_AddAccountRole<ExperimentalWithCallbackMethod_RemoveAccountRole<ExperimentalWithCallbackMethod_SetAccountContact<ExperimentalWithCallbackMethod_SetEmail<ExperimentalWithCallbackMethod_IsOrgnanizationMember<ExperimentalWithCallbackMethod_CreateRole<ExperimentalWithCallbackMethod_GetRoles<ExperimentalWithCallbackMethod_DeleteRole<ExperimentalWithCallbackMethod_AddRoleActions<ExperimentalWithCallbackMethod_RemoveRoleAction<ExperimentalWithCallbackMethod_RemoveRolesAction<ExperimentalWithCallbackMethod_CreateApplication<ExperimentalWithCallbackMethod_UpdateApplication<ExperimentalWithCallbackMethod_GetApplications<ExperimentalWithCallbackMethod_DeleteApplication<ExperimentalWithCallbackMethod_AddApplicationActions<ExperimentalWithCallbackMethod_RemoveApplicationAction<ExperimentalWithCallbackMethod_RemoveApplicationsAction<ExperimentalWithCallbackMethod_GetApplicationVersion<ExperimentalWithCallbackMethod_GetApplicationAlias<ExperimentalWithCallbackMethod_GetApplicationIcon<ExperimentalWithCallbackMethod_RegisterPeer<ExperimentalWithCallbackMethod_GetPeers<ExperimentalWithCallbackMethod_DeletePeer<ExperimentalWithCallbackMethod_AddPeerActions<ExperimentalWithCallbackMethod_RemovePeerAction<ExperimentalWithCallbackMethod_RemovePeersAction<ExperimentalWithCallbackMethod_AcceptPeer<ExperimentalWithCallbackMethod_RejectPeer<ExperimentalWithCallbackMethod_CreateNotification<ExperimentalWithCallbackMethod_GetNotifications<ExperimentalWithCallbackMethod_DeleteNotification<ExperimentalWithCallbackMethod_ClearAllNotifications<ExperimentalWithCallbackMethod_ClearNotificationsByType<ExperimentalWithCallbackMethod_FindPackages<ExperimentalWithCallbackMethod_GetPackageDescriptor<ExperimentalWithCallbackMethod_GetPackagesDescriptor<ExperimentalWithCallbackMethod_SetPackageDescriptor<ExperimentalWithCallbackMethod_SetPackageBundle<ExperimentalWithCallbackMethod_GetPackageBundleChecksum<ExperimentalWithCallbackMethod_UpdateSession<ExperimentalWithCallbackMethod_GetSessions<ExperimentalWithCallbackMethod_RemoveSession<ExperimentalWithCallbackMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > CallbackService;
+  typedef ExperimentalWithCallbackMethod_CreateOrganization<ExperimentalWithCallbackMethod_UpdateOrganization<ExperimentalWithCallbackMethod_GetOrganizations<ExperimentalWithCallbackMethod_DeleteOrganization<ExperimentalWithCallbackMethod_AddOrganizationAccount<ExperimentalWithCallbackMethod_AddOrganizationGroup<ExperimentalWithCallbackMethod_AddOrganizationRole<ExperimentalWithCallbackMethod_AddOrganizationApplication<ExperimentalWithCallbackMethod_RemoveOrganizationAccount<ExperimentalWithCallbackMethod_RemoveOrganizationGroup<ExperimentalWithCallbackMethod_RemoveOrganizationRole<ExperimentalWithCallbackMethod_RemoveOrganizationApplication<ExperimentalWithCallbackMethod_CreateGroup<ExperimentalWithCallbackMethod_UpdateGroup<ExperimentalWithCallbackMethod_GetGroups<ExperimentalWithCallbackMethod_DeleteGroup<ExperimentalWithCallbackMethod_AddGroupMemberAccount<ExperimentalWithCallbackMethod_RemoveGroupMemberAccount<ExperimentalWithCallbackMethod_RegisterAccount<ExperimentalWithCallbackMethod_DeleteAccount<ExperimentalWithCallbackMethod_GetAccount<ExperimentalWithCallbackMethod_SetAccountPassword<ExperimentalWithCallbackMethod_GetAccounts<ExperimentalWithCallbackMethod_AddAccountRole<ExperimentalWithCallbackMethod_RemoveAccountRole<ExperimentalWithCallbackMethod_SetAccountContact<ExperimentalWithCallbackMethod_SetEmail<ExperimentalWithCallbackMethod_IsOrgnanizationMember<ExperimentalWithCallbackMethod_CreateRole<ExperimentalWithCallbackMethod_GetRoles<ExperimentalWithCallbackMethod_DeleteRole<ExperimentalWithCallbackMethod_AddRoleActions<ExperimentalWithCallbackMethod_RemoveRoleAction<ExperimentalWithCallbackMethod_RemoveRolesAction<ExperimentalWithCallbackMethod_CreateApplication<ExperimentalWithCallbackMethod_UpdateApplication<ExperimentalWithCallbackMethod_GetApplications<ExperimentalWithCallbackMethod_DeleteApplication<ExperimentalWithCallbackMethod_AddApplicationActions<ExperimentalWithCallbackMethod_RemoveApplicationAction<ExperimentalWithCallbackMethod_RemoveApplicationsAction<ExperimentalWithCallbackMethod_GetApplicationVersion<ExperimentalWithCallbackMethod_GetApplicationAlias<ExperimentalWithCallbackMethod_GetApplicationIcon<ExperimentalWithCallbackMethod_RegisterPeer<ExperimentalWithCallbackMethod_GetPeers<ExperimentalWithCallbackMethod_GetPeerApprovalState<ExperimentalWithCallbackMethod_DeletePeer<ExperimentalWithCallbackMethod_AddPeerActions<ExperimentalWithCallbackMethod_RemovePeerAction<ExperimentalWithCallbackMethod_RemovePeersAction<ExperimentalWithCallbackMethod_AcceptPeer<ExperimentalWithCallbackMethod_RejectPeer<ExperimentalWithCallbackMethod_GetPeerPublicKey<ExperimentalWithCallbackMethod_CreateNotification<ExperimentalWithCallbackMethod_GetNotifications<ExperimentalWithCallbackMethod_DeleteNotification<ExperimentalWithCallbackMethod_ClearAllNotifications<ExperimentalWithCallbackMethod_ClearNotificationsByType<ExperimentalWithCallbackMethod_FindPackages<ExperimentalWithCallbackMethod_GetPackageDescriptor<ExperimentalWithCallbackMethod_GetPackagesDescriptor<ExperimentalWithCallbackMethod_SetPackageDescriptor<ExperimentalWithCallbackMethod_SetPackageBundle<ExperimentalWithCallbackMethod_GetPackageBundleChecksum<ExperimentalWithCallbackMethod_UpdateSession<ExperimentalWithCallbackMethod_GetSessions<ExperimentalWithCallbackMethod_RemoveSession<ExperimentalWithCallbackMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > CallbackService;
   #endif
 
-  typedef ExperimentalWithCallbackMethod_CreateOrganization<ExperimentalWithCallbackMethod_UpdateOrganization<ExperimentalWithCallbackMethod_GetOrganizations<ExperimentalWithCallbackMethod_DeleteOrganization<ExperimentalWithCallbackMethod_AddOrganizationAccount<ExperimentalWithCallbackMethod_AddOrganizationGroup<ExperimentalWithCallbackMethod_AddOrganizationRole<ExperimentalWithCallbackMethod_AddOrganizationApplication<ExperimentalWithCallbackMethod_RemoveOrganizationAccount<ExperimentalWithCallbackMethod_RemoveOrganizationGroup<ExperimentalWithCallbackMethod_RemoveOrganizationRole<ExperimentalWithCallbackMethod_RemoveOrganizationApplication<ExperimentalWithCallbackMethod_CreateGroup<ExperimentalWithCallbackMethod_UpdateGroup<ExperimentalWithCallbackMethod_GetGroups<ExperimentalWithCallbackMethod_DeleteGroup<ExperimentalWithCallbackMethod_AddGroupMemberAccount<ExperimentalWithCallbackMethod_RemoveGroupMemberAccount<ExperimentalWithCallbackMethod_RegisterAccount<ExperimentalWithCallbackMethod_DeleteAccount<ExperimentalWithCallbackMethod_GetAccount<ExperimentalWithCallbackMethod_SetAccountPassword<ExperimentalWithCallbackMethod_GetAccounts<ExperimentalWithCallbackMethod_AddAccountRole<ExperimentalWithCallbackMethod_RemoveAccountRole<ExperimentalWithCallbackMethod_SetAccountContact<ExperimentalWithCallbackMethod_SetEmail<ExperimentalWithCallbackMethod_IsOrgnanizationMember<ExperimentalWithCallbackMethod_CreateRole<ExperimentalWithCallbackMethod_GetRoles<ExperimentalWithCallbackMethod_DeleteRole<ExperimentalWithCallbackMethod_AddRoleActions<ExperimentalWithCallbackMethod_RemoveRoleAction<ExperimentalWithCallbackMethod_RemoveRolesAction<ExperimentalWithCallbackMethod_CreateApplication<ExperimentalWithCallbackMethod_UpdateApplication<ExperimentalWithCallbackMethod_GetApplications<ExperimentalWithCallbackMethod_DeleteApplication<ExperimentalWithCallbackMethod_AddApplicationActions<ExperimentalWithCallbackMethod_RemoveApplicationAction<ExperimentalWithCallbackMethod_RemoveApplicationsAction<ExperimentalWithCallbackMethod_GetApplicationVersion<ExperimentalWithCallbackMethod_GetApplicationAlias<ExperimentalWithCallbackMethod_GetApplicationIcon<ExperimentalWithCallbackMethod_RegisterPeer<ExperimentalWithCallbackMethod_GetPeers<ExperimentalWithCallbackMethod_DeletePeer<ExperimentalWithCallbackMethod_AddPeerActions<ExperimentalWithCallbackMethod_RemovePeerAction<ExperimentalWithCallbackMethod_RemovePeersAction<ExperimentalWithCallbackMethod_AcceptPeer<ExperimentalWithCallbackMethod_RejectPeer<ExperimentalWithCallbackMethod_CreateNotification<ExperimentalWithCallbackMethod_GetNotifications<ExperimentalWithCallbackMethod_DeleteNotification<ExperimentalWithCallbackMethod_ClearAllNotifications<ExperimentalWithCallbackMethod_ClearNotificationsByType<ExperimentalWithCallbackMethod_FindPackages<ExperimentalWithCallbackMethod_GetPackageDescriptor<ExperimentalWithCallbackMethod_GetPackagesDescriptor<ExperimentalWithCallbackMethod_SetPackageDescriptor<ExperimentalWithCallbackMethod_SetPackageBundle<ExperimentalWithCallbackMethod_GetPackageBundleChecksum<ExperimentalWithCallbackMethod_UpdateSession<ExperimentalWithCallbackMethod_GetSessions<ExperimentalWithCallbackMethod_RemoveSession<ExperimentalWithCallbackMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > ExperimentalCallbackService;
+  typedef ExperimentalWithCallbackMethod_CreateOrganization<ExperimentalWithCallbackMethod_UpdateOrganization<ExperimentalWithCallbackMethod_GetOrganizations<ExperimentalWithCallbackMethod_DeleteOrganization<ExperimentalWithCallbackMethod_AddOrganizationAccount<ExperimentalWithCallbackMethod_AddOrganizationGroup<ExperimentalWithCallbackMethod_AddOrganizationRole<ExperimentalWithCallbackMethod_AddOrganizationApplication<ExperimentalWithCallbackMethod_RemoveOrganizationAccount<ExperimentalWithCallbackMethod_RemoveOrganizationGroup<ExperimentalWithCallbackMethod_RemoveOrganizationRole<ExperimentalWithCallbackMethod_RemoveOrganizationApplication<ExperimentalWithCallbackMethod_CreateGroup<ExperimentalWithCallbackMethod_UpdateGroup<ExperimentalWithCallbackMethod_GetGroups<ExperimentalWithCallbackMethod_DeleteGroup<ExperimentalWithCallbackMethod_AddGroupMemberAccount<ExperimentalWithCallbackMethod_RemoveGroupMemberAccount<ExperimentalWithCallbackMethod_RegisterAccount<ExperimentalWithCallbackMethod_DeleteAccount<ExperimentalWithCallbackMethod_GetAccount<ExperimentalWithCallbackMethod_SetAccountPassword<ExperimentalWithCallbackMethod_GetAccounts<ExperimentalWithCallbackMethod_AddAccountRole<ExperimentalWithCallbackMethod_RemoveAccountRole<ExperimentalWithCallbackMethod_SetAccountContact<ExperimentalWithCallbackMethod_SetEmail<ExperimentalWithCallbackMethod_IsOrgnanizationMember<ExperimentalWithCallbackMethod_CreateRole<ExperimentalWithCallbackMethod_GetRoles<ExperimentalWithCallbackMethod_DeleteRole<ExperimentalWithCallbackMethod_AddRoleActions<ExperimentalWithCallbackMethod_RemoveRoleAction<ExperimentalWithCallbackMethod_RemoveRolesAction<ExperimentalWithCallbackMethod_CreateApplication<ExperimentalWithCallbackMethod_UpdateApplication<ExperimentalWithCallbackMethod_GetApplications<ExperimentalWithCallbackMethod_DeleteApplication<ExperimentalWithCallbackMethod_AddApplicationActions<ExperimentalWithCallbackMethod_RemoveApplicationAction<ExperimentalWithCallbackMethod_RemoveApplicationsAction<ExperimentalWithCallbackMethod_GetApplicationVersion<ExperimentalWithCallbackMethod_GetApplicationAlias<ExperimentalWithCallbackMethod_GetApplicationIcon<ExperimentalWithCallbackMethod_RegisterPeer<ExperimentalWithCallbackMethod_GetPeers<ExperimentalWithCallbackMethod_GetPeerApprovalState<ExperimentalWithCallbackMethod_DeletePeer<ExperimentalWithCallbackMethod_AddPeerActions<ExperimentalWithCallbackMethod_RemovePeerAction<ExperimentalWithCallbackMethod_RemovePeersAction<ExperimentalWithCallbackMethod_AcceptPeer<ExperimentalWithCallbackMethod_RejectPeer<ExperimentalWithCallbackMethod_GetPeerPublicKey<ExperimentalWithCallbackMethod_CreateNotification<ExperimentalWithCallbackMethod_GetNotifications<ExperimentalWithCallbackMethod_DeleteNotification<ExperimentalWithCallbackMethod_ClearAllNotifications<ExperimentalWithCallbackMethod_ClearNotificationsByType<ExperimentalWithCallbackMethod_FindPackages<ExperimentalWithCallbackMethod_GetPackageDescriptor<ExperimentalWithCallbackMethod_GetPackagesDescriptor<ExperimentalWithCallbackMethod_SetPackageDescriptor<ExperimentalWithCallbackMethod_SetPackageBundle<ExperimentalWithCallbackMethod_GetPackageBundleChecksum<ExperimentalWithCallbackMethod_UpdateSession<ExperimentalWithCallbackMethod_GetSessions<ExperimentalWithCallbackMethod_RemoveSession<ExperimentalWithCallbackMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_CreateOrganization : public BaseClass {
    private:
@@ -7790,12 +7994,29 @@ class ResourceService final {
     }
   };
   template <class BaseClass>
+  class WithGenericMethod_GetPeerApprovalState : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_GetPeerApprovalState() {
+      ::grpc::Service::MarkMethodGeneric(46);
+    }
+    ~WithGenericMethod_GetPeerApprovalState() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerApprovalState(::grpc::ServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
   class WithGenericMethod_DeletePeer : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_DeletePeer() {
-      ::grpc::Service::MarkMethodGeneric(46);
+      ::grpc::Service::MarkMethodGeneric(47);
     }
     ~WithGenericMethod_DeletePeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7812,7 +8033,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_AddPeerActions() {
-      ::grpc::Service::MarkMethodGeneric(47);
+      ::grpc::Service::MarkMethodGeneric(48);
     }
     ~WithGenericMethod_AddPeerActions() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7829,7 +8050,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_RemovePeerAction() {
-      ::grpc::Service::MarkMethodGeneric(48);
+      ::grpc::Service::MarkMethodGeneric(49);
     }
     ~WithGenericMethod_RemovePeerAction() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7846,7 +8067,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_RemovePeersAction() {
-      ::grpc::Service::MarkMethodGeneric(49);
+      ::grpc::Service::MarkMethodGeneric(50);
     }
     ~WithGenericMethod_RemovePeersAction() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7863,7 +8084,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_AcceptPeer() {
-      ::grpc::Service::MarkMethodGeneric(50);
+      ::grpc::Service::MarkMethodGeneric(51);
     }
     ~WithGenericMethod_AcceptPeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7880,7 +8101,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_RejectPeer() {
-      ::grpc::Service::MarkMethodGeneric(51);
+      ::grpc::Service::MarkMethodGeneric(52);
     }
     ~WithGenericMethod_RejectPeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7892,12 +8113,29 @@ class ResourceService final {
     }
   };
   template <class BaseClass>
+  class WithGenericMethod_GetPeerPublicKey : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_GetPeerPublicKey() {
+      ::grpc::Service::MarkMethodGeneric(53);
+    }
+    ~WithGenericMethod_GetPeerPublicKey() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerPublicKey(::grpc::ServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
   class WithGenericMethod_CreateNotification : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_CreateNotification() {
-      ::grpc::Service::MarkMethodGeneric(52);
+      ::grpc::Service::MarkMethodGeneric(54);
     }
     ~WithGenericMethod_CreateNotification() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7914,7 +8152,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetNotifications() {
-      ::grpc::Service::MarkMethodGeneric(53);
+      ::grpc::Service::MarkMethodGeneric(55);
     }
     ~WithGenericMethod_GetNotifications() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7931,7 +8169,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_DeleteNotification() {
-      ::grpc::Service::MarkMethodGeneric(54);
+      ::grpc::Service::MarkMethodGeneric(56);
     }
     ~WithGenericMethod_DeleteNotification() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7948,7 +8186,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_ClearAllNotifications() {
-      ::grpc::Service::MarkMethodGeneric(55);
+      ::grpc::Service::MarkMethodGeneric(57);
     }
     ~WithGenericMethod_ClearAllNotifications() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7965,7 +8203,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_ClearNotificationsByType() {
-      ::grpc::Service::MarkMethodGeneric(56);
+      ::grpc::Service::MarkMethodGeneric(58);
     }
     ~WithGenericMethod_ClearNotificationsByType() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7982,7 +8220,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_FindPackages() {
-      ::grpc::Service::MarkMethodGeneric(57);
+      ::grpc::Service::MarkMethodGeneric(59);
     }
     ~WithGenericMethod_FindPackages() override {
       BaseClassMustBeDerivedFromService(this);
@@ -7999,7 +8237,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetPackageDescriptor() {
-      ::grpc::Service::MarkMethodGeneric(58);
+      ::grpc::Service::MarkMethodGeneric(60);
     }
     ~WithGenericMethod_GetPackageDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8016,7 +8254,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetPackagesDescriptor() {
-      ::grpc::Service::MarkMethodGeneric(59);
+      ::grpc::Service::MarkMethodGeneric(61);
     }
     ~WithGenericMethod_GetPackagesDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8033,7 +8271,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_SetPackageDescriptor() {
-      ::grpc::Service::MarkMethodGeneric(60);
+      ::grpc::Service::MarkMethodGeneric(62);
     }
     ~WithGenericMethod_SetPackageDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8050,7 +8288,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_SetPackageBundle() {
-      ::grpc::Service::MarkMethodGeneric(61);
+      ::grpc::Service::MarkMethodGeneric(63);
     }
     ~WithGenericMethod_SetPackageBundle() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8067,7 +8305,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetPackageBundleChecksum() {
-      ::grpc::Service::MarkMethodGeneric(62);
+      ::grpc::Service::MarkMethodGeneric(64);
     }
     ~WithGenericMethod_GetPackageBundleChecksum() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8084,7 +8322,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_UpdateSession() {
-      ::grpc::Service::MarkMethodGeneric(63);
+      ::grpc::Service::MarkMethodGeneric(65);
     }
     ~WithGenericMethod_UpdateSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8101,7 +8339,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetSessions() {
-      ::grpc::Service::MarkMethodGeneric(64);
+      ::grpc::Service::MarkMethodGeneric(66);
     }
     ~WithGenericMethod_GetSessions() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8118,7 +8356,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_RemoveSession() {
-      ::grpc::Service::MarkMethodGeneric(65);
+      ::grpc::Service::MarkMethodGeneric(67);
     }
     ~WithGenericMethod_RemoveSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -8135,7 +8373,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetSession() {
-      ::grpc::Service::MarkMethodGeneric(66);
+      ::grpc::Service::MarkMethodGeneric(68);
     }
     ~WithGenericMethod_GetSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9067,12 +9305,32 @@ class ResourceService final {
     }
   };
   template <class BaseClass>
+  class WithRawMethod_GetPeerApprovalState : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_GetPeerApprovalState() {
+      ::grpc::Service::MarkMethodRaw(46);
+    }
+    ~WithRawMethod_GetPeerApprovalState() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerApprovalState(::grpc::ServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestGetPeerApprovalState(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(46, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithRawMethod_DeletePeer : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_DeletePeer() {
-      ::grpc::Service::MarkMethodRaw(46);
+      ::grpc::Service::MarkMethodRaw(47);
     }
     ~WithRawMethod_DeletePeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9083,7 +9341,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestDeletePeer(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(46, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(47, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9092,7 +9350,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_AddPeerActions() {
-      ::grpc::Service::MarkMethodRaw(47);
+      ::grpc::Service::MarkMethodRaw(48);
     }
     ~WithRawMethod_AddPeerActions() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9103,7 +9361,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestAddPeerActions(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(47, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(48, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9112,7 +9370,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_RemovePeerAction() {
-      ::grpc::Service::MarkMethodRaw(48);
+      ::grpc::Service::MarkMethodRaw(49);
     }
     ~WithRawMethod_RemovePeerAction() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9123,7 +9381,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRemovePeerAction(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(48, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(49, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9132,7 +9390,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_RemovePeersAction() {
-      ::grpc::Service::MarkMethodRaw(49);
+      ::grpc::Service::MarkMethodRaw(50);
     }
     ~WithRawMethod_RemovePeersAction() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9143,7 +9401,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRemovePeersAction(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(49, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(50, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9152,7 +9410,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_AcceptPeer() {
-      ::grpc::Service::MarkMethodRaw(50);
+      ::grpc::Service::MarkMethodRaw(51);
     }
     ~WithRawMethod_AcceptPeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9163,7 +9421,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestAcceptPeer(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(50, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(51, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9172,7 +9430,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_RejectPeer() {
-      ::grpc::Service::MarkMethodRaw(51);
+      ::grpc::Service::MarkMethodRaw(52);
     }
     ~WithRawMethod_RejectPeer() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9183,7 +9441,27 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRejectPeer(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(51, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(52, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_GetPeerPublicKey : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_GetPeerPublicKey() {
+      ::grpc::Service::MarkMethodRaw(53);
+    }
+    ~WithRawMethod_GetPeerPublicKey() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerPublicKey(::grpc::ServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestGetPeerPublicKey(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(53, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9192,7 +9470,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_CreateNotification() {
-      ::grpc::Service::MarkMethodRaw(52);
+      ::grpc::Service::MarkMethodRaw(54);
     }
     ~WithRawMethod_CreateNotification() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9203,7 +9481,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestCreateNotification(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(52, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(54, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9212,7 +9490,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetNotifications() {
-      ::grpc::Service::MarkMethodRaw(53);
+      ::grpc::Service::MarkMethodRaw(55);
     }
     ~WithRawMethod_GetNotifications() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9223,7 +9501,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetNotifications(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncWriter< ::grpc::ByteBuffer>* writer, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncServerStreaming(53, context, request, writer, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncServerStreaming(55, context, request, writer, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9232,7 +9510,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_DeleteNotification() {
-      ::grpc::Service::MarkMethodRaw(54);
+      ::grpc::Service::MarkMethodRaw(56);
     }
     ~WithRawMethod_DeleteNotification() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9243,7 +9521,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestDeleteNotification(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(54, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(56, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9252,7 +9530,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_ClearAllNotifications() {
-      ::grpc::Service::MarkMethodRaw(55);
+      ::grpc::Service::MarkMethodRaw(57);
     }
     ~WithRawMethod_ClearAllNotifications() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9263,7 +9541,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClearAllNotifications(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(55, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(57, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9272,7 +9550,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_ClearNotificationsByType() {
-      ::grpc::Service::MarkMethodRaw(56);
+      ::grpc::Service::MarkMethodRaw(58);
     }
     ~WithRawMethod_ClearNotificationsByType() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9283,7 +9561,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClearNotificationsByType(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(56, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(58, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9292,7 +9570,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_FindPackages() {
-      ::grpc::Service::MarkMethodRaw(57);
+      ::grpc::Service::MarkMethodRaw(59);
     }
     ~WithRawMethod_FindPackages() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9303,7 +9581,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestFindPackages(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(57, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(59, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9312,7 +9590,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetPackageDescriptor() {
-      ::grpc::Service::MarkMethodRaw(58);
+      ::grpc::Service::MarkMethodRaw(60);
     }
     ~WithRawMethod_GetPackageDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9323,7 +9601,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetPackageDescriptor(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(58, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(60, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9332,7 +9610,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetPackagesDescriptor() {
-      ::grpc::Service::MarkMethodRaw(59);
+      ::grpc::Service::MarkMethodRaw(61);
     }
     ~WithRawMethod_GetPackagesDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9343,7 +9621,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetPackagesDescriptor(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncWriter< ::grpc::ByteBuffer>* writer, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncServerStreaming(59, context, request, writer, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncServerStreaming(61, context, request, writer, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9352,7 +9630,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_SetPackageDescriptor() {
-      ::grpc::Service::MarkMethodRaw(60);
+      ::grpc::Service::MarkMethodRaw(62);
     }
     ~WithRawMethod_SetPackageDescriptor() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9363,7 +9641,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestSetPackageDescriptor(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(60, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(62, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9372,7 +9650,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_SetPackageBundle() {
-      ::grpc::Service::MarkMethodRaw(61);
+      ::grpc::Service::MarkMethodRaw(63);
     }
     ~WithRawMethod_SetPackageBundle() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9383,7 +9661,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestSetPackageBundle(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(61, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(63, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9392,7 +9670,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetPackageBundleChecksum() {
-      ::grpc::Service::MarkMethodRaw(62);
+      ::grpc::Service::MarkMethodRaw(64);
     }
     ~WithRawMethod_GetPackageBundleChecksum() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9403,7 +9681,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetPackageBundleChecksum(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(62, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(64, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9412,7 +9690,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_UpdateSession() {
-      ::grpc::Service::MarkMethodRaw(63);
+      ::grpc::Service::MarkMethodRaw(65);
     }
     ~WithRawMethod_UpdateSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9423,7 +9701,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestUpdateSession(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(63, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(65, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9432,7 +9710,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetSessions() {
-      ::grpc::Service::MarkMethodRaw(64);
+      ::grpc::Service::MarkMethodRaw(66);
     }
     ~WithRawMethod_GetSessions() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9443,7 +9721,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetSessions(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(64, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(66, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9452,7 +9730,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_RemoveSession() {
-      ::grpc::Service::MarkMethodRaw(65);
+      ::grpc::Service::MarkMethodRaw(67);
     }
     ~WithRawMethod_RemoveSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9463,7 +9741,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestRemoveSession(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(65, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(67, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -9472,7 +9750,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetSession() {
-      ::grpc::Service::MarkMethodRaw(66);
+      ::grpc::Service::MarkMethodRaw(68);
     }
     ~WithRawMethod_GetSession() override {
       BaseClassMustBeDerivedFromService(this);
@@ -9483,7 +9761,7 @@ class ResourceService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetSession(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(66, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(68, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -11235,6 +11513,44 @@ class ResourceService final {
       { return nullptr; }
   };
   template <class BaseClass>
+  class ExperimentalWithRawCallbackMethod_GetPeerApprovalState : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    ExperimentalWithRawCallbackMethod_GetPeerApprovalState() {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::Service::
+    #else
+      ::grpc::Service::experimental().
+    #endif
+        MarkMethodRawCallback(46,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+                   ::grpc::CallbackServerContext*
+    #else
+                   ::grpc::experimental::CallbackServerContext*
+    #endif
+                     context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->GetPeerApprovalState(context, request, response); }));
+    }
+    ~ExperimentalWithRawCallbackMethod_GetPeerApprovalState() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerApprovalState(::grpc::ServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+    virtual ::grpc::ServerUnaryReactor* GetPeerApprovalState(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
+    #else
+    virtual ::grpc::experimental::ServerUnaryReactor* GetPeerApprovalState(
+      ::grpc::experimental::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
+    #endif
+      { return nullptr; }
+  };
+  template <class BaseClass>
   class ExperimentalWithRawCallbackMethod_DeletePeer : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -11245,7 +11561,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(46,
+        MarkMethodRawCallback(47,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11283,7 +11599,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(47,
+        MarkMethodRawCallback(48,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11321,7 +11637,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(48,
+        MarkMethodRawCallback(49,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11359,7 +11675,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(49,
+        MarkMethodRawCallback(50,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11397,7 +11713,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(50,
+        MarkMethodRawCallback(51,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11435,7 +11751,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(51,
+        MarkMethodRawCallback(52,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11463,6 +11779,44 @@ class ResourceService final {
       { return nullptr; }
   };
   template <class BaseClass>
+  class ExperimentalWithRawCallbackMethod_GetPeerPublicKey : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    ExperimentalWithRawCallbackMethod_GetPeerPublicKey() {
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+      ::grpc::Service::
+    #else
+      ::grpc::Service::experimental().
+    #endif
+        MarkMethodRawCallback(53,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+                   ::grpc::CallbackServerContext*
+    #else
+                   ::grpc::experimental::CallbackServerContext*
+    #endif
+                     context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->GetPeerPublicKey(context, request, response); }));
+    }
+    ~ExperimentalWithRawCallbackMethod_GetPeerPublicKey() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status GetPeerPublicKey(::grpc::ServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
+    virtual ::grpc::ServerUnaryReactor* GetPeerPublicKey(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
+    #else
+    virtual ::grpc::experimental::ServerUnaryReactor* GetPeerPublicKey(
+      ::grpc::experimental::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)
+    #endif
+      { return nullptr; }
+  };
+  template <class BaseClass>
   class ExperimentalWithRawCallbackMethod_CreateNotification : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -11473,7 +11827,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(52,
+        MarkMethodRawCallback(54,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11511,7 +11865,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(53,
+        MarkMethodRawCallback(55,
           new ::grpc::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11549,7 +11903,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(54,
+        MarkMethodRawCallback(56,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11587,7 +11941,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(55,
+        MarkMethodRawCallback(57,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11625,7 +11979,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(56,
+        MarkMethodRawCallback(58,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11663,7 +12017,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(57,
+        MarkMethodRawCallback(59,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11701,7 +12055,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(58,
+        MarkMethodRawCallback(60,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11739,7 +12093,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(59,
+        MarkMethodRawCallback(61,
           new ::grpc::internal::CallbackServerStreamingHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11777,7 +12131,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(60,
+        MarkMethodRawCallback(62,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11815,7 +12169,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(61,
+        MarkMethodRawCallback(63,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11853,7 +12207,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(62,
+        MarkMethodRawCallback(64,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11891,7 +12245,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(63,
+        MarkMethodRawCallback(65,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11929,7 +12283,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(64,
+        MarkMethodRawCallback(66,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -11967,7 +12321,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(65,
+        MarkMethodRawCallback(67,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -12005,7 +12359,7 @@ class ResourceService final {
     #else
       ::grpc::Service::experimental().
     #endif
-        MarkMethodRawCallback(66,
+        MarkMethodRawCallback(68,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
     #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
@@ -13113,12 +13467,39 @@ class ResourceService final {
     virtual ::grpc::Status StreamedRegisterPeer(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::RegisterPeerRqst,::resource::RegisterPeerRsp>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
+  class WithStreamedUnaryMethod_GetPeerApprovalState : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_GetPeerApprovalState() {
+      ::grpc::Service::MarkMethodStreamed(46,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp>* streamer) {
+                       return this->StreamedGetPeerApprovalState(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_GetPeerApprovalState() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status GetPeerApprovalState(::grpc::ServerContext* /*context*/, const ::resource::GetPeerApprovalStateRqst* /*request*/, ::resource::GetPeerApprovalStateRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedGetPeerApprovalState(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::GetPeerApprovalStateRqst,::resource::GetPeerApprovalStateRsp>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
   class WithStreamedUnaryMethod_DeletePeer : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_DeletePeer() {
-      ::grpc::Service::MarkMethodStreamed(46,
+      ::grpc::Service::MarkMethodStreamed(47,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeletePeerRqst, ::resource::DeletePeerRsp>(
             [this](::grpc::ServerContext* context,
@@ -13145,7 +13526,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_AddPeerActions() {
-      ::grpc::Service::MarkMethodStreamed(47,
+      ::grpc::Service::MarkMethodStreamed(48,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp>(
             [this](::grpc::ServerContext* context,
@@ -13172,7 +13553,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_RemovePeerAction() {
-      ::grpc::Service::MarkMethodStreamed(48,
+      ::grpc::Service::MarkMethodStreamed(49,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp>(
             [this](::grpc::ServerContext* context,
@@ -13199,7 +13580,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_RemovePeersAction() {
-      ::grpc::Service::MarkMethodStreamed(49,
+      ::grpc::Service::MarkMethodStreamed(50,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemovePeersActionRqst, ::resource::RemovePeersActionRsp>(
             [this](::grpc::ServerContext* context,
@@ -13226,7 +13607,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_AcceptPeer() {
-      ::grpc::Service::MarkMethodStreamed(50,
+      ::grpc::Service::MarkMethodStreamed(51,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp>(
             [this](::grpc::ServerContext* context,
@@ -13253,7 +13634,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_RejectPeer() {
-      ::grpc::Service::MarkMethodStreamed(51,
+      ::grpc::Service::MarkMethodStreamed(52,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RejectPeerRqst, ::resource::RejectPeerRsp>(
             [this](::grpc::ServerContext* context,
@@ -13275,12 +13656,39 @@ class ResourceService final {
     virtual ::grpc::Status StreamedRejectPeer(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::RejectPeerRqst,::resource::RejectPeerRsp>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
+  class WithStreamedUnaryMethod_GetPeerPublicKey : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_GetPeerPublicKey() {
+      ::grpc::Service::MarkMethodStreamed(53,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp>* streamer) {
+                       return this->StreamedGetPeerPublicKey(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_GetPeerPublicKey() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status GetPeerPublicKey(::grpc::ServerContext* /*context*/, const ::resource::GetPeerPublicKeyRqst* /*request*/, ::resource::GetPeerPublicKeyRsp* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedGetPeerPublicKey(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::GetPeerPublicKeyRqst,::resource::GetPeerPublicKeyRsp>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
   class WithStreamedUnaryMethod_CreateNotification : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_CreateNotification() {
-      ::grpc::Service::MarkMethodStreamed(52,
+      ::grpc::Service::MarkMethodStreamed(54,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::CreateNotificationRqst, ::resource::CreateNotificationRsp>(
             [this](::grpc::ServerContext* context,
@@ -13307,7 +13715,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_DeleteNotification() {
-      ::grpc::Service::MarkMethodStreamed(54,
+      ::grpc::Service::MarkMethodStreamed(56,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::DeleteNotificationRqst, ::resource::DeleteNotificationRsp>(
             [this](::grpc::ServerContext* context,
@@ -13334,7 +13742,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_ClearAllNotifications() {
-      ::grpc::Service::MarkMethodStreamed(55,
+      ::grpc::Service::MarkMethodStreamed(57,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::ClearAllNotificationsRqst, ::resource::ClearAllNotificationsRsp>(
             [this](::grpc::ServerContext* context,
@@ -13361,7 +13769,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_ClearNotificationsByType() {
-      ::grpc::Service::MarkMethodStreamed(56,
+      ::grpc::Service::MarkMethodStreamed(58,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::ClearNotificationsByTypeRqst, ::resource::ClearNotificationsByTypeRsp>(
             [this](::grpc::ServerContext* context,
@@ -13388,7 +13796,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_FindPackages() {
-      ::grpc::Service::MarkMethodStreamed(57,
+      ::grpc::Service::MarkMethodStreamed(59,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::FindPackagesDescriptorRequest, ::resource::FindPackagesDescriptorResponse>(
             [this](::grpc::ServerContext* context,
@@ -13415,7 +13823,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_GetPackageDescriptor() {
-      ::grpc::Service::MarkMethodStreamed(58,
+      ::grpc::Service::MarkMethodStreamed(60,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::GetPackageDescriptorRequest, ::resource::GetPackageDescriptorResponse>(
             [this](::grpc::ServerContext* context,
@@ -13442,7 +13850,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_SetPackageDescriptor() {
-      ::grpc::Service::MarkMethodStreamed(60,
+      ::grpc::Service::MarkMethodStreamed(62,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::SetPackageDescriptorRequest, ::resource::SetPackageDescriptorResponse>(
             [this](::grpc::ServerContext* context,
@@ -13469,7 +13877,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_SetPackageBundle() {
-      ::grpc::Service::MarkMethodStreamed(61,
+      ::grpc::Service::MarkMethodStreamed(63,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::SetPackageBundleRequest, ::resource::SetPackageBundleResponse>(
             [this](::grpc::ServerContext* context,
@@ -13496,7 +13904,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_GetPackageBundleChecksum() {
-      ::grpc::Service::MarkMethodStreamed(62,
+      ::grpc::Service::MarkMethodStreamed(64,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::GetPackageBundleChecksumRequest, ::resource::GetPackageBundleChecksumResponse>(
             [this](::grpc::ServerContext* context,
@@ -13523,7 +13931,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_UpdateSession() {
-      ::grpc::Service::MarkMethodStreamed(63,
+      ::grpc::Service::MarkMethodStreamed(65,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::UpdateSessionRequest, ::resource::UpdateSessionResponse>(
             [this](::grpc::ServerContext* context,
@@ -13550,7 +13958,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_GetSessions() {
-      ::grpc::Service::MarkMethodStreamed(64,
+      ::grpc::Service::MarkMethodStreamed(66,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::GetSessionsRequest, ::resource::GetSessionsResponse>(
             [this](::grpc::ServerContext* context,
@@ -13577,7 +13985,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_RemoveSession() {
-      ::grpc::Service::MarkMethodStreamed(65,
+      ::grpc::Service::MarkMethodStreamed(67,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::RemoveSessionRequest, ::resource::RemoveSessionResponse>(
             [this](::grpc::ServerContext* context,
@@ -13604,7 +14012,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_GetSession() {
-      ::grpc::Service::MarkMethodStreamed(66,
+      ::grpc::Service::MarkMethodStreamed(68,
         new ::grpc::internal::StreamedUnaryHandler<
           ::resource::GetSessionRequest, ::resource::GetSessionResponse>(
             [this](::grpc::ServerContext* context,
@@ -13625,7 +14033,7 @@ class ResourceService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedGetSession(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::resource::GetSessionRequest,::resource::GetSessionResponse>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_CreateOrganization<WithStreamedUnaryMethod_UpdateOrganization<WithStreamedUnaryMethod_DeleteOrganization<WithStreamedUnaryMethod_AddOrganizationAccount<WithStreamedUnaryMethod_AddOrganizationGroup<WithStreamedUnaryMethod_AddOrganizationRole<WithStreamedUnaryMethod_AddOrganizationApplication<WithStreamedUnaryMethod_RemoveOrganizationAccount<WithStreamedUnaryMethod_RemoveOrganizationGroup<WithStreamedUnaryMethod_RemoveOrganizationRole<WithStreamedUnaryMethod_RemoveOrganizationApplication<WithStreamedUnaryMethod_CreateGroup<WithStreamedUnaryMethod_UpdateGroup<WithStreamedUnaryMethod_DeleteGroup<WithStreamedUnaryMethod_AddGroupMemberAccount<WithStreamedUnaryMethod_RemoveGroupMemberAccount<WithStreamedUnaryMethod_RegisterAccount<WithStreamedUnaryMethod_DeleteAccount<WithStreamedUnaryMethod_GetAccount<WithStreamedUnaryMethod_SetAccountPassword<WithStreamedUnaryMethod_AddAccountRole<WithStreamedUnaryMethod_RemoveAccountRole<WithStreamedUnaryMethod_SetAccountContact<WithStreamedUnaryMethod_SetEmail<WithStreamedUnaryMethod_IsOrgnanizationMember<WithStreamedUnaryMethod_CreateRole<WithStreamedUnaryMethod_DeleteRole<WithStreamedUnaryMethod_AddRoleActions<WithStreamedUnaryMethod_RemoveRoleAction<WithStreamedUnaryMethod_RemoveRolesAction<WithStreamedUnaryMethod_CreateApplication<WithStreamedUnaryMethod_UpdateApplication<WithStreamedUnaryMethod_DeleteApplication<WithStreamedUnaryMethod_AddApplicationActions<WithStreamedUnaryMethod_RemoveApplicationAction<WithStreamedUnaryMethod_RemoveApplicationsAction<WithStreamedUnaryMethod_GetApplicationVersion<WithStreamedUnaryMethod_GetApplicationAlias<WithStreamedUnaryMethod_GetApplicationIcon<WithStreamedUnaryMethod_RegisterPeer<WithStreamedUnaryMethod_DeletePeer<WithStreamedUnaryMethod_AddPeerActions<WithStreamedUnaryMethod_RemovePeerAction<WithStreamedUnaryMethod_RemovePeersAction<WithStreamedUnaryMethod_AcceptPeer<WithStreamedUnaryMethod_RejectPeer<WithStreamedUnaryMethod_CreateNotification<WithStreamedUnaryMethod_DeleteNotification<WithStreamedUnaryMethod_ClearAllNotifications<WithStreamedUnaryMethod_ClearNotificationsByType<WithStreamedUnaryMethod_FindPackages<WithStreamedUnaryMethod_GetPackageDescriptor<WithStreamedUnaryMethod_SetPackageDescriptor<WithStreamedUnaryMethod_SetPackageBundle<WithStreamedUnaryMethod_GetPackageBundleChecksum<WithStreamedUnaryMethod_UpdateSession<WithStreamedUnaryMethod_GetSessions<WithStreamedUnaryMethod_RemoveSession<WithStreamedUnaryMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > StreamedUnaryService;
+  typedef WithStreamedUnaryMethod_CreateOrganization<WithStreamedUnaryMethod_UpdateOrganization<WithStreamedUnaryMethod_DeleteOrganization<WithStreamedUnaryMethod_AddOrganizationAccount<WithStreamedUnaryMethod_AddOrganizationGroup<WithStreamedUnaryMethod_AddOrganizationRole<WithStreamedUnaryMethod_AddOrganizationApplication<WithStreamedUnaryMethod_RemoveOrganizationAccount<WithStreamedUnaryMethod_RemoveOrganizationGroup<WithStreamedUnaryMethod_RemoveOrganizationRole<WithStreamedUnaryMethod_RemoveOrganizationApplication<WithStreamedUnaryMethod_CreateGroup<WithStreamedUnaryMethod_UpdateGroup<WithStreamedUnaryMethod_DeleteGroup<WithStreamedUnaryMethod_AddGroupMemberAccount<WithStreamedUnaryMethod_RemoveGroupMemberAccount<WithStreamedUnaryMethod_RegisterAccount<WithStreamedUnaryMethod_DeleteAccount<WithStreamedUnaryMethod_GetAccount<WithStreamedUnaryMethod_SetAccountPassword<WithStreamedUnaryMethod_AddAccountRole<WithStreamedUnaryMethod_RemoveAccountRole<WithStreamedUnaryMethod_SetAccountContact<WithStreamedUnaryMethod_SetEmail<WithStreamedUnaryMethod_IsOrgnanizationMember<WithStreamedUnaryMethod_CreateRole<WithStreamedUnaryMethod_DeleteRole<WithStreamedUnaryMethod_AddRoleActions<WithStreamedUnaryMethod_RemoveRoleAction<WithStreamedUnaryMethod_RemoveRolesAction<WithStreamedUnaryMethod_CreateApplication<WithStreamedUnaryMethod_UpdateApplication<WithStreamedUnaryMethod_DeleteApplication<WithStreamedUnaryMethod_AddApplicationActions<WithStreamedUnaryMethod_RemoveApplicationAction<WithStreamedUnaryMethod_RemoveApplicationsAction<WithStreamedUnaryMethod_GetApplicationVersion<WithStreamedUnaryMethod_GetApplicationAlias<WithStreamedUnaryMethod_GetApplicationIcon<WithStreamedUnaryMethod_RegisterPeer<WithStreamedUnaryMethod_GetPeerApprovalState<WithStreamedUnaryMethod_DeletePeer<WithStreamedUnaryMethod_AddPeerActions<WithStreamedUnaryMethod_RemovePeerAction<WithStreamedUnaryMethod_RemovePeersAction<WithStreamedUnaryMethod_AcceptPeer<WithStreamedUnaryMethod_RejectPeer<WithStreamedUnaryMethod_GetPeerPublicKey<WithStreamedUnaryMethod_CreateNotification<WithStreamedUnaryMethod_DeleteNotification<WithStreamedUnaryMethod_ClearAllNotifications<WithStreamedUnaryMethod_ClearNotificationsByType<WithStreamedUnaryMethod_FindPackages<WithStreamedUnaryMethod_GetPackageDescriptor<WithStreamedUnaryMethod_SetPackageDescriptor<WithStreamedUnaryMethod_SetPackageBundle<WithStreamedUnaryMethod_GetPackageBundleChecksum<WithStreamedUnaryMethod_UpdateSession<WithStreamedUnaryMethod_GetSessions<WithStreamedUnaryMethod_RemoveSession<WithStreamedUnaryMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > StreamedUnaryService;
   template <class BaseClass>
   class WithSplitStreamingMethod_GetOrganizations : public BaseClass {
    private:
@@ -13794,7 +14202,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithSplitStreamingMethod_GetNotifications() {
-      ::grpc::Service::MarkMethodStreamed(53,
+      ::grpc::Service::MarkMethodStreamed(55,
         new ::grpc::internal::SplitServerStreamingHandler<
           ::resource::GetNotificationsRqst, ::resource::GetNotificationsRsp>(
             [this](::grpc::ServerContext* context,
@@ -13821,7 +14229,7 @@ class ResourceService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithSplitStreamingMethod_GetPackagesDescriptor() {
-      ::grpc::Service::MarkMethodStreamed(59,
+      ::grpc::Service::MarkMethodStreamed(61,
         new ::grpc::internal::SplitServerStreamingHandler<
           ::resource::GetPackagesDescriptorRequest, ::resource::GetPackagesDescriptorResponse>(
             [this](::grpc::ServerContext* context,
@@ -13843,7 +14251,7 @@ class ResourceService final {
     virtual ::grpc::Status StreamedGetPackagesDescriptor(::grpc::ServerContext* context, ::grpc::ServerSplitStreamer< ::resource::GetPackagesDescriptorRequest,::resource::GetPackagesDescriptorResponse>* server_split_streamer) = 0;
   };
   typedef WithSplitStreamingMethod_GetOrganizations<WithSplitStreamingMethod_GetGroups<WithSplitStreamingMethod_GetAccounts<WithSplitStreamingMethod_GetRoles<WithSplitStreamingMethod_GetApplications<WithSplitStreamingMethod_GetPeers<WithSplitStreamingMethod_GetNotifications<WithSplitStreamingMethod_GetPackagesDescriptor<Service > > > > > > > > SplitStreamedService;
-  typedef WithStreamedUnaryMethod_CreateOrganization<WithStreamedUnaryMethod_UpdateOrganization<WithSplitStreamingMethod_GetOrganizations<WithStreamedUnaryMethod_DeleteOrganization<WithStreamedUnaryMethod_AddOrganizationAccount<WithStreamedUnaryMethod_AddOrganizationGroup<WithStreamedUnaryMethod_AddOrganizationRole<WithStreamedUnaryMethod_AddOrganizationApplication<WithStreamedUnaryMethod_RemoveOrganizationAccount<WithStreamedUnaryMethod_RemoveOrganizationGroup<WithStreamedUnaryMethod_RemoveOrganizationRole<WithStreamedUnaryMethod_RemoveOrganizationApplication<WithStreamedUnaryMethod_CreateGroup<WithStreamedUnaryMethod_UpdateGroup<WithSplitStreamingMethod_GetGroups<WithStreamedUnaryMethod_DeleteGroup<WithStreamedUnaryMethod_AddGroupMemberAccount<WithStreamedUnaryMethod_RemoveGroupMemberAccount<WithStreamedUnaryMethod_RegisterAccount<WithStreamedUnaryMethod_DeleteAccount<WithStreamedUnaryMethod_GetAccount<WithStreamedUnaryMethod_SetAccountPassword<WithSplitStreamingMethod_GetAccounts<WithStreamedUnaryMethod_AddAccountRole<WithStreamedUnaryMethod_RemoveAccountRole<WithStreamedUnaryMethod_SetAccountContact<WithStreamedUnaryMethod_SetEmail<WithStreamedUnaryMethod_IsOrgnanizationMember<WithStreamedUnaryMethod_CreateRole<WithSplitStreamingMethod_GetRoles<WithStreamedUnaryMethod_DeleteRole<WithStreamedUnaryMethod_AddRoleActions<WithStreamedUnaryMethod_RemoveRoleAction<WithStreamedUnaryMethod_RemoveRolesAction<WithStreamedUnaryMethod_CreateApplication<WithStreamedUnaryMethod_UpdateApplication<WithSplitStreamingMethod_GetApplications<WithStreamedUnaryMethod_DeleteApplication<WithStreamedUnaryMethod_AddApplicationActions<WithStreamedUnaryMethod_RemoveApplicationAction<WithStreamedUnaryMethod_RemoveApplicationsAction<WithStreamedUnaryMethod_GetApplicationVersion<WithStreamedUnaryMethod_GetApplicationAlias<WithStreamedUnaryMethod_GetApplicationIcon<WithStreamedUnaryMethod_RegisterPeer<WithSplitStreamingMethod_GetPeers<WithStreamedUnaryMethod_DeletePeer<WithStreamedUnaryMethod_AddPeerActions<WithStreamedUnaryMethod_RemovePeerAction<WithStreamedUnaryMethod_RemovePeersAction<WithStreamedUnaryMethod_AcceptPeer<WithStreamedUnaryMethod_RejectPeer<WithStreamedUnaryMethod_CreateNotification<WithSplitStreamingMethod_GetNotifications<WithStreamedUnaryMethod_DeleteNotification<WithStreamedUnaryMethod_ClearAllNotifications<WithStreamedUnaryMethod_ClearNotificationsByType<WithStreamedUnaryMethod_FindPackages<WithStreamedUnaryMethod_GetPackageDescriptor<WithSplitStreamingMethod_GetPackagesDescriptor<WithStreamedUnaryMethod_SetPackageDescriptor<WithStreamedUnaryMethod_SetPackageBundle<WithStreamedUnaryMethod_GetPackageBundleChecksum<WithStreamedUnaryMethod_UpdateSession<WithStreamedUnaryMethod_GetSessions<WithStreamedUnaryMethod_RemoveSession<WithStreamedUnaryMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > StreamedService;
+  typedef WithStreamedUnaryMethod_CreateOrganization<WithStreamedUnaryMethod_UpdateOrganization<WithSplitStreamingMethod_GetOrganizations<WithStreamedUnaryMethod_DeleteOrganization<WithStreamedUnaryMethod_AddOrganizationAccount<WithStreamedUnaryMethod_AddOrganizationGroup<WithStreamedUnaryMethod_AddOrganizationRole<WithStreamedUnaryMethod_AddOrganizationApplication<WithStreamedUnaryMethod_RemoveOrganizationAccount<WithStreamedUnaryMethod_RemoveOrganizationGroup<WithStreamedUnaryMethod_RemoveOrganizationRole<WithStreamedUnaryMethod_RemoveOrganizationApplication<WithStreamedUnaryMethod_CreateGroup<WithStreamedUnaryMethod_UpdateGroup<WithSplitStreamingMethod_GetGroups<WithStreamedUnaryMethod_DeleteGroup<WithStreamedUnaryMethod_AddGroupMemberAccount<WithStreamedUnaryMethod_RemoveGroupMemberAccount<WithStreamedUnaryMethod_RegisterAccount<WithStreamedUnaryMethod_DeleteAccount<WithStreamedUnaryMethod_GetAccount<WithStreamedUnaryMethod_SetAccountPassword<WithSplitStreamingMethod_GetAccounts<WithStreamedUnaryMethod_AddAccountRole<WithStreamedUnaryMethod_RemoveAccountRole<WithStreamedUnaryMethod_SetAccountContact<WithStreamedUnaryMethod_SetEmail<WithStreamedUnaryMethod_IsOrgnanizationMember<WithStreamedUnaryMethod_CreateRole<WithSplitStreamingMethod_GetRoles<WithStreamedUnaryMethod_DeleteRole<WithStreamedUnaryMethod_AddRoleActions<WithStreamedUnaryMethod_RemoveRoleAction<WithStreamedUnaryMethod_RemoveRolesAction<WithStreamedUnaryMethod_CreateApplication<WithStreamedUnaryMethod_UpdateApplication<WithSplitStreamingMethod_GetApplications<WithStreamedUnaryMethod_DeleteApplication<WithStreamedUnaryMethod_AddApplicationActions<WithStreamedUnaryMethod_RemoveApplicationAction<WithStreamedUnaryMethod_RemoveApplicationsAction<WithStreamedUnaryMethod_GetApplicationVersion<WithStreamedUnaryMethod_GetApplicationAlias<WithStreamedUnaryMethod_GetApplicationIcon<WithStreamedUnaryMethod_RegisterPeer<WithSplitStreamingMethod_GetPeers<WithStreamedUnaryMethod_GetPeerApprovalState<WithStreamedUnaryMethod_DeletePeer<WithStreamedUnaryMethod_AddPeerActions<WithStreamedUnaryMethod_RemovePeerAction<WithStreamedUnaryMethod_RemovePeersAction<WithStreamedUnaryMethod_AcceptPeer<WithStreamedUnaryMethod_RejectPeer<WithStreamedUnaryMethod_GetPeerPublicKey<WithStreamedUnaryMethod_CreateNotification<WithSplitStreamingMethod_GetNotifications<WithStreamedUnaryMethod_DeleteNotification<WithStreamedUnaryMethod_ClearAllNotifications<WithStreamedUnaryMethod_ClearNotificationsByType<WithStreamedUnaryMethod_FindPackages<WithStreamedUnaryMethod_GetPackageDescriptor<WithSplitStreamingMethod_GetPackagesDescriptor<WithStreamedUnaryMethod_SetPackageDescriptor<WithStreamedUnaryMethod_SetPackageBundle<WithStreamedUnaryMethod_GetPackageBundleChecksum<WithStreamedUnaryMethod_UpdateSession<WithStreamedUnaryMethod_GetSessions<WithStreamedUnaryMethod_RemoveSession<WithStreamedUnaryMethod_GetSession<Service > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > StreamedService;
 };
 
 }  // namespace resource

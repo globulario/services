@@ -1,5 +1,5 @@
-#ifndef GLOBULARResourceCLIENT_H
-#define GLOBULARResourceCLIENT_H
+#ifndef GLOBULAR_Config__CLIENT_H
+#define GLOBULAR_Config__CLIENT_H
 #include "../../GlobularClient/globularclient.h"
 #include <thread>
 
@@ -9,8 +9,8 @@
 #include <grpcpp/create_channel.h>
 #include <grpcpp/security/credentials.h>
 
-#include "../resourcepb/resource.pb.h"
-#include "../resourcepb/resource.grpc.pb.h"
+#include "../configpb/config.pb.h"
+#include "../configpb/config.grpc.pb.h"
 
 // GRPC stuff.
 using grpc::Channel;
@@ -22,19 +22,18 @@ using grpc::Status;
 
 namespace Globular {
 
-class ResourceClient : Client
-{
+class ConfigClient : Client {
     // the underlying grpc resource client.
-    std::unique_ptr<resource::ResourceService::Stub> stub_;
+    std::unique_ptr<config::ConfigService::Stub> stub_;
 
 public:
 
     // The constructor.
-    ResourceClient(std::string name, std::string domain="localhost", unsigned int configurationPort=80);
+    ConfigClient(std::string name, std::string domain="localhost", unsigned int configurationPort=80);
 
     // Now the resource client functionnalites.
 };
 
 }
 
-#endif // GLOBULARResourceCLIENT_H
+#endif // GLOBULAR_Config__CLIENT_H

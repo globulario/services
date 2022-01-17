@@ -17,7 +17,7 @@ public:
     EchoServiceImpl(std::string id = "echo",
                     std::string name = "echo.EchoService",
                     std::string domain = "localhost",
-                    std::string publisher_id = "localhost",
+                    std::string publisher_id = "globulario",
                     bool allow_all_origins = false,
                     std::string allowed_origins = "",
                     std::string version = "0.0.1",

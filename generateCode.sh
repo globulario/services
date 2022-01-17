@@ -138,6 +138,14 @@ protoc --grpc_out=./csharp/rbac/GlobularRbacClient --csharp_out=./csharp/rbac/Gl
 
 
 # C++ grpc files generation.
+mkdir cpp/config/configpb
+protoc --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_cpp_plugin.exe" --grpc_out=./cpp/config/configpb -I proto config.proto
+protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/config/configpb  -I proto config.proto
+protoc --cpp_out=./cpp/config/configpb -I proto config.proto
+mkdir cpp/rbac/rbacpb
+protoc --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_cpp_plugin.exe" --grpc_out=./cpp/rbac/rbacpb -I proto rbac.proto
+protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/rbac/rbacpb  -I proto rbac.proto
+protoc --cpp_out=./cpp/rbac/rbacpb -I proto rbac.proto
 mkdir cpp/resource/resourcepb
 protoc --plugin="protoc-gen-grpc=C:\msys64\mingw64\bin\grpc_cpp_plugin.exe" --grpc_out=./cpp/resource/resourcepb -I proto resource.proto
 protoc --plugin="protoc-gen-grpc=/usr/local/bin/grpc_cpp_plugin" --grpc_out=./cpp/resource/resourcepb  -I proto resource.proto

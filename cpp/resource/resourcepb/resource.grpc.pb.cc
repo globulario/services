@@ -68,12 +68,14 @@ static const char* ResourceService_method_names[] = {
   "/resource.ResourceService/GetApplicationIcon",
   "/resource.ResourceService/RegisterPeer",
   "/resource.ResourceService/GetPeers",
+  "/resource.ResourceService/GetPeerApprovalState",
   "/resource.ResourceService/DeletePeer",
   "/resource.ResourceService/AddPeerActions",
   "/resource.ResourceService/RemovePeerAction",
   "/resource.ResourceService/RemovePeersAction",
   "/resource.ResourceService/AcceptPeer",
   "/resource.ResourceService/RejectPeer",
+  "/resource.ResourceService/GetPeerPublicKey",
   "/resource.ResourceService/CreateNotification",
   "/resource.ResourceService/GetNotifications",
   "/resource.ResourceService/DeleteNotification",
@@ -144,27 +146,29 @@ ResourceService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& ch
   , rpcmethod_GetApplicationIcon_(ResourceService_method_names[43], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_RegisterPeer_(ResourceService_method_names[44], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_GetPeers_(ResourceService_method_names[45], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeletePeer_(ResourceService_method_names[46], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AddPeerActions_(ResourceService_method_names[47], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemovePeerAction_(ResourceService_method_names[48], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemovePeersAction_(ResourceService_method_names[49], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_AcceptPeer_(ResourceService_method_names[50], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RejectPeer_(ResourceService_method_names[51], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_CreateNotification_(ResourceService_method_names[52], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetNotifications_(ResourceService_method_names[53], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_DeleteNotification_(ResourceService_method_names[54], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ClearAllNotifications_(ResourceService_method_names[55], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_ClearNotificationsByType_(ResourceService_method_names[56], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_FindPackages_(ResourceService_method_names[57], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPackageDescriptor_(ResourceService_method_names[58], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPackagesDescriptor_(ResourceService_method_names[59], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
-  , rpcmethod_SetPackageDescriptor_(ResourceService_method_names[60], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_SetPackageBundle_(ResourceService_method_names[61], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetPackageBundleChecksum_(ResourceService_method_names[62], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_UpdateSession_(ResourceService_method_names[63], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetSessions_(ResourceService_method_names[64], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_RemoveSession_(ResourceService_method_names[65], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetSession_(ResourceService_method_names[66], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPeerApprovalState_(ResourceService_method_names[46], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_DeletePeer_(ResourceService_method_names[47], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddPeerActions_(ResourceService_method_names[48], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemovePeerAction_(ResourceService_method_names[49], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemovePeersAction_(ResourceService_method_names[50], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AcceptPeer_(ResourceService_method_names[51], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RejectPeer_(ResourceService_method_names[52], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPeerPublicKey_(ResourceService_method_names[53], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_CreateNotification_(ResourceService_method_names[54], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetNotifications_(ResourceService_method_names[55], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_DeleteNotification_(ResourceService_method_names[56], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ClearAllNotifications_(ResourceService_method_names[57], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_ClearNotificationsByType_(ResourceService_method_names[58], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_FindPackages_(ResourceService_method_names[59], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPackageDescriptor_(ResourceService_method_names[60], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPackagesDescriptor_(ResourceService_method_names[61], ::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
+  , rpcmethod_SetPackageDescriptor_(ResourceService_method_names[62], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_SetPackageBundle_(ResourceService_method_names[63], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetPackageBundleChecksum_(ResourceService_method_names[64], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_UpdateSession_(ResourceService_method_names[65], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetSessions_(ResourceService_method_names[66], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_RemoveSession_(ResourceService_method_names[67], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetSession_(ResourceService_method_names[68], ::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status ResourceService::Stub::CreateOrganization(::grpc::ClientContext* context, const ::resource::CreateOrganizationRqst& request, ::resource::CreateOrganizationRsp* response) {
@@ -1183,6 +1187,29 @@ void ResourceService::Stub::experimental_async::GetPeers(::grpc::ClientContext* 
   return ::grpc::internal::ClientAsyncReaderFactory< ::resource::GetPeersRsp>::Create(channel_.get(), cq, rpcmethod_GetPeers_, context, request, false, nullptr);
 }
 
+::grpc::Status ResourceService::Stub::GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::resource::GetPeerApprovalStateRsp* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_GetPeerApprovalState_, context, request, response);
+}
+
+void ResourceService::Stub::experimental_async::GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_GetPeerApprovalState_, context, request, response, std::move(f));
+}
+
+void ResourceService::Stub::experimental_async::GetPeerApprovalState(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_GetPeerApprovalState_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>* ResourceService::Stub::PrepareAsyncGetPeerApprovalStateRaw(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::resource::GetPeerApprovalStateRsp, ::resource::GetPeerApprovalStateRqst, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_GetPeerApprovalState_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::GetPeerApprovalStateRsp>* ResourceService::Stub::AsyncGetPeerApprovalStateRaw(::grpc::ClientContext* context, const ::resource::GetPeerApprovalStateRqst& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncGetPeerApprovalStateRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 ::grpc::Status ResourceService::Stub::DeletePeer(::grpc::ClientContext* context, const ::resource::DeletePeerRqst& request, ::resource::DeletePeerRsp* response) {
   return ::grpc::internal::BlockingUnaryCall< ::resource::DeletePeerRqst, ::resource::DeletePeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_DeletePeer_, context, request, response);
 }
@@ -1317,6 +1344,29 @@ void ResourceService::Stub::experimental_async::RejectPeer(::grpc::ClientContext
 ::grpc::ClientAsyncResponseReader< ::resource::RejectPeerRsp>* ResourceService::Stub::AsyncRejectPeerRaw(::grpc::ClientContext* context, const ::resource::RejectPeerRqst& request, ::grpc::CompletionQueue* cq) {
   auto* result =
     this->PrepareAsyncRejectPeerRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status ResourceService::Stub::GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::resource::GetPeerPublicKeyRsp* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_GetPeerPublicKey_, context, request, response);
+}
+
+void ResourceService::Stub::experimental_async::GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_GetPeerPublicKey_, context, request, response, std::move(f));
+}
+
+void ResourceService::Stub::experimental_async::GetPeerPublicKey(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_GetPeerPublicKey_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>* ResourceService::Stub::PrepareAsyncGetPeerPublicKeyRaw(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::resource::GetPeerPublicKeyRsp, ::resource::GetPeerPublicKeyRqst, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_GetPeerPublicKey_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::resource::GetPeerPublicKeyRsp>* ResourceService::Stub::AsyncGetPeerPublicKeyRaw(::grpc::ClientContext* context, const ::resource::GetPeerPublicKeyRqst& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncGetPeerPublicKeyRaw(context, request, cq);
   result->StartCall();
   return result;
 }
@@ -2116,6 +2166,16 @@ ResourceService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       ResourceService_method_names[46],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetPeerApprovalStateRqst, ::resource::GetPeerApprovalStateRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ResourceService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::resource::GetPeerApprovalStateRqst* req,
+             ::resource::GetPeerApprovalStateRsp* resp) {
+               return service->GetPeerApprovalState(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ResourceService_method_names[47],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeletePeerRqst, ::resource::DeletePeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
              ::grpc::ServerContext* ctx,
@@ -2124,7 +2184,7 @@ ResourceService::Service::Service() {
                return service->DeletePeer(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[47],
+      ResourceService_method_names[48],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AddPeerActionsRqst, ::resource::AddPeerActionsRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2134,7 +2194,7 @@ ResourceService::Service::Service() {
                return service->AddPeerActions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[48],
+      ResourceService_method_names[49],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemovePeerActionRqst, ::resource::RemovePeerActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2144,7 +2204,7 @@ ResourceService::Service::Service() {
                return service->RemovePeerAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[49],
+      ResourceService_method_names[50],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemovePeersActionRqst, ::resource::RemovePeersActionRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2154,7 +2214,7 @@ ResourceService::Service::Service() {
                return service->RemovePeersAction(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[50],
+      ResourceService_method_names[51],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::AcceptPeerRqst, ::resource::AcceptPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2164,7 +2224,7 @@ ResourceService::Service::Service() {
                return service->AcceptPeer(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[51],
+      ResourceService_method_names[52],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RejectPeerRqst, ::resource::RejectPeerRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2174,7 +2234,17 @@ ResourceService::Service::Service() {
                return service->RejectPeer(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[52],
+      ResourceService_method_names[53],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetPeerPublicKeyRqst, ::resource::GetPeerPublicKeyRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](ResourceService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::resource::GetPeerPublicKeyRqst* req,
+             ::resource::GetPeerPublicKeyRsp* resp) {
+               return service->GetPeerPublicKey(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      ResourceService_method_names[54],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::CreateNotificationRqst, ::resource::CreateNotificationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2184,7 +2254,7 @@ ResourceService::Service::Service() {
                return service->CreateNotification(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[53],
+      ResourceService_method_names[55],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetNotificationsRqst, ::resource::GetNotificationsRsp>(
           [](ResourceService::Service* service,
@@ -2194,7 +2264,7 @@ ResourceService::Service::Service() {
                return service->GetNotifications(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[54],
+      ResourceService_method_names[56],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::DeleteNotificationRqst, ::resource::DeleteNotificationRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2204,7 +2274,7 @@ ResourceService::Service::Service() {
                return service->DeleteNotification(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[55],
+      ResourceService_method_names[57],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::ClearAllNotificationsRqst, ::resource::ClearAllNotificationsRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2214,7 +2284,7 @@ ResourceService::Service::Service() {
                return service->ClearAllNotifications(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[56],
+      ResourceService_method_names[58],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::ClearNotificationsByTypeRqst, ::resource::ClearNotificationsByTypeRsp, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2224,7 +2294,7 @@ ResourceService::Service::Service() {
                return service->ClearNotificationsByType(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[57],
+      ResourceService_method_names[59],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::FindPackagesDescriptorRequest, ::resource::FindPackagesDescriptorResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2234,7 +2304,7 @@ ResourceService::Service::Service() {
                return service->FindPackages(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[58],
+      ResourceService_method_names[60],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetPackageDescriptorRequest, ::resource::GetPackageDescriptorResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2244,7 +2314,7 @@ ResourceService::Service::Service() {
                return service->GetPackageDescriptor(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[59],
+      ResourceService_method_names[61],
       ::grpc::internal::RpcMethod::SERVER_STREAMING,
       new ::grpc::internal::ServerStreamingHandler< ResourceService::Service, ::resource::GetPackagesDescriptorRequest, ::resource::GetPackagesDescriptorResponse>(
           [](ResourceService::Service* service,
@@ -2254,7 +2324,7 @@ ResourceService::Service::Service() {
                return service->GetPackagesDescriptor(ctx, req, writer);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[60],
+      ResourceService_method_names[62],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::SetPackageDescriptorRequest, ::resource::SetPackageDescriptorResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2264,7 +2334,7 @@ ResourceService::Service::Service() {
                return service->SetPackageDescriptor(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[61],
+      ResourceService_method_names[63],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::SetPackageBundleRequest, ::resource::SetPackageBundleResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2274,7 +2344,7 @@ ResourceService::Service::Service() {
                return service->SetPackageBundle(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[62],
+      ResourceService_method_names[64],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetPackageBundleChecksumRequest, ::resource::GetPackageBundleChecksumResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2284,7 +2354,7 @@ ResourceService::Service::Service() {
                return service->GetPackageBundleChecksum(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[63],
+      ResourceService_method_names[65],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::UpdateSessionRequest, ::resource::UpdateSessionResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2294,7 +2364,7 @@ ResourceService::Service::Service() {
                return service->UpdateSession(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[64],
+      ResourceService_method_names[66],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetSessionsRequest, ::resource::GetSessionsResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2304,7 +2374,7 @@ ResourceService::Service::Service() {
                return service->GetSessions(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[65],
+      ResourceService_method_names[67],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::RemoveSessionRequest, ::resource::RemoveSessionResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2314,7 +2384,7 @@ ResourceService::Service::Service() {
                return service->RemoveSession(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      ResourceService_method_names[66],
+      ResourceService_method_names[68],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< ResourceService::Service, ::resource::GetSessionRequest, ::resource::GetSessionResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](ResourceService::Service* service,
@@ -2650,6 +2720,13 @@ ResourceService::Service::~Service() {
   return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
 }
 
+::grpc::Status ResourceService::Service::GetPeerApprovalState(::grpc::ServerContext* context, const ::resource::GetPeerApprovalStateRqst* request, ::resource::GetPeerApprovalStateRsp* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
 ::grpc::Status ResourceService::Service::DeletePeer(::grpc::ServerContext* context, const ::resource::DeletePeerRqst* request, ::resource::DeletePeerRsp* response) {
   (void) context;
   (void) request;
@@ -2686,6 +2763,13 @@ ResourceService::Service::~Service() {
 }
 
 ::grpc::Status ResourceService::Service::RejectPeer(::grpc::ServerContext* context, const ::resource::RejectPeerRqst* request, ::resource::RejectPeerRsp* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status ResourceService::Service::GetPeerPublicKey(::grpc::ServerContext* context, const ::resource::GetPeerPublicKeyRqst* request, ::resource::GetPeerPublicKeyRsp* response) {
   (void) context;
   (void) request;
   (void) response;

@@ -13,6 +13,7 @@ using grpc::Channel;
 namespace  Globular {
 
 struct ServiceConfig{
+    std::string Address;
     std::string Id;
     std::string Name;
     std::string Path;
@@ -36,37 +37,34 @@ struct ServiceConfig{
 struct ServerConfig {
     std::string Domain;
     std::string Name;
+    std::string Mac;
     std::string Protocol;
+    std::string PortsRange;
     std::string CertStableURL;
     std::string CertURL;
     unsigned int PortHttp;
     unsigned int PortHttps;
-    unsigned int AdminPort;
-    unsigned int AdminProxy;
     std::string AdminEmail;
-    unsigned int ResourcePort;
-    unsigned int ResourceProxy;
-    unsigned int ServicesDiscoveryPort;
-    unsigned int ServicesDiscoveryProxy;
-    unsigned int ServicesRepositoryPort;
-    unsigned int ServicesRepositoryProxy;
-    unsigned int CertificateAuthorityPort;
-    unsigned int CertificateAuthorityProxy;
-    unsigned int LoadBalancingServicePort;
-    unsigned int LoadBalancingServiceProxy;
     unsigned int SessionTimeout;
     unsigned int CertExpirationDelay;
-    unsigned int IdleTimeout;
-
+    std::string Version;
     std::vector<std::string> Discoveries;
     std::vector<std::string> DNS; // list of dns servers where the server is registered.
-    std::map<std::string, ServerConfig> Services;
 };
 
 
 class Client
 {
      ServiceConfig *config;
+
+     /**
+      * @brief getRemoteServiceConfig
+      * @param serviceId
+      * @param domain
+      * @param configurationPort
+      * @return
+      */
+     std::string getServiceConfig(std::string serviceId, std::string domain, unsigned int configurationPort);
 
     /**
      * @brief getCaCertificate
@@ -108,13 +106,6 @@ class Client
      */
     void keyToPem(std::string name, std::string path, std::string pwd);
 
-    /**
-     * @brief getServiceConfig Return the server configuration with all it services.
-     * @param configurationPort The configuration port.
-     * @return
-     */
-    void initServiceConfig(unsigned int configurationPort);
-
 public:
     Client(std::string name, std::string domain, unsigned int configurationPort);
 
@@ -141,7 +132,7 @@ public:
     void setCertFile(const std::string &value);
 
     // init the client informations.
-    void init(unsigned int configurationPort);
+    void initClient(std::string id, std::string domain, unsigned int port);
 
     // Close the connection.
     void close();

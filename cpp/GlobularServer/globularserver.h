@@ -10,6 +10,8 @@
 #include <grpc++/grpc++.h>
 #include <grpcpp/support/server_interceptor.h>
 #include "../resource/GlobularResourceClient/globularresourceclient.h"
+#include "../config/GlobularConfigClient/globular_config_client.h"
+
 using grpc::Service;
 using grpc::Server;
 
@@ -21,6 +23,8 @@ namespace Globular {
 class GlobularService
 {
 protected:
+    // The mac address.
+    std::string mac;
 
     // The id of the service instance, must be unique on the globular server.
     std::string id;
@@ -30,6 +34,16 @@ protected:
 
     // The path of the executable
     std::string path;
+
+    // The service state
+    std::string state;
+
+    // The last encounter error
+    std::string lastError;
+
+    // The pid of the current process. -1 means it stop...
+    int process;
+    int proxyProcess;
 
     // The path of the .proto path.
     std::string proto;
@@ -45,6 +59,9 @@ protected:
 
     // The domain
     std::string domain;
+
+    // The address where the service can be found.
+    std::string address;
 
     // The publisher id
     std::string publisher_id;
@@ -91,8 +108,8 @@ public:
     // The default constructor.
     GlobularService(std::string id,
                     std::string name,
-                    std::string domain = "localhost",
-                    std::string publisher_id = "localhost",
+                    std::string address,
+                    std::string publisher_id = "globulario",
                     bool allow_all_origins = false,
                     std::string allowed_origins = "",
                     std::string version = "0.0.1",
@@ -200,12 +217,10 @@ public:
                 auto index = domain.find(":");
                 auto port = 80;
                 if(index != 0){
-                    std::cout<<"globularserver.cpp 203" <<std::endl;
                     port = atoi(domain.substr(index+1).c_str());
                     if(port == 0){
                         port = 80;
                     }
-
                     domain = domain.substr(0, index);
                     std::cout << "port" << domain.substr(index) << std::endl;
                     std::cout << "index "<< index << std::endl;
@@ -269,6 +284,7 @@ private:
     // The resource client.
     ResourceClient* resourceClient;
 
+    ConfigClient* configClient;
 }; // namespace Globular.
 
 /**
