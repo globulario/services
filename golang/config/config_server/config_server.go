@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	//"fmt"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -17,7 +20,6 @@ import (
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/reflection"
@@ -432,30 +434,47 @@ func (svr *server) GetServiceConfiguration(ctx context.Context, rqst *configpb.G
 	}
 
 	// convert to the a protobuffer struct...
-	config_, err := structpb.NewStruct(config__)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &configpb.GetServiceConfigurationResponse{Config: config_}, nil
+	return &configpb.GetServiceConfigurationResponse{Config: Utility.ToString(config__)}, nil
 }
 
 // Set a service configuration.
 func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.SetServiceConfigurationRequest) (*configpb.SetServiceConfigurationResponse, error) {
 
-	err := config.SaveServiceConfiguration(rqst.Config.AsMap())
+	config_ := make(map[string]interface{}, 0)
+	json.Unmarshal([]byte(rqst.Config), &config_)
+
+	if config_["ConfigPath"] == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration path was foud for service "+config_["Name"].(string)+":"+config_["Id"].(string))))
+	}
+
+	configPath := config_["ConfigPath"].(string)
+	if !strings.HasSuffix(configPath, "config.json") {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the configuration file must have name config.json")))
+	}
+
+	if !Utility.Exists(configPath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration file found at "+configPath)))
+	}
+
+	//fmt.Println("--------------> receive configuration to save: ", configPath)
+	err := config.SaveServiceConfiguration(config_)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	
 	// Publish the configuration change event.
 	event_client_, err := getEventClient()
 	if err == nil {
-		str, err := json.Marshal(rqst.Config.AsMap())
+		str, err := json.Marshal(rqst.Config)
 		if err == nil {
 			event_client_.Publish("update_globular_service_configuration_evt", str)
 		}
@@ -473,14 +492,7 @@ func (svr *server) GetServiceConfigurationById(ctx context.Context, rqst *config
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	config__, err := structpb.NewStruct(config_)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
-	return &configpb.GetServiceConfigurationByIdResponse{Config: config__}, nil
+	return &configpb.GetServiceConfigurationByIdResponse{Config: Utility.ToString(config_)}, nil
 }
 
 // Get list of service configuration with a given name
@@ -494,10 +506,9 @@ func (svr *server) GetServicesConfigurationsByName(ctx context.Context, rqst *co
 	}
 
 	rsp := &configpb.GetServicesConfigurationsByNameResponse{}
-	rsp.Configs = make([]*structpb.Struct, 0)
+	rsp.Configs = make([]string, 0)
 	for i := 0; i < len(configs); i++ {
-		c, _ := structpb.NewStruct(configs[i])
-		rsp.Configs = append(rsp.Configs, c)
+		rsp.Configs = append(rsp.Configs, Utility.ToString(configs[i]))
 	}
 
 	return rsp, nil
@@ -513,10 +524,9 @@ func (svr *server) GetServicesConfigurations(ctx context.Context, rqst *configpb
 	}
 
 	rsp := &configpb.GetServicesConfigurationsResponse{}
-	rsp.Configs = make([]*structpb.Struct, 0)
+	rsp.Configs = make([]string, 0)
 	for i := 0; i < len(configs); i++ {
-		c, _ := structpb.NewStruct(configs[i])
-		rsp.Configs = append(rsp.Configs, c)
+		rsp.Configs = append(rsp.Configs, Utility.ToString(configs[i]))
 	}
 
 	return rsp, nil

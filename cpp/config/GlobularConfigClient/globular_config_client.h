@@ -32,6 +32,10 @@ public:
     ConfigClient(std::string name, std::string domain="localhost", unsigned int configurationPort=80);
 
     // Now the resource client functionnalites.
+    std::string getServiceConfiguration(std::string id);
+
+    // Save the service configuration, return false if fail to do it.
+    bool  setServiceConfiguration(std::string config);
 };
 
 }

@@ -73,6 +73,7 @@ Globular::GlobularService::GlobularService(std::string id,
         this->proto = j["Proto"];
         this->tls = j["TLS"];
         this->protocol = j["Protocol"];
+        this->configPath = j["ConfigPath"];
         // this->mac = j["Mac"];
 
         // can be a list of string
@@ -83,6 +84,8 @@ Globular::GlobularService::GlobularService(std::string id,
     }
     // Set the application path.
     this->path = getexepath();
+    this->configPath = getConfigPath(this->id, this->domain);
+
     // set the state to running.
     this->state = "running";
 
@@ -133,15 +136,14 @@ void Globular::GlobularService::save() {
     j["Proxy"] = this->proxy;
     j["TLS"] = this->tls;
     j["Path"] = this->path;
+    j["ConfigPath"] = this->configPath;
     j["State"] = this->state;
     j["LastError"] = this->lastError;
     j["Process"] = this->process;
     j["ProxyProcess"] = this->proxyProcess;
 
-    std::ofstream file;
-    file.open(getConfigPath());
-    file << j.dump();
-    file.close();
+    // Try to save the configuation.
+    setServiceConfig(this->id, this->domain, j.dump());
 }
 
 // use it for shutdown only...

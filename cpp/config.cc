@@ -1,6 +1,7 @@
 #include <string>
 #include <fstream>
 #include <filesystem>
+#include <vector>
 #include "json.hpp"
 #include "config.hpp"
 #include "./config/GlobularConfigClient/globular_config_client.h"
@@ -57,8 +58,39 @@ const std::string getRootDir(){
     return execPath.substr(0, lastIndex);
 }
 
+// That function is use simply to given the ConfigPath value to use to start the service.
+// this is a quick fix util the configuration service will be done.
+std::string getRemoteParticalServiceConfig(std::string serviceId, std::string domain){
+
+    std::stringstream ss;
+    ss << "http://" << domain << ":" << getHttpPort() << "/config?id=" + serviceId;
+    http::Request request(ss.str());
+    const std::string& body = "";
+    const std::vector<std::string>& headers = {};
+    const std::chrono::milliseconds timeout = std::chrono::milliseconds{3000};
+    try{
+        const http::Response response = request.send("GET", body, headers, timeout);
+        ss.flush();
+        return std::string(response.body.begin(), response.body.end());
+    }
+    catch (...) {
+        // Block of code to handle errors
+        return "";
+    }
+}
+
 // Get the configuration path from the exec path...
-std::string getConfigPath(){
+std::string getConfigPath(std::string serviceId, std::string domain){
+
+    std::string partialConfig = getRemoteParticalServiceConfig(serviceId, domain);
+    if(!partialConfig.empty()){
+
+        auto j = nlohmann::json::parse(partialConfig);
+        std::string configPath = j["ConfigPath"];
+        if(!configPath.empty()){
+            return configPath;
+        }
+    }
     std::string execPath = getexepath();
     std::size_t lastIndex = execPath.find_last_of("/");
     std::string configPath = execPath.substr(0, lastIndex) + "/config.json";
@@ -141,32 +173,38 @@ Globular::ConfigClient* getConfigClient(std::string domain, int port){
     return config_client__;
 }
 
-// That function is use simply to given the ConfigPath value to use to start the service.
-// this is a quick fix util the configuration service will be done.
-std::string getRemoteParticalServiceConfig(std::string serviceId, std::string domain){
-    std::stringstream ss;
-    ss << "http://" << domain << ":" << getHttpPort() << "/config?id=" + serviceId;
-    http::Request request(ss.str());
-    const http::Response response = request.send("GET");
-    ss.flush();
-    return std::string(response.body.begin(), response.body.end());
-}
-
 // Return the service configuration
 std::string getServiceConfig(std::string serviceId, std::string domain){
-    // TODO finish the implementation of the config client in the futur...
-    /*auto config_client_ = getConfigClient(domain, getHttpPort());
-    if(config_client_== 0) {
-        return getConfigStr(getConfigPath());
-    }*/
-
-    std::string configPath = getConfigPath();
-    std::string partialConfig = getRemoteParticalServiceConfig(serviceId, domain);
-    if(!partialConfig.empty()){
-        auto j = nlohmann::json::parse(partialConfig);
-        configPath = j["ConfigPath"];
+    // First option the configuration manager
+    try {
+        auto config_client_ = getConfigClient(domain, getHttpPort());
+        if(config_client_!= 0) {
+            std::string config_ = config_client_->getServiceConfiguration(serviceId);
+            if(!config_.empty()){
+                return config_;
+            }
+        }
     }
+    catch(...){
+        // configuration from the file beside the exe...
+        return getConfigStr(getConfigPath(serviceId, domain)); // Start service from local file.
+    }
+}
 
-    // configuration from the file...
-    return getConfigStr(configPath); // Start service from local file.
+void setServiceConfig(std::string serviceId, std::string domain, std::string config){
+    try {
+        auto config_client_ = getConfigClient(domain, getHttpPort());
+        if(config_client_!= 0) {
+            if(config_client_->setServiceConfiguration(config)){
+                return;
+            }
+        }
+    }
+    catch(...){
+        // save to the local file if configuration service fail to save it or is not found
+        std::ofstream file;
+        file.open(getConfigPath(serviceId, domain));
+        file << config;
+        file.close();
+    }
 }

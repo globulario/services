@@ -31,7 +31,6 @@
 #include <google/protobuf/repeated_field.h>  // IWYU pragma: export
 #include <google/protobuf/extension_set.h>  // IWYU pragma: export
 #include <google/protobuf/unknown_field_set.h>
-#include <google/protobuf/struct.pb.h>
 // @@protoc_insertion_point(includes)
 #include <google/protobuf/port_def.inc>
 #define PROTOBUF_INTERNAL_EXPORT_config_2eproto
@@ -211,23 +210,19 @@ class SetServiceConfigurationRequest PROTOBUF_FINAL :
   enum : int {
     kConfigFieldNumber = 1,
   };
-  // .google.protobuf.Struct config = 1;
-  bool has_config() const;
-  private:
-  bool _internal_has_config() const;
-  public:
+  // string config = 1;
   void clear_config();
-  const PROTOBUF_NAMESPACE_ID::Struct& config() const;
-  PROTOBUF_NAMESPACE_ID::Struct* release_config();
-  PROTOBUF_NAMESPACE_ID::Struct* mutable_config();
-  void set_allocated_config(PROTOBUF_NAMESPACE_ID::Struct* config);
+  const std::string& config() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_config(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_config();
+  std::string* release_config();
+  void set_allocated_config(std::string* config);
   private:
-  const PROTOBUF_NAMESPACE_ID::Struct& _internal_config() const;
-  PROTOBUF_NAMESPACE_ID::Struct* _internal_mutable_config();
+  const std::string& _internal_config() const;
+  void _internal_set_config(const std::string& value);
+  std::string* _internal_mutable_config();
   public:
-  void unsafe_arena_set_allocated_config(
-      PROTOBUF_NAMESPACE_ID::Struct* config);
-  PROTOBUF_NAMESPACE_ID::Struct* unsafe_arena_release_config();
 
   // @@protoc_insertion_point(class_scope:config.SetServiceConfigurationRequest)
  private:
@@ -236,7 +231,7 @@ class SetServiceConfigurationRequest PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  PROTOBUF_NAMESPACE_ID::Struct* config_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr config_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_config_2eproto;
 };
@@ -605,23 +600,19 @@ class GetServiceConfigurationResponse PROTOBUF_FINAL :
   enum : int {
     kConfigFieldNumber = 1,
   };
-  // .google.protobuf.Struct config = 1;
-  bool has_config() const;
-  private:
-  bool _internal_has_config() const;
-  public:
+  // string config = 1;
   void clear_config();
-  const PROTOBUF_NAMESPACE_ID::Struct& config() const;
-  PROTOBUF_NAMESPACE_ID::Struct* release_config();
-  PROTOBUF_NAMESPACE_ID::Struct* mutable_config();
-  void set_allocated_config(PROTOBUF_NAMESPACE_ID::Struct* config);
+  const std::string& config() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_config(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_config();
+  std::string* release_config();
+  void set_allocated_config(std::string* config);
   private:
-  const PROTOBUF_NAMESPACE_ID::Struct& _internal_config() const;
-  PROTOBUF_NAMESPACE_ID::Struct* _internal_mutable_config();
+  const std::string& _internal_config() const;
+  void _internal_set_config(const std::string& value);
+  std::string* _internal_mutable_config();
   public:
-  void unsafe_arena_set_allocated_config(
-      PROTOBUF_NAMESPACE_ID::Struct* config);
-  PROTOBUF_NAMESPACE_ID::Struct* unsafe_arena_release_config();
 
   // @@protoc_insertion_point(class_scope:config.GetServiceConfigurationResponse)
  private:
@@ -630,7 +621,7 @@ class GetServiceConfigurationResponse PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  PROTOBUF_NAMESPACE_ID::Struct* config_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr config_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_config_2eproto;
 };
@@ -881,23 +872,19 @@ class GetServiceConfigurationByIdResponse PROTOBUF_FINAL :
   enum : int {
     kConfigFieldNumber = 1,
   };
-  // .google.protobuf.Struct config = 1;
-  bool has_config() const;
-  private:
-  bool _internal_has_config() const;
-  public:
+  // string config = 1;
   void clear_config();
-  const PROTOBUF_NAMESPACE_ID::Struct& config() const;
-  PROTOBUF_NAMESPACE_ID::Struct* release_config();
-  PROTOBUF_NAMESPACE_ID::Struct* mutable_config();
-  void set_allocated_config(PROTOBUF_NAMESPACE_ID::Struct* config);
+  const std::string& config() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_config(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_config();
+  std::string* release_config();
+  void set_allocated_config(std::string* config);
   private:
-  const PROTOBUF_NAMESPACE_ID::Struct& _internal_config() const;
-  PROTOBUF_NAMESPACE_ID::Struct* _internal_mutable_config();
+  const std::string& _internal_config() const;
+  void _internal_set_config(const std::string& value);
+  std::string* _internal_mutable_config();
   public:
-  void unsafe_arena_set_allocated_config(
-      PROTOBUF_NAMESPACE_ID::Struct* config);
-  PROTOBUF_NAMESPACE_ID::Struct* unsafe_arena_release_config();
 
   // @@protoc_insertion_point(class_scope:config.GetServiceConfigurationByIdResponse)
  private:
@@ -906,7 +893,7 @@ class GetServiceConfigurationByIdResponse PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  PROTOBUF_NAMESPACE_ID::Struct* config_;
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr config_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_config_2eproto;
 };
@@ -1157,23 +1144,29 @@ class GetServicesConfigurationsByNameResponse PROTOBUF_FINAL :
   enum : int {
     kConfigsFieldNumber = 1,
   };
-  // repeated .google.protobuf.Struct configs = 1;
+  // repeated string configs = 1;
   int configs_size() const;
   private:
   int _internal_configs_size() const;
   public:
   void clear_configs();
-  PROTOBUF_NAMESPACE_ID::Struct* mutable_configs(int index);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >*
-      mutable_configs();
+  const std::string& configs(int index) const;
+  std::string* mutable_configs(int index);
+  void set_configs(int index, const std::string& value);
+  void set_configs(int index, std::string&& value);
+  void set_configs(int index, const char* value);
+  void set_configs(int index, const char* value, size_t size);
+  std::string* add_configs();
+  void add_configs(const std::string& value);
+  void add_configs(std::string&& value);
+  void add_configs(const char* value);
+  void add_configs(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& configs() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_configs();
   private:
-  const PROTOBUF_NAMESPACE_ID::Struct& _internal_configs(int index) const;
-  PROTOBUF_NAMESPACE_ID::Struct* _internal_add_configs();
+  const std::string& _internal_configs(int index) const;
+  std::string* _internal_add_configs();
   public:
-  const PROTOBUF_NAMESPACE_ID::Struct& configs(int index) const;
-  PROTOBUF_NAMESPACE_ID::Struct* add_configs();
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >&
-      configs() const;
 
   // @@protoc_insertion_point(class_scope:config.GetServicesConfigurationsByNameResponse)
  private:
@@ -1182,7 +1175,7 @@ class GetServicesConfigurationsByNameResponse PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct > configs_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> configs_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_config_2eproto;
 };
@@ -1415,23 +1408,29 @@ class GetServicesConfigurationsResponse PROTOBUF_FINAL :
   enum : int {
     kConfigsFieldNumber = 1,
   };
-  // repeated .google.protobuf.Struct configs = 1;
+  // repeated string configs = 1;
   int configs_size() const;
   private:
   int _internal_configs_size() const;
   public:
   void clear_configs();
-  PROTOBUF_NAMESPACE_ID::Struct* mutable_configs(int index);
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >*
-      mutable_configs();
+  const std::string& configs(int index) const;
+  std::string* mutable_configs(int index);
+  void set_configs(int index, const std::string& value);
+  void set_configs(int index, std::string&& value);
+  void set_configs(int index, const char* value);
+  void set_configs(int index, const char* value, size_t size);
+  std::string* add_configs();
+  void add_configs(const std::string& value);
+  void add_configs(std::string&& value);
+  void add_configs(const char* value);
+  void add_configs(const char* value, size_t size);
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>& configs() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>* mutable_configs();
   private:
-  const PROTOBUF_NAMESPACE_ID::Struct& _internal_configs(int index) const;
-  PROTOBUF_NAMESPACE_ID::Struct* _internal_add_configs();
+  const std::string& _internal_configs(int index) const;
+  std::string* _internal_add_configs();
   public:
-  const PROTOBUF_NAMESPACE_ID::Struct& configs(int index) const;
-  PROTOBUF_NAMESPACE_ID::Struct* add_configs();
-  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >&
-      configs() const;
 
   // @@protoc_insertion_point(class_scope:config.GetServicesConfigurationsResponse)
  private:
@@ -1440,7 +1439,7 @@ class GetServicesConfigurationsResponse PROTOBUF_FINAL :
   template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
-  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct > configs_;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string> configs_;
   mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   friend struct ::TableStruct_config_2eproto;
 };
@@ -1455,80 +1454,48 @@ class GetServicesConfigurationsResponse PROTOBUF_FINAL :
 #endif  // __GNUC__
 // SetServiceConfigurationRequest
 
-// .google.protobuf.Struct config = 1;
-inline bool SetServiceConfigurationRequest::_internal_has_config() const {
-  return this != internal_default_instance() && config_ != nullptr;
+// string config = 1;
+inline void SetServiceConfigurationRequest::clear_config() {
+  config_.ClearToEmpty();
 }
-inline bool SetServiceConfigurationRequest::has_config() const {
-  return _internal_has_config();
-}
-inline const PROTOBUF_NAMESPACE_ID::Struct& SetServiceConfigurationRequest::_internal_config() const {
-  const PROTOBUF_NAMESPACE_ID::Struct* p = config_;
-  return p != nullptr ? *p : reinterpret_cast<const PROTOBUF_NAMESPACE_ID::Struct&>(
-      PROTOBUF_NAMESPACE_ID::_Struct_default_instance_);
-}
-inline const PROTOBUF_NAMESPACE_ID::Struct& SetServiceConfigurationRequest::config() const {
+inline const std::string& SetServiceConfigurationRequest::config() const {
   // @@protoc_insertion_point(field_get:config.SetServiceConfigurationRequest.config)
   return _internal_config();
 }
-inline void SetServiceConfigurationRequest::unsafe_arena_set_allocated_config(
-    PROTOBUF_NAMESPACE_ID::Struct* config) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(config_);
-  }
-  config_ = config;
-  if (config) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:config.SetServiceConfigurationRequest.config)
+template <typename ArgT0, typename... ArgT>
+PROTOBUF_ALWAYS_INLINE
+inline void SetServiceConfigurationRequest::set_config(ArgT0&& arg0, ArgT... args) {
+ 
+ config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, static_cast<ArgT0 &&>(arg0), args..., GetArena());
+  // @@protoc_insertion_point(field_set:config.SetServiceConfigurationRequest.config)
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* SetServiceConfigurationRequest::release_config() {
-  
-  PROTOBUF_NAMESPACE_ID::Struct* temp = config_;
-  config_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* SetServiceConfigurationRequest::unsafe_arena_release_config() {
-  // @@protoc_insertion_point(field_release:config.SetServiceConfigurationRequest.config)
-  
-  PROTOBUF_NAMESPACE_ID::Struct* temp = config_;
-  config_ = nullptr;
-  return temp;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* SetServiceConfigurationRequest::_internal_mutable_config() {
-  
-  if (config_ == nullptr) {
-    auto* p = CreateMaybeMessage<PROTOBUF_NAMESPACE_ID::Struct>(GetArena());
-    config_ = p;
-  }
-  return config_;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* SetServiceConfigurationRequest::mutable_config() {
+inline std::string* SetServiceConfigurationRequest::mutable_config() {
   // @@protoc_insertion_point(field_mutable:config.SetServiceConfigurationRequest.config)
   return _internal_mutable_config();
 }
-inline void SetServiceConfigurationRequest::set_allocated_config(PROTOBUF_NAMESPACE_ID::Struct* config) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete reinterpret_cast< ::PROTOBUF_NAMESPACE_ID::MessageLite*>(config_);
-  }
-  if (config) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(config)->GetArena();
-    if (message_arena != submessage_arena) {
-      config = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, config, submessage_arena);
-    }
+inline const std::string& SetServiceConfigurationRequest::_internal_config() const {
+  return config_.Get();
+}
+inline void SetServiceConfigurationRequest::_internal_set_config(const std::string& value) {
+  
+  config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, value, GetArena());
+}
+inline std::string* SetServiceConfigurationRequest::_internal_mutable_config() {
+  
+  return config_.Mutable(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, GetArena());
+}
+inline std::string* SetServiceConfigurationRequest::release_config() {
+  // @@protoc_insertion_point(field_release:config.SetServiceConfigurationRequest.config)
+  return config_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void SetServiceConfigurationRequest::set_allocated_config(std::string* config) {
+  if (config != nullptr) {
     
   } else {
     
   }
-  config_ = config;
+  config_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), config,
+      GetArena());
   // @@protoc_insertion_point(field_set_allocated:config.SetServiceConfigurationRequest.config)
 }
 
@@ -1589,80 +1556,48 @@ inline void GetServiceConfigurationRequest::set_allocated_path(std::string* path
 
 // GetServiceConfigurationResponse
 
-// .google.protobuf.Struct config = 1;
-inline bool GetServiceConfigurationResponse::_internal_has_config() const {
-  return this != internal_default_instance() && config_ != nullptr;
+// string config = 1;
+inline void GetServiceConfigurationResponse::clear_config() {
+  config_.ClearToEmpty();
 }
-inline bool GetServiceConfigurationResponse::has_config() const {
-  return _internal_has_config();
-}
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServiceConfigurationResponse::_internal_config() const {
-  const PROTOBUF_NAMESPACE_ID::Struct* p = config_;
-  return p != nullptr ? *p : reinterpret_cast<const PROTOBUF_NAMESPACE_ID::Struct&>(
-      PROTOBUF_NAMESPACE_ID::_Struct_default_instance_);
-}
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServiceConfigurationResponse::config() const {
+inline const std::string& GetServiceConfigurationResponse::config() const {
   // @@protoc_insertion_point(field_get:config.GetServiceConfigurationResponse.config)
   return _internal_config();
 }
-inline void GetServiceConfigurationResponse::unsafe_arena_set_allocated_config(
-    PROTOBUF_NAMESPACE_ID::Struct* config) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(config_);
-  }
-  config_ = config;
-  if (config) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:config.GetServiceConfigurationResponse.config)
+template <typename ArgT0, typename... ArgT>
+PROTOBUF_ALWAYS_INLINE
+inline void GetServiceConfigurationResponse::set_config(ArgT0&& arg0, ArgT... args) {
+ 
+ config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, static_cast<ArgT0 &&>(arg0), args..., GetArena());
+  // @@protoc_insertion_point(field_set:config.GetServiceConfigurationResponse.config)
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationResponse::release_config() {
-  
-  PROTOBUF_NAMESPACE_ID::Struct* temp = config_;
-  config_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationResponse::unsafe_arena_release_config() {
-  // @@protoc_insertion_point(field_release:config.GetServiceConfigurationResponse.config)
-  
-  PROTOBUF_NAMESPACE_ID::Struct* temp = config_;
-  config_ = nullptr;
-  return temp;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationResponse::_internal_mutable_config() {
-  
-  if (config_ == nullptr) {
-    auto* p = CreateMaybeMessage<PROTOBUF_NAMESPACE_ID::Struct>(GetArena());
-    config_ = p;
-  }
-  return config_;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationResponse::mutable_config() {
+inline std::string* GetServiceConfigurationResponse::mutable_config() {
   // @@protoc_insertion_point(field_mutable:config.GetServiceConfigurationResponse.config)
   return _internal_mutable_config();
 }
-inline void GetServiceConfigurationResponse::set_allocated_config(PROTOBUF_NAMESPACE_ID::Struct* config) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete reinterpret_cast< ::PROTOBUF_NAMESPACE_ID::MessageLite*>(config_);
-  }
-  if (config) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(config)->GetArena();
-    if (message_arena != submessage_arena) {
-      config = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, config, submessage_arena);
-    }
+inline const std::string& GetServiceConfigurationResponse::_internal_config() const {
+  return config_.Get();
+}
+inline void GetServiceConfigurationResponse::_internal_set_config(const std::string& value) {
+  
+  config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, value, GetArena());
+}
+inline std::string* GetServiceConfigurationResponse::_internal_mutable_config() {
+  
+  return config_.Mutable(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, GetArena());
+}
+inline std::string* GetServiceConfigurationResponse::release_config() {
+  // @@protoc_insertion_point(field_release:config.GetServiceConfigurationResponse.config)
+  return config_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void GetServiceConfigurationResponse::set_allocated_config(std::string* config) {
+  if (config != nullptr) {
     
   } else {
     
   }
-  config_ = config;
+  config_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), config,
+      GetArena());
   // @@protoc_insertion_point(field_set_allocated:config.GetServiceConfigurationResponse.config)
 }
 
@@ -1719,80 +1654,48 @@ inline void GetServiceConfigurationByIdRequest::set_allocated_id(std::string* id
 
 // GetServiceConfigurationByIdResponse
 
-// .google.protobuf.Struct config = 1;
-inline bool GetServiceConfigurationByIdResponse::_internal_has_config() const {
-  return this != internal_default_instance() && config_ != nullptr;
+// string config = 1;
+inline void GetServiceConfigurationByIdResponse::clear_config() {
+  config_.ClearToEmpty();
 }
-inline bool GetServiceConfigurationByIdResponse::has_config() const {
-  return _internal_has_config();
-}
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServiceConfigurationByIdResponse::_internal_config() const {
-  const PROTOBUF_NAMESPACE_ID::Struct* p = config_;
-  return p != nullptr ? *p : reinterpret_cast<const PROTOBUF_NAMESPACE_ID::Struct&>(
-      PROTOBUF_NAMESPACE_ID::_Struct_default_instance_);
-}
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServiceConfigurationByIdResponse::config() const {
+inline const std::string& GetServiceConfigurationByIdResponse::config() const {
   // @@protoc_insertion_point(field_get:config.GetServiceConfigurationByIdResponse.config)
   return _internal_config();
 }
-inline void GetServiceConfigurationByIdResponse::unsafe_arena_set_allocated_config(
-    PROTOBUF_NAMESPACE_ID::Struct* config) {
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(config_);
-  }
-  config_ = config;
-  if (config) {
-    
-  } else {
-    
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:config.GetServiceConfigurationByIdResponse.config)
+template <typename ArgT0, typename... ArgT>
+PROTOBUF_ALWAYS_INLINE
+inline void GetServiceConfigurationByIdResponse::set_config(ArgT0&& arg0, ArgT... args) {
+ 
+ config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, static_cast<ArgT0 &&>(arg0), args..., GetArena());
+  // @@protoc_insertion_point(field_set:config.GetServiceConfigurationByIdResponse.config)
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationByIdResponse::release_config() {
-  
-  PROTOBUF_NAMESPACE_ID::Struct* temp = config_;
-  config_ = nullptr;
-  if (GetArena() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-  return temp;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationByIdResponse::unsafe_arena_release_config() {
-  // @@protoc_insertion_point(field_release:config.GetServiceConfigurationByIdResponse.config)
-  
-  PROTOBUF_NAMESPACE_ID::Struct* temp = config_;
-  config_ = nullptr;
-  return temp;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationByIdResponse::_internal_mutable_config() {
-  
-  if (config_ == nullptr) {
-    auto* p = CreateMaybeMessage<PROTOBUF_NAMESPACE_ID::Struct>(GetArena());
-    config_ = p;
-  }
-  return config_;
-}
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServiceConfigurationByIdResponse::mutable_config() {
+inline std::string* GetServiceConfigurationByIdResponse::mutable_config() {
   // @@protoc_insertion_point(field_mutable:config.GetServiceConfigurationByIdResponse.config)
   return _internal_mutable_config();
 }
-inline void GetServiceConfigurationByIdResponse::set_allocated_config(PROTOBUF_NAMESPACE_ID::Struct* config) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArena();
-  if (message_arena == nullptr) {
-    delete reinterpret_cast< ::PROTOBUF_NAMESPACE_ID::MessageLite*>(config_);
-  }
-  if (config) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-      reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(config)->GetArena();
-    if (message_arena != submessage_arena) {
-      config = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, config, submessage_arena);
-    }
+inline const std::string& GetServiceConfigurationByIdResponse::_internal_config() const {
+  return config_.Get();
+}
+inline void GetServiceConfigurationByIdResponse::_internal_set_config(const std::string& value) {
+  
+  config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, value, GetArena());
+}
+inline std::string* GetServiceConfigurationByIdResponse::_internal_mutable_config() {
+  
+  return config_.Mutable(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, GetArena());
+}
+inline std::string* GetServiceConfigurationByIdResponse::release_config() {
+  // @@protoc_insertion_point(field_release:config.GetServiceConfigurationByIdResponse.config)
+  return config_.Release(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+}
+inline void GetServiceConfigurationByIdResponse::set_allocated_config(std::string* config) {
+  if (config != nullptr) {
     
   } else {
     
   }
-  config_ = config;
+  config_.SetAllocated(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), config,
+      GetArena());
   // @@protoc_insertion_point(field_set_allocated:config.GetServiceConfigurationByIdResponse.config)
 }
 
@@ -1849,40 +1752,78 @@ inline void GetServicesConfigurationsByNameRequest::set_allocated_name(std::stri
 
 // GetServicesConfigurationsByNameResponse
 
-// repeated .google.protobuf.Struct configs = 1;
+// repeated string configs = 1;
 inline int GetServicesConfigurationsByNameResponse::_internal_configs_size() const {
   return configs_.size();
 }
 inline int GetServicesConfigurationsByNameResponse::configs_size() const {
   return _internal_configs_size();
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServicesConfigurationsByNameResponse::mutable_configs(int index) {
-  // @@protoc_insertion_point(field_mutable:config.GetServicesConfigurationsByNameResponse.configs)
-  return configs_.Mutable(index);
+inline void GetServicesConfigurationsByNameResponse::clear_configs() {
+  configs_.Clear();
 }
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >*
-GetServicesConfigurationsByNameResponse::mutable_configs() {
-  // @@protoc_insertion_point(field_mutable_list:config.GetServicesConfigurationsByNameResponse.configs)
-  return &configs_;
+inline std::string* GetServicesConfigurationsByNameResponse::add_configs() {
+  // @@protoc_insertion_point(field_add_mutable:config.GetServicesConfigurationsByNameResponse.configs)
+  return _internal_add_configs();
 }
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServicesConfigurationsByNameResponse::_internal_configs(int index) const {
+inline const std::string& GetServicesConfigurationsByNameResponse::_internal_configs(int index) const {
   return configs_.Get(index);
 }
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServicesConfigurationsByNameResponse::configs(int index) const {
+inline const std::string& GetServicesConfigurationsByNameResponse::configs(int index) const {
   // @@protoc_insertion_point(field_get:config.GetServicesConfigurationsByNameResponse.configs)
   return _internal_configs(index);
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServicesConfigurationsByNameResponse::_internal_add_configs() {
+inline std::string* GetServicesConfigurationsByNameResponse::mutable_configs(int index) {
+  // @@protoc_insertion_point(field_mutable:config.GetServicesConfigurationsByNameResponse.configs)
+  return configs_.Mutable(index);
+}
+inline void GetServicesConfigurationsByNameResponse::set_configs(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:config.GetServicesConfigurationsByNameResponse.configs)
+  configs_.Mutable(index)->assign(value);
+}
+inline void GetServicesConfigurationsByNameResponse::set_configs(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:config.GetServicesConfigurationsByNameResponse.configs)
+  configs_.Mutable(index)->assign(std::move(value));
+}
+inline void GetServicesConfigurationsByNameResponse::set_configs(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  configs_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:config.GetServicesConfigurationsByNameResponse.configs)
+}
+inline void GetServicesConfigurationsByNameResponse::set_configs(int index, const char* value, size_t size) {
+  configs_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:config.GetServicesConfigurationsByNameResponse.configs)
+}
+inline std::string* GetServicesConfigurationsByNameResponse::_internal_add_configs() {
   return configs_.Add();
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServicesConfigurationsByNameResponse::add_configs() {
+inline void GetServicesConfigurationsByNameResponse::add_configs(const std::string& value) {
+  configs_.Add()->assign(value);
   // @@protoc_insertion_point(field_add:config.GetServicesConfigurationsByNameResponse.configs)
-  return _internal_add_configs();
 }
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >&
+inline void GetServicesConfigurationsByNameResponse::add_configs(std::string&& value) {
+  configs_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:config.GetServicesConfigurationsByNameResponse.configs)
+}
+inline void GetServicesConfigurationsByNameResponse::add_configs(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  configs_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:config.GetServicesConfigurationsByNameResponse.configs)
+}
+inline void GetServicesConfigurationsByNameResponse::add_configs(const char* value, size_t size) {
+  configs_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:config.GetServicesConfigurationsByNameResponse.configs)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
 GetServicesConfigurationsByNameResponse::configs() const {
   // @@protoc_insertion_point(field_list:config.GetServicesConfigurationsByNameResponse.configs)
   return configs_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+GetServicesConfigurationsByNameResponse::mutable_configs() {
+  // @@protoc_insertion_point(field_mutable_list:config.GetServicesConfigurationsByNameResponse.configs)
+  return &configs_;
 }
 
 // -------------------------------------------------------------------
@@ -1893,40 +1834,78 @@ GetServicesConfigurationsByNameResponse::configs() const {
 
 // GetServicesConfigurationsResponse
 
-// repeated .google.protobuf.Struct configs = 1;
+// repeated string configs = 1;
 inline int GetServicesConfigurationsResponse::_internal_configs_size() const {
   return configs_.size();
 }
 inline int GetServicesConfigurationsResponse::configs_size() const {
   return _internal_configs_size();
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServicesConfigurationsResponse::mutable_configs(int index) {
-  // @@protoc_insertion_point(field_mutable:config.GetServicesConfigurationsResponse.configs)
-  return configs_.Mutable(index);
+inline void GetServicesConfigurationsResponse::clear_configs() {
+  configs_.Clear();
 }
-inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >*
-GetServicesConfigurationsResponse::mutable_configs() {
-  // @@protoc_insertion_point(field_mutable_list:config.GetServicesConfigurationsResponse.configs)
-  return &configs_;
+inline std::string* GetServicesConfigurationsResponse::add_configs() {
+  // @@protoc_insertion_point(field_add_mutable:config.GetServicesConfigurationsResponse.configs)
+  return _internal_add_configs();
 }
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServicesConfigurationsResponse::_internal_configs(int index) const {
+inline const std::string& GetServicesConfigurationsResponse::_internal_configs(int index) const {
   return configs_.Get(index);
 }
-inline const PROTOBUF_NAMESPACE_ID::Struct& GetServicesConfigurationsResponse::configs(int index) const {
+inline const std::string& GetServicesConfigurationsResponse::configs(int index) const {
   // @@protoc_insertion_point(field_get:config.GetServicesConfigurationsResponse.configs)
   return _internal_configs(index);
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServicesConfigurationsResponse::_internal_add_configs() {
+inline std::string* GetServicesConfigurationsResponse::mutable_configs(int index) {
+  // @@protoc_insertion_point(field_mutable:config.GetServicesConfigurationsResponse.configs)
+  return configs_.Mutable(index);
+}
+inline void GetServicesConfigurationsResponse::set_configs(int index, const std::string& value) {
+  // @@protoc_insertion_point(field_set:config.GetServicesConfigurationsResponse.configs)
+  configs_.Mutable(index)->assign(value);
+}
+inline void GetServicesConfigurationsResponse::set_configs(int index, std::string&& value) {
+  // @@protoc_insertion_point(field_set:config.GetServicesConfigurationsResponse.configs)
+  configs_.Mutable(index)->assign(std::move(value));
+}
+inline void GetServicesConfigurationsResponse::set_configs(int index, const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  configs_.Mutable(index)->assign(value);
+  // @@protoc_insertion_point(field_set_char:config.GetServicesConfigurationsResponse.configs)
+}
+inline void GetServicesConfigurationsResponse::set_configs(int index, const char* value, size_t size) {
+  configs_.Mutable(index)->assign(
+    reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_set_pointer:config.GetServicesConfigurationsResponse.configs)
+}
+inline std::string* GetServicesConfigurationsResponse::_internal_add_configs() {
   return configs_.Add();
 }
-inline PROTOBUF_NAMESPACE_ID::Struct* GetServicesConfigurationsResponse::add_configs() {
+inline void GetServicesConfigurationsResponse::add_configs(const std::string& value) {
+  configs_.Add()->assign(value);
   // @@protoc_insertion_point(field_add:config.GetServicesConfigurationsResponse.configs)
-  return _internal_add_configs();
 }
-inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< PROTOBUF_NAMESPACE_ID::Struct >&
+inline void GetServicesConfigurationsResponse::add_configs(std::string&& value) {
+  configs_.Add(std::move(value));
+  // @@protoc_insertion_point(field_add:config.GetServicesConfigurationsResponse.configs)
+}
+inline void GetServicesConfigurationsResponse::add_configs(const char* value) {
+  GOOGLE_DCHECK(value != nullptr);
+  configs_.Add()->assign(value);
+  // @@protoc_insertion_point(field_add_char:config.GetServicesConfigurationsResponse.configs)
+}
+inline void GetServicesConfigurationsResponse::add_configs(const char* value, size_t size) {
+  configs_.Add()->assign(reinterpret_cast<const char*>(value), size);
+  // @@protoc_insertion_point(field_add_pointer:config.GetServicesConfigurationsResponse.configs)
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>&
 GetServicesConfigurationsResponse::configs() const {
   // @@protoc_insertion_point(field_list:config.GetServicesConfigurationsResponse.configs)
   return configs_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<std::string>*
+GetServicesConfigurationsResponse::mutable_configs() {
+  // @@protoc_insertion_point(field_mutable_list:config.GetServicesConfigurationsResponse.configs)
+  return &configs_;
 }
 
 #ifdef __GNUC__

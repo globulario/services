@@ -118,6 +118,11 @@ void Globular::Client::initClient(std::string name, std::string domain, unsigned
     this->config->Address = domain + ":" + std::to_string(port);
     std::string jsonStr = this->getServiceConfig(name, domain, port);
 
+    if(jsonStr.empty()){
+         throw std::runtime_error("fail to retreive client configuration");
+         return;
+    }
+
     auto j = nlohmann::json::parse(jsonStr);
     this->config->Id = j["Id"].get<std::string>();
     this->config->Name = j["Name"].get<std::string>();
@@ -280,21 +285,38 @@ std::string exec(const char* cmd) {
 std::string Globular::Client::getServiceConfig(std::string serviceId, std::string domain, unsigned int configurationPort){
     std::stringstream ss;
     ss << "http://" << domain << ":" << getHttpPort() << "/config?id=" + serviceId;
-    std::cout << ss.str() << std::endl;
     http::Request request(ss.str());
-    const http::Response response = request.send("GET");
-    ss.flush();
-    return std::string(response.body.begin(), response.body.end());
+    const std::string& body = "";
+    const std::vector<std::string>& headers = {};
+    const std::chrono::milliseconds timeout = std::chrono::milliseconds{3000};
+    try {
+        const http::Response response = request.send("GET", body, headers, timeout);
+        ss.flush();
+        return std::string(response.body.begin(), response.body.end());
+    }
+    catch (...) {
+        // Block of code to handle errors
+        return "";
+    }
 }
 
 std::string Globular::Client::getCaCertificate(std::string domain, unsigned int configurationPort){
     std::stringstream ss;
     ss << getLocalProtocol() << "://" << domain << ":" << configurationPort << "/get_ca_certificate";
     http::Request request(ss.str());
-    const http::Response response = request.send("GET");
-    ss.flush();
-    ss << std::string(response.body.begin(), response.body.end()) << '\n'; // print the result
-    return ss.str();
+    const std::string& body = "";
+    const std::vector<std::string>& headers = {};
+    const std::chrono::milliseconds timeout = std::chrono::milliseconds{3000};
+    try {
+        const http::Response response = request.send("GET", body, headers, timeout);
+        ss.flush();
+        ss << std::string(response.body.begin(), response.body.end()) << '\n'; // print the result
+        return ss.str();
+    }
+    catch (...) {
+        // Block of code to handle errors
+        return "";
+    }
 }
 
 std::string Globular::Client::signCaCertificate(std::string domain, unsigned int configurationPort, std::string csr){
@@ -302,10 +324,19 @@ std::string Globular::Client::signCaCertificate(std::string domain, unsigned int
     std::string csr_str = macaron::Base64::Encode(csr);
     ss << getLocalProtocol() << "://" << domain << ":" << configurationPort << "/sign_ca_certificate?csr=" + csr_str;
     http::Request request(ss.str());
-    const http::Response response = request.send("GET");
-    ss.flush();
-    ss << std::string(response.body.begin(), response.body.end()) << '\n'; // print the result
-    return ss.str();
+    const std::string& body = "";
+    const std::vector<std::string>& headers = {};
+    const std::chrono::milliseconds timeout = std::chrono::milliseconds{3000};
+    try {
+        const http::Response response = request.send("GET", body, headers, timeout);
+        ss.flush();
+        ss << std::string(response.body.begin(), response.body.end()) << '\n'; // print the result
+        return ss.str();
+    }
+    catch (...) {
+        // Block of code to handle errors
+        return "";
+    }
 }
 
 // TODO fix to new certificate with multiple domains.

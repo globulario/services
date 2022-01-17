@@ -46,10 +46,12 @@ const std::string getRootDir();
  * @brief getConfigPath Get the configuration path from the exec path...
  * @return
  */
-std::string getConfigPath();
+std::string getConfigPath(std::string serviceId, std::string domain);
 
 // Retreive a service configuration json.
 const std::string getConfigStr(std::string path);
+
+
 
 /**
  * @brief Get local globualr address
@@ -80,5 +82,8 @@ Globular::ConfigClient* getConfigClient(std::string domain, int port);
 
 // Return the service configuration
 std::string getServiceConfig(std::string serviceId, std::string domain);
+
+// Save a configuration
+void setServiceConfig(std::string serviceId, std::string domain, std::string config);
 
 #endif // GLOBULAR_CONFIG_H__

@@ -35,6 +35,9 @@ protected:
     // The path of the executable
     std::string path;
 
+    // The configuration path
+    std::string configPath;
+
     // The service state
     std::string state;
 

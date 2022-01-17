@@ -6,11 +6,10 @@ syntax = "proto3";
 package config;
 
 option go_package="config/configpb";
-import "google/protobuf/struct.proto";
 
 /** Set the service configuration */
 message SetServiceConfigurationRequest {
-	google.protobuf.Struct config = 1;
+	string config = 1; // Can be a struct
 }
 
 message SetServiceConfigurationResponse {
@@ -23,7 +22,7 @@ message GetServiceConfigurationRequest {
 }
 
 message GetServiceConfigurationResponse {
-	google.protobuf.Struct config = 1;
+	string config = 1;
 }
 
 
@@ -33,7 +32,7 @@ message GetServiceConfigurationByIdRequest {
 }
 
 message GetServiceConfigurationByIdResponse {
-	google.protobuf.Struct config = 1;
+	string config = 1;
 }
 
 /** Return the list of configuration for services with given names */
@@ -42,7 +41,7 @@ message GetServicesConfigurationsByNameRequest {
 }
 
 message GetServicesConfigurationsByNameResponse {
-	repeated google.protobuf.Struct configs = 1;
+	repeated string configs = 1;
 }
 
 /** Return the list of all service configurations **/
@@ -51,7 +50,7 @@ message GetServicesConfigurationsRequest {
 }
 
 message GetServicesConfigurationsResponse {
-	repeated google.protobuf.Struct configs = 1;
+	repeated string configs = 1;
 }
 
 // The configuration service

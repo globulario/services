@@ -2,16 +2,17 @@ package config_client
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	// "github.com/davecourtois/Utility"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/configpb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/protobuf/types/known/structpb"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,7 +223,9 @@ func (client *Config_Client) GetServiceConfiguration(path string) (map[string]in
 	if err != nil {
 		return nil, err
 	}
-	return rsp.GetConfig().AsMap(), nil
+	config_ := make(map[string]interface{})
+	json.Unmarshal([]byte(rsp.GetConfig()), &config_)
+	return config_, nil
 }
 
 // Return list of services with a given name
@@ -233,10 +236,12 @@ func (client *Config_Client) GetServicesConfigurationsByName(name string) ([]map
 	if err != nil {
 		return nil, err
 	}
-	configs := make([]map[string]interface{}, 0)
 
+	configs := make([]map[string]interface{}, 0)
 	for i := 0; i < len(rsp.Configs); i++ {
-		configs = append(configs, rsp.Configs[i].AsMap())
+		config_ := make(map[string]interface{})
+		json.Unmarshal([]byte(rsp.Configs[i]), &config_)
+		configs = append(configs, config_)
 	}
 
 	return configs, nil
@@ -251,7 +256,9 @@ func (client *Config_Client) GetServicesConfigurations() ([]map[string]interface
 	}
 	configs := make([]map[string]interface{}, 0)
 	for i := 0; i < len(rsp.Configs); i++ {
-		configs = append(configs, rsp.Configs[i].AsMap())
+		config_ := make(map[string]interface{})
+		json.Unmarshal([]byte(rsp.Configs[i]), &config_)
+		configs = append(configs, config_)
 	}
 	return configs, nil
 }
@@ -259,12 +266,9 @@ func (client *Config_Client) GetServicesConfigurations() ([]map[string]interface
 // Save a service configuration
 func (client *Config_Client) SetServiceConfiguration(s map[string]interface{}) error {
 	rqst := new(configpb.SetServiceConfigurationRequest)
-	s_, err := structpb.NewStruct(s)
-	if err != nil {
-		return err
-	}
-	rqst.Config = s_
-	_, err = client.c.SetServiceConfiguration(client.GetCtx(), rqst)
+
+	rqst.Config = Utility.ToString(s)
+	_, err := client.c.SetServiceConfiguration(client.GetCtx(), rqst)
 
 	return err
 }
@@ -347,7 +351,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	// I will use the synchronize file version.
 	return config.GetServicesConfigurations()
 }
-
 
 /**
  * Save a given service configuration.

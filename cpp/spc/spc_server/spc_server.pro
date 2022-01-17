@@ -7,6 +7,10 @@ SOURCES += \
     ../../GlobularClient/globularclient.cpp \
     ../../GlobularServer/globularserver.cpp \
     ../../Resource/GlobularResourceClient/globularResourceclient.cpp \
+    ../../config.cc \
+    ../../config/GlobularConfigClient/globular_config_client.cpp \
+    ../../config/configpb/config.grpc.pb.cc \
+    ../../config/configpb/config.pb.cc \
     ../../resource/resourcepb/resource.grpc.pb.cc \
     ../../resource/resourcepb/resource.pb.cc \
     ../spcpb/spc.grpc.pb.cc \
@@ -21,6 +25,9 @@ HEADERS += \
     ../../GlobularClient/globularclient.h \
     ../../GlobularServer/globularserver.h \
     ../../Resource/GlobularResourceClient/globularResourceclient.h \
+    ../../config/GlobularConfigClient/globular_config_client.h \
+    ../../config/configpb/config.grpc.pb.h \
+    ../../config/configpb/config.pb.h \
     ../../resource/resourcepb/resource.grpc.pb.h \
     ../../resource/resourcepb/resource.pb.h \
     ../spcpb/spc.grpc.pb.h \
