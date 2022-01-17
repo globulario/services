@@ -141,11 +141,11 @@ Globular::ConfigClient* getConfigClient(std::string domain, int port){
     return config_client__;
 }
 
-// That function is use simply to given the config path to use to start the service.
+// That function is use simply to given the ConfigPath value to use to start the service.
+// this is a quick fix util the configuration service will be done.
 std::string getRemoteParticalServiceConfig(std::string serviceId, std::string domain){
     std::stringstream ss;
     ss << "http://" << domain << ":" << getHttpPort() << "/config?id=" + serviceId;
-    std::cout << ss.str() << std::endl;
     http::Request request(ss.str());
     const http::Response response = request.send("GET");
     ss.flush();
