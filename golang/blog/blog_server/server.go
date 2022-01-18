@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"sync"
 
 	"github.com/davecourtois/Utility"
@@ -70,8 +69,8 @@ type server struct {
 	ConfigPath      string
 	LastError       string
 	ModTime         int64
-	State 		    string
-	TLS bool
+	State           string
+	TLS             bool
 
 	// svr-signed X.509 public keys for distribution
 	CertFile string
@@ -101,7 +100,6 @@ type server struct {
 	// keep in map active conversation db connections.
 	blogs *sync.Map
 }
-
 
 // The http address where the configuration can be found /config
 func (svr *server) GetAddress() string {
@@ -786,6 +784,14 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 
+	// Give base info to retreive it configuration.
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+
 	// Set the root path if is pass as argument.
 	if len(s_impl.Root) == 0 {
 		s_impl.Root = os.TempDir()
@@ -795,10 +801,6 @@ func main() {
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
-	}
-
-	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
 	s_impl.Permissions = append(s_impl.Permissions, map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})

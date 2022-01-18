@@ -38,14 +38,19 @@ namespace Globular
         public string CertFile { get; set; }
         public string KeyFile { get; set; }
         public string Domain { get; set; }
+        public string Address { get; set; }
         public string Name { get; set; }
         public string Id { get; set; }
         public string Path { get; set; }
+        public string ConfigPath { get; set; }
         public string Proto { get; set; }
         public int Port { get; set; }
+        public int Proxy { get; set; }
         public bool TLS { get; set; }
         public int Process { get; set; }
+        public int ProxyProcess { get; set; }
         public string LastError { get; set; }
+
     }
 
     public class Client
@@ -58,6 +63,7 @@ namespace Globular
         private string caFile;
         private string keyFile;
         private string certFile;
+        private string configPath;
 
         protected Channel channel;
 
@@ -71,7 +77,6 @@ namespace Globular
         {
             return this.id;
         }
-
 
         public string GetName()
         {
@@ -168,6 +173,7 @@ namespace Globular
         {
             // Get the configuration from the globular server.
             var client = new HttpClient();
+            client.Timeout = TimeSpan.FromMilliseconds(3000);
             string rqst = "http://" + domain + ":" + ConfigurationPort + "/get_ca_certificate";
             var task = Task.Run(() => client.GetAsync(rqst));
             task.Wait();
@@ -186,6 +192,7 @@ namespace Globular
             // Get the configuration from the globular server.
             var client = new HttpClient();
             string rqst = "http://" + domain + ":" + ConfigurationPort + "/get_san_conf";
+            client.Timeout = TimeSpan.FromMilliseconds(3000);
             var task = Task.Run(() => client.GetAsync(rqst));
             task.Wait();
             var rsp = task.Result;
@@ -210,6 +217,7 @@ namespace Globular
 
             string csr_str = Base64Encode(csr);
             string rqst = "http://" + domain + ":" + ConfigurationPort + "/sign_ca_certificate?csr=" + csr_str;
+            client.Timeout = TimeSpan.FromMilliseconds(3000);
             var task = Task.Run(() => client.GetAsync(rqst));
             task.Wait();
             var rsp = task.Result;
@@ -332,7 +340,7 @@ namespace Globular
 
             [alt_names]";
             var i = 0;
-            domains.ForEach(delegate(string domain)
+            domains.ForEach(delegate (string domain)
             {
                 san += $"DNS.{i++} = {domain}\n";
             });
@@ -380,196 +388,195 @@ namespace Globular
 
         private void init(string id, string address = "localhost:80")
         {
-            
-            // Get the configuration from the globular server.
-            var client = new HttpClient();
-            string rqst = "http://" + address + "/config";
-            var task = Task.Run(() => client.GetAsync(rqst));
-            task.Wait();
-            var rsp = task.Result;
-            if (rsp.IsSuccessStatusCode == false)
+            try
             {
-                throw new System.InvalidOperationException("Fail to get client configuration " + rqst);
-            }
+                // Get the configuration from the globular server.
+                var client = new HttpClient();
+                client.Timeout = TimeSpan.FromMilliseconds(3000);
+                string rqst = "http://" + address + "/config";
+                var task = Task.Run(() => client.GetAsync(rqst));
+                task.Wait();
 
-            // I will read the configuration from the local config.
-            string programFiles = Environment.ExpandEnvironmentVariables("%ProgramW6432%");
-            string configFile = programFiles + "/globular/config/config.json";
-            var jsonStr = File.ReadAllText(configFile);
-
-            var serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
-
-            // The default configuration port will be local
-            var configurationPort = serverConfig.PortHttp;
-
-            this.domain = address;
-            if(address.IndexOf(":") != -1){
-                this.domain = address.Substring(0, address.IndexOf(":"));
-                Int32.TryParse(address.Substring(address.IndexOf(":") + 1), out configurationPort);
-            }
-
-            // Here I will parse the JSON object and initialyse values from it...
-            serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
-
-            ServiceConfig config = null;
-            if (!serverConfig.Services.ContainsKey(id))
-            {
-                foreach (var s in serverConfig.Services.Values)
+                var rsp = task.Result;
+                if (rsp.IsSuccessStatusCode == false)
                 {
-                    if (s.Name == id)
+                    throw new System.InvalidOperationException("Fail to get client configuration " + rqst);
+                }
+
+                // I will read the configuration from the local config.
+                string programFiles = Environment.ExpandEnvironmentVariables("%ProgramW6432%");
+                string configFile = programFiles + "/globular/config/config.json";
+                var jsonStr = File.ReadAllText(configFile);
+
+                var serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
+
+                // The default configuration port will be local
+                var configurationPort = serverConfig.PortHttp;
+
+                this.domain = address;
+                if (address.IndexOf(":") != -1)
+                {
+                    this.domain = address.Substring(0, address.IndexOf(":"));
+                    Int32.TryParse(address.Substring(address.IndexOf(":") + 1), out configurationPort);
+                }
+
+                // Here I will parse the JSON object and initialyse values from it...
+                serverConfig = JsonSerializer.Deserialize<ServerConfig>(rsp.Content.ReadAsStringAsync().Result);
+
+                ServiceConfig config = null;
+                if (!serverConfig.Services.ContainsKey(id))
+                {
+                    foreach (var s in serverConfig.Services.Values)
                     {
-                        config = s;
-                        break;
+                        if (s.Name == id)
+                        {
+                            config = s;
+                            break;
+                        }
                     }
-                }
-                if (config == null)
-                {
-                    throw new System.InvalidOperationException("No serivce found with id " + id + "!");
-                }
-            }
-            else
-            {
-                config = serverConfig.Services[id];
-            }
-
-            // get the service config.
-            this.port = config.Port;
-            this.hasTls = config.TLS;
-            this.domain = config.Domain;
-            this.id = config.Id;
-            this.name = config.Name;
-
-            // Write line 
-
-            // Here I will create grpc connection with the service...
-            if (!this.HasTLS())
-            {
-                // Non secure connection.
-                System.Console.WriteLine("try to connect to " +this.domain + ":" + this.port);
-
-                this.channel = new Channel(this.domain, this.port, ChannelCredentials.Insecure);
-            }
-            else
-            {
-                System.Console.WriteLine("Initialyse TLS configuration!");
-
-                // if the client is not local I will generate TLS certificates.
-                if (File.Exists(Path.GetTempPath() + "/" + this.domain + "_token"))
-                {
-                    System.Console.WriteLine("The client and server are on the same host...");
-
-                    // The ca certificate.
-                    this.caFile = config.CertAuthorityTrust;
-
-                    // get the client certificate and key here.
-                    this.certFile = config.CertFile.Replace("server", "client");
-                    this.keyFile = config.KeyFile.Replace("server", "client");
-
-                     System.Console.WriteLine("CA certificate found at " + this.caFile);
-                     System.Console.WriteLine("Client certificate found at " + this.certFile);
-                     System.Console.WriteLine("Client private key found at " + this.keyFile );
+                    if (config == null)
+                    {
+                        throw new System.InvalidOperationException("No serivce found with id " + id + "!");
+                    }
                 }
                 else
                 {
-                    System.Console.Write("Generation of certificates");
-                    // I will need to create certificate and make it sign by the CA.
-                    var path = Path.GetTempPath() + "config/tls/" + this.domain;
-
-                    if (!Directory.Exists(path))
-                    {
-                        Directory.CreateDirectory(path);
-                    }
-
-                    // First of all I will generate the san configuration file.
-                    System.Console.WriteLine("Get the san configuration from the server "+ this.domain + ":" + configurationPort);
-                    var san_config = this.getSanConfiguration(this.domain, configurationPort);
-                    File.WriteAllText(path + "/san.conf", san_config);
-
-                    // Now I will create the certificates.
-                    var ca_crt = getCaCertificate(this.domain, configurationPort);
-                    File.WriteAllText(path + "/ca.crt", ca_crt);
-                    System.Console.WriteLine("Get the CA certificate to be able to generate csr... "+ this.domain + ":" + configurationPort);
-     
-
-                    var pwd = "1111"; // Set in the configuration...
-
-                    // Now I will generate the certificate for the client...
-                    // Step 1: Generate client private key.
-                    System.Console.WriteLine("Step 1: Generate client private key.");
-                    this.generateClientPrivateKey(path, pwd);
-
-                    // Step 2: Generate the client signing request.
-                    System.Console.WriteLine("Step 2: Generate the client signing request.");
-                    this.generateClientCertificateSigningRequest(path, this.domain);
-
-                    // Step 3: Generate client signed certificate.
-                    System.Console.WriteLine("Step 3: Generate client signed certificate.");
-                    var client_csr = File.ReadAllText(path + "/client.csr");
-                    var client_crt = this.signCaCertificate(this.domain, configurationPort, client_csr);
-                    File.WriteAllText(path + "/client.crt", client_crt);
-
-                    // Step 4: Convert client.key to pem file.
-                    System.Console.WriteLine("Step 4: Convert client.key to pem file.");
-                    this.keyToPem("client", path, pwd);
-
-                    // Set path in the config.
-                    this.keyFile = path + "/client.key";
-                    this.caFile = path + "/ca.crt";
-                    this.certFile = path + "/client.crt";
-
-                    System.Console.WriteLine("CA certificate found at " + this.caFile);
-                    System.Console.WriteLine("Client certificate found at " + this.certFile);
-                    System.Console.WriteLine("Client private key found at " + this.keyFile );
+                    config = serverConfig.Services[id];
                 }
 
-                var cacert = File.ReadAllText(this.caFile);
-                var clientcert = File.ReadAllText(this.certFile);
-                var clientkey = File.ReadAllText(this.keyFile);
-                var ssl = new SslCredentials(cacert, new KeyCertificatePair(clientcert, clientkey), VerifyPeer);
+                // get the service config.
+                this.port = config.Port;
+                this.hasTls = config.TLS;
+                this.domain = config.Domain;
+                this.id = config.Id;
+                this.name = config.Name;
+                this.configPath = config.ConfigPath;
 
-                //File.WriteAllText("c:/temp/toto.txt", clientkey);
-                this.channel = new Channel(this.domain, this.port, ssl);
+                // Write line 
+                System.Console.WriteLine("try to connect to " + this.domain + ":" + this.port);
+
+                // Here I will create grpc connection with the service...
+                if (!this.HasTLS())
+                {
+                    // Non secure connection.
+                    this.channel = new Channel(this.domain, this.port, ChannelCredentials.Insecure);
+                }
+                else
+                {
+                    System.Console.WriteLine("Initialyse TLS configuration!");
+                    // if the client is not local I will generate TLS certificates.
+                    if (address == serverConfig.Domain + ":" + serverConfig.PortHttp)
+                    {
+                        System.Console.WriteLine("The client and server are on the same host...");
+
+                        // The ca certificate.
+                        this.caFile = config.CertAuthorityTrust;
+
+                        // get the client certificate and key here.
+                        this.certFile = config.CertFile.Replace("server", "client");
+                        this.keyFile = config.KeyFile.Replace("server", "client");
+                    }
+                    else
+                    {
+                        System.Console.WriteLine("The client and server are not on the same host...");
+                        System.Console.Write("Generate certificate from remote");
+                        // I will need to create certificate and make it sign by the CA.
+                        var path = Environment.ExpandEnvironmentVariables("%ProgramW6432%") + "/globular/config/tls/" + this.domain;
+
+                        if (!Directory.Exists(path))
+                        {
+                            Directory.CreateDirectory(path);
+                        }
+
+                        // First of all I will generate the san configuration file.
+                        System.Console.WriteLine("Get the san configuration from the server " + this.domain + ":" + configurationPort);
+                        var san_config = this.getSanConfiguration(this.domain, configurationPort);
+                        File.WriteAllText(path + "/san.conf", san_config);
+
+                        // Now I will create the certificates.
+                        var ca_crt = getCaCertificate(this.domain, configurationPort);
+                        File.WriteAllText(path + "/ca.crt", ca_crt);
+                        System.Console.WriteLine("Get the CA certificate to be able to generate csr... " + this.domain + ":" + configurationPort);
+
+
+                        var pwd = "1111"; // Set in the configuration...
+
+                        // Now I will generate the certificate for the client...
+                        // Step 1: Generate client private key.
+                        System.Console.WriteLine("Step 1: Generate client private key.");
+                        this.generateClientPrivateKey(path, pwd);
+
+                        // Step 2: Generate the client signing request.
+                        System.Console.WriteLine("Step 2: Generate the client signing request.");
+                        this.generateClientCertificateSigningRequest(path, this.domain);
+
+                        // Step 3: Generate client signed certificate.
+                        System.Console.WriteLine("Step 3: Generate client signed certificate.");
+                        var client_csr = File.ReadAllText(path + "/client.csr");
+                        var client_crt = this.signCaCertificate(this.domain, configurationPort, client_csr);
+                        File.WriteAllText(path + "/client.crt", client_crt);
+
+                        // Step 4: Convert client.key to pem file.
+                        System.Console.WriteLine("Step 4: Convert client.key to pem file.");
+                        this.keyToPem("client", path, pwd);
+
+                        // Set path in the config.
+                        this.keyFile = path + "/client.key";
+                        this.caFile = path + "/ca.crt";
+                        this.certFile = path + "/client.crt";
+                    }
+
+                    var cacert = File.ReadAllText(this.caFile);
+                    var clientcert = File.ReadAllText(this.certFile);
+                    var clientkey = File.ReadAllText(this.keyFile);
+                    var ssl = new SslCredentials(cacert, new KeyCertificatePair(clientcert, clientkey), VerifyPeer);
+
+                    this.channel = new Channel(this.domain, this.port, ssl);
+                }
+            }
+            catch
+            {
+                // rethrow the correct exeception.
+                throw new System.InvalidOperationException("No serivce found with id " + id);
             }
         }
 
         protected Metadata GetClientContext(string token = "", string application = "", string domain = "", string path = "")
         {
             System.Console.WriteLine("GetClientContext");
-            
+
             // Set the token in the metadata.
             var metadata = new Metadata();
 
             // Here I will get the token from the file.
             if (token.Length == 0)
             {
-                var path_ = Path.GetTempPath() + "/" + this.domain + "_token";
+                var path_ = Environment.ExpandEnvironmentVariables("%ProgramW6432%").Replace("\\", "/") + "/globular/config/tokens/" + this.domain + "_token";
                 if (File.Exists(path_))
                 {
                     token = File.ReadAllText(path_);
+                    System.Console.WriteLine(token);
                     metadata.Add("token", token);
                 }
             }
             else
             {
-                System.Console.WriteLine("Token: " +  token);
+                System.Console.WriteLine("Token: " + token);
                 metadata.Add("token", token);
             }
 
             // set the local domain.
             if (domain.Length == 0)
             {
-                System.Console.WriteLine("Domain: " + this.domain);
                 metadata.Add("domain", this.domain);
             }
             else
             {
-                System.Console.WriteLine("Domain: " +  domain);
                 metadata.Add("domain", domain);
             }
 
             if (application.Length > 0)
             {
-                System.Console.WriteLine("Application: " + application);
                 metadata.Add("application", application);
             }
 
@@ -585,7 +592,7 @@ namespace Globular
         public Client(string id, string address)
         {
             this.id = id;
-     
+
             // Now I will get the client configuration.
             this.init(id, address);
         }

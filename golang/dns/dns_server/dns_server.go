@@ -1918,13 +1918,18 @@ func main() {
 	s_impl.Permissions[3] = map[string]interface{}{"action": "/dns.DnsService/RemoveAAAA", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 	s_impl.Permissions[4] = map[string]interface{}{"action": "/dns.DnsService/RemoveText", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
+	// Give base info to retreive it configuration.
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
 		fmt.Printf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
-	}
-	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
 	// Start dns services

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -734,6 +733,13 @@ func main() {
 	s_impl.ConfigPath = config.GetConfigDir()
 	s_impl.Creds = config.GetConfigDir() + "/tls"
 
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	}else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 
@@ -741,10 +747,6 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	s_impl.Root = strings.ReplaceAll(s_impl.Root, "\\", "/")
-
-	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
-	}
 
 	// Register the echo services
 	services_managerpb.RegisterServicesManagerServiceServer(s_impl.grpcServer, s_impl)

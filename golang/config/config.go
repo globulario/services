@@ -790,7 +790,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			var s map[string]interface{}
 			var err error
 			id := infos["id"].(string)
-			//fmt.Println("---------------------> get service config by id: ", id)
+			
 			for i := 0; i < len(services); i++ {
 				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
 				if services[i]["Id"].(string) == id || services[i]["Name"].(string) == id || strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
@@ -807,7 +807,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"service": s, "error": err}
 
 		case infos := <-getServicesConfigurationsByNameChan:
-			//fmt.Println("-------> get service config by name: ", infos)
 			name := infos["name"].(string)
 			var err error
 			services_ := make([]map[string]interface{}, 0)

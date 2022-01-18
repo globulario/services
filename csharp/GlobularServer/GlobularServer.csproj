@@ -25,6 +25,7 @@
     <PackageReference Include="System.Security.Claims" Version="4.3.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\config\GlobularConfigClient\GlobularConfigClient.csproj" />
     <ProjectReference Include="..\resource\GlobularResourceClient\GlobularResourceClient.csproj" />
     <ProjectReference Include="..\rbac\GlobularRbacClient\GlobularRbacClient.csproj" />
     <ProjectReference Include="..\lb\GlobularLoadBalancingClient\GlobularLoadBalancingClient.csproj" />

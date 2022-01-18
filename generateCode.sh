@@ -128,6 +128,7 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/rbac
 # CSharp grpc files generation
 # on window use C:\Users\mm006819\Documents\exec\grpc_dist\bin\grpc_csharp_plugin.exe
 # on linux use /usr/local/bin/grpc_csharp_plugin
+protoc --grpc_out=./csharp/config/GlobularConfigClient --csharp_out=./csharp/config/GlobularConfigClient --csharp_opt=file_extension=.g.cs proto/config.proto --plugin="protoc-gen-grpc=C:/msys64/mingw64/bin/grpc_csharp_plugin.exe"
 protoc --grpc_out=./csharp/event/GlobularEventClient --csharp_out=./csharp/event/GlobularEventClient --csharp_opt=file_extension=.g.cs proto/event.proto --plugin="protoc-gen-grpc=/usr/local/bin/grpc_csharp_plugin"
 protoc --grpc_out=./csharp/persistence/GlobularPersistenceClient --csharp_out=./csharp/persistence/GlobularPersistenceClient --csharp_opt=file_extension=.g.cs proto/persistence.proto --plugin="protoc-gen-grpc=C:/msys64/mingw64/bin/grpc_csharp_plugin.exe"
 protoc --grpc_out=./csharp/resource/GlobularResourceClient --csharp_out=./csharp/resource/GlobularResourceClient --csharp_opt=file_extension=.g.cs proto/resource.proto --plugin="protoc-gen-grpc=C:/msys64/mingw64/bin/grpc_csharp_plugin.exe"

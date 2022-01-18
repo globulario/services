@@ -30,8 +30,10 @@ namespace Echo
 
                 // init values from the configuration file.
                 System.Console.WriteLine("init service configuration.");
-                echoServer = echoServer.init();
 
+                echoServer = echoServer.init();
+               
+             
                 // Here is an exemple how to set log message information.
                 //echoServer.logMessage("Main", "The C# echo server was started!", Log.LogLevel.InfoMessage);
                 

@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 
 	globular "github.com/globulario/services/golang/globular_service"
@@ -693,10 +692,8 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 func main() {
 
 	log.Println("---> start mail server")
-	port := defaultPort // the default value.
-	if len(os.Args) == 2 {
-		port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
-	}
+	// Give base info to retreive it configuration.
+
 	// set the logger.
 	//grpclog.SetLogger(log.New(os.Stdout, "smtp_service: ", log.LstdFlags))
 
@@ -707,7 +704,6 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(mailpb.File_mail_proto.Services().Get(0).FullName())
 	s_impl.Proto = mailpb.File_mail_proto.Path()
-	s_impl.Port = port
 	s_impl.Domain = domain
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
@@ -733,6 +729,13 @@ func main() {
 	s_impl.Password = "adminadmin" // The default password for the admin.
 	s_impl.KeepAlive = true
 
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	}else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

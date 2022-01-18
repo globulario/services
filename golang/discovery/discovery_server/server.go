@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -656,13 +655,17 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	}else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
-	}
-	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
 	// Register the echo services

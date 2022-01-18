@@ -5,7 +5,7 @@ using Grpc.Core;
 using Grpc.Core.Interceptors;
 using System.Threading.Tasks;
 using System.IdentityModel.Tokens.Jwt;
-
+using System.Net.Http;
 
 // TODO for the validation, use a map to store valid method/token/resource/access
 // the validation will be renew only if the token expire. And when a token expire
@@ -13,20 +13,7 @@ using System.IdentityModel.Tokens.Jwt;
 // side.
 namespace Globular
 {
-    /** Globular server config. **/
-    /*public class ServerConfig
-    {
-        public string Domain { get; set; }
-        public string Name { get; set; }
-        public string Protocol { get; set; }
-        public string CertStableURL { get; set; }
-        public string CertURL { get; set; }
-        public int PortHttp { get; set; }
-        public int PortHttps { get; set; }
-        public string AdminEmail { get; set; }
-        public int SessionTimeout { get; set; }
-        public int CertExpirationDelay { get; set; }
-    }*/
+
 
 
     /// <summary>
@@ -45,11 +32,14 @@ namespace Globular
         public bool AllowAllOrigins { get; set; }
         public string AllowedOrigins { get; set; }
         public string Domain { get; set; }
+        public string Address { get; set; }
         public string CertAuthorityTrust { get; set; }
         public string CertFile { get; set; }
         public string KeyFile { get; set; }
         public bool TLS { get; set; }
         public string Version { get; set; }
+        public string State { get; set; }
+        public string ConfigPath { get; set; }
         public string PublisherId { get; set; }
         public string Description { get; set; }
         public string[] Keywords { get; set; }
@@ -57,10 +47,15 @@ namespace Globular
         public bool KeepAlive { get; set; }
         public string LastError { get; set; }
         public int Process { get; set; }
+        public int ProxyProcess { get; set; }
+        public long ModTime { get; set; }
+
 
         // globular specific variable.
         public int ConfigurationPort; // The configuration port of globular.
         public string Root; // The globular root.
+
+        private ConfigClient configClient;
 
         private RbacClient rbacClient;
 
@@ -75,7 +70,8 @@ namespace Globular
         /// </summary>
         public GlobularService(string domain = "localhost")
         {
-            System.Console.WriteLine("Create a new service with domain " + domain);
+ 
+
             // set default values.
             this.Domain = domain;
             this.Protocol = "grpc";
@@ -90,19 +86,22 @@ namespace Globular
             this.Keywords = new string[] { "Globular", "microservice", "csharp" };
             this.Process = Environment.ProcessId;
             this.LastError = "";
+            this.State = "stopped";
+            // Here I will retreive the configuration port from the file 
 
-            
+
             // Create the interceptor.
             System.Console.WriteLine("create new ServerUnaryInterceptor");
             this.interceptor = new Globular.ServerUnaryInterceptor(this);
 
             // Set the service root...
             this.Root = Environment.ExpandEnvironmentVariables("%GLOBULAR_SERVICES_ROOT%").Replace("\\", "/");
-            if(this.Root.Length == 0){
-                 this.Root = "C:/Program Files/globular/services";
+            if (this.Root.Length == 0)
+            {
+                this.Root = "C:/Program Files/globular/services";
             }
 
-       
+
             // So here the configuration port will be found in the program file directory
             string programFiles = Environment.ExpandEnvironmentVariables("%ProgramW6432%");
 
@@ -110,12 +109,48 @@ namespace Globular
             string configFile = programFiles + "/globular/config/config.json";
             var jsonStr = File.ReadAllText(configFile);
 
-
             // Get the local globular server infomation.
-            ServerConfig s=  JsonSerializer.Deserialize<ServerConfig>(jsonStr);
+            ServerConfig s = JsonSerializer.Deserialize<ServerConfig>(jsonStr);
+            
+            // The domain of the service will be made fro the the server name if there is one and the domain 
+            this.Domain = s.Name;
+            if(this.Domain.Length > 0){
+                if(s.Domain.Length>0){
+                     this.Domain += "." + s.Domain;
+                }
+            }else if(s.Domain.Length > 0) {
+                this.Domain = s.Domain;
+            }
+            
 
             // set the http port
             this.ConfigurationPort = s.PortHttp;
+            this.Address = this.Domain + ":" + this.ConfigurationPort;
+            this.Protocol = s.Protocol;
+
+            // Now for the command line argument I will set the service id and it configuration path.
+
+
+            System.Console.WriteLine("Create a new service with address " + this.Address);
+
+        }
+
+        private static int? _processId;
+        protected ConfigClient getConfigClient(string address)
+        {
+            if (this.configClient == null)
+            {
+                // there must be a globular server runing in order to validate resources.
+                try
+                {
+                    this.configClient = new ConfigClient("config.ConfigService", address);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+            return this.configClient;
         }
 
         protected RbacClient getRbacClient(string address)
@@ -123,7 +158,15 @@ namespace Globular
             if (this.rbacClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
-                this.rbacClient = new RbacClient("rbac.RbacService", address);
+
+                try
+                {
+                    this.rbacClient = new RbacClient("rbac.RbacService", address);
+                }
+                catch
+                {
+                    return null;
+                }
             }
             return this.rbacClient;
         }
@@ -133,7 +176,14 @@ namespace Globular
             if (this.eventClient == null)
             {
                 // there must be a globular server runing in order to validate resources.
-                this.eventClient = new EventClient("event.EventService", address);
+                try
+                {
+                    this.eventClient = new EventClient("event.EventService", address);
+                }
+                catch
+                {
+                    return null;
+                }
             }
             return this.eventClient;
         }
@@ -144,7 +194,15 @@ namespace Globular
             {
                 // there must be a globular server runing in order to validate resources.
                 // TODO set the configuration port in a configuration file.
-                this.logClient = new LogClient("log.LogService", address);
+
+                try
+                {
+                    this.logClient = new LogClient("log.LogService", address);
+                }
+                catch
+                {
+                    return null;
+                }
             }
 
             return this.logClient;
@@ -152,7 +210,31 @@ namespace Globular
 
         private string getPath()
         {
-            return Directory.GetCurrentDirectory();
+            // Here I will try to get the configuration from the server.
+            try
+            {
+                var client = new HttpClient();
+                client.Timeout = TimeSpan.FromMilliseconds(3000);
+                string rqst = "http://" + this.Address + "/config?id=" + this.Id;
+                var task = Task.Run(() => client.GetAsync(rqst));
+                task.Wait();
+                var rsp = task.Result;
+                if (rsp.IsSuccessStatusCode == false)
+                {
+                    // This return the current path where the servcer run.
+                    return Directory.GetCurrentDirectory();
+                }
+
+                var jsonStr = rsp.Content.ReadAsStringAsync().Result;
+                GlobularService s = JsonSerializer.Deserialize<GlobularService>(jsonStr);
+
+                return s.ConfigPath.Replace("\\", "/");
+            }
+            catch
+            {
+                return Directory.GetCurrentDirectory().Replace("\\", "/") + "/config.json";
+            }
+
         }
 
         private bool validateAction(string domain, string method, string subject, Rbac.SubjectType subjectType, Google.Protobuf.Collections.RepeatedField<Rbac.ResourceInfos> infos)
@@ -196,7 +278,7 @@ namespace Globular
 
             long epochTicks = new DateTime(1970, 1, 1).Ticks;
             long now = ((DateTime.UtcNow.Ticks - epochTicks) / TimeSpan.TicksPerSecond);
-            return now < Convert.ToInt64(exp) ;
+            return now < Convert.ToInt64(exp);
 
         }
         private string getClaim(string token, string claimType)
@@ -224,7 +306,8 @@ namespace Globular
         /// <summary>
         /// Log information message to the 
         /// </summary>
-        public void logMessage(string method, string message, Log.LogLevel level){
+        public void logMessage(string method, string message, Log.LogLevel level)
+        {
             var client = this.getLogClient(this.Domain + ":" + this.ConfigurationPort);
             client.LogMessage(this.Name, this.Id, method, level, message);
         }
@@ -233,7 +316,8 @@ namespace Globular
         /// Subscribe to an event.
         /// Uuid must be unique.
         /// </summary>
-        public void subscribe(string name, string uuid, Action<Event.Event> fct){
+        public void subscribe(string name, string uuid, Action<Event.Event> fct)
+        {
             var client = this.getEventClient(this.Domain + ":" + this.ConfigurationPort);
             client.Subscribe(name, uuid, fct);
         }
@@ -242,7 +326,8 @@ namespace Globular
         /// unsubscribe to an event.
         /// Uuid must be unique.
         /// </summary>
-        public void unsubscribe(string name, string uuid){
+        public void unsubscribe(string name, string uuid)
+        {
             var client = this.getEventClient(this.Domain + ":" + this.ConfigurationPort);
             client.UnSubscribe(name, uuid);
         }
@@ -250,35 +335,59 @@ namespace Globular
         /// <summary>
         /// Publish an event with data on the network.
         /// </summary>
-        public void publish(string name, byte[]data){
+        public void publish(string name, byte[] data)
+        {
             var client = this.getEventClient(this.Domain + ":" + this.ConfigurationPort);
             client.Publish(name, data);
         }
+
+
 
         /// <summary>
         /// Initialyse from json object from a file.
         /// </summary>
         public object init(object server)
         {
-            var configPath = this.getPath() + "/config.json";
+             var s = (GlobularService) server;
 
-            this.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-            this.Path = this.Path.Replace("\\", "/");
+             string[] arguments = Environment.GetCommandLineArgs();
+             if(arguments.Length == 3){
+                 s.Id = arguments.GetValue(1).ToString();
+                 s.ConfigPath = arguments.GetValue(2).ToString();
+                 
+             }if(arguments.Length == 2){
+                 s.Id = arguments.GetValue(1).ToString();
+                 s.ConfigPath = this.getPath();
+             }
 
-            // Here I will read the file that contain the object.
-            if (File.Exists(configPath))
+            // So here I will try to init configuration from the configuration service...
+            var config_client_ = this.getConfigClient(this.Address);
+            if (config_client_ == null)
             {
-                var jsonStr = File.ReadAllText(configPath);
-                server = JsonSerializer.Deserialize(jsonStr, server.GetType());
+                
+                s.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+                s.Path = this.Path.Replace("\\", "/");
+
+                // Here I will read the file that contain the object.
+                if (File.Exists( this.ConfigPath))
+                {
+                    var jsonStr = File.ReadAllText(this.ConfigPath);
+                    server = JsonSerializer.Deserialize(jsonStr, s.GetType());
+                }
+                else
+                {
+                    // Here I will complete the filepath with the Root value of the server.
+                    this.Proto = this.Root + "/" + this.Proto;
+                }
             }
             else
             {
-                // Here I will complete the filepath with the Root value of the server.
-                this.Proto = this.Root + "/" + this.Proto;
+                var jsonStr = config_client_.GetServiceConfiguration(this.Id);
+                server = JsonSerializer.Deserialize(jsonStr, s.GetType());
             }
 
             this.save(server);
- 
+
             return server;
         }
 
@@ -287,10 +396,24 @@ namespace Globular
         /// </summary>
         public void save(object server)
         {
-            var configPath = getPath() + "/config.json";
+            var s = (GlobularService) server;
+            s.State = "running";
+            s.ModTime = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds();
+            s.Process = Environment.ProcessId;
+            s.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName.Replace("\\", "/");
+
             string jsonStr;
-            jsonStr = JsonSerializer.Serialize(server);
-            File.WriteAllText(configPath, jsonStr);
+            jsonStr = JsonSerializer.Serialize(s);
+            var config_client_ = this.getConfigClient(this.Address);
+   
+            if (config_client_ != null)
+            {
+                config_client_.SetServiceConfiguration(jsonStr);
+            }
+            else
+            {
+                File.WriteAllText(this.ConfigPath, jsonStr);
+            }
         }
     }
 

@@ -36,7 +36,7 @@ namespace Echo
             this.Version = "0.0.1";            
             this.Value = "echo value!";
             this.Description = "Test service that can be use to learning how to use globular.";
-                
+      
             // Retreive the prototype file path relative to where it was generated.
             this.Proto = global::Echo.EchoReflection.Descriptor.Name;
 
@@ -50,13 +50,12 @@ namespace Echo
             return Task.FromResult(rsp);
         }
 
-
-
         // Here I will set the default config values...
         public EchoServiceImpl init()
         {
             // call save on init
             return (EchoServiceImpl)base.init(this);
+
         }
     }
 }

@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strconv"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -473,6 +471,13 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
 
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	}else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
@@ -485,10 +490,6 @@ func main() {
 	err = s_impl.logs.Open(`{"path":"` + s_impl.Root + `", "name":"logs"}`)
 	if err != nil {
 		fmt.Println(err)
-	}
-
-	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
 	}
 
 	// Register the echo services

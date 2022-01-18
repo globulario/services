@@ -124,7 +124,7 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 		return -1, err
 	}
 
-	p := exec.Command(s["Path"].(string), Utility.ToString(port))
+	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
 	stdout, err := p.StdoutPipe()
 	if err != nil {
 		return -1, err
