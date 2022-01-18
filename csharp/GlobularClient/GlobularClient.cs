@@ -543,8 +543,6 @@ namespace Globular
 
         protected Metadata GetClientContext(string token = "", string application = "", string domain = "", string path = "")
         {
-            System.Console.WriteLine("GetClientContext");
-
             // Set the token in the metadata.
             var metadata = new Metadata();
 
@@ -555,13 +553,11 @@ namespace Globular
                 if (File.Exists(path_))
                 {
                     token = File.ReadAllText(path_);
-                    System.Console.WriteLine(token);
                     metadata.Add("token", token);
                 }
             }
             else
             {
-                System.Console.WriteLine("Token: " + token);
                 metadata.Add("token", token);
             }
 

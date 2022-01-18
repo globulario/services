@@ -25,7 +25,6 @@ namespace Globular
                 System.Console.WriteLine("Get Client configuration: " + id);
 
                 Config.GetServiceConfigurationResponse rsp = this.client.GetServiceConfiguration(rqst, this.GetClientContext());
-                 System.Console.WriteLine("configuration: " + rsp.Config);
                 return rsp.Config;
             }
             catch(Exception e)

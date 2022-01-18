@@ -70,7 +70,7 @@ namespace Globular
         /// </summary>
         public GlobularService(string domain = "localhost")
         {
- 
+
 
             // set default values.
             this.Domain = domain;
@@ -111,17 +111,21 @@ namespace Globular
 
             // Get the local globular server infomation.
             ServerConfig s = JsonSerializer.Deserialize<ServerConfig>(jsonStr);
-            
+
             // The domain of the service will be made fro the the server name if there is one and the domain 
             this.Domain = s.Name;
-            if(this.Domain.Length > 0){
-                if(s.Domain.Length>0){
-                     this.Domain += "." + s.Domain;
+            if (this.Domain.Length > 0)
+            {
+                if (s.Domain.Length > 0)
+                {
+                    this.Domain += "." + s.Domain;
                 }
-            }else if(s.Domain.Length > 0) {
+            }
+            else if (s.Domain.Length > 0)
+            {
                 this.Domain = s.Domain;
             }
-            
+
 
             // set the http port
             this.ConfigurationPort = s.PortHttp;
@@ -129,8 +133,6 @@ namespace Globular
             this.Protocol = s.Protocol;
 
             // Now for the command line argument I will set the service id and it configuration path.
-
-
             System.Console.WriteLine("Create a new service with address " + this.Address);
 
         }
@@ -348,28 +350,29 @@ namespace Globular
         /// </summary>
         public object init(object server)
         {
-             var s = (GlobularService) server;
+            var s = (GlobularService)server;
+            s.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
+            s.Path = this.Path.Replace("\\", "/");
 
-             string[] arguments = Environment.GetCommandLineArgs();
-             if(arguments.Length == 3){
-                 s.Id = arguments.GetValue(1).ToString();
-                 s.ConfigPath = arguments.GetValue(2).ToString();
-                 
-             }if(arguments.Length == 2){
-                 s.Id = arguments.GetValue(1).ToString();
-                 s.ConfigPath = this.getPath();
-             }
+            string[] arguments = Environment.GetCommandLineArgs();
+            if (arguments.Length == 3)
+            {
+                s.Id = arguments.GetValue(1).ToString();
+                s.ConfigPath = arguments.GetValue(2).ToString();
+            }else if (arguments.Length == 2)
+            {
+                s.Id = arguments.GetValue(1).ToString();
+                s.ConfigPath = this.getPath();
+            }else{
+                s.ConfigPath = Directory.GetCurrentDirectory().Replace("\\", "/") + "/config.json";
+            }
 
             // So here I will try to init configuration from the configuration service...
             var config_client_ = this.getConfigClient(this.Address);
             if (config_client_ == null)
             {
-                
-                s.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-                s.Path = this.Path.Replace("\\", "/");
-
-                // Here I will read the file that contain the object.
-                if (File.Exists( this.ConfigPath))
+                  // Here I will read the file that contain the object.
+                if (File.Exists(this.ConfigPath))
                 {
                     var jsonStr = File.ReadAllText(this.ConfigPath);
                     server = JsonSerializer.Deserialize(jsonStr, s.GetType());
@@ -396,7 +399,7 @@ namespace Globular
         /// </summary>
         public void save(object server)
         {
-            var s = (GlobularService) server;
+            var s = (GlobularService)server;
             s.State = "running";
             s.ModTime = new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds();
             s.Process = Environment.ProcessId;
@@ -405,7 +408,7 @@ namespace Globular
             string jsonStr;
             jsonStr = JsonSerializer.Serialize(s);
             var config_client_ = this.getConfigClient(this.Address);
-   
+
             if (config_client_ != null)
             {
                 config_client_.SetServiceConfiguration(jsonStr);
