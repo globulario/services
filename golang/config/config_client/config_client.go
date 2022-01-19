@@ -312,8 +312,9 @@ func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 			//fmt.Println("309 ",  config["Name"], config["State"])
 			return config, nil
 		}
+
+		//fmt.Println("fail to get configuration for service with id ", id)
 	}
-	// fmt.Println("313 ---------> config client line ")
 	// I will use the synchronize file version.
 	return config.GetServiceConfigurationById(id)
 }

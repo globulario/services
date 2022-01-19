@@ -17,6 +17,8 @@ struct ServiceConfig{
     std::string Id;
     std::string Name;
     std::string Path;
+    std::string ConfigPath;
+    long ModTime;
     std::string Proto;
     unsigned int Port;
     unsigned int Proxy;

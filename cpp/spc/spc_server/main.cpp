@@ -30,6 +30,7 @@ class SpcServiceImpl final : public spc::SpcService::Service, public Globular::G
 {
 public:
     SpcServiceImpl(std::string id = "spc",
+                   std::string config_path = "",
                    std::string name = "spc.SpcService",
                    std::string domain = "localhost",
                    std::string publisher_id = "localhost",
@@ -38,7 +39,7 @@ public:
                    bool tls = false,
                    std::string version = "0.0.1",
                    unsigned int defaultPort = 10061, unsigned int defaultProxy = 10062):
-         Globular::GlobularService(id, name, domain, publisher_id, allow_all_origins, allowed_origins, version, tls, defaultPort, defaultProxy ){
+         Globular::GlobularService(id, config_path, name, domain, publisher_id, allow_all_origins, allowed_origins, version, tls, defaultPort, defaultProxy ){
         // Set the proto path if is not already set.
         if(this->proto.length() == 0){
             ::spc::CreateAnalyseRqst request;
@@ -171,16 +172,20 @@ int main(int argc, char** argv)
     cxxopts::Options options("Statistic process control service", "A c++ gRpc service implementation");
     auto result = options.parse(argc, argv);
 
-
     // Instantiate a new server.
-    SpcServiceImpl service;
+    std::string id = "";
+    std::string config_path = "";
+
     if(argc == 2){
-      int port = atoi(argv[1]);
-      service.setPort(port);
+       id = std::string(argv[1]);
+    }else if(argc == 3){
+        id = std::string(argv[1]);
+        config_path = std::string(argv[2]);
     }
 
+    SpcServiceImpl* spc_service = new SpcServiceImpl(id, config_path);
     // Start the service.
-    service.run(&service);
+    spc_service->run(spc_service);
 
     return 0;
 }

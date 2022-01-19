@@ -1,6 +1,7 @@
 #include "echoserviceimpl.h"
 
 EchoServiceImpl::EchoServiceImpl(std::string id,
+                                 std::string config_path,
                                  std::string name,
                                  std::string domain,
                                  std::string publisher_id,
@@ -9,7 +10,7 @@ EchoServiceImpl::EchoServiceImpl(std::string id,
                                  std::string version,
                                  bool tls,
                                  unsigned int defaultPort, unsigned int defaultProxy):
-    Globular::GlobularService(id, name, domain, publisher_id, allow_all_origins, allowed_origins, version, tls, defaultPort, defaultProxy )
+    Globular::GlobularService(id, config_path, name, domain, publisher_id, allow_all_origins, allowed_origins, version, tls, defaultPort, defaultProxy )
 {
     // Set the proto path if is not already set.
     if(this->proto.length() == 0){

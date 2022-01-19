@@ -7,11 +7,24 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-    cxxopts::Options options("c++ echo service", "A c++ gRpc service implementation");
-    auto result = options.parse(argc, argv);
 
     // Instantiate a new server.
-    EchoServiceImpl service("test", "echo.EchoService");
+
+    cxxopts::Options options("Statistic process control service", "A c++ gRpc service implementation");
+    auto result = options.parse(argc, argv);
+
+    std::string id;
+    std::string config_path;
+
+    // Instantiate a new server.
+    if(argc == 2){
+        id = std::string(argv[1]);
+    }else if(argc == 3){
+        id = std::string(argv[1]);
+        config_path = std::string(argv[2]);
+    }
+
+    EchoServiceImpl service(id, config_path);
 
     // Start the service.
     service.run(&service);

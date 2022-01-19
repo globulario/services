@@ -7,7 +7,7 @@
     <Description>Client side load balancer to be use to select the server's from canditate list...</Description>
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
     <projectUrl>https://www.globular.io</projectUrl>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Dave Courtois</Authors>
     <Company>Globular</Company>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

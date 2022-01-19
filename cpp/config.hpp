@@ -81,9 +81,9 @@ namespace Globular{
 Globular::ConfigClient* getConfigClient(std::string domain, int port);
 
 // Return the service configuration
-std::string getServiceConfig(std::string serviceId, std::string domain);
+std::string getServiceConfig(std::string serviceId, std::string domain, std::string config_path);
 
 // Save a configuration
-void setServiceConfig(std::string serviceId, std::string domain, std::string config);
+void setServiceConfig(std::string serviceId, std::string domain, std::string config, std::string config_path);
 
 #endif // GLOBULAR_CONFIG_H__

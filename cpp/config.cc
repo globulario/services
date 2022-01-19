@@ -31,6 +31,12 @@ void sleep(unsigned milliseconds)
 }
 
 std::string getLocalConfigPath(){
+    /*TCHAR windir[MAX_PATH];
+    GetWindowsDirectory(windir, MAX_PATH);
+    std::wstring windir_(&windir[0]); //convert to wstring
+    std::string windir__(windir_.begin(), windir_.end()); //and convert to string.
+
+    return windir__;//*/
     return "C:/Program Files/globular/config";
 }
 
@@ -47,6 +53,7 @@ std::string getexepath()
 }
 
 std::string getLocalConfigPath(){
+
     return "/etc/globular/config"
 }
 
@@ -82,15 +89,16 @@ std::string getRemoteParticalServiceConfig(std::string serviceId, std::string do
 // Get the configuration path from the exec path...
 std::string getConfigPath(std::string serviceId, std::string domain){
 
-    std::string partialConfig = getRemoteParticalServiceConfig(serviceId, domain);
-    if(!partialConfig.empty()){
-
-        auto j = nlohmann::json::parse(partialConfig);
-        std::string configPath = j["ConfigPath"];
-        if(!configPath.empty()){
-            return configPath;
+        std::string partialConfig = getRemoteParticalServiceConfig(serviceId, domain);
+        if(!partialConfig.empty()){
+            auto j = nlohmann::json::parse(partialConfig);
+            std::string configPath = j["ConfigPath"];
+            if(!configPath.empty()){
+                return configPath;
+            }
         }
-    }
+
+
     std::string execPath = getexepath();
     std::size_t lastIndex = execPath.find_last_of("/");
     std::string configPath = execPath.substr(0, lastIndex) + "/config.json";
@@ -174,7 +182,7 @@ Globular::ConfigClient* getConfigClient(std::string domain, int port){
 }
 
 // Return the service configuration
-std::string getServiceConfig(std::string serviceId, std::string domain){
+std::string getServiceConfig(std::string serviceId, std::string domain, std::string config_path){
     // First option the configuration manager
     try {
         auto config_client_ = getConfigClient(domain, getHttpPort());
@@ -187,11 +195,14 @@ std::string getServiceConfig(std::string serviceId, std::string domain){
     }
     catch(...){
         // configuration from the file beside the exe...
+        if(!config_path.empty()){
+            return getConfigStr(config_path); // Start service from local file.
+        }
         return getConfigStr(getConfigPath(serviceId, domain)); // Start service from local file.
     }
 }
 
-void setServiceConfig(std::string serviceId, std::string domain, std::string config){
+void setServiceConfig(std::string serviceId, std::string domain, std::string config, std::string config_path){
     try {
         auto config_client_ = getConfigClient(domain, getHttpPort());
         if(config_client_!= 0) {
@@ -201,9 +212,12 @@ void setServiceConfig(std::string serviceId, std::string domain, std::string con
         }
     }
     catch(...){
+        if(config_path.empty()){
+            config_path = getConfigPath(serviceId, domain);
+        }
         // save to the local file if configuration service fail to save it or is not found
         std::ofstream file;
-        file.open(getConfigPath(serviceId, domain));
+        file.open(config_path);
         file << config;
         file.close();
     }

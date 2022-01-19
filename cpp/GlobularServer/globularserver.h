@@ -112,6 +112,7 @@ public:
     GlobularService(std::string id,
                     std::string name,
                     std::string address,
+                    std::string configPath = "",
                     std::string publisher_id = "globulario",
                     bool allow_all_origins = false,
                     std::string allowed_origins = "",
@@ -124,6 +125,14 @@ public:
             );
 
     // Getter/Setter
+    const setId(std::string id){
+        this->id = id;
+    }
+
+    const setConfigPath(std::string path){
+        this->configPath = path;
+    }
+
     const std::string& getName() {
         return this->name;
     }

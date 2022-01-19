@@ -19,6 +19,7 @@ using grpc::ServerContext;
 using grpc::Status;
 
 Globular::GlobularService::GlobularService(std::string id,
+                                           std::string config_path,
                                            std::string name,
                                            std::string domain,
                                            std::string publisher_id,
@@ -32,6 +33,7 @@ Globular::GlobularService::GlobularService(std::string id,
                                            bool keep_up_to_date
                                            ):
     id(id),
+    configPath(config_path),
     name(name),
     domain(domain),
     publisher_id(publisher_id),
@@ -49,7 +51,7 @@ Globular::GlobularService::GlobularService(std::string id,
 
     // first of all I will try to open the configuration from the file.
     this->root = getRootDir();
-    std::string jsonStr = getServiceConfig(id, domain);
+    std::string jsonStr = getServiceConfig(id, domain, config_path);
 
     if (!jsonStr.empty()) {
 
@@ -84,7 +86,6 @@ Globular::GlobularService::GlobularService(std::string id,
     }
     // Set the application path.
     this->path = getexepath();
-    this->configPath = getConfigPath(this->id, this->domain);
 
     // set the state to running.
     this->state = "running";
@@ -143,7 +144,7 @@ void Globular::GlobularService::save() {
     j["ProxyProcess"] = this->proxyProcess;
 
     // Try to save the configuation.
-    setServiceConfig(this->id, this->domain, j.dump());
+    setServiceConfig(this->id, this->domain, j.dump(), this->configPath);
 }
 
 // use it for shutdown only...

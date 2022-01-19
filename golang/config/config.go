@@ -116,7 +116,7 @@ func GetServicesConfigDir() string {
 	// That variable is use in development to set services from diffrent location...
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceRoot) > 0 {
-		return serviceRoot
+		return strings.ReplaceAll(serviceRoot, "\\", "/");
 	}
 
 	if Utility.Exists(GetConfigDir() + "/services") {
@@ -679,11 +679,15 @@ func initConfig() {
 	// Initialyse the liste of local services...
 	serviceDir := GetServicesConfigDir()
 	serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+	fmt.Println("Load services configuration from: ", serviceDir);
 	files, err := Utility.FindFileByName(serviceDir, "config.json")
 	if err != nil {
 		fmt.Println("fail to find service configurations at at path ", serviceDir)
 		return
 	}
+
+	fmt.Println("Found ", len(files), "services" )
+
 	services := make([]map[string]interface{}, 0)
 
 	// I will try to get configuration from services.
@@ -694,6 +698,7 @@ func initConfig() {
 			fmt.Println("fail to initialyse service configuration from file " + path)
 		} else {
 			// save back the file...
+			s["ConfigPath"] = path; // set the service configuration path.
 			services = append(services, s)
 		}
 	}
@@ -802,6 +807,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				}
 			}
 			if s == nil {
+				fmt.Println("------------> no service found with id " + id)
 				err = errors.New("no service found with id " + id)
 			}
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"service": s, "error": err}

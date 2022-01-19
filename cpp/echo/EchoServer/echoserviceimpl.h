@@ -15,6 +15,7 @@ class EchoServiceImpl final: public echo::EchoService::Service, public Globular:
 {
 public:
     EchoServiceImpl(std::string id = "echo",
+                    std::string config_path = "",
                     std::string name = "echo.EchoService",
                     std::string domain = "localhost",
                     std::string publisher_id = "globulario",
