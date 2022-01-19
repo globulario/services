@@ -314,7 +314,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
 	}
 
-	// if the Globule name is not set I will use the name of the computer itself.
+	// if the Globule name is not set I will use the name of the computer hostname itself.
 	if len(config["Name"].(string)) == 0 {
 		config["Name"], _ = GetHostName()
 	}
