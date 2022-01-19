@@ -386,7 +386,7 @@ namespace Globular
             else
             {
                 var jsonStr = config_client_.GetServiceConfiguration(this.Id);
-                server = JsonSerializer.Deserialize(jsonStr, s.GetType());
+                server = JsonSerializer.Deserialize(jsonStr, server.GetType());
             }
 
             this.save(server);
@@ -406,7 +406,7 @@ namespace Globular
             s.Path = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName.Replace("\\", "/");
 
             string jsonStr;
-            jsonStr = JsonSerializer.Serialize(s);
+            jsonStr = JsonSerializer.Serialize(server);
             var config_client_ = this.getConfigClient(this.Address);
 
             if (config_client_ != null)
