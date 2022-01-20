@@ -739,7 +739,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			s := infos["service_config"].(map[string]interface{})
 			path := s["ConfigPath"].(string)
 			return_chan := infos["return"].(chan error)
-
+			//fmt.Println("------------>  set service id ", s["Id"], s["State"])
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
 			if err != nil {
@@ -810,6 +810,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				fmt.Println("------------> no service found with id " + id)
 				err = errors.New("no service found with id " + id)
 			}
+			//fmt.Println("------------>  get service id " + id, s["State"])
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"service": s, "error": err}
 
 		case infos := <-getServicesConfigurationsByNameChan:

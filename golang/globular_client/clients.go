@@ -137,6 +137,7 @@ func InitClient(client Client, address string, id string) error {
 		// Remote client configuration
 		config_, err = config.GetRemoteConfig(domain, port, id)
 	}
+	
 	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
 		return err
@@ -268,12 +269,14 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 				ClientCAs:    certPool,
 				RootCAs:      certPool,
 			})
+
 			// Create a connection with the TLS credentials
 			cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds))
 			if err != nil {
 				fmt.Println("fail to dial address ", err)
 				return nil, err
 			}
+
 		} else {
 			cc, err = grpc.Dial(address, grpc.WithInsecure())
 			if err != nil {
