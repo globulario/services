@@ -39,6 +39,9 @@ type Conversation_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port
 	port int
 
@@ -67,15 +70,11 @@ type Conversation_Client struct {
 // Create a connection to the service.
 func NewConversationService_Client(address string, id string) (*Conversation_Client, error) {
 	client := new(Conversation_Client)
+
 	err := globular.InitClient(client, address, id)
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return nil, err
-	}
-	client.c = conversationpb.NewConversationServiceClient(client.cc)
 
 	// The channel where data will be exchange.
 	client.actions = make(chan map[string]interface{})
@@ -83,15 +82,32 @@ func NewConversationService_Client(address string, id string) (*Conversation_Cli
 	// Create a random uuid.
 	client.uuid = Utility.RandomUUID()
 
-	// Open a connection with the server. In case the server is not ready
-	// It will wait 5 second and try it again.
-	nb_try_connect := 15
+	err = client.Reconnect()
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
+}
 
+func (client *Conversation_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return err
+	}
+	client.c = conversationpb.NewConversationServiceClient(client.cc)
+
+
+	// Open a connection with the server. In case the server is not readyz
+	// It will wait 5 second and try it again.
+	nb_try_connect := 10
+	
 	go func() {
 		for nb_try_connect > 0 {
 			err := client.run()
 			if err != nil && nb_try_connect == 0 {
-				fmt.Println("78 Fail to create event client: ", id, err)
+				fmt.Println("Fail to create event client: ", client.GetId(), err)
 				break // exit loop.
 			}
 			time.Sleep(5 * time.Second) // wait five seconds.
@@ -99,7 +115,8 @@ func NewConversationService_Client(address string, id string) (*Conversation_Cli
 		}
 	}()
 
-	return client, nil
+	return nil
+
 }
 
 /**
@@ -192,6 +209,11 @@ func (client *Conversation_Client) GetDomain() string {
 	return client.domain
 }
 
+// Return the last know connection state
+func (client *Conversation_Client) GetState() string {
+	return client.state
+}
+
 // Return the address
 func (client *Conversation_Client) GetAddress() string {
 	return client.address
@@ -243,6 +265,10 @@ func (client *Conversation_Client) SetMac(mac string) {
 // Set the domain.
 func (client *Conversation_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Conversation_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

@@ -44,6 +44,9 @@ type Applications_Manager_Client struct {
 	// The client domain
 	domain string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
@@ -73,14 +76,28 @@ func NewApplicationsManager_Client(address string, id string) (*Applications_Man
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = applications_managerpb.NewApplicationManagerServiceClient(client.cc)
-
 	return client, nil
 }
+
+func (client *Applications_Manager_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = applications_managerpb.NewApplicationManagerServiceClient(client.cc)
+
+	return nil
+
+}
+
 
 // The address where the client can connect.
 func (client *Applications_Manager_Client) SetAddress(address string) {
@@ -141,6 +158,11 @@ func (Applications_Manager_Client *Applications_Manager_Client) GetMac() string 
 	return Applications_Manager_Client.mac
 }
 
+// Return the last know connection state
+func (client *Applications_Manager_Client) GetState() string {
+	return client.state
+}
+
 // must be close when no more needed.
 func (Applications_Manager_Client *Applications_Manager_Client) Close() {
 	Applications_Manager_Client.cc.Close()
@@ -173,6 +195,10 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetMac(mac strin
 // Set the domain.
 func (Applications_Manager_Client *Applications_Manager_Client) SetDomain(domain string) {
 	Applications_Manager_Client.domain = domain
+}
+
+func (client *Applications_Manager_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

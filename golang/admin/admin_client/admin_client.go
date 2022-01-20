@@ -39,6 +39,9 @@ type Admin_Client struct {
 	// The name of the service
 	name string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port
 	port int
 
@@ -73,14 +76,23 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 		return nil, err
 	}
 
-	client.cc, err = globular.GetClientConnection(client)
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
+	return client, nil
+}
+
+func (client *Admin_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
 
 	client.c = adminpb.NewAdminServiceClient(client.cc)
-
-	return client, nil
+	return nil
 }
 
 // The address where the client can connect.
@@ -144,6 +156,11 @@ func (client *Admin_Client) GetName() string {
 	return client.name
 }
 
+// Return the last know connection state.
+func (client *Admin_Client) GetState() string {
+	return client.state
+}
+
 // must be close when no more needed.
 func (client *Admin_Client) Close() {
 	client.cc.Close()
@@ -168,6 +185,11 @@ func (client *Admin_Client) SetId(id string) {
 func (client *Admin_Client) SetName(name string) {
 	client.name = name
 }
+
+func (client *Admin_Client) SetState(state string) {
+	client.state = state
+}
+
 
 func (client *Admin_Client) SetMac(mac string) {
 	client.mac = mac

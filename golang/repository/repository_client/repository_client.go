@@ -42,6 +42,9 @@ type Repository_Service_Client struct {
 	// The name of the service
 	name string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The client domain
 	domain string
 
@@ -74,13 +77,25 @@ func NewRepositoryService_Client(address string, id string) (*Repository_Service
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = repositorypb.NewPackageRepositoryClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Repository_Service_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = repositorypb.NewPackageRepositoryClient(client.cc)
+	return nil
 }
 
 // The address where the client can connect.
@@ -113,6 +128,11 @@ func (client *Repository_Service_Client) GetCtx() context.Context {
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
+}
+
+// Return the last know connection state
+func (client *Repository_Service_Client) GetState() string {
+	return client.state
 }
 
 // Return the domain
@@ -171,6 +191,10 @@ func (client *Repository_Service_Client) SetMac(mac string) {
 // Set the domain.
 func (client *Repository_Service_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Repository_Service_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

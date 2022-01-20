@@ -35,6 +35,9 @@ type File_Client struct {
 	// The client domain
 	domain string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
@@ -64,13 +67,25 @@ func NewFileService_Client(address string, id string) (*File_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = filepb.NewFileServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *File_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = filepb.NewFileServiceClient(client.cc)
+	return nil
 }
 
 // The address where the client can connect.
@@ -106,6 +121,11 @@ func (client *File_Client) GetDomain() string {
 	return client.domain
 }
 
+// Return the last know connection state
+func (client *File_Client) GetState() string {
+	return client.state
+}
+
 // Return the address
 func (client *File_Client) GetAddress() string {
 	return client.address
@@ -119,6 +139,10 @@ func (client *File_Client) GetId() string {
 // Return the name of the service
 func (client *File_Client) GetName() string {
 	return client.name
+}
+
+func (client *File_Client) SetState(state string) {
+	client.state = state
 }
 
 func (client *File_Client) GetMac() string {

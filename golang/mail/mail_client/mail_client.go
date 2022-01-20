@@ -34,6 +34,9 @@ type Mail_Client struct {
 	// The client domain
 	domain string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
@@ -63,14 +66,27 @@ func NewMailService_Client(address string, id string) (*Mail_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = mailpb.NewMailServiceClient(client.cc)
 
 	return client, nil
 }
+
+func (client *Mail_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = mailpb.NewMailServiceClient(client.cc)
+	return nil
+}
+
 
 // The address where the client can connect.
 func (client *Mail_Client) SetAddress(address string) {
@@ -114,6 +130,11 @@ func (client *Mail_Client) GetDomain() string {
 // Return the address
 func (client *Mail_Client) GetAddress() string {
 	return client.address
+}
+
+// Return the last know connection state
+func (client *Mail_Client) GetState() string {
+	return client.state
 }
 
 // Return the id of the service instance
@@ -162,6 +183,10 @@ func (client *Mail_Client) SetId(id string) {
 // Set the domain.
 func (client *Mail_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Mail_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

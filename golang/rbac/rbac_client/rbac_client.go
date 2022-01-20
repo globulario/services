@@ -36,6 +36,9 @@ type Rbac_Client struct {
 	// The client domain
 	domain string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
@@ -66,13 +69,25 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = rbacpb.NewRbacServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Rbac_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = rbacpb.NewRbacServiceClient(client.cc)
+	return nil
 }
 
 // The address where the client can connect.
@@ -105,6 +120,11 @@ func (client *Rbac_Client) GetCtx() context.Context {
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
+}
+
+// Return the last know connection state
+func (client *Rbac_Client) GetState() string {
+	return client.state
 }
 
 // Return the domain
@@ -163,6 +183,10 @@ func (client *Rbac_Client) SetMac(mac string) {
 // Set the domain.
 func (client *Rbac_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Rbac_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

@@ -34,6 +34,9 @@ type Storage_Client struct {
 	// The client domain
 	domain string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
@@ -63,14 +66,28 @@ func NewStorageService_Client(address string, id string) (*Storage_Client, error
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = storagepb.NewStorageServiceClient(client.cc)
 
 	return client, nil
 }
+
+func (client *Storage_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = storagepb.NewStorageServiceClient(client.cc)
+
+	return nil
+}
+
 
 // The address where the client can connect.
 func (client *Storage_Client) SetAddress(address string) {
@@ -131,6 +148,11 @@ func (client *Storage_Client) GetName() string {
 	return client.name
 }
 
+// Return the last know connection state
+func (client *Storage_Client) GetState() string {
+	return client.state
+}
+
 // must be close when no more needed.
 func (client *Storage_Client) Close() {
 	client.cc.Close()
@@ -158,6 +180,10 @@ func (client *Storage_Client) SetName(name string) {
 
 func (client *Storage_Client) SetMac(mac string) {
 	client.mac = mac
+}
+
+func (client *Storage_Client) SetState(state string) {
+	client.state = state
 }
 
 // Set the domain.

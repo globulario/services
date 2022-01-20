@@ -40,6 +40,9 @@ type Authentication_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port
 	port int
 
@@ -66,13 +69,26 @@ func NewAuthenticationService_Client(address string, id string) (*Authentication
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+	
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
+	return client, nil
+}
+
+func (client *Authentication_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
 	client.c = authenticationpb.NewAuthenticationServiceClient(client.cc)
 
-	return client, nil
+	return nil
+
 }
 
 // The address where the client can connect.
@@ -114,6 +130,11 @@ func (client *Authentication_Client) GetCtx() context.Context {
 // Return the domain
 func (client *Authentication_Client) GetDomain() string {
 	return client.domain
+}
+
+// Return the last know connection state
+func (client *Authentication_Client) GetState() string {
+	return client.state
 }
 
 // Return the address
@@ -167,6 +188,10 @@ func (client *Authentication_Client) SetMac(mac string) {
 // Set the domain.
 func (client *Authentication_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Authentication_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

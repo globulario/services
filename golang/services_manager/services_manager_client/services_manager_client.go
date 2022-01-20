@@ -35,6 +35,9 @@ type Services_Manager_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port
 	port int
 
@@ -61,13 +64,26 @@ func NewServicesManagerService_Client(address string, id string) (*Services_Mana
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = services_managerpb.NewServicesManagerServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Services_Manager_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = services_managerpb.NewServicesManagerServiceClient(client.cc)
+
+	return nil
 }
 
 // The address where the client can connect.
@@ -100,6 +116,11 @@ func (client *Services_Manager_Client) GetCtx() context.Context {
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
+}
+
+// Return the last know connection state
+func (client *Services_Manager_Client) GetState() string {
+	return client.state
 }
 
 // Return the domain
@@ -158,6 +179,10 @@ func (client *Services_Manager_Client) SetMac(mac string) {
 // Set the domain.
 func (client *Services_Manager_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Services_Manager_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

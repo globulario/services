@@ -32,6 +32,9 @@ type Blog_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The mac address of the server
 	mac string
 
@@ -61,13 +64,26 @@ func NewBlogService_Client(address string, id string) (*Blog_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
+	return client, nil
+}
+
+func (client *Blog_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
 	client.c = blogpb.NewBlogServiceClient(client.cc)
 
-	return client, nil
+	return nil
+
 }
 
 // The address where the client can connect.
@@ -106,6 +122,11 @@ func (client *Blog_Client) GetCtx() context.Context {
 // Return the domain
 func (client *Blog_Client) GetDomain() string {
 	return client.domain
+}
+
+// Return the last know connection state
+func (client *Blog_Client) GetState() string {
+	return client.state
 }
 
 // Return the address
@@ -159,6 +180,10 @@ func (client *Blog_Client) SetMac(mac string) {
 // Set the domain.
 func (client *Blog_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Blog_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

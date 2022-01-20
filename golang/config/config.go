@@ -687,7 +687,6 @@ func initConfig() {
 	}
 
 	fmt.Println("Found ", len(files), "services" )
-
 	services := make([]map[string]interface{}, 0)
 
 	// I will try to get configuration from services.
@@ -695,7 +694,7 @@ func initConfig() {
 		path := files[i]
 		s, err := initServiceConfiguration(path, serviceDir)
 		if err != nil {
-			fmt.Println("fail to initialyse service configuration from file " + path)
+			fmt.Println("fail to initialyse service configuration from file " + path, " with error ", err)
 		} else {
 			// save back the file...
 			s["ConfigPath"] = path; // set the service configuration path.

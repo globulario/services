@@ -36,6 +36,9 @@ type Catalog_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port of the client.
 	port int
 
@@ -62,14 +65,26 @@ func NewCatalogService_Client(address string, id string) (*Catalog_Client, error
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
+	}
+	return client, nil
+}
+
+func (client *Catalog_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
 	}
 
 	client.c = catalogpb.NewCatalogServiceClient(client.cc)
 
-	return client, nil
+	return nil
+
 }
 
 // The address where the client can connect.
@@ -106,6 +121,11 @@ func (client *Catalog_Client) GetCtx() context.Context {
 	}
 
 	return client.ctx
+}
+
+// Return the last know connection state
+func (client *Catalog_Client) GetState() string {
+	return client.state
 }
 
 // Return the domain
@@ -158,6 +178,10 @@ func (client *Catalog_Client) SetName(name string) {
 
 func (client *Catalog_Client) SetMac(mac string) {
 	client.mac = mac
+}
+
+func (client *Catalog_Client) SetState(state string) {
+	client.state = state
 }
 
 // Set the domain.

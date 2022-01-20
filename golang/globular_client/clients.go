@@ -61,6 +61,11 @@ type Client interface {
 	// Set the name of the client
 	SetName(string)
 
+	// Return the state of the client at connection time.
+	GetState() string
+
+	SetState(string)
+
 	// Set the domain of the client
 	SetDomain(string)
 
@@ -93,6 +98,9 @@ type Client interface {
 	// Set TLS authority trust certificate file path
 	SetCaFile(string)
 
+	// Connect or reconnect...
+	Reconnect() error
+
 	// Invoque a request on the client and return it grpc reply.
 	Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error)
 }
@@ -105,7 +113,7 @@ func InitClient(client Client, address string, id string) error {
 	var config_ map[string]interface{}
 	var err error
 
-	// Here the address must contain the port where the configuration can be found on the 
+	// Here the address must contain the port where the configuration can be found on the
 	// http server. If not given thas mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
@@ -160,7 +168,7 @@ func InitClient(client Client, address string, id string) error {
 	}
 
 	if config_["Name"] != nil {
-		client.SetId(config_["Name"].(string))
+		client.SetName(config_["Name"].(string))
 	} else {
 		return errors.New("no name found for service " + id)
 	}
@@ -173,6 +181,12 @@ func InitClient(client Client, address string, id string) error {
 
 	if config_["Port"] != nil {
 		client.SetPort(Utility.ToInt(config_["Port"]))
+	} else {
+		return errors.New("no port found for service " + id)
+	}
+
+	if config_["State"] != nil {
+		client.SetState(config_["State"].(string))
 	} else {
 		return errors.New("no port found for service " + id)
 	}
@@ -213,75 +227,140 @@ func InitClient(client Client, address string, id string) error {
 }
 
 /**
+ * That function is use to intercept all grpc client call for each client
+ * if the connection is close a new connection will be made and the configuration 
+ * will be updated to set correct information.
+ */
+func clientInterceptor(client_ Client) func(
+	ctx context.Context,
+	method string,
+	req interface{},
+	reply interface{},
+	cc *grpc.ClientConn,
+	invoker grpc.UnaryInvoker,
+	opts ...grpc.CallOption,
+) error {
+	return func(ctx context.Context,
+		method string,
+		req interface{},
+		reply interface{},
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+
+		// Calls the invoker to execute RPC
+		err := invoker(ctx, method, req, reply, cc, opts...)
+	// Logic after invoking the invoker
+	if client_ != nil && err != nil {
+		// fmt.Println("Invoked RPC method=%s; Duration=%s; Error=%v", method, time.Since(start), err);
+		if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) {
+			// here the connection was lost an a new connection must be made...
+			config_, err := client_.GetConfiguration(client_.GetAddress(), client_.GetId())
+			if err == nil {
+				// Here I will test if the service as restarted...
+				
+				// Here I will test if the process his the same...
+				err := InitClient(client_, client_.GetAddress(), client_.GetId())
+				if err == nil {
+					err := client_.Reconnect()
+					if err !=nil {
+						fmt.Println("fail to reconnect ", client_.GetId(), err)
+						fmt.Println( "port:", config_["Port"], "process:", config_["Process"])
+					}
+
+					err = invoker(ctx, method, req, reply, cc, opts...)
+					if err != nil {
+						// display the error message to debug...
+						//fmt.Println("Connection to client ",  config_["Name"], " at address ", config_["Address"], config_["State"], config_["Process"],config_["Port"], "could not be made...", err)
+					}
+					return err
+				}else{
+					fmt.Println("fail to get configuation for ", client_.GetId(), err)
+				}
+			}else{
+				fmt.Println("fail to get configuation for ", client_.GetId(), err)
+			} 
+		}
+		//fmt.Println("------------> error ", err)
+	}
+		return err
+	}
+}
+
+/*
+func withClientUnaryInterceptor() grpc.DialOption {
+	return grpc.WithUnaryInterceptor(clientInterceptor)
+}
+*/
+
+/**
  * Get the client connection. The token is require to control access to resource
  */
 func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 	// initialyse the client values.
 	var cc *grpc.ClientConn
 	var err error
-	if cc == nil {
-		// The grpc address
-		address := client.GetDomain() + ":" + Utility.ToString(client.GetPort())
-		if client.HasTLS() {
 
-			// Setup the login/pass simple test...
-			if len(client.GetKeyFile()) == 0 {
-				err := errors.New("no key file is available for client ")
-				fmt.Println(err)
-				return nil, err
-			}
+	// The grpc address
+	address := client.GetDomain() + ":" + Utility.ToString(client.GetPort())
+	if client.HasTLS() {
+		// Setup the login/pass simple test...
+		if len(client.GetKeyFile()) == 0 {
+			err := errors.New("no key file is available for client ")
+			fmt.Println(err)
+			return nil, err
+		}
 
-			certFile := client.GetCertFile()
-			if len(certFile) == 0 {
-				err = errors.New("no certificate file is available for client")
-				fmt.Println(err)
-				return nil, errors.New("no certificate file is available for client")
-			}
+		certFile := client.GetCertFile()
+		if len(certFile) == 0 {
+			err = errors.New("no certificate file is available for client")
+			fmt.Println(err)
+			return nil, errors.New("no certificate file is available for client")
+		}
 
-			keyFile := client.GetKeyFile()
+		keyFile := client.GetKeyFile()
 
-			certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
-			if err != nil {
-				return nil, err
-			}
+		certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, err
+		}
 
-			// Create a certificate pool from the certificate authority
-			certPool := x509.NewCertPool()
+		// Create a certificate pool from the certificate authority
+		certPool := x509.NewCertPool()
 
-			ca, err := ioutil.ReadFile(client.GetCaFile())
-			if err != nil {
-				err = errors.New("fail to read ca certificate")
-				fmt.Println(err)
-				return nil, err
-			}
+		ca, err := ioutil.ReadFile(client.GetCaFile())
+		if err != nil {
+			err = errors.New("fail to read ca certificate")
+			fmt.Println(err)
+			return nil, err
+		}
 
-			// Append the certificates from the CA
-			if ok := certPool.AppendCertsFromPEM(ca); !ok {
-				err = errors.New("failed to append ca certs")
-				fmt.Println(err)
-				return nil, err
-			}
+		// Append the certificates from the CA
+		if ok := certPool.AppendCertsFromPEM(ca); !ok {
+			err = errors.New("failed to append ca certs")
+			fmt.Println(err)
+			return nil, err
+		}
 
-			creds := credentials.NewTLS(&tls.Config{
-				ServerName:   client.GetDomain(), // NOTE: this is required!
-				Certificates: []tls.Certificate{certificate},
-				ClientAuth:   tls.RequireAndVerifyClientCert,
-				ClientCAs:    certPool,
-				RootCAs:      certPool,
-			})
+		creds := credentials.NewTLS(&tls.Config{
+			ServerName:   client.GetDomain(), // NOTE: this is required!
+			Certificates: []tls.Certificate{certificate},
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			ClientCAs:    certPool,
+			RootCAs:      certPool,
+		})
 
-			// Create a connection with the TLS credentials
-			cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds))
-			if err != nil {
-				fmt.Println("fail to dial address ", err)
-				return nil, err
-			}
-
-		} else {
-			cc, err = grpc.Dial(address, grpc.WithInsecure())
-			if err != nil {
-				return nil, err
-			}
+		// Create a connection with the TLS credentials
+		cc, err = grpc.Dial(address, grpc.WithTransportCredentials(creds), grpc.WithUnaryInterceptor(clientInterceptor(client)))
+		if err != nil {
+			fmt.Println("fail to dial address ", err)
+			return nil, err
+		}
+	} else {
+		cc, err = grpc.Dial(address, grpc.WithInsecure())
+		if err != nil {
+			return nil, err
 		}
 	}
 

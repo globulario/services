@@ -33,6 +33,9 @@ type SQL_Client struct {
 	// The client domain
 	domain string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
@@ -62,14 +65,29 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = sqlpb.NewSqlServiceClient(client.cc)
 
 	return client, nil
 }
+
+func (client *SQL_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = sqlpb.NewSqlServiceClient(client.cc)
+
+	return nil
+}
+
 
 // The address where the client can connect.
 func (client *SQL_Client) SetAddress(address string) {
@@ -101,6 +119,11 @@ func (client *SQL_Client) GetCtx() context.Context {
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
+}
+
+// Return the last know connection state
+func (client *SQL_Client) GetState() string {
+	return client.state
 }
 
 // Return the domain
@@ -159,6 +182,10 @@ func (client *SQL_Client) SetId(id string) {
 // Set the domain.
 func (client *SQL_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *SQL_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////
