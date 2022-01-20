@@ -274,11 +274,19 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	return config, nil
 }
 
+// keep the value in memory
+var config_ map[string]interface{}
+
 /**
  * Return the server local configuration if one exist.
  * if lazy is set to true service will not be set in the configuration.
  */
 func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
+
+	if config_ != nil && lazy{
+		return  config_, nil
+	}
+
 	ConfigPath := GetConfigDir() + "/config.json"
 	if !Utility.Exists(ConfigPath) {
 		err := errors.New("no local Globular configuration found")
@@ -287,6 +295,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	}
 
 	config := make(map[string]interface{})
+
 	data, err := os.ReadFile(ConfigPath)
 	if err != nil {
 		return nil, err
@@ -298,6 +307,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	}
 
 	if lazy {
+		config_ = config
 		return config, nil
 	}
 
@@ -496,8 +506,9 @@ func IsPortAvailable(port int, portRange_ string) bool {
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
 	path = strings.ReplaceAll(path, "\\", "/")
 	for isLocked(path) {
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
+
 	config, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -714,7 +725,8 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 	s := services[index]
 	path := s["ConfigPath"].(string)
 	info, _ := os.Stat(path)
-	if Utility.ToInt(s["ModTime"]) <= Utility.ToInt(info.ModTime().Unix()) {
+	fmt.Println(s["Name"], " actual modtime", s["ModTime"], info.ModTime().Unix())
+	if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
 		serviceDir := GetServicesConfigDir()
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 		s_, err := initServiceConfiguration(path, serviceDir)
@@ -748,9 +760,10 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				return_chan <- errors.New("no configuration to save")
 			} else {
 				for isLocked(path) {
-					time.Sleep(5 * time.Millisecond)
+					time.Sleep(50 * time.Millisecond)
 				}
 				lock(path) // lock the file access
+				log.Println("---------------------> write file ", path)
 				err := os.WriteFile(path, []byte(jsonStr), 0644)
 				unlock(path) // unlock the file access
 				if err != nil {

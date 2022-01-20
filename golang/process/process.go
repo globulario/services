@@ -185,7 +185,7 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 			return
 		}
 
-		delay := 15 * 10 * 1000
+		delay := 30000 // wait 15 second max before give up.
 		for s["State"].(string) != "running" && delay > 0 {
 			time.Sleep(500 * time.Millisecond)
 			delay -= 10
