@@ -145,6 +145,7 @@ func InitClient(client Client, address string, id string) error {
 		// Remote client configuration
 		config_, err = config.GetRemoteConfig(domain, port, id)
 	}
+	
 	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
 		return err
