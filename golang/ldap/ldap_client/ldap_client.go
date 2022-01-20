@@ -36,6 +36,9 @@ type LDAP_Client struct {
 	// The ipv4 address
 	addresse string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The client domain
 	domain string
 
@@ -68,13 +71,25 @@ func NewLdapService_Client(address string, id string) (*LDAP_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = ldappb.NewLdapServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *LDAP_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = ldappb.NewLdapServiceClient(client.cc)
+	return nil
 }
 
 // The address where the client can connect.
@@ -119,6 +134,11 @@ func (client *LDAP_Client) GetAddress() string {
 	return client.address
 }
 
+// Return the last know connection state
+func (client *LDAP_Client) GetState() string {
+	return client.state
+}
+
 // Return the id of the service
 func (client *LDAP_Client) GetId() string {
 	return client.id
@@ -160,6 +180,10 @@ func (client *LDAP_Client) SetMac(mac string) {
 // Set the client name.
 func (client *LDAP_Client) SetName(name string) {
 	client.name = name
+}
+
+func (client *LDAP_Client) SetState(state string) {
+	client.state = state
 }
 
 // Set the domain.

@@ -35,6 +35,9 @@ type Event_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The mac address of the server
 	mac string
 
@@ -74,34 +77,47 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return nil, err
-	}
-
-	client.c = eventpb.NewEventServiceClient(client.cc)
+	
 	client.uuid = Utility.RandomUUID()
 
 	// The channel where data will be exchange.
 	client.actions = make(chan map[string]interface{})
 
+	err = client.Reconnect()
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+// Try to connect...
+func (client *Event_Client) Reconnect () error{
+	var err error
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return err
+	}
+
+	client.c = eventpb.NewEventServiceClient(client.cc)
+
+
 	// Open a connection with the server. In case the server is not readyz
 	// It will wait 5 second and try it again.
 	nb_try_connect := 10
+	
 	go func() {
 		for nb_try_connect > 0 {
 			err := client.run()
 			if err != nil && nb_try_connect == 0 {
-				fmt.Println("Fail to create event client: ", address, id, err)
+				fmt.Println("Fail to create event client: ", client.GetAddress(), client.GetId(), err)
 				return
 			}
 			time.Sleep(500 * time.Millisecond) // wait five seconds.
 			nb_try_connect--
 		}
 	}()
-
-	return client, nil
+	return nil
 }
 
 /**
@@ -198,6 +214,11 @@ func (client *Event_Client) GetAddress() string {
 	return client.address
 }
 
+// Return the last know connection state
+func (client *Event_Client) GetState() string {
+	return client.state
+}
+
 // Return the id of the service instance
 func (client *Event_Client) GetId() string {
 	return client.id
@@ -255,6 +276,10 @@ func (client *Event_Client) SetMac(mac string) {
 // Set the domain.
 func (client *Event_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Event_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

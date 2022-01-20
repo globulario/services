@@ -35,6 +35,9 @@ type Echo_Client struct {
 	// The mac address of the server
 	mac string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port
 	port int
 
@@ -61,14 +64,27 @@ func NewEchoService_Client(address string, id string) (*Echo_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = echopb.NewEchoServiceClient(client.cc)
 
 	return client, nil
 }
+
+func (client *Echo_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = echopb.NewEchoServiceClient(client.cc)
+	return nil
+}
+
 
 // The address where the client can connect.
 func (client *Echo_Client) SetAddress(address string) {
@@ -118,6 +134,11 @@ func (client *Echo_Client) GetId() string {
 	return client.id
 }
 
+// Return the last know connection state
+func (client *Echo_Client) GetState() string {
+	return client.state
+}
+
 // Return the name of the service
 func (client *Echo_Client) GetName() string {
 	return client.name
@@ -154,6 +175,10 @@ func (client *Echo_Client) SetName(name string) {
 
 func (client *Echo_Client) SetMac(mac string) {
 	client.mac = mac
+}
+
+func (client *Echo_Client) SetState(state string) {
+	client.state = state
 }
 
 // Set the domain.

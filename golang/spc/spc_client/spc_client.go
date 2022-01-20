@@ -34,6 +34,9 @@ type SPC_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port
 	port int
 
@@ -60,13 +63,26 @@ func NewSpcService_Client(address string, id string) (*SPC_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = spcpb.NewSpcServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *SPC_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = spcpb.NewSpcServiceClient(client.cc)
+
+	return nil
 }
 
 // The address where the client can connect.
@@ -99,6 +115,11 @@ func (client *SPC_Client) GetCtx() context.Context {
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
+}
+
+// Return the last know connection state
+func (client *SPC_Client) GetState() string {
+	return client.state
 }
 
 // Return the domain
@@ -157,6 +178,10 @@ func (spc_client *SPC_Client) SetMac(mac string) {
 // Set the domain.
 func (spc_client *SPC_Client) SetDomain(domain string) {
 	spc_client.domain = domain
+}
+
+func (client *SPC_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////

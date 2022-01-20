@@ -37,6 +37,9 @@ type Monitoring_Client struct {
 	// The address where connection with client can be done. ex: globule0.globular.cloud:10101
 	address string
 
+	//  keep the last connection state of the client.
+	state string
+
 	// The port
 	port int
 
@@ -63,13 +66,25 @@ func NewMonitoringService_Client(address string, id string) (*Monitoring_Client,
 	if err != nil {
 		return nil, err
 	}
-	client.cc, err = globular.GetClientConnection(client)
+
+	err = client.Reconnect()
 	if err != nil {
 		return nil, err
 	}
-	client.c = monitoringpb.NewMonitoringServiceClient(client.cc)
 
 	return client, nil
+}
+
+func (client *Monitoring_Client) Reconnect () error{
+	var err error
+	
+	client.cc, err = globular.GetClientConnection(client)
+	if err != nil {
+		return  err
+	}
+
+	client.c = monitoringpb.NewMonitoringServiceClient(client.cc)
+	return nil
 }
 
 // The address where the client can connect.
@@ -103,6 +118,11 @@ func (client *Monitoring_Client) GetCtx() context.Context {
 		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
+}
+
+// Return the last know connection state
+func (client *Monitoring_Client) GetState() string {
+	return client.state
 }
 
 // Return the domain
@@ -161,6 +181,10 @@ func (client *Monitoring_Client) SetName(name string) {
 // Set the domain.
 func (client *Monitoring_Client) SetDomain(domain string) {
 	client.domain = domain
+}
+
+func (client *Monitoring_Client) SetState(state string) {
+	client.state = state
 }
 
 ////////////////// TLS ///////////////////
