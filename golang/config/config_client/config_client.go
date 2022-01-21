@@ -3,6 +3,7 @@ package config_client
 import (
 	"context"
 	"encoding/json"
+	//"fmt"
 	"strings"
 
 	// "github.com/davecourtois/Utility"
@@ -392,7 +393,7 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 		}
 	}
 
-	// fmt.Println("368 ---------> save config ", s["Name"], s["Process"], s["State"] )
+	//fmt.Println("368 ---------> save config ", s["Name"], s["Process"], s["State"] )
 	// I will use the synchronize file version.
 	return config.SaveServiceConfiguration(s)
 }

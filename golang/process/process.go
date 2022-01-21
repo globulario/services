@@ -88,15 +88,10 @@ func logInfo(name, domain, fileLine, functionName, message string, level logpb.L
 }
 
 // Start a service process.
-func StartServiceProcess(serviceId, portsRange string) (int, error) {
-
-	s, err := config_client.GetServiceConfigurationById(serviceId)
-	if err != nil {
-		return -1, err
-	}
+func StartServiceProcess(s map[string]interface{}, portsRange string) (int, error) {
 
 	// I will kill the process if is running...
-	err = KillServiceProcess(s)
+	err := KillServiceProcess(s)
 	if err != nil {
 		return -1, err
 	}
@@ -109,7 +104,7 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 
 	s["Port"] = port
 	if s["Path"] == nil {
-		err := errors.New("no service path was found for service " + s["Name"].(string) + serviceId)
+		err := errors.New("no service path was found for service " + s["Name"].(string) +  s["Id"].(string))
 		fmt.Println(err)
 		return -1, err
 	}
@@ -177,25 +172,15 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 
 	// so here I will start each service in it own go routine.
 	go func(serviceId string) {
-		// Get back the service configuration
-		s, err := config_client.GetServiceConfigurationById(serviceId)
-		if err != nil {
-			fmt.Println("fail to get service configuration "+s["Name"].(string), err)
-			waitUntilStart <- -1
-			return
+
+		ok, err := Utility.PidExists(p.Process.Pid)
+		for !ok {
+			ok, err = Utility.PidExists(Utility.ToInt(s["Process"]))
+			time.Sleep(10 * time.Millisecond)
 		}
 
-		delay := 30000 // wait 15 second max before give up.
-		for s["State"].(string) != "running" && delay > 0 {
-			time.Sleep(500 * time.Millisecond)
-			delay -= 10
-			s, err = config_client.GetServiceConfigurationById(s["Id"].(string))
-			if err != nil {
-				fmt.Println("fail to get service configuration "+s["Name"].(string), err)
-				waitUntilStart <- -1
-				return
-			}
-		}
+		// Set the pid...
+		s["Process"] = p.Process.Pid
 
 		// give back the process id.
 		waitUntilStart <- Utility.ToInt(s["Process"])
@@ -207,8 +192,6 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 			s["State"] = "stopped"
 		}
 		
-		fmt.Println("service", s["Name"], "stop with state", s["State"])
-
 		// be sure the state is not nil and failed.
 		if s["State"] != nil {
 
@@ -218,7 +201,7 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 				if s["KeepAlive"].(bool) == true {
 
 					// give ti some time to free resources like port files... etc.
-					pid, err := StartServiceProcess(serviceId, portsRange)
+					pid, err := StartServiceProcess(s, portsRange)
 
 					// so here I need to restart it proxy process...
 					proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
@@ -233,7 +216,7 @@ func StartServiceProcess(serviceId, portsRange string) (int, error) {
 					if err == nil {
 						localConfig, _ := config.GetLocalConfig(true)
 						// Now I will restart it grpc service.
-						StartServiceProxyProcess(s["Id"].(string), localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), localConfig["PortsRange"].(string), pid)
+						StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), localConfig["PortsRange"].(string), pid)
 					}
 				}
 			}
@@ -290,20 +273,15 @@ func getEventClient(domain string) (*event_client.Event_Client, error) {
 }
 
 // Start a service process.
-func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
+func StartServiceProxyProcess(s map[string] interface{}, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
 
-	// Get the service configuration with a given id.
-	s, err := config_client.GetServiceConfigurationById(serviceId)
-	if err != nil {
-		log.Println("fail to retreive configuration for service ", serviceId, " err ", err)
-		return -1, err
-	}
+
 
 	servicePort := Utility.ToInt(s["Port"])
 	pid := Utility.ToInt(s["ProxyProcess"])
 	if pid != -1 {
 		// Utility.TerminateProcess(pid, 0)
-		return -1, errors.New("proxy already exist for service " + serviceId)
+		return -1, errors.New("proxy already exist for service " + s["Name"].(string))
 	}
 
 	// Now I will start the proxy that will be use by javascript client.
@@ -424,7 +402,7 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 		if processPid != -1 {
 			exist, err := Utility.PidExists(processPid)
 			if err == nil && exist {
-				StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate, portsRange, processPid)
+				StartServiceProxyProcess(s, certificateAuthorityBundle, certificate, portsRange, processPid)
 			} else if err != nil {
 				fmt.Println("proxy prcess fail with error:  ", err)
 				return
@@ -436,7 +414,6 @@ func StartServiceProxyProcess(serviceId, certificateAuthorityBundle, certificate
 	}()
 
 	// be sure the service
-	s, _ = config_client.GetServiceConfigurationById(serviceId)
 	s["State"] = "running"
 	s["ProxyProcess"] = proxyProcess.Process.Pid
 	s["Proxy"] = port

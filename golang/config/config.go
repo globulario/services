@@ -116,7 +116,7 @@ func GetServicesConfigDir() string {
 	// That variable is use in development to set services from diffrent location...
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
 	if len(serviceRoot) > 0 {
-		return strings.ReplaceAll(serviceRoot, "\\", "/");
+		return strings.ReplaceAll(serviceRoot, "\\", "/")
 	}
 
 	if Utility.Exists(GetConfigDir() + "/services") {
@@ -282,9 +282,9 @@ var config_ map[string]interface{}
  * if lazy is set to true service will not be set in the configuration.
  */
 func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
-
-	if config_ != nil && lazy{
-		return  config_, nil
+	// display configuration value.
+	if config_ != nil && lazy {
+		return config_, nil
 	}
 
 	ConfigPath := GetConfigDir() + "/config.json"
@@ -504,6 +504,7 @@ func IsPortAvailable(port int, portRange_ string) bool {
 
 // Init the service form the file.
 func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
+
 	path = strings.ReplaceAll(path, "\\", "/")
 	for isLocked(path) {
 		time.Sleep(50 * time.Millisecond)
@@ -690,14 +691,12 @@ func initConfig() {
 	// Initialyse the liste of local services...
 	serviceDir := GetServicesConfigDir()
 	serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
-	fmt.Println("Load services configuration from: ", serviceDir);
+	fmt.Println("Load services configuration from: ", serviceDir)
 	files, err := Utility.FindFileByName(serviceDir, "config.json")
 	if err != nil {
 		fmt.Println("fail to find service configurations at at path ", serviceDir)
 		return
 	}
-
-	fmt.Println("Found ", len(files), "services" )
 	services := make([]map[string]interface{}, 0)
 
 	// I will try to get configuration from services.
@@ -705,10 +704,10 @@ func initConfig() {
 		path := files[i]
 		s, err := initServiceConfiguration(path, serviceDir)
 		if err != nil {
-			fmt.Println("fail to initialyse service configuration from file " + path, " with error ", err)
+			fmt.Println("fail to initialyse service configuration from file "+path, " with error ", err)
 		} else {
 			// save back the file...
-			s["ConfigPath"] = path; // set the service configuration path.
+			s["ConfigPath"] = path // set the service configuration path.
 			services = append(services, s)
 		}
 	}
@@ -725,8 +724,8 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 	s := services[index]
 	path := s["ConfigPath"].(string)
 	info, _ := os.Stat(path)
-	fmt.Println(s["Name"], " actual modtime", s["ModTime"], info.ModTime().Unix())
 	if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
+		//fmt.Println(s["Name"], " actual modtime", s["ModTime"], info.ModTime().Unix())
 		serviceDir := GetServicesConfigDir()
 		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 		s_, err := initServiceConfiguration(path, serviceDir)
@@ -754,7 +753,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
 			if err != nil {
-				fmt.Println("675 fail to save service configuration", err)
+				fmt.Println("fail to save service configuration", err)
 				return_chan <- err
 			} else if len(jsonStr) == 0 {
 				return_chan <- errors.New("no configuration to save")
@@ -763,11 +762,11 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 					time.Sleep(50 * time.Millisecond)
 				}
 				lock(path) // lock the file access
-				log.Println("---------------------> write file ", path)
+				//log.Println("---------------------> write file ", path)
 				err := os.WriteFile(path, []byte(jsonStr), 0644)
 				unlock(path) // unlock the file access
 				if err != nil {
-					fmt.Println("682 fail to save service configuration.", err)
+					fmt.Println("fail to save service configuration.", err)
 					infos["return"].(chan error) <- err
 				}
 				index := -1
@@ -807,7 +806,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			var s map[string]interface{}
 			var err error
 			id := infos["id"].(string)
-			
+
 			for i := 0; i < len(services); i++ {
 				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
 				if services[i]["Id"].(string) == id || services[i]["Name"].(string) == id || strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
@@ -819,7 +818,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				}
 			}
 			if s == nil {
-				fmt.Println("------------> no service found with id " + id)
+				fmt.Println("no service found with id " + id)
 				err = errors.New("no service found with id " + id)
 			}
 			//fmt.Println("------------>  get service id " + id, s["State"])

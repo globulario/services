@@ -11,13 +11,13 @@ import (
 	"strings"
 
 	"bytes"
+	"errors"
 	"io"
 	"log"
 	"os"
 	"os/signal"
-	"time"
-	"errors"
 	"runtime"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -184,35 +184,52 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-
-	dir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	path := strings.ReplaceAll(dir, "\\", "/")
-	if len(serviceRoot) == 0 {
-		// Here I receive something like
-		//  /usr/local/share/globular/services/globulario/mail.MailService/0.0.1/6364c9d4-3159-419b-85ac-4981bdc9c28d/config.json
-		// the first part of that path is the path of executable and not the config... so I will change it
-		path = strings.ReplaceAll(path, config.GetServicesDir(), config.GetServicesConfigDir())
-	}
-
-	path += "/config.json"
-
-	// if the service configuration does not exist.
-	if !Utility.Exists(path) {
-		// Set know values...
-		execPath, _ := osext.Executable()
-		execPath = strings.ReplaceAll(execPath, "\\", "/")
-		s.SetPath(execPath)
-		s.SetConfigurationPath(path)
+	// set contextual values.
+	address, _ := config.GetAddress()
+	domain, _ := config.GetDomain()
+	s.SetMac(Utility.MyMacAddr())
+	s.SetAddress(address)
+	s.SetDomain(domain)
+	s.SetProcess(os.Getpid())
+	execPath, _ := osext.Executable()
+	execPath = strings.ReplaceAll(execPath, "\\", "/")
+	s.SetPath(execPath)
+	if len(os.Args) == 3 {
+		s.SetId(os.Args[1])
+		s.SetConfigurationPath(os.Args[2])
+	} else if len(os.Args) == 2 {
+		s.SetId(os.Args[1])
+	} else if len(os.Args) == 1 {
 		s.SetMac(Utility.MyMacAddr())
 		s.SetId(Utility.RandomUUID())
-	} else {
+
+		// Now I will set the path where the configuation will be save in that case.
+		dir, _ := osext.ExecutableFolder()
+		serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+		path := strings.ReplaceAll(dir, "\\", "/")
+		if len(serviceRoot) > 0 {
+			s.SetConfigurationPath(path + "/config.json")
+		} else {
+			// In that case the path will be create from the service properties.
+			var serviceDir = config.GetServicesConfigDir() + "/services/"
+			if len(s.GetPublisherId()) == 0 {
+				serviceDir += s.GetDomain() + "/" + s.GetName() + "/" + s.GetVersion()
+			} else {
+				serviceDir +=  s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion()
+			}
+			// set the service dir.
+			s.SetConfigurationPath(serviceDir)
+		}
+	}
+
+	if len(s.GetConfigurationPath() ) == 0{
+		return errors.New("fail to retreive configuration for service " + s.GetId())
+	}
+
+	// if the service configuration does not exist.
+	if Utility.Exists(s.GetConfigurationPath()) {
 		// Here I will get the configuration from the Configuration server...
-		config_, err := config_client.GetServiceConfigurationById(path)
+		config_, err := config_client.GetServiceConfigurationById(s.GetConfigurationPath())
 		if err != nil {
 			return err
 		}
@@ -229,18 +246,10 @@ func InitService(s Service) error {
 		}
 	}
 
-	// set contextual values.
-	address, _ := config.GetAddress()
-	domain, _ := config.GetDomain()
-	s.SetMac(Utility.MyMacAddr())
-	s.SetAddress(address)
-	s.SetDomain(domain)
-	s.SetProcess(os.Getpid())
-
 	// here the service is runing...
 	s.SetState("running")
 
-	fmt.Println("Start service name: ", s.GetName() + ":" + s.GetId())
+	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
 	return SaveService(s)
 }
 
@@ -252,6 +261,7 @@ func SaveService(s Service) error {
 	s.SetModTime(time.Now().Unix())
 	config_, err := Utility.ToMap(s)
 	if err != nil {
+		//fmt.Println("--------------------> fail to save service")
 		return err
 	}
 	return config_client.SaveServiceConfiguration(config_)
@@ -422,7 +432,7 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 }
 
 func StartService(s Service, server *grpc.Server) error {
-	
+
 	// First of all I will creat a listener.
 	// Create the channel to listen on
 	lis, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
@@ -447,7 +457,7 @@ func StartService(s Service, server *grpc.Server) error {
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 
-	fmt.Println("stop service name: ", s.GetName() + ":" + s.GetId())
+	fmt.Println("stop service name: ", s.GetName()+":"+s.GetId())
 	server.Stop() // I kill it but not softly...
 
 	s.SetState("stopped")

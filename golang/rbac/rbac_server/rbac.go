@@ -49,7 +49,7 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 
 // Save the ressource permission
 func (rbac_server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
-
+    
 	// First of all I need to remove the existing permission.
 	rbac_server.deleteResourcePermissions(path, permissions)
 
