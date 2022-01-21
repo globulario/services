@@ -16,7 +16,7 @@ import (
 )
 
 func (rbac_server *server) setSubjectResourcePermissions(subject string, path string) error {
-
+	// fmt.Println("setSubjectResourcePermissions", path)
 	// Here I will retreive the actual list of paths use by this user.
 	data, err := rbac_server.permissions.GetItem(subject)
 	paths_ := make([]interface{}, 0)
@@ -49,7 +49,7 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 
 // Save the ressource permission
 func (rbac_server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
-    
+	// fmt.Println("setResourcePermissions", path)
 	// First of all I need to remove the existing permission.
 	rbac_server.deleteResourcePermissions(path, permissions)
 
@@ -508,7 +508,7 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 // test if all subject exist...
 func (rbac_server *server) cleanupPermission(permission *rbacpb.Permission) (bool, *rbacpb.Permission) {
 	hasChange := false
-
+	// fmt.Println("cleanupPermission")
 	// Cleanup owners from deleted subjects...
 	accounts_change, accounts := rbac_server.cleanupSubjectPermissions(rbacpb.SubjectType_ACCOUNT, permission.Accounts)
 	if accounts_change {
@@ -626,7 +626,7 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 
 // Return a ressource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-
+	// fmt.Println("getResourcePermissions", path)
 	data, err := rbac_server.permissions.GetItem(path)
 	if err != nil {
 		return nil, status.Errorf(
@@ -895,7 +895,7 @@ func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.Ad
 }
 
 func (rbac_server *server) removeResourceOwner(owner string, subjectType rbacpb.SubjectType, path string) error {
-
+	// fmt.Println("removeResourceOwner")
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		return err
@@ -936,7 +936,7 @@ func (rbac_server *server) removeResourceOwner(owner string, subjectType rbacpb.
 
 // Remove a Subject from denied list and allowed list.
 func (rbac_server *server) removeResourceSubject(subject string, subjectType rbacpb.SubjectType, path string) error {
-
+	// fmt.Println("removeResourceSubject")
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		return err
@@ -1133,7 +1133,7 @@ func isPublic(path string) bool {
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-
+	// fmt.Println("validateAccess")
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
 			return false, false, errors.New("no account exist with id " + subject)
@@ -1471,6 +1471,7 @@ When gRPC service methode are called they must validate the ressource pass in pa
 So each service is reponsible to give access permissions requirement.
 */
 func (rbac_server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	// fmt.Println("setActionResourcesPermissions ", permissions)
 	// So here I will keep values in local storage.cap()
 	data, err := json.Marshal(permissions["resources"])
 	if err != nil {
@@ -1497,6 +1498,7 @@ func (rbac_server *server) SetActionResourcesPermissions(ctx context.Context, rq
 
 // Retreive the ressource infos from the database.
 func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbacpb.ResourceInfos, error) {
+	// fmt.Println("getActionResourcesPermissions")
 	if len(action) == 0 {
 		return nil, errors.New("no action given")
 	}
@@ -1541,7 +1543,7 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  * Validate an action and also validate it resources
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
-
+	// fmt.Println("validateAction")
 	// test if the subject exist.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
@@ -1701,6 +1703,7 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 
 // Set the subject share ressource.
 func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string) error {
+	// fmt.Println("setSubjectSharedResource")
 	shared := make([]string, 0)
 	data, err := rbac_server.permissions.GetItem(subject)
 	if err == nil {
@@ -1725,6 +1728,7 @@ func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string
 }
 
 func (rbac_server *server) unsetSubjectSharedResource(subject, resourceUuid string) error {
+	// fmt.Println("unsetSubjectSharedResource")
 	shared := make([]string, 0)
 	data, err := rbac_server.permissions.GetItem(subject)
 	if err == nil {
@@ -1754,6 +1758,7 @@ func (rbac_server *server) unsetSubjectSharedResource(subject, resourceUuid stri
 
 // Save / Create a Share.
 func (rbac_server *server) shareResource(share *rbacpb.Share) error {
+	// fmt.Println("shareResource")
 	// the id will be compose of the domain @ path ex. domain@/usr/toto/titi
 	uuid := Utility.GenerateUUID(share.Domain + share.Path)
 
@@ -1848,7 +1853,7 @@ func (rbac_server *server) ShareResource(ctx context.Context, rqst *rbacpb.Share
 }
 
 func (rbac_server *server) unshareResource(domain, path string) error {
-
+	// fmt.Println("unshareResource")
 	uuid := Utility.GenerateUUID(domain + path)
 
 	var share *rbacpb.Share
@@ -1924,6 +1929,7 @@ func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.Unsh
 // Get the list of accessible shared ressource.
 // TODO if account also get share for groups and organization that the acount is part of...
 func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.SubjectType) ([]*rbacpb.Share, error) {
+	// fmt.Println("getSharedResource")
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
 			return nil, errors.New("no account exist with id " + subject)
@@ -2082,6 +2088,8 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 }
 
 func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rbacpb.SubjectType, ressourceId string) error {
+	
+	// fmt.Println("removeSubjectFromShare")
 	data, err := rbac_server.permissions.GetItem(ressourceId)
 	if err != nil {
 		return err
@@ -2133,6 +2141,7 @@ func (rbac_server *server) RemoveSubjectFromShare(ctx context.Context, rqst *rba
 }
 
 func (rbac_server *server) deleteSubjectShare(subject string, subjectType rbacpb.SubjectType) error {
+	// fmt.Println("deleteSubjectShare")
 	// First of all I will get the list of share the subject is part of.
 	id := "SHARED/"
 

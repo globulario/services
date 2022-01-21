@@ -41,7 +41,8 @@ func KillServiceProcess(s map[string]interface{}) error {
 		// kill it in the name of...
 		process, err := os.FindProcess(pid)
 		if err == nil {
-			err := process.Kill()
+			//err := process.Kill()
+			err := syscall.Kill(process.Pid,syscall.SIGTERM)
 			if err == nil {
 				s["Process"] = -1
 				s["State"] = "killed"

@@ -777,7 +777,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 2)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
@@ -803,8 +803,8 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
-	s_impl.Permissions = append(s_impl.Permissions, map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}})
-	s_impl.Permissions = append(s_impl.Permissions, map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}})
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[1] =  map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
 	// Set the permissions
 	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))

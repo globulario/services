@@ -634,7 +634,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"discovery.PackageDiscovery", "event.EventService", "resource.ResourceService"}
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 1)
 	s_impl.WebRoot = config.GetWebRootDir()
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -661,7 +661,7 @@ func main() {
 	reflection.Register(s_impl.grpcServer)
 
 	// The user must part of owner in order to be able to deploy an application...
-	s_impl.Permissions = append(s_impl.Permissions, map[string]interface{}{"action": "/applications_manager.ApplicationManagerService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}})
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/applications_manager.ApplicationManagerService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 
 	// Set the permissions
 	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))

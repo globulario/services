@@ -1,22 +1,22 @@
 package globular_service
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net"
-	"strconv"
-	"strings"
-
-	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/pprof"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/davecourtois/Utility"
@@ -215,14 +215,14 @@ func InitService(s Service) error {
 			if len(s.GetPublisherId()) == 0 {
 				serviceDir += s.GetDomain() + "/" + s.GetName() + "/" + s.GetVersion()
 			} else {
-				serviceDir +=  s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion()
+				serviceDir += s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion()
 			}
 			// set the service dir.
 			s.SetConfigurationPath(serviceDir)
 		}
 	}
 
-	if len(s.GetConfigurationPath() ) == 0{
+	if len(s.GetConfigurationPath()) == 0 {
 		return errors.New("fail to retreive configuration for service " + s.GetId())
 	}
 
@@ -442,8 +442,19 @@ func StartService(s Service, server *grpc.Server) error {
 		return err_
 	}
 
+	profileFileName := strings.ReplaceAll(s.GetPath(), ".exe", "") + ".pprof"
+	f, err := os.Create(profileFileName)
+
+	if err != nil {
+		log.Fatal("could not create CPU profile: ", err)
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		log.Fatal("could not start CPU profile: ", err)
+	}
+
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
+
 		// no web-rpc server.
 		//fmt.Println("service name: " + s.GetName() + " id:" + s.GetId() + " started")
 		if err := server.Serve(lis); err != nil {
@@ -459,6 +470,9 @@ func StartService(s Service, server *grpc.Server) error {
 
 	fmt.Println("stop service name: ", s.GetName()+":"+s.GetId())
 	server.Stop() // I kill it but not softly...
+
+	
+	pprof.StopCPUProfile()
 
 	s.SetState("stopped")
 	s.SetProcess(-1)
