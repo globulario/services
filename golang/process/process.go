@@ -41,8 +41,8 @@ func KillServiceProcess(s map[string]interface{}) error {
 		// kill it in the name of...
 		process, err := os.FindProcess(pid)
 		if err == nil {
-			//err := process.Kill()
-			err := syscall.Kill(process.Pid,syscall.SIGTERM)
+			err := process.Kill()
+			//err := syscall.Kill(process.Pid,syscall.SIGTERM)
 			if err == nil {
 				s["Process"] = -1
 				s["State"] = "killed"
@@ -182,12 +182,14 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 
 		// Set the pid...
 		s["Process"] = p.Process.Pid
-
+	
 		// give back the process id.
 		waitUntilStart <- Utility.ToInt(s["Process"])
+
 		err = p.Wait()
 		// Here I will read the configuration to get more information about the process.
 		if err != nil {
+			fmt.Println("service " +  s["Name"].(string) + " fail with error ", err)
 			s["State"] = "failed"
 		}else{
 			s["State"] = "stopped"

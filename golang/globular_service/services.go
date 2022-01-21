@@ -14,7 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/pprof"
+	//"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -184,23 +184,16 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-	// set contextual values.
-	address, _ := config.GetAddress()
-	domain, _ := config.GetDomain()
-	s.SetMac(Utility.MyMacAddr())
-	s.SetAddress(address)
-	s.SetDomain(domain)
-	s.SetProcess(os.Getpid())
+
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
 	s.SetPath(execPath)
 	if len(os.Args) == 3 {
 		s.SetId(os.Args[1])
-		s.SetConfigurationPath(os.Args[2])
+		s.SetConfigurationPath(strings.ReplaceAll(os.Args[2], "\\", "/"))
 	} else if len(os.Args) == 2 {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
-		s.SetMac(Utility.MyMacAddr())
 		s.SetId(Utility.RandomUUID())
 
 		// Now I will set the path where the configuation will be save in that case.
@@ -223,6 +216,7 @@ func InitService(s Service) error {
 	}
 
 	if len(s.GetConfigurationPath()) == 0 {
+		fmt.Println("fail to retreive configuration for service " + s.GetId())
 		return errors.New("fail to retreive configuration for service " + s.GetId())
 	}
 
@@ -231,23 +225,34 @@ func InitService(s Service) error {
 		// Here I will get the configuration from the Configuration server...
 		config_, err := config_client.GetServiceConfigurationById(s.GetConfigurationPath())
 		if err != nil {
+			fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
 			return err
 		}
 
 		// If no configuration was found from the configuration server i will get it from the configuration file.
 		str, err := json.Marshal(config_)
 		if err != nil {
+			fmt.Println("fail to marshal configuration at path ", s.GetConfigurationPath(), err)
 			return err
 		}
 
 		err = json.Unmarshal(str, &s)
 		if err != nil {
+			fmt.Println("fail to unmarshal configuration at path ", s.GetConfigurationPath(), err)
 			return err
 		}
 	}
 
+	// set contextual values.
+	address, _ := config.GetAddress()
+	domain, _ := config.GetDomain()
+	s.SetMac(Utility.MyMacAddr())
+	s.SetAddress(address)
+	s.SetDomain(domain)
+
 	// here the service is runing...
 	s.SetState("running")
+	s.SetProcess(os.Getpid())
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
 	return SaveService(s)
@@ -441,22 +446,21 @@ func StartService(s Service, server *grpc.Server) error {
 		log.Print(err_)
 		return err_
 	}
+	/*
+		profileFileName := strings.ReplaceAll(s.GetPath(), ".exe", "") + ".pprof"
+		f, err := os.Create(profileFileName)
 
-	profileFileName := strings.ReplaceAll(s.GetPath(), ".exe", "") + ".pprof"
-	f, err := os.Create(profileFileName)
-
-	if err != nil {
-		log.Fatal("could not create CPU profile: ", err)
-	}
-	if err := pprof.StartCPUProfile(f); err != nil {
-		log.Fatal("could not start CPU profile: ", err)
-	}
-
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+	*/
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
-
 		// no web-rpc server.
-		//fmt.Println("service name: " + s.GetName() + " id:" + s.GetId() + " started")
+		fmt.Println("service name: "+s.GetName()+" id:"+s.GetId()+" is lisen at gRPC port", s.GetPort(), "and process id is ", s.GetProcess())
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
 			return
@@ -471,8 +475,7 @@ func StartService(s Service, server *grpc.Server) error {
 	fmt.Println("stop service name: ", s.GetName()+":"+s.GetId())
 	server.Stop() // I kill it but not softly...
 
-	
-	pprof.StopCPUProfile()
+	//	pprof.StopCPUProfile()
 
 	s.SetState("stopped")
 	s.SetProcess(-1)
