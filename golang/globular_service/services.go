@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+
 	//"runtime/pprof"
 	"strconv"
 	"strings"
@@ -255,7 +256,10 @@ func InitService(s Service) error {
 	s.SetProcess(os.Getpid())
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
-	return SaveService(s)
+	if len(os.Args) > 1 {
+		SaveService(s)
+	}
+	return nil
 }
 
 /**
@@ -476,11 +480,13 @@ func StartService(s Service, server *grpc.Server) error {
 	server.Stop() // I kill it but not softly...
 
 	//	pprof.StopCPUProfile()
-
 	s.SetState("stopped")
 	s.SetProcess(-1)
 	s.SetLastError("")
-	s.Save()
+	if len(os.Args) > 1 {
+		// managed by globular.
+		return SaveService(s)
+	}
 
 	return nil
 }

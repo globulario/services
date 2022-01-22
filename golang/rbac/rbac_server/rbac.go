@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	// "fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -626,7 +626,7 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 
 // Return a ressource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	fmt.Println("getResourcePermissions", path)
+	// fmt.Println("getResourcePermissions", path)
 	data, err := rbac_server.permissions.GetItem(path)
 	if err != nil {
 		return nil, status.Errorf(

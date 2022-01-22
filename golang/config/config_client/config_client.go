@@ -3,6 +3,7 @@ package config_client
 import (
 	"context"
 	"encoding/json"
+
 	//"fmt"
 	"strings"
 
@@ -386,14 +387,11 @@ func SaveServiceConfiguration(s map[string]interface{}) error {
 	client, err := getConfigClient()
 	if err == nil {
 		// If a configuration client exist I will use it...
-		//fmt.Println("361 ---------> save config ", s["Name"], s["Process"], s["State"] )
 		err = client.SetServiceConfiguration(s)
 		if err == nil {
 			return nil
 		}
 	}
-
-	//fmt.Println("368 ---------> save config ", s["Name"], s["Process"], s["State"] )
 	// I will use the synchronize file version.
 	return config.SaveServiceConfiguration(s)
 }

@@ -462,7 +462,6 @@ func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration file found at "+configPath)))
 	}
 
-	//fmt.Println("--------------> receive configuration to save: ", configPath)
 	err := config.SaveServiceConfiguration(config_)
 	if err != nil {
 		return nil, status.Errorf(

@@ -105,7 +105,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 
 	s["Port"] = port
 	if s["Path"] == nil {
-		err := errors.New("no service path was found for service " + s["Name"].(string) +  s["Id"].(string))
+		err := errors.New("no service path was found for service " + s["Name"].(string) + s["Id"].(string))
 		fmt.Println(err)
 		return -1, err
 	}
@@ -182,22 +182,21 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 
 		// Set the pid...
 		s["Process"] = p.Process.Pid
-	
+
 		// give back the process id.
 		waitUntilStart <- Utility.ToInt(s["Process"])
 
 		err = p.Wait()
 		// Here I will read the configuration to get more information about the process.
 		if err != nil {
-			fmt.Println("service " +  s["Name"].(string) + " fail with error ", err)
+			fmt.Println("service "+s["Name"].(string)+" fail with error ", err)
 			s["State"] = "failed"
-		}else{
+		} else {
 			s["State"] = "stopped"
 		}
-		
+
 		// be sure the state is not nil and failed.
 		if s["State"] != nil {
-
 			// if the service fail
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
@@ -247,7 +246,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 
 		config_client.SaveServiceConfiguration(s)
 
-
 	}(s["Id"].(string))
 
 	pid := <-waitUntilStart
@@ -276,9 +274,7 @@ func getEventClient(domain string) (*event_client.Event_Client, error) {
 }
 
 // Start a service process.
-func StartServiceProxyProcess(s map[string] interface{}, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
-
-
+func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate, portsRange string, processPid int) (int, error) {
 
 	servicePort := Utility.ToInt(s["Port"])
 	pid := Utility.ToInt(s["ProxyProcess"])
