@@ -424,8 +424,8 @@ func (storage_server *server) Stop(context.Context, *storagepb.StopRequest) (*st
 
 // Create a new KV connection and store it for futur use. If the connection already
 // exist it will be replace by the new one.
-func (storage_server *server) CreateConnection(ctx context.Context, rsqt *storagepb.CreateConnectionRqst) (*storagepb.CreateConnectionRsp, error) {
-	if rsqt.Connection == nil {
+func (storage_server *server) CreateConnection(ctx context.Context, rqst *storagepb.CreateConnectionRqst) (*storagepb.CreateConnectionRsp, error) {
+	if rqst.Connection == nil {
 		return nil, errors.New("The request dosent contain connection object!")
 	}
 
@@ -436,9 +436,9 @@ func (storage_server *server) CreateConnection(ctx context.Context, rsqt *storag
 	if storage_server.Connections == nil {
 		storage_server.Connections = make(map[string]connection)
 	} else {
-		if _, ok := storage_server.Connections[rsqt.Connection.Id]; ok {
-			if storage_server.stores[rsqt.Connection.Id] != nil {
-				storage_server.stores[rsqt.Connection.Id].Close() // close the previous connection.
+		if _, ok := storage_server.Connections[rqst.Connection.Id]; ok {
+			if storage_server.stores[rqst.Connection.Id] != nil {
+				storage_server.stores[rqst.Connection.Id].Close() // close the previous connection.
 			}
 		}
 	}
@@ -447,8 +447,9 @@ func (storage_server *server) CreateConnection(ctx context.Context, rsqt *storag
 	var err error
 
 	// Set the connection info from the request.
-	c.Id = rsqt.Connection.Id
-	c.Name = rsqt.Connection.Name
+	c.Id = rqst.Connection.Id
+	c.Name = rqst.Connection.Name
+	c.Type = rqst.Connection.Type
 
 	// set or update the connection and save it in json file.
 	storage_server.Connections[c.Id] = c
@@ -521,6 +522,8 @@ func (storage_server *server) Open(ctx context.Context, rqst *storagepb.OpenRqst
 		store = storage_store.NewLevelDB_store()
 	} else if conn.Type == storagepb.StoreType_BIG_CACHE {
 		store = storage_store.NewBigCache_store()
+	}else if conn.Type == storagepb.StoreType_BADGER_DB {
+		store = storage_store.NewBadger_store()
 	}
 
 	if store == nil {

@@ -3,6 +3,7 @@ package storage_client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 
 	"github.com/globulario/services/golang/config/config_client"
@@ -240,8 +241,17 @@ func (client *Storage_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &storagepb.StopRequest{})
 }
 
-func (client *Storage_Client) CreateConnection(id string, name string, connectionType float64) error {
-
+func (client *Storage_Client) CreateConnection(id string, name string, connectionType_ float64) error {
+	var connectionType  storagepb.StoreType
+	if connectionType_ == 0 {
+		connectionType = storagepb.StoreType_LEVEL_DB
+	}else if connectionType_ == 1 {
+		connectionType = storagepb.StoreType_BIG_CACHE
+	}else if connectionType_ == 2 {
+		connectionType = storagepb.StoreType_BADGER_DB
+	}else{
+		return errors.New("no store found for the given storage type")
+	}
 	rqst := &storagepb.CreateConnectionRqst{
 		Connection: &storagepb.Connection{
 			Id:   id,

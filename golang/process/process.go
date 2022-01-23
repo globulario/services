@@ -182,6 +182,9 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 
 		// Set the pid...
 		s["Process"] = p.Process.Pid
+		s["State"] = "running"
+		s["LastError"] = ""
+		config_client.SaveServiceConfiguration(s)
 
 		// give back the process id.
 		waitUntilStart <- Utility.ToInt(s["Process"])

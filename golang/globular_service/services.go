@@ -256,7 +256,7 @@ func InitService(s Service) error {
 	s.SetProcess(os.Getpid())
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
-	if len(os.Args) > 1 {
+	if len(os.Args) < 3 {
 		SaveService(s)
 	}
 	return nil
@@ -483,7 +483,7 @@ func StartService(s Service, server *grpc.Server) error {
 	s.SetState("stopped")
 	s.SetProcess(-1)
 	s.SetLastError("")
-	if len(os.Args) > 1 {
+	if len(os.Args) < 3 {
 		// managed by globular.
 		return SaveService(s)
 	}

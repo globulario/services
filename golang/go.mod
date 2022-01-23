@@ -11,6 +11,7 @@ require (
 	github.com/davecourtois/GoXapian v0.0.0-20201222213557-81c72bc9e73c
 	github.com/davecourtois/Utility v0.0.0-20210515191918-3118f6f72191
 	github.com/denisenkom/go-mssqldb v0.10.0
+	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/djimenez/iconv-go v0.0.0-20160305225143-8960e66bd3da
 	github.com/emersion/go-imap v1.1.0

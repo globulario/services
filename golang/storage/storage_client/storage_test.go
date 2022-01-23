@@ -1,35 +1,33 @@
 package storage_client
 
 import (
-	//	"fmt"
+	"fmt"
 	"log"
-
 	"testing"
 )
 
 // Set the correct addresse here as needed.
 var (
-	client, _ = NewStorageService_Client("localhost", "storage.StorageService")
+	client, _ = NewStorageService_Client("globule-nuc.globular.cloud:443", "storage.StorageService")
 )
 
-/*
 // First test create a fresh new connection...
 func TestCreateConnection(t *testing.T) {
 	fmt.Println("Connection creation test.")
-	err := client.CreateConnection("test_storage", "storage_test", 0.0)
+	err := client.CreateConnection("test_storage", "storage_test", 2.0)
 	if err != nil {
 		log.Fatalf("error while CreateConnection: %v", err)
 	}
 }
 
 func TestOpenConnection(t *testing.T) {
-	err := client.OpenConnection("test_storage", `{"path":"C:/temp", "name":"storage_test"}`)
+	err := client.OpenConnection("test_storage", `{"path":"/tmp/storage/test", "name":"storage_test"}`)
 	if err != nil {
 		log.Fatalf("error while deleting the connection: %v", err)
 	}
 	log.Println("Open connection success!")
 }
-*/
+
 // Test set item.
 func TestSetItem(t *testing.T) {
 	err := client.SetItem("test_storage", "1", []byte(`{"prop_1":"This is a test!", "prop_2":1212}`))
@@ -72,7 +70,6 @@ func TestDrop(t *testing.T) {
 	log.Println("Drop store success!")
 }
 
-/*
 func TestCloseConnection(t *testing.T) {
 
 	err := client.CloseConnection("test_storage")
@@ -90,4 +87,4 @@ func TestDeleteConnection(t *testing.T) {
 	}
 	log.Println("Delete connection success!")
 }
-*/
+

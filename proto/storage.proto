@@ -7,6 +7,7 @@ option go_package="storage/storagepb";
 enum StoreType{
 	LEVEL_DB = 0; // persistent storage
 	BIG_CACHE = 1; // in memory storage
+	BADGER_DB = 2; // persistent storage
 }
 
 message Connection {

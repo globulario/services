@@ -141,6 +141,9 @@ func InitClient(client Client, address string, id string) error {
 	if isLocal {
 		// Local client configuration
 		config_, err = client.GetConfiguration(address, id)
+		if err != nil {
+			config_, err = config.GetServiceConfigurationById(id)
+		}
 	} else {
 		// Remote client configuration
 		config_, err = config.GetRemoteConfig(domain, port, id)
@@ -148,6 +151,7 @@ func InitClient(client Client, address string, id string) error {
 	
 	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
+		fmt.Println("fail to initialyse client with error ", err)
 		return err
 	}
 
