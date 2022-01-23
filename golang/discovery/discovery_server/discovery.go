@@ -95,6 +95,8 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 		Repositories: []string{rqst.Repository},
 		Discoveries:  []string{rqst.Discovery},
 		Type:         resourcepb.PackageType_APPLICATION_TYPE,
+		Icon:         rqst.Icon,
+		Alias:        rqst.Alias,
 	}
 
 	// Publish the application package.

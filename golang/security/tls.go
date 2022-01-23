@@ -101,44 +101,32 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
 /**
  * Return the credential configuration.
  */
-func getCredentialConfig(basePath string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
+func getCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
 	log.Println("get credential config for domain ", domain)
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 
-	// use the temp dir to store the certificate in that case.
-	path := basePath + "/config/tls"
-	// must have write access of file.
-	_, err = ioutil.ReadFile(path + "/" + domain + "/client.pem")
-	if err != nil {
-		path = basePath + "/config/tls"
-		err = nil
-	}
-
-	// Create a new directory to put the credential.
-	creds := path + "/" + domain
-
 	// Return the existing paths...
-	if Utility.Exists(creds) &&
-		Utility.Exists(creds+"/client.pem") &&
-		Utility.Exists(creds+"/client.crt") &&
-		Utility.Exists(creds+"/ca.crt") {
-		info, _ := os.Stat(creds)
+	if Utility.Exists(path) &&
+		Utility.Exists(path+"/client.pem") &&
+		Utility.Exists(path+"/client.crt") &&
+		Utility.Exists(path+"/ca.crt") {
+		info, _ := os.Stat(path)
 
 		// test if the certificate are older than 5 mount.
 		if info.ModTime().Add(24*30*5*time.Hour).Unix() < time.Now().Unix() {
-			os.RemoveAll(creds)
+			os.RemoveAll(path)
 		} else {
 
-			keyPath = creds + "/client.pem"
-			certPath = creds + "/client.crt"
-			caPath = creds + "/ca.crt"
+			keyPath = path + "/client.pem"
+			certPath = path + "/client.crt"
+			caPath = path + "/ca.crt"
 			return
 		}
 	}
 
-	err = Utility.CreateDirIfNotExist(creds)
+	err = Utility.CreateDirIfNotExist(path)
 	if err != nil {
 		log.Println(err)
 		return "", "", "", err
@@ -154,14 +142,14 @@ func getCredentialConfig(basePath string, domain string, country string, state s
 	}
 
 	// Write the ca.crt file on the disk
-	err = ioutil.WriteFile(creds+"/ca.crt", []byte(ca_crt), 0444)
+	err = ioutil.WriteFile(path+"/ca.crt", []byte(ca_crt), 0444)
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// Now I will generate the certificate for the client...
 	// Step 1: Generate client private key.
-	err = GenerateClientPrivateKey(creds, pwd)
+	err = GenerateClientPrivateKey(path, pwd)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -172,19 +160,19 @@ func getCredentialConfig(basePath string, domain string, country string, state s
 	}
 
 	// generate the SAN file
-	err = GenerateSanConfig(domain, creds, country, state, city, organization, alternateDomains_)
+	err = GenerateSanConfig(domain, path, country, state, city, organization, alternateDomains_)
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// Step 2: Generate the client signing request.
-	err = GenerateClientCertificateSigningRequest(creds, pwd, domain)
+	err = GenerateClientCertificateSigningRequest(path, pwd, domain)
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// Step 3: Generate client signed certificate.
-	client_csr, err := ioutil.ReadFile(creds + "/client.csr")
+	client_csr, err := ioutil.ReadFile(path + "/client.csr")
 	if err != nil {
 		return "", "", "", err
 	}
@@ -196,7 +184,7 @@ func getCredentialConfig(basePath string, domain string, country string, state s
 	}
 
 	// Write bact the client certificate in file on the disk
-	err = ioutil.WriteFile(creds+"/client.crt", []byte(client_crt), 0444)
+	err = ioutil.WriteFile(path+"/client.crt", []byte(client_crt), 0444)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -204,15 +192,15 @@ func getCredentialConfig(basePath string, domain string, country string, state s
 	// Now ask the ca to sign the certificate.
 
 	// Step 4: Convert to pem format.
-	err = KeyToPem("client", creds, pwd)
+	err = KeyToPem("client", path, pwd)
 	if err != nil {
 		return "", "", "", err
 	}
 
 	// set the credential paths.
-	keyPath = creds + "/client.pem"
-	certPath = creds + "/client.crt"
-	caPath = creds + "/ca.crt"
+	keyPath = path + "/client.pem"
+	certPath = path + "/client.crt"
+	caPath = path + "/ca.crt"
 
 	return
 }
