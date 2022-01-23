@@ -88,7 +88,7 @@ type server struct {
 	grpcServer *grpc.Server
 
 	// RBAC store.
-	permissions *storage_store.LevelDB_store
+	permissions *storage_store.Badger_store
 }
 
 // The http address where the configuration can be found /config
@@ -699,7 +699,7 @@ func main() {
 	}
 
 	// The rbac storage.
-	s_impl.permissions = storage_store.NewLevelDB_store()
+	s_impl.permissions = storage_store.NewBadger_store()
 	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
 	if err != nil {
 		log.Println(err)

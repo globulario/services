@@ -2,6 +2,7 @@ package storage_store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,6 +34,9 @@ func (store *Badger_store) run() {
 				}
 			} else if action["name"].(string) == "GetItem" {
 				val, err := store.getItem(action["key"].(string))
+				if err != nil {
+					err = errors.New("item not found  key:" + action["key"].(string) + " error: " + err.Error())
+				}
 				action["results"].(chan map[string]interface{}) <- map[string]interface{}{"val": val, "err": err}
 			} else if action["name"].(string) == "RemoveItem" {
 				action["result"].(chan error) <- store.removeItem(action["key"].(string))
@@ -83,7 +87,7 @@ func (store *Badger_store) open(optionsStr string) error {
 		return err
 	}
 
-	fmt.Println("store at path ", options["path"], "is now open")
+	//fmt.Println("store at path ", options["path"], "is now open")
 	
 	return nil
 }
@@ -106,13 +110,14 @@ func (store *Badger_store) setItem(key string, val []byte) error {
 		return err
 	}
 
-	fmt.Println("Key was set ", key, err)
+	//fmt.Println("Key was set ", key, err)
 	return nil
 }
 
 // Get item with a given key.
 func (store *Badger_store) getItem(key string) (val []byte, err error) {
 	err = store.db.View(func (txn *badger.Txn) error{
+		
 		entry, err := txn.Get([]byte(key))
 		if err != nil{
 			return err

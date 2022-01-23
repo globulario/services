@@ -35,6 +35,9 @@ func (store *LevelDB_store) run() {
 				}
 			} else if action["name"].(string) == "GetItem" {
 				val, err := store.getItem(action["key"].(string))
+				if err != nil {
+					err = errors.New("item not found  key:" + action["key"].(string) + " error: " + err.Error())
+				}
 				action["results"].(chan map[string]interface{}) <- map[string]interface{}{"val": val, "err": err}
 			} else if action["name"].(string) == "RemoveItem" {
 				action["result"].(chan error) <- store.removeItem(action["key"].(string))

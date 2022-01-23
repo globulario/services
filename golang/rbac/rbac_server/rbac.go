@@ -820,7 +820,7 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 	permissions, err := rbac_server.getResourcePermissions(path)
 
 	if err != nil {
-		if strings.Contains(err.Error(), "leveldb: not found") {
+		if strings.Contains(err.Error(), "item not found") {
 
 			// So here I will create the permissions object...
 			permissions = &rbacpb.Permissions{
@@ -1505,7 +1505,7 @@ func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbac
 	data, err := rbac_server.permissions.GetItem(action)
 	infos_ := make([]*rbacpb.ResourceInfos, 0)
 	if err != nil {
-		if !strings.Contains(err.Error(), "leveldb: not found") {
+		if !strings.Contains(err.Error(), "item not found") {
 			return nil, err
 		} else {
 			// no infos_ found...

@@ -1,6 +1,7 @@
 package storage_store
 
 import (
+	"errors"
 	"time"
 
 	"encoding/json"
@@ -27,6 +28,9 @@ func (self *BigCache_store) run() {
 				action["result"].(chan error) <- self.cache.Set(action["key"].(string), action["val"].([]byte))
 			} else if action["name"].(string) == "GetItem" {
 				val, err := self.cache.Get(action["key"].(string))
+				if err != nil {
+					err = errors.New("item not found  key:" + action["key"].(string) + " error: " + err.Error())
+				}
 				action["results"].(chan map[string]interface{}) <- map[string]interface{}{"val": val, "err": err}
 			} else if action["name"].(string) == "RemoveItem" {
 				action["result"].(chan error) <- self.cache.Delete(action["key"].(string))
