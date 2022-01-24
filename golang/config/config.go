@@ -723,15 +723,21 @@ func initConfig() {
 func setServiceConfiguration(index int, services []map[string]interface{}) {
 	s := services[index]
 	path := s["ConfigPath"].(string)
-	info, _ := os.Stat(path)
-	if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
-		//fmt.Println(s["Name"], " actual modtime", s["ModTime"], info.ModTime().Unix())
-		serviceDir := GetServicesConfigDir()
-		serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
-		s_, err := initServiceConfiguration(path, serviceDir)
-		if err == nil {
-			s_["ModTime"] = info.ModTime().Unix()
-			services[index] = s_
+	path = strings.ReplaceAll(path, "\\", "/")
+	if s["ModTime"] == nil {
+		s["ModTime"] = 0;
+	}
+	if Utility.Exists(path) {
+		info, _ := os.Stat(path)
+		if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
+			//fmt.Println(s["Name"], " actual modtime", s["ModTime"], info.ModTime().Unix())
+			serviceDir := GetServicesConfigDir()
+			serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+			s_, err := initServiceConfiguration(path, serviceDir)
+			if err == nil {
+				s_["ModTime"] = info.ModTime().Unix()
+				services[index] = s_
+			}
 		}
 	}
 }
