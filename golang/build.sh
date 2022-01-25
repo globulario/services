@@ -49,3 +49,4 @@ go build -o ./config/config_server ./config/config_server
 ./search/search_server/search_server &
 ./sql/sql_server/sql_server &
 ./storage/storage_server/storage_server &
+./config/config_server/config_server
