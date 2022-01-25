@@ -3604,7 +3604,8 @@ proto.storage.StopResponse.serializeBinaryToWriter = function(message, writer) {
  */
 proto.storage.StoreType = {
   LEVEL_DB: 0,
-  BIG_CACHE: 1
+  BIG_CACHE: 1,
+  BADGER_DB: 2
 };
 
 goog.object.extend(exports, proto.storage);

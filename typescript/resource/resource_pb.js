@@ -218,7 +218,8 @@ proto.resource.PackageBundle.toObject = function(includeInstance, msg) {
     plaform: jspb.Message.getFieldWithDefault(msg, 3, ""),
     size: jspb.Message.getFieldWithDefault(msg, 4, 0),
     modified: jspb.Message.getFieldWithDefault(msg, 5, 0),
-    binairies: msg.getBinairies_asB64()
+    binairies: msg.getBinairies_asB64(),
+    mac: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -279,6 +280,10 @@ proto.resource.PackageBundle.deserializeBinaryFromReader = function(msg, reader)
     case 6:
       var value = /** @type {!Uint8Array} */ (reader.readBytes());
       msg.setBinairies(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
       break;
     default:
       reader.skipField();
@@ -349,6 +354,13 @@ proto.resource.PackageBundle.serializeBinaryToWriter = function(message, writer)
   if (f.length > 0) {
     writer.writeBytes(
       6,
+      f
+    );
+  }
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
       f
     );
   }
@@ -481,6 +493,21 @@ proto.resource.PackageBundle.prototype.getBinairies_asU8 = function() {
 /** @param {!(string|Uint8Array)} value */
 proto.resource.PackageBundle.prototype.setBinairies = function(value) {
   jspb.Message.setProto3BytesField(this, 6, value);
+};
+
+
+/**
+ * optional string mac = 7;
+ * @return {string}
+ */
+proto.resource.PackageBundle.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.PackageBundle.prototype.setMac = function(value) {
+  jspb.Message.setProto3StringField(this, 7, value);
 };
 
 

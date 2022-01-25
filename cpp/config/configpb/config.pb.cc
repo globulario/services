@@ -5,202 +5,289 @@
 
 #include <algorithm>
 
+#include <google/protobuf/stubs/common.h>
+#include <google/protobuf/stubs/port.h>
 #include <google/protobuf/io/coded_stream.h>
-#include <google/protobuf/extension_set.h>
-#include <google/protobuf/wire_format_lite.h>
+#include <google/protobuf/wire_format_lite_inl.h>
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/generated_message_reflection.h>
 #include <google/protobuf/reflection_ops.h>
 #include <google/protobuf/wire_format.h>
+// This is a temporary google only hack
+#ifdef GOOGLE_PROTOBUF_ENFORCE_UNIQUENESS
+#include "third_party/protobuf/version.h"
+#endif
 // @@protoc_insertion_point(includes)
-#include <google/protobuf/port_def.inc>
 
-PROTOBUF_PRAGMA_INIT_SEG
 namespace config {
-constexpr SetServiceConfigurationRequest::SetServiceConfigurationRequest(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : config_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string){}
-struct SetServiceConfigurationRequestDefaultTypeInternal {
-  constexpr SetServiceConfigurationRequestDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~SetServiceConfigurationRequestDefaultTypeInternal() {}
-  union {
-    SetServiceConfigurationRequest _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT SetServiceConfigurationRequestDefaultTypeInternal _SetServiceConfigurationRequest_default_instance_;
-constexpr SetServiceConfigurationResponse::SetServiceConfigurationResponse(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized){}
-struct SetServiceConfigurationResponseDefaultTypeInternal {
-  constexpr SetServiceConfigurationResponseDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~SetServiceConfigurationResponseDefaultTypeInternal() {}
-  union {
-    SetServiceConfigurationResponse _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT SetServiceConfigurationResponseDefaultTypeInternal _SetServiceConfigurationResponse_default_instance_;
-constexpr GetServiceConfigurationRequest::GetServiceConfigurationRequest(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : path_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string){}
-struct GetServiceConfigurationRequestDefaultTypeInternal {
-  constexpr GetServiceConfigurationRequestDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServiceConfigurationRequestDefaultTypeInternal() {}
-  union {
-    GetServiceConfigurationRequest _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServiceConfigurationRequestDefaultTypeInternal _GetServiceConfigurationRequest_default_instance_;
-constexpr GetServiceConfigurationResponse::GetServiceConfigurationResponse(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : config_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string){}
-struct GetServiceConfigurationResponseDefaultTypeInternal {
-  constexpr GetServiceConfigurationResponseDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServiceConfigurationResponseDefaultTypeInternal() {}
-  union {
-    GetServiceConfigurationResponse _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServiceConfigurationResponseDefaultTypeInternal _GetServiceConfigurationResponse_default_instance_;
-constexpr GetServiceConfigurationByIdRequest::GetServiceConfigurationByIdRequest(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : id_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string){}
-struct GetServiceConfigurationByIdRequestDefaultTypeInternal {
-  constexpr GetServiceConfigurationByIdRequestDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServiceConfigurationByIdRequestDefaultTypeInternal() {}
-  union {
-    GetServiceConfigurationByIdRequest _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServiceConfigurationByIdRequestDefaultTypeInternal _GetServiceConfigurationByIdRequest_default_instance_;
-constexpr GetServiceConfigurationByIdResponse::GetServiceConfigurationByIdResponse(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : config_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string){}
-struct GetServiceConfigurationByIdResponseDefaultTypeInternal {
-  constexpr GetServiceConfigurationByIdResponseDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServiceConfigurationByIdResponseDefaultTypeInternal() {}
-  union {
-    GetServiceConfigurationByIdResponse _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServiceConfigurationByIdResponseDefaultTypeInternal _GetServiceConfigurationByIdResponse_default_instance_;
-constexpr GetServicesConfigurationsByNameRequest::GetServicesConfigurationsByNameRequest(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : name_(&::PROTOBUF_NAMESPACE_ID::internal::fixed_address_empty_string){}
-struct GetServicesConfigurationsByNameRequestDefaultTypeInternal {
-  constexpr GetServicesConfigurationsByNameRequestDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServicesConfigurationsByNameRequestDefaultTypeInternal() {}
-  union {
-    GetServicesConfigurationsByNameRequest _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServicesConfigurationsByNameRequestDefaultTypeInternal _GetServicesConfigurationsByNameRequest_default_instance_;
-constexpr GetServicesConfigurationsByNameResponse::GetServicesConfigurationsByNameResponse(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : configs_(){}
-struct GetServicesConfigurationsByNameResponseDefaultTypeInternal {
-  constexpr GetServicesConfigurationsByNameResponseDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServicesConfigurationsByNameResponseDefaultTypeInternal() {}
-  union {
-    GetServicesConfigurationsByNameResponse _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServicesConfigurationsByNameResponseDefaultTypeInternal _GetServicesConfigurationsByNameResponse_default_instance_;
-constexpr GetServicesConfigurationsRequest::GetServicesConfigurationsRequest(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized){}
-struct GetServicesConfigurationsRequestDefaultTypeInternal {
-  constexpr GetServicesConfigurationsRequestDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServicesConfigurationsRequestDefaultTypeInternal() {}
-  union {
-    GetServicesConfigurationsRequest _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServicesConfigurationsRequestDefaultTypeInternal _GetServicesConfigurationsRequest_default_instance_;
-constexpr GetServicesConfigurationsResponse::GetServicesConfigurationsResponse(
-  ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized)
-  : configs_(){}
-struct GetServicesConfigurationsResponseDefaultTypeInternal {
-  constexpr GetServicesConfigurationsResponseDefaultTypeInternal()
-    : _instance(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized{}) {}
-  ~GetServicesConfigurationsResponseDefaultTypeInternal() {}
-  union {
-    GetServicesConfigurationsResponse _instance;
-  };
-};
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT GetServicesConfigurationsResponseDefaultTypeInternal _GetServicesConfigurationsResponse_default_instance_;
+class SetServiceConfigurationRequestDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<SetServiceConfigurationRequest>
+      _instance;
+} _SetServiceConfigurationRequest_default_instance_;
+class SetServiceConfigurationResponseDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<SetServiceConfigurationResponse>
+      _instance;
+} _SetServiceConfigurationResponse_default_instance_;
+class GetServiceConfigurationRequestDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServiceConfigurationRequest>
+      _instance;
+} _GetServiceConfigurationRequest_default_instance_;
+class GetServiceConfigurationResponseDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServiceConfigurationResponse>
+      _instance;
+} _GetServiceConfigurationResponse_default_instance_;
+class GetServiceConfigurationByIdRequestDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServiceConfigurationByIdRequest>
+      _instance;
+} _GetServiceConfigurationByIdRequest_default_instance_;
+class GetServiceConfigurationByIdResponseDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServiceConfigurationByIdResponse>
+      _instance;
+} _GetServiceConfigurationByIdResponse_default_instance_;
+class GetServicesConfigurationsByNameRequestDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServicesConfigurationsByNameRequest>
+      _instance;
+} _GetServicesConfigurationsByNameRequest_default_instance_;
+class GetServicesConfigurationsByNameResponseDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServicesConfigurationsByNameResponse>
+      _instance;
+} _GetServicesConfigurationsByNameResponse_default_instance_;
+class GetServicesConfigurationsRequestDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServicesConfigurationsRequest>
+      _instance;
+} _GetServicesConfigurationsRequest_default_instance_;
+class GetServicesConfigurationsResponseDefaultTypeInternal {
+ public:
+  ::google::protobuf::internal::ExplicitlyConstructed<GetServicesConfigurationsResponse>
+      _instance;
+} _GetServicesConfigurationsResponse_default_instance_;
 }  // namespace config
-static ::PROTOBUF_NAMESPACE_ID::Metadata file_level_metadata_config_2eproto[10];
-static constexpr ::PROTOBUF_NAMESPACE_ID::EnumDescriptor const** file_level_enum_descriptors_config_2eproto = nullptr;
-static constexpr ::PROTOBUF_NAMESPACE_ID::ServiceDescriptor const** file_level_service_descriptors_config_2eproto = nullptr;
+namespace protobuf_config_2eproto {
+static void InitDefaultsSetServiceConfigurationRequest() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-const ::PROTOBUF_NAMESPACE_ID::uint32 TableStruct_config_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
+  {
+    void* ptr = &::config::_SetServiceConfigurationRequest_default_instance_;
+    new (ptr) ::config::SetServiceConfigurationRequest();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::SetServiceConfigurationRequest::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_SetServiceConfigurationRequest =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsSetServiceConfigurationRequest}, {}};
+
+static void InitDefaultsSetServiceConfigurationResponse() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_SetServiceConfigurationResponse_default_instance_;
+    new (ptr) ::config::SetServiceConfigurationResponse();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::SetServiceConfigurationResponse::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_SetServiceConfigurationResponse =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsSetServiceConfigurationResponse}, {}};
+
+static void InitDefaultsGetServiceConfigurationRequest() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServiceConfigurationRequest_default_instance_;
+    new (ptr) ::config::GetServiceConfigurationRequest();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServiceConfigurationRequest::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServiceConfigurationRequest =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServiceConfigurationRequest}, {}};
+
+static void InitDefaultsGetServiceConfigurationResponse() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServiceConfigurationResponse_default_instance_;
+    new (ptr) ::config::GetServiceConfigurationResponse();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServiceConfigurationResponse::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServiceConfigurationResponse =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServiceConfigurationResponse}, {}};
+
+static void InitDefaultsGetServiceConfigurationByIdRequest() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServiceConfigurationByIdRequest_default_instance_;
+    new (ptr) ::config::GetServiceConfigurationByIdRequest();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServiceConfigurationByIdRequest::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServiceConfigurationByIdRequest =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServiceConfigurationByIdRequest}, {}};
+
+static void InitDefaultsGetServiceConfigurationByIdResponse() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServiceConfigurationByIdResponse_default_instance_;
+    new (ptr) ::config::GetServiceConfigurationByIdResponse();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServiceConfigurationByIdResponse::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServiceConfigurationByIdResponse =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServiceConfigurationByIdResponse}, {}};
+
+static void InitDefaultsGetServicesConfigurationsByNameRequest() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServicesConfigurationsByNameRequest_default_instance_;
+    new (ptr) ::config::GetServicesConfigurationsByNameRequest();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServicesConfigurationsByNameRequest::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServicesConfigurationsByNameRequest =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServicesConfigurationsByNameRequest}, {}};
+
+static void InitDefaultsGetServicesConfigurationsByNameResponse() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServicesConfigurationsByNameResponse_default_instance_;
+    new (ptr) ::config::GetServicesConfigurationsByNameResponse();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServicesConfigurationsByNameResponse::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServicesConfigurationsByNameResponse =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServicesConfigurationsByNameResponse}, {}};
+
+static void InitDefaultsGetServicesConfigurationsRequest() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServicesConfigurationsRequest_default_instance_;
+    new (ptr) ::config::GetServicesConfigurationsRequest();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServicesConfigurationsRequest::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServicesConfigurationsRequest =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServicesConfigurationsRequest}, {}};
+
+static void InitDefaultsGetServicesConfigurationsResponse() {
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  {
+    void* ptr = &::config::_GetServicesConfigurationsResponse_default_instance_;
+    new (ptr) ::config::GetServicesConfigurationsResponse();
+    ::google::protobuf::internal::OnShutdownDestroyMessage(ptr);
+  }
+  ::config::GetServicesConfigurationsResponse::InitAsDefaultInstance();
+}
+
+::google::protobuf::internal::SCCInfo<0> scc_info_GetServicesConfigurationsResponse =
+    {{ATOMIC_VAR_INIT(::google::protobuf::internal::SCCInfoBase::kUninitialized), 0, InitDefaultsGetServicesConfigurationsResponse}, {}};
+
+void InitDefaults() {
+  ::google::protobuf::internal::InitSCC(&scc_info_SetServiceConfigurationRequest.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_SetServiceConfigurationResponse.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServiceConfigurationRequest.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServiceConfigurationResponse.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServiceConfigurationByIdRequest.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServiceConfigurationByIdResponse.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServicesConfigurationsByNameRequest.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServicesConfigurationsByNameResponse.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServicesConfigurationsRequest.base);
+  ::google::protobuf::internal::InitSCC(&scc_info_GetServicesConfigurationsResponse.base);
+}
+
+::google::protobuf::Metadata file_level_metadata[10];
+
+const ::google::protobuf::uint32 TableStruct::offsets[] GOOGLE_PROTOBUF_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::SetServiceConfigurationRequest, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::SetServiceConfigurationRequest, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::SetServiceConfigurationRequest, config_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::SetServiceConfigurationRequest, config_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::SetServiceConfigurationResponse, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::SetServiceConfigurationResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationRequest, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationRequest, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationRequest, path_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationRequest, path_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationResponse, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationResponse, config_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationResponse, config_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationByIdRequest, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationByIdRequest, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationByIdRequest, id_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationByIdRequest, id_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationByIdResponse, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationByIdResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::GetServiceConfigurationByIdResponse, config_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServiceConfigurationByIdResponse, config_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServicesConfigurationsByNameRequest, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServicesConfigurationsByNameRequest, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::GetServicesConfigurationsByNameRequest, name_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServicesConfigurationsByNameRequest, name_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServicesConfigurationsByNameResponse, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServicesConfigurationsByNameResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::GetServicesConfigurationsByNameResponse, configs_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServicesConfigurationsByNameResponse, configs_),
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServicesConfigurationsRequest, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServicesConfigurationsRequest, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
   ~0u,  // no _has_bits_
-  PROTOBUF_FIELD_OFFSET(::config::GetServicesConfigurationsResponse, _internal_metadata_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServicesConfigurationsResponse, _internal_metadata_),
   ~0u,  // no _extensions_
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
-  PROTOBUF_FIELD_OFFSET(::config::GetServicesConfigurationsResponse, configs_),
+  GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(::config::GetServicesConfigurationsResponse, configs_),
 };
-static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
+static const ::google::protobuf::internal::MigrationSchema schemas[] GOOGLE_PROTOBUF_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, sizeof(::config::SetServiceConfigurationRequest)},
   { 6, -1, sizeof(::config::SetServiceConfigurationResponse)},
   { 11, -1, sizeof(::config::GetServiceConfigurationRequest)},
@@ -213,180 +300,242 @@ static const ::PROTOBUF_NAMESPACE_ID::internal::MigrationSchema schemas[] PROTOB
   { 52, -1, sizeof(::config::GetServicesConfigurationsResponse)},
 };
 
-static ::PROTOBUF_NAMESPACE_ID::Message const * const file_default_instances[] = {
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_SetServiceConfigurationRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_SetServiceConfigurationResponse_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServiceConfigurationRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServiceConfigurationResponse_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServiceConfigurationByIdRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServiceConfigurationByIdResponse_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServicesConfigurationsByNameRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServicesConfigurationsByNameResponse_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServicesConfigurationsRequest_default_instance_),
-  reinterpret_cast<const ::PROTOBUF_NAMESPACE_ID::Message*>(&::config::_GetServicesConfigurationsResponse_default_instance_),
+static ::google::protobuf::Message const * const file_default_instances[] = {
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_SetServiceConfigurationRequest_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_SetServiceConfigurationResponse_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServiceConfigurationRequest_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServiceConfigurationResponse_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServiceConfigurationByIdRequest_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServiceConfigurationByIdResponse_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServicesConfigurationsByNameRequest_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServicesConfigurationsByNameResponse_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServicesConfigurationsRequest_default_instance_),
+  reinterpret_cast<const ::google::protobuf::Message*>(&::config::_GetServicesConfigurationsResponse_default_instance_),
 };
 
-const char descriptor_table_protodef_config_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\014config.proto\022\006config\"0\n\036SetServiceConf"
-  "igurationRequest\022\016\n\006config\030\001 \001(\t\"!\n\037SetS"
-  "erviceConfigurationResponse\".\n\036GetServic"
-  "eConfigurationRequest\022\014\n\004path\030\001 \001(\t\"1\n\037G"
-  "etServiceConfigurationResponse\022\016\n\006config"
-  "\030\001 \001(\t\"0\n\"GetServiceConfigurationByIdReq"
-  "uest\022\n\n\002id\030\001 \001(\t\"5\n#GetServiceConfigurat"
-  "ionByIdResponse\022\016\n\006config\030\001 \001(\t\"6\n&GetSe"
-  "rvicesConfigurationsByNameRequest\022\014\n\004nam"
-  "e\030\001 \001(\t\":\n\'GetServicesConfigurationsByNa"
-  "meResponse\022\017\n\007configs\030\001 \003(\t\"\"\n GetServic"
-  "esConfigurationsRequest\"4\n!GetServicesCo"
-  "nfigurationsResponse\022\017\n\007configs\030\001 \003(\t2\340\004"
-  "\n\rConfigService\022l\n\027SetServiceConfigurati"
-  "on\022&.config.SetServiceConfigurationReque"
-  "st\032\'.config.SetServiceConfigurationRespo"
-  "nse\"\000\022l\n\027GetServiceConfiguration\022&.confi"
-  "g.GetServiceConfigurationRequest\032\'.confi"
-  "g.GetServiceConfigurationResponse\"\000\022x\n\033G"
-  "etServiceConfigurationById\022*.config.GetS"
-  "erviceConfigurationByIdRequest\032+.config."
-  "GetServiceConfigurationByIdResponse\"\000\022\204\001"
-  "\n\037GetServicesConfigurationsByName\022..conf"
-  "ig.GetServicesConfigurationsByNameReques"
-  "t\032/.config.GetServicesConfigurationsByNa"
-  "meResponse\"\000\022r\n\031GetServicesConfiguration"
-  "s\022(.config.GetServicesConfigurationsRequ"
-  "est\032).config.GetServicesConfigurationsRe"
-  "sponse\"\000B\021Z\017config/configpbb\006proto3"
-  ;
-static ::PROTOBUF_NAMESPACE_ID::internal::once_flag descriptor_table_config_2eproto_once;
-const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_config_2eproto = {
-  false, false, 1155, descriptor_table_protodef_config_2eproto, "config.proto", 
-  &descriptor_table_config_2eproto_once, nullptr, 0, 10,
-  schemas, file_default_instances, TableStruct_config_2eproto::offsets,
-  file_level_metadata_config_2eproto, file_level_enum_descriptors_config_2eproto, file_level_service_descriptors_config_2eproto,
-};
-PROTOBUF_ATTRIBUTE_WEAK const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable* descriptor_table_config_2eproto_getter() {
-  return &descriptor_table_config_2eproto;
+void protobuf_AssignDescriptors() {
+  AddDescriptors();
+  AssignDescriptors(
+      "config.proto", schemas, file_default_instances, TableStruct::offsets,
+      file_level_metadata, NULL, NULL);
 }
 
-// Force running AddDescriptors() at dynamic initialization time.
-PROTOBUF_ATTRIBUTE_INIT_PRIORITY static ::PROTOBUF_NAMESPACE_ID::internal::AddDescriptorsRunner dynamic_init_dummy_config_2eproto(&descriptor_table_config_2eproto);
+void protobuf_AssignDescriptorsOnce() {
+  static ::google::protobuf::internal::once_flag once;
+  ::google::protobuf::internal::call_once(once, protobuf_AssignDescriptors);
+}
+
+void protobuf_RegisterTypes(const ::std::string&) GOOGLE_PROTOBUF_ATTRIBUTE_COLD;
+void protobuf_RegisterTypes(const ::std::string&) {
+  protobuf_AssignDescriptorsOnce();
+  ::google::protobuf::internal::RegisterAllTypes(file_level_metadata, 10);
+}
+
+void AddDescriptorsImpl() {
+  InitDefaults();
+  static const char descriptor[] GOOGLE_PROTOBUF_ATTRIBUTE_SECTION_VARIABLE(protodesc_cold) = {
+      "\n\014config.proto\022\006config\"0\n\036SetServiceConf"
+      "igurationRequest\022\016\n\006config\030\001 \001(\t\"!\n\037SetS"
+      "erviceConfigurationResponse\".\n\036GetServic"
+      "eConfigurationRequest\022\014\n\004path\030\001 \001(\t\"1\n\037G"
+      "etServiceConfigurationResponse\022\016\n\006config"
+      "\030\001 \001(\t\"0\n\"GetServiceConfigurationByIdReq"
+      "uest\022\n\n\002id\030\001 \001(\t\"5\n#GetServiceConfigurat"
+      "ionByIdResponse\022\016\n\006config\030\001 \001(\t\"6\n&GetSe"
+      "rvicesConfigurationsByNameRequest\022\014\n\004nam"
+      "e\030\001 \001(\t\":\n\'GetServicesConfigurationsByNa"
+      "meResponse\022\017\n\007configs\030\001 \003(\t\"\"\n GetServic"
+      "esConfigurationsRequest\"4\n!GetServicesCo"
+      "nfigurationsResponse\022\017\n\007configs\030\001 \003(\t2\340\004"
+      "\n\rConfigService\022l\n\027SetServiceConfigurati"
+      "on\022&.config.SetServiceConfigurationReque"
+      "st\032\'.config.SetServiceConfigurationRespo"
+      "nse\"\000\022l\n\027GetServiceConfiguration\022&.confi"
+      "g.GetServiceConfigurationRequest\032\'.confi"
+      "g.GetServiceConfigurationResponse\"\000\022x\n\033G"
+      "etServiceConfigurationById\022*.config.GetS"
+      "erviceConfigurationByIdRequest\032+.config."
+      "GetServiceConfigurationByIdResponse\"\000\022\204\001"
+      "\n\037GetServicesConfigurationsByName\022..conf"
+      "ig.GetServicesConfigurationsByNameReques"
+      "t\032/.config.GetServicesConfigurationsByNa"
+      "meResponse\"\000\022r\n\031GetServicesConfiguration"
+      "s\022(.config.GetServicesConfigurationsRequ"
+      "est\032).config.GetServicesConfigurationsRe"
+      "sponse\"\000B\021Z\017config/configpbb\006proto3"
+  };
+  ::google::protobuf::DescriptorPool::InternalAddGeneratedFile(
+      descriptor, 1155);
+  ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
+    "config.proto", &protobuf_RegisterTypes);
+}
+
+void AddDescriptors() {
+  static ::google::protobuf::internal::once_flag once;
+  ::google::protobuf::internal::call_once(once, AddDescriptorsImpl);
+}
+// Force AddDescriptors() to be called at dynamic initialization time.
+struct StaticDescriptorInitializer {
+  StaticDescriptorInitializer() {
+    AddDescriptors();
+  }
+} static_descriptor_initializer;
+}  // namespace protobuf_config_2eproto
 namespace config {
 
 // ===================================================================
 
-class SetServiceConfigurationRequest::_Internal {
- public:
-};
+void SetServiceConfigurationRequest::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int SetServiceConfigurationRequest::kConfigFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-SetServiceConfigurationRequest::SetServiceConfigurationRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+SetServiceConfigurationRequest::SetServiceConfigurationRequest()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_SetServiceConfigurationRequest.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.SetServiceConfigurationRequest)
+  // @@protoc_insertion_point(constructor:config.SetServiceConfigurationRequest)
 }
 SetServiceConfigurationRequest::SetServiceConfigurationRequest(const SetServiceConfigurationRequest& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  config_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_config().empty()) {
-    config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_config(), 
-      GetArena());
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  config_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.config().size() > 0) {
+    config_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.config_);
   }
   // @@protoc_insertion_point(copy_constructor:config.SetServiceConfigurationRequest)
 }
 
 void SetServiceConfigurationRequest::SharedCtor() {
-config_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  config_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 SetServiceConfigurationRequest::~SetServiceConfigurationRequest() {
   // @@protoc_insertion_point(destructor:config.SetServiceConfigurationRequest)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void SetServiceConfigurationRequest::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  config_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  config_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
-void SetServiceConfigurationRequest::ArenaDtor(void* object) {
-  SetServiceConfigurationRequest* _this = reinterpret_cast< SetServiceConfigurationRequest* >(object);
-  (void)_this;
-}
-void SetServiceConfigurationRequest::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void SetServiceConfigurationRequest::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* SetServiceConfigurationRequest::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const SetServiceConfigurationRequest& SetServiceConfigurationRequest::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_SetServiceConfigurationRequest.base);
+  return *internal_default_instance();
+}
+
 
 void SetServiceConfigurationRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.SetServiceConfigurationRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  config_.ClearToEmpty();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  config_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  _internal_metadata_.Clear();
 }
 
-const char* SetServiceConfigurationRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool SetServiceConfigurationRequest::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.SetServiceConfigurationRequest)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // string config = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_config();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.SetServiceConfigurationRequest.config"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->mutable_config()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->config().data(), static_cast<int>(this->config().length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.SetServiceConfigurationRequest.config"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.SetServiceConfigurationRequest)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.SetServiceConfigurationRequest)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* SetServiceConfigurationRequest::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.SetServiceConfigurationRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void SetServiceConfigurationRequest::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.SetServiceConfigurationRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string config = 1;
   if (this->config().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_config().data(), static_cast<int>(this->_internal_config().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->config().data(), static_cast<int>(this->config().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.SetServiceConfigurationRequest.config");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_config(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
+      1, this->config(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.SetServiceConfigurationRequest)
+}
+
+::google::protobuf::uint8* SetServiceConfigurationRequest::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.SetServiceConfigurationRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string config = 1;
+  if (this->config().size() > 0) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->config().data(), static_cast<int>(this->config().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.SetServiceConfigurationRequest.config");
+    target =
+      ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
+        1, this->config(), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.SetServiceConfigurationRequest)
   return target;
@@ -396,35 +545,32 @@ size_t SetServiceConfigurationRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.SetServiceConfigurationRequest)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // string config = 1;
   if (this->config().size() > 0) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_config());
+      ::google::protobuf::internal::WireFormatLite::StringSize(
+        this->config());
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void SetServiceConfigurationRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void SetServiceConfigurationRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.SetServiceConfigurationRequest)
   GOOGLE_DCHECK_NE(&from, this);
   const SetServiceConfigurationRequest* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<SetServiceConfigurationRequest>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const SetServiceConfigurationRequest>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.SetServiceConfigurationRequest)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.SetServiceConfigurationRequest)
     MergeFrom(*source);
@@ -434,16 +580,17 @@ void SetServiceConfigurationRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Me
 void SetServiceConfigurationRequest::MergeFrom(const SetServiceConfigurationRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.SetServiceConfigurationRequest)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (from.config().size() > 0) {
-    _internal_set_config(from._internal_config());
+
+    config_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.config_);
   }
 }
 
-void SetServiceConfigurationRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void SetServiceConfigurationRequest::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.SetServiceConfigurationRequest)
   if (&from == this) return;
   Clear();
@@ -461,33 +608,41 @@ bool SetServiceConfigurationRequest::IsInitialized() const {
   return true;
 }
 
+void SetServiceConfigurationRequest::Swap(SetServiceConfigurationRequest* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void SetServiceConfigurationRequest::InternalSwap(SetServiceConfigurationRequest* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  config_.Swap(&other->config_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  config_.Swap(&other->config_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+    GetArenaNoVirtual());
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata SetServiceConfigurationRequest::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[0]);
+::google::protobuf::Metadata SetServiceConfigurationRequest::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class SetServiceConfigurationResponse::_Internal {
- public:
-};
+void SetServiceConfigurationResponse::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-SetServiceConfigurationResponse::SetServiceConfigurationResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+SetServiceConfigurationResponse::SetServiceConfigurationResponse()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_SetServiceConfigurationResponse.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.SetServiceConfigurationResponse)
+  // @@protoc_insertion_point(constructor:config.SetServiceConfigurationResponse)
 }
 SetServiceConfigurationResponse::SetServiceConfigurationResponse(const SetServiceConfigurationResponse& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   // @@protoc_insertion_point(copy_constructor:config.SetServiceConfigurationResponse)
 }
 
@@ -497,65 +652,82 @@ void SetServiceConfigurationResponse::SharedCtor() {
 SetServiceConfigurationResponse::~SetServiceConfigurationResponse() {
   // @@protoc_insertion_point(destructor:config.SetServiceConfigurationResponse)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void SetServiceConfigurationResponse::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void SetServiceConfigurationResponse::ArenaDtor(void* object) {
-  SetServiceConfigurationResponse* _this = reinterpret_cast< SetServiceConfigurationResponse* >(object);
-  (void)_this;
-}
-void SetServiceConfigurationResponse::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void SetServiceConfigurationResponse::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* SetServiceConfigurationResponse::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const SetServiceConfigurationResponse& SetServiceConfigurationResponse::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_SetServiceConfigurationResponse.base);
+  return *internal_default_instance();
+}
+
 
 void SetServiceConfigurationResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.SetServiceConfigurationResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* SetServiceConfigurationResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
-          goto success;
-        }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
-  }  // while
+bool SetServiceConfigurationResponse::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.SetServiceConfigurationResponse)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+  handle_unusual:
+    if (tag == 0) {
+      goto success;
+    }
+    DO_(::google::protobuf::internal::WireFormat::SkipField(
+          input, tag, _internal_metadata_.mutable_unknown_fields()));
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.SetServiceConfigurationResponse)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.SetServiceConfigurationResponse)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* SetServiceConfigurationResponse::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.SetServiceConfigurationResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void SetServiceConfigurationResponse::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.SetServiceConfigurationResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.SetServiceConfigurationResponse)
+}
+
+::google::protobuf::uint8* SetServiceConfigurationResponse::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.SetServiceConfigurationResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.SetServiceConfigurationResponse)
   return target;
@@ -565,28 +737,25 @@ size_t SetServiceConfigurationResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.SetServiceConfigurationResponse)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
   }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void SetServiceConfigurationResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void SetServiceConfigurationResponse::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.SetServiceConfigurationResponse)
   GOOGLE_DCHECK_NE(&from, this);
   const SetServiceConfigurationResponse* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<SetServiceConfigurationResponse>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const SetServiceConfigurationResponse>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.SetServiceConfigurationResponse)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.SetServiceConfigurationResponse)
     MergeFrom(*source);
@@ -596,13 +765,13 @@ void SetServiceConfigurationResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::M
 void SetServiceConfigurationResponse::MergeFrom(const SetServiceConfigurationResponse& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.SetServiceConfigurationResponse)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
 }
 
-void SetServiceConfigurationResponse::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void SetServiceConfigurationResponse::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.SetServiceConfigurationResponse)
   if (&from == this) return;
   Clear();
@@ -620,132 +789,174 @@ bool SetServiceConfigurationResponse::IsInitialized() const {
   return true;
 }
 
+void SetServiceConfigurationResponse::Swap(SetServiceConfigurationResponse* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void SetServiceConfigurationResponse::InternalSwap(SetServiceConfigurationResponse* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata SetServiceConfigurationResponse::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[1]);
+::google::protobuf::Metadata SetServiceConfigurationResponse::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServiceConfigurationRequest::_Internal {
- public:
-};
+void GetServiceConfigurationRequest::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int GetServiceConfigurationRequest::kPathFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServiceConfigurationRequest::GetServiceConfigurationRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+GetServiceConfigurationRequest::GetServiceConfigurationRequest()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServiceConfigurationRequest.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServiceConfigurationRequest)
+  // @@protoc_insertion_point(constructor:config.GetServiceConfigurationRequest)
 }
 GetServiceConfigurationRequest::GetServiceConfigurationRequest(const GetServiceConfigurationRequest& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  path_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_path().empty()) {
-    path_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_path(), 
-      GetArena());
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  path_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.path().size() > 0) {
+    path_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.path_);
   }
   // @@protoc_insertion_point(copy_constructor:config.GetServiceConfigurationRequest)
 }
 
 void GetServiceConfigurationRequest::SharedCtor() {
-path_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  path_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 GetServiceConfigurationRequest::~GetServiceConfigurationRequest() {
   // @@protoc_insertion_point(destructor:config.GetServiceConfigurationRequest)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServiceConfigurationRequest::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  path_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  path_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
-void GetServiceConfigurationRequest::ArenaDtor(void* object) {
-  GetServiceConfigurationRequest* _this = reinterpret_cast< GetServiceConfigurationRequest* >(object);
-  (void)_this;
-}
-void GetServiceConfigurationRequest::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServiceConfigurationRequest::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServiceConfigurationRequest::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServiceConfigurationRequest& GetServiceConfigurationRequest::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServiceConfigurationRequest.base);
+  return *internal_default_instance();
+}
+
 
 void GetServiceConfigurationRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServiceConfigurationRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  path_.ClearToEmpty();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  path_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  _internal_metadata_.Clear();
 }
 
-const char* GetServiceConfigurationRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool GetServiceConfigurationRequest::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServiceConfigurationRequest)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // string path = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_path();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.GetServiceConfigurationRequest.path"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->mutable_path()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->path().data(), static_cast<int>(this->path().length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.GetServiceConfigurationRequest.path"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServiceConfigurationRequest)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServiceConfigurationRequest)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServiceConfigurationRequest::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServiceConfigurationRequest::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServiceConfigurationRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string path = 1;
   if (this->path().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_path().data(), static_cast<int>(this->_internal_path().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->path().data(), static_cast<int>(this->path().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.GetServiceConfigurationRequest.path");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_path(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
+      1, this->path(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServiceConfigurationRequest)
+}
+
+::google::protobuf::uint8* GetServiceConfigurationRequest::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string path = 1;
+  if (this->path().size() > 0) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->path().data(), static_cast<int>(this->path().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.GetServiceConfigurationRequest.path");
+    target =
+      ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
+        1, this->path(), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServiceConfigurationRequest)
   return target;
@@ -755,35 +966,32 @@ size_t GetServiceConfigurationRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServiceConfigurationRequest)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // string path = 1;
   if (this->path().size() > 0) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_path());
+      ::google::protobuf::internal::WireFormatLite::StringSize(
+        this->path());
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServiceConfigurationRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServiceConfigurationRequest)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServiceConfigurationRequest* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServiceConfigurationRequest>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServiceConfigurationRequest>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServiceConfigurationRequest)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServiceConfigurationRequest)
     MergeFrom(*source);
@@ -793,16 +1001,17 @@ void GetServiceConfigurationRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Me
 void GetServiceConfigurationRequest::MergeFrom(const GetServiceConfigurationRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServiceConfigurationRequest)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (from.path().size() > 0) {
-    _internal_set_path(from._internal_path());
+
+    path_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.path_);
   }
 }
 
-void GetServiceConfigurationRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationRequest::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServiceConfigurationRequest)
   if (&from == this) return;
   Clear();
@@ -820,133 +1029,176 @@ bool GetServiceConfigurationRequest::IsInitialized() const {
   return true;
 }
 
+void GetServiceConfigurationRequest::Swap(GetServiceConfigurationRequest* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServiceConfigurationRequest::InternalSwap(GetServiceConfigurationRequest* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  path_.Swap(&other->path_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  path_.Swap(&other->path_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+    GetArenaNoVirtual());
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServiceConfigurationRequest::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[2]);
+::google::protobuf::Metadata GetServiceConfigurationRequest::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServiceConfigurationResponse::_Internal {
- public:
-};
+void GetServiceConfigurationResponse::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int GetServiceConfigurationResponse::kConfigFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServiceConfigurationResponse::GetServiceConfigurationResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+GetServiceConfigurationResponse::GetServiceConfigurationResponse()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServiceConfigurationResponse.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServiceConfigurationResponse)
+  // @@protoc_insertion_point(constructor:config.GetServiceConfigurationResponse)
 }
 GetServiceConfigurationResponse::GetServiceConfigurationResponse(const GetServiceConfigurationResponse& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  config_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_config().empty()) {
-    config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_config(), 
-      GetArena());
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  config_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.config().size() > 0) {
+    config_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.config_);
   }
   // @@protoc_insertion_point(copy_constructor:config.GetServiceConfigurationResponse)
 }
 
 void GetServiceConfigurationResponse::SharedCtor() {
-config_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  config_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 GetServiceConfigurationResponse::~GetServiceConfigurationResponse() {
   // @@protoc_insertion_point(destructor:config.GetServiceConfigurationResponse)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServiceConfigurationResponse::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  config_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  config_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
-void GetServiceConfigurationResponse::ArenaDtor(void* object) {
-  GetServiceConfigurationResponse* _this = reinterpret_cast< GetServiceConfigurationResponse* >(object);
-  (void)_this;
-}
-void GetServiceConfigurationResponse::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServiceConfigurationResponse::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServiceConfigurationResponse::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServiceConfigurationResponse& GetServiceConfigurationResponse::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServiceConfigurationResponse.base);
+  return *internal_default_instance();
+}
+
 
 void GetServiceConfigurationResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServiceConfigurationResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  config_.ClearToEmpty();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  config_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  _internal_metadata_.Clear();
 }
 
-const char* GetServiceConfigurationResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool GetServiceConfigurationResponse::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServiceConfigurationResponse)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // string config = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_config();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.GetServiceConfigurationResponse.config"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->mutable_config()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->config().data(), static_cast<int>(this->config().length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.GetServiceConfigurationResponse.config"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServiceConfigurationResponse)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServiceConfigurationResponse)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServiceConfigurationResponse::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServiceConfigurationResponse::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServiceConfigurationResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string config = 1;
   if (this->config().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_config().data(), static_cast<int>(this->_internal_config().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->config().data(), static_cast<int>(this->config().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.GetServiceConfigurationResponse.config");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_config(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
+      1, this->config(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServiceConfigurationResponse)
+}
+
+::google::protobuf::uint8* GetServiceConfigurationResponse::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string config = 1;
+  if (this->config().size() > 0) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->config().data(), static_cast<int>(this->config().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.GetServiceConfigurationResponse.config");
+    target =
+      ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
+        1, this->config(), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServiceConfigurationResponse)
   return target;
@@ -956,35 +1208,32 @@ size_t GetServiceConfigurationResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServiceConfigurationResponse)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // string config = 1;
   if (this->config().size() > 0) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_config());
+      ::google::protobuf::internal::WireFormatLite::StringSize(
+        this->config());
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServiceConfigurationResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationResponse::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServiceConfigurationResponse)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServiceConfigurationResponse* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServiceConfigurationResponse>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServiceConfigurationResponse>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServiceConfigurationResponse)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServiceConfigurationResponse)
     MergeFrom(*source);
@@ -994,16 +1243,17 @@ void GetServiceConfigurationResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::M
 void GetServiceConfigurationResponse::MergeFrom(const GetServiceConfigurationResponse& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServiceConfigurationResponse)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (from.config().size() > 0) {
-    _internal_set_config(from._internal_config());
+
+    config_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.config_);
   }
 }
 
-void GetServiceConfigurationResponse::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationResponse::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServiceConfigurationResponse)
   if (&from == this) return;
   Clear();
@@ -1021,133 +1271,176 @@ bool GetServiceConfigurationResponse::IsInitialized() const {
   return true;
 }
 
+void GetServiceConfigurationResponse::Swap(GetServiceConfigurationResponse* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServiceConfigurationResponse::InternalSwap(GetServiceConfigurationResponse* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  config_.Swap(&other->config_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  config_.Swap(&other->config_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+    GetArenaNoVirtual());
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServiceConfigurationResponse::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[3]);
+::google::protobuf::Metadata GetServiceConfigurationResponse::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServiceConfigurationByIdRequest::_Internal {
- public:
-};
+void GetServiceConfigurationByIdRequest::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int GetServiceConfigurationByIdRequest::kIdFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServiceConfigurationByIdRequest::GetServiceConfigurationByIdRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+GetServiceConfigurationByIdRequest::GetServiceConfigurationByIdRequest()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServiceConfigurationByIdRequest.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServiceConfigurationByIdRequest)
+  // @@protoc_insertion_point(constructor:config.GetServiceConfigurationByIdRequest)
 }
 GetServiceConfigurationByIdRequest::GetServiceConfigurationByIdRequest(const GetServiceConfigurationByIdRequest& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  id_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_id().empty()) {
-    id_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_id(), 
-      GetArena());
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  id_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.id().size() > 0) {
+    id_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.id_);
   }
   // @@protoc_insertion_point(copy_constructor:config.GetServiceConfigurationByIdRequest)
 }
 
 void GetServiceConfigurationByIdRequest::SharedCtor() {
-id_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  id_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 GetServiceConfigurationByIdRequest::~GetServiceConfigurationByIdRequest() {
   // @@protoc_insertion_point(destructor:config.GetServiceConfigurationByIdRequest)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServiceConfigurationByIdRequest::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  id_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  id_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
-void GetServiceConfigurationByIdRequest::ArenaDtor(void* object) {
-  GetServiceConfigurationByIdRequest* _this = reinterpret_cast< GetServiceConfigurationByIdRequest* >(object);
-  (void)_this;
-}
-void GetServiceConfigurationByIdRequest::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServiceConfigurationByIdRequest::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServiceConfigurationByIdRequest::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServiceConfigurationByIdRequest& GetServiceConfigurationByIdRequest::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServiceConfigurationByIdRequest.base);
+  return *internal_default_instance();
+}
+
 
 void GetServiceConfigurationByIdRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServiceConfigurationByIdRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  id_.ClearToEmpty();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  id_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  _internal_metadata_.Clear();
 }
 
-const char* GetServiceConfigurationByIdRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool GetServiceConfigurationByIdRequest::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServiceConfigurationByIdRequest)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // string id = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_id();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.GetServiceConfigurationByIdRequest.id"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->mutable_id()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->id().data(), static_cast<int>(this->id().length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.GetServiceConfigurationByIdRequest.id"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServiceConfigurationByIdRequest)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServiceConfigurationByIdRequest)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServiceConfigurationByIdRequest::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationByIdRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServiceConfigurationByIdRequest::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServiceConfigurationByIdRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string id = 1;
   if (this->id().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_id().data(), static_cast<int>(this->_internal_id().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->id().data(), static_cast<int>(this->id().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.GetServiceConfigurationByIdRequest.id");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_id(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
+      1, this->id(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServiceConfigurationByIdRequest)
+}
+
+::google::protobuf::uint8* GetServiceConfigurationByIdRequest::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationByIdRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string id = 1;
+  if (this->id().size() > 0) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->id().data(), static_cast<int>(this->id().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.GetServiceConfigurationByIdRequest.id");
+    target =
+      ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
+        1, this->id(), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServiceConfigurationByIdRequest)
   return target;
@@ -1157,35 +1450,32 @@ size_t GetServiceConfigurationByIdRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServiceConfigurationByIdRequest)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // string id = 1;
   if (this->id().size() > 0) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_id());
+      ::google::protobuf::internal::WireFormatLite::StringSize(
+        this->id());
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServiceConfigurationByIdRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationByIdRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServiceConfigurationByIdRequest)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServiceConfigurationByIdRequest* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServiceConfigurationByIdRequest>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServiceConfigurationByIdRequest>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServiceConfigurationByIdRequest)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServiceConfigurationByIdRequest)
     MergeFrom(*source);
@@ -1195,16 +1485,17 @@ void GetServiceConfigurationByIdRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID
 void GetServiceConfigurationByIdRequest::MergeFrom(const GetServiceConfigurationByIdRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServiceConfigurationByIdRequest)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (from.id().size() > 0) {
-    _internal_set_id(from._internal_id());
+
+    id_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.id_);
   }
 }
 
-void GetServiceConfigurationByIdRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationByIdRequest::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServiceConfigurationByIdRequest)
   if (&from == this) return;
   Clear();
@@ -1222,133 +1513,176 @@ bool GetServiceConfigurationByIdRequest::IsInitialized() const {
   return true;
 }
 
+void GetServiceConfigurationByIdRequest::Swap(GetServiceConfigurationByIdRequest* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServiceConfigurationByIdRequest::InternalSwap(GetServiceConfigurationByIdRequest* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  id_.Swap(&other->id_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  id_.Swap(&other->id_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+    GetArenaNoVirtual());
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServiceConfigurationByIdRequest::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[4]);
+::google::protobuf::Metadata GetServiceConfigurationByIdRequest::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServiceConfigurationByIdResponse::_Internal {
- public:
-};
+void GetServiceConfigurationByIdResponse::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int GetServiceConfigurationByIdResponse::kConfigFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServiceConfigurationByIdResponse::GetServiceConfigurationByIdResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+GetServiceConfigurationByIdResponse::GetServiceConfigurationByIdResponse()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServiceConfigurationByIdResponse.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServiceConfigurationByIdResponse)
+  // @@protoc_insertion_point(constructor:config.GetServiceConfigurationByIdResponse)
 }
 GetServiceConfigurationByIdResponse::GetServiceConfigurationByIdResponse(const GetServiceConfigurationByIdResponse& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  config_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_config().empty()) {
-    config_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_config(), 
-      GetArena());
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  config_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.config().size() > 0) {
+    config_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.config_);
   }
   // @@protoc_insertion_point(copy_constructor:config.GetServiceConfigurationByIdResponse)
 }
 
 void GetServiceConfigurationByIdResponse::SharedCtor() {
-config_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  config_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 GetServiceConfigurationByIdResponse::~GetServiceConfigurationByIdResponse() {
   // @@protoc_insertion_point(destructor:config.GetServiceConfigurationByIdResponse)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServiceConfigurationByIdResponse::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  config_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  config_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
-void GetServiceConfigurationByIdResponse::ArenaDtor(void* object) {
-  GetServiceConfigurationByIdResponse* _this = reinterpret_cast< GetServiceConfigurationByIdResponse* >(object);
-  (void)_this;
-}
-void GetServiceConfigurationByIdResponse::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServiceConfigurationByIdResponse::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServiceConfigurationByIdResponse::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServiceConfigurationByIdResponse& GetServiceConfigurationByIdResponse::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServiceConfigurationByIdResponse.base);
+  return *internal_default_instance();
+}
+
 
 void GetServiceConfigurationByIdResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServiceConfigurationByIdResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  config_.ClearToEmpty();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  config_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  _internal_metadata_.Clear();
 }
 
-const char* GetServiceConfigurationByIdResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool GetServiceConfigurationByIdResponse::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServiceConfigurationByIdResponse)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // string config = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_config();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.GetServiceConfigurationByIdResponse.config"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->mutable_config()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->config().data(), static_cast<int>(this->config().length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.GetServiceConfigurationByIdResponse.config"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServiceConfigurationByIdResponse)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServiceConfigurationByIdResponse)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServiceConfigurationByIdResponse::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationByIdResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServiceConfigurationByIdResponse::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServiceConfigurationByIdResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string config = 1;
   if (this->config().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_config().data(), static_cast<int>(this->_internal_config().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->config().data(), static_cast<int>(this->config().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.GetServiceConfigurationByIdResponse.config");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_config(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
+      1, this->config(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServiceConfigurationByIdResponse)
+}
+
+::google::protobuf::uint8* GetServiceConfigurationByIdResponse::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServiceConfigurationByIdResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string config = 1;
+  if (this->config().size() > 0) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->config().data(), static_cast<int>(this->config().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.GetServiceConfigurationByIdResponse.config");
+    target =
+      ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
+        1, this->config(), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServiceConfigurationByIdResponse)
   return target;
@@ -1358,35 +1692,32 @@ size_t GetServiceConfigurationByIdResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServiceConfigurationByIdResponse)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // string config = 1;
   if (this->config().size() > 0) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_config());
+      ::google::protobuf::internal::WireFormatLite::StringSize(
+        this->config());
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServiceConfigurationByIdResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationByIdResponse::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServiceConfigurationByIdResponse)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServiceConfigurationByIdResponse* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServiceConfigurationByIdResponse>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServiceConfigurationByIdResponse>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServiceConfigurationByIdResponse)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServiceConfigurationByIdResponse)
     MergeFrom(*source);
@@ -1396,16 +1727,17 @@ void GetServiceConfigurationByIdResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_I
 void GetServiceConfigurationByIdResponse::MergeFrom(const GetServiceConfigurationByIdResponse& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServiceConfigurationByIdResponse)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (from.config().size() > 0) {
-    _internal_set_config(from._internal_config());
+
+    config_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.config_);
   }
 }
 
-void GetServiceConfigurationByIdResponse::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServiceConfigurationByIdResponse::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServiceConfigurationByIdResponse)
   if (&from == this) return;
   Clear();
@@ -1423,133 +1755,176 @@ bool GetServiceConfigurationByIdResponse::IsInitialized() const {
   return true;
 }
 
+void GetServiceConfigurationByIdResponse::Swap(GetServiceConfigurationByIdResponse* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServiceConfigurationByIdResponse::InternalSwap(GetServiceConfigurationByIdResponse* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  config_.Swap(&other->config_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  config_.Swap(&other->config_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+    GetArenaNoVirtual());
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServiceConfigurationByIdResponse::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[5]);
+::google::protobuf::Metadata GetServiceConfigurationByIdResponse::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServicesConfigurationsByNameRequest::_Internal {
- public:
-};
+void GetServicesConfigurationsByNameRequest::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int GetServicesConfigurationsByNameRequest::kNameFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServicesConfigurationsByNameRequest::GetServicesConfigurationsByNameRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+GetServicesConfigurationsByNameRequest::GetServicesConfigurationsByNameRequest()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServicesConfigurationsByNameRequest.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServicesConfigurationsByNameRequest)
+  // @@protoc_insertion_point(constructor:config.GetServicesConfigurationsByNameRequest)
 }
 GetServicesConfigurationsByNameRequest::GetServicesConfigurationsByNameRequest(const GetServicesConfigurationsByNameRequest& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  name_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
-  if (!from._internal_name().empty()) {
-    name_.Set(::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::EmptyDefault{}, from._internal_name(), 
-      GetArena());
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  name_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  if (from.name().size() > 0) {
+    name_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.name_);
   }
   // @@protoc_insertion_point(copy_constructor:config.GetServicesConfigurationsByNameRequest)
 }
 
 void GetServicesConfigurationsByNameRequest::SharedCtor() {
-name_.UnsafeSetDefault(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  name_.UnsafeSetDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
 GetServicesConfigurationsByNameRequest::~GetServicesConfigurationsByNameRequest() {
   // @@protoc_insertion_point(destructor:config.GetServicesConfigurationsByNameRequest)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServicesConfigurationsByNameRequest::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
-  name_.DestroyNoArena(&::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited());
+  name_.DestroyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
 }
 
-void GetServicesConfigurationsByNameRequest::ArenaDtor(void* object) {
-  GetServicesConfigurationsByNameRequest* _this = reinterpret_cast< GetServicesConfigurationsByNameRequest* >(object);
-  (void)_this;
-}
-void GetServicesConfigurationsByNameRequest::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServicesConfigurationsByNameRequest::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServicesConfigurationsByNameRequest::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServicesConfigurationsByNameRequest& GetServicesConfigurationsByNameRequest::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServicesConfigurationsByNameRequest.base);
+  return *internal_default_instance();
+}
+
 
 void GetServicesConfigurationsByNameRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServicesConfigurationsByNameRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  name_.ClearToEmpty();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  name_.ClearToEmptyNoArena(&::google::protobuf::internal::GetEmptyStringAlreadyInited());
+  _internal_metadata_.Clear();
 }
 
-const char* GetServicesConfigurationsByNameRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool GetServicesConfigurationsByNameRequest::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServicesConfigurationsByNameRequest)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // string name = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          auto str = _internal_mutable_name();
-          ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-          CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.GetServicesConfigurationsByNameRequest.name"));
-          CHK_(ptr);
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->mutable_name()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->name().data(), static_cast<int>(this->name().length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.GetServicesConfigurationsByNameRequest.name"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServicesConfigurationsByNameRequest)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServicesConfigurationsByNameRequest)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServicesConfigurationsByNameRequest::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsByNameRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServicesConfigurationsByNameRequest::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServicesConfigurationsByNameRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // string name = 1;
   if (this->name().size() > 0) {
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      this->_internal_name().data(), static_cast<int>(this->_internal_name().length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->name().data(), static_cast<int>(this->name().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.GetServicesConfigurationsByNameRequest.name");
-    target = stream->WriteStringMaybeAliased(
-        1, this->_internal_name(), target);
+    ::google::protobuf::internal::WireFormatLite::WriteStringMaybeAliased(
+      1, this->name(), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServicesConfigurationsByNameRequest)
+}
+
+::google::protobuf::uint8* GetServicesConfigurationsByNameRequest::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsByNameRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string name = 1;
+  if (this->name().size() > 0) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->name().data(), static_cast<int>(this->name().length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.GetServicesConfigurationsByNameRequest.name");
+    target =
+      ::google::protobuf::internal::WireFormatLite::WriteStringToArray(
+        1, this->name(), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServicesConfigurationsByNameRequest)
   return target;
@@ -1559,35 +1934,32 @@ size_t GetServicesConfigurationsByNameRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServicesConfigurationsByNameRequest)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // string name = 1;
   if (this->name().size() > 0) {
     total_size += 1 +
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-        this->_internal_name());
+      ::google::protobuf::internal::WireFormatLite::StringSize(
+        this->name());
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServicesConfigurationsByNameRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsByNameRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServicesConfigurationsByNameRequest)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServicesConfigurationsByNameRequest* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServicesConfigurationsByNameRequest>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServicesConfigurationsByNameRequest>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServicesConfigurationsByNameRequest)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServicesConfigurationsByNameRequest)
     MergeFrom(*source);
@@ -1597,16 +1969,17 @@ void GetServicesConfigurationsByNameRequest::MergeFrom(const ::PROTOBUF_NAMESPAC
 void GetServicesConfigurationsByNameRequest::MergeFrom(const GetServicesConfigurationsByNameRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServicesConfigurationsByNameRequest)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   if (from.name().size() > 0) {
-    _internal_set_name(from._internal_name());
+
+    name_.AssignWithDefault(&::google::protobuf::internal::GetEmptyStringAlreadyInited(), from.name_);
   }
 }
 
-void GetServicesConfigurationsByNameRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsByNameRequest::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServicesConfigurationsByNameRequest)
   if (&from == this) return;
   Clear();
@@ -1624,35 +1997,43 @@ bool GetServicesConfigurationsByNameRequest::IsInitialized() const {
   return true;
 }
 
+void GetServicesConfigurationsByNameRequest::Swap(GetServicesConfigurationsByNameRequest* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServicesConfigurationsByNameRequest::InternalSwap(GetServicesConfigurationsByNameRequest* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  name_.Swap(&other->name_, &::PROTOBUF_NAMESPACE_ID::internal::GetEmptyStringAlreadyInited(), GetArena());
+  name_.Swap(&other->name_, &::google::protobuf::internal::GetEmptyStringAlreadyInited(),
+    GetArenaNoVirtual());
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServicesConfigurationsByNameRequest::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[6]);
+::google::protobuf::Metadata GetServicesConfigurationsByNameRequest::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServicesConfigurationsByNameResponse::_Internal {
- public:
-};
+void GetServicesConfigurationsByNameResponse::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int GetServicesConfigurationsByNameResponse::kConfigsFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServicesConfigurationsByNameResponse::GetServicesConfigurationsByNameResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  configs_(arena) {
+GetServicesConfigurationsByNameResponse::GetServicesConfigurationsByNameResponse()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServicesConfigurationsByNameResponse.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServicesConfigurationsByNameResponse)
+  // @@protoc_insertion_point(constructor:config.GetServicesConfigurationsByNameResponse)
 }
 GetServicesConfigurationsByNameResponse::GetServicesConfigurationsByNameResponse(const GetServicesConfigurationsByNameResponse& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
       configs_(from.configs_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   // @@protoc_insertion_point(copy_constructor:config.GetServicesConfigurationsByNameResponse)
 }
 
@@ -1662,95 +2043,125 @@ void GetServicesConfigurationsByNameResponse::SharedCtor() {
 GetServicesConfigurationsByNameResponse::~GetServicesConfigurationsByNameResponse() {
   // @@protoc_insertion_point(destructor:config.GetServicesConfigurationsByNameResponse)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServicesConfigurationsByNameResponse::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void GetServicesConfigurationsByNameResponse::ArenaDtor(void* object) {
-  GetServicesConfigurationsByNameResponse* _this = reinterpret_cast< GetServicesConfigurationsByNameResponse* >(object);
-  (void)_this;
-}
-void GetServicesConfigurationsByNameResponse::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServicesConfigurationsByNameResponse::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServicesConfigurationsByNameResponse::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServicesConfigurationsByNameResponse& GetServicesConfigurationsByNameResponse::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServicesConfigurationsByNameResponse.base);
+  return *internal_default_instance();
+}
+
 
 void GetServicesConfigurationsByNameResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServicesConfigurationsByNameResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   configs_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* GetServicesConfigurationsByNameResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool GetServicesConfigurationsByNameResponse::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServicesConfigurationsByNameResponse)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // repeated string configs = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          ptr -= 1;
-          do {
-            ptr += 1;
-            auto str = _internal_add_configs();
-            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.GetServicesConfigurationsByNameResponse.configs"));
-            CHK_(ptr);
-            if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<10>(ptr));
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->add_configs()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->configs(this->configs_size() - 1).data(),
+            static_cast<int>(this->configs(this->configs_size() - 1).length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.GetServicesConfigurationsByNameResponse.configs"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServicesConfigurationsByNameResponse)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServicesConfigurationsByNameResponse)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServicesConfigurationsByNameResponse::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsByNameResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServicesConfigurationsByNameResponse::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServicesConfigurationsByNameResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // repeated string configs = 1;
-  for (int i = 0, n = this->_internal_configs_size(); i < n; i++) {
-    const auto& s = this->_internal_configs(i);
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      s.data(), static_cast<int>(s.length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+  for (int i = 0, n = this->configs_size(); i < n; i++) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->configs(i).data(), static_cast<int>(this->configs(i).length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.GetServicesConfigurationsByNameResponse.configs");
-    target = stream->WriteString(1, s, target);
+    ::google::protobuf::internal::WireFormatLite::WriteString(
+      1, this->configs(i), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServicesConfigurationsByNameResponse)
+}
+
+::google::protobuf::uint8* GetServicesConfigurationsByNameResponse::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsByNameResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // repeated string configs = 1;
+  for (int i = 0, n = this->configs_size(); i < n; i++) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->configs(i).data(), static_cast<int>(this->configs(i).length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.GetServicesConfigurationsByNameResponse.configs");
+    target = ::google::protobuf::internal::WireFormatLite::
+      WriteStringToArray(1, this->configs(i), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServicesConfigurationsByNameResponse)
   return target;
@@ -1760,36 +2171,33 @@ size_t GetServicesConfigurationsByNameResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServicesConfigurationsByNameResponse)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // repeated string configs = 1;
   total_size += 1 *
-      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(configs_.size());
-  for (int i = 0, n = configs_.size(); i < n; i++) {
-    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-      configs_.Get(i));
+      ::google::protobuf::internal::FromIntSize(this->configs_size());
+  for (int i = 0, n = this->configs_size(); i < n; i++) {
+    total_size += ::google::protobuf::internal::WireFormatLite::StringSize(
+      this->configs(i));
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServicesConfigurationsByNameResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsByNameResponse::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServicesConfigurationsByNameResponse)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServicesConfigurationsByNameResponse* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServicesConfigurationsByNameResponse>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServicesConfigurationsByNameResponse>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServicesConfigurationsByNameResponse)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServicesConfigurationsByNameResponse)
     MergeFrom(*source);
@@ -1799,14 +2207,14 @@ void GetServicesConfigurationsByNameResponse::MergeFrom(const ::PROTOBUF_NAMESPA
 void GetServicesConfigurationsByNameResponse::MergeFrom(const GetServicesConfigurationsByNameResponse& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServicesConfigurationsByNameResponse)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   configs_.MergeFrom(from.configs_);
 }
 
-void GetServicesConfigurationsByNameResponse::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsByNameResponse::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServicesConfigurationsByNameResponse)
   if (&from == this) return;
   Clear();
@@ -1824,33 +2232,40 @@ bool GetServicesConfigurationsByNameResponse::IsInitialized() const {
   return true;
 }
 
+void GetServicesConfigurationsByNameResponse::Swap(GetServicesConfigurationsByNameResponse* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServicesConfigurationsByNameResponse::InternalSwap(GetServicesConfigurationsByNameResponse* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  configs_.InternalSwap(&other->configs_);
+  configs_.InternalSwap(CastToBase(&other->configs_));
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServicesConfigurationsByNameResponse::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[7]);
+::google::protobuf::Metadata GetServicesConfigurationsByNameResponse::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServicesConfigurationsRequest::_Internal {
- public:
-};
+void GetServicesConfigurationsRequest::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServicesConfigurationsRequest::GetServicesConfigurationsRequest(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+GetServicesConfigurationsRequest::GetServicesConfigurationsRequest()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServicesConfigurationsRequest.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServicesConfigurationsRequest)
+  // @@protoc_insertion_point(constructor:config.GetServicesConfigurationsRequest)
 }
 GetServicesConfigurationsRequest::GetServicesConfigurationsRequest(const GetServicesConfigurationsRequest& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message() {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL) {
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   // @@protoc_insertion_point(copy_constructor:config.GetServicesConfigurationsRequest)
 }
 
@@ -1860,65 +2275,82 @@ void GetServicesConfigurationsRequest::SharedCtor() {
 GetServicesConfigurationsRequest::~GetServicesConfigurationsRequest() {
   // @@protoc_insertion_point(destructor:config.GetServicesConfigurationsRequest)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServicesConfigurationsRequest::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void GetServicesConfigurationsRequest::ArenaDtor(void* object) {
-  GetServicesConfigurationsRequest* _this = reinterpret_cast< GetServicesConfigurationsRequest* >(object);
-  (void)_this;
-}
-void GetServicesConfigurationsRequest::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServicesConfigurationsRequest::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServicesConfigurationsRequest::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServicesConfigurationsRequest& GetServicesConfigurationsRequest::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServicesConfigurationsRequest.base);
+  return *internal_default_instance();
+}
+
 
 void GetServicesConfigurationsRequest::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServicesConfigurationsRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* GetServicesConfigurationsRequest::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
-          goto success;
-        }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
-  }  // while
+bool GetServicesConfigurationsRequest::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServicesConfigurationsRequest)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+  handle_unusual:
+    if (tag == 0) {
+      goto success;
+    }
+    DO_(::google::protobuf::internal::WireFormat::SkipField(
+          input, tag, _internal_metadata_.mutable_unknown_fields()));
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServicesConfigurationsRequest)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServicesConfigurationsRequest)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServicesConfigurationsRequest::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsRequest)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServicesConfigurationsRequest::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServicesConfigurationsRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServicesConfigurationsRequest)
+}
+
+::google::protobuf::uint8* GetServicesConfigurationsRequest::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsRequest)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServicesConfigurationsRequest)
   return target;
@@ -1928,28 +2360,25 @@ size_t GetServicesConfigurationsRequest::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServicesConfigurationsRequest)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
   }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServicesConfigurationsRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServicesConfigurationsRequest)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServicesConfigurationsRequest* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServicesConfigurationsRequest>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServicesConfigurationsRequest>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServicesConfigurationsRequest)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServicesConfigurationsRequest)
     MergeFrom(*source);
@@ -1959,13 +2388,13 @@ void GetServicesConfigurationsRequest::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::
 void GetServicesConfigurationsRequest::MergeFrom(const GetServicesConfigurationsRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServicesConfigurationsRequest)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
 }
 
-void GetServicesConfigurationsRequest::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsRequest::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServicesConfigurationsRequest)
   if (&from == this) return;
   Clear();
@@ -1983,34 +2412,41 @@ bool GetServicesConfigurationsRequest::IsInitialized() const {
   return true;
 }
 
+void GetServicesConfigurationsRequest::Swap(GetServicesConfigurationsRequest* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServicesConfigurationsRequest::InternalSwap(GetServicesConfigurationsRequest* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServicesConfigurationsRequest::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[8]);
+::google::protobuf::Metadata GetServicesConfigurationsRequest::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // ===================================================================
 
-class GetServicesConfigurationsResponse::_Internal {
- public:
-};
+void GetServicesConfigurationsResponse::InitAsDefaultInstance() {
+}
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
+const int GetServicesConfigurationsResponse::kConfigsFieldNumber;
+#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
-GetServicesConfigurationsResponse::GetServicesConfigurationsResponse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
-  : ::PROTOBUF_NAMESPACE_ID::Message(arena),
-  configs_(arena) {
+GetServicesConfigurationsResponse::GetServicesConfigurationsResponse()
+  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
+  ::google::protobuf::internal::InitSCC(
+      &protobuf_config_2eproto::scc_info_GetServicesConfigurationsResponse.base);
   SharedCtor();
-  RegisterArenaDtor(arena);
-  // @@protoc_insertion_point(arena_constructor:config.GetServicesConfigurationsResponse)
+  // @@protoc_insertion_point(constructor:config.GetServicesConfigurationsResponse)
 }
 GetServicesConfigurationsResponse::GetServicesConfigurationsResponse(const GetServicesConfigurationsResponse& from)
-  : ::PROTOBUF_NAMESPACE_ID::Message(),
+  : ::google::protobuf::Message(),
+      _internal_metadata_(NULL),
       configs_(from.configs_) {
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
   // @@protoc_insertion_point(copy_constructor:config.GetServicesConfigurationsResponse)
 }
 
@@ -2020,95 +2456,125 @@ void GetServicesConfigurationsResponse::SharedCtor() {
 GetServicesConfigurationsResponse::~GetServicesConfigurationsResponse() {
   // @@protoc_insertion_point(destructor:config.GetServicesConfigurationsResponse)
   SharedDtor();
-  _internal_metadata_.Delete<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
 void GetServicesConfigurationsResponse::SharedDtor() {
-  GOOGLE_DCHECK(GetArena() == nullptr);
 }
 
-void GetServicesConfigurationsResponse::ArenaDtor(void* object) {
-  GetServicesConfigurationsResponse* _this = reinterpret_cast< GetServicesConfigurationsResponse* >(object);
-  (void)_this;
-}
-void GetServicesConfigurationsResponse::RegisterArenaDtor(::PROTOBUF_NAMESPACE_ID::Arena*) {
-}
 void GetServicesConfigurationsResponse::SetCachedSize(int size) const {
   _cached_size_.Set(size);
 }
+const ::google::protobuf::Descriptor* GetServicesConfigurationsResponse::descriptor() {
+  ::protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages].descriptor;
+}
+
+const GetServicesConfigurationsResponse& GetServicesConfigurationsResponse::default_instance() {
+  ::google::protobuf::internal::InitSCC(&protobuf_config_2eproto::scc_info_GetServicesConfigurationsResponse.base);
+  return *internal_default_instance();
+}
+
 
 void GetServicesConfigurationsResponse::Clear() {
 // @@protoc_insertion_point(message_clear_start:config.GetServicesConfigurationsResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  ::google::protobuf::uint32 cached_has_bits = 0;
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
   configs_.Clear();
-  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  _internal_metadata_.Clear();
 }
 
-const char* GetServicesConfigurationsResponse::_InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) {
-#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
-  while (!ctx->Done(&ptr)) {
-    ::PROTOBUF_NAMESPACE_ID::uint32 tag;
-    ptr = ::PROTOBUF_NAMESPACE_ID::internal::ReadTag(ptr, &tag);
-    switch (tag >> 3) {
+bool GetServicesConfigurationsResponse::MergePartialFromCodedStream(
+    ::google::protobuf::io::CodedInputStream* input) {
+#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
+  ::google::protobuf::uint32 tag;
+  // @@protoc_insertion_point(parse_start:config.GetServicesConfigurationsResponse)
+  for (;;) {
+    ::std::pair<::google::protobuf::uint32, bool> p = input->ReadTagWithCutoffNoLastTag(127u);
+    tag = p.first;
+    if (!p.second) goto handle_unusual;
+    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
       // repeated string configs = 1;
-      case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<::PROTOBUF_NAMESPACE_ID::uint8>(tag) == 10)) {
-          ptr -= 1;
-          do {
-            ptr += 1;
-            auto str = _internal_add_configs();
-            ptr = ::PROTOBUF_NAMESPACE_ID::internal::InlineGreedyStringParser(str, ptr, ctx);
-            CHK_(::PROTOBUF_NAMESPACE_ID::internal::VerifyUTF8(str, "config.GetServicesConfigurationsResponse.configs"));
-            CHK_(ptr);
-            if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<10>(ptr));
-        } else goto handle_unusual;
-        continue;
+      case 1: {
+        if (static_cast< ::google::protobuf::uint8>(tag) ==
+            static_cast< ::google::protobuf::uint8>(10u /* 10 & 0xFF */)) {
+          DO_(::google::protobuf::internal::WireFormatLite::ReadString(
+                input, this->add_configs()));
+          DO_(::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+            this->configs(this->configs_size() - 1).data(),
+            static_cast<int>(this->configs(this->configs_size() - 1).length()),
+            ::google::protobuf::internal::WireFormatLite::PARSE,
+            "config.GetServicesConfigurationsResponse.configs"));
+        } else {
+          goto handle_unusual;
+        }
+        break;
+      }
+
       default: {
       handle_unusual:
-        if ((tag == 0) || ((tag & 7) == 4)) {
-          CHK_(ptr);
-          ctx->SetLastTag(tag);
+        if (tag == 0) {
           goto success;
         }
-        ptr = UnknownFieldParse(tag,
-            _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
-            ptr, ctx);
-        CHK_(ptr != nullptr);
-        continue;
+        DO_(::google::protobuf::internal::WireFormat::SkipField(
+              input, tag, _internal_metadata_.mutable_unknown_fields()));
+        break;
       }
-    }  // switch
-  }  // while
+    }
+  }
 success:
-  return ptr;
+  // @@protoc_insertion_point(parse_success:config.GetServicesConfigurationsResponse)
+  return true;
 failure:
-  ptr = nullptr;
-  goto success;
-#undef CHK_
+  // @@protoc_insertion_point(parse_failure:config.GetServicesConfigurationsResponse)
+  return false;
+#undef DO_
 }
 
-::PROTOBUF_NAMESPACE_ID::uint8* GetServicesConfigurationsResponse::_InternalSerialize(
-    ::PROTOBUF_NAMESPACE_ID::uint8* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
-  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsResponse)
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+void GetServicesConfigurationsResponse::SerializeWithCachedSizes(
+    ::google::protobuf::io::CodedOutputStream* output) const {
+  // @@protoc_insertion_point(serialize_start:config.GetServicesConfigurationsResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   // repeated string configs = 1;
-  for (int i = 0, n = this->_internal_configs_size(); i < n; i++) {
-    const auto& s = this->_internal_configs(i);
-    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
-      s.data(), static_cast<int>(s.length()),
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+  for (int i = 0, n = this->configs_size(); i < n; i++) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->configs(i).data(), static_cast<int>(this->configs(i).length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
       "config.GetServicesConfigurationsResponse.configs");
-    target = stream->WriteString(1, s, target);
+    ::google::protobuf::internal::WireFormatLite::WriteString(
+      1, this->configs(i), output);
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormat::InternalSerializeUnknownFieldsToArray(
-        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    ::google::protobuf::internal::WireFormat::SerializeUnknownFields(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), output);
+  }
+  // @@protoc_insertion_point(serialize_end:config.GetServicesConfigurationsResponse)
+}
+
+::google::protobuf::uint8* GetServicesConfigurationsResponse::InternalSerializeWithCachedSizesToArray(
+    bool deterministic, ::google::protobuf::uint8* target) const {
+  (void)deterministic; // Unused
+  // @@protoc_insertion_point(serialize_to_array_start:config.GetServicesConfigurationsResponse)
+  ::google::protobuf::uint32 cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // repeated string configs = 1;
+  for (int i = 0, n = this->configs_size(); i < n; i++) {
+    ::google::protobuf::internal::WireFormatLite::VerifyUtf8String(
+      this->configs(i).data(), static_cast<int>(this->configs(i).length()),
+      ::google::protobuf::internal::WireFormatLite::SERIALIZE,
+      "config.GetServicesConfigurationsResponse.configs");
+    target = ::google::protobuf::internal::WireFormatLite::
+      WriteStringToArray(1, this->configs(i), target);
+  }
+
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    target = ::google::protobuf::internal::WireFormat::SerializeUnknownFieldsToArray(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()), target);
   }
   // @@protoc_insertion_point(serialize_to_array_end:config.GetServicesConfigurationsResponse)
   return target;
@@ -2118,36 +2584,33 @@ size_t GetServicesConfigurationsResponse::ByteSizeLong() const {
 // @@protoc_insertion_point(message_byte_size_start:config.GetServicesConfigurationsResponse)
   size_t total_size = 0;
 
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
-  // Prevent compiler warnings about cached_has_bits being unused
-  (void) cached_has_bits;
-
+  if ((_internal_metadata_.have_unknown_fields() &&  ::google::protobuf::internal::GetProto3PreserveUnknownsDefault())) {
+    total_size +=
+      ::google::protobuf::internal::WireFormat::ComputeUnknownFieldsSize(
+        (::google::protobuf::internal::GetProto3PreserveUnknownsDefault()   ? _internal_metadata_.unknown_fields()   : _internal_metadata_.default_instance()));
+  }
   // repeated string configs = 1;
   total_size += 1 *
-      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(configs_.size());
-  for (int i = 0, n = configs_.size(); i < n; i++) {
-    total_size += ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
-      configs_.Get(i));
+      ::google::protobuf::internal::FromIntSize(this->configs_size());
+  for (int i = 0, n = this->configs_size(); i < n; i++) {
+    total_size += ::google::protobuf::internal::WireFormatLite::StringSize(
+      this->configs(i));
   }
 
-  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
-    return ::PROTOBUF_NAMESPACE_ID::internal::ComputeUnknownFieldsSize(
-        _internal_metadata_, total_size, &_cached_size_);
-  }
-  int cached_size = ::PROTOBUF_NAMESPACE_ID::internal::ToCachedSize(total_size);
+  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   SetCachedSize(cached_size);
   return total_size;
 }
 
-void GetServicesConfigurationsResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsResponse::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:config.GetServicesConfigurationsResponse)
   GOOGLE_DCHECK_NE(&from, this);
   const GetServicesConfigurationsResponse* source =
-      ::PROTOBUF_NAMESPACE_ID::DynamicCastToGenerated<GetServicesConfigurationsResponse>(
+      ::google::protobuf::internal::DynamicCastToGenerated<const GetServicesConfigurationsResponse>(
           &from);
-  if (source == nullptr) {
+  if (source == NULL) {
   // @@protoc_insertion_point(generalized_merge_from_cast_fail:config.GetServicesConfigurationsResponse)
-    ::PROTOBUF_NAMESPACE_ID::internal::ReflectionOps::Merge(from, this);
+    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:config.GetServicesConfigurationsResponse)
     MergeFrom(*source);
@@ -2157,14 +2620,14 @@ void GetServicesConfigurationsResponse::MergeFrom(const ::PROTOBUF_NAMESPACE_ID:
 void GetServicesConfigurationsResponse::MergeFrom(const GetServicesConfigurationsResponse& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:config.GetServicesConfigurationsResponse)
   GOOGLE_DCHECK_NE(&from, this);
-  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
-  ::PROTOBUF_NAMESPACE_ID::uint32 cached_has_bits = 0;
+  _internal_metadata_.MergeFrom(from._internal_metadata_);
+  ::google::protobuf::uint32 cached_has_bits = 0;
   (void) cached_has_bits;
 
   configs_.MergeFrom(from.configs_);
 }
 
-void GetServicesConfigurationsResponse::CopyFrom(const ::PROTOBUF_NAMESPACE_ID::Message& from) {
+void GetServicesConfigurationsResponse::CopyFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_copy_from_start:config.GetServicesConfigurationsResponse)
   if (&from == this) return;
   Clear();
@@ -2182,52 +2645,57 @@ bool GetServicesConfigurationsResponse::IsInitialized() const {
   return true;
 }
 
+void GetServicesConfigurationsResponse::Swap(GetServicesConfigurationsResponse* other) {
+  if (other == this) return;
+  InternalSwap(other);
+}
 void GetServicesConfigurationsResponse::InternalSwap(GetServicesConfigurationsResponse* other) {
   using std::swap;
-  _internal_metadata_.Swap<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(&other->_internal_metadata_);
-  configs_.InternalSwap(&other->configs_);
+  configs_.InternalSwap(CastToBase(&other->configs_));
+  _internal_metadata_.Swap(&other->_internal_metadata_);
 }
 
-::PROTOBUF_NAMESPACE_ID::Metadata GetServicesConfigurationsResponse::GetMetadata() const {
-  return ::PROTOBUF_NAMESPACE_ID::internal::AssignDescriptors(
-      &descriptor_table_config_2eproto_getter, &descriptor_table_config_2eproto_once,
-      file_level_metadata_config_2eproto[9]);
+::google::protobuf::Metadata GetServicesConfigurationsResponse::GetMetadata() const {
+  protobuf_config_2eproto::protobuf_AssignDescriptorsOnce();
+  return ::protobuf_config_2eproto::file_level_metadata[kIndexInFileMessages];
 }
+
 
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace config
-PROTOBUF_NAMESPACE_OPEN
-template<> PROTOBUF_NOINLINE ::config::SetServiceConfigurationRequest* Arena::CreateMaybeMessage< ::config::SetServiceConfigurationRequest >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::SetServiceConfigurationRequest >(arena);
+namespace google {
+namespace protobuf {
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::SetServiceConfigurationRequest* Arena::CreateMaybeMessage< ::config::SetServiceConfigurationRequest >(Arena* arena) {
+  return Arena::CreateInternal< ::config::SetServiceConfigurationRequest >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::SetServiceConfigurationResponse* Arena::CreateMaybeMessage< ::config::SetServiceConfigurationResponse >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::SetServiceConfigurationResponse >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::SetServiceConfigurationResponse* Arena::CreateMaybeMessage< ::config::SetServiceConfigurationResponse >(Arena* arena) {
+  return Arena::CreateInternal< ::config::SetServiceConfigurationResponse >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServiceConfigurationRequest* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationRequest >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServiceConfigurationRequest >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServiceConfigurationRequest* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationRequest >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServiceConfigurationRequest >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServiceConfigurationResponse* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationResponse >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServiceConfigurationResponse >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServiceConfigurationResponse* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationResponse >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServiceConfigurationResponse >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServiceConfigurationByIdRequest* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationByIdRequest >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServiceConfigurationByIdRequest >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServiceConfigurationByIdRequest* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationByIdRequest >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServiceConfigurationByIdRequest >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServiceConfigurationByIdResponse* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationByIdResponse >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServiceConfigurationByIdResponse >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServiceConfigurationByIdResponse* Arena::CreateMaybeMessage< ::config::GetServiceConfigurationByIdResponse >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServiceConfigurationByIdResponse >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServicesConfigurationsByNameRequest* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsByNameRequest >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServicesConfigurationsByNameRequest >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServicesConfigurationsByNameRequest* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsByNameRequest >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServicesConfigurationsByNameRequest >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServicesConfigurationsByNameResponse* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsByNameResponse >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServicesConfigurationsByNameResponse >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServicesConfigurationsByNameResponse* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsByNameResponse >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServicesConfigurationsByNameResponse >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServicesConfigurationsRequest* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsRequest >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServicesConfigurationsRequest >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServicesConfigurationsRequest* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsRequest >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServicesConfigurationsRequest >(arena);
 }
-template<> PROTOBUF_NOINLINE ::config::GetServicesConfigurationsResponse* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsResponse >(Arena* arena) {
-  return Arena::CreateMessageInternal< ::config::GetServicesConfigurationsResponse >(arena);
+template<> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE ::config::GetServicesConfigurationsResponse* Arena::CreateMaybeMessage< ::config::GetServicesConfigurationsResponse >(Arena* arena) {
+  return Arena::CreateInternal< ::config::GetServicesConfigurationsResponse >(arena);
 }
-PROTOBUF_NAMESPACE_CLOSE
+}  // namespace protobuf
+}  // namespace google
 
 // @@protoc_insertion_point(global_scope)
-#include <google/protobuf/port_undef.inc>

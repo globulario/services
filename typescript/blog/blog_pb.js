@@ -698,7 +698,8 @@ proto.blog.BlogPost.toObject = function(includeInstance, msg) {
     commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
     proto.blog.Comment.toObject, includeInstance),
     thumbnail: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    status: jspb.Message.getFieldWithDefault(msg, 11, 0)
+    status: jspb.Message.getFieldWithDefault(msg, 11, 0),
+    mac: jspb.Message.getFieldWithDefault(msg, 12, "")
   };
 
   if (includeInstance) {
@@ -780,6 +781,10 @@ proto.blog.BlogPost.deserializeBinaryFromReader = function(msg, reader) {
     case 11:
       var value = /** @type {!proto.blog.BogPostStatus} */ (reader.readEnum());
       msg.setStatus(value);
+      break;
+    case 12:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMac(value);
       break;
     default:
       reader.skipField();
@@ -886,6 +891,13 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
   if (f !== 0.0) {
     writer.writeEnum(
       11,
+      f
+    );
+  }
+  f = message.getMac();
+  if (f.length > 0) {
+    writer.writeString(
+      12,
       f
     );
   }
@@ -1100,6 +1112,21 @@ proto.blog.BlogPost.prototype.getStatus = function() {
 /** @param {!proto.blog.BogPostStatus} value */
 proto.blog.BlogPost.prototype.setStatus = function(value) {
   jspb.Message.setProto3EnumField(this, 11, value);
+};
+
+
+/**
+ * optional string mac = 12;
+ * @return {string}
+ */
+proto.blog.BlogPost.prototype.getMac = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+};
+
+
+/** @param {string} value */
+proto.blog.BlogPost.prototype.setMac = function(value) {
+  jspb.Message.setProto3StringField(this, 12, value);
 };
 
 

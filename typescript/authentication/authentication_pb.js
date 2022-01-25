@@ -71,7 +71,8 @@ proto.authentication.AuthenticateRqst.prototype.toObject = function(opt_includeI
 proto.authentication.AuthenticateRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
     name: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    password: jspb.Message.getFieldWithDefault(msg, 2, "")
+    password: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    issuer: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -116,6 +117,10 @@ proto.authentication.AuthenticateRqst.deserializeBinaryFromReader = function(msg
       var value = /** @type {string} */ (reader.readString());
       msg.setPassword(value);
       break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIssuer(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -159,6 +164,13 @@ proto.authentication.AuthenticateRqst.serializeBinaryToWriter = function(message
       f
     );
   }
+  f = message.getIssuer();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
 };
 
 
@@ -189,6 +201,21 @@ proto.authentication.AuthenticateRqst.prototype.getPassword = function() {
 /** @param {string} value */
 proto.authentication.AuthenticateRqst.prototype.setPassword = function(value) {
   jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string issuer = 3;
+ * @return {string}
+ */
+proto.authentication.AuthenticateRqst.prototype.getIssuer = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/** @param {string} value */
+proto.authentication.AuthenticateRqst.prototype.setIssuer = function(value) {
+  jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
