@@ -71,7 +71,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 
 	TLS bool
@@ -436,6 +436,7 @@ func (server *server) publishRemoteEvent(address, evt string, data []byte) error
 func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
+		fmt.Println("-------> 439 NewResourceService_Client", err)
 		return nil, err
 	}
 
@@ -444,10 +445,12 @@ func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error
 
 	peers, err := client.GetPeers(`{"mac":"` + mac + `"}`)
 	if err != nil {
+		fmt.Println("-------> 448 GetPeers", err)
 		return nil, err
 	}
 
 	if len(peers) == 0 {
+		fmt.Println("-------> 453 ", err)
 		return nil, errors.New("no peer found with mac address " + Utility.MyMacAddr() + " at address " + address)
 	}
 
@@ -1073,11 +1076,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

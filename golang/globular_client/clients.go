@@ -117,6 +117,7 @@ func InitClient(client Client, address string, id string) error {
 	// http server. If not given thas mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
+
 	if !strings.Contains(address, ":") {
 		localConfig, _ := config.GetLocalConfig(true)
 		if strings.HasPrefix(address_, address) {
@@ -148,7 +149,7 @@ func InitClient(client Client, address string, id string) error {
 		// Remote client configuration
 		config_, err = config.GetRemoteConfig(domain, port, id)
 	}
-	
+
 	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
 		fmt.Println("fail to initialyse client with error ", err)
@@ -232,7 +233,7 @@ func InitClient(client Client, address string, id string) error {
 
 /**
  * That function is use to intercept all grpc client call for each client
- * if the connection is close a new connection will be made and the configuration 
+ * if the connection is close a new connection will be made and the configuration
  * will be updated to set correct information.
  */
 func clientInterceptor(client_ Client) func(
@@ -255,39 +256,39 @@ func clientInterceptor(client_ Client) func(
 
 		// Calls the invoker to execute RPC
 		err := invoker(ctx, method, req, reply, cc, opts...)
-	// Logic after invoking the invoker
-	if client_ != nil && err != nil {
-		// fmt.Println("Invoked RPC method=%s; Duration=%s; Error=%v", method, time.Since(start), err);
-		if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) {
-			// here the connection was lost an a new connection must be made...
-			config_, err := client_.GetConfiguration(client_.GetAddress(), client_.GetId())
-			if err == nil {
-				// Here I will test if the service as restarted...
-				
-				// Here I will test if the process his the same...
-				err := InitClient(client_, client_.GetAddress(), client_.GetId())
+		// Logic after invoking the invoker
+		if client_ != nil && err != nil {
+			// fmt.Println("Invoked RPC method=%s; Duration=%s; Error=%v", method, time.Since(start), err);
+			if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) {
+				// here the connection was lost an a new connection must be made...
+				config_, err := client_.GetConfiguration(client_.GetAddress(), client_.GetId())
 				if err == nil {
-					err := client_.Reconnect()
-					if err !=nil {
-						fmt.Println("fail to reconnect ", client_.GetId(), err)
-						fmt.Println( "port:", config_["Port"], "process:", config_["Process"])
-					}
+					// Here I will test if the service as restarted...
 
-					err = invoker(ctx, method, req, reply, cc, opts...)
-					if err != nil {
-						// display the error message to debug...
-						//fmt.Println("Connection to client ",  config_["Name"], " at address ", config_["Address"], config_["State"], config_["Process"],config_["Port"], "could not be made...", err)
+					// Here I will test if the process his the same...
+					err := InitClient(client_, client_.GetAddress(), client_.GetId())
+					if err == nil {
+						err := client_.Reconnect()
+						if err != nil {
+							fmt.Println("fail to reconnect ", client_.GetId(), err)
+							fmt.Println("port:", config_["Port"], "process:", config_["Process"])
+						}
+
+						err = invoker(ctx, method, req, reply, cc, opts...)
+						if err != nil {
+							// display the error message to debug...
+							//fmt.Println("Connection to client ",  config_["Name"], " at address ", config_["Address"], config_["State"], config_["Process"],config_["Port"], "could not be made...", err)
+						}
+						return err
+					} else {
+						fmt.Println("fail to get configuation for ", client_.GetId(), err)
 					}
-					return err
-				}else{
+				} else {
 					fmt.Println("fail to get configuation for ", client_.GetId(), err)
 				}
-			}else{
-				fmt.Println("fail to get configuation for ", client_.GetId(), err)
-			} 
+			}
+			//fmt.Println("------------> error ", err)
 		}
-		//fmt.Println("------------> error ", err)
-	}
 		return err
 	}
 }
