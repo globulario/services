@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -54,6 +55,13 @@ func GetAddress() (string, error) {
  * Return the computer name.
  */
 func GetHostName() (string, error) {
+	localConfig, err := GetLocalConfig(true)
+	if err == nil {
+		if len(localConfig["Name"].(string)) != 0 {
+			return strings.ToLower(localConfig["Name"].(string)), nil
+		}
+	}
+
 	hostname, err := os.Hostname()
 	if err != nil {
 		return "", err
@@ -240,23 +248,47 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
-
+	fmt.Println("Get remote config... ", address, port, id)
 	// The default port address.
 	if port == 0 {
 		port = 80
 	}
 
-	var configAddress = "http://" + address + ":" + Utility.ToString(port) + "/config"
-	//fmt.Println("get remote configuration from address ", configAddress)
-	resp, err = http.Get(configAddress)
+	// Try over
+	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
 	if err != nil {
+		fmt.Println("262 ----------> ", err)
 		return nil, err
 	}
 
 	defer resp.Body.Close()
 
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil && err.Error() != "EOF" {
+		return nil, err
+	}
+	// set back the error to nil
+	err = nil
+
+	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
+
+		if port == 0 {
+			port = 443
+		}
+		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
+		if err != nil {
+			return nil, err
+		}
+
+		body, err = ioutil.ReadAll(resp.Body)
+		if err != nil && err.Error() != "EOF" {
+			return nil, err
+		}
+		err = nil
+	}
+
 	var config map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&config)
+	err = json.Unmarshal(body, &config)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +300,6 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 				return s.(map[string]interface{}), nil
 			}
 		}
-
 	}
 
 	return config, nil
@@ -725,7 +756,7 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 	path := s["ConfigPath"].(string)
 	path = strings.ReplaceAll(path, "\\", "/")
 	if s["ModTime"] == nil {
-		s["ModTime"] = 0;
+		s["ModTime"] = 0
 	}
 	if Utility.Exists(path) {
 		info, _ := os.Stat(path)
