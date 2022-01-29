@@ -337,7 +337,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 			}
 		}
 
-		// In that particular case I will set the issuer to the current mac... 
+		// In that particular case I will set the issuer to the current mac...
 		issuer = Utility.MyMacAddr()
 
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
@@ -428,6 +428,15 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	// Now I will try each peer...
 	if err != nil {
 		fmt.Println("fail to authenticate on " + rqst.Issuer + " i will try to authenticate peers...")
+		uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
+		if Utility.Contains(server.authentications_, uuid) {
+			Utility.RemoveString(server.authentications_, uuid)
+			return nil, errors.New("fail to authenticate " + rqst.Name + " on " + rqst.Issuer)
+		}
+
+		// append the string in the list to cut infinite recursion
+		server.authentications_ = append(server.authentications_, uuid)
+
 		// I will try to authenticate the peer on other resource service...
 		peers, err := server.getPeers()
 		if err == nil {
@@ -457,7 +466,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to authenticate user "+rqst.Name + " from " + rqst.Issuer)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to authenticate user "+rqst.Name+" from "+rqst.Issuer)))
 	}
 
 	return &authenticationpb.AuthenticateRsp{

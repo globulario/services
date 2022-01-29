@@ -98,6 +98,9 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+
+	// use to cut infinite recursion.
+	authentications_ []string
 }
 
 // The http address where the configuration can be found /config
@@ -731,6 +734,7 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.exit_ = make(chan bool)
 	s_impl.LdapConnectionId = ""
+	s_impl.authentications_ = make([]string, 0)
 	
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
