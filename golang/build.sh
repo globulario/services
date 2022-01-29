@@ -1,6 +1,8 @@
 
 #There is the command to build all services at once.
 # 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
+#There is the command to build all services at once.
+# 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
 go build -o ./admin/admin_server ./admin/admin_server
 go build -o ./applications_manager/applications_manager_server ./applications_manager/applications_manager_server
 go build -o ./services_manager/services_manager_server ./services_manager/services_manager_server
