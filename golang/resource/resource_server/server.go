@@ -492,14 +492,9 @@ func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
 	if err != nil {
 		return err
 	}
-
-	domain := peer.GetHostname()
-	if len(peer.GetDomain()) > 0 {
-		domain += "." + peer.GetDomain()
-	}
-
+	
 	if peer.ExternalIpAddress == Utility.MyIP() {
-		hosts.AddHost(peer.LocalIpAddress, domain)
+		hosts.AddHost(peer.LocalIpAddress, peer.GetDomain())
 	} else {
 		return errors.New("the peer is not on the same local network")
 	}
