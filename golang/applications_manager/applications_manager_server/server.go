@@ -424,7 +424,7 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
 		return resourceClient, nil
 	}
 
-	resourceClient, err = resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	resourceClient, err = resource_client.NewResourceService_Client(svr.Address, "resource.ResourceService")
 	if err != nil {
 		resourceClient = nil
 		return nil, err
@@ -506,7 +506,7 @@ func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, erro
 		return discoveryClient, nil
 	}
 
-	discoveryClient, err := discovery_client.NewDiscoveryService_Client(svr.Domain, "discovery.PackageDiscovery")
+	discoveryClient, err := discovery_client.NewDiscoveryService_Client(svr.Address, "discovery.PackageDiscovery")
 	if err != nil {
 		return nil, err
 	}
@@ -555,7 +555,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	if err != nil {
 		return
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 ///////////////////// event service functions ////////////////////////////////////
@@ -564,7 +564,7 @@ func (svr *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-	event_client_, err = event_client.NewEventService_Client(svr.Domain, "event.EventService")
+	event_client_, err = event_client.NewEventService_Client(svr.Address, "event.EventService")
 	if err != nil {
 		return nil, err
 	}

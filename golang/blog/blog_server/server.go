@@ -503,10 +503,10 @@ func (svr *server) subscribe(evt string, listener func(evt *eventpb.Event)) erro
 /**
  * Get the rbac client.
  */
-func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}
@@ -515,7 +515,7 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 	return rbac_client_, nil
 }
 func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	rbac_client_, err := GetRbacClient(server.Domain)
+	rbac_client_, err := GetRbacClient(server.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -524,7 +524,7 @@ func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, 
 }
 
 func (server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
-	rbac_client_, err := GetRbacClient(server.Domain)
+	rbac_client_, err := GetRbacClient(server.Address)
 	if err != nil {
 		return err
 	}
@@ -532,7 +532,7 @@ func (server *server) setResourcePermissions(path string, permissions *rbacpb.Pe
 }
 
 func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	rbac_client_, err := GetRbacClient(server.Domain)
+	rbac_client_, err := GetRbacClient(server.Address)
 	if err != nil {
 		return false, false, err
 	}
@@ -542,7 +542,7 @@ func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectT
 }
 
 func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Domain)
+	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -550,7 +550,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := GetRbacClient(svr.Domain)
+	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}

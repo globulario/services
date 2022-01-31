@@ -464,7 +464,7 @@ func StartService(s Service, server *grpc.Server) error {
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
 		// no web-rpc server.
-		fmt.Println("service name: "+s.GetName()+" id:"+s.GetId()+" is lisen at gRPC port", s.GetPort(), "and process id is ", s.GetProcess())
+		fmt.Println("service name: "+s.GetName()+" id:"+s.GetId()+" is listening at gRPC port", s.GetPort(), "and process id is ", s.GetProcess())
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
 			return

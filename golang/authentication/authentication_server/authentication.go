@@ -118,8 +118,18 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) == 0 {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+		}
+	}
+
 	// Now I will update the account...
-	err = server.changeAccountPassword(rqst.AccountId, rqst.OldPassword, rqst.NewPassword)
+	err = server.changeAccountPassword(rqst.AccountId, token, rqst.OldPassword, rqst.NewPassword)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -368,11 +378,17 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		if len(server.LdapConnectionId) != 0 {
 			err := server.authenticateLdap(account.Name, pwd)
 			if err != nil {
+				fmt.Println("fail to authenticate with error ", err)
 				return "", err
 			}
 			// set back the password.
 			// the old password can be left blank if the token was generated for sa.
-			err = server.changeAccountPassword(account.Id, ``, pwd)
+			token, err := config.GetToken(server.Domain)
+			if err != nil {
+				return "", err
+			}
+
+			err = server.changeAccountPassword(account.Id, token,  "", pwd)
 			if err != nil {
 				fmt.Println("fail to change password: ", account.Id, err)
 				return "", err

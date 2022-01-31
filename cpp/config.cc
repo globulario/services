@@ -182,10 +182,10 @@ Globular::ConfigClient* getConfigClient(std::string domain, int port){
 }
 
 // Return the service configuration
-std::string getServiceConfig(std::string serviceId, std::string domain, std::string config_path){
+std::string getServiceConfig(std::string serviceId, std::string address, std::string config_path){
     // First option the configuration manager
     try {
-        auto config_client_ = getConfigClient(domain, getHttpPort());
+        auto config_client_ = getConfigClient(address, getHttpPort());
         if(config_client_!= 0) {
             std::string config_ = config_client_->getServiceConfiguration(serviceId);
             if(!config_.empty()){
@@ -202,9 +202,9 @@ std::string getServiceConfig(std::string serviceId, std::string domain, std::str
     }
 }
 
-void setServiceConfig(std::string serviceId, std::string domain, std::string config, std::string config_path){
+void setServiceConfig(std::string serviceId, std::string address, std::string config, std::string config_path){
     try {
-        auto config_client_ = getConfigClient(domain, getHttpPort());
+        auto config_client_ = getConfigClient(address, getHttpPort());
         if(config_client_!= 0) {
             if(config_client_->setServiceConfiguration(config)){
                 return;

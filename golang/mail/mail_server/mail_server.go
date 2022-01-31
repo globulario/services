@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
@@ -93,6 +94,9 @@ type server struct {
 
 	// The map of connection...
 	Connections map[string]connection
+
+	// The persistence service...
+	Persistence_address string
 
 	// The smtp server port
 	SMTP_Port     int
@@ -728,6 +732,7 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.Password = "adminadmin" // The default password for the admin.
 	s_impl.KeepAlive = true
+	s_impl.Persistence_address, _ = config.GetAddress() // default set to the same server...
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
@@ -755,15 +760,16 @@ func main() {
 			certFile = certFile[0:strings.Index(certFile, "server.crt")] + s_impl.Domain + ".crt"
 		}
 
-		address := string(strings.Split(s_impl.DbIpV4, ":")[0])
-		port := Utility.ToInt(strings.Split(s_impl.DbIpV4, ":")[1])
 
 		// The backend connection.
-		store, err := persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
+		store, err := persistence_client.NewPersistenceService_Client(s_impl.Persistence_address, "persistence.PersistenceService")
 		if err != nil {
 			return
 		}
 
+		address := string(strings.Split(s_impl.DbIpV4, ":")[0])
+		port := Utility.ToInt(strings.Split(s_impl.DbIpV4, ":")[1])
+		
 		// set variable for imap and smtp
 		imap.Backend_address = address
 		smtp.Backend_address = address

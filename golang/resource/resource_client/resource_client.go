@@ -470,14 +470,18 @@ func (client *Resource_Client) GetAccount(id string) (*resourcepb.Account, error
 }
 
 // Set the new password.
-func (client *Resource_Client) SetAccountPassword(accountId, oldPassword, newPassword string) error {
+func (client *Resource_Client) SetAccountPassword(accountId, token, oldPassword, newPassword string) error {
 	rqst := &resourcepb.SetAccountPasswordRqst{
 		AccountId:   accountId,
 		OldPassword: oldPassword,
 		NewPassword: newPassword,
 	}
 
-	_, err := client.c.SetAccountPassword(client.GetCtx(), rqst)
+	// append the token.
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	_, err := client.c.SetAccountPassword(ctx, rqst)
 
 	if err != nil {
 		return err

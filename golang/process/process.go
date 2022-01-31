@@ -68,10 +68,10 @@ var (
 /**
  * Get the log client.
  */
-func getLogClient(domain string) (*log_client.Log_Client, error) {
+func getLogClient(address string) (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(domain, "log.LogService")
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}
@@ -80,12 +80,12 @@ func getLogClient(domain string) (*log_client.Log_Client, error) {
 	return log_client_, nil
 }
 
-func logInfo(name, domain, fileLine, functionName, message string, level logpb.LogLevel) {
-	log_client_, err := getLogClient(domain)
+func logInfo(name, address, fileLine, functionName, message string, level logpb.LogLevel) {
+	log_client_, err := getLogClient(address)
 	if err != nil {
 		return
 	}
-	log_client_.Log(name, domain, functionName, level, message, fileLine, functionName)
+	log_client_.Log(name, address, functionName, level, message, fileLine, functionName)
 }
 
 // Start a service process.
@@ -264,10 +264,10 @@ var (
 /**
  * Get local event client.
  */
-func getEventClient(domain string) (*event_client.Event_Client, error) {
+func getEventClient(address string) (*event_client.Event_Client, error) {
 	var err error
 	if event_client_ == nil {
-		event_client_, err = event_client.NewEventService_Client(domain, "event.EventService")
+		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
 		if err != nil {
 			return nil, err
 		}

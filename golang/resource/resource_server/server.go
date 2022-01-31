@@ -525,10 +525,10 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 }
 
 /////////////////////////////////////// Get Persistence Client //////////////////////////////////////////
-func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	var err error
 	if persistence_client_ == nil {
-		persistence_client_, err = persistence_client.NewPersistenceService_Client(domain, "persistence.PersistenceService")
+		persistence_client_, err = persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
 		if err != nil {
 			persistence_client_ = nil
 			log.Println("fail to get persistence client with error ", err)
@@ -560,10 +560,10 @@ func (server *server) createApplicationConnection(app *resourcepb.Application) e
 /**
  * Get the rbac client.
  */
-func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}
@@ -574,7 +574,7 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
 	var err error
-	rbac_client_, err = GetRbacClient(svr.Domain)
+	rbac_client_, err = GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -585,7 +585,7 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 }
 
 func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Domain)
+	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -594,7 +594,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 }
 
 func (svr *server) deleteResourcePermissions(path string) error {
-	rbac_client_, err := GetRbacClient(svr.Domain)
+	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}

@@ -417,7 +417,7 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
 		return resourceClient, nil
 	}
 
-	resourceClient, err = resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	resourceClient, err = resource_client.NewResourceService_Client(svr.Address, "resource.ResourceService")
 	if err != nil {
 		return nil, err
 	}

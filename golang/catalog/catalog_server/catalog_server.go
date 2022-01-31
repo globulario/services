@@ -395,14 +395,14 @@ func (svr *server) Init() error {
 	// Connect to the persistence service.
 	if svr.Services["Persistence"] != nil {
 		persistence_service := svr.Services["Persistence"].(map[string]interface{})
-		domain := persistence_service["Domain"].(string)
-		svr.persistenceClient, err = persistence_client.NewPersistenceService_Client(domain, "persistence.PersistenceService")
+		address := persistence_service["Address"].(string)
+		svr.persistenceClient, err = persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
 		if err != nil {
 			log.Println("fail to connect to persistence service ", err)
 		}
 	} else {
 		svr.Services["Persistence"] = make(map[string]interface{})
-		svr.Services["Persistence"].(map[string]interface{})["Domain"] = "localhost"
+		svr.Services["Persistence"].(map[string]interface{})["Address"] = "localhost"
 		svr.persistenceClient, err = persistence_client.NewPersistenceService_Client("localhost", "persistence.PersistenceService")
 		if err != nil {
 			log.Println("fail to connect to persistence service ", err)
@@ -411,8 +411,8 @@ func (svr *server) Init() error {
 
 	if svr.Services["Event"] != nil {
 		event_service := svr.Services["Event"].(map[string]interface{})
-		domain := event_service["Domain"].(string)
-		svr.eventClient, err = event_client.NewEventService_Client(domain, "event.EventService")
+		address := event_service["Address"].(string)
+		svr.eventClient, err = event_client.NewEventService_Client(address, "event.EventService")
 		if err != nil {
 			log.Println("fail to connect to event service ", err)
 		}

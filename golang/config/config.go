@@ -167,6 +167,28 @@ func GetWebRootDir() string {
 }
 
 /**
+ * Read token for a given domain.
+ */
+func GetToken(domain string) (string,error){
+	domain, err := GetDomain()
+	if err != nil {
+		return "", err
+	}
+	path := GetConfigDir() + "/tokens/" + domain + "_token"
+	if !Utility.Exists(path){
+		return "",  errors.New("no token found for domain " + domain + " at path " + path)
+	}
+
+	token, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Println()
+		return "",  errors.New("fail to read token at path " + path + " with error: " + err.Error())
+	}
+
+	return string(token), nil
+}
+
+/**
  * Insert an object to an array at a given index
  */
 func insertObject(array []map[string]interface{}, value map[string]interface{}, index int) []map[string]interface{} {
@@ -589,7 +611,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			}
 
 			// Keep the configuration path in the object...
-			s["ConfigPath"] = path
+			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/")
 
 			if s["Root"] != nil {
 				if s["Name"] == "file.FileService" {
@@ -738,7 +760,7 @@ func initConfig() {
 			fmt.Println("fail to initialyse service configuration from file "+path, " with error ", err)
 		} else {
 			// save back the file...
-			s["ConfigPath"] = path // set the service configuration path.
+			s["ConfigPath"] =  strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
 			services = append(services, s)
 		}
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 
@@ -447,10 +448,10 @@ var (
 /**
  * Get the rbac client.
  */
-func GetLdapClient(domain string) (*ldap_client.LDAP_Client, error) {
+func GetLdapClient(address string) (*ldap_client.LDAP_Client, error) {
 	var err error
 	if ldap_client_ == nil {
-		ldap_client_, err = ldap_client.NewLdapService_Client(domain, "ldap.LdapService")
+		ldap_client_, err = ldap_client.NewLdapService_Client(address, "ldap.LdapService")
 		if err != nil {
 			return nil, err
 		}
@@ -461,8 +462,9 @@ func GetLdapClient(domain string) (*ldap_client.LDAP_Client, error) {
 
 // Authenticate user with LDAP server.
 func (svr *server) authenticateLdap(userId string, password string) error {
-	ldap_client_, err := GetLdapClient(svr.Domain)
+	ldap_client_, err := GetLdapClient(svr.Address)
 	if err != nil {
+		fmt.Println("fail to connect to ldap service with error: ", err)
 		return err
 	}
 
@@ -474,10 +476,10 @@ func (svr *server) authenticateLdap(userId string, password string) error {
 /**
  * Get the rbac client.
  */
-func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}
@@ -487,7 +489,7 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 }
 
 func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
-	rbac_client_, err := GetRbacClient(svr.Domain)
+	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
@@ -533,7 +535,7 @@ func (svr *server) getEventClient() (*event_client.Event_Client, error) {
 	if event_client_ != nil {
 		return event_client_, nil
 	}
-	event_client_, err = event_client.NewEventService_Client(svr.Domain, "event.EventService")
+	event_client_, err = event_client.NewEventService_Client(svr.Address, "event.EventService")
 	if err != nil {
 		return nil, err
 	}
@@ -550,13 +552,13 @@ func (svr *server) publish(event string, data []byte) error {
 }
 
 ///////////////////// resource service functions ////////////////////////////////////
-func (svr *server) getResourceClient(domain string) (*resource_client.Resource_Client, error) {
+func (svr *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	var err error
 	if resource_client_ != nil {
 		return resource_client_, nil
 	}
 
-	resource_client_, err = resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+	resource_client_, err = resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		resource_client_ = nil
 		return nil, err
@@ -617,20 +619,19 @@ func (svr *server) getAccount(accountId string) (*resourcepb.Account, error) {
 	return resourceClient.GetAccount(accountId)
 }
 
-func (svr *server) changeAccountPassword(accountId, oldPassword, newPassword string) error {
-	resourceClient, err := svr.getResourceClient(svr.GetDomain())
+func (svr *server) changeAccountPassword(accountId, token, oldPassword, newPassword string) error {
+	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return err
 	}
-
-	return resourceClient.SetAccountPassword(accountId, oldPassword, newPassword)
+	return resourceClient.SetAccountPassword(accountId, token, oldPassword, newPassword)
 }
 
 /**
  * Return a peer with a given id
  */
 func (svr *server) getPeers() ([]*resourcepb.Peer, error) {
-	resourceClient, err := svr.getResourceClient(svr.Domain)
+	resourceClient, err := svr.getResourceClient(svr.Address)
 	if err != nil {
 		return nil, err
 	}

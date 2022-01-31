@@ -5,7 +5,6 @@ import (
 	// "log"
 
 	"encoding/json"
-
 	"context"
 
 	"github.com/globulario/services/golang/config/config_client"
@@ -275,7 +274,9 @@ func (client *LDAP_Client) Authenticate(connectionId string, userId string, pass
 		Pwd:   password,
 	}
 
+	
 	_, err := client.c.Authenticate(client.GetCtx(), rqst)
+
 	return err
 }
 

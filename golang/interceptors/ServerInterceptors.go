@@ -48,10 +48,10 @@ var (
 	clients sync.Map
 )
 
-func GetLogClient(domain string) (*log_client.Log_Client, error) {
+func GetLogClient(address string) (*log_client.Log_Client, error) {
 	var err error
 	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(domain, "log.LogService")
+		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
 		if err != nil {
 			return nil, err
 		}
@@ -63,10 +63,10 @@ func GetLogClient(domain string) (*log_client.Log_Client, error) {
 /**
  * Get the rbac client.
  */
-func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +126,7 @@ func invoke(address, method string, rqst interface{}, ctx context.Context) (inte
 /**
  * Keep method info in memory.
  */
-func getActionResourceInfos(domain, method string) ([]*rbacpb.ResourceInfos, error) {
+func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, error) {
 
 	// init the ressourceInfos
 	val, ok := ressourceInfos.Load(method)
@@ -134,7 +134,7 @@ func getActionResourceInfos(domain, method string) ([]*rbacpb.ResourceInfos, err
 		return val.([]*rbacpb.ResourceInfos), nil
 	}
 
-	rbac_client_, err := GetRbacClient(domain)
+	rbac_client_, err := GetRbacClient(address)
 	if err != nil {
 		return nil, err
 	}
@@ -151,9 +151,9 @@ func getActionResourceInfos(domain, method string) ([]*rbacpb.ResourceInfos, err
 
 }
 
-func validateAction(token, application, domain, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
+func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
 
-	id := domain + method + token
+	id := address + method + token
 	for i := 0; i < len(infos); i++ {
 		id += infos[i].Permission + infos[i].Path
 	}
@@ -176,7 +176,7 @@ func validateAction(token, application, domain, organization, method, subject st
 		cache.Delete(uuid)
 	}
 
-	rbac_client_, err := GetRbacClient(domain)
+	rbac_client_, err := GetRbacClient(address)
 	if err != nil {
 		return false, err
 	}

@@ -469,7 +469,7 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
 		return resource_client_, nil
 	}
 
-	resource_client_, err = resource_client.NewResourceService_Client(svr.Domain, "resource.ResourceService")
+	resource_client_, err = resource_client.NewResourceService_Client(svr.Address, "resource.ResourceService")
 	if err != nil {
 		resource_client_ = nil
 		return nil, err
@@ -791,7 +791,7 @@ func (server *server) synchronize() error {
 
 	for connectionId, syncInfo_ := range server.LdapSyncInfos {
 		syncInfo := syncInfo_.(map[string]interface{})
-		GroupSyncInfo := syncInfo["GroupSyncInfo"].(map[string]interface{})
+		GroupSyncInfo := syncInfo["GroupSyncInfos"].(map[string]interface{})
 		groupsInfo, err := server.search(connectionId, GroupSyncInfo["Base"].(string), GroupSyncInfo["Query"].(string), []string{GroupSyncInfo["Id"].(string), "distinguishedName"})
 		if err != nil {
 			fmt.Println("fail to retreive group info", err)
@@ -809,7 +809,7 @@ func (server *server) synchronize() error {
 		}
 
 		// Synchronize account and user info...
-		UserSyncInfo := syncInfo["UserSyncInfo"].(map[string]interface{})
+		UserSyncInfo := syncInfo["UserSyncInfos"].(map[string]interface{})
 		accountsInfo, err := server.search(connectionId, UserSyncInfo["Base"].(string), UserSyncInfo["Query"].(string), []string{UserSyncInfo["Id"].(string), UserSyncInfo["Email"].(string), "distinguishedName", "memberOf"})
 		if err != nil {
 			fmt.Println("fail to retreive account info", err)
@@ -819,68 +819,71 @@ func (server *server) synchronize() error {
 		for i := 0; i < len(accountsInfo); i++ {
 			// Print the list of account...
 			// I will not set the password...
-			name := strings.ToLower(accountsInfo[i][0].([]string)[0])
+			if len(accountsInfo[i]) > 0 {
+				if len(accountsInfo[i][0].([]string)) > 0 {
+					name := strings.ToLower(accountsInfo[i][0].([]string)[0])
+					if len(accountsInfo[i][1].([]string)) > 0 {
+						email := strings.ToLower(accountsInfo[i][1].([]string)[0])
 
-			if len(accountsInfo[i][1].([]string)) > 0 {
-				email := strings.ToLower(accountsInfo[i][1].([]string)[0])
+						if len(email) > 0 {
+							// Generate the
+							id := name //strings.ToLower(accountsInfo[i][2].([]string)[0])
 
-				if len(email) > 0 {
-					// Generate the
-					id := name //strings.ToLower(accountsInfo[i][2].([]string)[0])
-
-					if strings.Index(id, "@") > 0 {
-						id = strings.Split(id, "@")[0]
-					}
-
-					if len(id) > 0 {
-
-						// Try to create account...
-						a, err := server.getAccount(id)
-						if err != nil {
-							err := server.registerAccount(server.Domain, id, name, email, id)
-							if err != nil {
-								fmt.Println("fail to register account ", id, err)
+							if strings.Index(id, "@") > 0 {
+								id = strings.Split(id, "@")[0]
 							}
-						}
 
-						a, err = server.getAccount(id)
+							if len(id) > 0 {
 
-						// Now I will update the groups user list...
-						if err == nil {
-							if len(accountsInfo[i][3].([]string)) > 0 && a != nil {
-								groups := accountsInfo[i][3].([]string)
-								// Append not existing group...
-								for j := 0; j < len(groups); j++ {
-									groupId := Utility.GenerateUUID(groups[j])
-
-									if !Utility.Contains(a.Groups, groupId) {
-										// Now I will remo
-										err := server.addGroupMemberAccount(groupId, a.Id)
-										if err != nil {
-											fmt.Println("fail to add account ", a.Id, " to ", groupId, err)
-										}
+								// Try to create account...
+								a, err := server.getAccount(id)
+								if err != nil {
+									err := server.registerAccount(server.Domain, id, name, email, id)
+									if err != nil {
+										fmt.Println("fail to register account ", id, err)
 									}
-
 								}
 
-								// Remove group that no more part of the ldap group.
-								for j := 0; j < len(a.Groups); j++ {
-									groupId := a.Groups[j]
-									if !Utility.Contains(groups, groupId) {
-										// Now I will remo
-										err := server.removeGroupMemberAccount(groupId, a.Id)
-										if err != nil {
-											fmt.Println("fail to remove account ", a.Id, " from group ", groupId, " with error ", err)
+								a, err = server.getAccount(id)
+
+								// Now I will update the groups user list...
+								if err == nil {
+									if len(accountsInfo[i][3].([]string)) > 0 && a != nil {
+										groups := accountsInfo[i][3].([]string)
+										// Append not existing group...
+										for j := 0; j < len(groups); j++ {
+											groupId := Utility.GenerateUUID(groups[j])
+
+											if !Utility.Contains(a.Groups, groupId) {
+												// Now I will remo
+												err := server.addGroupMemberAccount(groupId, a.Id)
+												if err != nil {
+													fmt.Println("fail to add account ", a.Id, " to ", groupId, err)
+												}
+											}
+
+										}
+
+										// Remove group that no more part of the ldap group.
+										for j := 0; j < len(a.Groups); j++ {
+											groupId := a.Groups[j]
+											if !Utility.Contains(groups, groupId) {
+												// Now I will remo
+												err := server.removeGroupMemberAccount(groupId, a.Id)
+												if err != nil {
+													fmt.Println("fail to remove account ", a.Id, " from group ", groupId, " with error ", err)
+												}
+											}
+
 										}
 									}
-
 								}
-							}
-						}
 
+							}
+						} else {
+							return errors.New("account " + strings.ToLower(accountsInfo[i][2].([]string)[0]) + " has no email configured! ")
+						}
 					}
-				} else {
-					return errors.New("account " + strings.ToLower(accountsInfo[i][2].([]string)[0]) + " has no email configured! ")
 				}
 			}
 		}

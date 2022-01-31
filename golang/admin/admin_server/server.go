@@ -414,10 +414,10 @@ var (
 /**
  * Get the rbac client.
  */
-func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
 		if err != nil {
 
 			return nil, err
@@ -428,7 +428,7 @@ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := GetRbacClient(svr.Domain)
+	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}

@@ -295,7 +295,7 @@ func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, pu
 	bundle.Plaform = platform
 
 	// Here I will find the service descriptor from the given information.
-	resource_client_, err := resource_client.NewResourceService_Client(client.domain, "resource.ResourceService")
+	resource_client_, err := resource_client.NewResourceService_Client(client.address, "resource.ResourceService")
 	if err != nil {
 		resource_client_ = nil
 		return err
