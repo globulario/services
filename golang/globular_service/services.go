@@ -195,24 +195,47 @@ func InitService(s Service) error {
 	} else if len(os.Args) == 2 {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
-		s.SetId(Utility.RandomUUID())
 
 		// Now I will set the path where the configuation will be save in that case.
 		dir, _ := osext.ExecutableFolder()
 		serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
 		path := strings.ReplaceAll(dir, "\\", "/")
+
 		if len(serviceRoot) > 0 {
 			s.SetConfigurationPath(path + "/config.json")
 		} else {
+
 			// In that case the path will be create from the service properties.
-			var serviceDir = config.GetServicesConfigDir() + "/services/"
+			var serviceDir = config.GetServicesConfigDir() + "/"
 			if len(s.GetPublisherId()) == 0 {
 				serviceDir += s.GetDomain() + "/" + s.GetName() + "/" + s.GetVersion()
 			} else {
 				serviceDir += s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion()
 			}
-			// set the service dir.
-			s.SetConfigurationPath(serviceDir)
+
+			// Here I will get the existing uuid...
+			values := strings.Split(execPath, "/")
+			uuid := values[len(values)-2] // the path must be at /uuid/name_server.exe
+			
+			if Utility.IsUuid(uuid) {
+			
+				s.SetId(uuid)
+				configPath := serviceDir + "/" + uuid + "/config.json"
+
+				// set the service dir.
+				s.SetConfigurationPath(configPath)
+				log.Println("------------> 225 ", configPath)
+			}else{
+				// Set the configuration dir...
+				uuid = Utility.RandomUUID()
+				s.SetId(uuid)
+				Utility.CreateDirIfNotExist(serviceDir + "/" + uuid)
+				configPath := serviceDir + "/" + uuid + "/config.json"
+				log.Println("------------> 229 ", configPath)
+				
+				s.SetConfigurationPath(configPath)
+			}
+
 		}
 	}
 

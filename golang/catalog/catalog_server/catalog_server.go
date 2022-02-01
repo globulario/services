@@ -11,6 +11,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/catalog/catalog_client"
 	"github.com/globulario/services/golang/catalog/catalogpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -390,20 +391,11 @@ func (svr *server) Init() error {
 		return err
 	}
 
-	svr.Services = make(map[string]interface{})
-
 	// Connect to the persistence service.
 	if svr.Services["Persistence"] != nil {
 		persistence_service := svr.Services["Persistence"].(map[string]interface{})
 		address := persistence_service["Address"].(string)
 		svr.persistenceClient, err = persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
-		if err != nil {
-			log.Println("fail to connect to persistence service ", err)
-		}
-	} else {
-		svr.Services["Persistence"] = make(map[string]interface{})
-		svr.Services["Persistence"].(map[string]interface{})["Address"] = "localhost"
-		svr.persistenceClient, err = persistence_client.NewPersistenceService_Client("localhost", "persistence.PersistenceService")
 		if err != nil {
 			log.Println("fail to connect to persistence service ", err)
 		}
@@ -413,13 +405,6 @@ func (svr *server) Init() error {
 		event_service := svr.Services["Event"].(map[string]interface{})
 		address := event_service["Address"].(string)
 		svr.eventClient, err = event_client.NewEventService_Client(address, "event.EventService")
-		if err != nil {
-			log.Println("fail to connect to event service ", err)
-		}
-	} else {
-		svr.Services["Event"] = make(map[string]interface{})
-		svr.Services["Event"].(map[string]interface{})["Domain"] = "localhost"
-		svr.eventClient, err = event_client.NewEventService_Client("localhost", "event.EventService")
 		if err != nil {
 			log.Println("fail to connect to event service ", err)
 		}
@@ -2499,14 +2484,22 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
+
+	// Read service information.
+	s_impl.Services = make(map[string]interface{})
+	s_impl.Services["Persistence"] = make(map[string]interface{})
+	s_impl.Services["Persistence"].(map[string]interface{})["Address"], _ = config.GetAddress()
+	s_impl.Services["Event"] = make(map[string]interface{})
+	s_impl.Services["Event"].(map[string]interface{})["Address"], _ = config.GetAddress()
+
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 	// Here I will retreive the list of connections from file if there are some...
@@ -2514,7 +2507,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
-
 
 	// Register the echo services
 	catalogpb.RegisterCatalogServiceServer(s_impl.grpcServer, s_impl)
