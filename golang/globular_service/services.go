@@ -224,15 +224,12 @@ func InitService(s Service) error {
 
 				// set the service dir.
 				s.SetConfigurationPath(configPath)
-				log.Println("------------> 225 ", configPath)
 			}else{
 				// Set the configuration dir...
 				uuid = Utility.RandomUUID()
 				s.SetId(uuid)
 				Utility.CreateDirIfNotExist(serviceDir + "/" + uuid)
 				configPath := serviceDir + "/" + uuid + "/config.json"
-				log.Println("------------> 229 ", configPath)
-				
 				s.SetConfigurationPath(configPath)
 			}
 

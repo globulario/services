@@ -445,8 +445,9 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	if err != nil {
 		fmt.Println("fail to authenticate on " + rqst.Issuer + " i will try to authenticate peers...")
 		uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
+		// no matter what happen the token must be remove...
+		defer Utility.RemoveString(server.authentications_, uuid)
 		if Utility.Contains(server.authentications_, uuid) {
-			Utility.RemoveString(server.authentications_, uuid)
 			return nil, errors.New("fail to authenticate " + rqst.Name + " on " + rqst.Issuer)
 		}
 
