@@ -202,6 +202,7 @@ func InitService(s Service) error {
 		path := strings.ReplaceAll(dir, "\\", "/")
 
 		if len(serviceRoot) > 0 {
+			fmt.Println("red config from ", path+"/config.json")
 			s.SetConfigurationPath(path + "/config.json")
 		} else {
 
@@ -216,23 +217,19 @@ func InitService(s Service) error {
 			// Here I will get the existing uuid...
 			values := strings.Split(execPath, "/")
 			uuid := values[len(values)-2] // the path must be at /uuid/name_server.exe
-			
+
 			if Utility.IsUuid(uuid) {
-			
+				fmt.Println(221)
 				s.SetId(uuid)
 				configPath := serviceDir + "/" + uuid + "/config.json"
-
 				// set the service dir.
 				s.SetConfigurationPath(configPath)
-				log.Println("------------> 225 ", configPath)
-			}else{
+
+			} else {
 				// Set the configuration dir...
 				uuid = Utility.RandomUUID()
-				s.SetId(uuid)
 				Utility.CreateDirIfNotExist(serviceDir + "/" + uuid)
 				configPath := serviceDir + "/" + uuid + "/config.json"
-				log.Println("------------> 229 ", configPath)
-				
 				s.SetConfigurationPath(configPath)
 			}
 
@@ -265,6 +262,8 @@ func InitService(s Service) error {
 			fmt.Println("fail to unmarshal configuration at path ", s.GetConfigurationPath(), err)
 			return err
 		}
+	} else {
+		s.SetId(Utility.RandomUUID())
 	}
 
 	// set contextual values.
