@@ -16,10 +16,10 @@ func getClient() *Search_Client {
 	if client != nil {
 		return client
 	}
-	client, _ = NewSearchService_Client("localhost", "search.SearchService")
+	client, _ = NewSearchService_Client("globule-ryzen.globular.cloud:10002", "search.SearchService")
 	return client
 }
-
+/*
 func TestIndexJsonObject(t *testing.T) {
 	var str = `
 	[
@@ -117,22 +117,22 @@ func TestDeleteDocument(t *testing.T) {
 
 /*
 func TestIndexDir(t *testing.T) {
-	path := ebookPath
-	err := getClient().IndexDir(tmpDir+"/dir_db", path, "english")
+	log.Println("test index dir...")
+	err := getClient().IndexDir("C:/temp/ebooks", "E:/ebooks", "english")
 	if err != nil {
 		log.Print(err)
 	}
-}*/
+}
 
 func TestSearchTextFiles(t *testing.T) {
-	paths := []string{tmpDir + "/dir_db"}
-	query := `test`
+	paths := []string{"C:/temp/ebooks"}
+	query := `traversal`
 	language := "english"
 	fields := []string{}
 	offset := int32(0)
 	pageSize := int32(100)
 	snippetLength := int32(500)
-
+	log.Println("test search words...")
 	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
 	if err != nil {
 		log.Println("---> ", err)
@@ -144,21 +144,21 @@ func TestSearchTextFiles(t *testing.T) {
 		log.Println(result)
 	}
 }
+*/
 
-/*
 func TestIndexPdfFile(t *testing.T) {
-	path := ebookPath + "/TalendOpenStudio_BigData_GettingStarted_EN_7.1.1.pdf"
-	err := getClient().IndexFile(tmpDir+"/search_test_db", path, "english")
+	path := "E:/ebooks/javascript/Advanced_JavaScript.pdf"
+	err := getClient().IndexFile("C:/temp/search_test_db", path, "english")
 	if err != nil {
 		log.Print(err)
 	}
 }
-*/
-/*
+
+
 //  Search text in a given file. I made use the snippet's to display search results.
 func TestSearchTextFile(t *testing.T) {
-	paths := []string{tmpDir + "/search_test_db"}
-	query := `Boy OR Girl OR Dog AND Cat`
+	paths := []string{"C:/temp/search_test_db"}
+	query := `test`
 	language := "english"
 	fields := []string{}
 	offset := int32(0)
@@ -171,10 +171,11 @@ func TestSearchTextFile(t *testing.T) {
 	}
 
 	for i := 0; i < len(results); i++ {
-		result := results[i]
-		for j := 0; j < len(result.Snippets); j++ {
+		//result := results[i]
+		/*
+		for j := 0; j < len(result.); j++ {
 			log.Println("---------> ", j+1, result.Snippets[j])
-		}
+		}*/
 	}
 }
-*/
+

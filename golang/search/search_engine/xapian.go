@@ -1,6 +1,7 @@
 package search_engine
 
 import (
+	"fmt"
 	"strings"
 
 	"encoding/json"
@@ -479,6 +480,7 @@ func (search_engine *XapianEngine) pdfToText(path string) (string, error) {
 	cmd := exec.Command("pdftotext", path)
 	_, err := cmd.Output()
 	if err != nil {
+		fmt.Println("fail to run pdftotext with error ", err)
 		return "", err
 	}
 
@@ -497,11 +499,14 @@ func (search_engine *XapianEngine) pdfToText(path string) (string, error) {
 
 // Indexation of pdf file.
 func (search_engine *XapianEngine) indexPdfFile(db xapian.WritableDatabase, path string, doc xapian.Document, termgenerator xapian.TermGenerator) error {
+	
 	text, err := search_engine.pdfToText(path)
 	if err != nil {
+		fmt.Println("fail to index pdf file with error ", err)
 		return err
 	}
-	termgenerator.Index_text(strings.ToLower(string(text)))
+	fmt.Println("index file pdf ", path, len(text))
+	termgenerator.Index_text(strings.ToLower(text))
 	termgenerator.Increase_termpos()
 	return nil
 }
@@ -548,6 +553,7 @@ func (search_engine *XapianEngine) indexFile(db xapian.WritableDatabase, path st
 	if mime == "application/pdf" {
 		err = search_engine.indexPdfFile(db, path, doc, termgenerator)
 		if err != nil {
+			fmt.Println("fail to index pdf file with error ", err)
 			return err
 		}
 	} else if strings.HasPrefix(mime, "text") {

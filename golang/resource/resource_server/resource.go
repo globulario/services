@@ -1041,11 +1041,11 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 		if err != nil {
 			return err
 		}
-		
+
 		// give time to mongodb...
 		// create ressour ce application...
 		defer resource_server.createApplicationConnection(app)
-		
+
 	} else {
 		actions_, _ := Utility.ToJson(app.Actions)
 		keywords_, _ := Utility.ToJson(app.Keywords)
@@ -1455,7 +1455,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	// Get the configuration address with it http port...
 	address_, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
-	hostname, _  := config.GetHostName()
+	hostname, _ := config.GetHostName()
 
 	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: hostname, Mac: Utility.MyMacAddr(), Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
@@ -1626,7 +1626,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
-
 
 	address, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
@@ -3061,10 +3060,11 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 			}
 		}
 	}
-
-	sort.Slice(descriptors[:], func(i, j int) bool {
-		return descriptors[i].Version > descriptors[j].Version
-	})
+	if len(descriptors) > 1 {
+		sort.Slice(descriptors[:], func(i, j int) bool {
+			return descriptors[i].Version > descriptors[j].Version
+		})
+	}
 
 	// Return the list of Service Descriptor.
 	return &resourcepb.GetPackageDescriptorResponse{

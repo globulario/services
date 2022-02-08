@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+
 	//"fmt"
 	"sort"
 	"strings"
@@ -145,6 +147,7 @@ func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 // Retreive Blog Post by author
 func (svr *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsRequest, stream blogpb.BlogService_GetBlogPostsByAuthorsServer) error {
 
+	fmt.Println("Get globs for ", rqst.Authors)
 	// Retreive the list of all blogs.
 	blogs := make([]*blogpb.BlogPost, 0)
 	for i := 0; i < len(rqst.Authors); i++ {
@@ -154,10 +157,15 @@ func (svr *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsReque
 		}
 	}
 
-	// Now I will sort the values by creation date...
-	sort.Slice(blogs, func(i, j int) bool {
-		return blogs[i].CreationTime < blogs[j].CreationTime
-	})
+	if len(blogs) == 0 {
+		return errors.New("no blog founds")
+	} else if len(blogs) > 1 {
+		// Now I will sort the values by creation date...
+		sort.Slice(blogs, func(i, j int) bool {
+			return blogs[i].CreationTime < blogs[j].CreationTime
+		})
+
+	}
 
 	// Finaly I will return blogs..
 	max := int(rqst.Max)

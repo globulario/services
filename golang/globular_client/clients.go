@@ -147,7 +147,6 @@ func InitClient(client Client, address string, id string) error {
 		}
 	} else {
 		// Remote client configuration
-		fmt.Println("-------------------> try to get remote configuration from ", domain, port, id)
 		config_, err = config.GetRemoteConfig(domain, port, id)
 	}
 
