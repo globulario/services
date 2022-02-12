@@ -76,7 +76,7 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
-	State           string
+	State              string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -391,7 +391,7 @@ func (search_server *server) Init() error {
 	}
 
 	// Init the seach engine.
-	search_server.search_engine = new(search_engine.XapianEngine)
+	search_server.search_engine = new(search_engine.BleveSearchEngine)
 
 	return nil
 
@@ -492,30 +492,6 @@ func (search_server *server) SearchDocuments(rqst *searchpb.SearchDocumentsReque
 
 	return nil
 
-}
-
-/**
- * Index the content of a dir and it content.
- */
-func (search_server *server) IndexDir(ctx context.Context, rqst *searchpb.IndexDirRequest) (*searchpb.IndexDirResponse, error) {
-
-	err := search_server.search_engine.IndexDir(rqst.DbPath, rqst.DirPath, rqst.Language)
-	if err != nil {
-		return nil, err
-	}
-
-	return &searchpb.IndexDirResponse{}, nil
-}
-
-// Indexation of a text (docx, pdf,xlsx...) file.
-func (search_server *server) IndexFile(ctx context.Context, rqst *searchpb.IndexFileRequest) (*searchpb.IndexFileResponse, error) {
-
-	err := search_server.search_engine.IndexFile(rqst.DbPath, rqst.FilePath, rqst.Language)
-	if err != nil {
-		return nil, err
-	}
-
-	return &searchpb.IndexFileResponse{}, nil
 }
 
 // That function is use to index JSON object/array of object

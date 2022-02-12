@@ -25,12 +25,4 @@ type SearchEngine interface {
 
 	// Count the number of document in a db.
 	Count(path string) int32
-
-	// Files and directories search functionalities
-
-	// File and directory indexation functionality.
-	IndexFile(filePath string, dbPath string, language string) error
-
-	// Index directory
-	IndexDir(dbPath string, dirPath string, language string) error
 }

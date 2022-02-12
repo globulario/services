@@ -8,8 +8,8 @@ import (
 
 var (
 	client    *Search_Client
-	tmpDir    = "/tmp"
-	ebookPath = "/home/dave/Documents/ebook"
+	tmpDir    = "C:/temp"
+	ebookPath = "E:/ebooks"
 )
 
 func getClient() *Search_Client {
@@ -19,7 +19,7 @@ func getClient() *Search_Client {
 	client, _ = NewSearchService_Client("globule-ryzen.globular.cloud:10002", "search.SearchService")
 	return client
 }
-/*
+
 func TestIndexJsonObject(t *testing.T) {
 	var str = `
 	[
@@ -88,7 +88,7 @@ func TestSearchDocument(t *testing.T) {
 	paths := []string{tmpDir + "/search_test_db"}
 	query := `name:"Tom Cruise"`
 	language := "english"
-	fields := []string{"Name"}
+	fields := []string{"name"}
 	offset := int32(0)
 	pageSize := int32(10)
 	snippetLength := int32(500)
@@ -114,68 +114,3 @@ func TestDeleteDocument(t *testing.T) {
 	count, _ := getClient().Count(tmpDir + "/search_test_db")
 	log.Println(count)
 }
-
-/*
-func TestIndexDir(t *testing.T) {
-	log.Println("test index dir...")
-	err := getClient().IndexDir("C:/temp/ebooks", "E:/ebooks", "english")
-	if err != nil {
-		log.Print(err)
-	}
-}
-
-func TestSearchTextFiles(t *testing.T) {
-	paths := []string{"C:/temp/ebooks"}
-	query := `traversal`
-	language := "english"
-	fields := []string{}
-	offset := int32(0)
-	pageSize := int32(100)
-	snippetLength := int32(500)
-	log.Println("test search words...")
-	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
-	if err != nil {
-		log.Println("---> ", err)
-		log.Println(err)
-	}
-
-	for i := 0; i < len(results); i++ {
-		result := results[i]
-		log.Println(result)
-	}
-}
-*/
-
-func TestIndexPdfFile(t *testing.T) {
-	path := "E:/ebooks/javascript/Advanced_JavaScript.pdf"
-	err := getClient().IndexFile("C:/temp/search_test_db", path, "english")
-	if err != nil {
-		log.Print(err)
-	}
-}
-
-
-//  Search text in a given file. I made use the snippet's to display search results.
-func TestSearchTextFile(t *testing.T) {
-	paths := []string{"C:/temp/search_test_db"}
-	query := `test`
-	language := "english"
-	fields := []string{}
-	offset := int32(0)
-	pageSize := int32(10)
-	snippetLength := int32(70)
-
-	results, err := getClient().SearchDocuments(paths, query, language, fields, offset, pageSize, snippetLength)
-	if err != nil {
-		log.Println(err)
-	}
-
-	for i := 0; i < len(results); i++ {
-		//result := results[i]
-		/*
-		for j := 0; j < len(result.); j++ {
-			log.Println("---------> ", j+1, result.Snippets[j])
-		}*/
-	}
-}
-

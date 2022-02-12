@@ -270,46 +270,6 @@ func (client *Search_Client) IndexJsonObject(path string, jsonStr string, langua
 }
 
 /**
- * Index a text file.
- * -dbPath the database path.
- * -filePath the file path must be reachable from the server.
- */
-func (client *Search_Client) IndexFile(dbPath string, filePath string, language string) error {
-	rqst := &searchpb.IndexFileRequest{
-		DbPath:   dbPath,
-		FilePath: filePath,
-		Language: language,
-	}
-
-	ctx := client.GetCtx()
-	_, err := client.c.IndexFile(ctx, rqst)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-/**
- * Index a text file.
- * -dbPath the database path.
- * -dirPath the file path must be reachable from the server.
- */
-func (client *Search_Client) IndexDir(dbPath string, dirPath string, language string) error {
-	rqst := &searchpb.IndexDirRequest{
-		DbPath:   dbPath,
-		DirPath:  dirPath,
-		Language: language,
-	}
-
-	ctx := client.GetCtx()
-	_, err := client.c.IndexDir(ctx, rqst)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-/**
  * 	Execute a search over the db.
  *  -path The path of the db
  *  -query The query string

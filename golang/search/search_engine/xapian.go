@@ -1,7 +1,6 @@
 package search_engine
 
 import (
-	"fmt"
 	"strings"
 
 	"encoding/json"
@@ -9,12 +8,9 @@ import (
 	"reflect"
 
 	"log"
-	"os"
 
 	"errors"
 	"io/ioutil"
-
-	"os/exec"
 
 	xapian "github.com/davecourtois/GoXapian"
 	"github.com/davecourtois/Utility"
@@ -35,15 +31,8 @@ func (search_engine *XapianEngine) snippets(mset xapian.MSet, path string, mime 
 
 	// Here I will read the file and try to generate a snippet for it.
 	var text string
-	var err error
-
 	// TODO append other file parser here as needed.
-	if mime == "application/pdf" {
-		text, err = search_engine.pdfToText(path)
-		if err != nil {
-			return "", err
-		}
-	} else if strings.HasPrefix(mime, "text/") {
+	if strings.HasPrefix(mime, "text/") {
 		_text, err := ioutil.ReadFile(path)
 		text = string(_text)
 		if err != nil {
@@ -88,7 +77,7 @@ func (search_engine *XapianEngine) searchDocuments(paths []string, language stri
 		return nil, errors.New("no database was path given")
 	}
 	if !Utility.Exists(paths[0]) {
-		return nil, errors.New("no database found at path " + paths[0])
+		return nil, errors.New("cannot open index, path does not exist " + paths[0])
 	}
 
 	db := xapian.NewDatabase(paths[0])
@@ -191,7 +180,6 @@ func (search_engine *XapianEngine) SearchDocuments(paths []string, language stri
 	}
 
 	return results, nil
-
 }
 
 // Delete a document.
@@ -372,250 +360,4 @@ func (search_engine *XapianEngine) Count(path string) int32 {
 	defer xapian.DeleteDatabase(db)
 	count := int32(db.Get_doccount())
 	return count
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Files and directories indexations
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Index the a dir and it content.
- */
-func (search_engine *XapianEngine) indexDir(dbPath string, dirPath string, language string) error {
-
-	dirInfo, err := os.Stat(dirPath)
-	if err != nil {
-		return err
-	}
-
-	if !dirInfo.IsDir() {
-		return errors.New("The file " + dirPath + " is not a directory ")
-	}
-
-	// So here I will create the directory entry in the dbPath
-	err = Utility.CreateDirIfNotExist(dbPath)
-
-	if err != nil {
-		return err
-	}
-
-	files, err := ioutil.ReadDir(dirPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// The database path.
-	db := xapian.NewWritableDatabase(dbPath, xapian.DB_CREATE_OR_OPEN)
-	defer xapian.DeleteWritableDatabase(db)
-	db.Begin_transaction()
-
-	if err != nil {
-		db.Cancel_transaction()
-		db.Close()
-		return err
-	}
-
-	// Now I will index files and recursively index dir content.
-	for _, file := range files {
-		if file.IsDir() {
-			err := search_engine.indexDir(dbPath+"/"+file.Name(), dirPath+"/"+file.Name(), language)
-			if err != nil {
-				return err
-			}
-		} else {
-			// Here I will index the file contain in the directory.
-			path := dirPath + "/" + file.Name()
-			search_engine.indexFile(db, path, language)
-		}
-	}
-
-	mime := "folder"
-
-	// set document meta data.
-	modified := "D" + dirInfo.ModTime().Format("YYYYMMDD")
-	doc := xapian.NewDocument()
-	defer xapian.DeleteDocument(doc)
-	doc.Add_term(modified)
-	doc.Add_term("P" + dirPath)
-	doc.Add_term("T" + mime)
-
-	id := "Q" + Utility.GenerateUUID(dirPath)
-	doc.Add_boolean_term(id)
-
-	infos := make(map[string]interface{})
-
-	infos["path"] = dirPath
-	infos["__type__"] = "file"
-
-	infos["mime"] = mime
-
-	jsonStr, _ := Utility.ToJson(infos)
-	doc.Set_data(jsonStr)
-
-	// Create the directory information.
-	db.Replace_document(id, doc)
-
-	db.Commit_transaction()
-	db.Close()
-
-	return err
-}
-
-func (search_engine *XapianEngine) IndexDir(dbPath string, dirPath string, language string) error {
-
-	err := search_engine.indexDir(dbPath, dirPath, language)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// pdftotext bin must be install on the server to be able to generate text
-// file from pdf file.
-// On linux type...
-// sudo apt-get install poppler-utils
-func (search_engine *XapianEngine) pdfToText(path string) (string, error) {
-	// First of all I will test if pdftotext is install.
-	cmd := exec.Command("pdftotext", path)
-	_, err := cmd.Output()
-	if err != nil {
-		fmt.Println("fail to run pdftotext with error ", err)
-		return "", err
-	}
-
-	_path := path[0:strings.LastIndex(path, ".")] + ".txt"
-	defer os.Remove(_path)
-
-	// Here I will index the text file
-	text, err := ioutil.ReadFile(_path)
-	if err != nil {
-		return "", err
-	}
-
-	return string(text), err
-
-}
-
-// Indexation of pdf file.
-func (search_engine *XapianEngine) indexPdfFile(db xapian.WritableDatabase, path string, doc xapian.Document, termgenerator xapian.TermGenerator) error {
-	
-	text, err := search_engine.pdfToText(path)
-	if err != nil {
-		fmt.Println("fail to index pdf file with error ", err)
-		return err
-	}
-	fmt.Println("index file pdf ", path, len(text))
-	termgenerator.Index_text(strings.ToLower(text))
-	termgenerator.Increase_termpos()
-	return nil
-}
-
-func (search_engine *XapianEngine) indexFile(db xapian.WritableDatabase, path string, language string) error {
-	path = strings.ReplaceAll(strings.ReplaceAll(path, "\\", string(os.PathSeparator)), "/", string(os.PathSeparator))
-
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-
-	mime, err := Utility.GetFileContentType(f)
-	if err != nil {
-		return err
-	}
-
-	// create the document.
-	doc := xapian.NewDocument()
-	defer xapian.DeleteDocument(doc)
-
-	// create the term generator for the file.
-	termgenerator := xapian.NewTermGenerator()
-	stemmer := xapian.NewStem(language)
-	defer xapian.DeleteStem(stemmer)
-	termgenerator.Set_stemmer(xapian.NewStem(language))
-	defer xapian.DeleteTermGenerator(termgenerator)
-	termgenerator.Set_document(doc)
-
-	// Now I will index file metat
-	fileStat, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
-	// set document meta data.
-	modified := "D" + fileStat.ModTime().Format("YYYYMMDD")
-	doc.Add_term(modified)
-	doc.Add_term("P" + path)
-	doc.Add_term("T" + mime)
-
-	if mime == "application/pdf" {
-		err = search_engine.indexPdfFile(db, path, doc, termgenerator)
-		if err != nil {
-			fmt.Println("fail to index pdf file with error ", err)
-			return err
-		}
-	} else if strings.HasPrefix(mime, "text") {
-		text, err := ioutil.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		termgenerator.Index_text(strings.ToLower(string(text)))
-		termgenerator.Increase_termpos()
-
-	} else {
-		return errors.New("Unsuported file type! " + mime)
-	}
-
-	id := "Q" + Utility.GenerateUUID(path)
-	doc.Add_boolean_term(id)
-
-	infos := make(map[string]interface{})
-	infos["path"] = path
-	infos["__type__"] = "file"
-	infos["mime"] = mime
-
-	jsonStr, _ := Utility.ToJson(infos)
-	doc.Set_data(jsonStr)
-
-	db.Replace_document(id, doc)
-
-	return nil
-}
-
-// Indexation of a text (docx, pdf,xlsx...) file.
-func (search_engine *XapianEngine) IndexFile(filePath string, dbPath string, language string) error {
-
-	// The file must be accessible on the server side.
-	if !Utility.Exists(filePath) {
-		return errors.New("File " + filePath + " was not found!")
-	}
-
-	fileInfo, err := os.Stat(filePath)
-	if err != nil {
-		return err
-	}
-
-	if fileInfo.IsDir() {
-		return errors.New("The file " + filePath + " is a directory ")
-	}
-
-	// The database path.
-	db := xapian.NewWritableDatabase(dbPath, xapian.DB_CREATE_OR_OPEN)
-	defer xapian.DeleteWritableDatabase(db)
-	db.Begin_transaction()
-
-	err = search_engine.indexFile(db, filePath, language)
-	if err != nil {
-		db.Cancel_transaction()
-		db.Close()
-		return err
-	}
-
-	db.Commit_transaction()
-	db.Close()
-
-	return nil
 }

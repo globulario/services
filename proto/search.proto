@@ -34,32 +34,6 @@ message IndexJsonObjectResponse {
 	/** Nothing **/
 }
 
-message IndexFileRequest {
-	/** The path of the database on the server. If empty the db will be created in memory */
-	string dbPath = 1;
-	/** The path of the file must be accessible from the server */
-	string filePath = 2;
-	/** The language to be use to index the object */
-	string language = 3; 
-}
-
-message IndexFileResponse {
-	/** Nothing **/
-}
-
-message IndexDirRequest {
-	/** The path of the database on the server. If empty the db will be created in memory */
-	string dbPath = 1;
-	/** The path of the dir must be accessible from the server */
-	string dirPath = 2;
-	/** The language to be use to index the object */
-	string language = 3; 
-}
-
-message IndexDirResponse {
-	/** Nothing **/
-}
-
 message DeleteDocumentRequest {
 	string path = 1;
 	string id = 2;
@@ -122,16 +96,6 @@ service SearchService {
 	 * That function is use to index JSON object/array of object
 	 */
 	rpc IndexJsonObject(IndexJsonObjectRequest) returns (IndexJsonObjectResponse);
-	
-	/**
-	 * Index file can be plain text file, PDF file...
-	 */
-	rpc IndexFile(IndexFileRequest) returns (IndexFileResponse);
-	
-	/**
-	 * Index a directory and all it content (text file, pdf file, docx, xlsx... )...
-	 */
-	rpc IndexDir(IndexDirRequest) returns (IndexDirResponse);
 	
 	/**
 	 * Return the number of document in a database.

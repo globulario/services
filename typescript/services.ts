@@ -966,7 +966,7 @@ export class Globular {
 
   private _searchService: SearchServicePromiseClient
   public get searchService(): SearchServicePromiseClient | undefined {
-    if (this._searchService != null) {
+    if (this._searchService == null) {
       let configs = this.getConfigs('search.SearchService')
       configs.forEach((config: IServiceConfig) => {
         if (this._searchService == null) {
@@ -983,7 +983,7 @@ export class Globular {
         }
       })
     }
-    return this.searchService
+    return this._searchService
   }
 
   /**
