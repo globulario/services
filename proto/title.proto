@@ -7,6 +7,134 @@ package title;
 
 option go_package="title/titlepb";
 
+message Person {
+	string ID = 1;
+	string URL = 2;
+	string FullName = 3;
+}
+
+message Poster {
+	string ID = 1;
+	string titleId = 2;
+	string URL = 3;
+	string ContentUrl = 4;
+}
+
+message Title {
+	string ID = 1;
+	string URL = 2;
+	string Name = 3;
+	string Type = 4;
+	int32 Year = 5;
+	float Rating = 6;
+	int32 RatingCount = 7;
+	repeated Person Directors = 8;
+	repeated Person Writers = 9;
+	repeated Person Actors = 10;
+	repeated string Genres = 11;
+	repeated string Language = 12;
+	repeated string Nationalities = 13;
+	string Description = 14;
+	Poster Poster = 15;
+	repeated string AKA = 16;
+}
+
+/**
+ * This create a new title and save it in the database.
+ */
+message CreateTitleRequest {
+	Title title = 1;
+	/** Where the information will be save */
+	string indexPath = 2; 
+}
+
+message CreateTitleResponse {
+	/** nothing here */
+}
+
+/**
+ * Return a title with a given id
+ */
+message GetTitleByIdRequest {
+	string titleId = 1;
+	string indexPath = 2;
+}
+
+message GetTitleByIdResponse {
+	Title title = 1;
+	repeated string filesPaths = 2;
+}
+
+/**
+ * Remove a title form the db.
+ */
+message DeleteTitleRequest {
+	string titleId = 1;
+	string indexPath = 2;
+}
+
+message DeleteTitleResponse {
+	
+}
+
+message AssociateFileWithTitleRequest {
+	string titleId = 1;
+	string filePath = 2;
+	string indexPath = 3;
+}
+
+message AssociateFileWithTitleResponse {
+	/** nothing here */
+}
+
+message DissociateFileWithTitleRequest {
+	string titleId = 1;
+	string filePath = 2;
+	string indexPath = 3;
+}
+
+message DissociateFileWithTitleResponse {
+	/** nothing here */
+}
+
+/** The list of files titles.*/
+message GetFileTitlesRequest {
+	string filePath = 1;
+	string indexPath = 2;
+}
+
+message GetFileTitlesResponse {
+	repeated Title titles = 1;
+}
+
+/** The list of files asscociated with a title */
+message GetTitleFilesRequest {
+	string titleId = 1;
+	string indexPath = 2;
+}
+
+message GetTitleFilesResponse {
+	repeated string filePaths = 1;
+}
+
+/**
+ * Contain serch infromations...
+ */
+message SearchResult {
+	string result = 1;
+	Title title = 2;
+}
+
+message SearchTitlesRequest {
+	string query = 1;
+	repeated string fields = 2;
+	string indexPath = 3;
+}
+
+message SearchTitlesResponse {
+   SearchResult result = 1;
+}
+
 /**
  * That service is use to manage and get access to title informations it offer
  * search functionalities to retreives movies, series, episode information and ther
@@ -14,7 +142,30 @@ option go_package="title/titlepb";
  */
 service TitleService {
 
-  	// One request followed by one response
+  	// Insert a title in the database or update it if it already exist.
+	rpc CreateTitle(CreateTitleRequest) returns (CreateTitleResponse);
+
+	// Get a title by a given id.
+	rpc GetTitleById(GetTitleByIdRequest) returns (GetTitleByIdResponse);
+
+	// Delete a title from the database.
+	rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse);
+
+	// Associate a file and a title info, so file can be found from title informations...
+	rpc AssociateFileWithTitle(AssociateFileWithTitleRequest) returns (AssociateFileWithTitleResponse);
+
+	// Dissociate a file and a title info, so file can be found from title informations...
+	rpc DissociateFileWithTitle(DissociateFileWithTitleRequest) returns (DissociateFileWithTitleResponse);
+
+	// Return the list of titles asscociate with a file.
+	rpc GetFileTitles(GetFileTitlesRequest) returns (GetFileTitlesResponse);
+
+	// Return the list of files associate with a title
+	rpc GetTitleFiles(GetTitleFilesRequest) returns (GetTitleFilesResponse);
+
+	//////////////////////////////////////// Search functionalities ////////////////////////////////////////
 	
+	// Search document infos...
+	rpc SearchTitles(SearchTitlesRequest) returns (stream SearchTitlesResponse);
 
 }

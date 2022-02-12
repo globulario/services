@@ -2,23 +2,23 @@ package title_client
 
 import (
 	"context"
-
-	"github.com/davecourtois/Utility"
+	"io"
+	//"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
-	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/title/titlepb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
-// echo Client Service
+// title Client Service
 ////////////////////////////////////////////////////////////////////////////////
 
 type Title_Client struct {
 	cc *grpc.ClientConn
-	c  echopb.EchoServiceClient
+	c titlepb.TitleServiceClient
 
 	// The id of the service
 	id string
@@ -81,7 +81,7 @@ func (client *Title_Client) Reconnect () error{
 		return  err
 	}
 
-	client.c = echopb.NewEchoServiceClient(client.cc)
+	client.c = titlepb.NewTitleServiceClient(client.cc)
 	return nil
 }
 
@@ -229,7 +229,138 @@ func (client *Title_Client) SetCaFile(caFile string) {
 }
 
 ////////////////// Api //////////////////////
-// Stop the service.
-func (client *Title_Client) StopService() {
-	client.c.Stop(client.GetCtx(), &echopb.StopRequest{})
+func (client *Title_Client) CreateTitle( token, path string, title *titlepb.Title) error{
+
+	rqst := &titlepb.CreateTitleRequest{
+		Title: title,
+		IndexPath: path,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		md.Append("token", string(token))
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	
+	_, err := client.c.CreateTitle(ctx, rqst)
+
+
+	return err
+}
+
+/**
+ * Return the list of title asscociated with a given path.
+ */
+func (client *Title_Client)  GetTitleFiles(indexPath, titleId string)  ([]string, error){
+	rqst := &titlepb.GetTitleFilesRequest{IndexPath: indexPath, TitleId: titleId}
+
+	rsp, err := client.c.GetTitleFiles(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.FilePaths, nil
+}
+
+func (client *Title_Client)  GetFileTitles(indexPath, path string)  ([]*titlepb.Title, error){
+	rqst := &titlepb.GetFileTitlesRequest{IndexPath: indexPath, FilePath: path}
+
+	rsp, err := client.c.GetFileTitles(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Titles, nil
+}
+
+/**
+ * Get the title by it id.
+ */
+func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []string, error){
+	rqst := &titlepb.GetTitleByIdRequest{
+		IndexPath: path,
+		TitleId: id,
+	}
+
+	rsp, err := client.c.GetTitleById(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Return a title.
+	return rsp.GetTitle(), rsp.GetFilesPaths(), nil
+}
+
+/**
+ * Search titles with a query, title, genre etc...
+ */
+func (client *Title_Client) SearchTitle(path, query string, fields []string) ([]*titlepb.SearchResult, error){
+	rqst := &titlepb.SearchTitlesRequest{
+		IndexPath: path,
+		Query: query,
+		Fields: fields,
+	}
+
+	stream, err := client.c.SearchTitles(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]*titlepb.SearchResult, 0)
+	for {
+		rsp, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, rsp.GetResult())
+	}
+
+	return results, nil
+}
+
+
+/**
+ * Delete a given title from the indexation.
+ */
+func (client *Title_Client) DeleteTitle(path, id string) error{
+	rqst := &titlepb.DeleteTitleRequest{
+		IndexPath: path,
+		TitleId: id,
+	}
+
+	_, err := client.c.DeleteTitle(client.GetCtx(), rqst)
+	return err
+}
+
+/**
+ * Asscociate a title with a given file.
+ */
+func (client *Title_Client) AssociateFileWithTitle(indexPath, titleId, filePath string) error{
+	rqst := &titlepb.AssociateFileWithTitleRequest{
+		IndexPath: indexPath,
+		TitleId: titleId,
+		FilePath: filePath,
+	}
+
+	_, err := client.c.AssociateFileWithTitle(client.GetCtx(), rqst)
+	return err
+}
+
+/**
+ * Dissociate file from it title.
+ */
+func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath string) error{
+	rqst := &titlepb.DissociateFileWithTitleRequest{
+		IndexPath: indexPath,
+		TitleId: titleId,
+		FilePath: filePath,
+	}
+
+	_, err := client.c.DissociateFileWithTitle(client.GetCtx(), rqst)
+	return err
 }

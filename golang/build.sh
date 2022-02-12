@@ -27,6 +27,7 @@ go build -o ./search/search_server ./search/search_server
 go build -o ./sql/sql_server ./sql/sql_server
 go build -o ./storage/storage_server ./storage/storage_server
 go build -o ./config/config_server ./config/config_server
+go build -o ./title/title_server ./title/title_server
 
 # start services...
 ./admin/admin_server/admin_server &
@@ -51,4 +52,5 @@ go build -o ./config/config_server ./config/config_server
 ./search/search_server/search_server &
 ./sql/sql_server/sql_server &
 ./storage/storage_server/storage_server &
-./config/config_server/config_server
+./config/config_server/config_server &
+./title/title_server/title_server

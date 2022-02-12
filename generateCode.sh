@@ -30,6 +30,7 @@ protoc proto/services_manager.proto -I proto --go-grpc_out=require_unimplemented
 protoc proto/discovery.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/repository.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 protoc proto/config.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
+protoc proto/title.proto -I proto --go-grpc_out=require_unimplemented_servers=false:./golang --go_out=./golang
 
 # Web-Api generation.
 # ** Note that gooleapis /usr/local/include/google/api must exist... (https://github.com/googleapis/googleapis)

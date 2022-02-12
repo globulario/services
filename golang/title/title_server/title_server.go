@@ -2,15 +2,21 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
-	"time"
+	"strings"
 
+	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/title/title_client"
-	"github.com/globulario/services/golang/echo/echopb"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
+	"github.com/globulario/services/golang/storage/storage_store"
+	"github.com/globulario/services/golang/title/title_client"
+	"github.com/globulario/services/golang/title/titlepb"
+	"github.com/golang/protobuf/jsonpb"
 
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
@@ -62,7 +68,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 
 	TLS bool
@@ -82,6 +88,12 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+
+	// Contain indexation.
+	indexs map[string]bleve.Index
+
+	// Contain the file and title asscociation.
+	associations map[string]*storage_store.Badger_store
 }
 
 // The http address where the configuration can be found /config
@@ -403,8 +415,410 @@ func (svr *server) StopService() error {
 }
 
 /////////////////////// title specific function /////////////////////////////////
+/**
+ * Return indexation for a given path...
+ */
+func (svr *server) getIndex(path string) (bleve.Index, error) {
+	if svr.indexs[path] == nil {
+		index, err := bleve.Open(path) // try to open existing index.
+		if err != nil {
+			mapping := bleve.NewIndexMapping()
+			var err error
+			index, err = bleve.New(path, mapping)
+			if err != nil {
+				return nil, err
+			}
+		}
 
+		if svr.indexs == nil {
+			svr.indexs = make(map[string]bleve.Index, 0)
+		}
 
+		svr.indexs[path] = index
+	}
+
+	return svr.indexs[path], nil
+}
+
+func (svr *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
+
+	index, err := svr.getIndex(indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	query := bleve.NewQueryStringQuery(titleId)
+	searchRequest := bleve.NewSearchRequest(query)
+	searchResult, err := index.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now from the result I will
+	if searchResult.Total == 0 {
+		return nil, errors.New("No matches")
+	}
+
+	var title *titlepb.Title
+	// Now I will return the data
+	for _, val := range searchResult.Hits {
+		id := val.ID
+		raw, err := index.GetInternal([]byte(id))
+		if err != nil {
+			return nil, err
+		}
+		title = new(titlepb.Title)
+		jsonpb.UnmarshalString(string(raw), title)
+
+	}
+
+	return title, nil
+}
+
+// Get a title by a given id.
+func (svr *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdRequest) (*titlepb.GetTitleByIdResponse, error) {
+
+	title, err := svr.getTitleById(rqst.IndexPath, rqst.TitleId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	filePaths := []string{}
+
+	// get the list of associated files if there some...
+	if svr.associations != nil {
+		if svr.associations[rqst.IndexPath] != nil {
+			data, err := svr.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+			if err == nil {
+				association := new(fileTileAssociation)
+				err = json.Unmarshal(data, association)
+				if err == nil {
+					// In that case I will get the files...
+					filePaths = association.Paths
+				}
+			}
+		}
+	}
+
+	return &titlepb.GetTitleByIdResponse{
+		Title:      title,
+		FilesPaths: filePaths,
+	}, nil
+}
+
+// Insert a title in the database or update it if it already exist.
+func (svr *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleRequest) (*titlepb.CreateTitleResponse, error) {
+	fmt.Println("create new title with name ", rqst.Title.Name)
+	// So here Will create the indexation for the movie...
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Index the title and put it in the search engine.
+	err = index.Index(rqst.Title.ID, rqst.Title)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Associated original object here...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Title)
+
+	if err == nil {
+		err = index.SetInternal([]byte(rqst.Title.ID), []byte(jsonStr))
+	}
+
+	return &titlepb.CreateTitleResponse{}, nil
+}
+
+// Delete a title from the database.
+func (svr *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleRequest) (*titlepb.DeleteTitleResponse, error) {
+
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.Delete(rqst.TitleId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.DeleteInternal([]byte(rqst.TitleId))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// TODO remove asscociated files...
+
+	return &titlepb.DeleteTitleResponse{}, nil
+}
+
+// File and title association.
+type fileTileAssociation struct {
+	ID     string
+	Titles []string // contain the titles ids
+	Paths  []string // list of file path's where file can be found on the local disck.
+}
+
+// Associate a file and a title info, so file can be found from title informations...
+func (svr *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
+
+	// so the first thing I will do is to get the file on the disc.
+	filePath := rqst.FilePath
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	if !Utility.Exists(filePath) {
+		// Here I will try to get it from the users dirs...
+		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
+			filePath = config.GetDataDir() + "/files" + filePath
+		}
+	}
+	if !Utility.Exists(filePath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+	}
+
+	// I will use the file checksum as file id...
+	checksum := Utility.CreateFileChecksum(filePath)
+
+	if svr.associations == nil {
+		svr.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if svr.associations[rqst.IndexPath] == nil {
+		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+	}
+
+	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
+	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// Append the path if not already there.
+	if !Utility.Contains(association.Paths, rqst.FilePath) {
+		association.Paths = append(association.Paths, rqst.FilePath)
+	}
+
+	// Append the title if not aready exist.
+	if !Utility.Contains(association.Titles, rqst.TitleId) {
+		association.Titles = append(association.Titles, rqst.TitleId)
+	}
+
+	// Now I will set back the item in the store.
+	data, _ = json.Marshal(association)
+	err = svr.associations[rqst.IndexPath].SetItem(checksum, data)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Also index it with it title.
+	err = svr.associations[rqst.IndexPath].SetItem(rqst.TitleId, data)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// return empty response.
+	return &titlepb.AssociateFileWithTitleResponse{}, nil
+}
+
+// Dissociate a file and a title info, so file can be found from title informations...
+func (svr *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.DissociateFileWithTitleRequest) (*titlepb.DissociateFileWithTitleResponse, error) {
+
+	// so the first thing I will do is to get the file on the disc.
+	filePath := rqst.FilePath
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	if !Utility.Exists(filePath) {
+		// Here I will try to get it from the users dirs...
+		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
+			filePath = config.GetDataDir() + "/files" + filePath
+		}
+	}
+	if !Utility.Exists(filePath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+	}
+
+	// I will use the file checksum as file id...
+	checksum := Utility.CreateFileChecksum(filePath)
+	if svr.associations == nil {
+		svr.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if svr.associations[rqst.IndexPath] == nil {
+		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+	}
+
+	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
+	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// so here i will remove the path from the list of path.
+	association.Paths = Utility.RemoveString(association.Paths, rqst.FilePath)
+	if len(association.Paths) == 0 {
+		svr.associations[rqst.IndexPath].RemoveItem(rqst.TitleId)
+		svr.associations[rqst.IndexPath].RemoveItem(checksum)
+	}
+
+	return &titlepb.DissociateFileWithTitleResponse{}, nil
+
+}
+
+// Return the list of titles asscociate with a file.
+func (svr *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitlesRequest) (*titlepb.GetFileTitlesResponse, error) {
+	// So here I will get the list of titles asscociated with a file...
+	filePath := rqst.FilePath
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	if !Utility.Exists(filePath) {
+		// Here I will try to get it from the users dirs...
+		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
+			filePath = config.GetDataDir() + "/files" + filePath
+		}
+	}
+	if !Utility.Exists(filePath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+	}
+
+	// I will use the file checksum as file id...
+	checksum := Utility.CreateFileChecksum(filePath)
+	if svr.associations == nil {
+		svr.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if svr.associations[rqst.IndexPath] == nil {
+		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+	}
+
+	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
+	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	titles := make([]*titlepb.Title, 0)
+	for i := 0; i < len(association.Titles); i++ {
+		title, err := svr.getTitleById(rqst.IndexPath, association.Titles[i])
+		if err == nil {
+			titles = append(titles, title)
+		}
+	}
+
+	return &titlepb.GetFileTitlesResponse{Titles: titles}, nil
+}
+
+// Return the list of files associate with a title
+func (svr *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFilesRequest) (*titlepb.GetTitleFilesResponse, error) {
+
+	// I will use the file checksum as file id...
+	if svr.associations == nil {
+		svr.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if svr.associations[rqst.IndexPath] == nil {
+		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+	}
+
+	data, err := svr.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	association := &fileTileAssociation{ID: "", Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// Return the store association values...
+	return &titlepb.GetTitleFilesResponse{FilePaths: association.Paths}, nil
+
+}
+
+// Search document infos...
+func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlepb.TitleService_SearchTitlesServer) error {
+
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	query := bleve.NewQueryStringQuery(rqst.Query)
+	request := bleve.NewSearchRequest(query)
+	request.Highlight = bleve.NewHighlightWithStyle("html")
+	request.Fields = rqst.Fields
+	result, err := index.Search(request)
+
+	if err != nil { // an empty query would cause this
+		return err
+	}
+
+	stream.Send(&titlepb.SearchTitlesResponse{Result: &titlepb.SearchResult{
+		Result:    result.String(),
+	}})
+
+	for _, val := range result.Hits {
+		id := val.ID
+		raw, err := index.GetInternal([]byte(id))
+		if err != nil {
+			log.Fatal("Trouble getting internal doc:", err)
+		}
+		title := new(titlepb.Title)
+		jsonpb.UnmarshalString(string(raw), title)
+		stream.Send(&titlepb.SearchTitlesResponse{Result: &titlepb.SearchResult{
+			Title:    title,
+		}})
+	}
+
+	return nil
+}
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.
@@ -418,16 +832,16 @@ func main() {
 
 	// Initialyse service with default values.
 	s_impl := new(server)
-	s_impl.Name = string(echopb.File_echo_proto.Services().Get(0).FullName())
-	s_impl.Proto = echopb.File_echo_proto.Path()
+	s_impl.Name = string(titlepb.File_title_proto.Services().Get(0).FullName())
+	s_impl.Proto = titlepb.File_title_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain = domain
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
-	s_impl.Description = "The Hello world of gRPC service!"
-	s_impl.Keywords = []string{"Example", "Echo", "Test", "Service"}
+	s_impl.Description = "Functionalities to find Title information and asscociate it with file."
+	s_impl.Keywords = []string{"Search", "Movie", "Title", "Episode", "MultiMedia", "IMDB"}
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
@@ -441,8 +855,8 @@ func main() {
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
@@ -452,10 +866,8 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
-
 	// Register the echo services
-	// titlepb.RegisterEchoServiceServer(s_impl.grpcServer, s_impl)
-	
+	titlepb.RegisterTitleServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
 	// Start the service.
