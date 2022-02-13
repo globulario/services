@@ -23,6 +23,7 @@ import { ServicesManagerServicePromiseClient } from './services_manager/services
 import { ApplicationManagerServicePromiseClient } from './applications_manager/applications_manager_grpc_web_pb';
 import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb';
 import { PackageRepositoryPromiseClient } from './repository/repository_grpc_web_pb';
+import { TitleServicePromiseClient } from './title/title_grpc_web_pb';
 
 const domain = window.location.hostname;
 const application = window.location.pathname.split("/").join("");
@@ -962,6 +963,27 @@ export class Globular {
       })
     }
     return this._spcService
+  }
+  private _titleService: TitleServicePromiseClient
+  public get titleService(): TitleServicePromiseClient | undefined {
+    if (this._titleService == null) {
+      let configs = this.getConfigs('title.TitleService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._titleService == null) {
+          this._titleService = new TitleServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._titleService
+        }
+      })
+    }
+    return this._titleService
   }
 
   private _searchService: SearchServicePromiseClient

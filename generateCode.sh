@@ -125,6 +125,9 @@ protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/log 
 mkdir typescript/rbac
 protoc --js_out=import_style=commonjs:typescript/rbac  -I ./proto/ rbac.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/rbac -I ./proto/ rbac.proto
+mkdir typescript/title
+protoc --js_out=import_style=commonjs:typescript/title  -I ./proto/ title.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/title -I ./proto/ title.proto
 
 # CSharp grpc files generation
 # on window use C:\Users\mm006819\Documents\exec\grpc_dist\bin\grpc_csharp_plugin.exe

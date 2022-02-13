@@ -4,7 +4,6 @@ import (
 	//"encoding/json"
 	"fmt"
 	"testing"
-
 	"github.com/globulario/services/golang/title/titlepb"
 )
 
