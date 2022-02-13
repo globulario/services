@@ -108,13 +108,15 @@ func TestGetTitleById(t *testing.T) {
 }
 
 func TestSearchTitles(t *testing.T) {
-	searchResults, err := client.SearchTitle("/tmp/titles", "revolutions peace Monica", []string{""})
+	summary, hits, facets,  err := client.SearchTitle("/tmp/titles", "revolutions peace Monica", []string{""})
 	if err != nil {
 		fmt.Println("------------->", err)
 		return
 	}
 
-	fmt.Println("-------> Search title ", searchResults[0].Result)
+	fmt.Println("summary ", summary)
+	fmt.Println("hits ", hits)
+	fmt.Println("facets", facets)
 }
 
 func TestAssociateFile(t *testing.T) {

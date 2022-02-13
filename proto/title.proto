@@ -139,6 +139,23 @@ message SearchSummary {
 	int64 took = 3;
 }
 
+message SearchFacetTerm {
+	string term = 1;
+	int32 count = 2;
+}
+
+message SearchFacet {
+	string field = 1;
+	int32 total = 2; 
+	repeated SearchFacetTerm terms = 3;
+	int32 other = 4;
+
+}
+
+message SearchFacets {
+	repeated SearchFacet facets = 1;
+}
+
 message SearchTitlesRequest {
 	string query = 1;
 	repeated string fields = 2;
@@ -149,6 +166,7 @@ message SearchTitlesResponse {
     oneof result  {
         SearchSummary summary = 1;
         SearchHit hit = 2;
+	    SearchFacets facets = 3;
     }
 }
 

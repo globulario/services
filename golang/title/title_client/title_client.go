@@ -295,7 +295,7 @@ func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []str
 /**
  * Search titles with a query, title, genre etc...
  */
-func (client *Title_Client) SearchTitle(path, query string, fields []string) ([]*titlepb.SearchResult, error){
+func (client *Title_Client) SearchTitle(path, query string, fields []string) (*titlepb.SearchSummary, []*titlepb.SearchHit, *titlepb.SearchFacets, error){
 	rqst := &titlepb.SearchTitlesRequest{
 		IndexPath: path,
 		Query: query,
@@ -304,10 +304,13 @@ func (client *Title_Client) SearchTitle(path, query string, fields []string) ([]
 
 	stream, err := client.c.SearchTitles(client.GetCtx(), rqst)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
-	results := make([]*titlepb.SearchResult, 0)
+	hits := make([]*titlepb.SearchHit, 0)
+	var summary *titlepb.SearchSummary
+	var facets *titlepb.SearchFacets
+
 	for {
 		rsp, err := stream.Recv()
 		if err == io.EOF {
@@ -315,12 +318,21 @@ func (client *Title_Client) SearchTitle(path, query string, fields []string) ([]
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
-		results = append(results, rsp.GetResult())
+
+		switch v := rsp.Result.(type) {
+		case *titlepb.SearchTitlesResponse_Hit:
+			hits = append(hits, v.Hit)
+		case *titlepb.SearchTitlesResponse_Summary:
+			summary = v.Summary
+		case *titlepb.SearchTitlesResponse_Facets:
+			facets = v.Facets
+		}
 	}
 
-	return results, nil
+	// return the results...
+	return summary, hits, facets, nil
 }
 
 

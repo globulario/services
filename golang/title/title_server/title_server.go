@@ -786,7 +786,7 @@ func (svr *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFile
 
 }
 
-// Search document infos...
+// Search titles infos...
 func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlepb.TitleService_SearchTitlesServer) error {
 
 	index, err := svr.getIndex(rqst.IndexPath)
@@ -798,9 +798,31 @@ func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 	query := bleve.NewQueryStringQuery(rqst.Query)
 	request := bleve.NewSearchRequest(query)
+
+	// Now I will add the facets for type and genre.
+
+	// The genre facet.
+	genres := bleve.NewFacetRequest("Genres", 10)
+	request.AddFacet("Genres", genres)
+
+	// The type facet...
+	types := bleve.NewFacetRequest("Type", 5)
+	request.AddFacet("Types", types)
+
+	// The rating facet
+	var lowToMidRating = 3.5
+	var midToHighRating = 7.0
+	rating := bleve.NewFacetRequest("Rating", 3)
+	rating.AddNumericRange("low", nil, &lowToMidRating)
+	rating.AddNumericRange("medium", &lowToMidRating, &midToHighRating)
+	rating.AddNumericRange("high", &midToHighRating, nil)
+	request.AddFacet("Rating", rating)
+
 	request.Highlight = bleve.NewHighlightWithStyle("html")
 	request.Fields = rqst.Fields
 	result, err := index.Search(request)
+
+	fmt.Println(result)
 
 	if err != nil { // an empty query would cause this
 		return err
@@ -836,26 +858,53 @@ func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			for _, fragment := range fragments {
 				snippet.Fragments = append(snippet.Fragments, fragment)
 			}
+			// append to the results.
+			hit_.Snippets = append(hit_.Snippets, snippet)
 		}
 
 		// Here I will get the title itself.
 		raw, err := index.GetInternal([]byte(id))
-		if err != nil {
-			log.Fatal("Trouble getting internal doc:", err)
-		}
-
-		title := new(titlepb.Title)
-		err = jsonpb.UnmarshalString(string(raw), title)
 		if err == nil {
-			hit_.Title = title;
-			// Here I will send the search result...
-			stream.Send(&titlepb.SearchTitlesResponse{
-				Result: &titlepb.SearchTitlesResponse_Hit{
-					Hit: hit_,
-				},
-			})
+			title := new(titlepb.Title)
+			err = jsonpb.UnmarshalString(string(raw), title)
+			if err == nil {
+				hit_.Title = title
+				// Here I will send the search result...
+				stream.Send(&titlepb.SearchTitlesResponse{
+					Result: &titlepb.SearchTitlesResponse_Hit{
+						Hit: hit_,
+					},
+				})
+			}
 		}
 	}
+
+	// Finaly I will send the facets...
+	facets := new(titlepb.SearchFacets)
+	facets.Facets = make([]*titlepb.SearchFacet, 0);
+
+	for _, f := range result.Facets {
+		facet_ := new(titlepb.SearchFacet)
+		facet_.Field = f.Field
+		facet_.Total = int32(f.Total)
+		facet_.Other = int32(f.Other)
+		facet_.Terms = make([]*titlepb.SearchFacetTerm, 0)
+		for _, t := range f.Terms {
+			term := new(titlepb.SearchFacetTerm)
+			term.Count = int32(t.Count)
+			term.Term = t.Term
+			facet_.Terms = append(facet_.Terms, term)
+		}
+		facets.Facets = append(facets.Facets, facet_)
+	}
+
+	// send the facets...
+	stream.Send(&titlepb.SearchTitlesResponse{
+		Result: &titlepb.SearchTitlesResponse_Facets{
+			Facets: facets,
+		},
+	})
+
 	return nil
 }
 
