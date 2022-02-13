@@ -37,6 +37,8 @@ message Title {
 	string Description = 14;
 	Poster Poster = 15;
 	repeated string AKA = 16;
+	string Duration = 17;
+	
 }
 
 /**
@@ -117,12 +119,24 @@ message GetTitleFilesResponse {
 	repeated string filePaths = 1;
 }
 
-/**
- * Contain serch infromations...
- */
-message SearchResult {
-	string result = 1;
-	Title title = 2;
+message Snippet {
+	string field = 1;
+	repeated string fragments = 2;
+}
+
+message SearchHit {
+	int32 index = 1;
+	double score = 2;
+	repeated Snippet snippets = 3;
+
+	// the underlying values.
+	Title title = 4;
+}
+
+message SearchSummary {
+	string query = 1; // the search input
+	uint64 total = 2; // number of found match
+	int64 took = 3;
 }
 
 message SearchTitlesRequest {
@@ -132,7 +146,10 @@ message SearchTitlesRequest {
 }
 
 message SearchTitlesResponse {
-   SearchResult result = 1;
+    oneof result  {
+        SearchSummary summary = 1;
+        SearchHit hit = 2;
+    }
 }
 
 /**

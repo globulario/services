@@ -510,6 +510,12 @@ func (svr *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 
 // Insert a title in the database or update it if it already exist.
 func (svr *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleRequest) (*titlepb.CreateTitleResponse, error) {
+	if rqst.Title == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title was given")))
+
+	}
 	fmt.Println("create new title with name ", rqst.Title.Name)
 	// So here Will create the indexation for the movie...
 	index, err := svr.getIndex(rqst.IndexPath)
@@ -800,23 +806,56 @@ func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		return err
 	}
 
-	stream.Send(&titlepb.SearchTitlesResponse{Result: &titlepb.SearchResult{
-		Result:    result.String(),
-	}})
+	// The first return message will be the summary of the result...
+	summary := new(titlepb.SearchSummary)
+	summary.Query = rqst.Query // set back the input query.
+	summary.Took = result.Took.Milliseconds()
+	summary.Total = result.Total
 
-	for _, val := range result.Hits {
-		id := val.ID
+	// Here I will send the summary...
+	stream.Send(&titlepb.SearchTitlesResponse{
+		Result: &titlepb.SearchTitlesResponse_Summary{
+			Summary: summary,
+		},
+	})
+
+	// Now I will generate the hits informations...
+	for i, hit := range result.Hits {
+		id := hit.ID
+
+		hit_ := new(titlepb.SearchHit)
+		hit_.Score = hit.Score
+		hit_.Index = int32(i)
+		hit_.Snippets = make([]*titlepb.Snippet, 0)
+
+		// Now I will extract fragment for fields...
+		for fragmentField, fragments := range hit.Fragments {
+			snippet := new(titlepb.Snippet)
+			snippet.Field = fragmentField
+			snippet.Fragments = make([]string, 0)
+			for _, fragment := range fragments {
+				snippet.Fragments = append(snippet.Fragments, fragment)
+			}
+		}
+
+		// Here I will get the title itself.
 		raw, err := index.GetInternal([]byte(id))
 		if err != nil {
 			log.Fatal("Trouble getting internal doc:", err)
 		}
-		title := new(titlepb.Title)
-		jsonpb.UnmarshalString(string(raw), title)
-		stream.Send(&titlepb.SearchTitlesResponse{Result: &titlepb.SearchResult{
-			Title:    title,
-		}})
-	}
 
+		title := new(titlepb.Title)
+		err = jsonpb.UnmarshalString(string(raw), title)
+		if err == nil {
+			hit_.Title = title;
+			// Here I will send the search result...
+			stream.Send(&titlepb.SearchTitlesResponse{
+				Result: &titlepb.SearchTitlesResponse_Hit{
+					Hit: hit_,
+				},
+			})
+		}
+	}
 	return nil
 }
 

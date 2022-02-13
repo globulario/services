@@ -522,7 +522,8 @@ proto.title.Title.toObject = function(includeInstance, msg) {
     nationalitiesList: jspb.Message.getRepeatedField(msg, 13),
     description: jspb.Message.getFieldWithDefault(msg, 14, ""),
     poster: (f = msg.getPoster()) && proto.title.Poster.toObject(includeInstance, f),
-    akaList: jspb.Message.getRepeatedField(msg, 16)
+    akaList: jspb.Message.getRepeatedField(msg, 16),
+    duration: jspb.Message.getFieldWithDefault(msg, 17, "")
   };
 
   if (includeInstance) {
@@ -626,6 +627,10 @@ proto.title.Title.deserializeBinaryFromReader = function(msg, reader) {
     case 16:
       var value = /** @type {string} */ (reader.readString());
       msg.addAka(value);
+      break;
+    case 17:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDuration(value);
       break;
     default:
       reader.skipField();
@@ -769,6 +774,13 @@ proto.title.Title.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeRepeatedString(
       16,
+      f
+    );
+  }
+  f = message.getDuration();
+  if (f.length > 0) {
+    writer.writeString(
+      17,
       f
     );
   }
@@ -1131,6 +1143,21 @@ proto.title.Title.prototype.addAka = function(value, opt_index) {
 
 proto.title.Title.prototype.clearAkaList = function() {
   this.setAkaList([]);
+};
+
+
+/**
+ * optional string Duration = 17;
+ * @return {string}
+ */
+proto.title.Title.prototype.getDuration = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 17, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Title.prototype.setDuration = function(value) {
+  jspb.Message.setProto3StringField(this, 17, value);
 };
 
 
