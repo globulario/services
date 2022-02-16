@@ -27,9 +27,14 @@ goog.exportSymbol('proto.title.GetTitleFilesRequest', null, global);
 goog.exportSymbol('proto.title.GetTitleFilesResponse', null, global);
 goog.exportSymbol('proto.title.Person', null, global);
 goog.exportSymbol('proto.title.Poster', null, global);
-goog.exportSymbol('proto.title.SearchResult', null, global);
+goog.exportSymbol('proto.title.SearchFacet', null, global);
+goog.exportSymbol('proto.title.SearchFacetTerm', null, global);
+goog.exportSymbol('proto.title.SearchFacets', null, global);
+goog.exportSymbol('proto.title.SearchHit', null, global);
+goog.exportSymbol('proto.title.SearchSummary', null, global);
 goog.exportSymbol('proto.title.SearchTitlesRequest', null, global);
 goog.exportSymbol('proto.title.SearchTitlesResponse', null, global);
+goog.exportSymbol('proto.title.Snippet', null, global);
 goog.exportSymbol('proto.title.Title', null, global);
 
 /**
@@ -3428,13 +3433,20 @@ proto.title.GetTitleFilesResponse.prototype.clearFilepathsList = function() {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.title.SearchResult = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+proto.title.Snippet = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.title.Snippet.repeatedFields_, null);
 };
-goog.inherits(proto.title.SearchResult, jspb.Message);
+goog.inherits(proto.title.Snippet, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.title.SearchResult.displayName = 'proto.title.SearchResult';
+  proto.title.Snippet.displayName = 'proto.title.Snippet';
 }
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.title.Snippet.repeatedFields_ = [2];
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -3448,8 +3460,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.title.SearchResult.prototype.toObject = function(opt_includeInstance) {
-  return proto.title.SearchResult.toObject(opt_includeInstance, this);
+proto.title.Snippet.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.Snippet.toObject(opt_includeInstance, this);
 };
 
 
@@ -3458,13 +3470,206 @@ proto.title.SearchResult.prototype.toObject = function(opt_includeInstance) {
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.title.SearchResult} msg The msg instance to transform.
+ * @param {!proto.title.Snippet} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.title.SearchResult.toObject = function(includeInstance, msg) {
+proto.title.Snippet.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    field: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    fragmentsList: jspb.Message.getRepeatedField(msg, 2)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.Snippet}
+ */
+proto.title.Snippet.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.Snippet;
+  return proto.title.Snippet.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.Snippet} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.Snippet}
+ */
+proto.title.Snippet.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setField(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addFragments(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.Snippet.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.Snippet.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.Snippet} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.Snippet.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getField();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getFragmentsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string field = 1;
+ * @return {string}
+ */
+proto.title.Snippet.prototype.getField = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Snippet.prototype.setField = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * repeated string fragments = 2;
+ * @return {!Array<string>}
+ */
+proto.title.Snippet.prototype.getFragmentsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
+};
+
+
+/** @param {!Array<string>} value */
+proto.title.Snippet.prototype.setFragmentsList = function(value) {
+  jspb.Message.setField(this, 2, value || []);
+};
+
+
+/**
+ * @param {!string} value
+ * @param {number=} opt_index
+ */
+proto.title.Snippet.prototype.addFragments = function(value, opt_index) {
+  jspb.Message.addToRepeatedField(this, 2, value, opt_index);
+};
+
+
+proto.title.Snippet.prototype.clearFragmentsList = function() {
+  this.setFragmentsList([]);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.SearchHit = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.title.SearchHit.repeatedFields_, null);
+};
+goog.inherits(proto.title.SearchHit, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.SearchHit.displayName = 'proto.title.SearchHit';
+}
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.title.SearchHit.repeatedFields_ = [3];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.SearchHit.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.SearchHit.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.SearchHit} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchHit.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    index: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    score: +jspb.Message.getFieldWithDefault(msg, 2, 0.0),
+    snippetsList: jspb.Message.toObjectList(msg.getSnippetsList(),
+    proto.title.Snippet.toObject, includeInstance),
     title: (f = msg.getTitle()) && proto.title.Title.toObject(includeInstance, f)
   };
 
@@ -3479,23 +3684,23 @@ proto.title.SearchResult.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.title.SearchResult}
+ * @return {!proto.title.SearchHit}
  */
-proto.title.SearchResult.deserializeBinary = function(bytes) {
+proto.title.SearchHit.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.title.SearchResult;
-  return proto.title.SearchResult.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.title.SearchHit;
+  return proto.title.SearchHit.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.title.SearchResult} msg The message object to deserialize into.
+ * @param {!proto.title.SearchHit} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.title.SearchResult}
+ * @return {!proto.title.SearchHit}
  */
-proto.title.SearchResult.deserializeBinaryFromReader = function(msg, reader) {
+proto.title.SearchHit.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3503,10 +3708,19 @@ proto.title.SearchResult.deserializeBinaryFromReader = function(msg, reader) {
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setResult(value);
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setIndex(value);
       break;
     case 2:
+      var value = /** @type {number} */ (reader.readDouble());
+      msg.setScore(value);
+      break;
+    case 3:
+      var value = new proto.title.Snippet;
+      reader.readMessage(value,proto.title.Snippet.deserializeBinaryFromReader);
+      msg.addSnippets(value);
+      break;
+    case 4:
       var value = new proto.title.Title;
       reader.readMessage(value,proto.title.Title.deserializeBinaryFromReader);
       msg.setTitle(value);
@@ -3524,9 +3738,9 @@ proto.title.SearchResult.deserializeBinaryFromReader = function(msg, reader) {
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.title.SearchResult.prototype.serializeBinary = function() {
+proto.title.SearchHit.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.title.SearchResult.serializeBinaryToWriter(this, writer);
+  proto.title.SearchHit.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3534,23 +3748,38 @@ proto.title.SearchResult.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.title.SearchResult} message
+ * @param {!proto.title.SearchHit} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.title.SearchResult.serializeBinaryToWriter = function(message, writer) {
+proto.title.SearchHit.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getResult();
-  if (f.length > 0) {
-    writer.writeString(
+  f = message.getIndex();
+  if (f !== 0) {
+    writer.writeInt32(
       1,
       f
+    );
+  }
+  f = message.getScore();
+  if (f !== 0.0) {
+    writer.writeDouble(
+      2,
+      f
+    );
+  }
+  f = message.getSnippetsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      3,
+      f,
+      proto.title.Snippet.serializeBinaryToWriter
     );
   }
   f = message.getTitle();
   if (f != null) {
     writer.writeMessage(
-      2,
+      4,
       f,
       proto.title.Title.serializeBinaryToWriter
     );
@@ -3559,37 +3788,83 @@ proto.title.SearchResult.serializeBinaryToWriter = function(message, writer) {
 
 
 /**
- * optional string result = 1;
- * @return {string}
+ * optional int32 index = 1;
+ * @return {number}
  */
-proto.title.SearchResult.prototype.getResult = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+proto.title.SearchHit.prototype.getIndex = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
 };
 
 
-/** @param {string} value */
-proto.title.SearchResult.prototype.setResult = function(value) {
-  jspb.Message.setProto3StringField(this, 1, value);
+/** @param {number} value */
+proto.title.SearchHit.prototype.setIndex = function(value) {
+  jspb.Message.setProto3IntField(this, 1, value);
 };
 
 
 /**
- * optional Title title = 2;
+ * optional double score = 2;
+ * @return {number}
+ */
+proto.title.SearchHit.prototype.getScore = function() {
+  return /** @type {number} */ (+jspb.Message.getFieldWithDefault(this, 2, 0.0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchHit.prototype.setScore = function(value) {
+  jspb.Message.setProto3FloatField(this, 2, value);
+};
+
+
+/**
+ * repeated Snippet snippets = 3;
+ * @return {!Array<!proto.title.Snippet>}
+ */
+proto.title.SearchHit.prototype.getSnippetsList = function() {
+  return /** @type{!Array<!proto.title.Snippet>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.title.Snippet, 3));
+};
+
+
+/** @param {!Array<!proto.title.Snippet>} value */
+proto.title.SearchHit.prototype.setSnippetsList = function(value) {
+  jspb.Message.setRepeatedWrapperField(this, 3, value);
+};
+
+
+/**
+ * @param {!proto.title.Snippet=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.title.Snippet}
+ */
+proto.title.SearchHit.prototype.addSnippets = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 3, opt_value, proto.title.Snippet, opt_index);
+};
+
+
+proto.title.SearchHit.prototype.clearSnippetsList = function() {
+  this.setSnippetsList([]);
+};
+
+
+/**
+ * optional Title title = 4;
  * @return {?proto.title.Title}
  */
-proto.title.SearchResult.prototype.getTitle = function() {
+proto.title.SearchHit.prototype.getTitle = function() {
   return /** @type{?proto.title.Title} */ (
-    jspb.Message.getWrapperField(this, proto.title.Title, 2));
+    jspb.Message.getWrapperField(this, proto.title.Title, 4));
 };
 
 
 /** @param {?proto.title.Title|undefined} value */
-proto.title.SearchResult.prototype.setTitle = function(value) {
-  jspb.Message.setWrapperField(this, 2, value);
+proto.title.SearchHit.prototype.setTitle = function(value) {
+  jspb.Message.setWrapperField(this, 4, value);
 };
 
 
-proto.title.SearchResult.prototype.clearTitle = function() {
+proto.title.SearchHit.prototype.clearTitle = function() {
   this.setTitle(undefined);
 };
 
@@ -3598,8 +3873,790 @@ proto.title.SearchResult.prototype.clearTitle = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.title.SearchResult.prototype.hasTitle = function() {
-  return jspb.Message.getField(this, 2) != null;
+proto.title.SearchHit.prototype.hasTitle = function() {
+  return jspb.Message.getField(this, 4) != null;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.SearchSummary = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.SearchSummary, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.SearchSummary.displayName = 'proto.title.SearchSummary';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.SearchSummary.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.SearchSummary.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.SearchSummary} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchSummary.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    query: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    total: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    took: jspb.Message.getFieldWithDefault(msg, 3, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.SearchSummary}
+ */
+proto.title.SearchSummary.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.SearchSummary;
+  return proto.title.SearchSummary.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.SearchSummary} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.SearchSummary}
+ */
+proto.title.SearchSummary.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setQuery(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readUint64());
+      msg.setTotal(value);
+      break;
+    case 3:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setTook(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.SearchSummary.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.SearchSummary.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.SearchSummary} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchSummary.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getQuery();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getTotal();
+  if (f !== 0) {
+    writer.writeUint64(
+      2,
+      f
+    );
+  }
+  f = message.getTook();
+  if (f !== 0) {
+    writer.writeInt64(
+      3,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string query = 1;
+ * @return {string}
+ */
+proto.title.SearchSummary.prototype.getQuery = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.SearchSummary.prototype.setQuery = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional uint64 total = 2;
+ * @return {number}
+ */
+proto.title.SearchSummary.prototype.getTotal = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchSummary.prototype.setTotal = function(value) {
+  jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * optional int64 took = 3;
+ * @return {number}
+ */
+proto.title.SearchSummary.prototype.getTook = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchSummary.prototype.setTook = function(value) {
+  jspb.Message.setProto3IntField(this, 3, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.SearchFacetTerm = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.SearchFacetTerm, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.SearchFacetTerm.displayName = 'proto.title.SearchFacetTerm';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.SearchFacetTerm.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.SearchFacetTerm.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.SearchFacetTerm} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchFacetTerm.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    term: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    count: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.SearchFacetTerm}
+ */
+proto.title.SearchFacetTerm.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.SearchFacetTerm;
+  return proto.title.SearchFacetTerm.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.SearchFacetTerm} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.SearchFacetTerm}
+ */
+proto.title.SearchFacetTerm.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTerm(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setCount(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.SearchFacetTerm.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.SearchFacetTerm.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.SearchFacetTerm} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchFacetTerm.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getTerm();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getCount();
+  if (f !== 0) {
+    writer.writeInt32(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string term = 1;
+ * @return {string}
+ */
+proto.title.SearchFacetTerm.prototype.getTerm = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.SearchFacetTerm.prototype.setTerm = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional int32 count = 2;
+ * @return {number}
+ */
+proto.title.SearchFacetTerm.prototype.getCount = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchFacetTerm.prototype.setCount = function(value) {
+  jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.SearchFacet = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.title.SearchFacet.repeatedFields_, null);
+};
+goog.inherits(proto.title.SearchFacet, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.SearchFacet.displayName = 'proto.title.SearchFacet';
+}
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.title.SearchFacet.repeatedFields_ = [3];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.SearchFacet.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.SearchFacet.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.SearchFacet} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchFacet.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    field: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    total: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    termsList: jspb.Message.toObjectList(msg.getTermsList(),
+    proto.title.SearchFacetTerm.toObject, includeInstance),
+    other: jspb.Message.getFieldWithDefault(msg, 4, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.SearchFacet}
+ */
+proto.title.SearchFacet.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.SearchFacet;
+  return proto.title.SearchFacet.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.SearchFacet} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.SearchFacet}
+ */
+proto.title.SearchFacet.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setField(value);
+      break;
+    case 2:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setTotal(value);
+      break;
+    case 3:
+      var value = new proto.title.SearchFacetTerm;
+      reader.readMessage(value,proto.title.SearchFacetTerm.deserializeBinaryFromReader);
+      msg.addTerms(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setOther(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.SearchFacet.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.SearchFacet.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.SearchFacet} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchFacet.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getField();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getTotal();
+  if (f !== 0) {
+    writer.writeInt32(
+      2,
+      f
+    );
+  }
+  f = message.getTermsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      3,
+      f,
+      proto.title.SearchFacetTerm.serializeBinaryToWriter
+    );
+  }
+  f = message.getOther();
+  if (f !== 0) {
+    writer.writeInt32(
+      4,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string field = 1;
+ * @return {string}
+ */
+proto.title.SearchFacet.prototype.getField = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.SearchFacet.prototype.setField = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional int32 total = 2;
+ * @return {number}
+ */
+proto.title.SearchFacet.prototype.getTotal = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchFacet.prototype.setTotal = function(value) {
+  jspb.Message.setProto3IntField(this, 2, value);
+};
+
+
+/**
+ * repeated SearchFacetTerm terms = 3;
+ * @return {!Array<!proto.title.SearchFacetTerm>}
+ */
+proto.title.SearchFacet.prototype.getTermsList = function() {
+  return /** @type{!Array<!proto.title.SearchFacetTerm>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.title.SearchFacetTerm, 3));
+};
+
+
+/** @param {!Array<!proto.title.SearchFacetTerm>} value */
+proto.title.SearchFacet.prototype.setTermsList = function(value) {
+  jspb.Message.setRepeatedWrapperField(this, 3, value);
+};
+
+
+/**
+ * @param {!proto.title.SearchFacetTerm=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.title.SearchFacetTerm}
+ */
+proto.title.SearchFacet.prototype.addTerms = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 3, opt_value, proto.title.SearchFacetTerm, opt_index);
+};
+
+
+proto.title.SearchFacet.prototype.clearTermsList = function() {
+  this.setTermsList([]);
+};
+
+
+/**
+ * optional int32 other = 4;
+ * @return {number}
+ */
+proto.title.SearchFacet.prototype.getOther = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchFacet.prototype.setOther = function(value) {
+  jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.SearchFacets = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.title.SearchFacets.repeatedFields_, null);
+};
+goog.inherits(proto.title.SearchFacets, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.SearchFacets.displayName = 'proto.title.SearchFacets';
+}
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.title.SearchFacets.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.SearchFacets.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.SearchFacets.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.SearchFacets} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchFacets.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    facetsList: jspb.Message.toObjectList(msg.getFacetsList(),
+    proto.title.SearchFacet.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.SearchFacets}
+ */
+proto.title.SearchFacets.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.SearchFacets;
+  return proto.title.SearchFacets.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.SearchFacets} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.SearchFacets}
+ */
+proto.title.SearchFacets.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.title.SearchFacet;
+      reader.readMessage(value,proto.title.SearchFacet.deserializeBinaryFromReader);
+      msg.addFacets(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.SearchFacets.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.SearchFacets.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.SearchFacets} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.SearchFacets.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getFacetsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.title.SearchFacet.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated SearchFacet facets = 1;
+ * @return {!Array<!proto.title.SearchFacet>}
+ */
+proto.title.SearchFacets.prototype.getFacetsList = function() {
+  return /** @type{!Array<!proto.title.SearchFacet>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.title.SearchFacet, 1));
+};
+
+
+/** @param {!Array<!proto.title.SearchFacet>} value */
+proto.title.SearchFacets.prototype.setFacetsList = function(value) {
+  jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.title.SearchFacet=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.title.SearchFacet}
+ */
+proto.title.SearchFacets.prototype.addFacets = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.title.SearchFacet, opt_index);
+};
+
+
+proto.title.SearchFacets.prototype.clearFacetsList = function() {
+  this.setFacetsList([]);
 };
 
 
@@ -3832,12 +4889,39 @@ proto.title.SearchTitlesRequest.prototype.setIndexpath = function(value) {
  * @constructor
  */
 proto.title.SearchTitlesResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.title.SearchTitlesResponse.oneofGroups_);
 };
 goog.inherits(proto.title.SearchTitlesResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   proto.title.SearchTitlesResponse.displayName = 'proto.title.SearchTitlesResponse';
 }
+/**
+ * Oneof group definitions for this message. Each group defines the field
+ * numbers belonging to that group. When of these fields' value is set, all
+ * other fields in the group are cleared. During deserialization, if multiple
+ * fields are encountered for a group, only the last value seen will be kept.
+ * @private {!Array<!Array<number>>}
+ * @const
+ */
+proto.title.SearchTitlesResponse.oneofGroups_ = [[1,2,3]];
+
+/**
+ * @enum {number}
+ */
+proto.title.SearchTitlesResponse.ResultCase = {
+  RESULT_NOT_SET: 0,
+  SUMMARY: 1,
+  HIT: 2,
+  FACETS: 3
+};
+
+/**
+ * @return {proto.title.SearchTitlesResponse.ResultCase}
+ */
+proto.title.SearchTitlesResponse.prototype.getResultCase = function() {
+  return /** @type {proto.title.SearchTitlesResponse.ResultCase} */(jspb.Message.computeOneofCase(this, proto.title.SearchTitlesResponse.oneofGroups_[0]));
+};
+
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -3867,7 +4951,9 @@ proto.title.SearchTitlesResponse.prototype.toObject = function(opt_includeInstan
  */
 proto.title.SearchTitlesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: (f = msg.getResult()) && proto.title.SearchResult.toObject(includeInstance, f)
+    summary: (f = msg.getSummary()) && proto.title.SearchSummary.toObject(includeInstance, f),
+    hit: (f = msg.getHit()) && proto.title.SearchHit.toObject(includeInstance, f),
+    facets: (f = msg.getFacets()) && proto.title.SearchFacets.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -3905,9 +4991,19 @@ proto.title.SearchTitlesResponse.deserializeBinaryFromReader = function(msg, rea
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = new proto.title.SearchResult;
-      reader.readMessage(value,proto.title.SearchResult.deserializeBinaryFromReader);
-      msg.setResult(value);
+      var value = new proto.title.SearchSummary;
+      reader.readMessage(value,proto.title.SearchSummary.deserializeBinaryFromReader);
+      msg.setSummary(value);
+      break;
+    case 2:
+      var value = new proto.title.SearchHit;
+      reader.readMessage(value,proto.title.SearchHit.deserializeBinaryFromReader);
+      msg.setHit(value);
+      break;
+    case 3:
+      var value = new proto.title.SearchFacets;
+      reader.readMessage(value,proto.title.SearchFacets.deserializeBinaryFromReader);
+      msg.setFacets(value);
       break;
     default:
       reader.skipField();
@@ -3938,35 +5034,51 @@ proto.title.SearchTitlesResponse.prototype.serializeBinary = function() {
  */
 proto.title.SearchTitlesResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getResult();
+  f = message.getSummary();
   if (f != null) {
     writer.writeMessage(
       1,
       f,
-      proto.title.SearchResult.serializeBinaryToWriter
+      proto.title.SearchSummary.serializeBinaryToWriter
+    );
+  }
+  f = message.getHit();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      proto.title.SearchHit.serializeBinaryToWriter
+    );
+  }
+  f = message.getFacets();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      proto.title.SearchFacets.serializeBinaryToWriter
     );
   }
 };
 
 
 /**
- * optional SearchResult result = 1;
- * @return {?proto.title.SearchResult}
+ * optional SearchSummary summary = 1;
+ * @return {?proto.title.SearchSummary}
  */
-proto.title.SearchTitlesResponse.prototype.getResult = function() {
-  return /** @type{?proto.title.SearchResult} */ (
-    jspb.Message.getWrapperField(this, proto.title.SearchResult, 1));
+proto.title.SearchTitlesResponse.prototype.getSummary = function() {
+  return /** @type{?proto.title.SearchSummary} */ (
+    jspb.Message.getWrapperField(this, proto.title.SearchSummary, 1));
 };
 
 
-/** @param {?proto.title.SearchResult|undefined} value */
-proto.title.SearchTitlesResponse.prototype.setResult = function(value) {
-  jspb.Message.setWrapperField(this, 1, value);
+/** @param {?proto.title.SearchSummary|undefined} value */
+proto.title.SearchTitlesResponse.prototype.setSummary = function(value) {
+  jspb.Message.setOneofWrapperField(this, 1, proto.title.SearchTitlesResponse.oneofGroups_[0], value);
 };
 
 
-proto.title.SearchTitlesResponse.prototype.clearResult = function() {
-  this.setResult(undefined);
+proto.title.SearchTitlesResponse.prototype.clearSummary = function() {
+  this.setSummary(undefined);
 };
 
 
@@ -3974,8 +5086,68 @@ proto.title.SearchTitlesResponse.prototype.clearResult = function() {
  * Returns whether this field is set.
  * @return {!boolean}
  */
-proto.title.SearchTitlesResponse.prototype.hasResult = function() {
+proto.title.SearchTitlesResponse.prototype.hasSummary = function() {
   return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional SearchHit hit = 2;
+ * @return {?proto.title.SearchHit}
+ */
+proto.title.SearchTitlesResponse.prototype.getHit = function() {
+  return /** @type{?proto.title.SearchHit} */ (
+    jspb.Message.getWrapperField(this, proto.title.SearchHit, 2));
+};
+
+
+/** @param {?proto.title.SearchHit|undefined} value */
+proto.title.SearchTitlesResponse.prototype.setHit = function(value) {
+  jspb.Message.setOneofWrapperField(this, 2, proto.title.SearchTitlesResponse.oneofGroups_[0], value);
+};
+
+
+proto.title.SearchTitlesResponse.prototype.clearHit = function() {
+  this.setHit(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.SearchTitlesResponse.prototype.hasHit = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional SearchFacets facets = 3;
+ * @return {?proto.title.SearchFacets}
+ */
+proto.title.SearchTitlesResponse.prototype.getFacets = function() {
+  return /** @type{?proto.title.SearchFacets} */ (
+    jspb.Message.getWrapperField(this, proto.title.SearchFacets, 3));
+};
+
+
+/** @param {?proto.title.SearchFacets|undefined} value */
+proto.title.SearchTitlesResponse.prototype.setFacets = function(value) {
+  jspb.Message.setOneofWrapperField(this, 3, proto.title.SearchTitlesResponse.oneofGroups_[0], value);
+};
+
+
+proto.title.SearchTitlesResponse.prototype.clearFacets = function() {
+  this.setFacets(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.SearchTitlesResponse.prototype.hasFacets = function() {
+  return jspb.Message.getField(this, 3) != null;
 };
 
 

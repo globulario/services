@@ -798,21 +798,22 @@ func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 	query := bleve.NewQueryStringQuery(rqst.Query)
 	request := bleve.NewSearchRequest(query)
+	request.Size = 1000
 
 	// Now I will add the facets for type and genre.
 
 	// The genre facet.
-	genres := bleve.NewFacetRequest("Genres", 10)
+	genres := bleve.NewFacetRequest("Genres", 1000)
 	request.AddFacet("Genres", genres)
 
 	// The type facet...
-	types := bleve.NewFacetRequest("Type", 5)
+	types := bleve.NewFacetRequest("Type", 1000)
 	request.AddFacet("Types", types)
 
 	// The rating facet
 	var lowToMidRating = 3.5
 	var midToHighRating = 7.0
-	rating := bleve.NewFacetRequest("Rating", 3)
+	rating := bleve.NewFacetRequest("Rating", 1000)
 	rating.AddNumericRange("low", nil, &lowToMidRating)
 	rating.AddNumericRange("medium", &lowToMidRating, &midToHighRating)
 	rating.AddNumericRange("high", &midToHighRating, nil)
