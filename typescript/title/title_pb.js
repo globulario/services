@@ -4716,7 +4716,9 @@ proto.title.SearchTitlesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     query: jspb.Message.getFieldWithDefault(msg, 1, ""),
     fieldsList: jspb.Message.getRepeatedField(msg, 2),
-    indexpath: jspb.Message.getFieldWithDefault(msg, 3, "")
+    indexpath: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    size: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    offset: jspb.Message.getFieldWithDefault(msg, 5, 0)
   };
 
   if (includeInstance) {
@@ -4765,6 +4767,14 @@ proto.title.SearchTitlesRequest.deserializeBinaryFromReader = function(msg, read
       var value = /** @type {string} */ (reader.readString());
       msg.setIndexpath(value);
       break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setSize(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setOffset(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -4812,6 +4822,20 @@ proto.title.SearchTitlesRequest.serializeBinaryToWriter = function(message, writ
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getSize();
+  if (f !== 0) {
+    writer.writeInt32(
+      4,
+      f
+    );
+  }
+  f = message.getOffset();
+  if (f !== 0) {
+    writer.writeInt32(
+      5,
       f
     );
   }
@@ -4874,6 +4898,36 @@ proto.title.SearchTitlesRequest.prototype.getIndexpath = function() {
 /** @param {string} value */
 proto.title.SearchTitlesRequest.prototype.setIndexpath = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional int32 size = 4;
+ * @return {number}
+ */
+proto.title.SearchTitlesRequest.prototype.getSize = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchTitlesRequest.prototype.setSize = function(value) {
+  jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional int32 offset = 5;
+ * @return {number}
+ */
+proto.title.SearchTitlesRequest.prototype.getOffset = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/** @param {number} value */
+proto.title.SearchTitlesRequest.prototype.setOffset = function(value) {
+  jspb.Message.setProto3IntField(this, 5, value);
 };
 
 

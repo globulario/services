@@ -160,6 +160,8 @@ message SearchTitlesRequest {
 	string query = 1;
 	repeated string fields = 2;
 	string indexPath = 3;
+	int32 size = 4;
+	int32 offset = 5;
 }
 
 message SearchTitlesResponse {
