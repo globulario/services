@@ -517,6 +517,7 @@ func (svr *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 
 	}
 	fmt.Println("create new title with name ", rqst.Title.Name)
+
 	// So here Will create the indexation for the movie...
 	index, err := svr.getIndex(rqst.IndexPath)
 	if err != nil {
@@ -753,7 +754,420 @@ func (svr *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 		}
 	}
 
-	return &titlepb.GetFileTitlesResponse{Titles: titles}, nil
+	return &titlepb.GetFileTitlesResponse{Titles: &titlepb.Titles{Titles: titles}}, nil
+}
+
+//////////////////////////////////////////////////////// Publisher ////////////////////////////////////////////////////////
+// Create a publisher...
+func (svr *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePublisherRequest) (*titlepb.CreatePublisherResponse, error) {
+	if rqst.Publisher == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no publisher was given")))
+
+	}
+	fmt.Println("create new publisher with name ", rqst.Publisher.Name)
+
+	// So here Will create the indexation for the movie...
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Index the title and put it in the search engine.
+	err = index.Index(rqst.Publisher.ID, rqst.Publisher)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Associated original object here...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Publisher)
+
+	if err == nil {
+		err = index.SetInternal([]byte(rqst.Publisher.ID), []byte(jsonStr))
+	}
+
+	return &titlepb.CreatePublisherResponse{}, nil
+}
+
+// Delete a publisher...
+func (svr *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePublisherRequest) (*titlepb.DeletePublisherResponse, error) {
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.Delete(rqst.PublisherId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.DeleteInternal([]byte(rqst.PublisherId))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// TODO remove asscociated videos...
+
+	return &titlepb.DeletePublisherResponse{}, nil
+}
+
+func (svr *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, error) {
+
+	index, err := svr.getIndex(indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	query := bleve.NewQueryStringQuery(id)
+	searchRequest := bleve.NewSearchRequest(query)
+	searchResult, err := index.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now from the result I will
+	if searchResult.Total == 0 {
+		return nil, errors.New("No matches")
+	}
+
+	var publisher *titlepb.Publisher
+	// Now I will return the data
+	for _, val := range searchResult.Hits {
+		id := val.ID
+		raw, err := index.GetInternal([]byte(id))
+		if err != nil {
+			return nil, err
+		}
+		publisher = new(titlepb.Publisher)
+		jsonpb.UnmarshalString(string(raw), publisher)
+
+	}
+
+	return publisher, nil
+}
+
+// Retrun a publisher.
+func (svr *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublisherByIdRequest) (*titlepb.GetPublisherByIdResponse, error) {
+	publisher, err := svr.getPublisherById(rqst.IndexPath, rqst.PublisherId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &titlepb.GetPublisherByIdResponse{
+		Publisher: publisher,
+	}, nil
+}
+
+//////////////////////////////////////////////////////////// Cast ////////////////////////////////////////////////////////////
+// Create a person...
+func (svr *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
+	if rqst.Person == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no publisher was given")))
+
+	}
+	fmt.Println("create new person info with name ", rqst.Person.FullName)
+
+	// So here Will create the indexation for the movie...
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Index the title and put it in the search engine.
+	err = index.Index(rqst.Person.ID, rqst.Person)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Associated original object here...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Person)
+
+	if err == nil {
+		err = index.SetInternal([]byte(rqst.Person.ID), []byte(jsonStr))
+	}
+
+	return &titlepb.CreatePersonResponse{}, nil
+}
+
+// Delete a person...
+func (svr *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonRequest) (*titlepb.DeletePersonResponse, error) {
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.Delete(rqst.PersonId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.DeleteInternal([]byte(rqst.PersonId))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// TODO remove asscociated videos...
+
+	return &titlepb.DeletePersonResponse{}, nil
+}
+
+func (svr *server) getPersonById(indexPath, id string) (*titlepb.Person, error) {
+
+	index, err := svr.getIndex(indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	query := bleve.NewQueryStringQuery(id)
+	searchRequest := bleve.NewSearchRequest(query)
+	searchResult, err := index.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now from the result I will
+	if searchResult.Total == 0 {
+		return nil, errors.New("No matches")
+	}
+
+	var person *titlepb.Person
+	// Now I will return the data
+	for _, val := range searchResult.Hits {
+		id := val.ID
+		raw, err := index.GetInternal([]byte(id))
+		if err != nil {
+			return nil, err
+		}
+		person = new(titlepb.Person)
+		jsonpb.UnmarshalString(string(raw), person)
+	}
+
+	return person, nil
+}
+
+// Retrun a person with a given id.
+func (svr *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByIdRequest) (*titlepb.GetPersonByIdResponse, error) {
+	person, err := svr.getPersonById(rqst.IndexPath, rqst.PersonId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &titlepb.GetPersonByIdResponse{
+		Person: person,
+	}, nil
+}
+
+// Insert a video in the database or update it if it already exist.
+func (svr *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
+	if rqst.Video == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no video was given")))
+
+	}
+	fmt.Println("create new video with id ", rqst.Video.ID)
+
+	// So here Will create the indexation for the movie...
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Index the title and put it in the search engine.
+	err = index.Index(rqst.Video.ID, rqst.Video)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Associated original object here...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Video)
+
+	if err == nil {
+		err = index.SetInternal([]byte(rqst.Video.ID), []byte(jsonStr))
+	}
+
+	return &titlepb.CreateVideoResponse{}, nil
+}
+
+func (svr *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
+
+	index, err := svr.getIndex(indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	query := bleve.NewQueryStringQuery(id)
+	searchRequest := bleve.NewSearchRequest(query)
+	searchResult, err := index.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now from the result I will
+	if searchResult.Total == 0 {
+		return nil, errors.New("No matches")
+	}
+
+	var video *titlepb.Video
+	// Now I will return the data
+	for _, val := range searchResult.Hits {
+		id := val.ID
+		raw, err := index.GetInternal([]byte(id))
+		if err != nil {
+			return nil, err
+		}
+		video = new(titlepb.Video)
+		jsonpb.UnmarshalString(string(raw), video)
+
+	}
+
+	return video, nil
+}
+
+// Get a video by a given id.
+func (svr *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
+	video, err := svr.getVideoById(rqst.IndexPath, rqst.VidoeId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	filePaths := []string{}
+
+	// get the list of associated files if there some...
+	if svr.associations != nil {
+		if svr.associations[rqst.IndexPath] != nil {
+			data, err := svr.associations[rqst.IndexPath].GetItem(rqst.VidoeId)
+			if err == nil {
+				association := new(fileTileAssociation)
+				err = json.Unmarshal(data, association)
+				if err == nil {
+					// In that case I will get the files...
+					filePaths = association.Paths
+				}
+			}
+		}
+	}
+
+	return &titlepb.GetVideoByIdResponse{
+		Video:      video,
+		FilesPaths: filePaths,
+	}, nil
+}
+
+// Delete a video from the database.
+func (svr *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoRequest) (*titlepb.DeleteVideoResponse, error) {
+	index, err := svr.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.Delete(rqst.VideoId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.DeleteInternal([]byte(rqst.VideoId))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// TODO remove asscociated files...
+
+	return &titlepb.DeleteVideoResponse{}, nil
+}
+
+
+// Return the list of videos asscociate with a file.
+func (svr *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideosRequest) (*titlepb.GetFileVideosResponse, error) {
+	// So here I will get the list of titles asscociated with a file...
+	filePath := rqst.FilePath
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	if !Utility.Exists(filePath) {
+		// Here I will try to get it from the users dirs...
+		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
+			filePath = config.GetDataDir() + "/files" + filePath
+		}
+	}
+	if !Utility.Exists(filePath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+	}
+
+	// I will use the file checksum as file id...
+	checksum := Utility.CreateFileChecksum(filePath)
+	if svr.associations == nil {
+		svr.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if svr.associations[rqst.IndexPath] == nil {
+		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+	}
+
+	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
+	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	videos := make([]*titlepb.Video, 0)
+	for i := 0; i < len(association.Titles); i++ {
+		video, err := svr.getVideoById(rqst.IndexPath, association.Titles[i])
+		if err == nil {
+			videos = append(videos, video)
+		}
+	}
+
+	return &titlepb.GetFileVideosResponse{Videos: &titlepb.Videos{Videos: videos}}, nil
 }
 
 // Return the list of files associate with a title
@@ -798,8 +1212,8 @@ func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 
 	query := bleve.NewQueryStringQuery(rqst.Query)
 	request := bleve.NewSearchRequest(query)
-	request.Size = int(rqst.Size); //
-	request.From = int(rqst.Offset);
+	request.Size = int(rqst.Size) //
+	request.From = int(rqst.Offset)
 
 	if request.Size == 0 {
 		request.Size = 50
@@ -827,8 +1241,6 @@ func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	request.Highlight = bleve.NewHighlightWithStyle("html")
 	request.Fields = rqst.Fields
 	result, err := index.Search(request)
-
-	fmt.Println(result)
 
 	if err != nil { // an empty query would cause this
 		return err
@@ -874,20 +1286,37 @@ func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			title := new(titlepb.Title)
 			err = jsonpb.UnmarshalString(string(raw), title)
 			if err == nil {
-				hit_.Title = title
+				hit_.Result = &titlepb.SearchHit_Title{
+					Title: title,
+				}
 				// Here I will send the search result...
 				stream.Send(&titlepb.SearchTitlesResponse{
 					Result: &titlepb.SearchTitlesResponse_Hit{
 						Hit: hit_,
 					},
 				})
+			} else {
+				// Here I will try with a video...
+				video := new(titlepb.Video)
+				err = jsonpb.UnmarshalString(string(raw), video)
+				if err == nil {
+					hit_.Result = &titlepb.SearchHit_Video{
+						Video: video,
+					}
+					// Here I will send the search result...
+					stream.Send(&titlepb.SearchTitlesResponse{
+						Result: &titlepb.SearchTitlesResponse_Hit{
+							Hit: hit_,
+						},
+					})
+				}
 			}
 		}
 	}
 
 	// Finaly I will send the facets...
 	facets := new(titlepb.SearchFacets)
-	facets.Facets = make([]*titlepb.SearchFacet, 0);
+	facets.Facets = make([]*titlepb.SearchFacet, 0)
 
 	for _, f := range result.Facets {
 		facet_ := new(titlepb.SearchFacet)

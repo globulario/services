@@ -271,7 +271,7 @@ func (client *Title_Client)  GetFileTitles(indexPath, path string)  ([]*titlepb.
 		return nil, err
 	}
 
-	return rsp.Titles, nil
+	return rsp.Titles.Titles, nil
 }
 
 /**
