@@ -274,6 +274,18 @@ func (client *Title_Client)  GetFileTitles(indexPath, path string)  ([]*titlepb.
 	return rsp.Titles.Titles, nil
 }
 
+
+func (client *Title_Client)  GetFileVideos(indexPath, path string)  ([]*titlepb.Video, error){
+	rqst := &titlepb.GetFileVideosRequest{IndexPath: indexPath, FilePath: path}
+
+	rsp, err := client.c.GetFileVideos(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Videos.Videos, nil
+}
+
 /**
  * Get the title by it id.
  */
@@ -374,5 +386,68 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 	}
 
 	_, err := client.c.DissociateFileWithTitle(client.GetCtx(), rqst)
+	return err
+}
+
+/**
+ * Create video
+ */
+ func (client *Title_Client) CreateVideo( token, path string, video *titlepb.Video) error{
+
+	rqst := &titlepb.CreateVideoRequest{
+		Video: video,
+		IndexPath: path,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		md.Append("token", string(token))
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	
+	_, err := client.c.CreateVideo(ctx, rqst)
+
+	return err
+}
+
+/**
+ * Create a person (video participant, cast)
+ */
+ func (client *Title_Client) CreatePerson( token, path string, p *titlepb.Person) error{
+
+	rqst := &titlepb.CreatePersonRequest{
+		Person: p,
+		IndexPath: path,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		md.Append("token", string(token))
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	
+	_, err := client.c.CreatePerson(ctx, rqst)
+
+	return err
+}
+
+func (client *Title_Client) CreatePublisher( token, path string, p *titlepb.Publisher) error{
+
+	rqst := &titlepb.CreatePublisherRequest{
+		Publisher: p,
+		IndexPath: path,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		md.Append("token", string(token))
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	
+	_, err := client.c.CreatePublisher(ctx, rqst)
+
 	return err
 }

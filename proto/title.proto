@@ -65,17 +65,18 @@ message Video {
 	string Description = 3; // A short description of the video
 	Publisher PublisherId = 4; // The channel or name of the publisher.
 	int64 Count = 5; // The number of view.
-	int64 Score = 6; // The score.
+	float Rating = 6; // The score.
 	int64 Likes = 7; // The number of person who like the video
 	string Date = 8; // Contain information the publihsh date.
-	string Genres = 9; // The kind of video ex. adult, music ect.
-	string Tags = 10; // Categories, kewords... 
+	repeated string Genres = 9; // The kind of video ex. adult, music ect.
+	repeated string Tags = 10; // Categories, kewords... 
 
 	// The list of video figurant
-	repeated Person Cast = 11;
+	repeated Person Casting = 11;
 
 	Poster poster = 12; // Thumbnail
 	Preview preview = 13; // short play...
+	string Duration = 14;
 }
 
 message Videos {

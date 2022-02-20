@@ -4,13 +4,15 @@ import (
 	//"encoding/json"
 	"fmt"
 	"testing"
-	"github.com/globulario/services/golang/title/titlepb"
+	//"github.com/globulario/services/golang/title/titlepb"
 )
 
 var (
-	client, err = NewTitleService_Client("globule-ryzen.globular.cloud:10002", "title.TitleService")
+	// client, err = NewTitleService_Client("globule-ryzen.globular.cloud:10002", "title.TitleService")
+	client, err = NewTitleService_Client("globular.io", "title.TitleService")
 )
 
+/*
 // Test various function here.
 func TestCreateTitle(t *testing.T) {
 	if err != nil {
@@ -176,5 +178,16 @@ func TestDissociateFile(t *testing.T) {
 	if err != nil {
 		fmt.Println("fail to associate file with error: ", err)
 	}
+
+}*/
+
+
+func TestGetFileVideos(t *testing.T) {
+	titles, err := client.GetFileVideos("/var/globular/search/videos", "/mnt/8e7a3e9a-8530-4b8e-9947-fb728c709cc2/movie/xxx/pornhub/ph604652e34b5d9.mp4")
+	if err != nil {
+		fmt.Println("------------->", err)
+		return
+	}
+	fmt.Println("found titles", titles)
 
 }

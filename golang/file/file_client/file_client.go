@@ -10,9 +10,11 @@ import (
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/security"
 
 	"github.com/davecourtois/Utility"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +113,12 @@ func (client *File_Client) Invoke(method string, rqst interface{}, ctx context.C
 
 func (client *File_Client) GetCtx() context.Context {
 	if client.ctx == nil {
-		client.ctx = client.GetCtx()
+		client.ctx = globular.GetClientContext(client)
+	}
+	token, err := security.GetLocalToken(client.GetMac())
+	if err == nil {
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
+		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 	return client.ctx
 }

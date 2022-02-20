@@ -461,10 +461,11 @@ func (client *Admin_Client) GetEnvironmentVariable(token, name string) (string, 
 }
 
 // Run a command.
-func (client *Admin_Client) RunCmd(token, cmd string, args []string, blocking bool) (string, error) {
+func (client *Admin_Client) RunCmd(token, cmd, path string, args []string, blocking bool) (string, error) {
 	rqst := &adminpb.RunCmdRequest{
 		Cmd:      cmd,
 		Args:     args,
+		Path:     path,
 		Blocking: blocking,
 	}
 
