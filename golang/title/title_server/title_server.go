@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -97,124 +98,124 @@ type server struct {
 }
 
 // The http address where the configuration can be found /config
-func (svr *server) GetAddress() string {
-	return svr.Address
+func (srv *server) GetAddress() string {
+	return srv.Address
 }
 
-func (svr *server) SetAddress(address string) {
-	svr.Address = address
+func (srv *server) SetAddress(address string) {
+	srv.Address = address
 }
 
-func (svr *server) GetProcess() int {
-	return svr.Process
+func (srv *server) GetProcess() int {
+	return srv.Process
 }
 
-func (svr *server) SetProcess(pid int) {
-	svr.Process = pid
+func (srv *server) SetProcess(pid int) {
+	srv.Process = pid
 }
 
-func (svr *server) GetProxyProcess() int {
-	return svr.ProxyProcess
+func (srv *server) GetProxyProcess() int {
+	return srv.ProxyProcess
 }
 
-func (svr *server) SetProxyProcess(pid int) {
-	svr.ProxyProcess = pid
+func (srv *server) SetProxyProcess(pid int) {
+	srv.ProxyProcess = pid
 }
 
 // The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
+func (srv *server) GetConfigurationPath() string {
+	return srv.ConfigPath
 }
 
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
+func (srv *server) SetConfigurationPath(path string) {
+	srv.ConfigPath = path
 }
 
 // The current service state
-func (svr *server) GetState() string {
-	return svr.State
+func (srv *server) GetState() string {
+	return srv.State
 }
 
-func (svr *server) SetState(state string) {
-	svr.State = state
+func (srv *server) SetState(state string) {
+	srv.State = state
 }
 
 // The last error
-func (svr *server) GetLastError() string {
-	return svr.LastError
+func (srv *server) GetLastError() string {
+	return srv.LastError
 }
 
-func (svr *server) SetLastError(err string) {
-	svr.LastError = err
+func (srv *server) SetLastError(err string) {
+	srv.LastError = err
 }
 
 // The modeTime
-func (svr *server) SetModTime(modtime int64) {
-	svr.ModTime = modtime
+func (srv *server) SetModTime(modtime int64) {
+	srv.ModTime = modtime
 }
-func (svr *server) GetModTime() int64 {
-	return svr.ModTime
+func (srv *server) GetModTime() int64 {
+	return srv.ModTime
 }
 
 // Globular services implementation...
 // The id of a particular service instance.
-func (svr *server) GetId() string {
-	return svr.Id
+func (srv *server) GetId() string {
+	return srv.Id
 }
-func (svr *server) SetId(id string) {
-	svr.Id = id
+func (srv *server) SetId(id string) {
+	srv.Id = id
 }
 
 // The name of a service, must be the gRpc Service name.
-func (svr *server) GetName() string {
-	return svr.Name
+func (srv *server) GetName() string {
+	return srv.Name
 }
-func (svr *server) SetName(name string) {
-	svr.Name = name
+func (srv *server) SetName(name string) {
+	srv.Name = name
 }
 
 // The description of the service
-func (svr *server) GetDescription() string {
-	return svr.Description
+func (srv *server) GetDescription() string {
+	return srv.Description
 }
-func (svr *server) SetDescription(description string) {
-	svr.Description = description
-}
-
-func (svr *server) GetMac() string {
-	return svr.Mac
+func (srv *server) SetDescription(description string) {
+	srv.Description = description
 }
 
-func (svr *server) SetMac(mac string) {
-	svr.Mac = mac
+func (srv *server) GetMac() string {
+	return srv.Mac
+}
+
+func (srv *server) SetMac(mac string) {
+	srv.Mac = mac
 }
 
 // The list of keywords of the services.
-func (svr *server) GetKeywords() []string {
-	return svr.Keywords
+func (srv *server) GetKeywords() []string {
+	return srv.Keywords
 }
-func (svr *server) SetKeywords(keywords []string) {
-	svr.Keywords = keywords
-}
-
-func (svr *server) GetRepositories() []string {
-	return svr.Repositories
-}
-func (svr *server) SetRepositories(repositories []string) {
-	svr.Repositories = repositories
+func (srv *server) SetKeywords(keywords []string) {
+	srv.Keywords = keywords
 }
 
-func (svr *server) GetDiscoveries() []string {
-	return svr.Discoveries
+func (srv *server) GetRepositories() []string {
+	return srv.Repositories
 }
-func (svr *server) SetDiscoveries(discoveries []string) {
-	svr.Discoveries = discoveries
+func (srv *server) SetRepositories(repositories []string) {
+	srv.Repositories = repositories
+}
+
+func (srv *server) GetDiscoveries() []string {
+	return srv.Discoveries
+}
+func (srv *server) SetDiscoveries(discoveries []string) {
+	srv.Discoveries = discoveries
 }
 
 // Dist
-func (svr *server) Dist(path string) (string, error) {
+func (srv *server) Dist(path string) (string, error) {
 
-	return globular.Dist(path, svr)
+	return globular.Dist(path, srv)
 }
 
 func (server *server) GetDependencies() []string {
@@ -237,161 +238,161 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (svr *server) GetPlatform() string {
+func (srv *server) GetPlatform() string {
 	return globular.GetPlatform()
 }
 
 // The path of the executable.
-func (svr *server) GetPath() string {
-	return svr.Path
+func (srv *server) GetPath() string {
+	return srv.Path
 }
-func (svr *server) SetPath(path string) {
-	svr.Path = path
+func (srv *server) SetPath(path string) {
+	srv.Path = path
 }
 
 // The path of the .proto file.
-func (svr *server) GetProto() string {
-	return svr.Proto
+func (srv *server) GetProto() string {
+	return srv.Proto
 }
-func (svr *server) SetProto(proto string) {
-	svr.Proto = proto
+func (srv *server) SetProto(proto string) {
+	srv.Proto = proto
 }
 
 // The gRpc port.
-func (svr *server) GetPort() int {
-	return svr.Port
+func (srv *server) GetPort() int {
+	return srv.Port
 }
-func (svr *server) SetPort(port int) {
-	svr.Port = port
+func (srv *server) SetPort(port int) {
+	srv.Port = port
 }
 
 // The reverse proxy port (use by gRpc Web)
-func (svr *server) GetProxy() int {
-	return svr.Proxy
+func (srv *server) GetProxy() int {
+	return srv.Proxy
 }
-func (svr *server) SetProxy(proxy int) {
-	svr.Proxy = proxy
+func (srv *server) SetProxy(proxy int) {
+	srv.Proxy = proxy
 }
 
 // Can be one of http/https/tls
-func (svr *server) GetProtocol() string {
-	return svr.Protocol
+func (srv *server) GetProtocol() string {
+	return srv.Protocol
 }
-func (svr *server) SetProtocol(protocol string) {
-	svr.Protocol = protocol
+func (srv *server) SetProtocol(protocol string) {
+	srv.Protocol = protocol
 }
 
 // Return true if all Origins are allowed to access the mircoservice.
-func (svr *server) GetAllowAllOrigins() bool {
-	return svr.AllowAllOrigins
+func (srv *server) GetAllowAllOrigins() bool {
+	return srv.AllowAllOrigins
 }
-func (svr *server) SetAllowAllOrigins(allowAllOrigins bool) {
-	svr.AllowAllOrigins = allowAllOrigins
+func (srv *server) SetAllowAllOrigins(allowAllOrigins bool) {
+	srv.AllowAllOrigins = allowAllOrigins
 }
 
 // If AllowAllOrigins is false then AllowedOrigins will contain the
 // list of address that can reach the services.
-func (svr *server) GetAllowedOrigins() string {
-	return svr.AllowedOrigins
+func (srv *server) GetAllowedOrigins() string {
+	return srv.AllowedOrigins
 }
 
-func (svr *server) SetAllowedOrigins(allowedOrigins string) {
-	svr.AllowedOrigins = allowedOrigins
+func (srv *server) SetAllowedOrigins(allowedOrigins string) {
+	srv.AllowedOrigins = allowedOrigins
 }
 
 // Can be a ip address or domain name.
-func (svr *server) GetDomain() string {
-	return svr.Domain
+func (srv *server) GetDomain() string {
+	return srv.Domain
 }
-func (svr *server) SetDomain(domain string) {
-	svr.Domain = domain
+func (srv *server) SetDomain(domain string) {
+	srv.Domain = domain
 }
 
 // TLS section
 
 // If true the service run with TLS. The
-func (svr *server) GetTls() bool {
-	return svr.TLS
+func (srv *server) GetTls() bool {
+	return srv.TLS
 }
-func (svr *server) SetTls(hasTls bool) {
-	svr.TLS = hasTls
+func (srv *server) SetTls(hasTls bool) {
+	srv.TLS = hasTls
 }
 
 // The certificate authority file
-func (svr *server) GetCertAuthorityTrust() string {
-	return svr.CertAuthorityTrust
+func (srv *server) GetCertAuthorityTrust() string {
+	return srv.CertAuthorityTrust
 }
-func (svr *server) SetCertAuthorityTrust(ca string) {
-	svr.CertAuthorityTrust = ca
+func (srv *server) SetCertAuthorityTrust(ca string) {
+	srv.CertAuthorityTrust = ca
 }
 
 // The certificate file.
-func (svr *server) GetCertFile() string {
-	return svr.CertFile
+func (srv *server) GetCertFile() string {
+	return srv.CertFile
 }
-func (svr *server) SetCertFile(certFile string) {
-	svr.CertFile = certFile
+func (srv *server) SetCertFile(certFile string) {
+	srv.CertFile = certFile
 }
 
 // The key file.
-func (svr *server) GetKeyFile() string {
-	return svr.KeyFile
+func (srv *server) GetKeyFile() string {
+	return srv.KeyFile
 }
-func (svr *server) SetKeyFile(keyFile string) {
-	svr.KeyFile = keyFile
+func (srv *server) SetKeyFile(keyFile string) {
+	srv.KeyFile = keyFile
 }
 
 // The service version
-func (svr *server) GetVersion() string {
-	return svr.Version
+func (srv *server) GetVersion() string {
+	return srv.Version
 }
-func (svr *server) SetVersion(version string) {
-	svr.Version = version
+func (srv *server) SetVersion(version string) {
+	srv.Version = version
 }
 
 // The publisher id.
-func (svr *server) GetPublisherId() string {
-	return svr.PublisherId
+func (srv *server) GetPublisherId() string {
+	return srv.PublisherId
 }
-func (svr *server) SetPublisherId(publisherId string) {
-	svr.PublisherId = publisherId
-}
-
-func (svr *server) GetKeepUpToDate() bool {
-	return svr.KeepUpToDate
-}
-func (svr *server) SetKeepUptoDate(val bool) {
-	svr.KeepUpToDate = val
+func (srv *server) SetPublisherId(publisherId string) {
+	srv.PublisherId = publisherId
 }
 
-func (svr *server) GetKeepAlive() bool {
-	return svr.KeepAlive
+func (srv *server) GetKeepUpToDate() bool {
+	return srv.KeepUpToDate
 }
-func (svr *server) SetKeepAlive(val bool) {
-	svr.KeepAlive = val
+func (srv *server) SetKeepUptoDate(val bool) {
+	srv.KeepUpToDate = val
 }
 
-func (svr *server) GetPermissions() []interface{} {
-	return svr.Permissions
+func (srv *server) GetKeepAlive() bool {
+	return srv.KeepAlive
 }
-func (svr *server) SetPermissions(permissions []interface{}) {
-	svr.Permissions = permissions
+func (srv *server) SetKeepAlive(val bool) {
+	srv.KeepAlive = val
+}
+
+func (srv *server) GetPermissions() []interface{} {
+	return srv.Permissions
+}
+func (srv *server) SetPermissions(permissions []interface{}) {
+	srv.Permissions = permissions
 }
 
 // Create the configuration file if is not already exist.
-func (svr *server) Init() error {
+func (srv *server) Init() error {
 
 	// That function is use to get access to other server.
 	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
 
 	// Get the configuration path.
-	err := globular.InitService(svr)
+	err := globular.InitService(srv)
 	if err != nil {
 		return err
 	}
 
 	// Initialyse GRPC server.
-	svr.grpcServer, err = globular.InitGrpcServer(svr /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/, nil, nil)
+	srv.grpcServer, err = globular.InitGrpcServer(srv /*interceptors.ServerUnaryInterceptor, interceptors.ServerStreamIntercepto*/, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -401,25 +402,25 @@ func (svr *server) Init() error {
 }
 
 // Save the configuration values.
-func (svr *server) Save() error {
+func (srv *server) Save() error {
 	// Create the file...
-	return globular.SaveService(svr)
+	return globular.SaveService(srv)
 }
 
-func (svr *server) StartService() error {
-	return globular.StartService(svr, svr.grpcServer)
+func (srv *server) StartService() error {
+	return globular.StartService(srv, srv.grpcServer)
 }
 
-func (svr *server) StopService() error {
-	return globular.StopService(svr, svr.grpcServer)
+func (srv *server) StopService() error {
+	return globular.StopService(srv, srv.grpcServer)
 }
 
 /////////////////////// title specific function /////////////////////////////////
 /**
  * Return indexation for a given path...
  */
-func (svr *server) getIndex(path string) (bleve.Index, error) {
-	if svr.indexs[path] == nil {
+func (srv *server) getIndex(path string) (bleve.Index, error) {
+	if srv.indexs[path] == nil {
 		index, err := bleve.Open(path) // try to open existing index.
 		if err != nil {
 			mapping := bleve.NewIndexMapping()
@@ -430,19 +431,19 @@ func (svr *server) getIndex(path string) (bleve.Index, error) {
 			}
 		}
 
-		if svr.indexs == nil {
-			svr.indexs = make(map[string]bleve.Index, 0)
+		if srv.indexs == nil {
+			srv.indexs = make(map[string]bleve.Index, 0)
 		}
 
-		svr.indexs[path] = index
+		srv.indexs[path] = index
 	}
 
-	return svr.indexs[path], nil
+	return srv.indexs[path], nil
 }
 
-func (svr *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
+func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
 
-	index, err := svr.getIndex(indexPath)
+	index, err := srv.getIndex(indexPath)
 	if err != nil {
 		return nil, err
 	}
@@ -476,9 +477,9 @@ func (svr *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 }
 
 // Get a title by a given id.
-func (svr *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdRequest) (*titlepb.GetTitleByIdResponse, error) {
+func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdRequest) (*titlepb.GetTitleByIdResponse, error) {
 
-	title, err := svr.getTitleById(rqst.IndexPath, rqst.TitleId)
+	title, err := srv.getTitleById(rqst.IndexPath, rqst.TitleId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -486,11 +487,10 @@ func (svr *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 	}
 
 	filePaths := []string{}
-
 	// get the list of associated files if there some...
-	if svr.associations != nil {
-		if svr.associations[rqst.IndexPath] != nil {
-			data, err := svr.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	if srv.associations != nil {
+		if srv.associations[rqst.IndexPath] != nil {
+			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
 			if err == nil {
 				association := new(fileTileAssociation)
 				err = json.Unmarshal(data, association)
@@ -509,7 +509,7 @@ func (svr *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdR
 }
 
 // Insert a title in the database or update it if it already exist.
-func (svr *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleRequest) (*titlepb.CreateTitleResponse, error) {
+func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleRequest) (*titlepb.CreateTitleResponse, error) {
 	if rqst.Title == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -519,7 +519,7 @@ func (svr *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	fmt.Println("create new title with name ", rqst.Title.Name)
 
 	// So here Will create the indexation for the movie...
-	index, err := svr.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -546,9 +546,9 @@ func (svr *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 }
 
 // Delete a title from the database.
-func (svr *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleRequest) (*titlepb.DeleteTitleResponse, error) {
+func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleRequest) (*titlepb.DeleteTitleResponse, error) {
 
-	index, err := svr.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -582,7 +582,7 @@ type fileTileAssociation struct {
 }
 
 // Associate a file and a title info, so file can be found from title informations...
-func (svr *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
+func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
 
 	// so the first thing I will do is to get the file on the disc.
 	filePath := rqst.FilePath
@@ -599,21 +599,35 @@ func (svr *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
 	}
 
-	// I will use the file checksum as file id...
-	checksum := Utility.CreateFileChecksum(filePath)
-
-	if svr.associations == nil {
-		svr.associations = make(map[string]*storage_store.Badger_store)
+	var uuid string
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if svr.associations[rqst.IndexPath] == nil {
-		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	// Depending if the filePath point to a dir or a file...
+	if fileInfo.IsDir() {
+		// is a directory
+		uuid = Utility.GenerateUUID(filePath)
+	} else {
+		// is not a directory
+		uuid = Utility.CreateFileChecksum(filePath)
+	}
+
+	if srv.associations == nil {
+		srv.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if srv.associations[rqst.IndexPath] == nil {
+		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
 		// open in it own thread
-		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
-	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
+	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
@@ -635,7 +649,7 @@ func (svr *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 	// Now I will set back the item in the store.
 	data, _ = json.Marshal(association)
-	err = svr.associations[rqst.IndexPath].SetItem(checksum, data)
+	err = srv.associations[rqst.IndexPath].SetItem(uuid, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -643,7 +657,7 @@ func (svr *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	// Also index it with it title.
-	err = svr.associations[rqst.IndexPath].SetItem(rqst.TitleId, data)
+	err = srv.associations[rqst.IndexPath].SetItem(rqst.TitleId, data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -655,7 +669,7 @@ func (svr *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 }
 
 // Dissociate a file and a title info, so file can be found from title informations...
-func (svr *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.DissociateFileWithTitleRequest) (*titlepb.DissociateFileWithTitleResponse, error) {
+func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.DissociateFileWithTitleRequest) (*titlepb.DissociateFileWithTitleResponse, error) {
 
 	// so the first thing I will do is to get the file on the disc.
 	filePath := rqst.FilePath
@@ -673,19 +687,35 @@ func (svr *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 	}
 
 	// I will use the file checksum as file id...
-	checksum := Utility.CreateFileChecksum(filePath)
-	if svr.associations == nil {
-		svr.associations = make(map[string]*storage_store.Badger_store)
+	var uuid string
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if svr.associations[rqst.IndexPath] == nil {
-		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	// Depending if the filePath point to a dir or a file...
+	if fileInfo.IsDir() {
+		// is a directory
+		uuid = Utility.GenerateUUID(filePath)
+	} else {
+		// is not a directory
+		uuid = Utility.CreateFileChecksum(filePath)
+	}
+
+	if srv.associations == nil {
+		srv.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if srv.associations[rqst.IndexPath] == nil {
+		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
 		// open in it own thread
-		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
-	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
+	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
@@ -698,16 +728,82 @@ func (svr *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 	// so here i will remove the path from the list of path.
 	association.Paths = Utility.RemoveString(association.Paths, rqst.FilePath)
 	if len(association.Paths) == 0 {
-		svr.associations[rqst.IndexPath].RemoveItem(rqst.TitleId)
-		svr.associations[rqst.IndexPath].RemoveItem(checksum)
+		srv.associations[rqst.IndexPath].RemoveItem(rqst.TitleId)
+		srv.associations[rqst.IndexPath].RemoveItem(uuid)
+	}
+	return &titlepb.DissociateFileWithTitleResponse{}, nil
+}
+
+func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, error) {
+	// I will use the file checksum as file id...
+	var uuid string
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &titlepb.DissociateFileWithTitleResponse{}, nil
+	// Depending if the filePath point to a dir or a file...
 
+	if fileInfo.IsDir() {
+		// is a directory
+		uuid = Utility.GenerateUUID(filePath)
+	} else {
+		// is not a directory
+		uuid = Utility.CreateFileChecksum(filePath)
+	}
+
+	if srv.associations == nil {
+		srv.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if srv.associations[indexPath] == nil {
+		srv.associations[indexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+	}
+
+	data, err := srv.associations[indexPath].GetItem(uuid)
+	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	titles := make([]*titlepb.Title, 0)
+	for i := 0; i < len(association.Titles); i++ {
+		title, err := srv.getTitleById(indexPath, association.Titles[i])
+		if err == nil {
+			titles = append(titles, title)
+		}
+	}
+
+	// In case of a dir I need to recursivly get the list of title from sub-folder...
+	if fileInfo.IsDir() {
+		files, err := ioutil.ReadDir(filePath)
+		if err == nil {
+			for _, f := range files {
+				titles_, err := srv.getFileTitles(indexPath, filePath + "/" + f.Name())
+				if err == nil {
+					// append all found title.
+					titles = append(titles, titles_...)
+				}
+			}
+		}
+	}
+
+	// Return the list of all related titles.
+	return titles, nil
 }
 
 // Return the list of titles asscociate with a file.
-func (svr *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitlesRequest) (*titlepb.GetFileTitlesResponse, error) {
+func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitlesRequest) (*titlepb.GetFileTitlesResponse, error) {
+
 	// So here I will get the list of titles asscociated with a file...
 	filePath := rqst.FilePath
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
@@ -723,35 +819,11 @@ func (svr *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
 	}
 
-	// I will use the file checksum as file id...
-	checksum := Utility.CreateFileChecksum(filePath)
-	if svr.associations == nil {
-		svr.associations = make(map[string]*storage_store.Badger_store)
-	}
-
-	if svr.associations[rqst.IndexPath] == nil {
-		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
-		// open in it own thread
-		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
-	}
-
-	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
-	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
-	if err == nil {
-		err = json.Unmarshal(data, association)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-
-	titles := make([]*titlepb.Title, 0)
-	for i := 0; i < len(association.Titles); i++ {
-		title, err := svr.getTitleById(rqst.IndexPath, association.Titles[i])
-		if err == nil {
-			titles = append(titles, title)
-		}
+	titles, err := srv.getFileTitles(rqst.IndexPath, filePath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.GetFileTitlesResponse{Titles: &titlepb.Titles{Titles: titles}}, nil
@@ -759,7 +831,7 @@ func (svr *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 
 //////////////////////////////////////////////////////// Publisher ////////////////////////////////////////////////////////
 // Create a publisher...
-func (svr *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePublisherRequest) (*titlepb.CreatePublisherResponse, error) {
+func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePublisherRequest) (*titlepb.CreatePublisherResponse, error) {
 	if rqst.Publisher == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -769,7 +841,7 @@ func (svr *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 	fmt.Println("create new publisher with name ", rqst.Publisher.Name)
 
 	// So here Will create the indexation for the movie...
-	index, err := svr.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -796,8 +868,8 @@ func (svr *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 }
 
 // Delete a publisher...
-func (svr *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePublisherRequest) (*titlepb.DeletePublisherResponse, error) {
-	index, err := svr.getIndex(rqst.IndexPath)
+func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePublisherRequest) (*titlepb.DeletePublisherResponse, error) {
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -823,9 +895,9 @@ func (svr *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 	return &titlepb.DeletePublisherResponse{}, nil
 }
 
-func (svr *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, error) {
+func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, error) {
 
-	index, err := svr.getIndex(indexPath)
+	index, err := srv.getIndex(indexPath)
 	if err != nil {
 		return nil, err
 	}
@@ -859,8 +931,8 @@ func (svr *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, e
 }
 
 // Retrun a publisher.
-func (svr *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublisherByIdRequest) (*titlepb.GetPublisherByIdResponse, error) {
-	publisher, err := svr.getPublisherById(rqst.IndexPath, rqst.PublisherId)
+func (srv *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublisherByIdRequest) (*titlepb.GetPublisherByIdResponse, error) {
+	publisher, err := srv.getPublisherById(rqst.IndexPath, rqst.PublisherId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -874,7 +946,7 @@ func (svr *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublis
 
 //////////////////////////////////////////////////////////// Cast ////////////////////////////////////////////////////////////
 // Create a person...
-func (svr *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
+func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
 	if rqst.Person == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -884,7 +956,7 @@ func (svr *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 	fmt.Println("create new person info with name ", rqst.Person.FullName)
 
 	// So here Will create the indexation for the movie...
-	index, err := svr.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -911,8 +983,8 @@ func (svr *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 }
 
 // Delete a person...
-func (svr *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonRequest) (*titlepb.DeletePersonResponse, error) {
-	index, err := svr.getIndex(rqst.IndexPath)
+func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonRequest) (*titlepb.DeletePersonResponse, error) {
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -938,9 +1010,9 @@ func (svr *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 	return &titlepb.DeletePersonResponse{}, nil
 }
 
-func (svr *server) getPersonById(indexPath, id string) (*titlepb.Person, error) {
+func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) {
 
-	index, err := svr.getIndex(indexPath)
+	index, err := srv.getIndex(indexPath)
 	if err != nil {
 		return nil, err
 	}
@@ -973,8 +1045,8 @@ func (svr *server) getPersonById(indexPath, id string) (*titlepb.Person, error) 
 }
 
 // Retrun a person with a given id.
-func (svr *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByIdRequest) (*titlepb.GetPersonByIdResponse, error) {
-	person, err := svr.getPersonById(rqst.IndexPath, rqst.PersonId)
+func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByIdRequest) (*titlepb.GetPersonByIdResponse, error) {
+	person, err := srv.getPersonById(rqst.IndexPath, rqst.PersonId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -987,7 +1059,7 @@ func (svr *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 }
 
 // Insert a video in the database or update it if it already exist.
-func (svr *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
+func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
 	if rqst.Video == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -997,7 +1069,7 @@ func (svr *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	fmt.Println("create new video with id ", rqst.Video.ID)
 
 	// So here Will create the indexation for the movie...
-	index, err := svr.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1023,9 +1095,9 @@ func (svr *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	return &titlepb.CreateVideoResponse{}, nil
 }
 
-func (svr *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
+func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 
-	index, err := svr.getIndex(indexPath)
+	index, err := srv.getIndex(indexPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1059,8 +1131,8 @@ func (svr *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 }
 
 // Get a video by a given id.
-func (svr *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
-	video, err := svr.getVideoById(rqst.IndexPath, rqst.VidoeId)
+func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
+	video, err := srv.getVideoById(rqst.IndexPath, rqst.VidoeId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1070,9 +1142,9 @@ func (svr *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 	filePaths := []string{}
 
 	// get the list of associated files if there some...
-	if svr.associations != nil {
-		if svr.associations[rqst.IndexPath] != nil {
-			data, err := svr.associations[rqst.IndexPath].GetItem(rqst.VidoeId)
+	if srv.associations != nil {
+		if srv.associations[rqst.IndexPath] != nil {
+			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.VidoeId)
 			if err == nil {
 				association := new(fileTileAssociation)
 				err = json.Unmarshal(data, association)
@@ -1091,8 +1163,8 @@ func (svr *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 }
 
 // Delete a video from the database.
-func (svr *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoRequest) (*titlepb.DeleteVideoResponse, error) {
-	index, err := svr.getIndex(rqst.IndexPath)
+func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoRequest) (*titlepb.DeleteVideoResponse, error) {
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1118,9 +1190,8 @@ func (svr *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 	return &titlepb.DeleteVideoResponse{}, nil
 }
 
-
 // Return the list of videos asscociate with a file.
-func (svr *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideosRequest) (*titlepb.GetFileVideosResponse, error) {
+func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideosRequest) (*titlepb.GetFileVideosResponse, error) {
 	// So here I will get the list of titles asscociated with a file...
 	filePath := rqst.FilePath
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
@@ -1138,17 +1209,17 @@ func (svr *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	// I will use the file checksum as file id...
 	checksum := Utility.CreateFileChecksum(filePath)
-	if svr.associations == nil {
-		svr.associations = make(map[string]*storage_store.Badger_store)
+	if srv.associations == nil {
+		srv.associations = make(map[string]*storage_store.Badger_store)
 	}
 
-	if svr.associations[rqst.IndexPath] == nil {
-		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if srv.associations[rqst.IndexPath] == nil {
+		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
 		// open in it own thread
-		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := svr.associations[rqst.IndexPath].GetItem(checksum)
+	data, err := srv.associations[rqst.IndexPath].GetItem(checksum)
 	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -1161,7 +1232,7 @@ func (svr *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	videos := make([]*titlepb.Video, 0)
 	for i := 0; i < len(association.Titles); i++ {
-		video, err := svr.getVideoById(rqst.IndexPath, association.Titles[i])
+		video, err := srv.getVideoById(rqst.IndexPath, association.Titles[i])
 		if err == nil {
 			videos = append(videos, video)
 		}
@@ -1171,20 +1242,20 @@ func (svr *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 }
 
 // Return the list of files associate with a title
-func (svr *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFilesRequest) (*titlepb.GetTitleFilesResponse, error) {
+func (srv *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFilesRequest) (*titlepb.GetTitleFilesResponse, error) {
 
 	// I will use the file checksum as file id...
-	if svr.associations == nil {
-		svr.associations = make(map[string]*storage_store.Badger_store)
+	if srv.associations == nil {
+		srv.associations = make(map[string]*storage_store.Badger_store)
 	}
 
-	if svr.associations[rqst.IndexPath] == nil {
-		svr.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if srv.associations[rqst.IndexPath] == nil {
+		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
 		// open in it own thread
-		svr.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := svr.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	data, err := srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
 	association := &fileTileAssociation{ID: "", Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
@@ -1201,9 +1272,9 @@ func (svr *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFile
 }
 
 // Search titles infos...
-func (svr *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlepb.TitleService_SearchTitlesServer) error {
+func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlepb.TitleService_SearchTitlesServer) error {
 
-	index, err := svr.getIndex(rqst.IndexPath)
+	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

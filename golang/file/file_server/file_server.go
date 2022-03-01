@@ -597,7 +597,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	for _, f := range files {
 
 		if f.IsDir() {
-			if recursive || f.Name() == ".hidden" || strings.Contains(path, ".hidden") {
+			if recursive /*|| f.Name() == ".hidden" || strings.Contains(path, ".hidden")*/ {
 				info_, err := readDir(s, path+"/"+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
 				if err != nil {
 					return nil, err
