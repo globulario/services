@@ -142,6 +142,8 @@ message Title {
 	Poster Poster = 15;
 	repeated string AKA = 16;
 	string Duration = 17;
+	int32 Season = 18;
+	int32 Episode = 19;
 }
 
 message Titles {

@@ -2917,7 +2917,9 @@ proto.title.Title.toObject = function(includeInstance, msg) {
     description: jspb.Message.getFieldWithDefault(msg, 14, ""),
     poster: (f = msg.getPoster()) && proto.title.Poster.toObject(includeInstance, f),
     akaList: jspb.Message.getRepeatedField(msg, 16),
-    duration: jspb.Message.getFieldWithDefault(msg, 17, "")
+    duration: jspb.Message.getFieldWithDefault(msg, 17, ""),
+    season: jspb.Message.getFieldWithDefault(msg, 18, 0),
+    episode: jspb.Message.getFieldWithDefault(msg, 19, 0)
   };
 
   if (includeInstance) {
@@ -3025,6 +3027,14 @@ proto.title.Title.deserializeBinaryFromReader = function(msg, reader) {
     case 17:
       var value = /** @type {string} */ (reader.readString());
       msg.setDuration(value);
+      break;
+    case 18:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setSeason(value);
+      break;
+    case 19:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setEpisode(value);
       break;
     default:
       reader.skipField();
@@ -3175,6 +3185,20 @@ proto.title.Title.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       17,
+      f
+    );
+  }
+  f = message.getSeason();
+  if (f !== 0) {
+    writer.writeInt32(
+      18,
+      f
+    );
+  }
+  f = message.getEpisode();
+  if (f !== 0) {
+    writer.writeInt32(
+      19,
       f
     );
   }
@@ -3552,6 +3576,36 @@ proto.title.Title.prototype.getDuration = function() {
 /** @param {string} value */
 proto.title.Title.prototype.setDuration = function(value) {
   jspb.Message.setProto3StringField(this, 17, value);
+};
+
+
+/**
+ * optional int32 Season = 18;
+ * @return {number}
+ */
+proto.title.Title.prototype.getSeason = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 18, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Title.prototype.setSeason = function(value) {
+  jspb.Message.setProto3IntField(this, 18, value);
+};
+
+
+/**
+ * optional int32 Episode = 19;
+ * @return {number}
+ */
+proto.title.Title.prototype.getEpisode = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 19, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Title.prototype.setEpisode = function(value) {
+  jspb.Message.setProto3IntField(this, 19, value);
 };
 
 
