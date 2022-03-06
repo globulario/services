@@ -24,7 +24,7 @@ import { ApplicationManagerServicePromiseClient } from './applications_manager/a
 import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb';
 import { PackageRepositoryPromiseClient } from './repository/repository_grpc_web_pb';
 import { TitleServicePromiseClient } from './title/title_grpc_web_pb';
-
+import { TorrentServicePromiseClient } from './torrent/torrent_grpc_web_pb';
 const domain = window.location.hostname;
 const application = window.location.pathname.split("/").join("");
 
@@ -985,7 +985,27 @@ export class Globular {
     }
     return this._titleService
   }
-
+  private _torrentService: TorrentServicePromiseClient
+  public get torrentService(): TorrentServicePromiseClient | undefined {
+    if (this._torrentService == null) {
+      let configs = this.getConfigs('torrent.torrentService')
+      configs.forEach((config: IServiceConfig) => {
+        if (this._torrentService == null) {
+          this._torrentService = new TorrentServicePromiseClient(
+            this.config.Protocol +
+            '://' +
+            config.Domain +
+            ':' +
+            config.Proxy,
+            null,
+            null,
+          );
+          this._services[config.Id] = this._torrentService
+        }
+      })
+    }
+    return this._torrentService
+  }
   private _searchService: SearchServicePromiseClient
   public get searchService(): SearchServicePromiseClient | undefined {
     if (this._searchService == null) {
