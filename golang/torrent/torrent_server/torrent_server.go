@@ -513,7 +513,7 @@ func (svr *server) processTorrent() {
 							}
 						}
 					} else {
-						fmt.Println(info.Name, info.Downloaded, " of ", info.Size, " rate ", info.DownloadRate)
+						fmt.Println(info.Name, info.Downloaded, " of ", info.Size, " or ", info.Percent, "% rate ", info.DownloadRate)
 					}
 				}
 
@@ -575,7 +575,7 @@ func downloadFile(file_url, dest string) (string, error) {
 }
 
 func percent(actual, total int64) float64 {
-	return float64(actual/total) * 100
+	return float64(actual)/float64(total) * 100
 }
 
 func getTorrentInfo(t *torrent.Torrent, updatedAt, downloaded int64) *torrentpb.TorrentInfo {
@@ -622,7 +622,6 @@ func getTorrentInfo(t *torrent.Torrent, updatedAt, downloaded int64) *torrentpb.
 
 	//cacluate rate
 	now := time.Now()
-	torrentInfo.Percent = percent(torrentInfo.Downloaded, torrentInfo.Size)
 
 	if updatedAt != 0 {
 		dt := float32(now.Sub(time.Unix(updatedAt, 0)))
@@ -635,6 +634,8 @@ func getTorrentInfo(t *torrent.Torrent, updatedAt, downloaded int64) *torrentpb.
 
 	torrentInfo.Downloaded = t.BytesCompleted()
 	torrentInfo.UpdatedAt = now.Unix()
+	
+	torrentInfo.Percent = percent(torrentInfo.Downloaded, torrentInfo.Size)
 
 	return torrentInfo
 }
