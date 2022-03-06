@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/gob"
 	"fmt"
 	"io"
 	"log"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/anacrolix/torrent"
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/torrent/torrent_client"
 	"github.com/globulario/services/golang/torrent/torrentpb"
@@ -430,8 +432,57 @@ func IsUrl(str string) bool {
 
 // Keep track where to copy the torrent files when transfert is completed...
 type TorrentTransfer struct {
-	dst string
-	tor *torrent.Torrent
+	dst  string
+	lnk  string
+	seed bool
+	tor  *torrent.Torrent
+}
+
+// Keep track of torrent dowload...
+type TorrentLnk struct {
+	Name string // The name of the torrent.
+	Dir  string // The dir where to copy the torrent when the download is complete.
+	Lnk  string // Can be a file path or a Url...
+	Seed bool   // if true the link will be seed...
+}
+
+func (svr *server) saveTorrentLnks(lnks []TorrentLnk) error {
+	// create a file
+	dataFile, err := os.Create(svr.DownloadDir + "/lnks.gob")
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer dataFile.Close()
+
+	// serialize the data
+	dataEncoder := gob.NewEncoder(dataFile)
+	dataEncoder.Encode(lnks)
+
+	return nil
+}
+
+/**
+ * Read previous link's
+ */
+func (svr *server) readTorrentLnks() ([]TorrentLnk, error) {
+	// open data file
+	dataFile, err := os.Open(svr.DownloadDir + "/lnks.gob")
+	lnks := make([]TorrentLnk, 0)
+
+	if err != nil {
+		return lnks, err
+	}
+	defer dataFile.Close()
+
+	dataDecoder := gob.NewDecoder(dataFile)
+	err = dataDecoder.Decode(&lnks)
+
+	if err != nil {
+		return lnks, err
+	}
+
+	return lnks, err
 }
 
 /**
@@ -443,7 +494,7 @@ func (svr *server) processTorrent() {
 
 	// Update the torrent information each second...
 	ticker := time.NewTicker(1 * time.Second)
-	previousInfos := make(map[string]*torrentpb.TorrentInfo)
+	infos := make(map[string]*torrentpb.TorrentInfo)
 
 	go func() {
 		for {
@@ -452,31 +503,43 @@ func (svr *server) processTorrent() {
 				if a["action"] == "setTorrentTransfer" {
 					t := a["torrentTransfer"].(*TorrentTransfer)
 					pending = append(pending, t)
+
+					// Keep the link...
+					lnks, err := svr.readTorrentLnks()
+					exist := false
+					if err != nil {
+						lnks = make([]TorrentLnk, 0)
+					} else {
+						for _, lnk := range lnks {
+							if lnk.Name == t.tor.Name() {
+								exist = true
+								break
+							}
+						}
+					}
+					if !exist {
+						lnks = append(lnks, TorrentLnk{Dir: t.dst, Lnk: t.lnk, Seed: t.seed, Name: t.tor.Name()})
+						svr.saveTorrentLnks(lnks)
+					}
+
 				} else if a["action"] == "getTorrentsInfo" {
 					// get back current torrent infos...
-					infos := make([]*torrentpb.TorrentInfo, 0)
-					for i := 0; i < len(pending); i++ {
-						// get the previous information to calculate the rate...
-						previousInfo := previousInfos[pending[i].tor.Name()]
-						var info *torrentpb.TorrentInfo
-						if previousInfo != nil {
-							info = getTorrentInfo(pending[i].tor, previousInfo.UpdatedAt, previousInfo.Downloaded)
-						} else {
-							info = getTorrentInfo(pending[i].tor, 0, 0)
-						}
-						
-						info.Destination = pending[i].dst
-						infos = append(infos, info)
+					infos_ := make([]*torrentpb.TorrentInfo, 0)
+					for _, info := range infos {
+						infos_ = append(infos_, info)
 					}
-					a["infos"].(chan []*torrentpb.TorrentInfo) <- infos
+					a["infos"].(chan []*torrentpb.TorrentInfo) <- infos_
+
 				} else if a["action"] == "dropTorrent" {
+					fmt.Println("---------> drop torrent call for ", a["name"].(string))
 					pending_ := make([]*TorrentTransfer, 0)
 					for i := 0; i < len(pending); i++ {
 						p := pending_[i]
+						fmt.Println("--------> ", p.tor.Name(), " == ", a["name"].(string))
 						if p.tor.Name() == a["name"].(string) {
+							fmt.Println("-----------> remove dir: ", svr.DownloadDir+"/"+p.tor.Name())
 							p.tor.Drop()
 							os.RemoveAll(svr.DownloadDir + "/" + p.tor.Name())
-							delete(previousInfos, p.tor.Name())
 						} else {
 							pending_ = append(pending_, p)
 						}
@@ -484,24 +547,31 @@ func (svr *server) processTorrent() {
 
 					// Set the pending
 					pending = pending_
+
+					// I will remove the lnk from the list...
+					lnks, err := svr.readTorrentLnks()
+					if err == nil {
+						lnks_ := make([]TorrentLnk, 0)
+						for _, lnk := range lnks {
+							if lnk.Name != a["name"].(string) {
+								lnks_ = append(lnks_, lnk)
+							} else {
+								fmt.Println("-----------> remove torrent download info: ", svr.DownloadDir+"/"+lnk.Name)
+							}
+						}
+						svr.saveTorrentLnks(lnks_)
+					}
+
 				}
 
 			case <-ticker.C:
 				for i := 0; i < len(pending); i++ {
-					previousInfo := previousInfos[pending[i].tor.Name()]
-					var info *torrentpb.TorrentInfo
-					if previousInfo != nil {
-						info = getTorrentInfo(pending[i].tor, previousInfo.UpdatedAt, previousInfo.Downloaded)
-					} else {
-						info = getTorrentInfo(pending[i].tor, 0, 0)
-					}
-					previousInfos[pending[i].tor.Name()] = info
-					if info.Downloaded == info.Size {
-						// The torrent is completed...
-						// so I will copy the files to destination...
-						for j := 0; j < len(info.Files); j++ {
-							src := svr.DownloadDir + "/" + info.Files[j].Path
-							dst := pending[i].dst + "/" + info.Files[j].Path
+					infos[pending[i].tor.Name()] = getTorrentInfo(pending[i].tor, infos[pending[i].tor.Name()])
+					for _, file := range infos[pending[i].tor.Name()].Files {
+						// I will copy files when they are completes...
+						if file.Percent == 100 {
+							src := svr.DownloadDir + "/" + file.Path
+							dst := pending[i].dst + "/" + file.Path
 							if Utility.Exists(src) && !Utility.Exists(dst) {
 								fmt.Println("copy file ", src, " to ", dst)
 								// Create the dir...
@@ -512,8 +582,9 @@ func (svr *server) processTorrent() {
 								}
 							}
 						}
-					} else {
-						fmt.Println(info.Name, info.Downloaded, " of ", info.Size, " or ", info.Percent, "% rate ", info.DownloadRate)
+					}
+					if infos[pending[i].tor.Name()].Downloaded < infos[pending[i].tor.Name()].Size {
+						fmt.Println(infos[pending[i].tor.Name()].Name, infos[pending[i].tor.Name()].Downloaded, " of ", infos[pending[i].tor.Name()].Size, " or ", infos[pending[i].tor.Name()].Percent, "% rate ", infos[pending[i].tor.Name()].DownloadRate)
 					}
 				}
 
@@ -575,67 +646,68 @@ func downloadFile(file_url, dest string) (string, error) {
 }
 
 func percent(actual, total int64) float64 {
-	return float64(actual)/float64(total) * 100
+	return float64(actual) / float64(total) * 100
 }
 
-func getTorrentInfo(t *torrent.Torrent, updatedAt, downloaded int64) *torrentpb.TorrentInfo {
+func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *torrentpb.TorrentInfo {
 
-	torrentInfo := new(torrentpb.TorrentInfo)
-	torrentInfo.Name = t.Name()
-	torrentInfo.Loaded = t.Info() != nil
-	if torrentInfo.Loaded {
-		torrentInfo.Size = t.Length()
-	}
-
-	totalChunks := int64(0)
-	totalCompleted := int64(0)
-	<-t.GotInfo()
-
-	tfiles := t.Files()
-	if len(tfiles) > 0 && torrentInfo.Files == nil {
-		torrentInfo.Files = make([]*torrentpb.TorrentFileInfo, len(tfiles))
-	}
-	//merge in files
-	for i, f := range tfiles {
-		path := f.Path()
-		file := torrentInfo.Files[i]
-		if file == nil {
-			file = &torrentpb.TorrentFileInfo{Path: path}
-			torrentInfo.Files[i] = file
+	var updatedAt, downloaded int64
+	if torrentInfo == nil {
+		torrentInfo = new(torrentpb.TorrentInfo)
+		torrentInfo.Name = t.Name()
+		torrentInfo.Loaded = t.Info() != nil
+		if torrentInfo.Loaded {
+			torrentInfo.Size = t.Length()
 		}
-		chunks := f.State()
+		// return the values without...
+		go func(){
+			<-t.GotInfo()
+				torrentInfo.Files = make([]*torrentpb.TorrentFileInfo, len(t.Files()))
+		}()
+	} else {
+		// get previous values.
+		updatedAt = torrentInfo.UpdatedAt
+		downloaded = torrentInfo.Downloaded
+	}
+	// This will be append when the file will be initialyse...
+	if torrentInfo.Files != nil {
+		for i, f := range t.Files() {
+			path := f.Path()
+			file := torrentInfo.Files[i]
+			if file == nil {
+				file = &torrentpb.TorrentFileInfo{Path: path}
+				torrentInfo.Files[i] = file
+			}
+			chunks := f.State()
 
-		file.Size = f.Length()
-		file.Chunks = int64(len(chunks))
-		completed := 0
-		for _, p := range chunks {
-			if p.Complete {
-				completed++
+			file.Size = f.Length()
+			file.Chunks = int64(len(chunks))
+			completed := 0
+			for _, p := range chunks {
+				if p.Complete {
+					completed++
+				}
+			}
+			file.Completed = int64(completed)
+			file.Percent = percent(file.Completed, file.Chunks)
+		}
+
+		//cacluate rate
+		now := time.Now()
+
+		if updatedAt != 0 {
+			dt := float32(now.Sub(time.Unix(updatedAt, 0)))
+			db := float32(t.BytesCompleted() - downloaded)
+			rate := db * (float32(time.Second) / dt)
+			if rate >= 0 {
+				torrentInfo.DownloadRate = rate
 			}
 		}
-		file.Completed = int64(completed)
-		file.Percent = percent(file.Completed, file.Chunks)
 
-		totalChunks += file.Chunks
-		totalCompleted += file.Completed
+		torrentInfo.Downloaded = t.BytesCompleted()
+		torrentInfo.UpdatedAt = now.Unix()
+		torrentInfo.Percent = percent(torrentInfo.Downloaded, torrentInfo.Size)
 	}
-
-	//cacluate rate
-	now := time.Now()
-
-	if updatedAt != 0 {
-		dt := float32(now.Sub(time.Unix(updatedAt, 0)))
-		db := float32(t.BytesCompleted() - downloaded)
-		rate := db * (float32(time.Second) / dt)
-		if rate >= 0 {
-			torrentInfo.DownloadRate = rate
-		}
-	}
-
-	torrentInfo.Downloaded = t.BytesCompleted()
-	torrentInfo.UpdatedAt = now.Unix()
-	
-	torrentInfo.Percent = percent(torrentInfo.Downloaded, torrentInfo.Size)
 
 	return torrentInfo
 }
@@ -644,10 +716,11 @@ func getTorrentInfo(t *torrent.Torrent, updatedAt, downloaded int64) *torrentpb.
 
 // Set the torrent files... the torrent will be download in the
 // DownloadDir and moved to it destination when done.
-func (svr *server) setTorrentTransfer(t *torrent.Torrent, dest string) {
+func (svr *server) setTorrentTransfer(t *torrent.Torrent, seed bool, lnk, dest string) {
+
 	a := make(map[string]interface{})
 	a["action"] = "setTorrentTransfer"
-	a["torrentTransfer"] = &TorrentTransfer{dst: dest, tor: t}
+	a["torrentTransfer"] = &TorrentTransfer{dst: dest, lnk: lnk, tor: t, seed: seed}
 
 	// Set the action.
 	svr.actions <- a
@@ -717,7 +790,7 @@ func (svr *server) downloadTorrent(link, dest string, seed bool) error {
 		t.DownloadAll()
 
 		// Set the torrent
-		svr.setTorrentTransfer(t, dest)
+		svr.setTorrentTransfer(t, seed, link, dest)
 
 	}()
 
@@ -788,7 +861,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
-	s_impl.DownloadDir = os.TempDir()
+	s_impl.DownloadDir = config.GetDataDir() + "/torrents"
 	s_impl.Seed = false
 
 	// Give base info to retreive it configuration.
@@ -804,6 +877,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
+
+	// Create the dowload directory if it not already exist...
+	Utility.CreateDirIfNotExist(s_impl.DownloadDir)
 
 	// Register the torrent services
 	torrentpb.RegisterTorrentServiceServer(s_impl.grpcServer, s_impl)
@@ -829,6 +905,16 @@ func main() {
 
 	// Start process torrent...
 	s_impl.processTorrent()
+
+	// download links...
+	lnks, err := s_impl.readTorrentLnks()
+
+	if err == nil {
+		for _, lnk := range lnks {
+			fmt.Println("open torrent ", lnk.Name)
+			s_impl.downloadTorrent(lnk.Lnk, lnk.Dir, lnk.Seed)
+		}
+	}
 
 	// Start the service.
 	s_impl.StartService()

@@ -988,7 +988,7 @@ export class Globular {
   private _torrentService: TorrentServicePromiseClient
   public get torrentService(): TorrentServicePromiseClient | undefined {
     if (this._torrentService == null) {
-      let configs = this.getConfigs('torrent.torrentService')
+      let configs = this.getConfigs('torrent.TorrentService')
       configs.forEach((config: IServiceConfig) => {
         if (this._torrentService == null) {
           this._torrentService = new TorrentServicePromiseClient(
