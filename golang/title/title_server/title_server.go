@@ -548,6 +548,14 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 // Delete a title from the database.
 func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleRequest) (*titlepb.DeleteTitleResponse, error) {
 
+	// Remove all file indexation...
+	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.TitleId)
+	if err == nil {
+		for i := 0; i < len(paths); i++ {
+			srv.dissociateFileWithTitle(rqst.IndexPath, rqst.TitleId, paths[i])
+		}
+	}
+
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
 		return nil, status.Errorf(
@@ -568,8 +576,6 @@ func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleReq
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// TODO remove asscociated files...
 
 	return &titlepb.DeleteTitleResponse{}, nil
 }
@@ -668,6 +674,71 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
 }
 
+func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) error {
+
+	fmt.Println("-----------> dissociate File", filePath, "with title", titleId)
+	// I will use the file checksum as file id...
+	var uuid string
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		fmt.Println("684 -----------> dissociate File error ", err)
+		return err
+	}
+
+	// Depending if the filePath point to a dir or a file...
+	if fileInfo.IsDir() {
+		// is a directory
+		uuid = Utility.GenerateUUID(filePath)
+	} else {
+		// is not a directory
+		uuid = Utility.CreateFileChecksum(filePath)
+	}
+
+	if srv.associations == nil {
+		srv.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if srv.associations[indexPath] == nil {
+		srv.associations[indexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
+	}
+
+	data, err := srv.associations[indexPath].GetItem(uuid)
+	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			fmt.Println("712 -----------> dissociate File error ", err)
+			return err
+		}
+	}
+
+	// so here i will remove the path from the list of path.
+	association.Paths = Utility.RemoveString(association.Paths, filePath)
+	association.Paths = Utility.RemoveString(association.Titles, titleId)
+	if len(association.Paths) == 0 || len(association.Titles) == 0 {
+		fmt.Println("721 -----------> dissociate File remove title id and uuid")
+		srv.associations[indexPath].RemoveItem(titleId)
+		srv.associations[indexPath].RemoveItem(uuid)
+	} else {
+		// Now I will set back the item in the store.
+		fmt.Println("726 -----------> association ", association)
+		data, _ = json.Marshal(association)
+		err = srv.associations[indexPath].SetItem(uuid, data)
+		if err != nil {
+			fmt.Println("730 -----------> dissociate File error ", err)
+			return err
+		}
+		return srv.associations[indexPath].SetItem(titleId, data)
+	}
+
+	fmt.Println("730 -----------> dissociate File success!")
+
+	return nil
+
+}
+
 // Dissociate a file and a title info, so file can be found from title informations...
 func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.DissociateFileWithTitleRequest) (*titlepb.DissociateFileWithTitleResponse, error) {
 
@@ -686,51 +757,13 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
 	}
 
-	// I will use the file checksum as file id...
-	var uuid string
-	fileInfo, err := os.Stat(filePath)
+	err := srv.dissociateFileWithTitle(rqst.IndexPath, rqst.TitleId, filePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Depending if the filePath point to a dir or a file...
-	if fileInfo.IsDir() {
-		// is a directory
-		uuid = Utility.GenerateUUID(filePath)
-	} else {
-		// is not a directory
-		uuid = Utility.CreateFileChecksum(filePath)
-	}
-
-	if srv.associations == nil {
-		srv.associations = make(map[string]*storage_store.Badger_store)
-	}
-
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
-		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
-	}
-
-	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
-	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
-	if err == nil {
-		err = json.Unmarshal(data, association)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-
-	// so here i will remove the path from the list of path.
-	association.Paths = Utility.RemoveString(association.Paths, rqst.FilePath)
-	if len(association.Paths) == 0 {
-		srv.associations[rqst.IndexPath].RemoveItem(rqst.TitleId)
-		srv.associations[rqst.IndexPath].RemoveItem(uuid)
-	}
 	return &titlepb.DissociateFileWithTitleResponse{}, nil
 }
 
@@ -788,7 +821,7 @@ func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, 
 		files, err := ioutil.ReadDir(filePath)
 		if err == nil {
 			for _, f := range files {
-				titles_, err := srv.getFileTitles(indexPath, filePath + "/" + f.Name())
+				titles_, err := srv.getFileTitles(indexPath, filePath+"/"+f.Name())
 				if err == nil {
 					// append all found title.
 					titles = append(titles, titles_...)
@@ -1242,32 +1275,74 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 }
 
 // Return the list of files associate with a title
-func (srv *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFilesRequest) (*titlepb.GetTitleFilesResponse, error) {
+func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 
 	// I will use the file checksum as file id...
 	if srv.associations == nil {
 		srv.associations = make(map[string]*storage_store.Badger_store)
 	}
 
-	if srv.associations[rqst.IndexPath] == nil {
-		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+	if srv.associations[indexPath] == nil {
+		srv.associations[indexPath] = storage_store.NewBadger_store()
 		// open in it own thread
-		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	data, err := srv.associations[indexPath].GetItem(titleId)
+	if err != nil {
+		fmt.Println("no files association found for title: ", titleId, err)
+		return nil, err
+	}
+
 	association := &fileTileAssociation{ID: "", Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			fmt.Println("fail to read association: ", titleId, err)
+			return nil, err
+		}
+	}
+	fmt.Println("-----------> association ", association)
+
+	// Here I will remove path that no more exist...
+	paths := make([]string, 0)
+	for i := 0; i < len(association.Paths); i++ {
+		if Utility.Exists(association.Paths[i]) {
+			paths = append(paths, association.Paths[i])
+		}
+	}
+	fmt.Println("-----------> association paths", paths)
+	if len(paths) != len(association.Paths) {
+		association.Paths = paths
+		// if no more file are link I will remove the association...
+		if len(association.Paths) == 0 {
+			fmt.Println("-----------> remove assoication", association)
+			srv.associations[indexPath].RemoveItem(titleId)
+			srv.associations[indexPath].RemoveItem(association.ID)
+		} else {
+			fmt.Println("-----------> update assoication", association)
+			data, _ = json.Marshal(association)
+			srv.associations[indexPath].SetItem(association.ID, data)
+			srv.associations[indexPath].SetItem(titleId, data)
 		}
 	}
 
+	return association.Paths, nil
+}
+
+// Return the list of files associate with a title
+func (srv *server) GetTitleFiles(ctx context.Context, rqst *titlepb.GetTitleFilesRequest) (*titlepb.GetTitleFilesResponse, error) {
+
+	// I will use the file checksum as file id...
+	paths, err := srv.getTitleFiles(rqst.IndexPath, rqst.TitleId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// Return the store association values...
-	return &titlepb.GetTitleFilesResponse{FilePaths: association.Paths}, nil
+	return &titlepb.GetTitleFilesResponse{FilePaths: paths}, nil
 
 }
 
@@ -1418,9 +1493,6 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 // port number must be pass as argument.
 func main() {
 
-	// set the logger.
-	//grpclog.SetLogger(log.New(os.Stdout, "echo_service: ", log.LstdFlags))
-
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
@@ -1460,7 +1532,7 @@ func main() {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
-	// Register the echo services
+	// Register the title services
 	titlepb.RegisterTitleServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 

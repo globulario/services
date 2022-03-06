@@ -1,0 +1,86 @@
+/**
+ * You can use echo as starter project.
+ */
+
+syntax = "proto3";
+package torrent;
+
+option go_package="torrent/torrentpb";
+
+/**
+ * Info about torrent files.
+ */
+message TorrentFileInfo {
+	string Path = 1;
+	int64  Size = 2;
+	int64  Chunks = 3;
+	int64  Completed = 4;
+	double  Percent = 5;
+}
+
+/**
+ * The torrent information...
+ */
+message TorrentInfo {
+	string Name = 1;
+	bool Loaded = 2;
+	int64 Size = 3;
+	int64 TotalChunks = 4;
+	int64 TotalCompleted = 5;
+	int64 Downloaded = 6;
+	float DownloadRate = 7;
+	double Percent = 8;
+	int64 UpdatedAt = 9;
+	repeated TorrentFileInfo Files = 10;
+	string Destination = 11; // Where the torrent must be copie...
+}
+
+message GetTorrentInfosRequest {
+	
+}
+
+message GetTorrentInfosResponse {
+	repeated TorrentInfo infos = 1;
+}
+
+/**
+ * That function will be call when a client wants to dowload a 
+ * new torrent file or magnet.
+ */
+message DownloadTorrentRequest {
+	string link = 1;
+	string dest = 2; // The path where the file will be dowloaded
+	bool   seed = 3; // If true upload from torrent will be allowed.
+}
+
+/**
+ * Return a uuid asscociated with the link...
+ */
+message DownloadTorrentResponse {
+
+}
+
+message DropTorrentRequest{
+	string name = 1; // The name found in the TorrentInfo
+}
+
+message DropTorrentResponse{
+
+}
+
+/**
+ * The torrent management service will be use to manage torrent
+ * file and dowload on the servcer...
+ */
+service TorrentService {
+
+	/** Download a torrent file */
+	rpc DownloadTorrent(DownloadTorrentRequest) returns(DownloadTorrentResponse);
+
+	/** Return a given torrent information **/
+	rpc GetTorrentInfos(GetTorrentInfosRequest) returns(GetTorrentInfosResponse);
+
+	/** Trop the torrent downloawd... */
+	rpc DropTorrent(DropTorrentRequest) returns(DropTorrentResponse);
+
+}
