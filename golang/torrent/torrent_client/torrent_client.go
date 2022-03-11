@@ -3,6 +3,7 @@ package torrent_client
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
@@ -252,14 +253,29 @@ func (client *Torrent_Client) DowloadTorrent(link, dest string, seed bool ) (err
 /**
  * Return the list of all active torrent on the server.
  */ 
-func (client *Torrent_Client) GetTorrentInfos() ([]*torrentpb.TorrentInfo, error){
+func (client *Torrent_Client) GetTorrentInfos(callback func([]*torrentpb.TorrentInfo)) (error){
 	
 	rqst := new(torrentpb.GetTorrentInfosRequest)
 	
-	rsp, err := client.c.GetTorrentInfos(client.GetCtx(), rqst)
+	stream, err := client.c.GetTorrentInfos(client.GetCtx(), rqst)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return rsp.Infos, nil
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+
+		if err != nil {
+			return err
+		}
+
+		// Callback...
+		callback(msg.Infos)
+	}
+
+	return nil
 }

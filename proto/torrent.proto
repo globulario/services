@@ -78,7 +78,7 @@ service TorrentService {
 	rpc DownloadTorrent(DownloadTorrentRequest) returns(DownloadTorrentResponse);
 
 	/** Return a given torrent information **/
-	rpc GetTorrentInfos(GetTorrentInfosRequest) returns(GetTorrentInfosResponse);
+	rpc GetTorrentInfos(GetTorrentInfosRequest) returns(stream GetTorrentInfosResponse);
 
 	/** Trop the torrent downloawd... */
 	rpc DropTorrent(DropTorrentRequest) returns(DropTorrentResponse);

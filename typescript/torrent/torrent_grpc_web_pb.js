@@ -139,7 +139,7 @@ proto.torrent.TorrentServicePromiseClient.prototype.downloadTorrent =
  */
 const methodDescriptor_TorrentService_GetTorrentInfos = new grpc.web.MethodDescriptor(
   '/torrent.TorrentService/GetTorrentInfos',
-  grpc.web.MethodType.UNARY,
+  grpc.web.MethodType.SERVER_STREAMING,
   proto.torrent.GetTorrentInfosRequest,
   proto.torrent.GetTorrentInfosResponse,
   /**
@@ -154,37 +154,32 @@ const methodDescriptor_TorrentService_GetTorrentInfos = new grpc.web.MethodDescr
 
 
 /**
- * @param {!proto.torrent.GetTorrentInfosRequest} request The
- *     request proto
- * @param {?Object<string, string>} metadata User defined
+ * @param {!proto.torrent.GetTorrentInfosRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.torrent.GetTorrentInfosResponse)}
- *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.torrent.GetTorrentInfosResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.torrent.GetTorrentInfosResponse>}
  *     The XHR Node Readable Stream
  */
 proto.torrent.TorrentServiceClient.prototype.getTorrentInfos =
-    function(request, metadata, callback) {
-  return this.client_.rpcCall(this.hostname_ +
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
       '/torrent.TorrentService/GetTorrentInfos',
       request,
       metadata || {},
-      methodDescriptor_TorrentService_GetTorrentInfos,
-      callback);
+      methodDescriptor_TorrentService_GetTorrentInfos);
 };
 
 
 /**
- * @param {!proto.torrent.GetTorrentInfosRequest} request The
- *     request proto
+ * @param {!proto.torrent.GetTorrentInfosRequest} request The request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.torrent.GetTorrentInfosResponse>}
- *     Promise that resolves to the response
+ * @return {!grpc.web.ClientReadableStream<!proto.torrent.GetTorrentInfosResponse>}
+ *     The XHR Node Readable Stream
  */
 proto.torrent.TorrentServicePromiseClient.prototype.getTorrentInfos =
     function(request, metadata) {
-  return this.client_.unaryCall(this.hostname_ +
+  return this.client_.serverStreaming(this.hostname_ +
       '/torrent.TorrentService/GetTorrentInfos',
       request,
       metadata || {},

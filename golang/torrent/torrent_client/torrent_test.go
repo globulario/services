@@ -4,6 +4,8 @@ import (
 	//"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/globulario/services/golang/torrent/torrentpb"
 )
 
 var (
@@ -35,12 +37,17 @@ func TestDownloadTorrent(t *testing.T) {
 
 }
 
+// Print the list of infos received from the torrent services.
+func displayTorrentInfos(infos []*torrentpb.TorrentInfo){
+	fmt.Println(infos)
+}
+
 func TestGetTorrentInfos(t *testing.T) {
 
-	infos, err := client_.GetTorrentInfos()
+	err := client_.GetTorrentInfos(displayTorrentInfos)
 	if err != nil {
 		fmt.Println("fail to download torrent ", err)
 		return
 	}
-	fmt.Println(infos)
+	fmt.Println("exit!")
 }
