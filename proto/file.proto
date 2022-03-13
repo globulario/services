@@ -145,6 +145,48 @@ message HtmlToPdfResponse{
 	bytes pdf = 2; //The pdf data file.
 }
 
+message CreateVideoPreviewRequest {
+ 
+	string path = 1;
+
+	int32 nb = 2;
+
+	int32 height = 3;
+}
+
+message CreateVideoPreviewResponse{
+
+}
+
+message CreateVideoTimeLineRequest{
+
+	string path = 1;
+
+	int32 width = 2;
+
+	float fps = 3;
+}
+
+message CreateVideoTimeLineResponse{
+	/** Nothing here **/
+}
+
+message ConvertVideoToMpeg4H264Request{
+	string path = 1;
+}
+
+message ConvertVideoToMpeg4H264Response{
+	string outpout = 1; // info about the conversion.
+}
+
+message ConvertVideoToHlsRequest{
+	string path = 1;
+}
+
+message ConvertVideoToHlsResponse{
+	string outpout = 1; // info about the conversion.
+}
+
 message StopRequest {
 	
 }
@@ -194,7 +236,20 @@ service FileService {
 	
 	// Specific files...
 	rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse){};
-	
+
+	// Create a viedeo Preview...
+	rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse){};
+
+	// Create video time line
+	rpc CreateVideoTimeLine(CreateVideoTimeLineRequest) returns (CreateVideoTimeLineResponse){};
+
+	// Convert a file from mkv, avi or other format to MPEG-4 AVC
+	rpc ConvertVideoToMpeg4H264(ConvertVideoToMpeg4H264Request) returns (ConvertVideoToMpeg4H264Response){};
+
+	// Convert a video file (must be  MPEG-4 H264) to HLS stream... That will automatically generate the 
+	// the streams for various resolutions. (see script create-vod-hls.sh for more info)
+	rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse){};
+
 	// Excel files...
 	rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse){};
 	

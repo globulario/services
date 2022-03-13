@@ -16,13 +16,17 @@ import (
 	"math"
 	"mime"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -30,6 +34,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/title/title_client"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
 	"github.com/tealeg/xlsx"
@@ -54,7 +59,14 @@ var (
 	// The default domain.
 	domain string = "localhost"
 
+	// Client to validate and change file and directory permission.
 	rbac_client_ *rbac_client.Rbac_Client
+
+	// The event client.
+	event_client_ *event_client.Event_Client
+
+	// The title client.
+	title_client_ *title_client.Title_Client
 )
 
 // Value need by Globular to start the services...
@@ -71,7 +83,7 @@ type server struct {
 	AllowedOrigins     string // comma separated string.
 	Protocol           string
 	Domain             string
-	Address         string
+	Address            string
 	Description        string
 	Keywords           []string
 	Repositories       []string
@@ -91,7 +103,7 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
-	State           string
+	State              string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -597,19 +609,31 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 	for _, f := range files {
 
 		if f.IsDir() {
-			if recursive /*|| f.Name() == ".hidden" || strings.Contains(path, ".hidden")*/ {
-				info_, err := readDir(s, path+"/"+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
+			// Here if the dir contain the file playlist.m3u8 it means it content must not be read as a file but as stream,
+			// so I will not read it content...
+			dirPath := path + "/" + f.Name()
+
+			// Test if a file named playlist.m3u8 exist...
+			isHls := Utility.Exists(dirPath + "/playlist.m3u8")
+
+			if recursive && !isHls {
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
 				if err != nil {
 					return nil, err
 				}
 				info.Files = append(info.Files, info_)
 			} else {
-				info_, err := readDir(s, path+"/"+f.Name(), recursive, thumbnailMaxWidth, thumbnailMaxHeight, false)
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false)
 				if err != nil {
 					return nil, err
 				}
+				if isHls {
+					info_.Mime = "video/hls-stream"
+				}
+
 				info.Files = append(info.Files, info_)
 			}
+
 		} else if readFiles {
 
 			info_, err := getFileInfo(s, path+"/"+f.Name())
@@ -715,14 +739,18 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true)
 	if err != nil {
-		return err
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Here I will serialyse the data into JSON.
 	jsonStr, err := json.Marshal(info)
 
 	if err != nil {
-		return err
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	maxSize := 1024 * 5
@@ -740,7 +768,9 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 			Data: data,
 		})
 		if err != nil {
-			return err
+			return status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
@@ -904,7 +934,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 	}
 
 	// Set the owner of the conversation.
-	rbac_client_, err = file_server.GetRbacClient()
+	rbac_client_, err = getRbacClient()
 	if err != nil {
 		return err
 	}
@@ -928,7 +958,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err = file_server.GetRbacClient()
+	rbac_client_, err = getRbacClient()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -996,7 +1026,7 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err = file_server.GetRbacClient()
+	rbac_client_, err = getRbacClient()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1076,7 +1106,9 @@ func (file_server *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.
 
 	file, err := os.Open(path)
 	if err != nil {
-		return err
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// close the file when done.
@@ -1093,7 +1125,9 @@ func (file_server *server) ReadFile(rqst *filepb.ReadFileRequest, stream filepb.
 		}
 		if err != nil {
 			if err != io.EOF {
-				return err
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			break
 		}
@@ -1126,7 +1160,9 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 
 				return nil
 			} else {
-				return err
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
 
@@ -1154,7 +1190,7 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_, err = file_server.GetRbacClient()
+	rbac_client_, err = getRbacClient()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1230,7 +1266,39 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
 	}, nil
 }
 
-func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+/**
+ * Return the event service.
+ */
+func getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ == nil {
+		address, _ := config.GetAddress()
+		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return event_client_, nil
+}
+
+/**
+ * Return an instance of the title client.
+ */
+func getTitleClient() (*title_client.Title_Client, error) {
+	var err error
+	if title_client_ == nil {
+		address, _ := config.GetAddress()
+		title_client_, err = title_client.NewTitleService_Client(address, "title.TitleService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return title_client_, nil
+}
+
+func getRbacClient() (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
 		address, _ := config.GetAddress()
@@ -1244,7 +1312,7 @@ func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 }
 
 func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	rbac_client_, err := server.GetRbacClient()
+	rbac_client_, err := getRbacClient()
 	if err != nil {
 		return err
 	}
@@ -1301,8 +1369,8 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
@@ -1315,6 +1383,14 @@ func main() {
 	// Register the echo services
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
+
+	// Convert video file, set permissions...
+	go func() {
+		files := []string{config.GetDataDir() + "/files"}
+		files = append(files, s_impl.Public...)
+
+		processFiles(files) // Process files...
+	}()
 
 	// Start the service.
 	s_impl.StartService()
@@ -1531,4 +1607,595 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 	}
 
 	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ffmpeg and video conversion stuff...
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+func processFiles(files []string) {
+
+	convertVideo(config.GetDataDir() + "/files")
+
+	// Also convert video from public file...
+	for i := 0; i < len(files); i++ {
+		// I will index the dir content by the search engine...
+		convertVideo(files[i])
+	}
+
+	// sleep a minute...
+	time.Sleep(1 * time.Hour) // once hours I will refresh all the file.
+	processFiles(files)
+}
+
+func visit(files *[]string) filepath.WalkFunc {
+
+	return func(path string, info os.FileInfo, err error) error {
+
+		path = strings.ReplaceAll(path, "\\", "/")
+		if err != nil {
+			return nil
+		}
+
+		// remove all empty folders...
+		isEmpty, err := Utility.IsEmpty(path)
+		if err == nil {
+			if isEmpty {
+				os.RemoveAll(path)
+			}
+		}
+
+		// Test if the
+		if strings.HasPrefix(path, config.GetDataDir()+"/files/users/") && !strings.Contains(path, ".hidden") {
+			// Here I will set the owner write to file inside it directory...
+			//userId :=  [0:strings.Index(path[len(config.GetDataDir() + "/files/users/"):], "/")]
+			path_ := path[len(config.GetDataDir()+"/files/users/"):]
+			index := strings.Index(path_, "/")
+			userId := ""
+			if index > 0 {
+				userId = path_[0:index]
+			} else {
+				userId = path_
+			}
+
+			if len(userId) > 0 && rbac_client_ != nil {
+				rbac_client_.AddResourceOwner("/users/"+path_, userId, rbacpb.SubjectType_ACCOUNT)
+			}
+
+		} else if strings.HasPrefix(path, config.GetDataDir()+"/files/applications/") && !strings.Contains(path, ".hidden") {
+			path_ := path[len(config.GetDataDir()+"/files/applications/"):]
+			index := strings.Index(path_, "/")
+			id := ""
+			if index > 0 {
+				id = path_[0:index]
+			} else {
+				id = path_
+			}
+			// Set the resource owner.
+			if len(id) > 0 && rbac_client_ != nil {
+				rbac_client_.AddResourceOwner("/applications/"+path_, id, rbacpb.SubjectType_APPLICATION)
+			}
+		}
+
+		if err != nil {
+			return nil
+		}
+		mimeType := ""
+		if strings.Contains(info.Name(), ".") {
+			fileExtension := info.Name()[strings.LastIndex(info.Name(), "."):]
+			mimeType = mime.TypeByExtension(fileExtension)
+		} else {
+			f_, err := os.Open(path)
+			if err != nil {
+				f_.Close()
+				return nil
+			}
+			mimeType, _ = Utility.GetFileContentType(f_)
+			f_.Close()
+		}
+
+		if strings.HasPrefix(mimeType, "video/") && !strings.HasSuffix(info.Name(), ".mp4") {
+			*files = append(*files, path)
+		} else if strings.HasPrefix(mimeType, "video/") && strings.HasSuffix(info.Name(), ".mp4") {
+			createVideoTimeLine(path, 180, .2)
+			createVideoPreview(path, 20, 128)
+			// All indexed title will be automatically create as a stream...
+			// because video are mostly small I will not index it automatically...
+			createHlsStreamFromMpeg4H264(path, false)
+		}
+
+		return nil
+	}
+}
+
+// Recursively convert all video that are not in the correct
+// format.
+func convertVideo(path string) {
+
+	// Here I will use at most one concurrent ffmeg...
+	pids, err := Utility.GetProcessIdsByName("ffmpeg")
+	if err == nil {
+		if len(pids) > 0 {
+			return // already running...
+		}
+	}
+
+	var files []string
+	err = filepath.Walk(path, visit(&files))
+	if err != nil {
+		return
+	}
+
+	for _, file := range files {
+		file = strings.ReplaceAll(file, "\\", "/")
+		index := strings.LastIndex(file, ".")
+		if index != -1 {
+			// test if the file is a video file.
+			fileExtension := file[index:]
+			fileType := mime.TypeByExtension(fileExtension)
+
+			if len(fileType) > 0 {
+				if strings.HasPrefix(fileType, "video/") {
+					// Here I will call convert video...
+					createVideoMpeg4H264(file)
+				}
+			}
+		}
+	}
+}
+
+func getStreamInfos(path string) (map[string]interface{}, error) {
+
+	cmd := exec.Command("ffprobe", "-v", "error", "-show_format", "-show_streams", "-print_format", "json", path)
+	data, _ := cmd.CombinedOutput()
+	infos := make(map[string]interface{})
+	err := json.Unmarshal(data, &infos)
+	if err != nil {
+		return nil, err
+	}
+
+	return infos, nil
+}
+
+/**
+ * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
+ */
+func createVideoMpeg4H264(path string) error {
+	path = strings.ReplaceAll(path, "\\", "/")
+	path_ := path[0:strings.LastIndex(path, "/")]
+	name_ := path[strings.LastIndex(path, "/"):strings.LastIndex(path, ".")]
+	output := path_ + "/" + name_ + ".mp4"
+
+	if Utility.Exists(output) {
+		os.Remove(path)
+		return errors.New("file " + output + " already exist")
+	}
+
+	// Test if cuda is available.
+	getVersion := exec.Command("ffmpeg", "-version")
+	version, _ := getVersion.CombinedOutput()
+
+	var cmd *exec.Cmd
+
+	streamInfos, err := getStreamInfos(path)
+	if err != nil {
+		return err
+	}
+
+	// Here I will test if the encoding is valid
+	encoding := streamInfos["streams"].([]interface{})[0].(map[string]interface{})["codec_long_name"].(string)
+
+	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
+	if strings.Index(string(version), "--enable-cuda-nvcc") > -1 {
+		fmt.Println("use gpu for convert ", path)
+		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
+			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output)
+		} else if strings.HasPrefix(encoding, "H.265") {
+			// in future when all browser will support H.265 I will compile it with this line instead.
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "hevc_nvenc",  "-c:a", "aac", output)
+			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
+
+		} else {
+			err := errors.New("no encoding command foud for " + encoding)
+			return err
+		}
+
+	} else {
+		fmt.Println("use cpu for convert ", path)
+		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
+		if strings.HasPrefix(encoding, "H.264") {
+			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", output)
+		} else if strings.HasPrefix(encoding, "H.265") {
+			// in future when all browser will support H.265 I will compile it with this line instead.
+			// cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
+			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
+		} else {
+			err := errors.New("no encoding command foud for " + encoding)
+			fmt.Println(err.Error())
+			return err
+		}
+	}
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	// here I can remove the input file after it was converted.
+	// os.RemoveAll(path)
+	err = createVideoTimeLine(output, 180, .2) // 1 frame per 5 seconds.
+	if err != nil {
+		return err
+	}
+
+	// Create a video preview
+	err = createVideoPreview(output, 20, 128)
+	if err != nil {
+		return err
+	}
+
+	// Here I will remove the input file...
+	os.Remove(path)
+	return nil
+}
+
+func associatePath(path string) error {
+
+	// So here I will try to retreive indexation for the file...
+	client, err := getTitleClient()
+
+	titles_ := make([]string, 0)
+	indexPath := config.GetDataDir() + "/search/titles"
+	if err == nil {
+		titles, err := client.GetFileTitles(indexPath, path)
+		if err == nil {
+			// Here I will asscociate the path
+			for _, title := range titles {
+				titles_ = append(titles_, title.ID)
+			}
+		} else {
+			// Look for videos
+			indexPath = config.GetDataDir() + "/search/videos"
+			titles, err := client.GetFileTitles(indexPath, path)
+			if err == nil {
+				// Here I will asscociate the path
+				for _, title := range titles {
+					titles_ = append(titles_, title.ID)
+				}
+			}
+		}
+	}
+
+	// Now I will asscociate the title.
+	output_path := path[0:strings.LastIndex(path, ".")]
+
+	for _, titleId := range titles_ {
+		fmt.Println("try to associate the tile '", titleId, "' with path '"+output_path+"'")
+		client.AssociateFileWithTitle(indexPath, titleId, output_path)
+	}
+
+	return nil
+}
+
+// Create a stream from existing Mpeg4 file...
+func createHlsStreamFromMpeg4H264(path string, force bool) error {
+	if !strings.HasSuffix(path, ".mp4") {
+		return errors.New("convert the file to MPEG-4 H264 before create the HLS stream")
+	}
+
+	// Test if it's already exist.
+	output_path := path[0:strings.LastIndex(path, ".")]
+
+	if Utility.Exists(output_path + "/playlist.m3u8") {
+		// try to asscociate the path...
+		associatePath(path)
+		return errors.New("stream at path " + path + " already exist")
+	}
+
+	// Here I will remove the existing folder...
+	os.RemoveAll(output_path)
+
+	// Recreate it...
+	Utility.CreateDirIfNotExist(output_path)
+
+	// Try to associate the path...
+	err := associatePath(path)
+	if err != nil && !force {
+		os.RemoveAll(output_path) // fail to associate the title...
+		return err
+	}
+
+	fileName := path[strings.LastIndex(path, "/")+1:]
+	dirName := output_path[strings.LastIndex(output_path, "/")+1:]
+	cmd := exec.Command("create-vod-hls.sh", fileName, dirName)
+	cmd.Dir = path[0:strings.LastIndex(path, "/")]
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	output := make(chan string)
+	done := make(chan bool)
+
+	// Process message util the command is done.
+	go func() {
+		for {
+			select {
+			case <-done:
+				break
+
+			case result := <-output:
+				fmt.Println(result)
+			}
+		}
+	}()
+
+	// Start reading the output
+	go Utility.ReadOutput(output, stdout)
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("fail to run command ", err)
+		return status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Wait for the command to finish...
+	cmd.Wait()
+
+	// Close the output.
+	stdout.Close()
+	done <- true
+
+	return nil
+}
+
+// Format
+func formatDuration(duration time.Duration) string {
+
+	var str string
+	d_ := duration.Milliseconds()
+
+	// Hours
+	h_ := d_ / (1000 * 60 * 60) // The number of hours
+
+	if h_ < 10 {
+		str = "0" + Utility.ToString(h_)
+	} else {
+		Utility.ToString(h_)
+	}
+	str += ":"
+
+	d_ -= h_ * (1000 * 60 * 60)
+
+	// Minutes
+	m_ := d_ / (1000 * 60)
+	if m_ < 10 {
+		str += "0" + Utility.ToString(m_)
+	} else {
+		str += Utility.ToString(m_)
+	}
+	str += ":"
+
+	d_ -= m_ * (1000 * 60)
+
+	// Second
+	s_ := d_ / 1000
+
+	if s_ < 10 {
+		str += "0" + Utility.ToString(s_)
+	} else {
+		str += Utility.ToString(s_)
+	}
+
+	// set milisecond to 0
+	str += ".000"
+
+	return str
+}
+
+// Here I will create the small viedeo video
+func createVideoTimeLine(path string, width int, fps float32) error {
+
+	duration := getVideoDuration(path)
+	if duration == 0 {
+		return errors.New("the video lenght is 0 sec")
+	}
+
+	// One frame at each 5 seconds...
+	if fps == 0 {
+		fps = 0.2
+	}
+
+	if width == 0 {
+		width = 180 // px
+	}
+
+	path_ := path[0:strings.LastIndex(path, "/")]
+	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	output := path_ + "/.hidden/" + name_ + "/__timeline__"
+	if Utility.Exists(output) {
+		return nil
+	}
+
+	Utility.CreateDirIfNotExist(output)
+
+	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
+	cmd := exec.Command("ffmpeg", "-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:"+Utility.ToString(width)+",fps="+Utility.ToString(fps), "thumbnail_%05d.jpg")
+	cmd.Dir = output // the output directory...
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	path_ = strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
+	path_ = path_[0:strings.LastIndex(path_, "/")]
+
+	// Now I will generate the WEBVTT file with the infos...
+	webvtt := "WEBVTT\n\n"
+
+	// So here I will read the file (each file represent is valid for 1/fps second...)
+	delay := int(1 / fps)
+
+	thumbnails, err := Utility.ReadDir(output)
+	if err != nil {
+		return err
+	}
+
+	time_ := 0
+	index := 1
+	for _, thumbnail := range thumbnails {
+
+		webvtt += Utility.ToString(index) + "\n"
+		start_ := time.Duration(time_ * int(time.Second))
+		time_ += delay
+		end_ := time.Duration(time_ * int(time.Second))
+
+		webvtt += formatDuration(start_) + " --> " + formatDuration(end_) + "\n"
+		webvtt += strings.ReplaceAll(output, config.GetDataDir()+"/files", "") + "/" + thumbnail.Name() + "\n\n"
+
+		index++
+	}
+
+	// Now  I will write the file...
+	err = os.WriteFile(output+"/thumbnails.vtt", []byte(webvtt), 777)
+	return err
+}
+
+// Here I will create the small viedeo video
+func createVideoPreview(path string, nb int, height int) error {
+
+	duration := getVideoDuration(path)
+	if duration == 0 {
+		return errors.New("the video lenght is 0 sec")
+	}
+
+	path_ := path[0:strings.LastIndex(path, "/")]
+	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	output := path_ + "/.hidden/" + name_ + "/__preview__"
+
+	if Utility.Exists(output) {
+		return nil
+	}
+
+	Utility.CreateDirIfNotExist(output)
+
+	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
+	start := .1 * duration
+	laps := 120 // 1 minutes
+
+	cmd := exec.Command("ffmpeg", "-i", path, "-ss", Utility.ToString(start), "-t", Utility.ToString(laps), "-vf", "scale="+Utility.ToString(height)+":-1,fps=.250", "preview_%05d.jpg")
+	cmd.Dir = output // the output directory...
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	path_ = strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
+	path_ = path_[0:strings.LastIndex(path_, "/")]
+
+	return nil
+}
+
+func getVideoDuration(path string) float64 {
+	// original command...
+	// ffprobe -v quiet -print_format compact=print_section=0:nokey=1:escape=csv -show_entries format=duration bob_ross_img-0-Animated.mp4
+	cmd := exec.Command("ffprobe", `-v`, `quiet`, `-print_format`, `compact=print_section=0:nokey=1:escape=csv`, `-show_entries`, `format=duration`, path)
+
+	cmd.Dir = os.TempDir()
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if err != nil {
+		return 0.0
+	}
+
+	duration, _ := strconv.ParseFloat(strings.TrimSpace(out.String()), 64)
+
+	return duration
+}
+
+// Create a viedeo Preview...
+func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.CreateVideoPreviewRequest) (*filepb.CreateVideoPreviewResponse, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, errors.New("no file found at path " + rqst.Path)
+	}
+
+	err := createVideoPreview(rqst.Path, int(rqst.Nb), int(rqst.Height))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.CreateVideoPreviewResponse{}, nil
+
+}
+
+// Create video time line
+func (file_server *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb.CreateVideoTimeLineRequest) (*filepb.CreateVideoTimeLineResponse, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, errors.New("no file found at path " + rqst.Path)
+	}
+
+	err := createVideoTimeLine(rqst.Path, int(rqst.Width), rqst.Fps)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.CreateVideoTimeLineResponse{}, nil
+}
+
+// Convert a file from mkv, avi or other format to MPEG-4 AVC
+func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *filepb.ConvertVideoToMpeg4H264Request) (*filepb.ConvertVideoToMpeg4H264Response, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, errors.New("no file found at path " + rqst.Path)
+	}
+
+	err := createVideoMpeg4H264(rqst.Path)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.ConvertVideoToMpeg4H264Response{}, nil
+}
+
+// Convert a video file (must be  MPEG-4 H264) to HLS stream... That will automatically generate the
+// the streams for various resolutions. (see script create-vod-hls.sh for more info)
+func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.ConvertVideoToHlsRequest) (*filepb.ConvertVideoToHlsResponse, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, errors.New("no file found at path " + rqst.Path)
+	}
+
+	// Create the hls stream from MPEG-4 H264 file.
+	err := createHlsStreamFromMpeg4H264(rqst.Path, true)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.ConvertVideoToHlsResponse{}, nil
 }

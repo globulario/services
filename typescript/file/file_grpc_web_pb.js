@@ -790,6 +790,250 @@ proto.file.FileServicePromiseClient.prototype.getThumbnails =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.CreateVideoPreviewRequest,
+ *   !proto.file.CreateVideoPreviewResponse>}
+ */
+const methodDescriptor_FileService_CreateVideoPreview = new grpc.web.MethodDescriptor(
+  '/file.FileService/CreateVideoPreview',
+  grpc.web.MethodType.UNARY,
+  proto.file.CreateVideoPreviewRequest,
+  proto.file.CreateVideoPreviewResponse,
+  /**
+   * @param {!proto.file.CreateVideoPreviewRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.CreateVideoPreviewResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.CreateVideoPreviewRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.CreateVideoPreviewResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.CreateVideoPreviewResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.createVideoPreview =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/CreateVideoPreview',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateVideoPreview,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.CreateVideoPreviewRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.CreateVideoPreviewResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.createVideoPreview =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/CreateVideoPreview',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateVideoPreview);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.CreateVideoTimeLineRequest,
+ *   !proto.file.CreateVideoTimeLineResponse>}
+ */
+const methodDescriptor_FileService_CreateVideoTimeLine = new grpc.web.MethodDescriptor(
+  '/file.FileService/CreateVideoTimeLine',
+  grpc.web.MethodType.UNARY,
+  proto.file.CreateVideoTimeLineRequest,
+  proto.file.CreateVideoTimeLineResponse,
+  /**
+   * @param {!proto.file.CreateVideoTimeLineRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.CreateVideoTimeLineResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.CreateVideoTimeLineRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.CreateVideoTimeLineResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.CreateVideoTimeLineResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.createVideoTimeLine =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/CreateVideoTimeLine',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateVideoTimeLine,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.CreateVideoTimeLineRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.CreateVideoTimeLineResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.createVideoTimeLine =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/CreateVideoTimeLine',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_CreateVideoTimeLine);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.ConvertVideoToMpeg4H264Request,
+ *   !proto.file.ConvertVideoToMpeg4H264Response>}
+ */
+const methodDescriptor_FileService_ConvertVideoToMpeg4H264 = new grpc.web.MethodDescriptor(
+  '/file.FileService/ConvertVideoToMpeg4H264',
+  grpc.web.MethodType.UNARY,
+  proto.file.ConvertVideoToMpeg4H264Request,
+  proto.file.ConvertVideoToMpeg4H264Response,
+  /**
+   * @param {!proto.file.ConvertVideoToMpeg4H264Request} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.ConvertVideoToMpeg4H264Response.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.ConvertVideoToMpeg4H264Request} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.ConvertVideoToMpeg4H264Response)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.ConvertVideoToMpeg4H264Response>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.convertVideoToMpeg4H264 =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/ConvertVideoToMpeg4H264',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_ConvertVideoToMpeg4H264,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.ConvertVideoToMpeg4H264Request} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.ConvertVideoToMpeg4H264Response>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.convertVideoToMpeg4H264 =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/ConvertVideoToMpeg4H264',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_ConvertVideoToMpeg4H264);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.ConvertVideoToHlsRequest,
+ *   !proto.file.ConvertVideoToHlsResponse>}
+ */
+const methodDescriptor_FileService_ConvertVideoToHls = new grpc.web.MethodDescriptor(
+  '/file.FileService/ConvertVideoToHls',
+  grpc.web.MethodType.UNARY,
+  proto.file.ConvertVideoToHlsRequest,
+  proto.file.ConvertVideoToHlsResponse,
+  /**
+   * @param {!proto.file.ConvertVideoToHlsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.ConvertVideoToHlsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.ConvertVideoToHlsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.ConvertVideoToHlsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.ConvertVideoToHlsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.convertVideoToHls =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/ConvertVideoToHls',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_ConvertVideoToHls,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.ConvertVideoToHlsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.ConvertVideoToHlsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.convertVideoToHls =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/ConvertVideoToHls',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_ConvertVideoToHls);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.WriteExcelFileRequest,
  *   !proto.file.WriteExcelFileResponse>}
  */
