@@ -27,6 +27,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -1209,7 +1210,6 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 	}
 
 	hiddenFolder := path_ + "/.hidden/" + fileName
-
 	if Utility.Exists(hiddenFolder) {
 		err := os.RemoveAll(hiddenFolder)
 		if err != nil {
@@ -1319,6 +1319,33 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
 
+func generateVideoPreviewListener(evt *eventpb.Event) {
+	path := string(evt.Data)
+
+	if !Utility.Exists(path) {
+		if Utility.Exists(config.GetDataDir() + "/files" + path) {
+			path = config.GetDataDir() + "/files" + path
+		}
+	}
+
+	createVideoPreview(path, 20, 128)
+
+	client, err := getEventClient()
+	if err == nil {
+		dir := []byte(string(evt.Data)[0:strings.LastIndex(string(evt.Data), "/")])
+		client.Publish("reload_dir_event", dir)
+	}
+
+	go func() {
+		createVideoMpeg4H264(path)
+		createVideoPreview(path, 20, 128)
+		generateVideoGifPreview(path, 10, 320, 30)
+		createVideoTimeLine(path, 180, .2)
+		createHlsStreamFromMpeg4H264(path, false)
+	}()
+
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -1388,8 +1415,19 @@ func main() {
 	go func() {
 		files := []string{config.GetDataDir() + "/files"}
 		files = append(files, s_impl.Public...)
-
 		processFiles(files) // Process files...
+	}()
+
+	// Now the event client service.
+	go func() {
+		client, err := getEventClient()
+		if err == nil {
+
+			// refresh dir event
+			client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), generateVideoPreviewListener)
+		} else {
+		}
+
 	}()
 
 	// Start the service.
@@ -1620,91 +1658,12 @@ func processFiles(files []string) {
 	for i := 0; i < len(files); i++ {
 		// I will index the dir content by the search engine...
 		convertVideo(files[i])
+
 	}
 
 	// sleep a minute...
 	time.Sleep(1 * time.Hour) // once hours I will refresh all the file.
 	processFiles(files)
-}
-
-func visit(files *[]string) filepath.WalkFunc {
-
-	return func(path string, info os.FileInfo, err error) error {
-
-		path = strings.ReplaceAll(path, "\\", "/")
-		if err != nil {
-			return nil
-		}
-
-		// remove all empty folders...
-		isEmpty, err := Utility.IsEmpty(path)
-		if err == nil {
-			if isEmpty {
-				os.RemoveAll(path)
-			}
-		}
-
-		// Test if the
-		if strings.HasPrefix(path, config.GetDataDir()+"/files/users/") && !strings.Contains(path, ".hidden") {
-			// Here I will set the owner write to file inside it directory...
-			//userId :=  [0:strings.Index(path[len(config.GetDataDir() + "/files/users/"):], "/")]
-			path_ := path[len(config.GetDataDir()+"/files/users/"):]
-			index := strings.Index(path_, "/")
-			userId := ""
-			if index > 0 {
-				userId = path_[0:index]
-			} else {
-				userId = path_
-			}
-
-			if len(userId) > 0 && rbac_client_ != nil {
-				rbac_client_.AddResourceOwner("/users/"+path_, userId, rbacpb.SubjectType_ACCOUNT)
-			}
-
-		} else if strings.HasPrefix(path, config.GetDataDir()+"/files/applications/") && !strings.Contains(path, ".hidden") {
-			path_ := path[len(config.GetDataDir()+"/files/applications/"):]
-			index := strings.Index(path_, "/")
-			id := ""
-			if index > 0 {
-				id = path_[0:index]
-			} else {
-				id = path_
-			}
-			// Set the resource owner.
-			if len(id) > 0 && rbac_client_ != nil {
-				rbac_client_.AddResourceOwner("/applications/"+path_, id, rbacpb.SubjectType_APPLICATION)
-			}
-		}
-
-		if err != nil {
-			return nil
-		}
-		mimeType := ""
-		if strings.Contains(info.Name(), ".") {
-			fileExtension := info.Name()[strings.LastIndex(info.Name(), "."):]
-			mimeType = mime.TypeByExtension(fileExtension)
-		} else {
-			f_, err := os.Open(path)
-			if err != nil {
-				f_.Close()
-				return nil
-			}
-			mimeType, _ = Utility.GetFileContentType(f_)
-			f_.Close()
-		}
-
-		if strings.HasPrefix(mimeType, "video/") && !strings.HasSuffix(info.Name(), ".mp4") {
-			*files = append(*files, path)
-		} else if strings.HasPrefix(mimeType, "video/") && strings.HasSuffix(info.Name(), ".mp4") {
-			createVideoTimeLine(path, 180, .2)
-			createVideoPreview(path, 20, 128)
-			// All indexed title will be automatically create as a stream...
-			// because video are mostly small I will not index it automatically...
-			createHlsStreamFromMpeg4H264(path, false)
-		}
-
-		return nil
-	}
 }
 
 // Recursively convert all video that are not in the correct
@@ -1714,32 +1673,54 @@ func convertVideo(path string) {
 	// Here I will use at most one concurrent ffmeg...
 	pids, err := Utility.GetProcessIdsByName("ffmpeg")
 	if err == nil {
-		if len(pids) > 0 {
+		if len(pids) > 3 {
 			return // already running...
 		}
 	}
 
-	var files []string
-	err = filepath.Walk(path, visit(&files))
-	if err != nil {
-		return
+	medias := make([]string, 0)
+	dirs := make([]string, 0)
+	dirs = append(dirs, config.GetPublicDirs()...)
+	dirs = append(dirs, config.GetDataDir()+"/files")
+
+	for _, dir := range dirs {
+		err = filepath.Walk(dir,
+			func(path string, info os.FileInfo, err error) error {
+				if info.IsDir() {
+					isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())
+					if err == nil && isEmpty {
+						// remove empty dir...
+						os.RemoveAll(path + "/" + info.Name())
+					}
+				}
+				if err != nil {
+					return err
+				}
+				// fmt.Println(path, info.Size())
+				if !strings.Contains(path, ".hidden") && strings.HasSuffix(path, ".mp4") {
+
+					// generate preview and usefull stuff here...
+					createVideoPreview(path, 20, 128)
+					generateVideoGifPreview(path, 10, 320, 30)
+					createVideoTimeLine(path, 180, .2)
+
+					medias = append(medias, path)
+				} else if strings.HasSuffix(path, ".mkv") || strings.HasSuffix(path, ".avi") || strings.HasSuffix(path, ".mov") || strings.HasSuffix(path, ".wmv") {
+					medias = append(medias, path)
+				}
+				return nil
+			})
 	}
 
-	for _, file := range files {
-		file = strings.ReplaceAll(file, "\\", "/")
-		index := strings.LastIndex(file, ".")
-		if index != -1 {
-			// test if the file is a video file.
-			fileExtension := file[index:]
-			fileType := mime.TypeByExtension(fileExtension)
+	// Create timeline, preview image and gif...
+	for _, m := range medias {
 
-			if len(fileType) > 0 {
-				if strings.HasPrefix(fileType, "video/") {
-					// Here I will call convert video...
-					createVideoMpeg4H264(file)
-				}
-			}
-		}
+		// if the video is
+		createVideoMpeg4H264(m)
+
+		// All indexed title will be automatically create as a stream...
+		// because video are mostly small I will not index it automatically...
+		createHlsStreamFromMpeg4H264(m, false)
 	}
 }
 
@@ -1760,13 +1741,16 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
 func createVideoMpeg4H264(path string) error {
+	if strings.HasSuffix(path, ".mp4") {
+		return errors.New("file " + path + " already exist")
+	}
+
 	path = strings.ReplaceAll(path, "\\", "/")
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := path[strings.LastIndex(path, "/"):strings.LastIndex(path, ".")]
 	output := path_ + "/" + name_ + ".mp4"
 
 	if Utility.Exists(output) {
-		os.Remove(path)
 		return errors.New("file " + output + " already exist")
 	}
 
@@ -1825,8 +1809,12 @@ func createVideoMpeg4H264(path string) error {
 	}
 
 	// here I can remove the input file after it was converted.
-	// os.RemoveAll(path)
 	err = createVideoTimeLine(output, 180, .2) // 1 frame per 5 seconds.
+	if err != nil {
+		return err
+	}
+
+	err = generateVideoGifPreview(path, 10, 320, 30)
 	if err != nil {
 		return err
 	}
@@ -1996,6 +1984,31 @@ func formatDuration(duration time.Duration) string {
 	str += ".000"
 
 	return str
+}
+
+// Create the video preview...
+func generateVideoGifPreview(path string, fps, scale, duration int) error {
+
+	duration_total := getVideoDuration(path)
+	if duration == 0 {
+		return errors.New("the video lenght is 0 sec")
+	}
+
+	path_ := path[0:strings.LastIndex(path, "/")]
+	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	output := path_ + "/.hidden/" + name_
+	if Utility.Exists(output + "/preview.gif") {
+		return nil
+	}
+	Utility.CreateDirIfNotExist(output)
+
+	cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", `-loop`, `0`, `preview.gif`)
+	cmd.Dir = output // the output directory...
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Here I will create the small viedeo video

@@ -1309,8 +1309,11 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	for i := 0; i < len(association.Paths); i++ {
 		if Utility.Exists(association.Paths[i]) {
 			paths = append(paths, association.Paths[i])
+		}else if Utility.Exists(config.GetDataDir() + "/files" + association.Paths[i]){
+			paths = append(paths, association.Paths[i])
 		}
 	}
+
 	fmt.Println("-----------> association paths", paths)
 	if len(paths) != len(association.Paths) {
 		association.Paths = paths
