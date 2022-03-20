@@ -1720,7 +1720,10 @@ func convertVideo(path string) {
 
 		// All indexed title will be automatically create as a stream...
 		// because video are mostly small I will not index it automatically...
-		createHlsStreamFromMpeg4H264(m, false)
+		err := createHlsStreamFromMpeg4H264(m, false)
+		if err == nil {
+			os.Remove(m)
+		}
 	}
 }
 

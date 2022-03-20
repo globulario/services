@@ -2919,7 +2919,8 @@ proto.title.Title.toObject = function(includeInstance, msg) {
     akaList: jspb.Message.getRepeatedField(msg, 16),
     duration: jspb.Message.getFieldWithDefault(msg, 17, ""),
     season: jspb.Message.getFieldWithDefault(msg, 18, 0),
-    episode: jspb.Message.getFieldWithDefault(msg, 19, 0)
+    episode: jspb.Message.getFieldWithDefault(msg, 19, 0),
+    serie: jspb.Message.getFieldWithDefault(msg, 20, "")
   };
 
   if (includeInstance) {
@@ -3035,6 +3036,10 @@ proto.title.Title.deserializeBinaryFromReader = function(msg, reader) {
     case 19:
       var value = /** @type {number} */ (reader.readInt32());
       msg.setEpisode(value);
+      break;
+    case 20:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSerie(value);
       break;
     default:
       reader.skipField();
@@ -3199,6 +3204,13 @@ proto.title.Title.serializeBinaryToWriter = function(message, writer) {
   if (f !== 0) {
     writer.writeInt32(
       19,
+      f
+    );
+  }
+  f = message.getSerie();
+  if (f.length > 0) {
+    writer.writeString(
+      20,
       f
     );
   }
@@ -3606,6 +3618,21 @@ proto.title.Title.prototype.getEpisode = function() {
 /** @param {number} value */
 proto.title.Title.prototype.setEpisode = function(value) {
   jspb.Message.setProto3IntField(this, 19, value);
+};
+
+
+/**
+ * optional string Serie = 20;
+ * @return {string}
+ */
+proto.title.Title.prototype.getSerie = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 20, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Title.prototype.setSerie = function(value) {
+  jspb.Message.setProto3StringField(this, 20, value);
 };
 
 

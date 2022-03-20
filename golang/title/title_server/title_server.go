@@ -593,16 +593,18 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	// so the first thing I will do is to get the file on the disc.
 	filePath := rqst.FilePath
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
+
 	if !Utility.Exists(filePath) {
 		// Here I will try to get it from the users dirs...
 		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
 			filePath = config.GetDataDir() + "/files" + filePath
 		}
-	}
-	if !Utility.Exists(filePath) {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+
+		if !Utility.Exists(filePath) {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+		}
 	}
 
 	var uuid string
@@ -662,7 +664,27 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Also index it with it title.
+	// Now I will get the association for that title.
+	data, err = srv.associations[rqst.IndexPath].GetItem(rqst.TitleId)
+	association = &fileTileAssociation{ID: rqst.TitleId, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	// Append the path if not already there.
+	if !Utility.Contains(association.Paths, rqst.FilePath) {
+		association.Paths = append(association.Paths, rqst.FilePath)
+	}
+	if !Utility.Contains(association.Titles, rqst.TitleId) {
+		association.Titles = append(association.Titles, rqst.TitleId)
+	}
+	
+	data, _ = json.Marshal(association)
 	err = srv.associations[rqst.IndexPath].SetItem(rqst.TitleId, data)
 	if err != nil {
 		return nil, status.Errorf(
@@ -676,12 +698,10 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) error {
 
-	fmt.Println("-----------> dissociate File", filePath, "with title", titleId)
 	// I will use the file checksum as file id...
 	var uuid string
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
-		fmt.Println("684 -----------> dissociate File error ", err)
 		return err
 	}
 
@@ -709,7 +729,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
-			fmt.Println("712 -----------> dissociate File error ", err)
 			return err
 		}
 	}
@@ -718,22 +737,17 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 	association.Paths = Utility.RemoveString(association.Paths, filePath)
 	association.Paths = Utility.RemoveString(association.Titles, titleId)
 	if len(association.Paths) == 0 || len(association.Titles) == 0 {
-		fmt.Println("721 -----------> dissociate File remove title id and uuid")
 		srv.associations[indexPath].RemoveItem(titleId)
 		srv.associations[indexPath].RemoveItem(uuid)
 	} else {
 		// Now I will set back the item in the store.
-		fmt.Println("726 -----------> association ", association)
 		data, _ = json.Marshal(association)
 		err = srv.associations[indexPath].SetItem(uuid, data)
 		if err != nil {
-			fmt.Println("730 -----------> dissociate File error ", err)
 			return err
 		}
 		return srv.associations[indexPath].SetItem(titleId, data)
 	}
-
-	fmt.Println("730 -----------> dissociate File success!")
 
 	return nil
 
@@ -768,6 +782,7 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 }
 
 func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, error) {
+
 	// I will use the file checksum as file id...
 	var uuid string
 	fileInfo, err := os.Stat(filePath)
@@ -817,7 +832,7 @@ func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, 
 	}
 
 	// In case of a dir I need to recursivly get the list of title from sub-folder...
-	if fileInfo.IsDir() {
+	if fileInfo.IsDir() && !Utility.Exists(filePath+"/playlist.m3u8") {
 		files, err := ioutil.ReadDir(filePath)
 		if err == nil {
 			for _, f := range files {
@@ -846,6 +861,7 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 			filePath = config.GetDataDir() + "/files" + filePath
 		}
 	}
+
 	if !Utility.Exists(filePath) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1309,7 +1325,7 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 	for i := 0; i < len(association.Paths); i++ {
 		if Utility.Exists(association.Paths[i]) {
 			paths = append(paths, association.Paths[i])
-		}else if Utility.Exists(config.GetDataDir() + "/files" + association.Paths[i]){
+		} else if Utility.Exists(config.GetDataDir() + "/files" + association.Paths[i]) {
 			paths = append(paths, association.Paths[i])
 		}
 	}
