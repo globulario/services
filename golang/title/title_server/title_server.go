@@ -607,14 +607,13 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 	}
 
-	var uuid string
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	var uuid string
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
 		// is a directory
@@ -654,7 +653,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	if !Utility.Contains(association.Titles, rqst.TitleId) {
 		association.Titles = append(association.Titles, rqst.TitleId)
 	}
-
+	fmt.Println("-------------> 657 ", association)
 	// Now I will set back the item in the store.
 	data, _ = json.Marshal(association)
 	err = srv.associations[rqst.IndexPath].SetItem(uuid, data)
@@ -675,7 +674,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
-
+	fmt.Println("-------------> 678 ", association)
 	// Append the path if not already there.
 	if !Utility.Contains(association.Paths, rqst.FilePath) {
 		association.Paths = append(association.Paths, rqst.FilePath)
@@ -683,7 +682,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	if !Utility.Contains(association.Titles, rqst.TitleId) {
 		association.Titles = append(association.Titles, rqst.TitleId)
 	}
-	
+
 	data, _ = json.Marshal(association)
 	err = srv.associations[rqst.IndexPath].SetItem(rqst.TitleId, data)
 	if err != nil {
@@ -737,7 +736,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 	association.Paths = Utility.RemoveString(association.Paths, filePath)
 	association.Paths = Utility.RemoveString(association.Titles, titleId)
 	if len(association.Paths) == 0 || len(association.Titles) == 0 {
-		srv.associations[indexPath].RemoveItem(titleId)
 		srv.associations[indexPath].RemoveItem(uuid)
 	} else {
 		// Now I will set back the item in the store.
@@ -746,9 +744,32 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		if err != nil {
 			return err
 		}
-		return srv.associations[indexPath].SetItem(titleId, data)
+	}
+	fmt.Println("-------------> 749 ", association)
+
+	data, err = srv.associations[indexPath].GetItem(titleId)
+	association = &fileTileAssociation{ID: titleId, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return err
+		}
 	}
 
+	// so here i will remove the path from the list of path.
+	association.Paths = Utility.RemoveString(association.Paths, filePath)
+	fmt.Println("-------------> 762 ", association)
+	if len(association.Paths) == 0 {
+		srv.associations[indexPath].RemoveItem(titleId)
+	} else {
+		// Now I will set back the item in the store.
+		data, _ = json.Marshal(association)
+		err = srv.associations[indexPath].SetItem(titleId, data)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Println("-------------> 772 ", association)
 	return nil
 
 }
@@ -791,8 +812,6 @@ func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, 
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// Depending if the filePath point to a dir or a file...
 
 	if fileInfo.IsDir() {
 		// is a directory
@@ -1241,6 +1260,7 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 
 // Return the list of videos asscociate with a file.
 func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideosRequest) (*titlepb.GetFileVideosResponse, error) {
+
 	// So here I will get the list of titles asscociated with a file...
 	filePath := rqst.FilePath
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
@@ -1250,6 +1270,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 			filePath = config.GetDataDir() + "/files" + filePath
 		}
 	}
+
 	if !Utility.Exists(filePath) {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1257,7 +1278,22 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	}
 
 	// I will use the file checksum as file id...
-	checksum := Utility.CreateFileChecksum(filePath)
+	var uuid string
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if fileInfo.IsDir() {
+		// is a directory
+		uuid = Utility.GenerateUUID(filePath)
+	} else {
+		// is not a directory
+		uuid = Utility.CreateFileChecksum(filePath)
+	}
+
 	if srv.associations == nil {
 		srv.associations = make(map[string]*storage_store.Badger_store)
 	}
@@ -1268,8 +1304,8 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[rqst.IndexPath].GetItem(checksum)
-	association := &fileTileAssociation{ID: checksum, Titles: []string{}, Paths: []string{}}
+	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {

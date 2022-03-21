@@ -1413,9 +1413,7 @@ func main() {
 
 	// Convert video file, set permissions...
 	go func() {
-		files := []string{config.GetDataDir() + "/files"}
-		files = append(files, s_impl.Public...)
-		processFiles(files) // Process files...
+		processVideos() // Process files...
 	}()
 
 	// Now the event client service.
@@ -1650,41 +1648,80 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-func processFiles(files []string) {
+func processVideos() {
 
-	convertVideo(config.GetDataDir() + "/files")
+	videos := getVideoPaths()
 
-	// Also convert video from public file...
-	for i := 0; i < len(files); i++ {
-		// I will index the dir content by the search engine...
-		convertVideo(files[i])
+	// Step 1. Generate video preview, remove finish .mp4 files...
+	for _, video := range videos {
+		// all video mp4 must
+		if strings.HasSuffix(video, ".mp4") {
+			fmt.Println("------------> mp4 ", video)
+			createVideoPreview(video, 20, 128)
+			generateVideoGifPreview(video, 10, 320, 30)
+			createVideoTimeLine(video, 180, .2) // 1 frame per 5 seconds.
 
+			// test if previous stream are present...
+			dir := video[0:strings.Index(video, ".mp4")]
+			if Utility.Exists(dir + "/playlist.m3u8") {
+				// Here conversion was done so I can remove the mp4 file...
+				os.Remove(video)
+			} else if Utility.Exists(dir) {
+				// Failed previous convesion attemp...
+				os.RemoveAll(dir)
+			}
+
+		}
+	}
+
+	// Step 2 Convert all mkv to mp4
+	for _, video := range videos {
+		// all video mp4 must
+		if !strings.HasSuffix(video, ".mp4") {
+			fmt.Println("------------> convert ", video)
+			video_, err := createVideoMpeg4H264(video)
+			if err != nil {
+				fmt.Println("fail to convert ", video, " with error ", err)
+			} else {
+				videos = append(videos, video_)
+				// Create the preview, timeline and gif...
+				createVideoPreview(video_, 20, 128)
+				generateVideoGifPreview(video_, 10, 320, 30)
+				createVideoTimeLine(video_, 180, .2) // 1 frame per 5 seconds.
+			}
+		}
+	}
+
+	// Step 3 Convert .mp4 to stream...
+	for _, video := range videos {
+		// all video mp4 must
+		if strings.HasSuffix(video, ".mp4") {
+			fmt.Println("------------> create stream ", video)
+			dir := video[0:strings.Index(video, ".mp4")]
+			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
+				fmt.Println("create video stream stream", video)
+				createHlsStreamFromMpeg4H264(video, false)
+			}
+		}
 	}
 
 	// sleep a minute...
-	time.Sleep(1 * time.Hour) // once hours I will refresh all the file.
-	processFiles(files)
+	time.Sleep(1 * time.Minute) // once hours I will refresh all the file.
+	processVideos()
 }
 
 // Recursively convert all video that are not in the correct
 // format.
-func convertVideo(path string) {
+func getVideoPaths() []string {
 
 	// Here I will use at most one concurrent ffmeg...
-	pids, err := Utility.GetProcessIdsByName("ffmpeg")
-	if err == nil {
-		if len(pids) > 3 {
-			return // already running...
-		}
-	}
-
 	medias := make([]string, 0)
 	dirs := make([]string, 0)
 	dirs = append(dirs, config.GetPublicDirs()...)
 	dirs = append(dirs, config.GetDataDir()+"/files")
 
 	for _, dir := range dirs {
-		err = filepath.Walk(dir,
+		filepath.Walk(dir,
 			func(path string, info os.FileInfo, err error) error {
 				if info.IsDir() {
 					isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())
@@ -1697,34 +1734,15 @@ func convertVideo(path string) {
 					return err
 				}
 				// fmt.Println(path, info.Size())
-				if !strings.Contains(path, ".hidden") && strings.HasSuffix(path, ".mp4") {
-
-					// generate preview and usefull stuff here...
-					createVideoPreview(path, 20, 128)
-					generateVideoGifPreview(path, 10, 320, 30)
-					createVideoTimeLine(path, 180, .2)
-
-					medias = append(medias, path)
-				} else if strings.HasSuffix(path, ".mkv") || strings.HasSuffix(path, ".avi") || strings.HasSuffix(path, ".mov") || strings.HasSuffix(path, ".wmv") {
+				if !strings.Contains(path, ".hidden") && strings.HasSuffix(path, ".mp4") || strings.HasSuffix(path, ".mkv") || strings.HasSuffix(path, ".avi") || strings.HasSuffix(path, ".mov") || strings.HasSuffix(path, ".wmv") {
 					medias = append(medias, path)
 				}
 				return nil
 			})
 	}
 
-	// Create timeline, preview image and gif...
-	for _, m := range medias {
-
-		// if the video is
-		createVideoMpeg4H264(m)
-
-		// All indexed title will be automatically create as a stream...
-		// because video are mostly small I will not index it automatically...
-		err := createHlsStreamFromMpeg4H264(m, false)
-		if err == nil {
-			os.Remove(m)
-		}
-	}
+	// Return the list of file to be process...
+	return medias
 }
 
 func getStreamInfos(path string) (map[string]interface{}, error) {
@@ -1743,9 +1761,9 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 /**
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
-func createVideoMpeg4H264(path string) error {
+func createVideoMpeg4H264(path string) (string, error) {
 	if strings.HasSuffix(path, ".mp4") {
-		return errors.New("file " + path + " already exist")
+		return "", errors.New("file " + path + " already exist")
 	}
 
 	path = strings.ReplaceAll(path, "\\", "/")
@@ -1754,7 +1772,10 @@ func createVideoMpeg4H264(path string) error {
 	output := path_ + "/" + name_ + ".mp4"
 
 	if Utility.Exists(output) {
-		return errors.New("file " + output + " already exist")
+		path_ := path[0:strings.LastIndex(path, "/")]
+		name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+		os.Remove(path_ + "/.hidden/" + name_)
+		os.Remove(output) // remove the previous output...
 	}
 
 	// Test if cuda is available.
@@ -1765,7 +1786,7 @@ func createVideoMpeg4H264(path string) error {
 
 	streamInfos, err := getStreamInfos(path)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Here I will test if the encoding is valid
@@ -1783,7 +1804,7 @@ func createVideoMpeg4H264(path string) error {
 
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
-			return err
+			return "", err
 		}
 
 	} else {
@@ -1798,7 +1819,7 @@ func createVideoMpeg4H264(path string) error {
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 			fmt.Println(err.Error())
-			return err
+			return "", err
 		}
 	}
 
@@ -1808,64 +1829,43 @@ func createVideoMpeg4H264(path string) error {
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
-		return err
-	}
-
-	// here I can remove the input file after it was converted.
-	err = createVideoTimeLine(output, 180, .2) // 1 frame per 5 seconds.
-	if err != nil {
-		return err
-	}
-
-	err = generateVideoGifPreview(path, 10, 320, 30)
-	if err != nil {
-		return err
-	}
-
-	// Create a video preview
-	err = createVideoPreview(output, 20, 128)
-	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Here I will remove the input file...
 	os.Remove(path)
-	return nil
+
+	return output, nil
 }
 
 func associatePath(path string) error {
 
 	// So here I will try to retreive indexation for the file...
 	client, err := getTitleClient()
+	if err != nil {
+		return err
+	}
 
-	titles_ := make([]string, 0)
-	indexPath := config.GetDataDir() + "/search/titles"
+		// Now I will asscociate the title.
+		output_path := path[0:strings.LastIndex(path, ".")]
+
+	titles, err := client.GetFileTitles(config.GetDataDir() + "/search/titles", path)
 	if err == nil {
-		titles, err := client.GetFileTitles(indexPath, path)
-		if err == nil {
-			// Here I will asscociate the path
-			for _, title := range titles {
-				titles_ = append(titles_, title.ID)
-			}
-		} else {
-			// Look for videos
-			indexPath = config.GetDataDir() + "/search/videos"
-			titles, err := client.GetFileTitles(indexPath, path)
-			if err == nil {
-				// Here I will asscociate the path
-				for _, title := range titles {
-					titles_ = append(titles_, title.ID)
-				}
-			}
+		// Here I will asscociate the path
+		for _, title := range titles {
+			client.AssociateFileWithTitle(config.GetDataDir() + "/search/titles", title.ID, output_path)
+			client.DissociateFileWithTitle(config.GetDataDir() + "/search/titles", title.ID, path)
 		}
 	}
 
-	// Now I will asscociate the title.
-	output_path := path[0:strings.LastIndex(path, ".")]
-
-	for _, titleId := range titles_ {
-		fmt.Println("try to associate the tile '", titleId, "' with path '"+output_path+"'")
-		client.AssociateFileWithTitle(indexPath, titleId, output_path)
+	// Look for videos
+	videos, err := client.GetFileVideos( config.GetDataDir() + "/search/videos", path)
+	if err == nil {
+		// Here I will asscociate the path
+		for _, video := range videos {
+			client.AssociateFileWithTitle(config.GetDataDir() + "/search/videos", video.ID, output_path)
+			client.DissociateFileWithTitle(config.GetDataDir() + "/search/videos", video.ID, path)
+		}
 	}
 
 	return nil
@@ -1880,31 +1880,31 @@ func createHlsStreamFromMpeg4H264(path string, force bool) error {
 	// Test if it's already exist.
 	output_path := path[0:strings.LastIndex(path, ".")]
 
-	if Utility.Exists(output_path + "/playlist.m3u8") {
-		// try to asscociate the path...
-		associatePath(path)
-		return errors.New("stream at path " + path + " already exist")
-	}
-
 	// Here I will remove the existing folder...
 	os.RemoveAll(output_path)
 
 	// Recreate it...
-	Utility.CreateDirIfNotExist(output_path)
-
-	// Try to associate the path...
-	err := associatePath(path)
-	if err != nil && !force {
-		os.RemoveAll(output_path) // fail to associate the title...
+	err := Utility.CreateDirIfNotExist(output_path)
+	if err != nil {
 		return err
 	}
 
 	fileName := path[strings.LastIndex(path, "/")+1:]
 	dirName := output_path[strings.LastIndex(output_path, "/")+1:]
+
+	if strings.Contains(fileName, " ") {
+		fileName = `'` + fileName + `'`
+	}
+
+	if strings.Contains(dirName, " ") {
+		dirName = `'` + dirName + `'`
+	}
+
 	cmd := exec.Command("create-vod-hls.sh", fileName, dirName)
 	cmd.Dir = path[0:strings.LastIndex(path, "/")]
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		//os.RemoveAll(output_path)
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1930,6 +1930,7 @@ func createHlsStreamFromMpeg4H264(path string, force bool) error {
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println("fail to run command ", err)
+		os.RemoveAll(output_path)
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1941,6 +1942,17 @@ func createHlsStreamFromMpeg4H264(path string, force bool) error {
 	// Close the output.
 	stdout.Close()
 	done <- true
+
+	// remove the mp4 file...
+	if Utility.Exists(output_path + "/playlist.m3u8") {
+		// Try to associate the path...
+		fmt.Println("----------> associate path ", path)
+		err = associatePath(path)
+		if err != nil && !force {
+			return err
+		}
+		os.Remove(path)
+	}
 
 	return nil
 }
@@ -2188,7 +2200,7 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}
 
-	err := createVideoMpeg4H264(rqst.Path)
+	_, err := createVideoMpeg4H264(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
