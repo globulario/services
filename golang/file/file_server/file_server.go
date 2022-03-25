@@ -718,7 +718,9 @@ func (file_server *server) formatPath(path string) string {
 			if strings.HasPrefix(path, "/") {
 				if !file_server.isPublic(path) {
 					// Must be in the root path if it's not in public path.
-					path = file_server.Root + path
+					if !strings.HasPrefix(path, file_server.Root) {
+						path = file_server.Root + path
+					}
 				}
 			} else {
 				path = file_server.Root + "/" + path
@@ -1341,7 +1343,7 @@ func generateVideoPreviewListener(evt *eventpb.Event) {
 		createVideoPreview(path, 20, 128)
 		generateVideoGifPreview(path, 10, 320, 30)
 		createVideoTimeLine(path, 180, .2)
-		createHlsStreamFromMpeg4H264(path, false)
+		createHlsStreamFromMpeg4H264(path)
 	}()
 
 }
@@ -1700,7 +1702,7 @@ func processVideos() {
 			dir := video[0:strings.Index(video, ".mp4")]
 			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
 				fmt.Println("create video stream stream", video)
-				createHlsStreamFromMpeg4H264(video, false)
+				createHlsStreamFromMpeg4H264(video)
 			}
 		}
 	}
@@ -1846,25 +1848,25 @@ func associatePath(path string) error {
 		return err
 	}
 
-		// Now I will asscociate the title.
-		output_path := path[0:strings.LastIndex(path, ".")]
+	// Now I will asscociate the title.
+	output_path := path[0:strings.LastIndex(path, ".")]
 
-	titles, err := client.GetFileTitles(config.GetDataDir() + "/search/titles", path)
+	titles, err := client.GetFileTitles(config.GetDataDir()+"/search/titles", strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
 	if err == nil {
 		// Here I will asscociate the path
 		for _, title := range titles {
-			client.AssociateFileWithTitle(config.GetDataDir() + "/search/titles", title.ID, output_path)
-			client.DissociateFileWithTitle(config.GetDataDir() + "/search/titles", title.ID, path)
+			client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, strings.ReplaceAll(output_path, config.GetDataDir()+"/files", ""))
+			client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
 		}
 	}
 
 	// Look for videos
-	videos, err := client.GetFileVideos( config.GetDataDir() + "/search/videos", path)
+	videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
 	if err == nil {
 		// Here I will asscociate the path
 		for _, video := range videos {
-			client.AssociateFileWithTitle(config.GetDataDir() + "/search/videos", video.ID, output_path)
-			client.DissociateFileWithTitle(config.GetDataDir() + "/search/videos", video.ID, path)
+			client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, strings.ReplaceAll(output_path, config.GetDataDir()+"/files", ""))
+			client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
 		}
 	}
 
@@ -1872,7 +1874,7 @@ func associatePath(path string) error {
 }
 
 // Create a stream from existing Mpeg4 file...
-func createHlsStreamFromMpeg4H264(path string, force bool) error {
+func createHlsStreamFromMpeg4H264(path string) error {
 	if !strings.HasSuffix(path, ".mp4") {
 		return errors.New("convert the file to MPEG-4 H264 before create the HLS stream")
 	}
@@ -1883,28 +1885,22 @@ func createHlsStreamFromMpeg4H264(path string, force bool) error {
 	// Here I will remove the existing folder...
 	os.RemoveAll(output_path)
 
-	// Recreate it...
-	err := Utility.CreateDirIfNotExist(output_path)
-	if err != nil {
-		return err
-	}
+	fileName := Utility.GenerateUUID(path[strings.LastIndex(path, "/")+1:])
+	Utility.CopyFile(path, os.TempDir()+"/"+fileName+".mp4")
 
-	fileName := path[strings.LastIndex(path, "/")+1:]
-	dirName := output_path[strings.LastIndex(output_path, "/")+1:]
+	// Create the output path...
+	os.Remove(os.TempDir() + "/" + fileName)
+	Utility.CreateDirIfNotExist(os.TempDir() + "/" + fileName)
 
-	if strings.Contains(fileName, " ") {
-		fileName = `'` + fileName + `'`
-	}
+	// remove the renamed file and the temp output if te command did not finish......
+	defer os.Remove(os.TempDir() + "/" + fileName + ".mp4")
+	defer os.Remove(os.TempDir() + "/" + fileName)
+	fmt.Println("generate strem for ", path, "output to", os.TempDir()+"/"+fileName)
 
-	if strings.Contains(dirName, " ") {
-		dirName = `'` + dirName + `'`
-	}
-
-	cmd := exec.Command("create-vod-hls.sh", fileName, dirName)
-	cmd.Dir = path[0:strings.LastIndex(path, "/")]
+	cmd := exec.Command("create-vod-hls.sh", fileName+".mp4", fileName)
+	cmd.Dir = os.TempDir()
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		//os.RemoveAll(output_path)
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1930,28 +1926,27 @@ func createHlsStreamFromMpeg4H264(path string, force bool) error {
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println("fail to run command ", err)
-		os.RemoveAll(output_path)
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Wait for the command to finish...
 	cmd.Wait()
 
 	// Close the output.
 	stdout.Close()
 	done <- true
 
+	// Move to the correct location...
+	os.Rename(os.TempDir()+"/"+fileName, output_path)
+
 	// remove the mp4 file...
 	if Utility.Exists(output_path + "/playlist.m3u8") {
 		// Try to associate the path...
-		fmt.Println("----------> associate path ", path)
-		err = associatePath(path)
-		if err != nil && !force {
-			return err
-		}
-		os.Remove(path)
+		associatePath(path)
+
+		// remove the original file.
+		defer os.Remove(path)
 	}
 
 	return nil
@@ -2218,7 +2213,7 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 	}
 
 	// Create the hls stream from MPEG-4 H264 file.
-	err := createHlsStreamFromMpeg4H264(rqst.Path, true)
+	err := createHlsStreamFromMpeg4H264(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
