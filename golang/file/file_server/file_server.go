@@ -1332,6 +1332,11 @@ func generateVideoPreviewListener(evt *eventpb.Event) {
 
 	createVideoPreview(path, 20, 128)
 
+	go func(){
+		generateVideoGifPreview(path, 10, 320, 30)
+		createVideoTimeLine(path, 180, .2) // 1 frame per 5 seconds.
+	}()
+
 	client, err := getEventClient()
 	if err == nil {
 		dir := []byte(string(evt.Data)[0:strings.LastIndex(string(evt.Data), "/")])
@@ -1944,7 +1949,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 
 	master_playlist := `#EXTM3U
 #EXT-X-VERSION:3
-	`
+`
 
 	// List of static parameters...
 	var static_params []string
@@ -2102,7 +2107,7 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 		return nil
 	}
 	Utility.CreateDirIfNotExist(output)
-
+	fmt.Println("create video preview (gif) for ", path)
 	cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", `-loop`, `0`, `preview.gif`)
 	cmd.Dir = output // the output directory...
 	err := cmd.Run()
@@ -2133,10 +2138,11 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
 	output := path_ + "/.hidden/" + name_ + "/__timeline__"
 	if Utility.Exists(output) {
-		return nil
+		os.RemoveAll(output)
 	}
 
 	Utility.CreateDirIfNotExist(output)
+	fmt.Println("create video timeline for ", path)
 
 	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
 	cmd := exec.Command("ffmpeg", "-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:"+Utility.ToString(width)+",fps="+Utility.ToString(fps), "thumbnail_%05d.jpg")
@@ -2198,9 +2204,10 @@ func createVideoPreview(path string, nb int, height int) error {
 	output := path_ + "/.hidden/" + name_ + "/__preview__"
 
 	if Utility.Exists(output) {
-		return nil
+		os.RemoveAll(output)
 	}
 
+	fmt.Println("create video preview for ", path)
 	Utility.CreateDirIfNotExist(output)
 
 	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
