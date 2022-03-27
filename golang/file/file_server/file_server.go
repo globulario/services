@@ -1871,8 +1871,8 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	}
 
 	key_frames_interval, err := getStreamFrameRateInterval(src)
-	var static_params []string
 
+	args := make([]string, 0)
 	// Here I will test if the encoding is valid
 	encoding := ""
 	for _, stream := range streamInfos["streams"].([]interface{}) {
@@ -1888,11 +1888,11 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	if strings.Index(string(version), "--enable-cuda-nvcc") > -1 {
 		fmt.Println("use gpu for convert ", src)
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			static_params = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "hevc_nvenc",  "-c:a", "aac", output)
-			static_params = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p"}
 
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
@@ -1903,11 +1903,11 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		fmt.Println("use cpu for convert ", src)
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			static_params = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			// cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			static_params = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 			fmt.Println(err.Error())
@@ -1915,44 +1915,42 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		}
 	}
 
-	// List of static parameters...
-	static_params = append(static_params, []string{"-profile:v", "main", "-sc_threshold", "0"}...)
-	static_params = append(static_params, []string{"-g", Utility.ToString(key_frames_interval), "-keyint_min", Utility.ToString(key_frames_interval), "-hls_time", Utility.ToString(segment_target_duration)}...)
-
 	// resolution  bitrate  audio-rate
 	renditions := make([]map[string]interface{}, 0)
-	
-	w, _  := getVideoResolution(src)
-	if  w >= 426  {
-		renditions = append(renditions, map[string] interface{}{"resolution": "426x240", "bitrate": "400k", "audio-rate": "64k"})
+
+	w, _ := getVideoResolution(src)
+	if w >= 426 {
+		renditions = append(renditions, map[string]interface{}{"resolution": "426x240", "bitrate": "400k", "audio-rate": "64k"})
 	}
-	if w >= 640{
-		renditions = append(renditions, map[string] interface{}{"resolution": "640x360", "bitrate": "400k", "audio-rate": "64k"})
+	if w >= 640 {
+		renditions = append(renditions, map[string]interface{}{"resolution": "640x360", "bitrate": "400k", "audio-rate": "64k"})
 	}
 
 	if w >= 842 {
-		renditions = append(renditions, map[string] interface{}{"resolution": "842x480", "bitrate": "1400k", "audio-rate": "128k"})
+		renditions = append(renditions, map[string]interface{}{"resolution": "842x480", "bitrate": "1400k", "audio-rate": "128k"})
 	}
 
 	if w >= 1280 {
-		renditions = append(renditions, map[string] interface{}{"resolution": "1280x720", "bitrate": "2800k", "audio-rate": "128k"})
+		renditions = append(renditions, map[string]interface{}{"resolution": "1280x720", "bitrate": "2800k", "audio-rate": "128k"})
 	}
 
 	if w >= 1920 {
-		renditions = append(renditions, map[string] interface{}{"resolution": "1920x1080", "bitrate": "5000k", "audio-rate": "192k"})
+		renditions = append(renditions, map[string]interface{}{"resolution": "1920x1080", "bitrate": "5000k", "audio-rate": "192k"})
 	}
 
 	if w >= 3840 {
-		renditions = append(renditions, map[string] interface{}{"resolution": "3840x2160", "bitrate": "5000k", "audio-rate": "192k"})
+		renditions = append(renditions, map[string]interface{}{"resolution": "3840x2160", "bitrate": "5000k", "audio-rate": "192k"})
 	}
 
 	master_playlist := `#EXTM3U
 #EXT-X-VERSION:3
 	`
 
-	args := make([]string, 0)
-	args = append(args, static_params...)
-
+	// List of static parameters...
+	var static_params []string
+	static_params = append(static_params, []string{"-profile:v", "main", "-sc_threshold", "0"}...)
+	static_params = append(static_params, []string{"-g", Utility.ToString(key_frames_interval), "-keyint_min", Utility.ToString(key_frames_interval), "-hls_time", Utility.ToString(segment_target_duration)}...)
+	static_params = []string{"-hls_playlist_type", "vod"}
 
 	// Now I will append the the renditions parameters to the list...
 	for _, rendition := range renditions {
@@ -1965,9 +1963,10 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		bufsize := int(float32(Utility.ToNumeric(bitrate[0:len(bitrate)-1])) * rate_monitor_buffer_ratio)
 		bandwidth := Utility.ToInt(bitrate[0:len(bitrate)-1]) * 1000
 		name := height + "p"
+		args = append(args, static_params...)
 		args = append(args, []string{"-vf", "scale=-2:min(" + width + "\\,if(mod(ih\\,2)\\,ih-1\\,ih))"}...)
 		args = append(args, []string{"-b:v", Utility.ToString(bitrate), "-maxrate", Utility.ToString(maxrate) + "k", "-bufsize", Utility.ToString(bufsize) + "k", "-b:a", audiorate}...)
-		args = append(args, []string{ "-hls_playlist_type", "vod", "-hls_segment_filename", dest + "/" + name + `_%04d.ts`, dest + "/" + name + ".m3u8"}...)
+		args = append(args, []string{"-hls_segment_filename", dest + "/" + name + `_%04d.ts`, dest + "/" + name + ".m3u8"}...)
 
 		// static_params = append(static_params, )
 		master_playlist += `#EXT-X-STREAM-INF:BANDWIDTH=` + Utility.ToString(bandwidth) + `,RESOLUTION=` + resolution + `
@@ -1986,7 +1985,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		return err
 	}
 	fmt.Println("Result: " + out.String())
-	os.WriteFile(dest + "/playlist.m3u8", []byte(master_playlist), 0644)
+	os.WriteFile(dest+"/playlist.m3u8", []byte(master_playlist), 0644)
 
 	return nil
 }
@@ -2020,19 +2019,18 @@ func createHlsStreamFromMpeg4H264(path string) error {
 	}
 
 	// Move to the correct location...
-	err = os.Rename(os.TempDir()+"/"+fileName, os.TempDir()+"/" + output_path[strings.LastIndex(output_path, "/"):])
+	err = os.Rename(os.TempDir()+"/"+fileName, os.TempDir()+"/"+output_path[strings.LastIndex(output_path, "/"):])
 	if err != nil {
-		fmt.Println("fail to rename dir ", os.TempDir()+"/"+fileName , " to ", output_path,  err)
+		fmt.Println("fail to rename dir ", os.TempDir()+"/"+fileName, " to ", output_path, err)
 		return err
 	}
 
-	err = Utility.Move( os.TempDir()+"/" + output_path[strings.LastIndex(output_path, "/"):], output_path[0:strings.LastIndex(output_path, "/")])
+	err = Utility.Move(os.TempDir()+"/"+output_path[strings.LastIndex(output_path, "/"):], output_path[0:strings.LastIndex(output_path, "/")])
 	if err != nil {
-		fmt.Println("fail to move dir ", os.TempDir()+"/"+fileName , " to ", output_path,  err)
+		fmt.Println("fail to move dir ", os.TempDir()+"/"+fileName, " to ", output_path, err)
 		return err
 	}
 
-	
 	// remove the mp4 file...
 	if Utility.Exists(output_path + "/playlist.m3u8") {
 		// Try to associate the path...
@@ -2241,8 +2239,8 @@ func getVideoResolution(path string) (int, int) {
 		return -1, -1
 	}
 
-	w := out.String()[strings.Index( out.String(), "=")+ 1 : strings.Index(out.String(), "\n") ]
-	h := out.String()[strings.LastIndex( out.String(), "=")+ 1 :]
+	w := out.String()[strings.Index(out.String(), "=")+1 : strings.Index(out.String(), "\n")]
+	h := out.String()[strings.LastIndex(out.String(), "=")+1:]
 	return Utility.ToInt(strings.TrimSpace(w)), Utility.ToInt(strings.TrimSpace(h))
 }
 
