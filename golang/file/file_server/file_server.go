@@ -1331,8 +1331,7 @@ func generateVideoPreviewListener(evt *eventpb.Event) {
 	}
 
 	createVideoPreview(path, 20, 128)
-
-	go func(){
+	go func() {
 		generateVideoGifPreview(path, 10, 320, 30)
 		createVideoTimeLine(path, 180, .2) // 1 frame per 5 seconds.
 	}()
@@ -1650,29 +1649,30 @@ func processVideos() {
 
 	videos := getVideoPaths()
 
-	// Step 1. Generate video preview, remove finish .mp4 files...
 	for _, video := range videos {
+		fmt.Println("----------> video ", video)
+		// Create preview and timeline...
 		createVideoPreview(video, 20, 128)
 		generateVideoGifPreview(video, 10, 320, 30)
 		createVideoTimeLine(video, 180, .2) // 1 frame per 5 seconds.
-
-		// test if previous stream are present...
-		dir := video[0:strings.LastIndex(video, ".")]
-		if Utility.Exists(dir + "/playlist.m3u8") {
-			// Here conversion was done so I can remove the mp4 file...
-			os.Remove(video)
-		} else if Utility.Exists(dir) {
-			// Failed previous convesion attemp...
-			os.RemoveAll(dir)
-		}
 	}
 
 	// Step 2 Convert .mp4 to stream...
 	for _, video := range videos {
+
 		// all video mp4 must
 		dir := video[0:strings.LastIndex(video, ".")]
+
 		if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
+
+			if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
+				video, _ = createVideoMpeg4H264(video)
+			}
+	
+			// Convert to stream...
 			createHlsStreamFromMpeg4H264(video)
+		}else{
+			os.Remove(video)
 		}
 	}
 
@@ -1749,9 +1749,6 @@ func getStreamFrameRateInterval(path string) (int, error) {
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
 func createVideoMpeg4H264(path string) (string, error) {
-	if strings.HasSuffix(path, ".mp4") {
-		return "", errors.New("file " + path + " already exist")
-	}
 
 	path = strings.ReplaceAll(path, "\\", "/")
 	path_ := path[0:strings.LastIndex(path, "/")]
@@ -1759,10 +1756,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 	output := path_ + "/" + name_ + ".mp4"
 
 	if Utility.Exists(output) {
-		path_ := path[0:strings.LastIndex(path, "/")]
-		name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
-		os.Remove(path_ + "/.hidden/" + name_)
-		os.Remove(output) // remove the previous output...
+		return output, nil
 	}
 
 	// Test if cuda is available.
@@ -1790,7 +1784,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 		fmt.Println("use gpu for convert ", path)
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output)
-		} else if strings.HasPrefix(encoding, "H.265") {
+		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "hevc_nvenc",  "-c:a", "aac", output)
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
@@ -1805,13 +1799,13 @@ func createVideoMpeg4H264(path string) (string, error) {
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", output)
-		} else if strings.HasPrefix(encoding, "H.265") {
+		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			// cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
-			fmt.Println(err.Error())
+
 			return "", err
 		}
 	}
@@ -1822,9 +1816,10 @@ func createVideoMpeg4H264(path string) (string, error) {
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
+		fmt.Println("-------------------> 1815 ", err)
 		return "", err
 	}
-
+	fmt.Println("-------------------> 1818 ", err)
 	// Here I will remove the input file...
 	os.Remove(path)
 
@@ -1894,7 +1889,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		fmt.Println("use gpu for convert ", src)
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
-		} else if strings.HasPrefix(encoding, "H.265") {
+		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "hevc_nvenc",  "-c:a", "aac", output)
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p"}
@@ -1909,7 +1904,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
-		} else if strings.HasPrefix(encoding, "H.265") {
+		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			// cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
@@ -1999,6 +1994,8 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 func createHlsStreamFromMpeg4H264(path string) error {
 	ext := path[strings.LastIndex(path, ".")+1:]
 
+	fmt.Println("---------------------> ", path)
+
 	// Test if it's already exist.
 	output_path := path[0:strings.LastIndex(path, ".")]
 
@@ -2020,6 +2017,7 @@ func createHlsStreamFromMpeg4H264(path string) error {
 	// Create the stream...
 	err := createHlsStream(os.TempDir()+"/"+fileName+"."+ext, os.TempDir()+"/"+fileName, 4, 1.07, 1.5)
 	if err != nil {
+		fmt.Println("fail to generate stream for ", path, "output to", os.TempDir()+"/"+fileName, err)
 		return err
 	}
 
@@ -2104,6 +2102,7 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
 	output := path_ + "/.hidden/" + name_
 	if Utility.Exists(output + "/preview.gif") {
+		//os.Remove(output + "/preview.gif")
 		return nil
 	}
 	Utility.CreateDirIfNotExist(output)
@@ -2122,7 +2121,8 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 
 	duration := getVideoDuration(path)
 	if duration == 0 {
-		return errors.New("the video lenght is 0 sec")
+
+		return errors.New("the video lenght is 0 sec for video at path " + path)
 	}
 
 	// One frame at each 5 seconds...
@@ -2138,7 +2138,8 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
 	output := path_ + "/.hidden/" + name_ + "/__timeline__"
 	if Utility.Exists(output) {
-		os.RemoveAll(output)
+		//os.RemoveAll(output)
+		return nil
 	}
 
 	Utility.CreateDirIfNotExist(output)
@@ -2204,7 +2205,8 @@ func createVideoPreview(path string, nb int, height int) error {
 	output := path_ + "/.hidden/" + name_ + "/__preview__"
 
 	if Utility.Exists(output) {
-		os.RemoveAll(output)
+		return nil
+		//os.RemoveAll(output)
 	}
 
 	fmt.Println("create video preview for ", path)
@@ -2327,6 +2329,17 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.ConvertVideoToHlsRequest) (*filepb.ConvertVideoToHlsResponse, error) {
 	if !Utility.Exists(rqst.Path) {
 		return nil, errors.New("no file found at path " + rqst.Path)
+	}
+
+	// in case of a mkv Need conversion before...
+	if strings.HasSuffix(rqst.Path, ".mkv") || strings.HasPrefix(rqst.Path, ".MKV") {
+		var err error
+		rqst.Path, err = createVideoMpeg4H264(rqst.Path)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	// Create the hls stream from MPEG-4 H264 file.
