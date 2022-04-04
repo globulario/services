@@ -1650,7 +1650,6 @@ func processVideos() {
 	videos := getVideoPaths()
 
 	for _, video := range videos {
-		fmt.Println("----------> video ", video)
 		// Create preview and timeline...
 		createVideoPreview(video, 20, 128)
 		generateVideoGifPreview(video, 10, 320, 30)
@@ -1661,18 +1660,20 @@ func processVideos() {
 	for _, video := range videos {
 
 		// all video mp4 must
-		dir := video[0:strings.LastIndex(video, ".")]
+		if !strings.HasSuffix(video, "/playlist.m3u8") {
+			dir := video[0:strings.LastIndex(video, ".")]
 
-		if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
+			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
 
-			if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
-				video, _ = createVideoMpeg4H264(video)
+				if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
+					video, _ = createVideoMpeg4H264(video)
+				}
+
+				// Convert to stream...
+				createHlsStreamFromMpeg4H264(video)
+			} else {
+				os.Remove(video)
 			}
-	
-			// Convert to stream...
-			createHlsStreamFromMpeg4H264(video)
-		}else{
-			os.Remove(video)
 		}
 	}
 
@@ -1708,7 +1709,7 @@ func getVideoPaths() []string {
 
 				// fmt.Println(path, info.Size())
 				path_ := strings.ToLower(path)
-				if !strings.Contains(path, ".hidden") && strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
+				if !strings.Contains(path, ".hidden") && strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
 					medias = append(medias, path)
 				}
 				return nil
@@ -1733,6 +1734,8 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 // Get the key frame interval
 // ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate  'The Dinner Game (1998) ( Le dîner de cons ) 1080p HighCode.mkv'
 func getStreamFrameRateInterval(path string) (int, error) {
+
+	fmt.Println("---------> getStreamFrameRateInterval path ", path)
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", path)
 	data, err := cmd.CombinedOutput()
 	if err != nil {
@@ -2099,7 +2102,15 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 	}
 
 	path_ := path[0:strings.LastIndex(path, "/")]
-	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	name_ := ""
+
+	if strings.HasSuffix(path, "playlist.m3u8") {
+		name_ = path_[strings.LastIndex(path_, "/")+1:]
+		path_ = path_[0:strings.LastIndex(path_, "/")]
+	} else {
+		name_ = path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	}
+
 	output := path_ + "/.hidden/" + name_
 	if Utility.Exists(output + "/preview.gif") {
 		//os.Remove(output + "/preview.gif")
@@ -2135,7 +2146,15 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 	}
 
 	path_ := path[0:strings.LastIndex(path, "/")]
-	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	name_ := ""
+
+	if strings.HasSuffix(path, "playlist.m3u8") {
+		name_ = path_[strings.LastIndex(path_, "/")+1:]
+		path_ = path_[0:strings.LastIndex(path_, "/")]
+	} else {
+		name_ = path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	}
+
 	output := path_ + "/.hidden/" + name_ + "/__timeline__"
 	if Utility.Exists(output) {
 		//os.RemoveAll(output)
@@ -2201,13 +2220,22 @@ func createVideoPreview(path string, nb int, height int) error {
 	}
 
 	path_ := path[0:strings.LastIndex(path, "/")]
-	name_ := path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	name_ := ""
+
+	if strings.HasSuffix(path, "playlist.m3u8") {
+		name_ = path_[strings.LastIndex(path_, "/")+1:]
+		path_ = path_[0:strings.LastIndex(path_, "/")]
+	} else {
+		name_ = path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	}
+
 	output := path_ + "/.hidden/" + name_ + "/__preview__"
 
 	if Utility.Exists(output) {
 		return nil
 		//os.RemoveAll(output)
 	}
+	fmt.Println("generate preview: ", output)
 
 	fmt.Println("create video preview for ", path)
 	Utility.CreateDirIfNotExist(output)
