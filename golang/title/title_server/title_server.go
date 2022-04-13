@@ -758,7 +758,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 
 	// so here i will remove the path from the list of path.
 	association.Paths = Utility.RemoveString(association.Paths, filePath)
-	fmt.Println("-------------> 762 ", association)
 	if len(association.Paths) == 0 {
 		srv.associations[indexPath].RemoveItem(titleId)
 	} else {
@@ -769,7 +768,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 			return err
 		}
 	}
-	fmt.Println("-------------> 772 ", association)
 	return nil
 
 }
@@ -1430,13 +1428,19 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	types := bleve.NewFacetRequest("Type", int(rqst.Size))
 	request.AddFacet("Types", types)
 
+	tags := bleve.NewFacetRequest("Tags", int(rqst.Size))
+	request.AddFacet("Tags", tags)
+
 	// The rating facet
+	var zero = 0.0
 	var lowToMidRating = 3.5
 	var midToHighRating = 7.0
-	rating := bleve.NewFacetRequest("Rating", 1000)
-	rating.AddNumericRange("low", nil, &lowToMidRating)
+	var ten = 10.0
+
+	rating := bleve.NewFacetRequest("Rating", int(rqst.Size))
+	rating.AddNumericRange("low", &zero, &lowToMidRating)
 	rating.AddNumericRange("medium", &lowToMidRating, &midToHighRating)
-	rating.AddNumericRange("high", &midToHighRating, nil)
+	rating.AddNumericRange("high", &midToHighRating, &ten)
 	request.AddFacet("Rating", rating)
 
 	request.Highlight = bleve.NewHighlightWithStyle("html")
@@ -1525,12 +1529,30 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		facet_.Total = int32(f.Total)
 		facet_.Other = int32(f.Other)
 		facet_.Terms = make([]*titlepb.SearchFacetTerm, 0)
+		// Regular terms...
 		for _, t := range f.Terms {
 			term := new(titlepb.SearchFacetTerm)
 			term.Count = int32(t.Count)
 			term.Term = t.Term
+			
 			facet_.Terms = append(facet_.Terms, term)
 		}
+		
+		// Numeric Range terms...
+		for _, t := range f.NumericRanges {
+			term := new(titlepb.SearchFacetTerm)
+			term.Count = int32(t.Count)
+
+			// Here I will set a json string...
+			numeric := make(map[string]interface{}, 0)
+			numeric["name"] = t.Name
+			numeric["min"] = t.Min
+			numeric["max"] = t.Max
+			jsonStr, _ := Utility.ToJson(numeric)
+			term.Term = string(jsonStr)
+			facet_.Terms = append(facet_.Terms, term)
+		}
+
 		facets.Facets = append(facets.Facets, facet_)
 	}
 

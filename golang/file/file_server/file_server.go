@@ -1662,7 +1662,6 @@ func processVideos() {
 		// all video mp4 must
 		if !strings.HasSuffix(video, "/playlist.m3u8") {
 			dir := video[0:strings.LastIndex(video, ".")]
-
 			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
 
 				if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
