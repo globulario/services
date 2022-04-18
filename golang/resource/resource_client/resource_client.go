@@ -2,8 +2,8 @@ package resource_client
 
 import (
 	"context"
+	"fmt"
 	"io"
-	"log"
 
 	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -62,14 +62,16 @@ type Resource_Client struct {
 func NewResourceService_Client(address string, id string) (*Resource_Client, error) {
 
 	client := new(Resource_Client)
-
+	fmt.Println("new resource connection at address ", address, id)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
+		fmt.Println("fail to create resource client with error: ", err)
 		return nil, err
 	}
 
 	err = client.Reconnect()
 	if err != nil {
+		fmt.Println("fail to connect to the remote server with error: ", err)
 		return nil, err
 	}
 
@@ -787,7 +789,6 @@ func (client *Resource_Client) RegisterPeer(token, key string, peer *resourcepb.
 
 	rsp, err := client.c.RegisterPeer(ctx, rqst)
 	if err != nil {
-		log.Println(err)
 		return nil, "", err
 	}
 

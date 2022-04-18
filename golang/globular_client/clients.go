@@ -117,7 +117,6 @@ func InitClient(client Client, address string, id string) error {
 	// http server. If not given thas mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
-
 	if !strings.Contains(address, ":") {
 		localConfig, _ := config.GetLocalConfig(true)
 		if strings.HasPrefix(address_, address) {
@@ -309,7 +308,9 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 	// The grpc address
 	address := client.GetDomain() + ":" + Utility.ToString(client.GetPort())
+	fmt.Println("get client connection ", address)
 	if client.HasTLS() {
+		fmt.Println("client connection use tls")
 		// Setup the login/pass simple test...
 		if len(client.GetKeyFile()) == 0 {
 			err := errors.New("no key file is available for client ")
@@ -348,6 +349,8 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			return nil, err
 		}
 
+		fmt.Println("------------> ", address,  client.GetDomain())
+
 		creds := credentials.NewTLS(&tls.Config{
 			ServerName:   client.GetDomain(), // NOTE: this is required!
 			Certificates: []tls.Certificate{certificate},
@@ -363,6 +366,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			return nil, err
 		}
 	} else {
+		fmt.Println("client connection not use tls")
 		cc, err = grpc.Dial(address, grpc.WithInsecure())
 		if err != nil {
 			return nil, err

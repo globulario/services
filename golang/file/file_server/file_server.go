@@ -1648,6 +1648,7 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 func processVideos() {
 
 	videos := getVideoPaths()
+	fmt.Println("process video files")
 
 	for _, video := range videos {
 		// Create preview and timeline...
@@ -1663,13 +1664,19 @@ func processVideos() {
 		if !strings.HasSuffix(video, "/playlist.m3u8") {
 			dir := video[0:strings.LastIndex(video, ".")]
 			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
-
+				var err error
 				if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
-					video, _ = createVideoMpeg4H264(video)
+					video, err = createVideoMpeg4H264(video)
+					if err != nil {
+						fmt.Println("fail to convert mkv to mp4 with error: ", err)
+					}
 				}
 
 				// Convert to stream...
-				createHlsStreamFromMpeg4H264(video)
+				if err == nil {
+					createHlsStreamFromMpeg4H264(video)
+				}
+
 			} else {
 				os.Remove(video)
 			}
@@ -1725,16 +1732,16 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 	infos := make(map[string]interface{})
 	err := json.Unmarshal(data, &infos)
 	if err != nil {
+		if strings.Contains(err.Error(), "moov atom not found"){
+			os.Remove(path) // remove the corrupt of errornous media file.
+		}
 		return nil, err
 	}
 	return infos, nil
 }
 
 // Get the key frame interval
-// ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate  'The Dinner Game (1998) ( Le dîner de cons ) 1080p HighCode.mkv'
 func getStreamFrameRateInterval(path string) (int, error) {
-
-	fmt.Println("---------> getStreamFrameRateInterval path ", path)
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", path)
 	data, err := cmd.CombinedOutput()
 	if err != nil {
@@ -1770,6 +1777,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 	streamInfos, err := getStreamInfos(path)
 
 	if err != nil {
+
 		return "", err
 	}
 
@@ -1788,7 +1796,6 @@ func createVideoMpeg4H264(path string) (string, error) {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output)
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "hevc_nvenc",  "-c:a", "aac", output)
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
 
 		} else {
@@ -1869,6 +1876,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 
 	streamInfos, err := getStreamInfos(src)
 	if err != nil {
+		
 		return err
 	}
 
@@ -1977,6 +1985,14 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	}
 
 	cmd := exec.Command("ffmpeg", args...)
+
+	cmd_str_ := "ffmpeg"
+	for i:=0; i < len(args); i++ {
+		cmd_str_ += " " + args[i]
+	}
+
+	fmt.Println(cmd_str_)
+
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -2095,10 +2111,6 @@ func formatDuration(duration time.Duration) string {
 // Create the video preview...
 func generateVideoGifPreview(path string, fps, scale, duration int) error {
 
-	duration_total := getVideoDuration(path)
-	if duration == 0 {
-		return errors.New("the video lenght is 0 sec")
-	}
 
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
@@ -2112,9 +2124,16 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 
 	output := path_ + "/.hidden/" + name_
 	if Utility.Exists(output + "/preview.gif") {
+		fmt.Println("preview gif exist for ", path)
 		//os.Remove(output + "/preview.gif")
 		return nil
 	}
+
+	duration_total := getVideoDuration(path)
+	if duration == 0 {
+		return errors.New("the video lenght is 0 sec")
+	}
+
 	Utility.CreateDirIfNotExist(output)
 	fmt.Println("create video preview (gif) for ", path)
 	cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", `-loop`, `0`, `preview.gif`)
@@ -2126,59 +2145,7 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 	return nil
 }
 
-// Here I will create the small viedeo video
-func createVideoTimeLine(path string, width int, fps float32) error {
-
-	duration := getVideoDuration(path)
-	if duration == 0 {
-
-		return errors.New("the video lenght is 0 sec for video at path " + path)
-	}
-
-	// One frame at each 5 seconds...
-	if fps == 0 {
-		fps = 0.2
-	}
-
-	if width == 0 {
-		width = 180 // px
-	}
-
-	path_ := path[0:strings.LastIndex(path, "/")]
-	name_ := ""
-
-	if strings.HasSuffix(path, "playlist.m3u8") {
-		name_ = path_[strings.LastIndex(path_, "/")+1:]
-		path_ = path_[0:strings.LastIndex(path_, "/")]
-	} else {
-		name_ = path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
-	}
-
-	output := path_ + "/.hidden/" + name_ + "/__timeline__"
-	if Utility.Exists(output) {
-		//os.RemoveAll(output)
-		return nil
-	}
-
-	Utility.CreateDirIfNotExist(output)
-	fmt.Println("create video timeline for ", path)
-
-	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
-	cmd := exec.Command("ffmpeg", "-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:"+Utility.ToString(width)+",fps="+Utility.ToString(fps), "thumbnail_%05d.jpg")
-	cmd.Dir = output // the output directory...
-
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-
-	path_ = strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
-	path_ = path_[0:strings.LastIndex(path_, "/")]
-
+func createVttFile(output string, fps float32) error{
 	// Now I will generate the WEBVTT file with the infos...
 	webvtt := "WEBVTT\n\n"
 
@@ -2206,17 +2173,65 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 	}
 
 	// Now  I will write the file...
-	err = os.WriteFile(output+"/thumbnails.vtt", []byte(webvtt), 777)
-	return err
+	return os.WriteFile(output+"/thumbnails.vtt", []byte(webvtt), 777)
+}
+
+// Here I will create the small viedeo video
+func createVideoTimeLine(path string, width int, fps float32) error {
+
+	// One frame at each 5 seconds...
+	if fps == 0 {
+		fps = 0.2
+	}
+
+	if width == 0 {
+		width = 180 // px
+	}
+
+	path_ := path[0:strings.LastIndex(path, "/")]
+	name_ := ""
+
+	if strings.HasSuffix(path, "playlist.m3u8") {
+		name_ = path_[strings.LastIndex(path_, "/")+1:]
+		path_ = path_[0:strings.LastIndex(path_, "/")]
+	} else {
+		name_ = path[strings.LastIndex(path, "/")+1 : strings.LastIndex(path, ".")]
+	}
+
+	output := path_ + "/.hidden/" + name_ + "/__timeline__"
+
+	if Utility.Exists(output) {
+		fmt.Println("timeline exist for ", path)
+		//os.RemoveAll(output)
+		return createVttFile(output, fps)
+	}
+
+	Utility.CreateDirIfNotExist(output)
+
+	duration := getVideoDuration(path)
+	if duration == 0 {
+		return errors.New("the video lenght is 0 sec for video at path " + path)
+	}
+
+	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
+	cmd := exec.Command("ffmpeg", "-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:"+Utility.ToString(width)+",fps="+Utility.ToString(fps), "thumbnail_%05d.jpg")
+	cmd.Dir = output // the output directory...
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	return createVttFile(output, fps)
 }
 
 // Here I will create the small viedeo video
 func createVideoPreview(path string, nb int, height int) error {
 
-	duration := getVideoDuration(path)
-	if duration == 0 {
-		return errors.New("the video lenght is 0 sec")
-	}
 
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
@@ -2231,6 +2246,7 @@ func createVideoPreview(path string, nb int, height int) error {
 	output := path_ + "/.hidden/" + name_ + "/__preview__"
 
 	if Utility.Exists(output) {
+		fmt.Println("preview already exist for ", path)
 		return nil
 		//os.RemoveAll(output)
 	}
@@ -2238,6 +2254,11 @@ func createVideoPreview(path string, nb int, height int) error {
 
 	fmt.Println("create video preview for ", path)
 	Utility.CreateDirIfNotExist(output)
+
+	duration := getVideoDuration(path)
+	if duration == 0 {
+		return errors.New("the video lenght is 0 sec")
+	}
 
 	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
 	start := .1 * duration

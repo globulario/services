@@ -1463,7 +1463,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 
 //* Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
-
+	fmt.Println("---------> Register Peer call received...")
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1496,7 +1496,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	if len(rqst.Peer.Mac) == 0 {
 		if md, ok := metadata.FromIncomingContext(ctx); ok {
 			token := strings.Join(md["token"], "")
-
 			// In that case I want to register the server to another server.
 			peer_, public_key, err := resource_server.registerPeer(token, rqst.Peer.Address)
 			if err != nil {
