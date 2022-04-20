@@ -1720,6 +1720,7 @@ func getVideoPaths() []string {
 }
 
 func getStreamInfos(path string) (map[string]interface{}, error) {
+	path = strings.ReplaceAll(path, "\\", "/")
 	cmd := exec.Command("ffprobe", "-v", "error", "-show_format", "-show_streams", "-print_format", "json", path)
 	data, _ := cmd.CombinedOutput()
 	infos := make(map[string]interface{})
@@ -1733,7 +1734,7 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 // Get the key frame interval
 // ffprobe -v error -select_streams v -of default=noprint_wrappers=1:nokey=1 -show_entries stream=r_frame_rate  'The Dinner Game (1998) ( Le dîner de cons ) 1080p HighCode.mkv'
 func getStreamFrameRateInterval(path string) (int, error) {
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	fmt.Println("---------> getStreamFrameRateInterval path ", path)
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", path)
 	data, err := cmd.CombinedOutput()
@@ -1751,7 +1752,6 @@ func getStreamFrameRateInterval(path string) (int, error) {
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
 func createVideoMpeg4H264(path string) (string, error) {
-
 	path = strings.ReplaceAll(path, "\\", "/")
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := path[strings.LastIndex(path, "/"):strings.LastIndex(path, ".")]
@@ -1829,7 +1829,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 }
 
 func associatePath(path string) error {
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	// So here I will try to retreive indexation for the file...
 	client, err := getTitleClient()
 	if err != nil {
@@ -1866,7 +1866,8 @@ func associatePath(path string) error {
 // max_bitrate_ratio 			maximum accepted bitrate fluctuations
 // rate_monitor_buffer_ratio	maximum buffer size between bitrate conformance checks
 func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
-
+	src = strings.ReplaceAll(src, "\\", "/")
+	dest = strings.ReplaceAll(dest, "\\", "/")
 	streamInfos, err := getStreamInfos(src)
 	if err != nil {
 		return err
@@ -1994,9 +1995,8 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 
 // Create a stream from a vide file, mkv, mpeg4, avi etc...
 func createHlsStreamFromMpeg4H264(path string) error {
+	path = strings.ReplaceAll(path, "\\", "/")
 	ext := path[strings.LastIndex(path, ".")+1:]
-
-	fmt.Println("---------------------> ", path)
 
 	// Test if it's already exist.
 	output_path := path[0:strings.LastIndex(path, ".")]
@@ -2094,7 +2094,7 @@ func formatDuration(duration time.Duration) string {
 
 // Create the video preview...
 func generateVideoGifPreview(path string, fps, scale, duration int) error {
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	duration_total := getVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec")
@@ -2128,7 +2128,7 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 
 // Here I will create the small viedeo video
 func createVideoTimeLine(path string, width int, fps float32) error {
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	duration := getVideoDuration(path)
 	if duration == 0 {
 
@@ -2212,7 +2212,7 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 
 // Here I will create the small viedeo video
 func createVideoPreview(path string, nb int, height int) error {
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	duration := getVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec")
@@ -2262,6 +2262,8 @@ func createVideoPreview(path string, nb int, height int) error {
 }
 
 func getVideoResolution(path string) (int, int) {
+	path = strings.ReplaceAll(path, "\\", "/")
+
 	// original command...
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "default=nw=1", path)
 
@@ -2281,6 +2283,7 @@ func getVideoResolution(path string) (int, int) {
 }
 
 func getVideoDuration(path string) float64 {
+	path = strings.ReplaceAll(path, "\\", "/")
 	// original command...
 	// ffprobe -v quiet -print_format compact=print_section=0:nokey=1:escape=csv -show_entries format=duration bob_ross_img-0-Animated.mp4
 	cmd := exec.Command("ffprobe", `-v`, `quiet`, `-print_format`, `compact=print_section=0:nokey=1:escape=csv`, `-show_entries`, `format=duration`, path)
