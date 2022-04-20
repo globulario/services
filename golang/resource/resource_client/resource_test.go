@@ -10,7 +10,7 @@ import (
 
 var (
 	// Connect to the plc client.
-	domain = "localhost"
+	domain = "globule-dell.globular.cloud"
 	client, _       = NewResourceService_Client(domain, "resource.ResourceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	//token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
@@ -31,7 +31,7 @@ func TestCreateOrganization(t *testing.T) {
 
 /** Test create account **/
 func TestCreateAccount(t *testing.T) {
-	err := client.RegisterAccount(domain, "dave", "dave@globular.io", "1234", "1234")
+	err := client.RegisterAccount(domain, "dave", "dave", "dave@globular.io", "1234", "1234")
 	if err != nil {
 		log.Println("---> create account fail! ", err)
 	} else {
