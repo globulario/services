@@ -1661,7 +1661,7 @@ func processVideos() {
 	for _, video := range videos {
 
 		// all video mp4 must
-		if !strings.HasSuffix(video, "/playlist.m3u8") {
+		if !strings.HasSuffix(video, ".m3u8") {
 			dir := video[0:strings.LastIndex(video, ".")]
 			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
 				var err error
@@ -1743,14 +1743,14 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 
 // Get the key frame interval
 func getStreamFrameRateInterval(path string) (int, error) {
+	fmt.Println("--------------> path: ", path)
 	path = strings.ReplaceAll(path, "\\", "/")
-	fmt.Println("---------> getStreamFrameRateInterval path ", path)
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", path)
 	data, err := cmd.CombinedOutput()
 	if err != nil {
 		return -1, err
 	}
-
+	fmt.Println("--------------------------------> ", 1752)
 	fmt.Println(string(data))
 	values := strings.Split(string(data), "/")
 	fps := Utility.ToNumeric(strings.TrimSpace(values[0])) / Utility.ToNumeric(strings.TrimSpace(values[1]))
@@ -1827,10 +1827,8 @@ func createVideoMpeg4H264(path string) (string, error) {
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("-------------------> 1815 ", err)
 		return "", err
 	}
-	fmt.Println("-------------------> 1818 ", err)
 	// Here I will remove the input file...
 	os.Remove(path)
 
