@@ -102,7 +102,7 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  */
 func getCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
-	log.Println("get credential config for domain ", domain)
+	log.Println("get credential config for domain: ", domain)
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 
@@ -129,11 +129,16 @@ func getCredentialConfig(path string, domain string, country string, state strin
 
 		local_ca_crt_checksum := Utility.CreateFileChecksum(path + "/ca.crt")
 		remote_ca_crt_checksum := Utility.CreateDataChecksum([]byte(ca_crt))
-
+		
 		if local_ca_crt_checksum != remote_ca_crt_checksum {
 			// Remove local and recreate new certificate...
 			fmt.Println("Renew Certificates....")
 			os.RemoveAll(path)
+			err = Utility.CreateDirIfNotExist(path)
+			if err != nil {
+				log.Println(err)
+				return "", "", "", err
+			}
 		} else {
 
 			keyPath = path + "/client.pem"
