@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/davecourtois/Utility"
 	config_ "github.com/globulario/services/golang/config"
@@ -107,25 +106,6 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 
-	// Return the existing paths...
-	if Utility.Exists(path) &&
-		Utility.Exists(path+"/client.pem") &&
-		Utility.Exists(path+"/client.crt") &&
-		Utility.Exists(path+"/ca.crt") {
-		info, _ := os.Stat(path)
-
-		// test if the certificate are older than 5 mount.
-		if info.ModTime().Add(24*30*5*time.Hour).Unix() < time.Now().Unix() {
-			os.RemoveAll(path)
-		} else {
-
-			keyPath = path + "/client.pem"
-			certPath = path + "/client.crt"
-			caPath = path + "/ca.crt"
-			return
-		}
-	}
-
 	err = Utility.CreateDirIfNotExist(path)
 	if err != nil {
 		log.Println(err)
@@ -139,6 +119,28 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	ca_crt, err := getCaCertificate(domain, port)
 	if err != nil {
 		return "", "", "", err
+	}
+
+	// Return the existing paths...
+	if Utility.Exists(path) &&
+		Utility.Exists(path+"/client.pem") &&
+		Utility.Exists(path+"/client.crt") &&
+		Utility.Exists(path+"/ca.crt") {
+
+		local_ca_crt_checksum := Utility.CreateFileChecksum(path + "/ca.crt")
+		remote_ca_crt_checksum := Utility.CreateDataChecksum([]byte(ca_crt))
+
+		if local_ca_crt_checksum != remote_ca_crt_checksum {
+			// Remove local and recreate new certificate...
+			fmt.Println("Renew Certificates....")
+			os.RemoveAll(path)
+		} else {
+
+			keyPath = path + "/client.pem"
+			certPath = path + "/client.crt"
+			caPath = path + "/ca.crt"
+			return
+		}
 	}
 
 	// Write the ca.crt file on the disk
@@ -201,10 +203,9 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	keyPath = path + "/client.pem"
 	certPath = path + "/client.crt"
 	caPath = path + "/ca.crt"
-
+	fmt.Println("Certificate was succefully install for ", domain)
 	return
 }
-
 
 // Generate the Certificate Authority private key file (this shouldn't be shared in real life)
 func GenerateAuthorityPrivateKey(path string, pwd string) error {
