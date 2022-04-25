@@ -184,7 +184,6 @@ export class EventHub {
         rqst.setName(name)
         rqst.setUuid(this.uuid)
         this.globular.eventService.subscribe(rqst).then((rsp: SubscribeResponse) => {
-          console.log("subscribed to ", name)
           if (subscriptions.length > 0) {
             subscribe();
           }
@@ -199,7 +198,6 @@ export class EventHub {
   connect(callback: () => void) {
     // Open the connection with the server.
     if (this.globular.eventService !== undefined) {
-      console.log("connect to event service...")
       // The first step is to subscribe to an event channel.
       const rqst = new OnEventRequest()
       rqst.setUuid(this.uuid)
@@ -226,7 +224,6 @@ export class EventHub {
           /** nothing here. */
 
         } else if (status.details == "transport is closing") {
-          console.log("disconnect from event service...")
           this.globular.resetEventService();
 
           this.connect(() => {
@@ -247,9 +244,7 @@ export class EventHub {
 
     } else {
       // Wait a second before try to connect agin...
-      console.log("wait a second")
       setTimeout(() => {
-        console.log("try to connect to event service...")
         this.connect(() => {
           this.reinitRemoteListeners()
         })

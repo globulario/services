@@ -156,11 +156,9 @@ export function getErrorMessage(err: any): string {
   try {
     let errObj = JSON.parse(err);
     if (errObj.ErrorMsg != undefined) {
-      console.log(errObj);
       return errObj.ErrorMsg;
     }
   } catch {
-    console.log(err);
     return err;
   }
 }
@@ -189,7 +187,6 @@ export function hasRuningProcess(
       callback(rsp.getResult());
     })
     .catch((err: any) => {
-      console.log(err);
       callback(false);
     });
 }
@@ -214,7 +211,6 @@ function hasRunningProcess(
       callback(rsp.getResult());
     })
     .catch((err: any) => {
-      console.log(err);
       callback(false);
     });
 }
@@ -2340,7 +2336,6 @@ export function appendActionToPeer(
       callback();
     })
     .catch((err: any) => {
-      console.log(err);
       errorCallback(err);
     });
 }
@@ -2366,7 +2361,6 @@ export function removeActionFromPeer(
       callback();
     })
     .catch((err: any) => {
-      console.log(err);
       errorCallback(err);
     });
 }
@@ -2389,7 +2383,6 @@ export function deletePeer(
       callback();
     })
     .catch((err: any) => {
-      console.log(err);
       errorCallback(err);
     });
 }
