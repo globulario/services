@@ -1648,7 +1648,6 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 func processVideos() {
 
 	videos := getVideoPaths()
-	fmt.Println("process video files")
 
 	for _, video := range videos {
 		// Create preview and timeline...
@@ -1732,6 +1731,7 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 	infos := make(map[string]interface{})
 	err := json.Unmarshal(data, &infos)
 	if err != nil {
+		fmt.Println("--------------> ", string(data))
 		if strings.Contains(err.Error(), "moov atom not found"){
 			os.Remove(path) // remove the corrupt of errornous media file.
 		}
@@ -1748,7 +1748,6 @@ func getStreamFrameRateInterval(path string) (int, error) {
 		return -1, err
 	}
 
-	fmt.Println(string(data))
 	values := strings.Split(string(data), "/")
 	fps := Utility.ToNumeric(strings.TrimSpace(values[0])) / Utility.ToNumeric(strings.TrimSpace(values[1]))
 	return int(fps + .5), nil
@@ -1825,10 +1824,8 @@ func createVideoMpeg4H264(path string) (string, error) {
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("-------------------> 1815 ", err)
 		return "", err
 	}
-	fmt.Println("-------------------> 1818 ", err)
 	// Here I will remove the input file...
 	os.Remove(path)
 
@@ -2201,8 +2198,6 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 	output := path_ + "/.hidden/" + name_ + "/__timeline__"
 
 	if Utility.Exists(output) {
-		fmt.Println("timeline exist for ", path)
-		//os.RemoveAll(output)
 		return createVttFile(output, fps)
 	}
 
@@ -2248,11 +2243,8 @@ func createVideoPreview(path string, nb int, height int) error {
 	if Utility.Exists(output) {
 		fmt.Println("preview already exist for ", path)
 		return nil
-		//os.RemoveAll(output)
 	}
-	fmt.Println("generate preview: ", output)
 
-	fmt.Println("create video preview for ", path)
 	Utility.CreateDirIfNotExist(output)
 
 	duration := getVideoDuration(path)
