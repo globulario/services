@@ -759,7 +759,12 @@ func main() {
 
 	// That function will set the value to be eable to create symetric encryption keys.
 	// So peer will be able to generate valid jwt token by themself.
-	err = s_impl.setKey(Utility.MyMacAddr())
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		log.Fatalf("fail to get the mac address %s", err.Error())
+	}
+
+	err = s_impl.setKey(macAddress)
 	if err != nil {
 		log.Fatalln(err)
 	}

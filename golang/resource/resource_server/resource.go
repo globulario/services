@@ -118,7 +118,14 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 	}
 
 	// Generate a token to identify the user.
-	tokenString, _ := security.GenerateToken(resource_server.SessionTimeout, Utility.MyMacAddr(), rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	tokenString, _ := security.GenerateToken(resource_server.SessionTimeout, macAddress, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1456,8 +1463,13 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	address_, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
 	hostname, _ := config.GetHostName()
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	
+	if err != nil {
+		return nil, "", err
+	}
 
-	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: hostname, Mac: Utility.MyMacAddr(), Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
+	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
 }
 
@@ -1635,11 +1647,11 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer_.Domain = domain
 	peer_.ExternalIpAddress = Utility.MyIP()
 	peer_.LocalIpAddress = Utility.MyLocalIP()
-	peer_.Mac = Utility.MyMacAddr()
+	peer_.Mac, _ = Utility.MyMacAddr(peer_.LocalIpAddress )
 	peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
 
 	// actions will need to be set by admin latter...
-	pubKey, err := security.GetPeerKey(Utility.MyMacAddr())
+	pubKey, err := security.GetPeerKey(peer_.Mac)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1747,7 +1759,13 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *resourcepb.GetPeerApprovalStateRqst) (*resourcepb.GetPeerApprovalStateRsp, error) {
 	mac := rqst.Mac
 	if len(mac) == 0 {
-		mac = Utility.MyMacAddr()
+		var err error
+		mac, err = Utility.MyMacAddr(Utility.MyLocalIP())
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	}
 
 	peer, err := resource_server.getPeerInfos(rqst.RemotePeerAddress, mac)

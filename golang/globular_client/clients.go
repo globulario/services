@@ -389,13 +389,15 @@ func GetClientContext(client Client) context.Context {
 
 	// Get the last valid token if it exist
 	token, err := security.GetLocalToken(client.GetMac())
+	macAddress, _ := Utility.MyMacAddr(Utility.MyLocalIP())
+
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac": Utility.MyMacAddr()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac":macAddress})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": client.GetAddress(), "mac": Utility.MyMacAddr()})
+	md := metadata.New(map[string]string{"token": "", "domain": client.GetAddress(), "mac": macAddress})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
 
 	return ctx

@@ -45,7 +45,11 @@ type Claims struct {
 // Generate a token for a ginven user.
 func GenerateToken(timeout int, mac, userId, userName, email string) (string, error) {
 
-	issuer := Utility.MyMacAddr()
+	issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return "", err
+	}
+
 	audience := ""
 
 	if mac != issuer {
@@ -53,7 +57,6 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 	}
 
 	var jwtKey []byte
-	var err error
 
 	// Here I will get the key...
 	if len(audience) > 0 {
@@ -124,10 +127,14 @@ func ValidateToken(token string) (*Claims, error) {
 	// if the token is invalid (if it has expired according to the expiry time we set on sign in),
 	// or if the signature does not match
 	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		if err != nil {
+			return "", err
+		}
 
 		// Get the jwt key from file.
 		if len(claims.Audience) > 0 {
-			if claims.Audience != Utility.MyMacAddr() {
+			if claims.Audience != macAddress {
 				return GetPeerKey(claims.Audience)
 			}
 		}
@@ -156,9 +163,13 @@ func ValidateToken(token string) (*Claims, error) {
 func refreshLocalToken(token string) (string, error) {
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
-
+		macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		if err != nil {
+			return "", err
+		}
+		
 		if len(claims.Audience) > 0 {
-			if claims.Audience != Utility.MyMacAddr() {
+			if claims.Audience != macAddress {
 				return GetPeerKey(claims.Audience)
 			}
 		}

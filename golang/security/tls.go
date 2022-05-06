@@ -753,14 +753,19 @@ func GetLocalKey() ([]byte, error) {
 	if len(localKey) > 0 {
 		return localKey, nil
 	}
+
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
+
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
-	id := strings.ReplaceAll(Utility.MyMacAddr(), ":", "_")
+	id := strings.ReplaceAll(macAddress, ":", "_")
 	if !Utility.Exists(keyPath + "/" + id + "_public") {
 		return nil, errors.New("no public key found at path " + keyPath + "/" + id + "_public")
 	}
 
-	var err error
 	localKey, err = ioutil.ReadFile(keyPath + "/" + id + "_public")
 
 	return localKey, err
@@ -776,14 +781,18 @@ func GetPeerKey(id string) ([]byte, error) {
 	}
 
 	id = strings.ReplaceAll(id, ":", "_")
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
 
-	if id == strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") {
+	if id == strings.ReplaceAll(macAddress, ":", "_") {
 		return GetLocalKey()
 	}
 
 	// If the token issuer is not the actual globule but another peer
 	// I will use it public key and my private one to generate the correct key.
-	err := Utility.CreateDirIfNotExist(keyPath)
+	err = Utility.CreateDirIfNotExist(keyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -816,9 +825,13 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	// Interface converted to public key
 	puba := publicStream.(*ecdsa.PublicKey)
+	macAddress, err = Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
 
 	//1, open the private key file and read the content
-	file_private, err := os.Open(keyPath + "/" + strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") + "_private")
+	file_private, err := os.Open(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
