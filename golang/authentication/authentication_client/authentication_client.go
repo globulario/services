@@ -248,10 +248,15 @@ func (client *Authentication_Client) Authenticate(name string, password string) 
 		return "", err
 	}
 
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return "", err
+	}
+
 	rqst := &authenticationpb.AuthenticateRqst{
 		Name:     name,
 		Password: password,
-		Issuer:   Utility.MyMacAddr(),
+		Issuer:   macAddress,
 	}
 
 	log.Println("Authenticate", name, " on domain ", client.GetDomain())

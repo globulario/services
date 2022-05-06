@@ -451,7 +451,7 @@ func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error
 
 	if len(peers) == 0 {
 		fmt.Println("-------> 453 ", err)
-		return nil, errors.New("no peer found with mac address " + Utility.MyMacAddr() + " at address " + address)
+		return nil, errors.New("no peer found with mac address " + mac + " at address " + address)
 	}
 
 	return peers[0], nil
@@ -461,11 +461,16 @@ func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error
 /** Retreive the peer public key */
 func (server *server) getPeerPublicKey(address, mac string) (string, error) {
 
-	if len(mac) == 0 {
-		mac = Utility.MyMacAddr()
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err !=nil {
+		return "", err
 	}
 
-	if mac == Utility.MyMacAddr() {
+	if len(mac) == 0 {
+		mac = macAddress
+	}
+
+	if mac == macAddress {
 		key, err := security.GetPeerKey(mac)
 		if err != nil {
 			return "", err

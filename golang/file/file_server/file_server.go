@@ -1660,7 +1660,7 @@ func processVideos() {
 	for _, video := range videos {
 
 		// all video mp4 must
-		if !strings.HasSuffix(video, "/playlist.m3u8") {
+		if !strings.HasSuffix(video, ".m3u8") {
 			dir := video[0:strings.LastIndex(video, ".")]
 			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
 				var err error
@@ -1726,12 +1726,12 @@ func getVideoPaths() []string {
 }
 
 func getStreamInfos(path string) (map[string]interface{}, error) {
+	path = strings.ReplaceAll(path, "\\", "/")
 	cmd := exec.Command("ffprobe", "-v", "error", "-show_format", "-show_streams", "-print_format", "json", path)
 	data, _ := cmd.CombinedOutput()
 	infos := make(map[string]interface{})
 	err := json.Unmarshal(data, &infos)
 	if err != nil {
-		fmt.Println("--------------> ", string(data))
 		if strings.Contains(err.Error(), "moov atom not found"){
 			os.Remove(path) // remove the corrupt of errornous media file.
 		}
@@ -1742,12 +1742,12 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 
 // Get the key frame interval
 func getStreamFrameRateInterval(path string) (int, error) {
+	path = strings.ReplaceAll(path, "\\", "/")
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", path)
 	data, err := cmd.CombinedOutput()
 	if err != nil {
 		return -1, err
 	}
-
 	values := strings.Split(string(data), "/")
 	fps := Utility.ToNumeric(strings.TrimSpace(values[0])) / Utility.ToNumeric(strings.TrimSpace(values[1]))
 	return int(fps + .5), nil
@@ -1757,7 +1757,6 @@ func getStreamFrameRateInterval(path string) (int, error) {
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
 func createVideoMpeg4H264(path string) (string, error) {
-
 	path = strings.ReplaceAll(path, "\\", "/")
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := path[strings.LastIndex(path, "/"):strings.LastIndex(path, ".")]
@@ -1833,7 +1832,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 }
 
 func associatePath(path string) error {
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	// So here I will try to retreive indexation for the file...
 	client, err := getTitleClient()
 	if err != nil {
@@ -1870,7 +1869,8 @@ func associatePath(path string) error {
 // max_bitrate_ratio 			maximum accepted bitrate fluctuations
 // rate_monitor_buffer_ratio	maximum buffer size between bitrate conformance checks
 func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
-
+	src = strings.ReplaceAll(src, "\\", "/")
+	dest = strings.ReplaceAll(dest, "\\", "/")
 	streamInfos, err := getStreamInfos(src)
 	if err != nil {
 		
@@ -2007,9 +2007,8 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 
 // Create a stream from a vide file, mkv, mpeg4, avi etc...
 func createHlsStreamFromMpeg4H264(path string) error {
+	path = strings.ReplaceAll(path, "\\", "/")
 	ext := path[strings.LastIndex(path, ".")+1:]
-
-	fmt.Println("---------------------> ", path)
 
 	// Test if it's already exist.
 	output_path := path[0:strings.LastIndex(path, ".")]
@@ -2107,6 +2106,11 @@ func formatDuration(duration time.Duration) string {
 
 // Create the video preview...
 func generateVideoGifPreview(path string, fps, scale, duration int) error {
+	path = strings.ReplaceAll(path, "\\", "/")
+	duration_total := getVideoDuration(path)
+	if duration == 0 {
+		return errors.New("the video lenght is 0 sec")
+	}
 
 
 	path_ := path[0:strings.LastIndex(path, "/")]
@@ -2124,11 +2128,6 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 		fmt.Println("preview gif exist for ", path)
 		//os.Remove(output + "/preview.gif")
 		return nil
-	}
-
-	duration_total := getVideoDuration(path)
-	if duration == 0 {
-		return errors.New("the video lenght is 0 sec")
 	}
 
 	Utility.CreateDirIfNotExist(output)
@@ -2175,7 +2174,7 @@ func createVttFile(output string, fps float32) error{
 
 // Here I will create the small viedeo video
 func createVideoTimeLine(path string, width int, fps float32) error {
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	// One frame at each 5 seconds...
 	if fps == 0 {
 		fps = 0.2
@@ -2226,8 +2225,7 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 
 // Here I will create the small viedeo video
 func createVideoPreview(path string, nb int, height int) error {
-
-
+	path = strings.ReplaceAll(path, "\\", "/")
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
 
@@ -2275,6 +2273,8 @@ func createVideoPreview(path string, nb int, height int) error {
 }
 
 func getVideoResolution(path string) (int, int) {
+	path = strings.ReplaceAll(path, "\\", "/")
+
 	// original command...
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "default=nw=1", path)
 
@@ -2294,6 +2294,7 @@ func getVideoResolution(path string) (int, int) {
 }
 
 func getVideoDuration(path string) float64 {
+	path = strings.ReplaceAll(path, "\\", "/")
 	// original command...
 	// ffprobe -v quiet -print_format compact=print_section=0:nokey=1:escape=csv -show_entries format=duration bob_ross_img-0-Animated.mp4
 	cmd := exec.Command("ffprobe", `-v`, `quiet`, `-print_format`, `compact=print_section=0:nokey=1:escape=csv`, `-show_entries`, `format=duration`, path)

@@ -308,9 +308,9 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 
 	// The grpc address
 	address := client.GetDomain() + ":" + Utility.ToString(client.GetPort())
-	fmt.Println("get client connection ", address)
+	//fmt.Println("get client connection ", address)
 	if client.HasTLS() {
-		fmt.Println("client connection use tls")
+		//fmt.Println("client connection use tls")
 		// Setup the login/pass simple test...
 		if len(client.GetKeyFile()) == 0 {
 			err := errors.New("no key file is available for client ")
@@ -348,9 +348,6 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			fmt.Println(err)
 			return nil, err
 		}
-
-		fmt.Println("------------> ", address,  client.GetDomain())
-
 		creds := credentials.NewTLS(&tls.Config{
 			ServerName:   client.GetDomain(), // NOTE: this is required!
 			Certificates: []tls.Certificate{certificate},
@@ -366,7 +363,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 			return nil, err
 		}
 	} else {
-		fmt.Println("client connection not use tls")
+		//fmt.Println("client connection not use tls")
 		cc, err = grpc.Dial(address, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
@@ -392,13 +389,15 @@ func GetClientContext(client Client) context.Context {
 
 	// Get the last valid token if it exist
 	token, err := security.GetLocalToken(client.GetMac())
+	macAddress, _ := Utility.MyMacAddr(Utility.MyLocalIP())
+
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac": Utility.MyMacAddr()})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac":macAddress})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}
 
-	md := metadata.New(map[string]string{"token": "", "domain": client.GetAddress(), "mac": Utility.MyMacAddr()})
+	md := metadata.New(map[string]string{"token": "", "domain": client.GetAddress(), "mac": macAddress})
 	ctx = metadata.NewOutgoingContext(context.Background(), md)
 
 	return ctx

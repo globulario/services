@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/davecourtois/Utility"
 	config_ "github.com/globulario/services/golang/config"
@@ -103,28 +102,9 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  */
 func getCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
-	log.Println("get credential config for domain ", domain)
+	log.Println("get credential config for domain: ", domain)
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
-
-	// Return the existing paths...
-	if Utility.Exists(path) &&
-		Utility.Exists(path+"/client.pem") &&
-		Utility.Exists(path+"/client.crt") &&
-		Utility.Exists(path+"/ca.crt") {
-		info, _ := os.Stat(path)
-
-		// test if the certificate are older than 5 mount.
-		if info.ModTime().Add(24*30*5*time.Hour).Unix() < time.Now().Unix() {
-			os.RemoveAll(path)
-		} else {
-
-			keyPath = path + "/client.pem"
-			certPath = path + "/client.crt"
-			caPath = path + "/ca.crt"
-			return
-		}
-	}
 
 	err = Utility.CreateDirIfNotExist(path)
 	if err != nil {
@@ -139,6 +119,33 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	ca_crt, err := getCaCertificate(domain, port)
 	if err != nil {
 		return "", "", "", err
+	}
+
+	// Return the existing paths...
+	if Utility.Exists(path) &&
+		Utility.Exists(path+"/client.pem") &&
+		Utility.Exists(path+"/client.crt") &&
+		Utility.Exists(path+"/ca.crt") {
+
+		local_ca_crt_checksum := Utility.CreateFileChecksum(path + "/ca.crt")
+		remote_ca_crt_checksum := Utility.CreateDataChecksum([]byte(ca_crt))
+		
+		if local_ca_crt_checksum != remote_ca_crt_checksum {
+			// Remove local and recreate new certificate...
+			fmt.Println("Renew Certificates....")
+			os.RemoveAll(path)
+			err = Utility.CreateDirIfNotExist(path)
+			if err != nil {
+				log.Println(err)
+				return "", "", "", err
+			}
+		} else {
+
+			keyPath = path + "/client.pem"
+			certPath = path + "/client.crt"
+			caPath = path + "/ca.crt"
+			return
+		}
 	}
 
 	// Write the ca.crt file on the disk
@@ -201,10 +208,9 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	keyPath = path + "/client.pem"
 	certPath = path + "/client.crt"
 	caPath = path + "/ca.crt"
-
+	fmt.Println("Certificate was succefully install for ", domain)
 	return
 }
-
 
 // Generate the Certificate Authority private key file (this shouldn't be shared in real life)
 func GenerateAuthorityPrivateKey(path string, pwd string) error {
@@ -747,14 +753,19 @@ func GetLocalKey() ([]byte, error) {
 	if len(localKey) > 0 {
 		return localKey, nil
 	}
+
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
+
 	// In that case the public key will be use as a token key...
 	// That token will be valid on the peer itself.
-	id := strings.ReplaceAll(Utility.MyMacAddr(), ":", "_")
+	id := strings.ReplaceAll(macAddress, ":", "_")
 	if !Utility.Exists(keyPath + "/" + id + "_public") {
 		return nil, errors.New("no public key found at path " + keyPath + "/" + id + "_public")
 	}
 
-	var err error
 	localKey, err = ioutil.ReadFile(keyPath + "/" + id + "_public")
 
 	return localKey, err
@@ -770,14 +781,18 @@ func GetPeerKey(id string) ([]byte, error) {
 	}
 
 	id = strings.ReplaceAll(id, ":", "_")
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
 
-	if id == strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") {
+	if id == strings.ReplaceAll(macAddress, ":", "_") {
 		return GetLocalKey()
 	}
 
 	// If the token issuer is not the actual globule but another peer
 	// I will use it public key and my private one to generate the correct key.
-	err := Utility.CreateDirIfNotExist(keyPath)
+	err = Utility.CreateDirIfNotExist(keyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -810,9 +825,13 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	// Interface converted to public key
 	puba := publicStream.(*ecdsa.PublicKey)
+	macAddress, err = Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
 
 	//1, open the private key file and read the content
-	file_private, err := os.Open(keyPath + "/" + strings.ReplaceAll(Utility.MyMacAddr(), ":", "_") + "_private")
+	file_private, err := os.Open(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
 	if err != nil {
 		fmt.Println(err)
 		return nil, err

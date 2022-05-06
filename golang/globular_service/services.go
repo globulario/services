@@ -269,7 +269,9 @@ func InitService(s Service) error {
 	// set contextual values.
 	address, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
-	s.SetMac(Utility.MyMacAddr())
+	macAddress, _ := Utility.MyMacAddr(Utility.MyLocalIP())
+
+	s.SetMac(macAddress)
 	s.SetAddress(address)
 	s.SetDomain(domain)
 

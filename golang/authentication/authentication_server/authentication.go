@@ -136,8 +136,12 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
+
 	// Issue the token for the actual sever.
-	issuer := Utility.MyMacAddr()
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 
 		// The application...
@@ -218,8 +222,15 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// The token string
-	tokenString, err := security.GenerateToken(server.SessionTimeout, Utility.MyMacAddr(), "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := security.GenerateToken(server.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -291,11 +302,15 @@ func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.S
  */
 func (server *server) setKey(mac string) error {
 
+	// Get the mac address
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return err
+	}
+
 	// Now I will generate keys if not already exist.
-	if Utility.MyMacAddr() == mac {
-
+	if macAddress == mac {
 		return security.GeneratePeerKeys(mac)
-
 	}
 
 	return nil
@@ -348,7 +363,10 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// In that particular case I will set the issuer to the current mac...
-		issuer = Utility.MyMacAddr()
+		issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
+		if err != nil {
+			return "", err
+		}
 
 		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
 		if err != nil {
@@ -435,7 +453,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 
 	// Set the mac addresse
 	if len(rqst.Issuer) == 0 {
-		rqst.Issuer = Utility.MyMacAddr()
+		rqst.Issuer, _ = Utility.MyMacAddr(Utility.MyLocalIP())
 	}
 
 	// Try to authenticate on the server directy...
