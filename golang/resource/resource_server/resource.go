@@ -1460,16 +1460,20 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	}
 
 	// Get the configuration address with it http port...
-	address_, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
 	hostname, _ := config.GetHostName()
 	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-	
+
+	localConfig, err := config.GetLocalConfig(true)
+	httpPort := Utility.ToInt(localConfig["PortHttp"])
+	httpsPort := Utility.ToInt(localConfig["PortHttps"])
+	protocol := localConfig["Protocol"].(string)
+
 	if err != nil {
 		return nil, "", err
 	}
 
-	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Address: address_, Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
+	return client.RegisterPeer(token, string(key), &resourcepb.Peer{Protocol: protocol, PortHttp: int32(httpPort), PortHttps: int32(httpsPort), Hostname: hostname, Mac: macAddress, Domain: domain, ExternalIpAddress: Utility.MyIP(), LocalIpAddress: Utility.MyLocalIP()})
 
 }
 
@@ -1508,8 +1512,16 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	if len(rqst.Peer.Mac) == 0 {
 		if md, ok := metadata.FromIncomingContext(ctx); ok {
 			token := strings.Join(md["token"], "")
+
+			address_ := rqst.Peer.Domain
+			if rqst.Peer.Protocol == "https" {
+				address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+			} else {
+				address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+			}
+
 			// In that case I want to register the server to another server.
-			peer_, public_key, err := resource_server.registerPeer(token, rqst.Peer.Address)
+			peer_, public_key, err := resource_server.registerPeer(token, address_)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
@@ -1523,7 +1535,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 			// keep the address where the configuration can be found...
 			// in case of docker instance that will be usefull to get peer addres config...
-			peer["address"] = rqst.Peer.Address
+			peer["protocol"] = rqst.Peer.Protocol
+			peer["portHttps"] = rqst.Peer.PortHttps
+			peer["portHttp"] = rqst.Peer.PortHttp
 			peer["hostname"] = peer_.Hostname
 			peer["mac"] = peer_.Mac
 			peer["local_ip_address"] = peer_.LocalIpAddress
@@ -1567,7 +1581,14 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 			// Update peer event.
 			resource_server.publishEvent("update_peers_evt", []byte{})
-			resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
+			address := rqst.Peer.Domain
+			if rqst.Peer.Protocol == "https" {
+				address += ":" + Utility.ToString(rqst.Peer.PortHttps)
+			} else {
+				address += ":" + Utility.ToString(rqst.Peer.PortHttp)
+			}
+
+			resource_server.publishRemoteEvent(address, "update_peers_evt", []byte{})
 
 			// Set peer action
 			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
@@ -1590,7 +1611,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Here I will keep the peer info bethween it will be accepted by the admin of the other peer.
 	peer["_id"] = Utility.GenerateUUID(rqst.Peer.Mac)
 	peer["mac"] = rqst.Peer.Mac
-	peer["address"] = rqst.Peer.Address
+	peer["protocol"] = rqst.Peer.Protocol
+	peer["portHttps"] = rqst.Peer.PortHttps
+	peer["portHttp"] = rqst.Peer.PortHttp
 	peer["local_ip_address"] = rqst.Peer.LocalIpAddress
 	peer["external_ip_address"] = rqst.Peer.ExternalIpAddress
 	peer["state"] = resourcepb.PeerApprovalState_PEER_PENDING
@@ -1637,17 +1660,18 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
-
-	address, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
+	localConfig, _ := config.GetLocalConfig(true)
 
 	peer_ := new(resourcepb.Peer)
-	peer_.Address = address
+	peer_.Protocol = localConfig["Protocol"].(string)
+	peer_.PortHttp = int32(Utility.ToInt(localConfig["PortHttp"]))
+	peer_.PortHttps = int32(Utility.ToInt(localConfig["PortHttps"]))
 	peer_.Hostname = hostname
 	peer_.Domain = domain
 	peer_.ExternalIpAddress = Utility.MyIP()
 	peer_.LocalIpAddress = Utility.MyLocalIP()
-	peer_.Mac, _ = Utility.MyMacAddr(peer_.LocalIpAddress )
+	peer_.Mac, _ = Utility.MyMacAddr(peer_.LocalIpAddress)
 	peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
 
 	// actions will need to be set by admin latter...
@@ -1660,7 +1684,14 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
-	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
+
+	address_ := rqst.Peer.Domain
+	if rqst.Peer.Protocol == "https" {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+	} else {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+	}
+	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte{})
 
 	// set the remote peer in /etc/hosts
 	resource_server.setLocalHosts(peer_)
@@ -1722,7 +1753,15 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
-	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
+
+	address_ := rqst.Peer.Domain
+	if rqst.Peer.Protocol == "https" {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+	} else {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+	}
+
+	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte{})
 
 	return &resourcepb.AcceptPeerRsp{Result: true}, nil
 }
@@ -1748,7 +1787,14 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 
 	// signal peers changes...
 	resource_server.publishEvent("update_peers_evt", []byte{})
-	resource_server.publishRemoteEvent(rqst.Peer.GetAddress(), "update_peers_evt", []byte{})
+
+	address_ := rqst.Peer.Domain
+	if rqst.Peer.Protocol == "https" {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+	} else {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+	}
+	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte{})
 
 	return &resourcepb.RejectPeerRsp{Result: true}, nil
 }
@@ -1804,14 +1850,12 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 
 	for i := 0; i < len(peers); i++ {
 		state := resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))
-		p := &resourcepb.Peer{Address: peers[i].(map[string]interface{})["address"].(string), Hostname: peers[i].(map[string]interface{})["hostname"].(string), Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
+		p := &resourcepb.Peer{Protocol:peers[i].(map[string]interface{})["protocol"].(string), PortHttp: int32(Utility.ToInt(peers[i].(map[string]interface{})["portHttp"])),PortHttps: int32(Utility.ToInt(peers[i].(map[string]interface{})["portHttps"])), Hostname: peers[i].(map[string]interface{})["hostname"].(string), Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
 		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
 		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
 			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))
 		}
-
 		values = append(values, p)
-
 		if len(values) >= maxSize {
 			err := stream.Send(
 				&resourcepb.GetPeersRsp{

@@ -477,13 +477,19 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 		if err == nil {
 			for i := 0; i < len(peers); i++ {
 				peer := peers[i]
-				resource_client_, err := resource_client.NewResourceService_Client(peer.Address, "resource.ResourceService")
+				address := peer.Domain
+				if(peer.Protocol == "https"){
+					address += ":" + Utility.ToString(peer.PortHttps)
+				}else{
+					address += ":" + Utility.ToString(peer.PortHttp)
+				}
+				resource_client_, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 				if err == nil {
 					defer resource_client_.Close()
 					account, err := resource_client_.GetAccount(rqst.Name)
 					if err == nil {
 						// an account was found with that name...
-						authentication_client_, err := authentication_client.NewAuthenticationService_Client(peer.Address, "authentication.AuthenticationService")
+						authentication_client_, err := authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
 						if err == nil {
 							defer authentication_client_.Close()
 							tokenString, err := authentication_client_.Authenticate(account.Id, rqst.Password)

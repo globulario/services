@@ -522,15 +522,17 @@ enum PeerApprovalState{
 /** a globular server **/
 message Peer {
   string hostname = 1; // this
-  string address = 2; // the address where the peer configuation can be found.
-  string domain = 3;  // must be unique on the network.
-  string external_ip_address = 4; // the ip address if not port is given 80 will be use to get peers configuration
-  string local_ip_address = 5; // the ip address if not port is given 80 will be use to get peers configuration
-  string mac = 6;     // The mac address
-  PeerApprovalState state = 7; // The peer approval state
+  string domain = 2;  // must be unique on the network.
+  string external_ip_address = 3; // the ip address if not port is given 80 will be use to get peers configuration
+  string local_ip_address = 4; // the ip address if not port is given 80 will be use to get peers configuration
+  string mac = 5;     // The mac address
+  int32 portHttp = 6;
+  int32 portHttps = 7;
+  string protocol = 8; // if can be https or http.
+  PeerApprovalState state = 9; // The peer approval state
 
   // The list of actions that can do
-  repeated string actions = 8;
+  repeated string actions = 10;
 }
 
 /**

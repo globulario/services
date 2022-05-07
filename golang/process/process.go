@@ -2,6 +2,7 @@ package process
 
 import (
 	//"encoding/json"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -383,7 +384,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		}
 	}
 
-	// save service configuration.
+	str, _ := Utility.ToJson(s)
 
 	// Get the process id...
 	go func() {
@@ -393,9 +394,13 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		event_client_, err := getEventClient(address)
 		if err == nil {
 			// Here I will publish the start service event
-			str, _ := Utility.ToJson(s)
+			//str, _ := Utility.ToJson(s)
 			event_client_.Publish("update_globular_service_configuration_evt", []byte(str))
 		}
+
+		// create copy from the string...
+		s := make(map[string]interface{})
+		json.Unmarshal([]byte(str), &s)
 
 		// wait to proxy
 		proxyProcess.Wait()
