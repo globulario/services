@@ -39,12 +39,17 @@ func getCaCertificate(address string, port int) (string, error) {
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
+
+	// I will firt try with http protocol...
 	var caAddress = "http://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
-
 	resp, err = http.Get(caAddress)
-
 	if err != nil {
-		return "", err
+		// Now I will try with https...
+		caAddress = "https://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
+		resp, err = http.Get(caAddress)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	defer resp.Body.Close()
@@ -72,10 +77,13 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 	var resp *http.Response
 	var err error
 	var signCertificateAddress = "http://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate"
-
 	resp, err = http.Get(signCertificateAddress + "?csr=" + csr_str)
 	if err != nil {
-		return "", err
+		var signCertificateAddress = "https://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate"
+		resp, err = http.Get(signCertificateAddress + "?csr=" + csr_str)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	defer resp.Body.Close()
@@ -129,7 +137,7 @@ func getCredentialConfig(path string, domain string, country string, state strin
 
 		local_ca_crt_checksum := Utility.CreateFileChecksum(path + "/ca.crt")
 		remote_ca_crt_checksum := Utility.CreateDataChecksum([]byte(ca_crt))
-		
+
 		if local_ca_crt_checksum != remote_ca_crt_checksum {
 			// Remove local and recreate new certificate...
 			fmt.Println("Renew Certificates....")

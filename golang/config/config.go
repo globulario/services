@@ -279,8 +279,11 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	// Try over
 	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
 	if err != nil {
-		fmt.Println("262 ", err)
-		return nil, err
+		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
+		if err != nil {
+			return nil, err
+		}
+	
 	}
 
 	defer resp.Body.Close()
