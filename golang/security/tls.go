@@ -42,6 +42,7 @@ func getCaCertificate(address string, port int) (string, error) {
 
 	// I will firt try with http protocol...
 	var caAddress = "http://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
+	fmt.Println("get ca certificate: ", caAddress)
 	resp, err = http.Get(caAddress)
 	if err != nil {
 		// Now I will try with https...
@@ -53,13 +54,12 @@ func getCaCertificate(address string, port int) (string, error) {
 	}
 
 	defer resp.Body.Close()
+	fmt.Println("-------> resp.StatusCode ",  resp.StatusCode)
 	if resp.StatusCode == http.StatusCreated {
-
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			log.Fatal(err)
 		}
-
 		return string(bodyBytes), nil
 	}
 
