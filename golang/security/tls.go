@@ -47,6 +47,7 @@ func getCaCertificate(address string, port int) (string, error) {
 	if err != nil {
 		// Now I will try with https...
 		caAddress = "https://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
+		fmt.Println("get ca certificate: ", caAddress)
 		resp, err = http.Get(caAddress)
 		if err != nil {
 			return "", err
