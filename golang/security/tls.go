@@ -30,7 +30,26 @@ var (
 /**
  * Get the ca certificate
  */
-func getCaCertificate(address string, port int) (string, error) {
+ func getCaCertificate(address string, port int) (string, error) {
+	// try with http
+	certificate, err := getCaCertificate_(address, port, "http")
+	if err == nil {
+		return certificate, nil
+	}
+
+	// try https
+	certificate, err = getCaCertificate_(address, port, "https")
+	if err == nil {
+		return certificate, nil
+	}
+
+	return "", nil
+}
+
+/**
+ * Get the ca certificate
+ */
+func getCaCertificate_(address string, port int, protocol string) (string, error) {
 
 	if len(address) == 0 {
 		return "", errors.New("no address was given")
@@ -39,23 +58,17 @@ func getCaCertificate(address string, port int) (string, error) {
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
+	
 
 	// I will firt try with http protocol...
-	var caAddress = "http://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
+	var caAddress = protocol + "://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
 	fmt.Println("get ca certificate: ", caAddress)
 	resp, err = http.Get(caAddress)
 	if err != nil {
-		// Now I will try with https...
-		caAddress = "https://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
-		fmt.Println("get ca certificate: ", caAddress)
-		resp, err = http.Get(caAddress)
-		if err != nil {
-			return "", err
-		}
+		return "", err
 	}
 
 	defer resp.Body.Close()
-	fmt.Println("-------> resp.StatusCode ",  resp.StatusCode)
 	if resp.StatusCode == http.StatusCreated {
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -67,7 +80,22 @@ func getCaCertificate(address string, port int) (string, error) {
 	return "", errors.New("fail to retreive ca certificate with error " + Utility.ToString(resp.StatusCode))
 }
 
+
 func signCaCertificate(address string, csr string, port int) (string, error) {
+	certificate, err := signCaCertificate_(address, csr, port, "http")
+	if err == nil {
+		return certificate, nil
+	}
+
+	certificate, err = signCaCertificate_(address, csr, port, "https")
+	if err == nil {
+		return certificate, nil
+	}
+
+	return "", err
+}
+
+func signCaCertificate_(address string, csr string, port int, protocol string) (string, error) {
 
 	if len(address) == 0 {
 		return "", errors.New("no address was given")
@@ -77,14 +105,10 @@ func signCaCertificate(address string, csr string, port int) (string, error) {
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
-	var signCertificateAddress = "http://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate"
+	var signCertificateAddress = protocol + "://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate"
 	resp, err = http.Get(signCertificateAddress + "?csr=" + csr_str)
 	if err != nil {
-		var signCertificateAddress = "https://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate"
-		resp, err = http.Get(signCertificateAddress + "?csr=" + csr_str)
-		if err != nil {
 			return "", err
-		}
 	}
 
 	defer resp.Body.Close()
