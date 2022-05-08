@@ -1887,6 +1887,22 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	return nil
 }
 
+func (resource_server *server) deletePeer(token, address string) error {
+	// Connect to remote server and call Register peer on it...
+	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	if err != nil {
+		return err
+	}
+
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return err
+	}
+
+	return client.DeletePeer(token, macAddress)
+
+}
+
 //* Remove a peer from the network *
 func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRqst) (*resourcepb.DeletePeerRsp, error) {
 	// Get the persistence connection
@@ -1895,8 +1911,20 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
-	// No authorization exist for that peer I will insert it.
-	// Here will create the new peer.
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// not an error...
+	if count == 0 {
+		return &resourcepb.DeletePeerRsp{
+			Result: true,
+		}, nil
+	}
+	
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -1931,6 +1959,19 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 	resource_server.publishEvent("delete_peer"+rqst.Peer.Mac+"_evt", []byte{})
 	resource_server.publishEvent("delete_peer_evt", []byte(rqst.Peer.Mac))
 
+	address_ := rqst.Peer.Domain
+	if rqst.Peer.Protocol == "https" {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttps)
+	} else {
+		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
+	}
+
+	// Also remove the peer at the other end...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		resource_server.deletePeer(token, address_)
+	}
+	
 	return &resourcepb.DeletePeerRsp{
 		Result: true,
 	}, nil
