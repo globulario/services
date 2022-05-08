@@ -1448,14 +1448,17 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 // running at domain.
 func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
+	fmt.Println("---------> connect to client at address", address)
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
+		fmt.Println("---------> fail to connect with client with error ", err)
 		return nil, "", err
 	}
 
 	// get the local public key.
 	key, err := security.GetLocalKey()
 	if err != nil {
+		fmt.Println("---------> fail to get local key with error ", err)
 		return nil, "", err
 	}
 
@@ -1470,6 +1473,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	protocol := localConfig["Protocol"].(string)
 
 	if err != nil {
+		fmt.Println("---------> fail to get local config ", err)
 		return nil, "", err
 	}
 
@@ -1491,6 +1495,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
 	if len(rqst.Peer.Mac) > 0 {
+		fmt.Println("---------> Test if peer exit: ", rqst.Peer.Mac)
 		count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
 		if count > 0 {
 			return nil, status.Errorf(
@@ -1498,6 +1503,8 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer with name '"+rqst.Peer.Mac+"' already exist!")))
 		}
 	}
+
+	fmt.Println("---------> peer not already exist")
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
@@ -1519,6 +1526,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			} else {
 				address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 			}
+			fmt.Println("---------> register peer at address ", address_)
 
 			// In that case I want to register the server to another server.
 			peer_, public_key, err := resource_server.registerPeer(token, address_)
@@ -1527,7 +1535,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
+			
 			// Save the received values on the db
 			peer := make(map[string]interface{})
 			peer["_id"] = Utility.GenerateUUID(peer_.Mac) // The peer mac address will be use as peers id
@@ -1544,6 +1552,8 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			peer["external_ip_address"] = peer_.ExternalIpAddress
 			peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
 			peer["actions"] = []interface{}{}
+
+			fmt.Println("---------> save peer", peer)
 
 			if err != nil {
 				return nil, status.Errorf(
