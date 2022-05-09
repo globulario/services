@@ -2155,18 +2155,25 @@ func createVttFile(output string, fps float32) error{
 
 	time_ := 0
 	index := 1
+	address, _ := config.GetAddress()
+	localConfig, _ := config.GetLocalConfig(true)
+
 	for _, thumbnail := range thumbnails {
-
-		webvtt += Utility.ToString(index) + "\n"
-		start_ := time.Duration(time_ * int(time.Second))
-		time_ += delay
-		end_ := time.Duration(time_ * int(time.Second))
-
-		webvtt += formatDuration(start_) + " --> " + formatDuration(end_) + "\n"
-		webvtt += strings.ReplaceAll(output, config.GetDataDir()+"/files", "") + "/" + thumbnail.Name() + "\n\n"
-
-		index++
+		if strings.HasSuffix(thumbnail.Name(), ".jpg") {
+			webvtt += Utility.ToString(index) + "\n"
+			start_ := time.Duration(time_ * int(time.Second))
+			time_ += delay
+			end_ := time.Duration(time_ * int(time.Second))
+	
+			webvtt += formatDuration(start_) + " --> " + formatDuration(end_) + "\n"
+			webvtt += localConfig["Protocol"].(string) + "://" + address + "/"+  strings.ReplaceAll(output, config.GetDataDir()+"/files", "") + "/" + thumbnail.Name() + "\n\n"	
+			index++
+		}
+		
 	}
+
+	// delete previous file...
+	os.Remove(output+"/thumbnails.vtt")
 
 	// Now  I will write the file...
 	return os.WriteFile(output+"/thumbnails.vtt", []byte(webvtt), 777)
