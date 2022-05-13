@@ -1505,15 +1505,13 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			
+
 			return &resourcepb.RegisterPeerRsp{
 				Peer:      p,
 				PublicKey: string(pubKey),
 			}, nil
 		}
 	}
-
-	fmt.Println("---------> peer not already exist")
 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
