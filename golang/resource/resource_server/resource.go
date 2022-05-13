@@ -1496,11 +1496,20 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// resources...
 	if len(rqst.Peer.Mac) > 0 {
 		fmt.Println("---------> Test if peer exit: ", rqst.Peer.Mac)
-		count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
-		if count > 0 {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Peer with name '"+rqst.Peer.Mac+"' already exist!")))
+		values, _ := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
+		if values!=nil {
+			p:=initPeer(values)
+			pubKey, err := security.GetPeerKey(p.Mac)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			
+			return &resourcepb.RegisterPeerRsp{
+				Peer:      p,
+				PublicKey: string(pubKey),
+			}, nil
 		}
 	}
 
@@ -1552,8 +1561,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			peer["external_ip_address"] = peer_.ExternalIpAddress
 			peer["state"] = resourcepb.PeerApprovalState_PEER_ACCETEP
 			peer["actions"] = []interface{}{}
-
-			fmt.Println("---------> save peer", peer)
 
 			if err != nil {
 				return nil, status.Errorf(
@@ -1701,6 +1708,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	} else {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 	}
+
 	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte{})
 
 	// set the remote peer in /etc/hosts
@@ -1834,6 +1842,17 @@ func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *r
 	return &resourcepb.GetPeerApprovalStateRsp{State: peer.GetState()}, nil
 }
 
+func initPeer(values interface{}) *resourcepb.Peer {
+	state := resourcepb.PeerApprovalState(values.(map[string]interface{})["state"].(int32))
+	p := &resourcepb.Peer{Protocol:values.(map[string]interface{})["protocol"].(string), PortHttp: int32(Utility.ToInt(values.(map[string]interface{})["portHttp"])),PortHttps: int32(Utility.ToInt(values.(map[string]interface{})["portHttps"])), Hostname: values.(map[string]interface{})["hostname"].(string), Domain: values.(map[string]interface{})["domain"].(string), ExternalIpAddress: values.(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: values.(map[string]interface{})["local_ip_address"].(string), Mac: values.(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
+	values.(map[string]interface{})["actions"] = []interface{}(values.(map[string]interface{})["actions"].(primitive.A))
+	for j := 0; j < len(values.(map[string]interface{})["actions"].([]interface{})); j++ {
+		p.Actions = append(p.Actions, values.(map[string]interface{})["actions"].([]interface{})[j].(string))
+	}
+
+	return p;
+}
+
 //* Return the list of authorized peers *
 func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.ResourceService_GetPeersServer) error {
 	// Get the persistence connection
@@ -1859,12 +1878,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 	values := make([]*resourcepb.Peer, 0)
 
 	for i := 0; i < len(peers); i++ {
-		state := resourcepb.PeerApprovalState(peers[i].(map[string]interface{})["state"].(int32))
-		p := &resourcepb.Peer{Protocol:peers[i].(map[string]interface{})["protocol"].(string), PortHttp: int32(Utility.ToInt(peers[i].(map[string]interface{})["portHttp"])),PortHttps: int32(Utility.ToInt(peers[i].(map[string]interface{})["portHttps"])), Hostname: peers[i].(map[string]interface{})["hostname"].(string), Domain: peers[i].(map[string]interface{})["domain"].(string), ExternalIpAddress: peers[i].(map[string]interface{})["external_ip_address"].(string), LocalIpAddress: peers[i].(map[string]interface{})["local_ip_address"].(string), Mac: peers[i].(map[string]interface{})["mac"].(string), Actions: make([]string, 0), State: state}
-		peers[i].(map[string]interface{})["actions"] = []interface{}(peers[i].(map[string]interface{})["actions"].(primitive.A))
-		for j := 0; j < len(peers[i].(map[string]interface{})["actions"].([]interface{})); j++ {
-			p.Actions = append(p.Actions, peers[i].(map[string]interface{})["actions"].([]interface{})[j].(string))
-		}
+		p:= initPeer(peers[i])
 		values = append(values, p)
 		if len(values) >= maxSize {
 			err := stream.Send(
