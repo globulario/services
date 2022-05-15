@@ -78,18 +78,17 @@ func NewResourceService_Client(address string, id string) (*Resource_Client, err
 	return client, nil
 }
 
-func (client *Resource_Client) Reconnect () error{
+func (client *Resource_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = resourcepb.NewResourceServiceClient(client.cc)
 	return nil
 }
-
 
 // The address where the client can connect.
 func (client *Resource_Client) SetAddress(address string) {
@@ -794,6 +793,27 @@ func (client *Resource_Client) RegisterPeer(token, key string, peer *resourcepb.
 
 	return rsp.Peer, rsp.PublicKey, err
 
+}
+
+// Update peer
+func (client *Resource_Client) UpdatePeer(token string, peer *resourcepb.Peer) error {
+	rqst := &resourcepb.UpdatePeerRqst{
+		Peer: peer,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.UpdatePeer(ctx, rqst)
+	return err
 }
 
 // Delete a peer

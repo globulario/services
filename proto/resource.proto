@@ -573,6 +573,13 @@ message RegisterPeerRsp {
 }
 
 /**
+ * Save peer values
+ */
+message UpdatePeerRqst { Peer peer = 1; }
+
+message UpdatePeerRsp { bool result = 1; }
+
+/**
  * Return the list of peer (query is use to get specific peer's).
  */
 message GetPeersRqst {
@@ -897,6 +904,9 @@ service ResourceService {
 
   /** Remove a peer from the network **/
   rpc DeletePeer(DeletePeerRqst) returns (DeletePeerRsp);
+
+  /** Update a peer */
+  rpc UpdatePeer(UpdatePeerRqst) returns (UpdatePeerRsp);
 
   /** Add peer actions **/
   rpc AddPeerActions(AddPeerActionsRqst) returns (AddPeerActionsRsp);

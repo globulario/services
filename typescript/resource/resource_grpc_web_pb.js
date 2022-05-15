@@ -2971,6 +2971,67 @@ proto.resource.ResourceServicePromiseClient.prototype.deletePeer =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.UpdatePeerRqst,
+ *   !proto.resource.UpdatePeerRsp>}
+ */
+const methodDescriptor_ResourceService_UpdatePeer = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/UpdatePeer',
+  grpc.web.MethodType.UNARY,
+  proto.resource.UpdatePeerRqst,
+  proto.resource.UpdatePeerRsp,
+  /**
+   * @param {!proto.resource.UpdatePeerRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdatePeerRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.UpdatePeerRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.UpdatePeerRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.UpdatePeerRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.updatePeer =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/UpdatePeer',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdatePeer,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.UpdatePeerRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.UpdatePeerRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.updatePeer =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/UpdatePeer',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdatePeer);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.AddPeerActionsRqst,
  *   !proto.resource.AddPeerActionsRsp>}
  */
