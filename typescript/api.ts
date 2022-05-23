@@ -264,7 +264,7 @@ export enum OwnerType {
 
 ///////////////////////////////////// File operations /////////////////////////////////
 
-export function uploadFiles(path: string, files: File[], completeHandler: () => void, errorHandler?: (event: any) => void, progressHandler?: (event: any) => void, abortHandler?: (event: any) => void, port?: number) {
+export function uploadFiles(globule: Globular, path: string, files: File[], completeHandler: () => void, errorHandler?: (event: any) => void, progressHandler?: (event: any) => void, abortHandler?: (event: any) => void, port?: number) {
   var fd = new FormData();
   // add all selected files
   for (var i = 0; i < files.length; i++) {
@@ -272,8 +272,11 @@ export function uploadFiles(path: string, files: File[], completeHandler: () => 
     fd.append("multiplefiles", file, file.name);
     fd.append("path", path);
   }
+
   // create the request
   var xhr = new XMLHttpRequest();
+  xhr.timeout = 1500;
+
   // Connect handling functions.
   xhr.upload.addEventListener("progress", progressHandler, false);
   xhr.addEventListener("error", errorHandler, false);
@@ -293,11 +296,16 @@ export function uploadFiles(path: string, files: File[], completeHandler: () => 
     }
   };
 
-  // path to server would be where you'd normally post the form to
-  let url = window.location.protocol + "//" + window.location.hostname
-  if (port != undefined) {
-    url += ":" + port
+  // path to server would be where you'd normally post the form to  
+  let url = globule.config.Protocol + "://" + globule.config.Domain
+  if (globule.config.Protocol == "https") {
+      if (globule.config.PortHttps != 443)
+          url += ":" + globule.config.PortHttps
+  } else {
+      if (globule.config.PortHttps != 80)
+          url += ":" + globule.config.PortHttp
   }
+
 
   // Set the values also as parameters...
   url += "/uploads"
@@ -473,6 +481,7 @@ export function downloadFileHttp(
   callback: () => void
 ) {
   const req = new XMLHttpRequest();
+  req.timeout = 1500;
   
   // Set the values also as parameters...
   url += "?domain=" + domain
