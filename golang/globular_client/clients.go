@@ -138,6 +138,7 @@ func InitClient(client Client, address string, id string) error {
 
 	isLocal := address_ == address
 
+
 	if isLocal {
 		// Local client configuration
 		config_, err = client.GetConfiguration(address, id)
@@ -146,6 +147,8 @@ func InitClient(client Client, address string, id string) error {
 		}
 	} else {
 		// Remote client configuration
+		fmt.Println("----------> 141: ", address_, " == ", address)
+		fmt.Println("----------> 151: domain ", domain," service id", id,  address_, " == ", address)
 		config_, err = config.GetRemoteConfig(domain, port, id)
 	}
 

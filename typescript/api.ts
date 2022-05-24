@@ -309,7 +309,7 @@ export function uploadFiles(globule: Globular, path: string, files: File[], comp
 
   // Set the values also as parameters...
   url += "/uploads"
-  url += "?domain=" + domain
+  url += "?domain=" +  globule.config.Domain
   url += "&application=" + application
   if (localStorage.getItem("user_token") != undefined) {
     url += "&token=" + localStorage.getItem("user_token")
@@ -320,7 +320,7 @@ export function uploadFiles(globule: Globular, path: string, files: File[], comp
   // path to server would be where you'd normally post the form to
   xhr.setRequestHeader("token", getToken());
   xhr.setRequestHeader("application", application);
-  xhr.setRequestHeader("domain", domain);
+  xhr.setRequestHeader("domain",  globule.config.Domain);
   xhr.send(fd);
 }
 

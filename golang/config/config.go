@@ -267,6 +267,7 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
  */
 func GetRemoteConfig(address string, port int, id string) (map[string]interface{}, error) {
 
+
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
@@ -275,6 +276,7 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	if port == 0 {
 		port = 80
 	}
+
 
 	// Try over
 	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
