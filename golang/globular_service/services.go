@@ -466,7 +466,7 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 
 func StartService(s Service, server *grpc.Server) error {
 
-	// First of all I will creat a listener.
+	// First of all I will create a listener.
 	// Create the channel to listen on
 	lis, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
 	if err != nil {
@@ -474,17 +474,7 @@ func StartService(s Service, server *grpc.Server) error {
 		log.Print(err_)
 		return err_
 	}
-	/*
-		profileFileName := strings.ReplaceAll(s.GetPath(), ".exe", "") + ".pprof"
-		f, err := os.Create(profileFileName)
 
-		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
-		}
-		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
-		}
-	*/
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
 		// no web-rpc server.
