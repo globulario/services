@@ -704,6 +704,9 @@ func DeletePublicKey(id string) error {
  * Generate keys and save it at given path.
  */
 func GeneratePeerKeys(id string) error {
+	if len(id) == 0 {
+		return errors.New("no id was given to generate the key")
+	}
 
 	id = strings.ReplaceAll(id, ":", "_")
 
@@ -738,12 +741,12 @@ func GeneratePeerKeys(id string) error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
+
 	err = pem.Encode(file, &block)
 	if err != nil {
 		return err
 	}
-
-	defer file.Close()
 
 	// Handle the public key
 	public := privateKey.PublicKey
@@ -848,7 +851,12 @@ func GetPeerKey(id string) ([]byte, error) {
 	file_public.Read(buf)
 	//pem decoding
 	block, _ := pem.Decode(buf)
-
+	if block == nil {
+		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
+		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_public")
+		return nil, errors.New("Corrupted local keys was found for peer " + strings.ReplaceAll(macAddress, ":", "_") + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
+	}
+	
 	//x509
 	publicStream, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
@@ -883,6 +891,11 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	//2, pem decryption
 	block, _ = pem.Decode(buf)
+	if block == nil {
+		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
+		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_public")
+		return nil, errors.New("Corrupted local keys was found for peer " + strings.ReplaceAll(macAddress, ":", "_") + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
+	}
 
 	//x509 decryption
 	privb, err := x509.ParseECPrivateKey(block.Bytes)

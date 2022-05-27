@@ -1712,7 +1712,6 @@ func getVideoPaths() []string {
 					return err
 				}
 
-				// fmt.Println(path, info.Size())
 				path_ := strings.ToLower(path)
 				if !strings.Contains(path, ".hidden") && strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
 					medias = append(medias, path)
@@ -1789,7 +1788,6 @@ func createVideoMpeg4H264(path string) (string, error) {
 
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
 	if strings.Index(string(version), "--enable-cuda-nvcc") > -1 {
-		fmt.Println("use gpu for convert ", path)
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output)
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
@@ -1802,7 +1800,6 @@ func createVideoMpeg4H264(path string) (string, error) {
 		}
 
 	} else {
-		fmt.Println("use cpu for convert ", path)
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", output)
@@ -1893,7 +1890,6 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
 	if strings.Index(string(version), "--enable-cuda-nvcc") > -1 {
-		fmt.Println("use gpu for convert ", src)
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
@@ -1907,7 +1903,6 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		}
 
 	} else {
-		fmt.Println("use cpu for convert ", src)
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
@@ -1996,10 +1991,8 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
 		return err
 	}
-	fmt.Println("Result: " + out.String())
 	os.WriteFile(dest+"/playlist.m3u8", []byte(master_playlist), 0644)
 
 	return nil
@@ -2026,7 +2019,6 @@ func createHlsStreamFromMpeg4H264(path string) error {
 	// remove the renamed file and the temp output if te command did not finish......
 	defer os.Remove(os.TempDir() + "/" + fileName + "." + ext)
 	defer os.Remove(os.TempDir() + "/" + fileName)
-	fmt.Println("generate stream for ", path, "output to", os.TempDir()+"/"+fileName)
 
 	// Create the stream...
 	err := createHlsStream(os.TempDir()+"/"+fileName+"."+ext, os.TempDir()+"/"+fileName, 4, 1.07, 1.5)
@@ -2125,13 +2117,11 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 
 	output := path_ + "/.hidden/" + name_
 	if Utility.Exists(output + "/preview.gif") {
-		fmt.Println("preview gif exist for ", path)
 		//os.Remove(output + "/preview.gif")
 		return nil
 	}
 
 	Utility.CreateDirIfNotExist(output)
-	fmt.Println("create video preview (gif) for ", path)
 	cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", `-loop`, `0`, `preview.gif`)
 	cmd.Dir = output // the output directory...
 	err := cmd.Run()
@@ -2246,7 +2236,6 @@ func createVideoPreview(path string, nb int, height int) error {
 	output := path_ + "/.hidden/" + name_ + "/__preview__"
 
 	if Utility.Exists(output) {
-		fmt.Println("preview already exist for ", path)
 		return nil
 	}
 

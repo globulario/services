@@ -1952,7 +1952,7 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	jsonStr, _ := Utility.ToJson(peer)
 
 	// Save the peer.
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource",  "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, jsonStr, "")
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, jsonStr, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1962,7 +1962,6 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	// signal peers changes...
 	resource_server.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{})
 
-	
 	return &resourcepb.UpdatePeerRsp{Result: true}, nil
 }
 
