@@ -1952,7 +1952,7 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	jsonStr, _ := Utility.ToJson(peer)
 
 	// Save the peer.
-	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, jsonStr, "")
+	err = p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, jsonStr, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
