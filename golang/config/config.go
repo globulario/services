@@ -123,6 +123,7 @@ func GetServicesConfigDir() string {
 
 	// That variable is use in development to set services from diffrent location...
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	
 	if len(serviceRoot) > 0 {
 		return strings.ReplaceAll(serviceRoot, "\\", "/")
 	}
@@ -136,7 +137,6 @@ func GetServicesConfigDir() string {
 }
 
 func GetConfigDir() string {
-
 	if runtime.GOOS == "windows" {
 		return GetRootDir() + "/config"
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
