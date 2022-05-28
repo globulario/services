@@ -49,10 +49,6 @@ message DeployApplicationRequest{
 	bool set_as_default = 16;
 }
 
-message DeployApplicationResponse{
-	bool result = 1;
-}
-
 service ApplicationManagerService {
 
   // Install application...

@@ -55,6 +55,9 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 
+	// TODO test if the application is in the applications folder, if so I will use it to install it...
+	
+
 	// Connect to the dicovery services
 	resource_client_, err := resource_client.NewResourceService_Client(rqst.DicorveryId, "resource.ResourceService")
 
