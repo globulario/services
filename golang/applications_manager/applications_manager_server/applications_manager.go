@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -45,18 +48,118 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 	}
 
 	// Remove the application directory... but keep application data...
-	os.RemoveAll(config.GetWebRootDir()+"/" + rqst.ApplicationId)
+	os.RemoveAll(config.GetWebRootDir() + "/" + rqst.ApplicationId)
 
 	return &applications_managerpb.UninstallApplicationResponse{
 		Result: true,
 	}, nil
 }
 
+// Install local package. found in the local directory...
+func (server *server) installLocalApplicationPackage(domain, applicationId, publisherId, version string) error {
+
+	path := config.GetRootDir() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
+
+	// so here I will try find package from the directory 
+	if len(version) == 0 {
+		files, err := ioutil.ReadDir(config.GetRootDir() + "/applications" )
+		if err != nil {
+			return err
+		}
+	
+		for _, file := range files {
+			if strings.Contains(file.Name(), applicationId) && strings.Contains(file.Name(), publisherId){
+				path = config.GetRootDir() + "/applications/" + file.Name()
+			}
+		}
+	}
+
+	
+
+	fmt.Println("try to intall package from ", path)
+	if Utility.Exists(path) {
+		file, err := os.Open(path)
+
+		if err != nil {
+			return nil
+		}
+
+		defer file.Close()
+
+		r := bufio.NewReader(file)
+		_extracted_path_, err := Utility.ExtractTarGz(r)
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(_extracted_path_)
+
+		// So now I will get the application descriptor
+		descriptor := make(map[string]interface{})
+		jsonStr, err := ioutil.ReadFile(_extracted_path_ + "/descriptor.json")
+		if err != nil {
+			return err
+		}
+
+		// read the content
+		err = json.Unmarshal(jsonStr, &descriptor)
+		if err != nil {
+			return err
+		}
+
+		bundle, err := ioutil.ReadFile(_extracted_path_ + "/bundle.tar.gz")
+		if err != nil {
+			return err
+		}
+
+		// Now I will read the bundle...
+		r_ := bytes.NewReader(bundle)
+
+		// actions
+		actions := make([]string, 0)
+		if descriptor["actions"] != nil {
+			actions_ := descriptor["actions"].([]interface{})
+			for i := 0; i < len(actions_); i++ {
+				actions = append(actions, actions_[i].(string))
+			}
+		}
+
+		// keywords
+		keywords := make([]string, 0)
+		if descriptor["keywords"] != nil {
+			keywords_ := descriptor["keywords"].([]interface{})
+			for i := 0; i < len(keywords_); i++ {
+				keywords = append(keywords, keywords_[i].(string))
+			}
+		}
+
+		// roles
+		roles := make([]*resourcepb.Role, 0)
+
+		// groups
+		groups := make([]*resourcepb.Group, 0)
+
+		// Now I will install the applicaiton.
+		err = server.installApplication(domain, descriptor["id"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return errors.New("no application pacakage found with path " + path)
+}
+
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 
-	// TODO test if the application is in the applications folder, if so I will use it to install it...
-	
+	err := server.installLocalApplicationPackage(rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
+	if err == nil {
+		fmt.Println("application", rqst.ApplicationId, "was install localy...")
+		return &applications_managerpb.InstallApplicationResponse{
+			Result: true,
+		}, nil
+	}
 
 	// Connect to the dicovery services
 	resource_client_, err := resource_client.NewResourceService_Client(rqst.DicorveryId, "resource.ResourceService")
