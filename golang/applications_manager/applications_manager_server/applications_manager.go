@@ -346,7 +346,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF || msg == nil {
+		if err == io.EOF || msg == nil || len(msg.Data) == 0 {
 			// end of stream...
 			stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
 				Result: true,
@@ -355,8 +355,6 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 			break
 		} else if err != nil {
 			return err
-		} else if len(msg.Data) == 0 {
-			break
 		} else {
 			buffer.Write(msg.Data)
 		}

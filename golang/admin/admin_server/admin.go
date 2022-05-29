@@ -64,15 +64,13 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	var platform string
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF || msg == nil {
+		if err == io.EOF || msg == nil || len(msg.Data) == 0 {
 			// end of stream...
 			stream.SendAndClose(&adminpb.UpdateResponse{})
 			err = nil
 			break
 		} else if err != nil {
 			return err
-		} else if len(msg.Data) == 0 {
-			break
 		} else {
 			buffer.Write(msg.Data)
 		}

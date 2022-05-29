@@ -472,7 +472,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 		}
 		size += bytesread
 		fmt.Println("transfert ", size, "of", total, " ", int(float64(size)/float64(total)*100), "%")
-		if err == io.EOF {
+		if err == io.EOF || size ==  total{
 			err = nil
 			break
 		} else if err != nil {
@@ -481,11 +481,14 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 		}
 	}
 
+	fmt.Println("484")
 	_, err = stream.CloseAndRecv()
+	fmt.Println("486")
 	if err != nil && err != io.EOF {
 		fmt.Println(err)
 		return -1, err
 	}
-
+	fmt.Println("491")
+	fmt.Println("finish transfert data")
 	return size, nil
 }

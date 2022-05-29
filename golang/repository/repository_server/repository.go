@@ -77,7 +77,7 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 	var buffer bytes.Buffer
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF {
+		if err == io.EOF || len(msg.Data) == 0 {
 			// end of stream...
 			stream.SendAndClose(&repositorypb.UploadBundleResponse{
 			})
@@ -86,8 +86,6 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 		} else if err != nil {
 			server.logServiceError("UploadBundle", Utility.FunctionName(), Utility.FileLine(), err.Error())
 			return err
-		} else if len(msg.Data) == 0 {
-			break
 		} else {
 			buffer.Write(msg.Data)
 		}
