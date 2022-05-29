@@ -267,6 +267,13 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
  */
 func GetRemoteConfig(address string, port int, id string) (map[string]interface{}, error) {
 
+	if len(address) == 0 {
+		return nil, errors.New("no address was given")
+	}
+
+	if len(id) == 0 {
+		return nil, errors.New("no service id was given")
+	}
 
 	// Here I will get the configuration information from http...
 	var resp *http.Response
