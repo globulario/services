@@ -225,9 +225,11 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 // Intall
 func (server *server) installApplication(domain, name, publisherId, version, description string, icon string, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
+	fmt.Println("------> 228")
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
+		fmt.Println("------> 232")
 		return err
 	}
 
@@ -235,8 +237,10 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	defer os.RemoveAll(__extracted_path__)
 
 	// Here I will test that the index.html file is not corrupted...
+	fmt.Println("------> 240")
 	__indexHtml__, err := ioutil.ReadFile(__extracted_path__ + "/index.html")
 	if err != nil {
+		fmt.Println("------> 243", err)
 		return err
 	}
 
@@ -267,14 +271,17 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	Utility.CreateDirIfNotExist(abosolutePath)
 	Utility.CopyDir(__extracted_path__+"/.", abosolutePath)
 
+	fmt.Println("------> 274 create application")
 	err = server.createApplication(name, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
 	if err != nil {
+		fmt.Println("------> 277 create application")
 		return err
 	}
 
 	// Now I will create/update roles define in the application descriptor...
 	for i := 0; i < len(roles); i++ {
 		role := roles[i]
+		fmt.Println("------> 284 create role")
 		err = server.createRole(role.Id, role.Name, role.Actions)
 		if err != nil {
 			log.Println("fail to create role "+role.Id, "with error:", err)
@@ -283,6 +290,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 
 	for i := 0; i < len(groups); i++ {
 		group := groups[i]
+		fmt.Println("------> 284 create group")
 		err = server.createGroup(group.Id, group.Name, group.Description)
 		if err != nil {
 			log.Println("fail to create group "+group.Id, "with error:", err)
@@ -296,6 +304,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	}
 
 	// Parse the index html file to be sure the file is valid.
+	fmt.Println("------> 307 read index html to test if upated= is present")
 	_, err = html.Parse(strings.NewReader(string(indexHtml)))
 	if err != nil {
 		return err
@@ -316,6 +325,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 		// server.IndexApplication = name
 	}
 
+	fmt.Println("------> 328 done installApplication")
 	return err
 }
 
