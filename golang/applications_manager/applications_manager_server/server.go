@@ -420,9 +420,9 @@ var (
 ////////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
 	var err error
-	/*if resourceClient != nil {
+	if resourceClient != nil {
 		return resourceClient, nil
-	}*/
+	}
 
 	resourceClient, err := resource_client.NewResourceService_Client(svr.Address, "resource.ResourceService")
 	if err != nil {

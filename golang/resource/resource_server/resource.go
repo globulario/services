@@ -1000,15 +1000,18 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 
 func (resource_server *server) save_application(app *resourcepb.Application) error {
 
+	fmt.Println("save application 1003 ressource.go")
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("save application 1009 ressource.go")
 	if app == nil {
 		return errors.New("no application object was given in the request")
 	}
 
+	fmt.Println("save application 1014 ressource.go")
 	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+app.Id+`"}`, "")
 
 	application := make(map[string]interface{}, 0)
@@ -1066,11 +1069,14 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	// Create the application file directory.
 	path := "/applications/" + app.Name
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+	fmt.Println("save application 1072 ressource.go")
 	resource_server.addResourceOwner(path, app.Name, rbacpb.SubjectType_APPLICATION)
 
 	// Publish application.
+	fmt.Println("publish event 1076 ressource.go")
 	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
 
+	fmt.Println("publish event 1079 ressource.go")
 	return nil
 }
 
@@ -1078,7 +1084,7 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 // Application
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
-
+	fmt.Println("create application was called ", rqst.Application)
 	err := resource_server.save_application(rqst.Application)
 	if err != nil {
 		return nil, status.Errorf(
