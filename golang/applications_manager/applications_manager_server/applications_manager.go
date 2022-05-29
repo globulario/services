@@ -60,21 +60,19 @@ func (server *server) installLocalApplicationPackage(domain, applicationId, publ
 
 	path := config.GetRootDir() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
 
-	// so here I will try find package from the directory 
+	// so here I will try find package from the directory
 	if len(version) == 0 {
-		files, err := ioutil.ReadDir(config.GetRootDir() + "/applications" )
+		files, err := ioutil.ReadDir(config.GetRootDir() + "/applications")
 		if err != nil {
 			return err
 		}
-	
+
 		for _, file := range files {
-			if strings.Contains(file.Name(), applicationId) && strings.Contains(file.Name(), publisherId){
+			if strings.Contains(file.Name(), applicationId) && strings.Contains(file.Name(), publisherId) {
 				path = config.GetRootDir() + "/applications/" + file.Name()
 			}
 		}
 	}
-
-	
 
 	fmt.Println("try to intall package from ", path)
 	if Utility.Exists(path) {
@@ -347,13 +345,11 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF || msg == nil || len(msg.Data) == 0 {
-			// end of stream...
-			stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
-				Result: true,
-			})
+			fmt.Println("---------> 349 ", err, msg)
 			err = nil
 			break
 		} else if err != nil {
+			fmt.Println("---------> 351 ", err)
 			return err
 		} else {
 			buffer.Write(msg.Data)
@@ -413,6 +409,11 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		}
 
 	}
+	fmt.Println("---------> 410")
+	// end of stream...
+	stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
+		Result: true,
+	})
 
 	if len(repositoryId) == 0 {
 		repositoryId = domain
