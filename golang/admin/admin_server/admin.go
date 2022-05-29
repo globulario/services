@@ -66,7 +66,11 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 		msg, err := stream.Recv()
 		if err == io.EOF || msg == nil || len(msg.Data) == 0 {
 			// end of stream...
-			stream.SendAndClose(&adminpb.UpdateResponse{})
+			err_ := stream.SendAndClose(&adminpb.UpdateResponse{})
+			if err_ != nil {
+				fmt.Println("fail send response and close stream with error ", err_)
+				return err_
+			}
 			err = nil
 			break
 		} else if err != nil {

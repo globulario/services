@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	//"fmt"
 	"io"
@@ -829,7 +830,11 @@ func (persistence_server *server) InsertMany(stream persistencepb.PersistenceSer
 		rqst, err = stream.Recv()
 		if err == io.EOF {
 			// end of stream...
-			stream.SendAndClose(&persistencepb.InsertManyRsp{})
+			err_ := stream.SendAndClose(&persistencepb.InsertManyRsp{})
+			if err_ != nil {
+				fmt.Println("fail send response and close stream with error ", err_)
+				return err_
+			}
 			break
 		} else if err != nil {
 			return err

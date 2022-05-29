@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"bytes"
 	"errors"
 	"io"
 	"log"
 	"os"
+
 	//	"time"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
@@ -612,7 +614,11 @@ func (storage_server *server) SetLargeItem(stream storagepb.StorageService_SetLa
 		rqst, err = stream.Recv()
 		if err == io.EOF {
 			// end of stream...
-			stream.SendAndClose(&storagepb.SetLargeItemResponse{})
+			err_:= stream.SendAndClose(&storagepb.SetLargeItemResponse{})
+			if err_ != nil {
+				fmt.Println("fail send response and close stream with error ", err_)
+				return err_
+			}
 			break
 		} else if err != nil {
 			return err

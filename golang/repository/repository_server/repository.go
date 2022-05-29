@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"time"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -79,8 +81,12 @@ func (server *server) UploadBundle(stream repositorypb.PackageRepository_UploadB
 		msg, err := stream.Recv()
 		if err == io.EOF || len(msg.Data) == 0 {
 			// end of stream...
-			stream.SendAndClose(&repositorypb.UploadBundleResponse{
+			err_:=stream.SendAndClose(&repositorypb.UploadBundleResponse{
 			})
+			if err_ != nil {
+				fmt.Println("fail send response and close stream with error ", err_)
+				return err_
+			}
 			err = nil
 			break
 		} else if err != nil {

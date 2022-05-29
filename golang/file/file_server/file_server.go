@@ -1157,11 +1157,14 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 				}
 
 				// Close the stream...
-				stream.SendAndClose(&filepb.SaveFileResponse{
+				err_ := stream.SendAndClose(&filepb.SaveFileResponse{
 					Result: true,
 				})
 
-				return nil
+				if err_ != nil {
+					fmt.Println("fail send response and close stream with error ", err_)
+					return err_
+				}
 			} else {
 				return status.Errorf(
 					codes.Internal,

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	//"fmt"
 	"io"
@@ -628,11 +629,14 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 			}
 
 			// Close the stream...
-			stream.SendAndClose(&mailpb.SendEmailWithAttachementsRsp{
+			err_:= stream.SendAndClose(&mailpb.SendEmailWithAttachementsRsp{
 				Result: true,
 			})
 
-			return nil
+			if err_ != nil {
+				fmt.Println("fail send response and close stream with error ", err_)
+				return err_
+			}
 		}
 
 		if err != nil {
