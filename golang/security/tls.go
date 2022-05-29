@@ -135,7 +135,7 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  */
 func getCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
-	log.Println("get credential config for domain: ", domain)
+	fmt.Println("get credential config for domain: ", domain)
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 
