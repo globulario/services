@@ -353,12 +353,12 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 			err_ := stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
 				Result: true,
 			})
-			
+			fmt.Println("356")
 			if err_ != nil {
 				fmt.Println("fail send response and close stream with error ", err_)
 				return err_
 			}
-			fmt.Println("356")
+			fmt.Println("361")
 
 			err = nil
 			break
