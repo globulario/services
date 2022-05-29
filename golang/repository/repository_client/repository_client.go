@@ -358,7 +358,11 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 		}
 	}
 
-	stream.CloseAndRecv()
+	_, err = stream.CloseAndRecv()
+	if err != nil && err != io.EOF {
+		return err
+	}
+
 	return nil
 
 }
