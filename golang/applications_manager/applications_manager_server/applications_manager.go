@@ -411,10 +411,10 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	}
 	fmt.Println("---------> 410")
 	// end of stream...
-	stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
+	/*stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
 		Result: true,
-	})
-
+	})*/
+	//fmt.Println("---------> 417")
 	if len(repositoryId) == 0 {
 		repositoryId = domain
 	}
