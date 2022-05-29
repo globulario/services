@@ -348,18 +348,13 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		msg, err := stream.Recv()
 		if err == io.EOF || msg == nil || len(msg.Data) == 0 {
 			// end of stream...
-
-			fmt.Println("352")
 			err_ := stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
 				Result: true,
 			})
-			fmt.Println("356")
 			if err_ != nil {
 				fmt.Println("fail send response and close stream with error ", err_)
 				return err_
 			}
-			fmt.Println("361")
-
 			err = nil
 			break
 		} else if err != nil {
@@ -422,7 +417,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		}
 
 	}
-
+	fmt.Println("420")
 	if len(repositoryId) == 0 {
 		repositoryId = domain
 	}
@@ -431,6 +426,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		discoveryId = domain
 	}
 
+	fmt.Println("429")
 	// Retreive the actual application installed version.
 	previousVersion, _ := server.getApplicationVersion(name)
 
@@ -446,11 +442,14 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" version "+version+" was publish")
 
 	// Publish application...
+	fmt.Println("445")
 	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 	if err != nil {
+		fmt.Println("448")
 		return err
 	}
 
+	fmt.Println("452")
 	// convert struct...
 	roles_ := make([]*resourcepb.Role, len(roles))
 	for i := 0; i < len(roles); i++ {
@@ -460,6 +459,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		roles_[i].Actions = roles[i].Actions
 	}
 
+	fmt.Println("462")
 	groups_ := make([]*resourcepb.Group, len(groups))
 	for i := 0; i < len(groups); i++ {
 		groups_[i] = new(resourcepb.Group)
@@ -469,16 +469,18 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	}
 
 	// Read bytes and extract it in the current directory.
+	fmt.Println("472")
 	server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
 	r := bytes.NewReader(buffer.Bytes())
 	err = server.installApplication(domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
 	if err != nil {
+		fmt.Println("477", err)
 		return err
 	}
 
 	// If the version has change I will notify current users and undate the applications.
 	if previousVersion != version {
-
+		fmt.Println("482")
 		// Send application notification...
 		server.publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
 
@@ -490,17 +492,19 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
               </div>
             </div>
             `
-
+			fmt.Println("494")
 		return server.sendApplicationNotification(name, message)
 	}
 
+	fmt.Println("498")
 	// Set the path of the directory where the application can store files.
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
 	err = server.addResourceOwner("/applications/"+name, name, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
+		fmt.Println("503", err)
 		return err
 	}
-
+	fmt.Println("506")
 	return nil
 }
 
