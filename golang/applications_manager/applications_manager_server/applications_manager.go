@@ -436,7 +436,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		return err
 	}
 
-	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" vesion "+version+" was publish")
+	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" version "+version+" was publish")
 
 	// Publish application...
 	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)

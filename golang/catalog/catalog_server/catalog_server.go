@@ -450,7 +450,7 @@ func (svr *server) CreateConnection(ctx context.Context, rqst *catalogpb.CreateC
 		connections := persistence["Connections"].(map[string]interface{})
 
 		storeType := int32(rqst.Connection.GetStore())
-		err := svr.persistenceClient.CreateConnection(rqst.Connection.GetId(), rqst.Connection.GetName(), rqst.Connection.GetHost(), Utility.ToNumeric(rqst.Connection.Port), Utility.ToNumeric(storeType), rqst.Connection.GetUser(), rqst.Connection.GetPassword(), Utility.ToNumeric(rqst.Connection.GetTimeout()), rqst.Connection.GetOptions(), true)
+		err := svr.persistenceClient.CreateConnection(rqst.Connection.GetId(), rqst.Connection.GetName(), rqst.Connection.GetHost(), Utility.ToNumeric(rqst.Connection.Port), Utility.ToNumeric(storeType), rqst.Connection.GetUser(), rqst.Connection.GetPassword(), Utility.ToNumeric(rqst.Connection.GetTimeout()), rqst.Connection.GetOptions(), false)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
