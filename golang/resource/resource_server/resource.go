@@ -1084,7 +1084,7 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 // Application
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
-	fmt.Println("create application was called ", rqst.Application)
+	fmt.Println("-----------------> create application was called ", rqst.Application)
 	err := resource_server.save_application(rqst.Application)
 	if err != nil {
 		return nil, status.Errorf(
