@@ -26,6 +26,7 @@ import (
 	"github.com/kardianos/osext"
 
 	//"github.com/globulario/services/golang/config"
+	"github.com/fsnotify/fsnotify"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -202,7 +203,7 @@ func InitService(s Service) error {
 		path := strings.ReplaceAll(dir, "\\", "/")
 
 		if len(serviceRoot) > 0 {
-			fmt.Println("red config from ", path+"/config.json")
+			fmt.Println("read config from ", path+"/config.json")
 			s.SetConfigurationPath(path + "/config.json")
 		} else {
 
@@ -219,7 +220,6 @@ func InitService(s Service) error {
 			uuid := values[len(values)-2] // the path must be at /uuid/name_server.exe
 
 			if Utility.IsUuid(uuid) {
-				fmt.Println(221)
 				s.SetId(uuid)
 				configPath := serviceDir + "/" + uuid + "/config.json"
 				// set the service dir.
@@ -283,6 +283,7 @@ func InitService(s Service) error {
 	if len(os.Args) < 3 {
 		SaveService(s)
 	}
+
 	return nil
 }
 
@@ -479,6 +480,7 @@ func StartService(s Service, server *grpc.Server) error {
 	go func() {
 		// no web-rpc server.
 		fmt.Println("service name: "+s.GetName()+" id:"+s.GetId()+" is listening at gRPC port", s.GetPort(), "and process id is ", s.GetProcess())
+
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service has error ", err)
 			return
@@ -488,12 +490,65 @@ func StartService(s Service, server *grpc.Server) error {
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
+
+	/**
+	Every breath you take
+	And every change you make
+	Every bond you break
+	Every step you take
+	I'll be watching you
+	*/
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal("NewWatcher failed: ", err)
+	}
+	defer watcher.Close()
+
+	go func() {
+
+		defer close(ch)
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+
+				if event.Op == fsnotify.Write {
+					// renit the service...
+					config_, err := config_client.GetServiceConfigurationById(s.GetConfigurationPath())
+					if err != nil {
+						fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+					} else {
+						// update values...
+						s.SetPort(Utility.ToInt(config_["Port"]))
+						s.SetProxy(Utility.ToInt(config_["Proxy"]))
+						s.SetProcess(Utility.ToInt(config_["Process"]))
+						s.SetProxyProcess(Utility.ToInt(config_["ProxyProcess"]))
+					}
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				fmt.Println("error:", err)
+			}
+		}
+
+	}()
+
+	// watch for configuration change
+	err = watcher.Add(s.GetConfigurationPath())
+	if err != nil {
+		log.Fatal("Add failed:", err)
+	}
+
 	<-ch
 
 	fmt.Println("stop service name: ", s.GetName()+":"+s.GetId())
 	server.Stop() // I kill it but not softly...
 
-	//	pprof.StopCPUProfile()
 	s.SetState("stopped")
 	s.SetProcess(-1)
 	s.SetLastError("")

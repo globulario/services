@@ -387,13 +387,13 @@ func (server *server) SaveServiceConfig(ctx context.Context, rqst *services_mana
 	}
 
 	// Stop and start the services
+	// here I will use brut force by restarting the service itself...
 	err = server.stopServiceInstance(s["Id"].(string))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	err = server.startServiceInstance(s["Id"].(string))
 	if err != nil {

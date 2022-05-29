@@ -20,6 +20,7 @@ require (
 	github.com/emersion/go-message v0.14.1
 	github.com/emersion/go-smtp v0.15.0
 	github.com/emicklei/proto v1.9.0
+	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-ldap/ldap/v3 v3.3.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/golang/protobuf v1.5.2

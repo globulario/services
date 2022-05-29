@@ -692,10 +692,13 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 //
 ////////////////////////////////////////////////////////////////////////////////////
 func DeletePublicKey(id string) error {
-	_, err := os.ReadFile(keyPath + "/" + id + "_public")
-	if err != nil {
-		return err
+	id = strings.ReplaceAll(id, ":", "_")
+	if !Utility.Exists(keyPath + "/" + id + "_public"){
+		fmt.Println("public key", keyPath + "/" + id + "_public dosen't exist!")
+		return nil
 	}
+	
+	fmt.Println("delete public key", keyPath + "/" + id + "_public")
 
 	return os.Remove(keyPath + "/" + id + "_public")
 }
