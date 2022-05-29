@@ -436,9 +436,10 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	err := ioutil.WriteFile(path, buffer.Bytes(), 0644)
 	if err != nil {
+		fmt.Println("439")
 		return err
 	}
-
+	fmt.Println("441")
 	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" version "+version+" was publish")
 
 	// Publish application...
