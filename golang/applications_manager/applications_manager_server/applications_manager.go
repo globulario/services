@@ -481,7 +481,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// Read bytes and extract it in the current directory.
 	fmt.Println("472")
-	//server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
+	server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
 	r := bytes.NewReader(buffer.Bytes())
 	err = server.installApplication(domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
 	if err != nil {
