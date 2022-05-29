@@ -353,6 +353,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 			err_ := stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
 				Result: true,
 			})
+			
 			if err_ != nil {
 				fmt.Println("fail send response and close stream with error ", err_)
 				return err_
