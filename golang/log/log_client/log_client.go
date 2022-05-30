@@ -257,7 +257,6 @@ func (client *Log_Client) Log(application string, user string, method string, le
 
 	rqst.Info = info
 	rqst.Occurence = occurence                
-	fmt.Println("Log application infos 261 ", info)
 	_, err := client.c.Log(client.GetCtx(), rqst)
 
 	fmt.Println(application, user, method, level, message)

@@ -1000,18 +1000,15 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 
 func (resource_server *server) save_application(app *resourcepb.Application) error {
 
-	fmt.Println("save application 1003 ressource.go")
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("save application 1009 ressource.go")
 	if app == nil {
 		return errors.New("no application object was given in the request")
 	}
 
-	fmt.Println("save application 1014 ressource.go")
 	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+app.Id+`"}`, "")
 
 	application := make(map[string]interface{}, 0)
@@ -1069,14 +1066,11 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	// Create the application file directory.
 	path := "/applications/" + app.Name
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-	fmt.Println("save application 1072 ressource.go")
 	resource_server.addResourceOwner(path, app.Name, rbacpb.SubjectType_APPLICATION)
 
 	// Publish application.
-	fmt.Println("publish event 1076 ressource.go")
 	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
 
-	fmt.Println("publish event 1079 ressource.go")
 	return nil
 }
 
@@ -1084,7 +1078,6 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 // Application
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
-	fmt.Println("-----------------> create application was called ", rqst.Application)
 	err := resource_server.save_application(rqst.Application)
 	if err != nil {
 		return nil, status.Errorf(
@@ -1473,17 +1466,16 @@ func getLocalPeer()*resourcepb.Peer {
 // running at domain.
 func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
-	fmt.Println("---------> connect to client at address", address)
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
-		fmt.Println("---------> fail to connect with client with error ", err)
+		fmt.Println("fail to connect with client with error ", err)
 		return nil, "", err
 	}
 
 	// get the local public key.
 	key, err := security.GetLocalKey()
 	if err != nil {
-		fmt.Println("---------> fail to get local key with error ", err)
+		fmt.Println("fail to get local key with error ", err)
 		return nil, "", err
 	}
 
@@ -1498,7 +1490,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	protocol := localConfig["Protocol"].(string)
 
 	if err != nil {
-		fmt.Println("---------> fail to get local config ", err)
+		fmt.Println("fail to get local config ", err)
 		return nil, "", err
 	}
 
@@ -1508,7 +1500,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 
 //* Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
-	fmt.Println("---------> Register Peer call received...")
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1520,7 +1512,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
 	if len(rqst.Peer.Mac) > 0 {
-		fmt.Println("---------> Test if peer exit: ", rqst.Peer.Mac)
 		values, _ := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
 		if values != nil {
 			p := initPeer(values)
