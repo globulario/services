@@ -427,7 +427,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		}
 
 	}
-	fmt.Println("420")
+
 	if len(repositoryId) == 0 {
 		repositoryId = domain
 	}
@@ -436,7 +436,6 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		discoveryId = domain
 	}
 
-	fmt.Println("429")
 	// Retreive the actual application installed version.
 	previousVersion, _ := server.getApplicationVersion(name)
 
@@ -446,21 +445,17 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	err := ioutil.WriteFile(path, buffer.Bytes(), 0644)
 	if err != nil {
-		fmt.Println("439")
 		return err
 	}
-	fmt.Println("441")
+
 	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" version "+version+" was publish")
 
 	// Publish application...
-	fmt.Println("445")
 	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 	if err != nil {
-		fmt.Println("448")
 		return err
 	}
 
-	fmt.Println("452")
 	// convert struct...
 	roles_ := make([]*resourcepb.Role, len(roles))
 	for i := 0; i < len(roles); i++ {
@@ -482,8 +477,10 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	// Read bytes and extract it in the current directory.
 	fmt.Println("472")
 	server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
+	fmt.Println("473")
 	r := bytes.NewReader(buffer.Bytes())
 	err = server.installApplication(domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
+	fmt.Println("474")
 	if err != nil {
 		fmt.Println("477", err)
 		return err

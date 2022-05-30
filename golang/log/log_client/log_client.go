@@ -5,8 +5,8 @@ import (
 
 	"context"
 	"errors"
+	"fmt"
 	"io"
-	"log"
 	"time"
 
 	"github.com/globulario/services/golang/config/config_client"
@@ -256,11 +256,11 @@ func (client *Log_Client) Log(application string, user string, method string, le
 	info.Message = message
 
 	rqst.Info = info
-	rqst.Occurence = occurence
-
+	rqst.Occurence = occurence                
+	fmt.Println("Log application infos 261 ", info)
 	_, err := client.c.Log(client.GetCtx(), rqst)
 
-	log.Println(application, user, method, level, message)
+	fmt.Println(application, user, method, level, message)
 
 	return err
 }
