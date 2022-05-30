@@ -1449,6 +1449,25 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 ////////////////////////////////////////////////////////////////////////////////
 // Peer's Authorization and Authentication code.
 ////////////////////////////////////////////////////////////////////////////////
+func getLocalPeer()*resourcepb.Peer {
+	// Now I will return peers actual informations.
+	hostname, _ := os.Hostname()
+	domain, _ := config.GetDomain()
+	localConfig, _ := config.GetLocalConfig(true)
+
+	local_peer_ := new(resourcepb.Peer)
+	local_peer_.Protocol = localConfig["Protocol"].(string)
+	local_peer_.PortHttp = int32(Utility.ToInt(localConfig["PortHttp"]))
+	local_peer_.PortHttps = int32(Utility.ToInt(localConfig["PortHttps"]))
+	local_peer_.Hostname = hostname
+	local_peer_.Domain = domain
+	local_peer_.ExternalIpAddress = Utility.MyIP()
+	local_peer_.LocalIpAddress = Utility.MyLocalIP()
+	local_peer_.Mac, _ = Utility.MyMacAddr(local_peer_.LocalIpAddress)
+	local_peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
+
+	return local_peer_
+}
 
 // Register the actual peer (the one that running the resource server) to the one
 // running at domain.
@@ -1525,6 +1544,10 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
 
+
+	
+	var marshaler jsonpb.Marshaler
+
 	// If no mac address was given it mean the request came from a web application
 	// so the intention is to register the server itself on another server...
 	// This can also be done with the command line tool but in that case all values will be
@@ -1539,7 +1562,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			} else {
 				address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 			}
-			fmt.Println("---------> register peer at address ", address_)
 
 			// In that case I want to register the server to another server.
 			peer_, public_key, err := resource_server.registerPeer(token, address_)
@@ -1600,8 +1622,14 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			// but no other peer will be able to do it...
 			resource_server.addResourceOwner(domain, peer_.Mac, rbacpb.SubjectType_PEER)
 
+			jsonStr, err := marshaler.MarshalToString(peer_)
+			if err != nil {
+				return nil, err
+			}
+
 			// Update peer event.
-			resource_server.publishEvent("update_peers_evt", []byte{})
+			resource_server.publishEvent("update_peers_evt", []byte(jsonStr))
+
 			address := rqst.Peer.Domain
 			if rqst.Peer.Protocol == "https" {
 				address += ":" + Utility.ToString(rqst.Peer.PortHttps)
@@ -1609,7 +1637,15 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 				address += ":" + Utility.ToString(rqst.Peer.PortHttp)
 			}
 
-			resource_server.publishRemoteEvent(address, "update_peers_evt", []byte{})
+			// So here I need to publish my information as a pee
+
+			// Publish local peer information...
+			jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+			if err != nil {
+				return nil, err
+			}
+
+			resource_server.publishRemoteEvent(address, "update_peers_evt", []byte(jsonStr))
 
 			// Set peer action
 			resource_server.addPeerActions(peer_.Mac, []string{"/dns.DnsService/SetA"})
@@ -1629,7 +1665,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		}
 	}
 
-	// Here I will keep the peer info bethween it will be accepted by the admin of the other peer.
+	// Here I will keep the peer info until it will be accepted by the admin of the other peer.
 	peer["_id"] = Utility.GenerateUUID(rqst.Peer.Mac)
 	peer["mac"] = rqst.Peer.Mac
 	peer["protocol"] = rqst.Peer.Protocol
@@ -1679,32 +1715,20 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Now I will return peers actual informations.
-	hostname, _ := os.Hostname()
-	domain, _ := config.GetDomain()
-	localConfig, _ := config.GetLocalConfig(true)
-
-	peer_ := new(resourcepb.Peer)
-	peer_.Protocol = localConfig["Protocol"].(string)
-	peer_.PortHttp = int32(Utility.ToInt(localConfig["PortHttp"]))
-	peer_.PortHttps = int32(Utility.ToInt(localConfig["PortHttps"]))
-	peer_.Hostname = hostname
-	peer_.Domain = domain
-	peer_.ExternalIpAddress = Utility.MyIP()
-	peer_.LocalIpAddress = Utility.MyLocalIP()
-	peer_.Mac, _ = Utility.MyMacAddr(peer_.LocalIpAddress)
-	peer_.State = resourcepb.PeerApprovalState_PEER_PENDING
-
 	// actions will need to be set by admin latter...
-	pubKey, err := security.GetPeerKey(peer_.Mac)
+	pubKey, err := security.GetPeerKey(getLocalPeer().Mac)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
+	if err != nil {
+		return nil, err
+	}
 	// signal peers changes...
-	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishEvent("update_peers_evt", []byte(jsonStr))
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -1713,13 +1737,17 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 	}
 
-	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte{})
+	jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+	if err != nil {
+		return nil, err
+	}
+	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
 
 	// set the remote peer in /etc/hosts
-	resource_server.setLocalHosts(peer_)
+	resource_server.setLocalHosts(getLocalPeer())
 
 	return &resourcepb.RegisterPeerRsp{
-		Peer:      peer_,
+		Peer:      getLocalPeer(),
 		PublicKey: string(pubKey),
 	}, nil
 }
@@ -1772,9 +1800,13 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	// in case local dns is use that peers will be able to change values releated to it domain.
 	// but no other peer will be able to do it...
 	resource_server.addResourceOwner(domain, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
-
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
+	if err != nil {
+		return nil, err
+	}
 	// signal peers changes...
-	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishEvent("update_peers_evt", []byte(jsonStr))
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -1783,7 +1815,11 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 	}
 
-	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte{})
+	jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+	if err != nil {
+		return nil, err
+	}
+	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
 
 	return &resourcepb.AcceptPeerRsp{Result: true}, nil
 }
@@ -1807,8 +1843,14 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
+	if err != nil {
+		return nil, err
+	}
+
 	// signal peers changes...
-	resource_server.publishEvent("update_peers_evt", []byte{})
+	resource_server.publishEvent("update_peers_evt", []byte(jsonStr))
 
 	address_ := rqst.Peer.Domain
 	if rqst.Peer.Protocol == "https" {
@@ -1816,7 +1858,12 @@ func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.
 	} else {
 		address_ += ":" + Utility.ToString(rqst.Peer.PortHttp)
 	}
-	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte{})
+
+	jsonStr, err = marshaler.MarshalToString(getLocalPeer())
+	if err != nil {
+		return nil, err
+	}
+	resource_server.publishRemoteEvent(address_, "update_peers_evt", []byte(jsonStr))
 
 	return &resourcepb.RejectPeerRsp{Result: true}, nil
 }
