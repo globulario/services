@@ -806,9 +806,6 @@ func main() {
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[1] =  map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
-	// Set the permissions
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))
-
 	// Open the connetion with the store.
 	Utility.CreateDirIfNotExist(s_impl.Root + "/blogs")
 	s_impl.store.Open(`{"path":"` + s_impl.Root + "/blogs" + `", "name":"index"}`)

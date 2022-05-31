@@ -433,22 +433,22 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
 	return resourceClient, nil
 }
 
-func (svr *server) deleteApplication(applicationId string) error {
+func (svr *server) deleteApplication(token, applicationId string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
 
-	return resourceClient.DeleteApplication(applicationId)
+	return resourceClient.DeleteApplication(token, applicationId)
 }
 
-func (svr *server) createApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (svr *server) createApplication(token, id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
 
-	return resourceClient.CreateApplication(id, password, path, publisherId, version, description, alias, icon, actions, keywords)
+	return resourceClient.CreateApplication(token, id, password, path, publisherId, version, description, alias, icon, actions, keywords)
 
 }
 
@@ -474,21 +474,21 @@ func (svr *server) getApplication(id string) (*resourcepb.Application, error) {
 	return applications[0], nil
 }
 
-func (svr *server) createRole(id, name string, actions []string) error {
+func (svr *server) createRole(token, id, name string, actions []string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
 
-	return resourceClient.CreateRole(id, name, actions)
+	return resourceClient.CreateRole(token, id, name, actions)
 }
 
-func (svr *server) createGroup(id, name, description string) error {
+func (svr *server) createGroup(token, id, name, description string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
-	return resourceClient.CreateGroup(id, name, description)
+	return resourceClient.CreateGroup(token, id, name, description)
 }
 
 func (svr *server) createNotification(notification *resourcepb.Notification) error {
@@ -663,8 +663,6 @@ func main() {
 	// The user must part of owner in order to be able to deploy an application...
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/applications_manager.ApplicationManagerService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 
-	// Set the permissions
-	s_impl.setActionResourcesPermissions(s_impl.Permissions[0].(map[string]interface{}))
 
 	// Start the service.
 	s_impl.StartService()

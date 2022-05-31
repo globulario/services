@@ -254,7 +254,7 @@ func (client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.Packa
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new Organization
-func (client *Resource_Client) CreateOrganization(id string, name string, email string, description string, icon string) error {
+func (client *Resource_Client) CreateOrganization(token, id, name, email, description, icon string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.CreateOrganizationRqst{
@@ -267,26 +267,32 @@ func (client *Resource_Client) CreateOrganization(id string, name string, email 
 		},
 	}
 
-	_, err := client.c.CreateOrganization(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.CreateOrganization(ctx, rqst)
 	return err
 
 }
 
 // Create a new Organization
-func (client *Resource_Client) DeleteOrganization(id string) error {
+func (client *Resource_Client) DeleteOrganization(token, id string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.DeleteOrganizationRqst{
 		Organization: id,
 	}
-
-	_, err := client.c.DeleteOrganization(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+	_, err := client.c.DeleteOrganization(ctx, rqst)
 	return err
 
 }
 
 // Add to Organisation...
-func (client *Resource_Client) AddOrganizationAccount(organisationId string, accountId string) error {
+func (client *Resource_Client) AddOrganizationAccount(token, organisationId, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationAccountRqst{
@@ -294,11 +300,15 @@ func (client *Resource_Client) AddOrganizationAccount(organisationId string, acc
 		AccountId:      accountId,
 	}
 
-	_, err := client.c.AddOrganizationAccount(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.AddOrganizationAccount(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) AddOrganizationRole(organisationId string, roleId string) error {
+func (client *Resource_Client) AddOrganizationRole(token, organisationId, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationRoleRqst{
@@ -306,11 +316,15 @@ func (client *Resource_Client) AddOrganizationRole(organisationId string, roleId
 		RoleId:         roleId,
 	}
 
-	_, err := client.c.AddOrganizationRole(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.AddOrganizationRole(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) AddOrganizationGroup(organisationId string, groupId string) error {
+func (client *Resource_Client) AddOrganizationGroup(token, organisationId, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationGroupRqst{
@@ -318,11 +332,15 @@ func (client *Resource_Client) AddOrganizationGroup(organisationId string, group
 		GroupId:        groupId,
 	}
 
-	_, err := client.c.AddOrganizationGroup(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.AddOrganizationGroup(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) AddOrganizationApplication(organisationId string, applicationId string) error {
+func (client *Resource_Client) AddOrganizationApplication(token, organisationId, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationApplicationRqst{
@@ -330,13 +348,17 @@ func (client *Resource_Client) AddOrganizationApplication(organisationId string,
 		ApplicationId:  applicationId,
 	}
 
-	_, err := client.c.AddOrganizationApplication(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.AddOrganizationApplication(ctx, rqst)
 	return err
 }
 
 // Remove from organization
 
-func (client *Resource_Client) RemoveOrganizationAccount(organisationId string, accountId string) error {
+func (client *Resource_Client) RemoveOrganizationAccount(token, organisationId, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationAccountRqst{
@@ -344,11 +366,15 @@ func (client *Resource_Client) RemoveOrganizationAccount(organisationId string, 
 		AccountId:      accountId,
 	}
 
-	_, err := client.c.RemoveOrganizationAccount(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.RemoveOrganizationAccount(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) RemoveOrganizationRole(organisationId string, roleId string) error {
+func (client *Resource_Client) RemoveOrganizationRole(token, organisationId, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationRoleRqst{
@@ -356,11 +382,15 @@ func (client *Resource_Client) RemoveOrganizationRole(organisationId string, rol
 		RoleId:         roleId,
 	}
 
-	_, err := client.c.RemoveOrganizationRole(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.RemoveOrganizationRole(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) RemoveOrganizationGroup(organisationId string, groupId string) error {
+func (client *Resource_Client) RemoveOrganizationGroup(token, organisationId, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationGroupRqst{
@@ -368,11 +398,15 @@ func (client *Resource_Client) RemoveOrganizationGroup(organisationId string, gr
 		GroupId:        groupId,
 	}
 
-	_, err := client.c.RemoveOrganizationGroup(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.RemoveOrganizationGroup(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) RemoveOrganizationApplication(organisationId string, applicationId string) error {
+func (client *Resource_Client) RemoveOrganizationApplication(token, organisationId, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationApplicationRqst{
@@ -380,7 +414,11 @@ func (client *Resource_Client) RemoveOrganizationApplication(organisationId stri
 		ApplicationId:  applicationId,
 	}
 
-	_, err := client.c.RemoveOrganizationApplication(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.RemoveOrganizationApplication(ctx, rqst)
 	return err
 }
 
@@ -508,6 +546,7 @@ func (client *Resource_Client) AddAccountRole(accountId string, roleId string) e
 		AccountId: accountId,
 		RoleId:    roleId,
 	}
+
 	_, err := client.c.AddAccountRole(client.GetCtx(), rqst)
 
 	return err
@@ -591,44 +630,57 @@ func (client *Resource_Client) UpdateSession(session *resourcepb.Session) error 
 /**
  * Create a new group.
  */
-func (client *Resource_Client) CreateGroup(id string, name string, description string) error {
+func (client *Resource_Client) CreateGroup(token, id, name, description string) error {
 	rqst := new(resourcepb.CreateGroupRqst)
 	g := new(resourcepb.Group)
 	g.Name = name
 	g.Id = id
 	g.Description = description
 	rqst.Group = g
-	ctx := client.GetCtx()
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token)})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
 	_, err := client.c.CreateGroup(ctx, rqst)
 
 	return err
 }
 
-func (client *Resource_Client) AddGroupMemberAccount(groupId string, accountId string) error {
+func (client *Resource_Client) AddGroupMemberAccount(token, groupId, accountId string) error {
 	rqst := new(resourcepb.AddGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
 
-	ctx := client.GetCtx()
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
 	_, err := client.c.AddGroupMemberAccount(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) DeleteGroup(groupId string) error {
+func (client *Resource_Client) DeleteGroup(token, groupId string) error {
 	rqst := new(resourcepb.DeleteGroupRqst)
 	rqst.Group = groupId
 
-	ctx := client.GetCtx()
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
 	_, err := client.c.DeleteGroup(ctx, rqst)
 	return err
 }
 
-func (client *Resource_Client) RemoveGroupMemberAccount(groupId string, accountId string) error {
+func (client *Resource_Client) RemoveGroupMemberAccount(token, groupId, accountId string) error {
 	rqst := new(resourcepb.RemoveGroupMemberAccountRqst)
 	rqst.AccountId = accountId
 	rqst.GroupId = groupId
 
-	ctx := client.GetCtx()
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
 	_, err := client.c.RemoveGroupMemberAccount(ctx, rqst)
 	return err
 }
@@ -675,14 +727,18 @@ func (client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, err
 /**
  * Create a new role with given action list.
  */
-func (client *Resource_Client) CreateRole(id string, name string, actions []string) error {
+func (client *Resource_Client) CreateRole(token, id, name string, actions []string) error {
 	rqst := new(resourcepb.CreateRoleRqst)
 	role := new(resourcepb.Role)
 	role.Id = id
 	role.Name = name
 	role.Actions = actions
 	rqst.Role = role
-	_, err := client.c.CreateRole(client.GetCtx(), rqst)
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+	_, err := client.c.CreateRole(ctx, rqst)
 
 	return err
 }
@@ -966,12 +1022,17 @@ func (client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error
 /**
  * Add a action to a given application.
  */
-func (client *Resource_Client) AddApplicationActions(applicationId string, actions []string) error {
+func (client *Resource_Client) AddApplicationActions(token, applicationId string, actions []string) error {
 	rqst := &resourcepb.AddApplicationActionsRqst{
 		ApplicationId: applicationId,
 		Actions:       actions,
 	}
-	_, err := client.c.AddApplicationActions(client.GetCtx(), rqst)
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.AddApplicationActions(ctx, rqst)
 
 	return err
 }
@@ -979,12 +1040,17 @@ func (client *Resource_Client) AddApplicationActions(applicationId string, actio
 /**
  * Remove action from a given application.
  */
-func (client *Resource_Client) RemoveApplicationAction(applicationId string, action string) error {
+func (client *Resource_Client) RemoveApplicationAction(token, applicationId, action string) error {
 	rqst := &resourcepb.RemoveApplicationActionRqst{
 		ApplicationId: applicationId,
 		Action:        action,
 	}
-	_, err := client.c.RemoveApplicationAction(client.GetCtx(), rqst)
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.RemoveApplicationAction(ctx, rqst)
 
 	return err
 }
@@ -992,11 +1058,16 @@ func (client *Resource_Client) RemoveApplicationAction(applicationId string, act
 /**
  * Remove action from a given application.
  */
-func (client *Resource_Client) RemoveApplicationsAction(action string) error {
+func (client *Resource_Client) RemoveApplicationsAction(token, action string) error {
 	rqst := &resourcepb.RemoveApplicationsActionRqst{
 		Action: action,
 	}
-	_, err := client.c.RemoveApplicationsAction(client.GetCtx(), rqst)
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.RemoveApplicationsAction(ctx, rqst)
 
 	return err
 }
@@ -1036,12 +1107,16 @@ func (client *Resource_Client) GetApplications(query string) ([]*resourcepb.Appl
 /**
  * Delete a given application
  */
-func (client *Resource_Client) DeleteApplication(id string) error {
+func (client *Resource_Client) DeleteApplication(token, id string) error {
 	rqst := &resourcepb.DeleteApplicationRqst{
 		ApplicationId: id,
 	}
 
-	_, err := client.c.DeleteApplication(client.GetCtx(), rqst)
+		// set the token in the context...
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+		ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+	
+	_, err := client.c.DeleteApplication(ctx, rqst)
 	if err != nil {
 		return err
 	}
@@ -1052,7 +1127,7 @@ func (client *Resource_Client) DeleteApplication(id string) error {
 /**
  * Create an application descriptor...
  */
-func (client *Resource_Client) CreateApplication(id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (client *Resource_Client) CreateApplication(token, id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
 	rqst := &resourcepb.CreateApplicationRqst{
 		Application: &resourcepb.Application{
 			Id:          id,
@@ -1067,7 +1142,11 @@ func (client *Resource_Client) CreateApplication(id, password, path, publisherId
 		},
 	}
 
-	_, err := client.c.CreateApplication(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "application": id, "domain": client.domain, "organization": publisherId})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.CreateApplication(ctx, rqst)
 	if err != nil {
 		return err
 	}

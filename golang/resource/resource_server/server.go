@@ -577,18 +577,6 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return rbac_client_, nil
 }
 
-func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
-	var err error
-	rbac_client_, err = GetRbacClient(svr.Address)
-	if err != nil {
-		return err
-	}
-
-	err = rbac_client_.SetActionResourcesPermissions(permissions)
-
-	return err
-}
-
 func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
@@ -1107,7 +1095,6 @@ func main() {
 	s_impl.Permissions[20] = map[string]interface{}{"action": "/resource.ResourceService/AddApplicationActions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 	s_impl.Permissions[21] = map[string]interface{}{"action": "/resource.ResourceService/RemoveApplicationAction", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 	s_impl.Permissions[22] = map[string]interface{}{"action": "/resource.ResourceService/RemoveApplicationsAction", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
-
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number

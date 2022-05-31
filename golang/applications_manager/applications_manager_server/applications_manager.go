@@ -28,6 +28,7 @@ import (
 
 	//"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/metadata"
 )
 
 // Uninstall application...
@@ -38,8 +39,16 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 		/** TODO remove applicaiton permissions...*/
 	}
 
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) == 0 {
+			return nil, errors.New("no token was given")
+		}
+	}
+
 	// Same as delete applicaitons.
-	err := server.deleteApplication(rqst.ApplicationId)
+	err := server.deleteApplication(token, rqst.ApplicationId)
 	if err != nil {
 		return nil,
 			status.Errorf(
@@ -56,19 +65,19 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 }
 
 // Install local package. found in the local directory...
-func (server *server) installLocalApplicationPackage(domain, applicationId, publisherId, version string) error {
+func (server *server) installLocalApplicationPackage(token, domain, applicationId, publisherId, version string) error {
 
 	path := config.GetRootDir() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
 
-	// so here I will try find package from the directory 
+	// so here I will try find package from the directory
 	if len(version) == 0 {
-		files, err := ioutil.ReadDir(config.GetRootDir() + "/applications" )
+		files, err := ioutil.ReadDir(config.GetRootDir() + "/applications")
 		if err != nil {
 			return err
 		}
-	
+
 		for _, file := range files {
-			if strings.Contains(file.Name(), applicationId) && strings.Contains(file.Name(), publisherId){
+			if strings.Contains(file.Name(), applicationId) && strings.Contains(file.Name(), publisherId) {
 				path = config.GetRootDir() + "/applications/" + file.Name()
 			}
 		}
@@ -136,7 +145,7 @@ func (server *server) installLocalApplicationPackage(domain, applicationId, publ
 		groups := make([]*resourcepb.Group, 0)
 
 		// Now I will install the applicaiton.
-		err = server.installApplication(domain, descriptor["id"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
+		err = server.installApplication(token, domain, descriptor["id"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
 		if err != nil {
 			return err
 		}
@@ -149,8 +158,15 @@ func (server *server) installLocalApplicationPackage(domain, applicationId, publ
 
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) == 0 {
+			return nil, errors.New("no token was given")
+		}
+	}
 
-	err := server.installLocalApplicationPackage(rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
+	err := server.installLocalApplicationPackage(token, rqst.Domain, rqst.ApplicationId, rqst.PublisherId, rqst.Version)
 	if err == nil {
 		fmt.Println("application", rqst.ApplicationId, "was install localy...")
 		return &applications_managerpb.InstallApplicationResponse{
@@ -204,7 +220,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		r := bytes.NewReader(bundle.Binairies)
 
 		// Now I will install the applicaiton.
-		err = server.installApplication(rqst.Domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
+		err = server.installApplication(token, rqst.Domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -220,7 +236,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 }
 
 // Intall
-func (server *server) installApplication(domain, name, publisherId, version, description string, icon string, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
+func (server *server) installApplication(token, domain, name, publisherId, version, description string, icon string, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
@@ -264,7 +280,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	Utility.CreateDirIfNotExist(abosolutePath)
 	Utility.CopyDir(__extracted_path__+"/.", abosolutePath)
 
-	err = server.createApplication(name, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
+	err = server.createApplication(token, name, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
 	if err != nil {
 		return err
 	}
@@ -272,7 +288,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	// Now I will create/update roles define in the application descriptor...
 	for i := 0; i < len(roles); i++ {
 		role := roles[i]
-		err = server.createRole(role.Id, role.Name, role.Actions)
+		err = server.createRole(token, role.Id, role.Name, role.Actions)
 		if err != nil {
 			log.Println("fail to create role "+role.Id, "with error:", err)
 		}
@@ -280,7 +296,7 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 
 	for i := 0; i < len(groups); i++ {
 		group := groups[i]
-		err = server.createGroup(group.Id, group.Name, group.Description)
+		err = server.createGroup(token, group.Id, group.Name, group.Description)
 		if err != nil {
 			log.Println("fail to create group "+group.Id, "with error:", err)
 		}
@@ -320,6 +336,13 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 func (server *server) DeployApplication(stream applications_managerpb.ApplicationManagerService_DeployApplicationServer) error {
 
 	// - Get the information from the package.json (npm package, the version, the keywords and set the package descriptor with it.
+	var token string
+	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) == 0 {
+			return errors.New("no token was given")
+		}
+	}
 
 	// The bundle will cantain the necessary information to install the service.
 	var buffer bytes.Buffer
@@ -463,7 +486,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	// Read bytes and extract it in the current directory.
 	server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
 	r := bytes.NewReader(buffer.Bytes())
-	err = server.installApplication(domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
+	err = server.installApplication(token, domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
 	if err != nil {
 		return err
 	}

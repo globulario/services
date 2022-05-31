@@ -129,7 +129,7 @@ func (client *Applications_Manager_Client) GetCtx() context.Context {
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
-		client.ctx = metadata.NewOutgoingContext(context.Background(), md)
+		client.ctx = metadata.NewOutgoingContext(client.GetCtx(), md)
 	}
 	return client.ctx
 }
@@ -264,7 +264,7 @@ func (client *Applications_Manager_Client) InstallApplication(token string, doma
 		if len(md.Get("token")) != 0 {
 			md.Set("token", token)
 		}
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
 
 	_, err := client.c.InstallApplication(ctx, rqst)
@@ -290,7 +290,7 @@ func (client *Applications_Manager_Client) UninstallApplication(token string, do
 		if len(md.Get("token")) != 0 {
 			md.Set("token", token)
 		}
-		ctx = metadata.NewOutgoingContext(context.Background(), md)
+		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
 
 	_, err := client.c.UninstallApplication(ctx, rqst)
@@ -431,7 +431,7 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 
 	// Set the token into the context and send the request.
 	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "organization": organization, "user": user})
-	ctx := metadata.NewOutgoingContext(context.Background(), md)
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
 
 	// Open the stream...
 	stream, err := client.c.DeployApplication(ctx)

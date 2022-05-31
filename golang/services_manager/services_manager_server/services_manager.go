@@ -24,12 +24,22 @@ import (
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // Uninstall a service...
 func (server *server) UninstallService(ctx context.Context, rqst *services_managerpb.UninstallServiceRequest) (*services_managerpb.UninstallServiceResponse, error) {
-	err := server.uninstallService(rqst.PublisherId, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
+
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) == 0 {
+			return nil, errors.New("no token was given")
+		}
+	}
+
+	err := server.uninstallService(token, rqst.PublisherId, rqst.ServiceId, rqst.Version, rqst.DeletePermissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -43,7 +53,7 @@ func (server *server) UninstallService(ctx context.Context, rqst *services_manag
 
 // Install/Update a service on globular instance.
 // file postinst, postrm, preinst, postinst
-func (server *server) installService(descriptor *resourcepb.PackageDescriptor) error {
+func (server *server) installService(token string, descriptor *resourcepb.PackageDescriptor) error {
 	// repository must exist...
 	if len(descriptor.Repositories) == 0 {
 		return errors.New("No service repository was found for service " + descriptor.Id)
@@ -62,7 +72,7 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 			previous, _ := config_client.GetServiceConfigurationById(descriptor.Id)
 			if previous != nil {
 				// Uninstall the previous version...
-				server.uninstallService(descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
+				server.uninstallService(token, descriptor.PublisherId, descriptor.Id, descriptor.Version, false)
 			}
 
 			// Create the file.
@@ -170,6 +180,13 @@ func (server *server) installService(descriptor *resourcepb.PackageDescriptor) e
 
 // Install/Update a service on globular instance.
 func (server *server) InstallService(ctx context.Context, rqst *services_managerpb.InstallServiceRequest) (*services_managerpb.InstallServiceResponse, error) {
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) == 0 {
+			return nil, errors.New("no token was given")
+		}
+	}
 
 	// Connect to the dicovery services
 	resource_client_, err := resource_client.NewResourceService_Client(rqst.DicorveryId, "resource.ResourceService")
@@ -189,7 +206,7 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 
 	// The first element in the array is the most recent descriptor
 	// so if no version is given the most recent will be taken.
-	err = server.installService(descriptor)
+	err = server.installService(token, descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

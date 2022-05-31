@@ -1877,6 +1877,30 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
+//////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
+/**
+ * Get the rbac client.
+ */
+ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
+	var err error
+	if rbac_client_ == nil {
+		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return rbac_client_, nil
+}
+
+func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
+	rbac_client_, err := GetRbacClient(server.Address)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.SetActionResourcesPermissions(permissions)
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {

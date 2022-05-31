@@ -153,6 +153,7 @@ func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, er
 
 func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
 
+	fmt.Println("validate action: ", method, subject, infos)
 	id := address + method + token
 	for i := 0; i < len(infos); i++ {
 		id += infos[i].Permission + infos[i].Path
@@ -197,7 +198,7 @@ func validateAction(token, application, address, organization, method, subject s
 func validateActionRequest(token string, application string, organization string, rqst interface{}, method string, subject string, subjectType rbacpb.SubjectType, domain string) (bool, error) {
 
 	infos, err := getActionResourceInfos(domain, method)
-
+	fmt.Println("validate action request ", method, subject, infos)
 	if err != nil {
 		infos = make([]*rbacpb.ResourceInfos, 0)
 	} else {
@@ -263,26 +264,37 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Set the list of restricted method here...
 	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" {
-		hasAccess = true
+		hasAccess = false
 	}
 
 	var clientId string
 	var err error
 	var issuer string
-
+	
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
 		if err != nil && !hasAccess {
+			fmt.Println("--------> validate token fail with error ", err)
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
-
 		clientId = claims.Id
 		issuer = claims.Issuer
 	}
 
 	// Test if peer has access
+	if method != "/rbac.RbacService/GetActionResourceInfos" {
+		
+		infos, err := getActionResourceInfos(address, method)
+		if err == nil && infos != nil {
+			hasAccess = false
+		}
+
+		fmt.Println("--------> method call ", infos, method, err)
+	}
+
 	if !hasAccess && len(clientId) > 0 {
+
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, address)
 	}
 
@@ -327,7 +339,6 @@ type ServerStreamInterceptorStream struct {
 
 func (l ServerStreamInterceptorStream) SetHeader(m metadata.MD) error {
 
-
 	return l.inner.SetHeader(m)
 }
 
@@ -349,7 +360,6 @@ func (l ServerStreamInterceptorStream) SendMsg(rqst interface{}) error {
 
 	return l.inner.SendMsg(rqst)
 }
-
 
 /**
  * Here I will wrap the original stream into this one to get access to the original
@@ -400,7 +410,6 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	return nil
 }
 
-
 // Stream interceptor.
 func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 
@@ -409,8 +418,8 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 	var application string
 
 	// The peer domain.
-	var domain string      // This is the target domain, the one use in TLS certificate.
-	var address string     // the address if the token issuer
+	var domain string  // This is the target domain, the one use in TLS certificate.
+	var address string // the address if the token issuer
 
 	method := info.FullMethod
 	domain, _ = config.GetDomain()
@@ -433,11 +442,10 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 
 	// TODO set method the require access validation here....
 
-
 	// Here I will get the peer mac address from the list of registered peer...
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
-		if err != nil && !hasAccess{
+		if err != nil && !hasAccess {
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			fmt.Println(token)
 			return err

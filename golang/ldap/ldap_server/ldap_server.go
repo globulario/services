@@ -15,6 +15,7 @@ import (
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
@@ -479,12 +480,12 @@ func (svr *server) getResourceClient() (*resource_client.Resource_Client, error)
 }
 
 // Create an empty group.
-func (svr *server) createGroup(id, name, description string) error {
+func (svr *server) createGroup(token, id, name, description string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
-	return resourceClient.CreateGroup(id, name, description)
+	return resourceClient.CreateGroup(token, id, name, description)
 }
 
 // Register a new user.
@@ -497,20 +498,20 @@ func (svr *server) registerAccount(domain, id, name, email, password string) err
 	return resourceClient.RegisterAccount(domain, id, name, email, password, password)
 }
 
-func (svr *server) addGroupMemberAccount(groupId string, accountId string) error {
+func (svr *server) addGroupMemberAccount(token, groupId string, accountId string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
-	return resourceClient.AddGroupMemberAccount(groupId, accountId)
+	return resourceClient.AddGroupMemberAccount(token, groupId, accountId)
 }
 
-func (svr *server) removeGroupMemberAccount(groupId string, accountId string) error {
+func (svr *server) removeGroupMemberAccount(token, groupId string, accountId string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
-	return resourceClient.RemoveGroupMemberAccount(groupId, accountId)
+	return resourceClient.RemoveGroupMemberAccount(token, groupId, accountId)
 }
 
 func (svr *server) getAccount(id string) (*resourcepb.Account, error) {
@@ -789,6 +790,13 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 //  }
 func (server *server) synchronize() error {
 
+	// Here I will get the local token to generate the groups
+	mac, _ := Utility.MyMacAddr(Utility.MyIP())
+	token, err := security.GetLocalToken(mac)
+	if err != nil {
+		return err
+	}
+
 	for connectionId, syncInfo_ := range server.LdapSyncInfos {
 		syncInfo := syncInfo_.(map[string]interface{})
 		GroupSyncInfo := syncInfo["GroupSyncInfos"].(map[string]interface{})
@@ -804,7 +812,7 @@ func (server *server) synchronize() error {
 			id := Utility.GenerateUUID(groupsInfo[i][1].([]string)[0])
 			_, err := server.getGroup(id)
 			if err != nil {
-				server.createGroup(id, name, "") // The group member will be set latter in that function.
+				server.createGroup(token, id, name, "") // The group member will be set latter in that function.
 			}
 		}
 
@@ -856,7 +864,7 @@ func (server *server) synchronize() error {
 
 											if !Utility.Contains(a.Groups, groupId) {
 												// Now I will remo
-												err := server.addGroupMemberAccount(groupId, a.Id)
+												err := server.addGroupMemberAccount(token, groupId, a.Id)
 												if err != nil {
 													fmt.Println("fail to add account ", a.Id, " to ", groupId, err)
 												}
@@ -869,7 +877,7 @@ func (server *server) synchronize() error {
 											groupId := a.Groups[j]
 											if !Utility.Contains(groups, groupId) {
 												// Now I will remo
-												err := server.removeGroupMemberAccount(groupId, a.Id)
+												err := server.removeGroupMemberAccount(token, groupId, a.Id)
 												if err != nil {
 													fmt.Println("fail to remove account ", a.Id, " from group ", groupId, " with error ", err)
 												}

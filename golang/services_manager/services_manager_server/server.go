@@ -504,14 +504,14 @@ func (server *server) removeRolesAction(action string) error {
 	return resourceClient.RemoveRolesAction(action)
 }
 
-func (server *server) removeApplicationsAction(action string) error {
+func (server *server) removeApplicationsAction(token, action string) error {
 
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
 		return err
 	}
 
-	return resourceClient.RemoveApplicationsAction(action)
+	return resourceClient.RemoveApplicationsAction(token, action)
 }
 
 func (server *server) removePeersAction(action string) error {
@@ -615,7 +615,7 @@ func (server *server) stopService(s map[string]interface{}) error {
 }
 
 // uninstall service
-func (server *server) uninstallService(publisherId string, serviceId string, version string, deletePermissions bool) error {
+func (server *server) uninstallService(token, publisherId, serviceId, version string, deletePermissions bool) error {
 	// First of all I will stop the running service(s) instance.
 	services, err := config_client.GetServicesConfigurations()
 	if err != nil {
@@ -649,7 +649,7 @@ func (server *server) uninstallService(publisherId string, serviceId string, ver
 					server.removeRolesAction(toDelete[i])
 
 					// Delete it from Application.
-					server.removeApplicationsAction(toDelete[i])
+					server.removeApplicationsAction(token, toDelete[i])
 
 					// Delete it from Peer.
 					server.removePeersAction(toDelete[i])
