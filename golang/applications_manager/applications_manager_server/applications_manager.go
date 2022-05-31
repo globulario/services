@@ -74,9 +74,6 @@ func (server *server) installLocalApplicationPackage(domain, applicationId, publ
 		}
 	}
 
-	
-
-	fmt.Println("try to intall package from ", path)
 	if Utility.Exists(path) {
 		file, err := os.Open(path)
 
@@ -225,11 +222,9 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 // Intall
 func (server *server) installApplication(domain, name, publisherId, version, description string, icon string, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
-	fmt.Println("------> 228")
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
-		fmt.Println("------> 232")
 		return err
 	}
 
@@ -237,10 +232,8 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	defer os.RemoveAll(__extracted_path__)
 
 	// Here I will test that the index.html file is not corrupted...
-	fmt.Println("------> 240")
 	__indexHtml__, err := ioutil.ReadFile(__extracted_path__ + "/index.html")
 	if err != nil {
-		fmt.Println("------> 243", err)
 		return err
 	}
 
@@ -271,17 +264,14 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	Utility.CreateDirIfNotExist(abosolutePath)
 	Utility.CopyDir(__extracted_path__+"/.", abosolutePath)
 
-	fmt.Println("------> 274 create application")
 	err = server.createApplication(name, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
 	if err != nil {
-		fmt.Println("------> 277 create application")
 		return err
 	}
 
 	// Now I will create/update roles define in the application descriptor...
 	for i := 0; i < len(roles); i++ {
 		role := roles[i]
-		fmt.Println("------> 284 create role")
 		err = server.createRole(role.Id, role.Name, role.Actions)
 		if err != nil {
 			log.Println("fail to create role "+role.Id, "with error:", err)
@@ -290,7 +280,6 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 
 	for i := 0; i < len(groups); i++ {
 		group := groups[i]
-		fmt.Println("------> 284 create group")
 		err = server.createGroup(group.Id, group.Name, group.Description)
 		if err != nil {
 			log.Println("fail to create group "+group.Id, "with error:", err)
@@ -304,7 +293,6 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 	}
 
 	// Parse the index html file to be sure the file is valid.
-	fmt.Println("------> 307 read index html to test if upated= is present")
 	_, err = html.Parse(strings.NewReader(string(indexHtml)))
 	if err != nil {
 		return err
@@ -325,7 +313,6 @@ func (server *server) installApplication(domain, name, publisherId, version, des
 		// server.IndexApplication = name
 	}
 
-	fmt.Println("------> 328 done installApplication")
 	return err
 }
 
@@ -465,7 +452,6 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		roles_[i].Actions = roles[i].Actions
 	}
 
-	fmt.Println("462")
 	groups_ := make([]*resourcepb.Group, len(groups))
 	for i := 0; i < len(groups); i++ {
 		groups_[i] = new(resourcepb.Group)
@@ -475,20 +461,15 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	}
 
 	// Read bytes and extract it in the current directory.
-	fmt.Println("472")
 	server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
-	fmt.Println("473")
 	r := bytes.NewReader(buffer.Bytes())
 	err = server.installApplication(domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
-	fmt.Println("474")
 	if err != nil {
-		fmt.Println("477", err)
 		return err
 	}
 
 	// If the version has change I will notify current users and undate the applications.
 	if previousVersion != version {
-		fmt.Println("482")
 		// Send application notification...
 		server.publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
 
@@ -500,19 +481,15 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
               </div>
             </div>
             `
-			fmt.Println("494")
 		return server.sendApplicationNotification(name, message)
 	}
 
-	fmt.Println("498")
 	// Set the path of the directory where the application can store files.
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
 	err = server.addResourceOwner("/applications/"+name, name, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
-		fmt.Println("503", err)
 		return err
 	}
-	fmt.Println("506")
 	return nil
 }
 

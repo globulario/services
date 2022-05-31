@@ -998,20 +998,19 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
-func (resource_server *server) save_application(app *resourcepb.Application) error {
+func (resource_server *server) save_application(app *resourcepb.Application, userId string) error {
 
-	fmt.Println("save application 1003 ressource.go")
+	
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("save application 1009 ressource.go")
 	if app == nil {
 		return errors.New("no application object was given in the request")
 	}
 
-	fmt.Println("save application 1014 ressource.go")
 	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Applications", `{"_id":"`+app.Id+`"}`, "")
 
 	application := make(map[string]interface{}, 0)
@@ -1019,6 +1018,7 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	application["path"] = "/" + app.Id // The path must be the same as the application name.
 	application["publisherid"] = app.Publisherid
 	application["version"] = app.Version
+	application["domain"] = resource_server.Domain // the domain where the application is save...
 	application["description"] = app.Description
 	application["actions"] = app.Actions
 	application["keywords"] = app.Keywords
@@ -1069,14 +1069,16 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	// Create the application file directory.
 	path := "/applications/" + app.Name
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-	fmt.Println("save application 1072 ressource.go")
+
+	// Add ressource owner
 	resource_server.addResourceOwner(path, app.Name, rbacpb.SubjectType_APPLICATION)
 
+	// Add application owner
+	resource_server.addResourceOwner(app.Id, userId, rbacpb.SubjectType_ACCOUNT)
+
 	// Publish application.
-	fmt.Println("publish event 1076 ressource.go")
 	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
 
-	fmt.Println("publish event 1079 ressource.go")
 	return nil
 }
 
@@ -1084,8 +1086,25 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 // Application
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
-	fmt.Println("-----------------> create application was called ", rqst.Application)
-	err := resource_server.save_application(rqst.Application)
+	
+	var clientId string
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
+	err := resource_server.save_application(rqst.Application, clientId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1473,17 +1492,16 @@ func getLocalPeer()*resourcepb.Peer {
 // running at domain.
 func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
-	fmt.Println("---------> connect to client at address", address)
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
-		fmt.Println("---------> fail to connect with client with error ", err)
+		fmt.Println("fail to connect with client with error ", err)
 		return nil, "", err
 	}
 
 	// get the local public key.
 	key, err := security.GetLocalKey()
 	if err != nil {
-		fmt.Println("---------> fail to get local key with error ", err)
+		fmt.Println("fail to get local key with error ", err)
 		return nil, "", err
 	}
 
@@ -1498,7 +1516,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 	protocol := localConfig["Protocol"].(string)
 
 	if err != nil {
-		fmt.Println("---------> fail to get local config ", err)
+		fmt.Println("fail to get local config ", err)
 		return nil, "", err
 	}
 
@@ -1508,7 +1526,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 
 //* Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
-	fmt.Println("---------> Register Peer call received...")
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1520,7 +1538,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
 	if len(rqst.Peer.Mac) > 0 {
-		fmt.Println("---------> Test if peer exit: ", rqst.Peer.Mac)
 		values, _ := p.FindOne(context.Background(), "local_resource", "local_resource", "Peers", `{"_id":"`+Utility.GenerateUUID(rqst.Peer.Mac)+`"}`, "")
 		if values != nil {
 			p := initPeer(values)
@@ -2284,6 +2301,23 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 //* Register a new organization
 func (resource_server *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
 
+	var clientId string
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -2307,6 +2341,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	o["icon"] = rqst.Organization.Icon
 	o["email"] = rqst.Organization.Email
 	o["description"] = rqst.Organization.Email
+	o["domain"] = resource_server.Domain
 
 	// Those are the list of entity linked to the organisation
 	o["accounts"] = make([]interface{}, 0)
@@ -2346,6 +2381,9 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	if err == nil {
 		resource_server.publishEvent("create_organization_evt", []byte(jsonStr))
 	}
+
+	// create the resource owner.
+	resource_server.addResourceOwner(rqst.Organization.GetId(), clientId, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -2786,8 +2824,26 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 
 //* Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
+
+	var clientId string
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
 	// Get the persistence connection
-	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, rqst.Group.Description, rqst.Group.Members)
+	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
 
 	if err != nil {
 		return nil, status.Errorf(
