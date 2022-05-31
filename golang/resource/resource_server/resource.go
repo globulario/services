@@ -2012,8 +2012,19 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	var marshaler jsonpb.Marshaler
+	jsonStr, err = marshaler.MarshalToString(rqst.Peer)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 	// signal peers changes...
 	resource_server.publishEvent("update_peer_"+rqst.Peer.Mac+"_evt", []byte{})
+
+	// give the peer information...
+	resource_server.publishEvent("update_peers_evt", []byte(jsonStr))
 
 	return &resourcepb.UpdatePeerRsp{Result: true}, nil
 }
