@@ -594,6 +594,7 @@ func (svr *server) addResourceOwner(path string, subject string, subjectType rba
 	if err != nil {
 		return err
 	}
+	
 	err = rbac_client_.AddResourceOwner(path, subject, subjectType)
 	return err
 }
@@ -901,7 +902,7 @@ func serialyseObject(obj map[string]interface{}) string {
 	return jsonStr
 }
 
-func (resource_server *server) createGroup(id, name, description string, members []string) error {
+func (resource_server *server) createGroup(id, name, owner, description string, members []string) error {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -921,6 +922,7 @@ func (resource_server *server) createGroup(id, name, description string, members
 	g["_id"] = id
 	g["name"] = name
 	g["description"] = description
+	g["domain"] = resource_server.Domain
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Groups", g, "")
 	if err != nil {
@@ -934,6 +936,9 @@ func (resource_server *server) createGroup(id, name, description string, members
 			return err
 		}
 	}
+
+	// Now create the ressource permission.
+	resource_server.addResourceOwner(id, owner, rbacpb.SubjectType_ACCOUNT)
 
 	return nil
 }
@@ -955,6 +960,7 @@ func (resource_server *server) createRole(id string, name string, actions []stri
 	role["_id"] = id
 	role["name"] = name
 	role["actions"] = actions
+	role["domain"] = resource_server.Domain
 
 	_, err = p.InsertOne(context.Background(), "local_resource", "local_resource", "Roles", role, "")
 	if err != nil {
@@ -1054,7 +1060,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"log.LogService"}
-	s_impl.Permissions = make([]interface{}, 3)
+	s_impl.Permissions = make([]interface{}, 23)
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.Process = -1
@@ -1073,6 +1079,35 @@ func main() {
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/resource.ResourceService/DeletePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 	s_impl.Permissions[1] = map[string]interface{}{"action": "/resource.ResourceService/SetResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
 	s_impl.Permissions[2] = map[string]interface{}{"action": "/resource.ResourceService/DeleteResourceOwner", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+
+	// Group function...
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/resource.ResourceService/AddGroupMemberAccount", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/resource.ResourceService/DeleteGroup", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/resource.ResourceService/RemoveGroupMemberAccount", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[6] = map[string]interface{}{"action": "/resource.ResourceService/UpdateGroup", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+
+	// Organization function...
+	s_impl.Permissions[7] = map[string]interface{}{"action": "/resource.ResourceService/UpdateOrganization", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[8] = map[string]interface{}{"action": "/resource.ResourceService/DeleteOrganization", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[9] = map[string]interface{}{"action": "/resource.ResourceService/AddOrganizationAccount", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[10] = map[string]interface{}{"action": "/resource.ResourceService/AddOrganizationGroup", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/resource.ResourceService/AddOrganizationRole", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[12] = map[string]interface{}{"action": "/resource.ResourceService/AddOrganizationApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[13] = map[string]interface{}{"action": "/resource.ResourceService/RemoveOrganizationGroup", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[14] = map[string]interface{}{"action": "/resource.ResourceService/RemoveOrganizationRole", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[15] = map[string]interface{}{"action": "/resource.ResourceService/RemoveOrganizationApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+
+	// account
+	s_impl.Permissions[16] = map[string]interface{}{"action": "/resource.ResourceService/SetEmail", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[17] = map[string]interface{}{"action": "/resource.ResourceService/SetAccountPassword", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+
+	// application
+	s_impl.Permissions[18] = map[string]interface{}{"action": "/resource.ResourceService/UpdateApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[19] = map[string]interface{}{"action": "/resource.ResourceService/DeleteApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[20] = map[string]interface{}{"action": "/resource.ResourceService/AddApplicationActions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[21] = map[string]interface{}{"action": "/resource.ResourceService/RemoveApplicationAction", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[22] = map[string]interface{}{"action": "/resource.ResourceService/RemoveApplicationsAction", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number

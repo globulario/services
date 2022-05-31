@@ -998,7 +998,9 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
-func (resource_server *server) save_application(app *resourcepb.Application) error {
+func (resource_server *server) save_application(app *resourcepb.Application, userId string) error {
+
+	
 
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1016,6 +1018,7 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	application["path"] = "/" + app.Id // The path must be the same as the application name.
 	application["publisherid"] = app.Publisherid
 	application["version"] = app.Version
+	application["domain"] = resource_server.Domain // the domain where the application is save...
 	application["description"] = app.Description
 	application["actions"] = app.Actions
 	application["keywords"] = app.Keywords
@@ -1066,7 +1069,12 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 	// Create the application file directory.
 	path := "/applications/" + app.Name
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+
+	// Add ressource owner
 	resource_server.addResourceOwner(path, app.Name, rbacpb.SubjectType_APPLICATION)
+
+	// Add application owner
+	resource_server.addResourceOwner(app.Id, userId, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
 	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
@@ -1078,7 +1086,25 @@ func (resource_server *server) save_application(app *resourcepb.Application) err
 // Application
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
-	err := resource_server.save_application(rqst.Application)
+	
+	var clientId string
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
+	err := resource_server.save_application(rqst.Application, clientId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2264,6 +2290,23 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 //* Register a new organization
 func (resource_server *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
 
+	var clientId string
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -2287,6 +2330,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	o["icon"] = rqst.Organization.Icon
 	o["email"] = rqst.Organization.Email
 	o["description"] = rqst.Organization.Email
+	o["domain"] = resource_server.Domain
 
 	// Those are the list of entity linked to the organisation
 	o["accounts"] = make([]interface{}, 0)
@@ -2326,6 +2370,9 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	if err == nil {
 		resource_server.publishEvent("create_organization_evt", []byte(jsonStr))
 	}
+
+	// create the resource owner.
+	resource_server.addResourceOwner(rqst.Organization.GetId(), clientId, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -2766,8 +2813,26 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 
 //* Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
+
+	var clientId string
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			clientId = claims.Id
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
 	// Get the persistence connection
-	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, rqst.Group.Description, rqst.Group.Members)
+	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
 
 	if err != nil {
 		return nil, status.Errorf(
