@@ -78,12 +78,12 @@ func NewRbacService_Client(address string, id string) (*Rbac_Client, error) {
 	return client, nil
 }
 
-func (client *Rbac_Client) Reconnect () error{
+func (client *Rbac_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = rbacpb.NewRbacServiceClient(client.cc)
@@ -234,13 +234,17 @@ func (client *Rbac_Client) SetCaFile(caFile string) {
 ////////////////////////////////////  Api  /////////////////////////////////////
 
 /** Set resource permissions this method will replace existing permission at once **/
-func (client *Rbac_Client) SetResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+func (client *Rbac_Client) SetResourcePermissions(token, path string, permissions *rbacpb.Permissions) error {
 	rqst := &rbacpb.SetResourcePermissionsRqst{
 		Path:        path,
 		Permissions: permissions,
 	}
 
-	_, err := client.c.SetResourcePermissions(client.GetCtx(), rqst)
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.SetResourcePermissions(ctx, rqst)
 
 	fmt.Println("200 SetResourcePermissions ", err)
 	return err
@@ -411,8 +415,8 @@ func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]
 
 	_, err = client.c.SetActionResourcesPermissions(client.GetCtx(), rqst)
 	if err != nil {
+		fmt.Println("--------> set action ressources permissions fail! ", permissions, err)
 		return err
 	}
-
 	return nil
 }

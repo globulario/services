@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+
 	// "fmt"
 	"strings"
 
@@ -297,7 +299,7 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 
 //* Set resource permissions this method will replace existing permission at once *
 func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRqst, error) {
-
+	fmt.Println("---> set resource permission ", rqst.Path, rqst.Permissions)
 	err := rbac_server.setResourcePermissions(rqst.Path, rqst.Permissions)
 
 	if err != nil {
@@ -1133,9 +1135,10 @@ func isPublic(path string) bool {
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	// fmt.Println("validateAccess")
+	fmt.Println("validateAccess ", subject, name, path)
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
+			fmt.Println("no account exist with id " + subject)
 			return false, false, errors.New("no account exist with id " + subject)
 		}
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
@@ -1159,11 +1162,12 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	if len(path) == 0 {
+		fmt.Println("no path was given to validate access for suject " + subject)
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
 
 	// .hidden files can be read by all... also file in public directory can be read by all...
-	if strings.Contains(path, "/.hidden/") || isPublic(path){
+	if strings.Contains(path, "/.hidden/") || isPublic(path) {
 		return true, false, nil
 	}
 
@@ -1171,6 +1175,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		if permissions == nil {
+			fmt.Println("no permissions found for path ", path)
 			// so here I will recursively get it parent permission...
 			if strings.LastIndex(path, "/") > 0 {
 				return rbac_server.validateAccess(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
@@ -1225,11 +1230,11 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	// If the user is the owner no other validation are required.
 	if isOwner {
 		return true, false, nil
-	}else if name == "owner"{
+	} else if name == "owner" {
 		return false, false, errors.New("only the owner can do that action")
 	}
 
-	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0{
+	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0 {
 
 		// In that case I will try to get parent ressource permission.
 		if len(strings.Split(path, "/")) > 1 {
@@ -1477,8 +1482,8 @@ func (rbac_server *server) setActionResourcesPermissions(permissions map[string]
 	if err != nil {
 		return err
 	}
-	rbac_server.permissions.SetItem(permissions["action"].(string), data)
-	return nil
+
+	return rbac_server.permissions.SetItem(permissions["action"].(string), data)
 }
 
 /**
@@ -1543,7 +1548,7 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  * Validate an action and also validate it resources
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
-	// fmt.Println("validateAction")
+	fmt.Println("validateAction ", action, subjectType, resources)
 	// test if the subject exist.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
@@ -1571,8 +1576,10 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 	var actions []string
 	// All action from those services are available...
-	if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") {
-		return true, nil
+	if len(resources) == 0 {
+		if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") {
+			return true, nil
+		}
 	}
 
 	// Validate the access for a given suject...
@@ -1647,8 +1654,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		return true, nil
 	}
 
-
-
 	// Now I will validate the resource access.
 	// infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)
@@ -1672,7 +1677,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			}
 		}
 	}
-
+	fmt.Println("-----------> 1680 ")
 	//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action)
 	return true, nil
 }
@@ -2088,7 +2093,7 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 }
 
 func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rbacpb.SubjectType, ressourceId string) error {
-	
+
 	// fmt.Println("removeSubjectFromShare")
 	data, err := rbac_server.permissions.GetItem(ressourceId)
 	if err != nil {

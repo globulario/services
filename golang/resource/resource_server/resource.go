@@ -227,7 +227,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 
 			clientId = claims.Id
 		} else {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("SetAccountPassword no token was given")
 		}
 	}
 
@@ -1100,7 +1100,7 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 			}
 			clientId = claims.Id
 		} else {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("resource server CreateApplication no token was given")
 		}
 	}
 
@@ -1677,7 +1677,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("resource server RegisterPeer no token was given")))
 
 		}
 	}
@@ -2314,7 +2314,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 			}
 			clientId = claims.Id
 		} else {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("resource server CreateOrganization no token was given")
 		}
 	}
 
@@ -2838,7 +2838,7 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 			}
 			clientId = claims.Id
 		} else {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("CreateGroup no token was given")
 		}
 	}
 
@@ -2938,6 +2938,8 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 
 //* Delete organization
 func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroupRqst) (*resourcepb.DeleteGroupRsp, error) {
+
+	
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -2982,7 +2984,8 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	
+	resource_server.deleteResourcePermissions(rqst.Group)
 	resource_server.publishEvent("delete_group_"+rqst.Group+"_evt", []byte{})
 
 	return &resourcepb.DeleteGroupRsp{

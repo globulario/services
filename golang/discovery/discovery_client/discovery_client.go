@@ -313,7 +313,7 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 /**
  * Publish an application on the server.
  */
-func (client *Dicovery_Client) PublishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
+func (client *Dicovery_Client) PublishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
 	// TODO upload the package and publish the application after see old admin client code bundle from the path...
 
 	rqst := &discoverypb.PublishApplicationRequest{
@@ -334,7 +334,17 @@ func (client *Dicovery_Client) PublishApplication(user, organization, path, name
 		Groups:       groups,
 	}
 
-	_, err := client.c.PublishApplication(client.GetCtx(), rqst)
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	_, err := client.c.PublishApplication(ctx, rqst)
 
 	return err
 }

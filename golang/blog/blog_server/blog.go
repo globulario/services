@@ -30,10 +30,11 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	// So here I will create a new blog from the infromation sent by the user.
 	var clientId string
 	var err error
+	var token string
 
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
+		token = strings.Join(md["token"], "")
 		if len(token) > 0 {
 			claims, err := security.ValidateToken(token)
 			if err != nil {
@@ -43,7 +44,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 			}
 			clientId = claims.Id
 		} else {
-			err := errors.New("no token was given")
+			err := errors.New("CreateBlogPost no token was given")
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -91,7 +92,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	}
 
 	// Set the owner of the conversation.
-	err = svr.setResourcePermissions(uuid, permissions)
+	err = svr.setResourcePermissions(token, uuid, permissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -119,7 +120,7 @@ func (svr *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 			}
 			clientId = claims.Id
 		} else {
-			err := errors.New("no token was given")
+			err := errors.New("SaveBlogPost no token was given")
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -209,7 +210,7 @@ func (svr *server) DeleteBlogPost(ctx context.Context, rqst *blogpb.DeleteBlogPo
 			}
 			clientId = claims.Id
 		} else {
-			err := errors.New("no token was given")
+			err := errors.New("DeleteBlogPost no token was given")
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -242,7 +243,7 @@ func (svr *server) AddEmoji(ctx context.Context, rqst *blogpb.AddEmojiRequest) (
 			}
 			clientId = claims.Id
 		} else {
-			err := errors.New("no token was given")
+			err := errors.New("AddEmoji no token was given")
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -331,7 +332,7 @@ func (svr *server) AddComment(ctx context.Context, rqst *blogpb.AddCommentReques
 			}
 			clientId = claims.Id
 		} else {
-			err := errors.New("no token was given")
+			err := errors.New("AddComment no token was given")
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

@@ -523,12 +523,12 @@ func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, 
 	return rbac_client_.GetResourcePermissions(path)
 }
 
-func (server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+func (server *server) setResourcePermissions(token, path string, permissions *rbacpb.Permissions) error {
 	rbac_client_, err := GetRbacClient(server.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.SetResourcePermissions(path, permissions)
+	return rbac_client_.SetResourcePermissions(token, path, permissions)
 }
 
 func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {

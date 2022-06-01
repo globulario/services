@@ -1112,10 +1112,10 @@ func (client *Resource_Client) DeleteApplication(token, id string) error {
 		ApplicationId: id,
 	}
 
-		// set the token in the context...
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
-		ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
-	
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
 	_, err := client.c.DeleteApplication(ctx, rqst)
 	if err != nil {
 		return err

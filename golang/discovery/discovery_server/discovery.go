@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/discovery/discoverypb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -21,6 +24,7 @@ var (
 
 // Publish a service. The service must be install localy on the server.
 func (server *server) PublishService(ctx context.Context, rqst *discoverypb.PublishServiceRequest) (*discoverypb.PublishServiceResponse, error) {
+	
 	// Make sure the user is part of the organization if one is given.
 	publisherId := rqst.User
 	if len(rqst.Organization) > 0 {
@@ -31,6 +35,22 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 		publisherId = rqst.Organization
 		if !isMember {
 			return nil, err
+		}
+	}
+
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			_, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, errors.New("PublishService no token was given")
 		}
 	}
 
@@ -48,7 +68,7 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 	}
 
 	// Publish the service package.
-	err := server.publishPackage(rqst.User, rqst.Organization, rqst.DicorveryId, rqst.RepositoryId, rqst.Platform, rqst.Path, descriptor)
+	err := server.publishPackage(token, rqst.User, rqst.Organization, rqst.DicorveryId, rqst.RepositoryId, rqst.Platform, rqst.Path, descriptor)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -84,6 +104,23 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 		}
 	}
 
+
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			_, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, errors.New("PublishApplication no token was given")
+		}
+	}
+
 	// Now I will upload the service to the repository...
 	descriptor := &resourcepb.PackageDescriptor{
 		Id:           rqst.Name,
@@ -100,7 +137,7 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 	}
 
 	// Publish the application package.
-	err := server.publishPackage(rqst.User, rqst.Organization, rqst.Discovery, rqst.Repository, "webapp", rqst.Path, descriptor)
+	err := server.publishPackage(token, rqst.User, rqst.Organization, rqst.Discovery, rqst.Repository, "webapp", rqst.Path, descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

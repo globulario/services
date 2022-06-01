@@ -153,7 +153,6 @@ func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, er
 
 func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
 
-	fmt.Println("validate action: ", method, subject, infos)
 	id := address + method + token
 	for i := 0; i < len(infos); i++ {
 		id += infos[i].Permission + infos[i].Path
@@ -182,8 +181,10 @@ func validateAction(token, application, address, organization, method, subject s
 		return false, err
 	}
 
+	fmt.Println("-----------> 184 ", method, subject, subjectType, infos)
 	hasAccess, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
+		fmt.Println("-----------> 187 ", method, err)
 		return false, err
 	}
 

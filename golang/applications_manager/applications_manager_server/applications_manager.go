@@ -43,7 +43,7 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) == 0 {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("application manager UninstallApplication no token was given")
 		}
 	}
 
@@ -162,7 +162,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) == 0 {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("InstallApplication no token was given")
 		}
 	}
 
@@ -340,7 +340,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) == 0 {
-			return errors.New("no token was given")
+			return errors.New("Application Manager DeployApplication no token was given")
 		}
 	}
 
@@ -461,7 +461,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" version "+version+" was publish")
 
 	// Publish application...
-	err = server.publishApplication(user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
+	err = server.publishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
 	if err != nil {
 		return err
 	}

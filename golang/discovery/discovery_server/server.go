@@ -436,12 +436,12 @@ func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, 
 	return rbac_client_.GetResourcePermissions(path)
 }
 
-func (server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+func (server *server) setResourcePermissions(token, path string, permissions *rbacpb.Permissions) error {
 	rbac_client_, err := GetRbacClient(server.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.SetResourcePermissions(path, permissions)
+	return rbac_client_.SetResourcePermissions(token, path, permissions)
 }
 
 func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
@@ -539,7 +539,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 /////////////////////// Discovery specific function /////////////////////////////////
 
 // Publish a package, the package can contain an application or a services.
-func (server *server) publishPackage(user, organization, discovery, repository, platform, path string, descriptor *resourcepb.PackageDescriptor) error {
+func (server *server) publishPackage(token, user, organization, discovery, repository, platform, path string, descriptor *resourcepb.PackageDescriptor) error {
 
 	// Ladies and Gentlemans After one year after tow years services as resource!
 	path_ := descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Id + "/" + descriptor.Version
@@ -574,7 +574,7 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 		}
 
 		// Set the permissions.
-		err = server.setResourcePermissions(path_, permissions)
+		err = server.setResourcePermissions(token, path_, permissions)
 		if err != nil {
 			fmt.Println("fail to publish package with error: ", err.Error())
 			return err
@@ -594,7 +594,7 @@ func (server *server) publishPackage(user, organization, discovery, repository, 
 	}
 
 	// Save the permissions.
-	err = server.setResourcePermissions(path_, permissions)
+	err = server.setResourcePermissions(token, path_, permissions)
 	if err != nil {
 		fmt.Println("publishPackage 539 ", err)
 		return err

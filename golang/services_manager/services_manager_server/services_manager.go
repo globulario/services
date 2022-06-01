@@ -35,7 +35,7 @@ func (server *server) UninstallService(ctx context.Context, rqst *services_manag
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) == 0 {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("UninstallService no token was given")
 		}
 	}
 
@@ -184,7 +184,7 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) == 0 {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("InstallService no token was given")
 		}
 	}
 

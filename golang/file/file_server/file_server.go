@@ -830,7 +830,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("CreateAchive no token was given")))
 		}
 	}
 
@@ -907,10 +907,10 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 func (file_server *server) createPermission(ctx context.Context, path string) error {
 	var clientId string
 	var err error
-
+	var token string
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token := strings.Join(md["token"], "")
+		token = strings.Join(md["token"], "")
 		if len(token) > 0 {
 			claims, err := security.ValidateToken(token)
 			if err != nil {
@@ -918,7 +918,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 			}
 			clientId = claims.Id
 		} else {
-			errors.New("no token was given")
+			errors.New("file manager createPermission no token was given")
 		}
 	}
 
@@ -942,7 +942,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 		return err
 	}
 
-	err = rbac_client_.SetResourcePermissions(path, permissions)
+	err = rbac_client_.SetResourcePermissions(token, path, permissions)
 
 	if err != nil {
 		return err

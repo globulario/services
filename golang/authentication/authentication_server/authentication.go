@@ -124,7 +124,7 @@ func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.Se
 		if len(token) == 0 {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("application manager SetPassword no token was given")))
 		}
 	}
 

@@ -636,7 +636,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 			}
 			clientId = claims.Id
 		} else {
-			errors.New("no token was given")
+			errors.New("CreateConversation no token was given")
 		}
 	}
 
@@ -834,7 +834,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 			}
 			clientId = claims.Id
 		} else {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("KickoutFromConversation no token was given")
 		}
 	}
 
@@ -1045,7 +1045,7 @@ func (svr *server) Connect(rqst *conversationpb.ConnectRequest, stream conversat
 			}
 			clientId = claims.Id
 		} else {
-			return errors.New("no token was given")
+			return errors.New("conversion Connect no token was given")
 		}
 	}
 
@@ -1078,7 +1078,7 @@ func (svr *server) Disconnect(ctx context.Context, rqst *conversationpb.Disconne
 			}
 			clientId = claims.Id
 		} else {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("conversation Disconnect no token was given")
 		}
 	}
 
@@ -1110,7 +1110,7 @@ func (svr *server) JoinConversation(rqst *conversationpb.JoinConversationRequest
 			}
 			clientId = claims.Id
 		} else {
-			return errors.New("no token was given")
+			return errors.New("JoinConversation no token was given")
 		}
 	}
 
@@ -1206,7 +1206,7 @@ func (svr *server) LeaveConversation(ctx context.Context, rqst *conversationpb.L
 			}
 			clientId = claims.Id
 		} else {
-			return nil, errors.New("no token was given")
+			return nil, errors.New("LeaveConversation no token was given")
 		}
 	}
 
@@ -1261,7 +1261,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("SendInvitation no token was given")))
 
 		}
 	}
@@ -1277,7 +1277,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("SendInvitation no token was given")))
 	}
 
 	if !hasAccess {
@@ -1547,7 +1547,7 @@ func (svr *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.Ac
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("AcceptInvitation no token was given")))
 
 		}
 	}
@@ -1591,7 +1591,7 @@ func (svr *server) DeclineInvitation(ctx context.Context, rqst *conversationpb.D
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("DeclineInvitation no token was given")))
 
 		}
 	}
@@ -1634,7 +1634,7 @@ func (svr *server) RevokeInvitation(ctx context.Context, rqst *conversationpb.Re
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("RevokeInvitation no token was given")))
 
 		}
 	}
@@ -1676,7 +1676,7 @@ func (svr *server) GetReceivedInvitations(ctx context.Context, rqst *conversatio
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("GetReceivedInvitations no token was given")))
 
 		}
 	}
@@ -1727,7 +1727,7 @@ func (svr *server) GetSentInvitations(ctx context.Context, rqst *conversationpb.
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no token was given")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("GetSentInvitations no token was given")))
 
 		}
 	}
