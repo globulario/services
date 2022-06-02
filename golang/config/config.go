@@ -54,7 +54,7 @@ func GetAddress() (string, error) {
 /**
  * Return the computer name.
  */
-func GetHostName() (string, error) {
+func GetName() (string, error) {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		if len(localConfig["Name"].(string)) != 0 {
@@ -86,7 +86,7 @@ func GetDomain() (string, error) {
 	}
 
 	// if not configuration already exist on the server I will return it hostname...
-	return GetHostName()
+	return GetName()
 }
 
 // Those function are use to get the correct
@@ -391,7 +391,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 
 	// if the Globule name is not set I will use the name of the computer hostname itself.
 	if len(config["Name"].(string)) == 0 {
-		config["Name"], _ = GetHostName()
+		config["Name"], _ = GetName()
 	}
 
 	return config, nil
