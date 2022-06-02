@@ -515,10 +515,7 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 		return err
 	}
 
-	domain := peer.GetHostname()
-	if len(peer.GetDomain()) > 0 {
-		domain += "." + peer.GetDomain()
-	}
+	domain := peer.GetDomain()
 
 	if peer.ExternalIpAddress == Utility.MyIP() {
 		hosts.RemoveHost(domain)

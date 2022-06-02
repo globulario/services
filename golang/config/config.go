@@ -55,18 +55,25 @@ func GetAddress() (string, error) {
  * Return the computer name.
  */
 func GetHostName() (string, error) {
-	localConfig, err := GetLocalConfig(true)
-	if err == nil {
-		if len(localConfig["Name"].(string)) != 0 {
-			return strings.ToLower(localConfig["Name"].(string)), nil
-		}
-	}
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		return "", err
 	}
 	return strings.ToLower(hostname), nil
+}
+
+func GetName() (string, error) {
+	localConfig, err := GetLocalConfig(true)
+	if err == nil {
+		if len(localConfig["Name"].(string)) != 0 {
+			return strings.ToLower(localConfig["Name"].(string)), nil
+		} else if len(localConfig["Domain"].(string)) != 0 {
+			return "", nil
+		}
+
+	}
+
+	return "", nil
 }
 
 /**
@@ -86,7 +93,11 @@ func GetDomain() (string, error) {
 	}
 
 	// if not configuration already exist on the server I will return it hostname...
-	return GetHostName()
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(hostname), nil
 }
 
 // Those function are use to get the correct
@@ -123,7 +134,7 @@ func GetServicesConfigDir() string {
 
 	// That variable is use in development to set services from diffrent location...
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	
+
 	if len(serviceRoot) > 0 {
 		return strings.ReplaceAll(serviceRoot, "\\", "/")
 	}
@@ -169,20 +180,20 @@ func GetWebRootDir() string {
 /**
  * Read token for a given domain.
  */
-func GetToken(domain string) (string,error){
+func GetToken(domain string) (string, error) {
 	domain, err := GetDomain()
 	if err != nil {
 		return "", err
 	}
 	path := GetConfigDir() + "/tokens/" + domain + "_token"
-	if !Utility.Exists(path){
-		return "",  errors.New("no token found for domain " + domain + " at path " + path)
+	if !Utility.Exists(path) {
+		return "", errors.New("no token found for domain " + domain + " at path " + path)
 	}
 
 	token, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Println()
-		return "",  errors.New("fail to read token at path " + path + " with error: " + err.Error())
+		return "", errors.New("fail to read token at path " + path + " with error: " + err.Error())
 	}
 
 	return string(token), nil
@@ -284,7 +295,6 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 		port = 80
 	}
 
-
 	// Try over
 	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
 	if err != nil {
@@ -292,7 +302,7 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 		if err != nil {
 			return nil, err
 		}
-	
+
 	}
 
 	defer resp.Body.Close()
@@ -387,11 +397,6 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 
 	for i := 0; i < len(services_config); i++ {
 		config["Services"].(map[string]interface{})[services_config[i]["Id"].(string)] = services_config[i]
-	}
-
-	// if the Globule name is not set I will use the name of the computer hostname itself.
-	if len(config["Name"].(string)) == 0 {
-		config["Name"], _ = GetHostName()
 	}
 
 	return config, nil
@@ -772,7 +777,7 @@ func initConfig() {
 			fmt.Println("fail to initialyse service configuration from file "+path, " with error ", err)
 		} else {
 			// save back the file...
-			s["ConfigPath"] =  strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
+			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
 			services = append(services, s)
 		}
 	}
