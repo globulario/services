@@ -145,12 +145,12 @@ message HtmlToPdfResponse{
 	bytes pdf = 2; //The pdf data file.
 }
 
+
+/** Video convertion releated function. **/
+
 message CreateVideoPreviewRequest {
- 
 	string path = 1;
-
 	int32 nb = 2;
-
 	int32 height = 3;
 }
 
@@ -161,9 +161,7 @@ message CreateVideoPreviewResponse{
 message CreateVideoTimeLineRequest{
 
 	string path = 1;
-
 	int32 width = 2;
-
 	float fps = 3;
 }
 
@@ -185,6 +183,76 @@ message ConvertVideoToHlsRequest{
 
 message ConvertVideoToHlsResponse{
 	string outpout = 1; // info about the conversion.
+}
+
+// Process video request.
+message ProcessVideoRequest {
+	
+}
+
+message ProcessVideoResponse {
+	
+}
+
+message SetVideoConvertionRequest {
+	bool value = 1;
+}
+
+message SetVideoConvertionResponse {
+
+}
+
+message SetVideoStreamConvertionRequest {
+	bool value = 1;
+}
+
+message SetVideoStreamConvertionResponse {
+
+}
+
+message SetStartVideoConvertionHourRequest{
+	int32 value = 1;
+}
+
+message SetStartVideoConvertionHourResponse {
+
+}
+
+message SetMaximumVideoConvertionDelayRequest{
+	int32 value = 1;
+}
+
+message SetMaximumVideoConvertionDelayResponse{
+	
+}
+
+message VideoConvertionError{
+	string path = 1;
+	string error = 2;
+}
+
+message GetVideoConvertionErrorsRequest{
+
+}
+
+message GetVideoConvertionErrorsResponse{
+	repeated VideoConvertionError errors = 1;
+}
+
+message ClearVideoConvertionErrorsRequest{
+	
+}
+
+message ClearVideoConvertionErrorsResponse{
+
+}
+
+message ClearVideoConvertionErrorRequest{
+	string path = 1;
+}
+
+message ClearVideoConvertionErrorResponse{
+
 }
 
 message StopRequest {
@@ -249,6 +317,30 @@ service FileService {
 	// Convert a video file (must be  MPEG-4 H264) to HLS stream... That will automatically generate the 
 	// the streams for various resolutions. (see script create-vod-hls.sh for more info)
 	rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse){};
+
+	// Start process video on the server.
+	rpc ProcessVideo(ProcessVideoRequest) returns (ProcessVideoResponse) {};
+
+	// Set video processing.
+	rpc SetVideoConvertion(SetVideoConvertionRequest) returns (SetVideoConvertionResponse) {};
+
+	// Set video stream convertion.
+	rpc SetVideoStreamConvertion(SetVideoStreamConvertionRequest) returns (SetVideoStreamConvertionResponse) {};
+
+	// Set the hour when the video convertion must start.
+	rpc SetStartVideoConvertionHour(SetStartVideoConvertionHourRequest) returns (SetStartVideoConvertionHourResponse) {};
+
+	// Set the maximum delay when convertion can run, it will finish actual convertion but it will not begin new convertion past this delay.
+	rpc SetMaximumVideoConvertionDelay(SetMaximumVideoConvertionDelayRequest) returns (SetMaximumVideoConvertionDelayResponse) {};
+
+	// Return the list of failed video convertion.
+	rpc GetVideoConvertionErrors(GetVideoConvertionErrorsRequest) returns (GetVideoConvertionErrorsResponse) {};
+
+	// Clear the video convertion errors
+	rpc ClearVideoConvertionErrors(ClearVideoConvertionErrorsRequest) returns (ClearVideoConvertionErrorsResponse) {};
+
+	// Clear a specific video convertion error
+	rpc ClearVideoConvertionError(ClearVideoConvertionErrorRequest) returns (ClearVideoConvertionErrorResponse) {};
 
 	// Excel files...
 	rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse){};

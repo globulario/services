@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
@@ -112,8 +113,24 @@ type server struct {
 	// The root contain applications and users data folder.
 	Root string
 
+	// If true ffmeg will use information to convert the video.
+	AutomaticVideoConversion bool
+
+	// If true video will be convert to stream
+	AutomaticStreamConvertion bool
+
+	// The convertion will start at that given hour...
+	StartVideoConvertionHour int
+
+	// Maximum convertion time. Convertion will not continue over this delay.
+	MaximumVideoConvertionDelay int
+
 	// Public contain a list of paths reachable by the file server.
 	Public []string
+
+	// This map will contain video convertion error so the server will not try
+	// to convert the same file again and again.
+	videoConvertionErrors *sync.Map
 }
 
 // The http address where the configuration can be found /config
@@ -1374,6 +1391,13 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 
+	// Video conversion retalted configuration.
+	s_impl.videoConvertionErrors = new(sync.Map)
+	s_impl.AutomaticStreamConvertion = false
+	s_impl.AutomaticVideoConversion = false
+	s_impl.MaximumVideoConvertionDelay = 8 // convert for 8 hours...
+	s_impl.StartVideoConvertionHour = 0    // start convertion at midnight, when every one sleep
+
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
@@ -1410,11 +1434,6 @@ func main() {
 	// Register the echo services
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
-	// Convert video file, set permissions...
-	go func() {
-		//processVideos() // Process files...
-	}()
 
 	// Now the event client service.
 	go func() {
@@ -1684,10 +1703,6 @@ func processVideos() {
 			}
 		}
 	}
-
-	// sleep a minute...
-	time.Sleep(1 * time.Minute) // once hours I will refresh all the file.
-	processVideos()
 }
 
 // Recursively convert all video that are not in the correct
@@ -1734,7 +1749,7 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 	infos := make(map[string]interface{})
 	err := json.Unmarshal(data, &infos)
 	if err != nil {
-		if strings.Contains(err.Error(), "moov atom not found"){
+		if strings.Contains(err.Error(), "moov atom not found") {
 			os.Remove(path) // remove the corrupt of errornous media file.
 		}
 		return nil, err
@@ -1873,7 +1888,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	dest = strings.ReplaceAll(dest, "\\", "/")
 	streamInfos, err := getStreamInfos(src)
 	if err != nil {
-		
+
 		return err
 	}
 
@@ -1982,7 +1997,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	cmd := exec.Command("ffmpeg", args...)
 
 	cmd_str_ := "ffmpeg"
-	for i:=0; i < len(args); i++ {
+	for i := 0; i < len(args); i++ {
 		cmd_str_ += " " + args[i]
 	}
 
@@ -2107,7 +2122,6 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 		return errors.New("the video lenght is 0 sec")
 	}
 
-
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
 
@@ -2134,7 +2148,7 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 	return nil
 }
 
-func createVttFile(output string, fps float32) error{
+func createVttFile(output string, fps float32) error {
 	// Now I will generate the WEBVTT file with the infos...
 	webvtt := "WEBVTT\n\n"
 
@@ -2157,16 +2171,16 @@ func createVttFile(output string, fps float32) error{
 			start_ := time.Duration(time_ * int(time.Second))
 			time_ += delay
 			end_ := time.Duration(time_ * int(time.Second))
-	
+
 			webvtt += formatDuration(start_) + " --> " + formatDuration(end_) + "\n"
-			webvtt += localConfig["Protocol"].(string) + "://" + address + "/"+  strings.ReplaceAll(output, config.GetDataDir()+"/files", "") + "/" + thumbnail.Name() + "\n\n"	
+			webvtt += localConfig["Protocol"].(string) + "://" + address + "/" + strings.ReplaceAll(output, config.GetDataDir()+"/files", "") + "/" + thumbnail.Name() + "\n\n"
 			index++
 		}
-		
+
 	}
 
 	// delete previous file...
-	os.Remove(output+"/thumbnails.vtt")
+	os.Remove(output + "/thumbnails.vtt")
 
 	// Now  I will write the file...
 	return os.WriteFile(output+"/thumbnails.vtt", []byte(webvtt), 777)
@@ -2391,4 +2405,99 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 	}
 
 	return &filepb.ConvertVideoToHlsResponse{}, nil
+}
+
+// Start process video on the server.
+func (file_server *server) ProcessVideo(ctx context.Context, rqst *filepb.ProcessVideoRequest) (*filepb.ProcessVideoResponse, error) {
+	// Convert video file, set permissions...
+	_, err := Utility.GetProcessIdsByName("ffmpeg")
+	if err == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video convertion is already started")))
+	}
+
+	// start convertion.
+	go func() {
+		processVideos() // Process files...
+	}()
+
+	return &filepb.ProcessVideoResponse{}, nil
+}
+
+// Set video processing.
+func (file_server *server) SetVideoConvertion(ctx context.Context, rqst *filepb.SetVideoConvertionRequest) (*filepb.SetVideoConvertionResponse, error) {
+	file_server.AutomaticStreamConvertion = rqst.Value
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &filepb.SetVideoConvertionResponse{}, nil
+}
+
+// Set video stream convertion.
+func (file_server *server) SetVideoStreamConvertion(ctx context.Context, rqst *filepb.SetVideoStreamConvertionRequest) (*filepb.SetVideoStreamConvertionResponse, error) {
+	file_server.AutomaticStreamConvertion = rqst.Value
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.SetVideoStreamConvertionResponse{}, nil
+}
+
+// Set the hour when the video convertion must start.
+func (file_server *server) SetStartVideoConvertionHour(ctx context.Context, rqst *filepb.SetStartVideoConvertionHourRequest) (*filepb.SetStartVideoConvertionHourResponse, error) {
+	file_server.StartVideoConvertionHour = int(rqst.Value)
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &filepb.SetStartVideoConvertionHourResponse{}, nil
+}
+
+// Set the maximum delay when convertion can run, it will finish actual convertion but it will not begin new convertion past this delay.
+func (file_server *server) SetMaximumVideoConvertionDelay(ctx context.Context, rqst *filepb.SetMaximumVideoConvertionDelayRequest) (*filepb.SetMaximumVideoConvertionDelayResponse, error) {
+	file_server.MaximumVideoConvertionDelay = int(rqst.Value)
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	return &filepb.SetMaximumVideoConvertionDelayResponse{}, nil
+}
+
+// Return the list of failed video convertion.
+func (file_server *server) GetVideoConvertionErrors(ctx context.Context, rqst *filepb.GetVideoConvertionErrorsRequest) (*filepb.GetVideoConvertionErrorsResponse, error) {
+	video_convertion_errors := make([]*filepb.VideoConvertionError, 0)
+
+	file_server.videoConvertionErrors.Range(func(key, value interface{}) bool {
+		video_convertion_errors = append(video_convertion_errors, &filepb.VideoConvertionError{Path: key.(string), Error: value.(string) })
+		return true
+	})
+
+	return &filepb.GetVideoConvertionErrorsResponse{Errors: video_convertion_errors}, nil
+}
+
+// Clear the video convertion errors
+func (file_server *server) ClearVideoConvertionErrors(ctx context.Context, rqst *filepb.ClearVideoConvertionErrorsRequest) (*filepb.ClearVideoConvertionErrorsResponse, error) {
+	file_server.videoConvertionErrors.Range(func(key, value interface{}) bool {
+		file_server.videoConvertionErrors.Delete(key)
+		return true
+	})
+
+	return &filepb.ClearVideoConvertionErrorsResponse{}, nil
+}
+
+// Clear a specific video convertion error
+func (file_server *server) ClearVideoConvertionError(ctx context.Context, rqst *filepb.ClearVideoConvertionErrorRequest) (*filepb.ClearVideoConvertionErrorResponse, error) {
+	file_server.videoConvertionErrors.Delete(rqst.Path)
+	return &filepb.ClearVideoConvertionErrorResponse{}, nil
 }
