@@ -1507,7 +1507,10 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 
 	// Get the configuration address with it http port...
 	domain, _ := config.GetDomain()
-	hostname, _ := config.GetHostName()
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, "", err
+	}
 	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
 
 	localConfig, err := config.GetLocalConfig(true)
