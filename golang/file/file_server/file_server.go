@@ -37,6 +37,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/title/title_client"
+	"github.com/jasonlvhit/gocron"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
 	"github.com/tealeg/xlsx"
@@ -120,10 +121,10 @@ type server struct {
 	AutomaticStreamConvertion bool
 
 	// The convertion will start at that given hour...
-	StartVideoConvertionHour int
+	StartVideoConvertionHour string
 
 	// Maximum convertion time. Convertion will not continue over this delay.
-	MaximumVideoConvertionDelay int
+	MaximumVideoConvertionDelay string
 
 	// Public contain a list of paths reachable by the file server.
 	Public []string
@@ -131,6 +132,11 @@ type server struct {
 	// This map will contain video convertion error so the server will not try
 	// to convert the same file again and again.
 	videoConvertionErrors *sync.Map
+
+	// The task scheduler.
+	scheduler *gocron.Scheduler
+
+	isProcessing bool
 }
 
 // The http address where the configuration can be found /config
@@ -1392,11 +1398,12 @@ func main() {
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 
 	// Video conversion retalted configuration.
+	s_impl.scheduler = gocron.NewScheduler()
 	s_impl.videoConvertionErrors = new(sync.Map)
 	s_impl.AutomaticStreamConvertion = false
 	s_impl.AutomaticVideoConversion = false
-	s_impl.MaximumVideoConvertionDelay = 8 // convert for 8 hours...
-	s_impl.StartVideoConvertionHour = 0    // start convertion at midnight, when every one sleep
+	s_impl.MaximumVideoConvertionDelay = "00:00" // convert for 8 hours...
+	s_impl.StartVideoConvertionHour = "00:00"    // start convertion at midnight, when every one sleep
 
 	// So here I will set the default permissions for services actions.
 	// Permission are use in conjonctions of resource.
@@ -1446,6 +1453,15 @@ func main() {
 		}
 
 	}()
+
+	// Process video at every day at the given hour...
+	s_impl.scheduler.Every(1).Day().At(s_impl.StartVideoConvertionHour).Do(processVideos, s_impl)
+
+	if s_impl.AutomaticVideoConversion {
+		// Start the scheduler
+		fmt.Println("start scheduler!")
+		s_impl.scheduler.Start()
+	}
 
 	// Start the service.
 	s_impl.StartService()
@@ -1667,7 +1683,15 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
-func processVideos() {
+
+func processVideos(file_server *server) {
+
+	fmt.Println("---------> start processing video!")
+	if file_server.isProcessing {
+		return
+	}
+
+	file_server.isProcessing = true
 
 	videos := getVideoPaths()
 
@@ -1680,22 +1704,37 @@ func processVideos() {
 
 	// Step 2 Convert .mp4 to stream...
 	for _, video := range videos {
+		if !file_server.isProcessing {
+			break // exit
+		}
 
 		// all video mp4 must
 		if !strings.HasSuffix(video, ".m3u8") {
 			dir := video[0:strings.LastIndex(video, ".")]
 			if !Utility.Exists(dir+"/playlist.m3u8") && Utility.Exists(video) {
 				var err error
-				if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
-					video, err = createVideoMpeg4H264(video)
-					if err != nil {
-						fmt.Println("fail to convert mkv to mp4 with error: ", err)
-					}
-				}
+				_, hasAlreadyFail := file_server.videoConvertionErrors.Load(video)
 
-				// Convert to stream...
-				if err == nil {
-					createHlsStreamFromMpeg4H264(video)
+				// TODO test if delay was busted...
+
+				if !hasAlreadyFail {
+					if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
+						video, err = createVideoMpeg4H264(video)
+						if err != nil {
+							fmt.Println("fail to convert mkv to mp4 with error: ", err)
+							if err != nil {
+								file_server.videoConvertionErrors.Store(video, err.Error())
+							}
+						}
+					}
+
+					// Convert to stream...
+					if err == nil && file_server.AutomaticStreamConvertion {
+						err := createHlsStreamFromMpeg4H264(video)
+						if err != nil {
+							file_server.videoConvertionErrors.Store(video, err.Error())
+						}
+					}
 				}
 
 			} else {
@@ -1703,6 +1742,9 @@ func processVideos() {
 			}
 		}
 	}
+
+	file_server.isProcessing = false
+
 }
 
 // Recursively convert all video that are not in the correct
@@ -1838,7 +1880,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	if err != nil {
-		return "", err
+		return "", errors.New(cmd.String() + " " + err.Error())
 	}
 	// Here I will remove the input file...
 	os.Remove(path)
@@ -2408,26 +2450,55 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 }
 
 // Start process video on the server.
-func (file_server *server) ProcessVideo(ctx context.Context, rqst *filepb.ProcessVideoRequest) (*filepb.ProcessVideoResponse, error) {
+func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.StartProcessVideoRequest) (*filepb.StartProcessVideoResponse, error) {
 	// Convert video file, set permissions...
-	_, err := Utility.GetProcessIdsByName("ffmpeg")
-	if err == nil {
+	if file_server.isProcessing {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video convertion is already started")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video convertion is already runnig")))
 	}
 
 	// start convertion.
 	go func() {
-		processVideos() // Process files...
+		processVideos(file_server) // Process files...
 	}()
 
-	return &filepb.ProcessVideoResponse{}, nil
+	return &filepb.StartProcessVideoResponse{}, nil
+}
+
+// Return true if video processing is running.
+func (file_server *server) IsProcessVideo(ctx context.Context, rqst *filepb.IsProcessVideoRequest) (*filepb.IsProcessVideoResponse, error) {
+	return &filepb.IsProcessVideoResponse{IsProcessVideo: file_server.isProcessing}, nil
+}
+
+// Stop process video on the server.
+func (file_server *server) StopProcessVideo(ctx context.Context, rqst *filepb.StopProcessVideoRequest) (*filepb.StopProcessVideoResponse, error) {
+
+	file_server.isProcessing = false;
+
+	// kill current procession...
+	err := Utility.KillProcessByName("ffmpeg")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.StopProcessVideoResponse{}, nil
 }
 
 // Set video processing.
 func (file_server *server) SetVideoConvertion(ctx context.Context, rqst *filepb.SetVideoConvertionRequest) (*filepb.SetVideoConvertionResponse, error) {
-	file_server.AutomaticStreamConvertion = rqst.Value
+
+	file_server.AutomaticVideoConversion = rqst.Value
+	// remove process video...
+	file_server.scheduler.Remove(processVideos)
+
+	if file_server.AutomaticVideoConversion {
+		file_server.scheduler.Every(1).Day().At(file_server.StartVideoConvertionHour).Do(processVideos, file_server)
+		file_server.scheduler.Start()
+	}
+
 	err := file_server.Save()
 	if err != nil {
 		return nil, status.Errorf(
@@ -2452,7 +2523,16 @@ func (file_server *server) SetVideoStreamConvertion(ctx context.Context, rqst *f
 
 // Set the hour when the video convertion must start.
 func (file_server *server) SetStartVideoConvertionHour(ctx context.Context, rqst *filepb.SetStartVideoConvertionHourRequest) (*filepb.SetStartVideoConvertionHourResponse, error) {
-	file_server.StartVideoConvertionHour = int(rqst.Value)
+	file_server.StartVideoConvertionHour = rqst.Value
+
+	// remove actual process video...
+	file_server.scheduler.Remove(processVideos)
+
+	if file_server.AutomaticVideoConversion {
+		file_server.scheduler.Every(1).Day().At(file_server.StartVideoConvertionHour).Do(processVideos, file_server)
+		file_server.scheduler.Start()
+	}
+
 	err := file_server.Save()
 	if err != nil {
 		return nil, status.Errorf(
@@ -2464,7 +2544,7 @@ func (file_server *server) SetStartVideoConvertionHour(ctx context.Context, rqst
 
 // Set the maximum delay when convertion can run, it will finish actual convertion but it will not begin new convertion past this delay.
 func (file_server *server) SetMaximumVideoConvertionDelay(ctx context.Context, rqst *filepb.SetMaximumVideoConvertionDelayRequest) (*filepb.SetMaximumVideoConvertionDelayResponse, error) {
-	file_server.MaximumVideoConvertionDelay = int(rqst.Value)
+	file_server.MaximumVideoConvertionDelay = rqst.Value
 	err := file_server.Save()
 	if err != nil {
 		return nil, status.Errorf(
@@ -2479,7 +2559,7 @@ func (file_server *server) GetVideoConvertionErrors(ctx context.Context, rqst *f
 	video_convertion_errors := make([]*filepb.VideoConvertionError, 0)
 
 	file_server.videoConvertionErrors.Range(func(key, value interface{}) bool {
-		video_convertion_errors = append(video_convertion_errors, &filepb.VideoConvertionError{Path: key.(string), Error: value.(string) })
+		video_convertion_errors = append(video_convertion_errors, &filepb.VideoConvertionError{Path: key.(string), Error: value.(string)})
 		return true
 	})
 

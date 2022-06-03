@@ -42,10 +42,10 @@ goog.exportSymbol('proto.file.GetVideoConvertionErrorsRequest', null, global);
 goog.exportSymbol('proto.file.GetVideoConvertionErrorsResponse', null, global);
 goog.exportSymbol('proto.file.HtmlToPdfResponse', null, global);
 goog.exportSymbol('proto.file.HtmlToPdfRqst', null, global);
+goog.exportSymbol('proto.file.IsProcessVideoRequest', null, global);
+goog.exportSymbol('proto.file.IsProcessVideoResponse', null, global);
 goog.exportSymbol('proto.file.MoveRequest', null, global);
 goog.exportSymbol('proto.file.MoveResponse', null, global);
-goog.exportSymbol('proto.file.ProcessVideoRequest', null, global);
-goog.exportSymbol('proto.file.ProcessVideoResponse', null, global);
 goog.exportSymbol('proto.file.ReadDirRequest', null, global);
 goog.exportSymbol('proto.file.ReadDirResponse', null, global);
 goog.exportSymbol('proto.file.ReadFileRequest', null, global);
@@ -62,6 +62,10 @@ goog.exportSymbol('proto.file.SetVideoConvertionRequest', null, global);
 goog.exportSymbol('proto.file.SetVideoConvertionResponse', null, global);
 goog.exportSymbol('proto.file.SetVideoStreamConvertionRequest', null, global);
 goog.exportSymbol('proto.file.SetVideoStreamConvertionResponse', null, global);
+goog.exportSymbol('proto.file.StartProcessVideoRequest', null, global);
+goog.exportSymbol('proto.file.StartProcessVideoResponse', null, global);
+goog.exportSymbol('proto.file.StopProcessVideoRequest', null, global);
+goog.exportSymbol('proto.file.StopProcessVideoResponse', null, global);
 goog.exportSymbol('proto.file.StopRequest', null, global);
 goog.exportSymbol('proto.file.StopResponse', null, global);
 goog.exportSymbol('proto.file.VideoConvertionError', null, global);
@@ -6051,12 +6055,12 @@ proto.file.ConvertVideoToHlsResponse.prototype.setOutpout = function(value) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.file.ProcessVideoRequest = function(opt_data) {
+proto.file.StartProcessVideoRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.file.ProcessVideoRequest, jspb.Message);
+goog.inherits(proto.file.StartProcessVideoRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.file.ProcessVideoRequest.displayName = 'proto.file.ProcessVideoRequest';
+  proto.file.StartProcessVideoRequest.displayName = 'proto.file.StartProcessVideoRequest';
 }
 
 
@@ -6071,8 +6075,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.file.ProcessVideoRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.file.ProcessVideoRequest.toObject(opt_includeInstance, this);
+proto.file.StartProcessVideoRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.file.StartProcessVideoRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -6081,11 +6085,11 @@ proto.file.ProcessVideoRequest.prototype.toObject = function(opt_includeInstance
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.file.ProcessVideoRequest} msg The msg instance to transform.
+ * @param {!proto.file.StartProcessVideoRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.file.ProcessVideoRequest.toObject = function(includeInstance, msg) {
+proto.file.StartProcessVideoRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
 
   };
@@ -6101,23 +6105,23 @@ proto.file.ProcessVideoRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.file.ProcessVideoRequest}
+ * @return {!proto.file.StartProcessVideoRequest}
  */
-proto.file.ProcessVideoRequest.deserializeBinary = function(bytes) {
+proto.file.StartProcessVideoRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.file.ProcessVideoRequest;
-  return proto.file.ProcessVideoRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.file.StartProcessVideoRequest;
+  return proto.file.StartProcessVideoRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.file.ProcessVideoRequest} msg The message object to deserialize into.
+ * @param {!proto.file.StartProcessVideoRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.file.ProcessVideoRequest}
+ * @return {!proto.file.StartProcessVideoRequest}
  */
-proto.file.ProcessVideoRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.file.StartProcessVideoRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6137,9 +6141,9 @@ proto.file.ProcessVideoRequest.deserializeBinaryFromReader = function(msg, reade
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.file.ProcessVideoRequest.prototype.serializeBinary = function() {
+proto.file.StartProcessVideoRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.file.ProcessVideoRequest.serializeBinaryToWriter(this, writer);
+  proto.file.StartProcessVideoRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6147,11 +6151,11 @@ proto.file.ProcessVideoRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.file.ProcessVideoRequest} message
+ * @param {!proto.file.StartProcessVideoRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.file.ProcessVideoRequest.serializeBinaryToWriter = function(message, writer) {
+proto.file.StartProcessVideoRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
 };
 
@@ -6167,12 +6171,12 @@ proto.file.ProcessVideoRequest.serializeBinaryToWriter = function(message, write
  * @extends {jspb.Message}
  * @constructor
  */
-proto.file.ProcessVideoResponse = function(opt_data) {
+proto.file.StartProcessVideoResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.file.ProcessVideoResponse, jspb.Message);
+goog.inherits(proto.file.StartProcessVideoResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
-  proto.file.ProcessVideoResponse.displayName = 'proto.file.ProcessVideoResponse';
+  proto.file.StartProcessVideoResponse.displayName = 'proto.file.StartProcessVideoResponse';
 }
 
 
@@ -6187,8 +6191,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     for transitional soy proto support: http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.file.ProcessVideoResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.file.ProcessVideoResponse.toObject(opt_includeInstance, this);
+proto.file.StartProcessVideoResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.file.StartProcessVideoResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -6197,11 +6201,11 @@ proto.file.ProcessVideoResponse.prototype.toObject = function(opt_includeInstanc
  * @param {boolean|undefined} includeInstance Whether to include the JSPB
  *     instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.file.ProcessVideoResponse} msg The msg instance to transform.
+ * @param {!proto.file.StartProcessVideoResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.file.ProcessVideoResponse.toObject = function(includeInstance, msg) {
+proto.file.StartProcessVideoResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
 
   };
@@ -6217,23 +6221,23 @@ proto.file.ProcessVideoResponse.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.file.ProcessVideoResponse}
+ * @return {!proto.file.StartProcessVideoResponse}
  */
-proto.file.ProcessVideoResponse.deserializeBinary = function(bytes) {
+proto.file.StartProcessVideoResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.file.ProcessVideoResponse;
-  return proto.file.ProcessVideoResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.file.StartProcessVideoResponse;
+  return proto.file.StartProcessVideoResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.file.ProcessVideoResponse} msg The message object to deserialize into.
+ * @param {!proto.file.StartProcessVideoResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.file.ProcessVideoResponse}
+ * @return {!proto.file.StartProcessVideoResponse}
  */
-proto.file.ProcessVideoResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.file.StartProcessVideoResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6253,9 +6257,9 @@ proto.file.ProcessVideoResponse.deserializeBinaryFromReader = function(msg, read
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.file.ProcessVideoResponse.prototype.serializeBinary = function() {
+proto.file.StartProcessVideoResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.file.ProcessVideoResponse.serializeBinaryToWriter(this, writer);
+  proto.file.StartProcessVideoResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6263,11 +6267,503 @@ proto.file.ProcessVideoResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.file.ProcessVideoResponse} message
+ * @param {!proto.file.StartProcessVideoResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.file.ProcessVideoResponse.serializeBinaryToWriter = function(message, writer) {
+proto.file.StartProcessVideoResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.file.IsProcessVideoRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.file.IsProcessVideoRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.file.IsProcessVideoRequest.displayName = 'proto.file.IsProcessVideoRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.file.IsProcessVideoRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.file.IsProcessVideoRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.file.IsProcessVideoRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.IsProcessVideoRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.file.IsProcessVideoRequest}
+ */
+proto.file.IsProcessVideoRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.file.IsProcessVideoRequest;
+  return proto.file.IsProcessVideoRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.file.IsProcessVideoRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.file.IsProcessVideoRequest}
+ */
+proto.file.IsProcessVideoRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.file.IsProcessVideoRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.file.IsProcessVideoRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.file.IsProcessVideoRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.IsProcessVideoRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.file.IsProcessVideoResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.file.IsProcessVideoResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.file.IsProcessVideoResponse.displayName = 'proto.file.IsProcessVideoResponse';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.file.IsProcessVideoResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.file.IsProcessVideoResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.file.IsProcessVideoResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.IsProcessVideoResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    isprocessvideo: jspb.Message.getFieldWithDefault(msg, 1, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.file.IsProcessVideoResponse}
+ */
+proto.file.IsProcessVideoResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.file.IsProcessVideoResponse;
+  return proto.file.IsProcessVideoResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.file.IsProcessVideoResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.file.IsProcessVideoResponse}
+ */
+proto.file.IsProcessVideoResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIsprocessvideo(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.file.IsProcessVideoResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.file.IsProcessVideoResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.file.IsProcessVideoResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.IsProcessVideoResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getIsprocessvideo();
+  if (f) {
+    writer.writeBool(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional bool isProcessVideo = 1;
+ * Note that Boolean fields may be set to 0/1 when serialized from a Java server.
+ * You should avoid comparisons like {@code val === true/false} in those cases.
+ * @return {boolean}
+ */
+proto.file.IsProcessVideoResponse.prototype.getIsprocessvideo = function() {
+  return /** @type {boolean} */ (jspb.Message.getFieldWithDefault(this, 1, false));
+};
+
+
+/** @param {boolean} value */
+proto.file.IsProcessVideoResponse.prototype.setIsprocessvideo = function(value) {
+  jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.file.StopProcessVideoRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.file.StopProcessVideoRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.file.StopProcessVideoRequest.displayName = 'proto.file.StopProcessVideoRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.file.StopProcessVideoRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.file.StopProcessVideoRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.file.StopProcessVideoRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.StopProcessVideoRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.file.StopProcessVideoRequest}
+ */
+proto.file.StopProcessVideoRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.file.StopProcessVideoRequest;
+  return proto.file.StopProcessVideoRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.file.StopProcessVideoRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.file.StopProcessVideoRequest}
+ */
+proto.file.StopProcessVideoRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.file.StopProcessVideoRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.file.StopProcessVideoRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.file.StopProcessVideoRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.StopProcessVideoRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.file.StopProcessVideoResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.file.StopProcessVideoResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.file.StopProcessVideoResponse.displayName = 'proto.file.StopProcessVideoResponse';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.file.StopProcessVideoResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.file.StopProcessVideoResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.file.StopProcessVideoResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.StopProcessVideoResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.file.StopProcessVideoResponse}
+ */
+proto.file.StopProcessVideoResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.file.StopProcessVideoResponse;
+  return proto.file.StopProcessVideoResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.file.StopProcessVideoResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.file.StopProcessVideoResponse}
+ */
+proto.file.StopProcessVideoResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.file.StopProcessVideoResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.file.StopProcessVideoResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.file.StopProcessVideoResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.file.StopProcessVideoResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
 };
 
@@ -6839,7 +7335,7 @@ proto.file.SetStartVideoConvertionHourRequest.prototype.toObject = function(opt_
  */
 proto.file.SetStartVideoConvertionHourRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFieldWithDefault(msg, 1, 0)
+    value: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -6877,7 +7373,7 @@ proto.file.SetStartVideoConvertionHourRequest.deserializeBinaryFromReader = func
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {number} */ (reader.readInt32());
+      var value = /** @type {string} */ (reader.readString());
       msg.setValue(value);
       break;
     default:
@@ -6910,8 +7406,8 @@ proto.file.SetStartVideoConvertionHourRequest.prototype.serializeBinary = functi
 proto.file.SetStartVideoConvertionHourRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getValue();
-  if (f !== 0) {
-    writer.writeInt32(
+  if (f.length > 0) {
+    writer.writeString(
       1,
       f
     );
@@ -6920,17 +7416,17 @@ proto.file.SetStartVideoConvertionHourRequest.serializeBinaryToWriter = function
 
 
 /**
- * optional int32 value = 1;
- * @return {number}
+ * optional string value = 1;
+ * @return {string}
  */
 proto.file.SetStartVideoConvertionHourRequest.prototype.getValue = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
-/** @param {number} value */
+/** @param {string} value */
 proto.file.SetStartVideoConvertionHourRequest.prototype.setValue = function(value) {
-  jspb.Message.setProto3IntField(this, 1, value);
+  jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
@@ -7097,7 +7593,7 @@ proto.file.SetMaximumVideoConvertionDelayRequest.prototype.toObject = function(o
  */
 proto.file.SetMaximumVideoConvertionDelayRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    value: jspb.Message.getFieldWithDefault(msg, 1, 0)
+    value: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -7135,7 +7631,7 @@ proto.file.SetMaximumVideoConvertionDelayRequest.deserializeBinaryFromReader = f
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {number} */ (reader.readInt32());
+      var value = /** @type {string} */ (reader.readString());
       msg.setValue(value);
       break;
     default:
@@ -7168,8 +7664,8 @@ proto.file.SetMaximumVideoConvertionDelayRequest.prototype.serializeBinary = fun
 proto.file.SetMaximumVideoConvertionDelayRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getValue();
-  if (f !== 0) {
-    writer.writeInt32(
+  if (f.length > 0) {
+    writer.writeString(
       1,
       f
     );
@@ -7178,17 +7674,17 @@ proto.file.SetMaximumVideoConvertionDelayRequest.serializeBinaryToWriter = funct
 
 
 /**
- * optional int32 value = 1;
- * @return {number}
+ * optional string value = 1;
+ * @return {string}
  */
 proto.file.SetMaximumVideoConvertionDelayRequest.prototype.getValue = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
-/** @param {number} value */
+/** @param {string} value */
 proto.file.SetMaximumVideoConvertionDelayRequest.prototype.setValue = function(value) {
-  jspb.Message.setProto3IntField(this, 1, value);
+  jspb.Message.setProto3StringField(this, 1, value);
 };
 
 

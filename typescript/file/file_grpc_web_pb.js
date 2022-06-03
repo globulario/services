@@ -1034,61 +1034,183 @@ proto.file.FileServicePromiseClient.prototype.convertVideoToHls =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.file.ProcessVideoRequest,
- *   !proto.file.ProcessVideoResponse>}
+ *   !proto.file.StartProcessVideoRequest,
+ *   !proto.file.StartProcessVideoResponse>}
  */
-const methodDescriptor_FileService_ProcessVideo = new grpc.web.MethodDescriptor(
-  '/file.FileService/ProcessVideo',
+const methodDescriptor_FileService_StartProcessVideo = new grpc.web.MethodDescriptor(
+  '/file.FileService/StartProcessVideo',
   grpc.web.MethodType.UNARY,
-  proto.file.ProcessVideoRequest,
-  proto.file.ProcessVideoResponse,
+  proto.file.StartProcessVideoRequest,
+  proto.file.StartProcessVideoResponse,
   /**
-   * @param {!proto.file.ProcessVideoRequest} request
+   * @param {!proto.file.StartProcessVideoRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.file.ProcessVideoResponse.deserializeBinary
+  proto.file.StartProcessVideoResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.file.ProcessVideoRequest} request The
+ * @param {!proto.file.StartProcessVideoRequest} request The
  *     request proto
  * @param {?Object<string, string>} metadata User defined
  *     call metadata
- * @param {function(?grpc.web.RpcError, ?proto.file.ProcessVideoResponse)}
+ * @param {function(?grpc.web.RpcError, ?proto.file.StartProcessVideoResponse)}
  *     callback The callback function(error, response)
- * @return {!grpc.web.ClientReadableStream<!proto.file.ProcessVideoResponse>|undefined}
+ * @return {!grpc.web.ClientReadableStream<!proto.file.StartProcessVideoResponse>|undefined}
  *     The XHR Node Readable Stream
  */
-proto.file.FileServiceClient.prototype.processVideo =
+proto.file.FileServiceClient.prototype.startProcessVideo =
     function(request, metadata, callback) {
   return this.client_.rpcCall(this.hostname_ +
-      '/file.FileService/ProcessVideo',
+      '/file.FileService/StartProcessVideo',
       request,
       metadata || {},
-      methodDescriptor_FileService_ProcessVideo,
+      methodDescriptor_FileService_StartProcessVideo,
       callback);
 };
 
 
 /**
- * @param {!proto.file.ProcessVideoRequest} request The
+ * @param {!proto.file.StartProcessVideoRequest} request The
  *     request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!Promise<!proto.file.ProcessVideoResponse>}
+ * @return {!Promise<!proto.file.StartProcessVideoResponse>}
  *     Promise that resolves to the response
  */
-proto.file.FileServicePromiseClient.prototype.processVideo =
+proto.file.FileServicePromiseClient.prototype.startProcessVideo =
     function(request, metadata) {
   return this.client_.unaryCall(this.hostname_ +
-      '/file.FileService/ProcessVideo',
+      '/file.FileService/StartProcessVideo',
       request,
       metadata || {},
-      methodDescriptor_FileService_ProcessVideo);
+      methodDescriptor_FileService_StartProcessVideo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.StopProcessVideoRequest,
+ *   !proto.file.StopProcessVideoResponse>}
+ */
+const methodDescriptor_FileService_StopProcessVideo = new grpc.web.MethodDescriptor(
+  '/file.FileService/StopProcessVideo',
+  grpc.web.MethodType.UNARY,
+  proto.file.StopProcessVideoRequest,
+  proto.file.StopProcessVideoResponse,
+  /**
+   * @param {!proto.file.StopProcessVideoRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.StopProcessVideoResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.StopProcessVideoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.StopProcessVideoResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.StopProcessVideoResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.stopProcessVideo =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/StopProcessVideo',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_StopProcessVideo,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.StopProcessVideoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.StopProcessVideoResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.stopProcessVideo =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/StopProcessVideo',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_StopProcessVideo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.IsProcessVideoRequest,
+ *   !proto.file.IsProcessVideoResponse>}
+ */
+const methodDescriptor_FileService_IsProcessVideo = new grpc.web.MethodDescriptor(
+  '/file.FileService/IsProcessVideo',
+  grpc.web.MethodType.UNARY,
+  proto.file.IsProcessVideoRequest,
+  proto.file.IsProcessVideoResponse,
+  /**
+   * @param {!proto.file.IsProcessVideoRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.IsProcessVideoResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.IsProcessVideoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.IsProcessVideoResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.IsProcessVideoResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.isProcessVideo =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/IsProcessVideo',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_IsProcessVideo,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.IsProcessVideoRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.IsProcessVideoResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.isProcessVideo =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/IsProcessVideo',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_IsProcessVideo);
 };
 
 

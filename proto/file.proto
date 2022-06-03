@@ -186,13 +186,33 @@ message ConvertVideoToHlsResponse{
 }
 
 // Process video request.
-message ProcessVideoRequest {
+message StartProcessVideoRequest {
 	
 }
 
-message ProcessVideoResponse {
+message StartProcessVideoResponse {
 	
 }
+
+// Return true if converstion is running.
+message IsProcessVideoRequest{
+
+}
+
+// Return true if converstion is running.
+message IsProcessVideoResponse{
+	bool isProcessVideo = 1;
+}
+
+// Stop process video.
+message StopProcessVideoRequest {
+	
+}
+
+message StopProcessVideoResponse {
+	
+}
+
 
 message SetVideoConvertionRequest {
 	bool value = 1;
@@ -211,7 +231,7 @@ message SetVideoStreamConvertionResponse {
 }
 
 message SetStartVideoConvertionHourRequest{
-	int32 value = 1;
+	string value = 1;
 }
 
 message SetStartVideoConvertionHourResponse {
@@ -219,7 +239,7 @@ message SetStartVideoConvertionHourResponse {
 }
 
 message SetMaximumVideoConvertionDelayRequest{
-	int32 value = 1;
+	string value = 1;
 }
 
 message SetMaximumVideoConvertionDelayResponse{
@@ -319,7 +339,13 @@ service FileService {
 	rpc ConvertVideoToHls(ConvertVideoToHlsRequest) returns (ConvertVideoToHlsResponse){};
 
 	// Start process video on the server.
-	rpc ProcessVideo(ProcessVideoRequest) returns (ProcessVideoResponse) {};
+	rpc StartProcessVideo(StartProcessVideoRequest) returns (StartProcessVideoResponse) {};
+
+	// Stop process video on the server.
+	rpc StopProcessVideo(StopProcessVideoRequest) returns (StopProcessVideoResponse) {};
+
+	// Return true if video processing is running.
+	rpc IsProcessVideo(IsProcessVideoRequest) returns (IsProcessVideoResponse) {};
 
 	// Set video processing.
 	rpc SetVideoConvertion(SetVideoConvertionRequest) returns (SetVideoConvertionResponse) {};

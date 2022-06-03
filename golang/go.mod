@@ -24,6 +24,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.3.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/golang/protobuf v1.5.2
+	github.com/jasonlvhit/gocron v0.0.1
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/lib/pq v1.10.2
 	github.com/mattn/go-sqlite3 v2.0.2+incompatible
