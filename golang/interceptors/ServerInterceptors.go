@@ -290,8 +290,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		if err == nil && infos != nil {
 			hasAccess = false
 		}
-
-		fmt.Println("--------> method call ", infos, method, err)
 	}
 
 	if !hasAccess && len(clientId) > 0 {

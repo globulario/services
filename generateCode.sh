@@ -36,8 +36,8 @@ protoc proto/torrent.proto -I proto --go-grpc_out=require_unimplemented_servers=
 
 # TypeScript grpc files generation.
 mkdir typescript/config_manager
-protoc --js_out=import_style=commonjs:typescript/config_manager  -I ./proto/ config_manager.proto
-protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/config_manager -I ./proto/ config_manager.proto
+protoc --js_out=import_style=commonjs:typescript/config_manager  -I ./proto/ config.proto
+protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/config_manager -I ./proto/ config.proto
 mkdir typescript/applications_manager
 protoc --js_out=import_style=commonjs:typescript/applications_manager  -I ./proto/ applications_manager.proto
 protoc --grpc-web_out=import_style=commonjs+dts,mode=grpcwebtext:typescript/applications_manager -I ./proto/ applications_manager.proto

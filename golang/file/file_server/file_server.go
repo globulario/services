@@ -1356,10 +1356,10 @@ func generateVideoPreviewListener(evt *eventpb.Event) {
 		}
 	}
 
-	createVideoPreview(path, 20, 128)
+	createVideoPreview(path, 20, 128, false)
 	go func() {
-		generateVideoGifPreview(path, 10, 320, 30)
-		createVideoTimeLine(path, 180, .2) // 1 frame per 5 seconds.
+		generateVideoGifPreview(path, 10, 320, 30, false)
+		createVideoTimeLine(path, 180, .2, false) // 1 frame per 5 seconds.
 	}()
 
 	client, err := getEventClient()
@@ -1683,30 +1683,53 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+func (file_server *server) getStartTime() time.Time {
+	values := strings.Split(file_server.StartVideoConvertionHour, ":")
+	var startTime time.Time
+	now := time.Now()
+	if len(values) == 2 {
+		startTime = time.Date(now.Year(), now.Month(), now.Day(), Utility.ToInt(values[0]), Utility.ToInt(values[1]), 0, 0, now.Location())
+	}
+
+	return startTime
+}
+
+func (file_server *server) isExpired() bool {
+	values := strings.Split(file_server.MaximumVideoConvertionDelay, ":")
+	if len(values) == 2 {
+		delay := time.Duration(Utility.ToInt(values[0]))*time.Hour + time.Duration(Utility.ToInt(values[1]))*time.Minute
+		if delay == 0 {
+			return false
+		}
+
+		startTime := file_server.getStartTime()
+		endTime := startTime.Add(delay)
+		now := time.Now()
+		fmt.Println("no new convertion will be started after: ", endTime)
+		return now.After(endTime)
+
+	}
+	return false
+}
 
 func processVideos(file_server *server) {
 
-	fmt.Println("---------> start processing video!")
 	if file_server.isProcessing {
 		return
 	}
 
 	file_server.isProcessing = true
-
 	videos := getVideoPaths()
 
 	for _, video := range videos {
 		// Create preview and timeline...
-		createVideoPreview(video, 20, 128)
-		generateVideoGifPreview(video, 10, 320, 30)
-		createVideoTimeLine(video, 180, .2) // 1 frame per 5 seconds.
+		createVideoPreview(video, 20, 128, false)
+		generateVideoGifPreview(video, 10, 320, 30, false)
+		createVideoTimeLine(video, 180, .2, false) // 1 frame per 5 seconds.
 	}
 
 	// Step 2 Convert .mp4 to stream...
 	for _, video := range videos {
-		if !file_server.isProcessing {
-			break // exit
-		}
 
 		// all video mp4 must
 		if !strings.HasSuffix(video, ".m3u8") {
@@ -1718,13 +1741,16 @@ func processVideos(file_server *server) {
 				// TODO test if delay was busted...
 
 				if !hasAlreadyFail {
+					fmt.Println("try to process video ", video)
 					if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
-						video, err = createVideoMpeg4H264(video)
+						video_, err := createVideoMpeg4H264(video)
 						if err != nil {
-							fmt.Println("fail to convert mkv to mp4 with error: ", err)
 							if err != nil {
-								file_server.videoConvertionErrors.Store(video, err.Error())
+								fmt.Println("fail with error", err.Error())
+								file_server.videoConvertionErrors.Store(video_, err.Error())
 							}
+						} else {
+							video = video_
 						}
 					}
 
@@ -1732,6 +1758,7 @@ func processVideos(file_server *server) {
 					if err == nil && file_server.AutomaticStreamConvertion {
 						err := createHlsStreamFromMpeg4H264(video)
 						if err != nil {
+							fmt.Println("fail with error", err.Error())
 							file_server.videoConvertionErrors.Store(video, err.Error())
 						}
 					}
@@ -1741,6 +1768,12 @@ func processVideos(file_server *server) {
 				os.Remove(video)
 			}
 		}
+
+		// exit if the server was stop or the time is expired...
+		if !file_server.isProcessing || file_server.isExpired() {
+			break // exit
+		}
+
 	}
 
 	file_server.isProcessing = false
@@ -1822,7 +1855,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 	output := path_ + "/" + name_ + ".mp4"
 
 	if Utility.Exists(output) {
-		return output, nil
+		os.Remove(output)
 	}
 
 	// Test if cuda is available.
@@ -2157,7 +2190,7 @@ func formatDuration(duration time.Duration) string {
 }
 
 // Create the video preview...
-func generateVideoGifPreview(path string, fps, scale, duration int) error {
+func generateVideoGifPreview(path string, fps, scale, duration int, force bool) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 	duration_total := getVideoDuration(path)
 	if duration == 0 {
@@ -2176,8 +2209,10 @@ func generateVideoGifPreview(path string, fps, scale, duration int) error {
 
 	output := path_ + "/.hidden/" + name_
 	if Utility.Exists(output + "/preview.gif") {
-		//os.Remove(output + "/preview.gif")
-		return nil
+		if !force {
+			return nil
+		}
+		os.Remove(output + "/preview.gif")
 	}
 
 	Utility.CreateDirIfNotExist(output)
@@ -2229,7 +2264,7 @@ func createVttFile(output string, fps float32) error {
 }
 
 // Here I will create the small viedeo video
-func createVideoTimeLine(path string, width int, fps float32) error {
+func createVideoTimeLine(path string, width int, fps float32, force bool) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 	// One frame at each 5 seconds...
 	if fps == 0 {
@@ -2253,7 +2288,10 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 	output := path_ + "/.hidden/" + name_ + "/__timeline__"
 
 	if Utility.Exists(output) {
-		return createVttFile(output, fps)
+		if !force {
+			return createVttFile(output, fps)
+		}
+		os.Remove(output)
 	}
 
 	Utility.CreateDirIfNotExist(output)
@@ -2280,7 +2318,7 @@ func createVideoTimeLine(path string, width int, fps float32) error {
 }
 
 // Here I will create the small viedeo video
-func createVideoPreview(path string, nb int, height int) error {
+func createVideoPreview(path string, nb int, height int, force bool) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
@@ -2295,7 +2333,10 @@ func createVideoPreview(path string, nb int, height int) error {
 	output := path_ + "/.hidden/" + name_ + "/__preview__"
 
 	if Utility.Exists(output) {
-		return nil
+		if !force {
+			return nil
+		}
+		os.Remove(output)
 	}
 
 	Utility.CreateDirIfNotExist(output)
@@ -2377,7 +2418,14 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}
 
-	err := createVideoPreview(rqst.Path, int(rqst.Nb), int(rqst.Height))
+	err := createVideoPreview(rqst.Path, int(rqst.Nb), int(rqst.Height), true)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = generateVideoGifPreview(rqst.Path, 10, 320, 30, true)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2394,7 +2442,7 @@ func (file_server *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}
 
-	err := createVideoTimeLine(rqst.Path, int(rqst.Width), rqst.Fps)
+	err := createVideoTimeLine(rqst.Path, int(rqst.Width), rqst.Fps, true)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2474,7 +2522,7 @@ func (file_server *server) IsProcessVideo(ctx context.Context, rqst *filepb.IsPr
 // Stop process video on the server.
 func (file_server *server) StopProcessVideo(ctx context.Context, rqst *filepb.StopProcessVideoRequest) (*filepb.StopProcessVideoResponse, error) {
 
-	file_server.isProcessing = false;
+	file_server.isProcessing = false
 
 	// kill current procession...
 	err := Utility.KillProcessByName("ffmpeg")
