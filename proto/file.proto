@@ -146,7 +146,7 @@ message HtmlToPdfResponse{
 }
 
 
-/** Video convertion releated function. **/
+/** Video conversion releated function. **/
 
 message CreateVideoPreviewRequest {
 	string path = 1;
@@ -214,64 +214,64 @@ message StopProcessVideoResponse {
 }
 
 
-message SetVideoConvertionRequest {
+message SetVideoConversionRequest {
 	bool value = 1;
 }
 
-message SetVideoConvertionResponse {
+message SetVideoConversionResponse {
 
 }
 
-message SetVideoStreamConvertionRequest {
+message SetVideoStreamConversionRequest {
 	bool value = 1;
 }
 
-message SetVideoStreamConvertionResponse {
+message SetVideoStreamConversionResponse {
 
 }
 
-message SetStartVideoConvertionHourRequest{
+message SetStartVideoConversionHourRequest{
 	string value = 1;
 }
 
-message SetStartVideoConvertionHourResponse {
+message SetStartVideoConversionHourResponse {
 
 }
 
-message SetMaximumVideoConvertionDelayRequest{
+message SetMaximumVideoConversionDelayRequest{
 	string value = 1;
 }
 
-message SetMaximumVideoConvertionDelayResponse{
+message SetMaximumVideoConversionDelayResponse{
 	
 }
 
-message VideoConvertionError{
+message VideoConversionError{
 	string path = 1;
 	string error = 2;
 }
 
-message GetVideoConvertionErrorsRequest{
+message GetVideoConversionErrorsRequest{
 
 }
 
-message GetVideoConvertionErrorsResponse{
-	repeated VideoConvertionError errors = 1;
+message GetVideoConversionErrorsResponse{
+	repeated VideoConversionError errors = 1;
 }
 
-message ClearVideoConvertionErrorsRequest{
+message ClearVideoConversionErrorsRequest{
 	
 }
 
-message ClearVideoConvertionErrorsResponse{
+message ClearVideoConversionErrorsResponse{
 
 }
 
-message ClearVideoConvertionErrorRequest{
+message ClearVideoConversionErrorRequest{
 	string path = 1;
 }
 
-message ClearVideoConvertionErrorResponse{
+message ClearVideoConversionErrorResponse{
 
 }
 
@@ -348,25 +348,25 @@ service FileService {
 	rpc IsProcessVideo(IsProcessVideoRequest) returns (IsProcessVideoResponse) {};
 
 	// Set video processing.
-	rpc SetVideoConvertion(SetVideoConvertionRequest) returns (SetVideoConvertionResponse) {};
+	rpc SetVideoConversion(SetVideoConversionRequest) returns (SetVideoConversionResponse) {};
 
-	// Set video stream convertion.
-	rpc SetVideoStreamConvertion(SetVideoStreamConvertionRequest) returns (SetVideoStreamConvertionResponse) {};
+	// Set video stream conversion.
+	rpc SetVideoStreamConversion(SetVideoStreamConversionRequest) returns (SetVideoStreamConversionResponse) {};
 
-	// Set the hour when the video convertion must start.
-	rpc SetStartVideoConvertionHour(SetStartVideoConvertionHourRequest) returns (SetStartVideoConvertionHourResponse) {};
+	// Set the hour when the video conversion must start.
+	rpc SetStartVideoConversionHour(SetStartVideoConversionHourRequest) returns (SetStartVideoConversionHourResponse) {};
 
-	// Set the maximum delay when convertion can run, it will finish actual convertion but it will not begin new convertion past this delay.
-	rpc SetMaximumVideoConvertionDelay(SetMaximumVideoConvertionDelayRequest) returns (SetMaximumVideoConvertionDelayResponse) {};
+	// Set the maximum delay when conversion can run, it will finish actual conversion but it will not begin new conversion past this delay.
+	rpc SetMaximumVideoConversionDelay(SetMaximumVideoConversionDelayRequest) returns (SetMaximumVideoConversionDelayResponse) {};
 
-	// Return the list of failed video convertion.
-	rpc GetVideoConvertionErrors(GetVideoConvertionErrorsRequest) returns (GetVideoConvertionErrorsResponse) {};
+	// Return the list of failed video conversion.
+	rpc GetVideoConversionErrors(GetVideoConversionErrorsRequest) returns (GetVideoConversionErrorsResponse) {};
 
-	// Clear the video convertion errors
-	rpc ClearVideoConvertionErrors(ClearVideoConvertionErrorsRequest) returns (ClearVideoConvertionErrorsResponse) {};
+	// Clear the video conversion errors
+	rpc ClearVideoConversionErrors(ClearVideoConversionErrorsRequest) returns (ClearVideoConversionErrorsResponse) {};
 
-	// Clear a specific video convertion error
-	rpc ClearVideoConvertionError(ClearVideoConvertionErrorRequest) returns (ClearVideoConvertionErrorResponse) {};
+	// Clear a specific video conversion error
+	rpc ClearVideoConversionError(ClearVideoConversionErrorRequest) returns (ClearVideoConversionErrorResponse) {};
 
 	// Excel files...
 	rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse){};

@@ -157,7 +157,7 @@ message Inventory {
 	int64 safetyStock = 1;
 	int64 reorderquantity = 2;
 	int64 quantity = 3; // save unit as pacakge.
-	double factor = 5; // Convertion when the quantity is update.
+	double factor = 5; // Conversion when the quantity is update.
 	string localisationId = 6; // inventory must be deleted if the localisation is delete.
 	string pacakgeId = 7; // The package id.
 }

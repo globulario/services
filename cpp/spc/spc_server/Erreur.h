@@ -1,6 +1,6 @@
 //Erreur.h
 //Auteur: Tommy Urbain
-//Dernière modification:
+//Derniï¿½re modification:
 
 #ifndef ERREUR_H
 #define ERREUR_H
@@ -23,7 +23,7 @@ public:
 	string getDescriptionErreur(int noErreur);
 	vector<double> noErreurs;
 
-    // Convertion to and from json values.
+    // Conversion to and from json values.
     void read(const QJsonObject &json);
     void write(QJsonObject &json) const;
 };

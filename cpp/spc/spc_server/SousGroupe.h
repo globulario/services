@@ -1,6 +1,6 @@
 //Analyse_Form.h
 //Auteur: Tommy Urbain
-//Dernière modification:
+//Derniï¿½re modification:
 
 #ifndef SOUS_GROUPE_H
 #define SOUS_GROUPE_H
@@ -13,7 +13,7 @@
 
 class SousGroupe
 {
-	//attributs privées
+	//attributs privï¿½es
 	double range;
 	double moyenne;
 	bool state;
@@ -34,7 +34,7 @@ public:
 	void setMoyenne(double moyenne);
 	void setState(bool state);
 
-    // Convertion to and from json values.
+    // Conversion to and from json values.
     void read(const QJsonObject &json);
     void write(QJsonObject &json) const;
 };

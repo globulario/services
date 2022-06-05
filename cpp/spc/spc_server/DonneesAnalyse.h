@@ -1,6 +1,6 @@
 //DonneesAnalyse.h
 //Auteur: Tommy Urbain
-//Dernière modification:
+//Derniï¿½re modification:
 
 // Every Data in the sample will be major and convert
 // to an integer value.
@@ -19,7 +19,7 @@
 using std::vector;
 int getPrecision(double val);
 
-// Les informations relative a une pièce.
+// Les informations relative a une piï¿½ce.
 struct PieceInfo {
 	PieceInfo(){
 		isSelect = false;
@@ -37,7 +37,7 @@ struct PieceInfo {
 		serial = other.serial;
 	}
 
-	// La liste des information du tableau a sauvegardées.
+	// La liste des information du tableau a sauvegardï¿½es.
 	string serial;
 	bool isSelect;
 	double tolZone;
@@ -67,15 +67,15 @@ private:
 	// Le informations des workpath...
 	vector<std::string> unselect_workpaths;
 
-	// Les vecteur qui contienne les information nécessaires a évalué les indices dans le temps...
+	// Les vecteur qui contienne les information nï¿½cessaires a ï¿½valuï¿½ les indices dans le temps...
 	vector<double> evolution_moyennes;
 	vector<double> evolution_cp;
 	vector<double> evolution_cpk;
 
-	//contient la liste des test qui ont échoués...
+	//contient la liste des test qui ont ï¿½chouï¿½s...
 	QVector<int> failedTests;
 
-	//attributs privé
+	//attributs privï¿½
 	double test_K1;
 	int test_K2;
 	int test_K3;
@@ -94,7 +94,7 @@ private:
 	bool state_test_K7;
 	bool state_test_K8;
 
-	// Données des limites de contrôles des cartes I/MR
+	// Donnï¿½es des limites de contrï¿½les des cartes I/MR
 	double LCS_X;
 	double LCI_X;
 	double LC_X;
@@ -102,8 +102,8 @@ private:
 	double LCI_MR;
 	double LC_MR;
 	
-	// Comme les valeurs évolue dans le temps il faut a un moment les figé pour voir
-	// comment évolue la capabilité dans le temps.
+	// Comme les valeurs ï¿½volue dans le temps il faut a un moment les figï¿½ pour voir
+	// comment ï¿½volue la capabilitï¿½ dans le temps.
 	double LCX_fix;
 	double LCS_X_fix;
 	double LCI_X_fix;
@@ -151,13 +151,13 @@ private:
 	string path;
 
 
-	// Evolution des indice qualité piece par piece...
+	// Evolution des indice qualitï¿½ piece par piece...
     void calculEvolution(unsigned int size);
 
-	// Ce champs détermine si l'analyse doit ce mettre automatiquement a jour
+	// Ce champs dï¿½termine si l'analyse doit ce mettre automatiquement a jour
 	bool isStatic_;
 
-	// Vector temporaire qui garde en mémoire les valeurs.
+	// Vector temporaire qui garde en mï¿½moire les valeurs.
     std::vector<double> donneesIndividuelle;
 
 public:
@@ -175,7 +175,7 @@ public:
 	void addPieceInfo(PieceInfo* info);
     vector<PieceInfo*>& getPieceInfosLst();
 
-	//accesseurs pour les paramètres de tests
+	//accesseurs pour les paramï¿½tres de tests
 	double getTest_K1();
 	int getTest_K2();
 	int getTest_K3();
@@ -185,7 +185,7 @@ public:
 	int getTest_K7();
 	int getTest_K8();
 
-	//Accesseurs pour les états des tests
+	//Accesseurs pour les ï¿½tats des tests
 	bool getState_test_K1();
 	bool getState_test_K2();
 	bool getState_test_K3();
@@ -195,11 +195,11 @@ public:
 	bool getState_test_K7();
 	bool getState_test_K8();
 
-	//la liste des tests échoués...
+	//la liste des tests ï¿½chouï¿½s...
 	QVector<int> getFailedTests();
 	void setFailedTests(QVector<int>);
 
-	//Mutateurs pour les paramètres de test
+	//Mutateurs pour les paramï¿½tres de test
 	void setTest_K1(double test_K1);
 	void setTest_K2(int test_K2);
 	void setTest_K3(int test_k3);
@@ -209,7 +209,7 @@ public:
 	void setTest_K7(int test_K7);
 	void setTest_K8(int test_K8);
 
-	//Mutateurs pour les paramètres de test
+	//Mutateurs pour les paramï¿½tres de test
 	void setState_test_K1(bool state_test_K1);
 	void setState_test_K2(bool state_test_K2);
 	void setState_test_K3(bool state_test_K3);
@@ -219,7 +219,7 @@ public:
 	void setState_test_K7(bool state_test_K7);
 	void setState_test_K8(bool state_test_K8);
 
-	//Accesseur pour les cartes de contrôle I/MR
+	//Accesseur pour les cartes de contrï¿½le I/MR
 	double getLCS_X();
 	double getLCI_X();
 	double getLC_X();
@@ -275,7 +275,7 @@ public:
     double getDonneesIndividuellePrecision();
     int getDonneesIndividuelleSummation();
 
-	//Matateurs pour les cartes de contrôle I/MR
+	//Matateurs pour les cartes de contrï¿½le I/MR
 	void setLCS_X(double LCS_X);
 	void setLCI_X(double LCI_X);
 	void setLC_X(double LC_X);
@@ -340,37 +340,37 @@ public:
 	//tableau des sous groupes pour la carte_IMR
 	vector<SousGroupe> sousGroupe_IMR;
 
-    //tableau des états de chaque point des 2 courbes pour afficher les point d'erreur en rouge
+    //tableau des ï¿½tats de chaque point des 2 courbes pour afficher les point d'erreur en rouge
 	vector<Erreur> state_X;
 	vector<Erreur> state_MR;
 
-	//tableau contenant les données à être analysé par l'analyseur (graphe Individual value)
+	//tableau contenant les donnï¿½es ï¿½ ï¿½tre analysï¿½ par l'analyseur (graphe Individual value)
     vector<double> donneesIndivitual;
 
 	//tableau contenant les cote z de chaque donnee
 	vector<double> coteZDonneeIndivitual;
 
-	//tableau contenant les données à être analysé par l'analyseur (graphe tolerance)
+	//tableau contenant les donnï¿½es ï¿½ ï¿½tre analysï¿½ par l'analyseur (graphe tolerance)
     vector<double> donneesTolerance;
 
-	//surcharge d'opérateur
+	//surcharge d'opï¿½rateur
 	DonneesAnalyse& operator =(const DonneesAnalyse &donnees);
 
 	//vide le tableau des pieces..
 	void clearPieces();
 
-	//méthode pour trier les pièces par date..
+	//mï¿½thode pour trier les piï¿½ces par date..
 	void sortPieceByDate();
 
-	// Mise a jour des donnée calculé de l'analyse.
+	// Mise a jour des donnï¿½e calculï¿½ de l'analyse.
 	void update();
 
 	// Mise a jour d'un info de la liste des information...
     void update(std::string serial, bool isSelect);
 
 	// Cette fonction permet d'initialiser la liste des info dans la classe... 
-	// * Les donnée relative au modèle, numéros d'opération etc, doivent avoir été initialisé correctement
-	//   avant l'appel de cette méthode...
+	// * Les donnï¿½e relative au modï¿½le, numï¿½ros d'opï¿½ration etc, doivent avoir ï¿½tï¿½ initialisï¿½ correctement
+	//   avant l'appel de cette mï¿½thode...
 	void initItemInfo();
 
 	// Permet d'ajouter une route a soustraire de l'analyse...
@@ -379,7 +379,7 @@ public:
 	void setUnselectWorkPath(QList<QString>& lst);
 	QList<QString>* getUnselectWorkPath();
 
-    // Convertion to and from json values.
+    // Conversion to and from json values.
     void read(const QJsonObject &json);
     void write(QJsonObject &json) const;
 

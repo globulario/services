@@ -23,40 +23,40 @@ string Erreur::getDescriptionErreur(int noErreur)
     string erreur = "";
     if(noErreur == 1)
     {
-        erreur = "1 point plus grand que k écarts type à partir de la ligne centrale";
+        erreur = "1 point plus grand que k ï¿½carts type ï¿½ partir de la ligne centrale";
     }
     else if(noErreur == 2)
     {
-        erreur = "K points consécutifs, du même côté de la ligne centrale ";
+        erreur = "K points consï¿½cutifs, du mï¿½me cï¿½tï¿½ de la ligne centrale ";
     }
     else if(noErreur == 3)
     {
-        erreur = "K points consécutifs, tous croissants ou tous décroissant";
+        erreur = "K points consï¿½cutifs, tous croissants ou tous dï¿½croissant";
     }
     else if(noErreur == 4)
     {
-        erreur = "K points consécutifs, croissants et décroissant en alternance";
+        erreur = "K points consï¿½cutifs, croissants et dï¿½croissant en alternance";
     }
     else if(noErreur == 5)
     {
-        erreur = "k sur K+1 points > 2 écarts types à partir de la ligne centrale(du même côté)";
+        erreur = "k sur K+1 points > 2 ï¿½carts types ï¿½ partir de la ligne centrale(du mï¿½me cï¿½tï¿½)";
     }
     else if(noErreur == 6)
     {
-        erreur = "K sur K+1 > 1 écart type à partir de la ligne centrale (du même côté)";
+        erreur = "K sur K+1 > 1 ï¿½cart type ï¿½ partir de la ligne centrale (du mï¿½me cï¿½tï¿½)";
     }
     else if(noErreur == 7)
     {
-        erreur = "K points consécutifs, dans 1 écart type de la ligne centrale (du même côté)";
+        erreur = "K points consï¿½cutifs, dans 1 ï¿½cart type de la ligne centrale (du mï¿½me cï¿½tï¿½)";
     }
     else if(noErreur == 8)
     {
-        erreur = "K points consécutifs > 1 écart type à partir de la ligne centrale (des deux côtés)";
+        erreur = "K points consï¿½cutifs > 1 ï¿½cart type ï¿½ partir de la ligne centrale (des deux cï¿½tï¿½s)";
     }
     return erreur;
 }
 
-// Convertion to and from json values.
+// Conversion to and from json values.
 void Erreur::read(const QJsonObject &json){
     QJsonArray numbers = json["numbers"].toArray();
     for(size_t i =0; i < numbers.size(); i++){
