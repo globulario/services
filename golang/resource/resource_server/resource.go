@@ -59,6 +59,7 @@ func (resource_server *server) SetEmail(ctx context.Context, rqst *resourcepb.Se
 	// Here I will save the role.
 	jsonStr := "{"
 	jsonStr += `"name":"` + account["name"].(string) + `",`
+	jsonStr += `"domain":"` + account["domain"].(string) + `",`
 	jsonStr += `"email":"` + account["email"].(string) + `",`
 	jsonStr += `"password":"` + account["password"].(string) + `",`
 	jsonStr += `"roles":[`
@@ -319,6 +320,12 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 	for i := 0; i < len(accounts); i++ {
 		account := accounts[i].(map[string]interface{})
 		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string)}
+
+		if  account["domain"] != nil {
+			a.Domain = account["domain"].(string)
+		}else{
+			a.Domain = resource_server.Domain
+		}
 
 		if account["groups"] != nil {
 			groups := []interface{}(account["groups"].(primitive.A))
@@ -665,7 +672,12 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 	for i := 0; i < len(roles); i++ {
 		role := roles[i].(map[string]interface{})
 		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
-
+		if role["domain"] != nil {
+			r.Domain = role["domain"].(string)
+		}else{
+			r.Domain = resource_server.Domain
+		}
+		
 		if role["actions"] != nil {
 			actions := []interface{}(role["actions"].(primitive.A))
 			if actions != nil {
@@ -2459,6 +2471,11 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 		organization.Icon = o["icon"].(string)
 		organization.Description = o["description"].(string)
 		organization.Email = o["email"].(string)
+		if o["domain"] != nil {
+			organization.Domain =  o["domain"].(string)
+		}else{
+			organization.Domain = resource_server.Domain
+		}
 
 		// Here I will set the aggregation.
 
@@ -2888,9 +2905,15 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 	// No I will stream the result over the networks.
 	maxSize := 50
 	values := make([]*resourcepb.Group, 0)
+
 	for i := 0; i < len(groups); i++ {
 
 		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Description: groups[i].(map[string]interface{})["description"].(string), Members: make([]string, 0)}
+		if  groups[i].(map[string]interface{})["domain"] != nil {
+			g.Domain = groups[i].(map[string]interface{})["domain"].(string)
+		}else{
+			g.Domain = resource_server.Domain
+		}
 
 		if groups[i].(map[string]interface{})["members"] != nil {
 			members := []interface{}(groups[i].(map[string]interface{})["members"].(primitive.A))
