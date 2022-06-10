@@ -283,9 +283,45 @@ message StopResponse {
 	
 }
 
+// Add a public dir.
+message AddPublicDirRequest{
+	string path = 1;
+}
+
+message AddPublicDirResponse{
+
+}
+
+// Add a public dir.
+message RemovePublicDirRequest{
+	string path = 1;
+}
+
+message RemovePublicDirResponse{
+
+}
+
+// Return the list of public file path.
+message GetPublicDirsRequest {
+	
+}
+
+message GetPublicDirsResponse {
+	repeated string dirs = 1;
+}
+
 service FileService {
   	// Stop the server.
  	rpc Stop(StopRequest) returns (StopResponse);
+
+	// Append public dir to the list of dir...
+	rpc  AddPublicDir( AddPublicDirRequest ) returns(AddPublicDirResponse);
+
+	// Append public dir to the list of dir...
+	rpc  RemovePublicDir( RemovePublicDirRequest ) returns(RemovePublicDirResponse);
+
+	// Return the list of public path from a given file server...
+	rpc GetPublicDirs( GetPublicDirsRequest )  returns(GetPublicDirsResponse);
 
 	// Return a JOSN string containing the directories informations.
 	// In case of image I will return a thumnail of the image so 

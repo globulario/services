@@ -759,6 +759,69 @@ func (file_server *server) formatPath(path string) string {
 ////////////////////////////////////////////////////////////////////////////////
 // Directory operations
 ////////////////////////////////////////////////////////////////////////////////
+// Append public dir to the list of dir...
+func (file_server *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path "+rqst.Path+"dosen't exist")))
+	}
+
+	// So here I will test if the path is already in the public path...
+	if Utility.Contains(file_server.Public, rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+rqst.Path+" already exist in Pulbic paths")))
+	}
+
+	// Append the path in the list...
+	file_server.Public = append(file_server.Public, rqst.Path)
+
+	// save it in the configuration...
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.AddPublicDirResponse{}, nil
+}
+
+// Append public dir to the list of dir...
+func (file_server *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path "+rqst.Path+"dosen't exist")))
+	}
+
+	// So here I will test if the path is already in the public path...
+	if !Utility.Contains(file_server.Public, rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+rqst.Path+" dosen exist in Pulbic paths")))
+	}
+
+	// Append the path in the list...
+	file_server.Public = Utility.RemoveString(file_server.Public, rqst.Path)
+
+	// save it in the configuration...
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.RemovePublicDirResponse{}, nil
+}
+
+// Return the list of public path from a given file server...
+func (file_server *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) (*filepb.GetPublicDirsResponse, error) {
+	return &filepb.GetPublicDirsResponse{Dirs: file_server.Public}, nil
+}
+
 func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
 	path := file_server.formatPath(rqst.GetPath())
@@ -1356,6 +1419,7 @@ func generateVideoPreviewListener(evt *eventpb.Event) {
 		}
 	}
 
+	fmt.Println("generate preview and time line for ", path)
 	createVideoPreview(path, 20, 128, false)
 	go func() {
 		generateVideoGifPreview(path, 10, 320, 30, false)
@@ -1364,108 +1428,10 @@ func generateVideoPreviewListener(evt *eventpb.Event) {
 
 	client, err := getEventClient()
 	if err == nil {
-		dir := []byte(string(evt.Data)[0:strings.LastIndex(string(evt.Data), "/")])
-		client.Publish("reload_dir_event", dir)
+		dir := string(evt.Data)[0:strings.LastIndex(string(evt.Data), "/")]
+		fmt.Println("reload dir ", dir)
+		client.Publish("reload_dir_event", []byte(dir))
 	}
-}
-
-// That service is use to give access to SQL.
-// port number must be pass as argument.
-func main() {
-
-	// The actual server implementation.
-	s_impl := new(server)
-
-	// The name must the same as the grpc service name.
-	s_impl.Name = string(filepb.File_file_proto.Services().Get(0).FullName())
-	s_impl.Proto = filepb.File_file_proto.Path()
-	s_impl.Port = defaultPort
-	s_impl.Proxy = defaultProxy
-	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
-	s_impl.Version = "0.0.1"
-	s_impl.AllowAllOrigins = allow_all_origins
-	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario"
-	s_impl.Permissions = make([]interface{}, 12)
-	s_impl.Keywords = make([]string, 0)
-	s_impl.Repositories = make([]string, 0)
-	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"rbac.RbacService"}
-	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
-	s_impl.KeepAlive = true
-	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
-
-	// Video conversion retalted configuration.
-	s_impl.scheduler = gocron.NewScheduler()
-	s_impl.videoConversionErrors = new(sync.Map)
-	s_impl.AutomaticStreamConversion = false
-	s_impl.AutomaticVideoConversion = false
-	s_impl.MaximumVideoConversionDelay = "00:00" // convert for 8 hours...
-	s_impl.StartVideoConversionHour = "00:00"    // start conversion at midnight, when every one sleep
-
-	// So here I will set the default permissions for services actions.
-	// Permission are use in conjonctions of resource.
-	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[1] = map[string]interface{}{"action": "/file.FileService/CreateDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[2] = map[string]interface{}{"action": "/file.FileService/DeleteDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	s_impl.Permissions[3] = map[string]interface{}{"action": "/file.FileService/Rename", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[4] = map[string]interface{}{"action": "/file.FileService/GetFileInfo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[5] = map[string]interface{}{"action": "/file.FileService/ReadFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[6] = map[string]interface{}{"action": "/file.FileService/SaveFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[7] = map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-
-	// Set the root path if is pass as argument.
-	if len(s_impl.Root) == 0 {
-		s_impl.Root = os.TempDir()
-	}
-
-	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
-	}
-
-	// Here I will retreive the list of connections from file if there are some...
-	err := s_impl.Init()
-	if err != nil {
-		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
-	}
-
-	// Register the echo services
-	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
-	reflection.Register(s_impl.grpcServer)
-
-	// Now the event client service.
-	go func() {
-		client, err := getEventClient()
-		if err == nil {
-
-			// refresh dir event
-			client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), generateVideoPreviewListener)
-		} else {
-		}
-
-	}()
-
-	// Process video at every day at the given hour...
-	s_impl.scheduler.Every(1).Day().At(s_impl.StartVideoConversionHour).Do(processVideos, s_impl)
-
-	if s_impl.AutomaticVideoConversion {
-		// Start the scheduler
-		fmt.Println("start scheduler!")
-		s_impl.scheduler.Start()
-	}
-
-	// Start the service.
-	s_impl.StartService()
-
 }
 
 // Move a file/directory
@@ -2632,4 +2598,105 @@ func (file_server *server) ClearVideoConversionErrors(ctx context.Context, rqst 
 func (file_server *server) ClearVideoConversionError(ctx context.Context, rqst *filepb.ClearVideoConversionErrorRequest) (*filepb.ClearVideoConversionErrorResponse, error) {
 	file_server.videoConversionErrors.Delete(rqst.Path)
 	return &filepb.ClearVideoConversionErrorResponse{}, nil
+}
+
+
+
+// That service is use to give access to SQL.
+// port number must be pass as argument.
+func main() {
+
+	// The actual server implementation.
+	s_impl := new(server)
+
+	// The name must the same as the grpc service name.
+	s_impl.Name = string(filepb.File_file_proto.Services().Get(0).FullName())
+	s_impl.Proto = filepb.File_file_proto.Path()
+	s_impl.Port = defaultPort
+	s_impl.Proxy = defaultProxy
+	s_impl.Protocol = "grpc"
+	s_impl.Domain = domain
+	s_impl.Version = "0.0.1"
+	s_impl.AllowAllOrigins = allow_all_origins
+	s_impl.AllowedOrigins = allowed_origins
+	s_impl.PublisherId = "globulario"
+	s_impl.Permissions = make([]interface{}, 12)
+	s_impl.Keywords = make([]string, 0)
+	s_impl.Repositories = make([]string, 0)
+	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = []string{"rbac.RbacService"}
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
+	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
+
+	// Video conversion retalted configuration.
+	s_impl.scheduler = gocron.NewScheduler()
+	s_impl.videoConversionErrors = new(sync.Map)
+	s_impl.AutomaticStreamConversion = false
+	s_impl.AutomaticVideoConversion = false
+	s_impl.MaximumVideoConversionDelay = "00:00" // convert for 8 hours...
+	s_impl.StartVideoConversionHour = "00:00"    // start conversion at midnight, when every one sleep
+
+	// So here I will set the default permissions for services actions.
+	// Permission are use in conjonctions of resource.
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/file.FileService/CreateDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/file.FileService/DeleteDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/file.FileService/Rename", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/file.FileService/GetFileInfo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/file.FileService/ReadFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[6] = map[string]interface{}{"action": "/file.FileService/SaveFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[7] = map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+
+	// Set the root path if is pass as argument.
+	if len(s_impl.Root) == 0 {
+		s_impl.Root = os.TempDir()
+	}
+
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+
+	// Here I will retreive the list of connections from file if there are some...
+	err := s_impl.Init()
+	if err != nil {
+		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+	}
+
+	// Register the echo services
+	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
+	reflection.Register(s_impl.grpcServer)
+
+	// Now the event client service.
+	go func() {
+		client, err := getEventClient()
+		if err == nil {
+
+			// refresh dir event
+			client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), generateVideoPreviewListener)
+		} else {
+		}
+
+	}()
+
+	// Process video at every day at the given hour...
+	s_impl.scheduler.Every(1).Day().At(s_impl.StartVideoConversionHour).Do(processVideos, s_impl)
+
+	if s_impl.AutomaticVideoConversion {
+		// Start the scheduler
+		fmt.Println("start scheduler!")
+		s_impl.scheduler.Start()
+	}
+
+	// Start the service.
+	s_impl.StartService()
+
 }

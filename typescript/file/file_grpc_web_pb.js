@@ -134,6 +134,189 @@ proto.file.FileServicePromiseClient.prototype.stop =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.AddPublicDirRequest,
+ *   !proto.file.AddPublicDirResponse>}
+ */
+const methodDescriptor_FileService_AddPublicDir = new grpc.web.MethodDescriptor(
+  '/file.FileService/AddPublicDir',
+  grpc.web.MethodType.UNARY,
+  proto.file.AddPublicDirRequest,
+  proto.file.AddPublicDirResponse,
+  /**
+   * @param {!proto.file.AddPublicDirRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.AddPublicDirResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.AddPublicDirRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.AddPublicDirResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.AddPublicDirResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.addPublicDir =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/AddPublicDir',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_AddPublicDir,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.AddPublicDirRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.AddPublicDirResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.addPublicDir =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/AddPublicDir',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_AddPublicDir);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.RemovePublicDirRequest,
+ *   !proto.file.RemovePublicDirResponse>}
+ */
+const methodDescriptor_FileService_RemovePublicDir = new grpc.web.MethodDescriptor(
+  '/file.FileService/RemovePublicDir',
+  grpc.web.MethodType.UNARY,
+  proto.file.RemovePublicDirRequest,
+  proto.file.RemovePublicDirResponse,
+  /**
+   * @param {!proto.file.RemovePublicDirRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.RemovePublicDirResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.RemovePublicDirRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.RemovePublicDirResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.RemovePublicDirResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.removePublicDir =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/RemovePublicDir',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_RemovePublicDir,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.RemovePublicDirRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.RemovePublicDirResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.removePublicDir =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/RemovePublicDir',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_RemovePublicDir);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.GetPublicDirsRequest,
+ *   !proto.file.GetPublicDirsResponse>}
+ */
+const methodDescriptor_FileService_GetPublicDirs = new grpc.web.MethodDescriptor(
+  '/file.FileService/GetPublicDirs',
+  grpc.web.MethodType.UNARY,
+  proto.file.GetPublicDirsRequest,
+  proto.file.GetPublicDirsResponse,
+  /**
+   * @param {!proto.file.GetPublicDirsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.GetPublicDirsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.GetPublicDirsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.GetPublicDirsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.GetPublicDirsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.getPublicDirs =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/GetPublicDirs',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GetPublicDirs,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.GetPublicDirsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.GetPublicDirsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.getPublicDirs =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/GetPublicDirs',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GetPublicDirs);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.ReadDirRequest,
  *   !proto.file.ReadDirResponse>}
  */
