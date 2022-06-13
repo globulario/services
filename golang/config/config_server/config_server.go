@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
 	//"fmt"
 	"log"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/config/configpb"
-	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 
 	//"github.com/globulario/services/golang/interceptors"
@@ -405,22 +403,6 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-var event_client_ *event_client.Event_Client
-
-func getEventClient() (*event_client.Event_Client, error) {
-	if event_client_ == nil {
-		address, err := config.GetAddress()
-		if err != nil {
-			return nil, err
-		}
-		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return event_client_, nil
-}
 
 /////////////////////// Config service specific function /////////////////////////////////
 
@@ -469,14 +451,7 @@ func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Publish the configuration change event.
-	event_client_, err := getEventClient()
-	if err == nil {
-		str, err := json.Marshal(rqst.Config)
-		if err == nil {
-			event_client_.Publish("update_globular_service_configuration_evt", str)
-		}
-	}
+
 
 	return &configpb.SetServiceConfigurationResponse{}, nil
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
+	"github.com/globulario/services/golang/event/event_client"
 	"github.com/kardianos/osext"
 
 	//"github.com/globulario/services/golang/config"
@@ -465,6 +466,23 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 	return server, nil
 }
 
+var event_client_ *event_client.Event_Client
+
+func getEventClient() (*event_client.Event_Client, error) {
+	if event_client_ == nil {
+		address, err := config.GetAddress()
+		if err != nil {
+			return nil, err
+		}
+		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return event_client_, nil
+}
+
 func StartService(s Service, server *grpc.Server) error {
 
 	// First of all I will create a listener.
@@ -514,18 +532,18 @@ func StartService(s Service, server *grpc.Server) error {
 				if !ok {
 					return
 				}
-
 				if event.Op == fsnotify.Write {
-					// renit the service...
-					config_, err := config_client.GetServiceConfigurationById(s.GetConfigurationPath())
+					// reinit the service...
+					data, err := os.ReadFile(s.GetConfigurationPath())
+					err = json.Unmarshal(data, &s)
 					if err != nil {
-						fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+						fmt.Println("fail to unmarshal configuration at path ", s.GetConfigurationPath(), err)
 					} else {
-						// update values...
-						s.SetPort(Utility.ToInt(config_["Port"]))
-						s.SetProxy(Utility.ToInt(config_["Proxy"]))
-						s.SetProcess(Utility.ToInt(config_["Process"]))
-						s.SetProxyProcess(Utility.ToInt(config_["ProxyProcess"]))
+						// Publish the configuration change event.
+						event_client_, err := getEventClient()
+						if err == nil {
+							event_client_.Publish("update_globular_service_configuration_evt", data)
+						}
 					}
 				}
 			case err, ok := <-watcher.Errors:

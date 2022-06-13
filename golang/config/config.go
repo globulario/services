@@ -3,6 +3,10 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/davecourtois/Utility"
+	"github.com/emicklei/proto"
+	"github.com/fsnotify/fsnotify"
+	"github.com/syndtr/goleveldb/leveldb/errors"
 	"io/ioutil"
 	"log"
 	"net"
@@ -11,16 +15,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/davecourtois/Utility"
-	"github.com/emicklei/proto"
-	"github.com/syndtr/goleveldb/leveldb/errors"
-)
-
-// I will keep the service configuation in a sync map.
-var (
-	// keep list of public location accessibles...
-	public []string
 )
 
 //////////////////////////////////////////////////////////////////////////////////////
@@ -108,10 +102,25 @@ func GetRootDir() string {
 	return "/globular"
 }
 
+// Return the list of public dir.
 func GetPublicDirs() []string {
-	if public == nil {
-		public = make([]string, 0)
+
+	public := make([]string, 0)
+	// Retreive all configurations
+	services, err := GetOrderedServicesConfigurations()
+	if err == nil {
+		for i := 0; i < len(services); i++ {
+			s := services[i]
+			if s["Name"] == "file.FileService" {
+				if s["Public"] != nil {
+					for j := 0; j < len(s["Public"].([]interface{})); j++ {
+						public = append(public, s["Public"].([]interface{})[j].(string))
+					}
+				}
+			}
+		}
 	}
+
 	return public
 }
 
@@ -123,7 +132,7 @@ func GetServicesConfigDir() string {
 
 	// That variable is use in development to set services from diffrent location...
 	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	
+
 	if len(serviceRoot) > 0 {
 		return strings.ReplaceAll(serviceRoot, "\\", "/")
 	}
@@ -169,20 +178,20 @@ func GetWebRootDir() string {
 /**
  * Read token for a given domain.
  */
-func GetToken(domain string) (string,error){
+func GetToken(domain string) (string, error) {
 	domain, err := GetDomain()
 	if err != nil {
 		return "", err
 	}
 	path := GetConfigDir() + "/tokens/" + domain + "_token"
-	if !Utility.Exists(path){
-		return "",  errors.New("no token found for domain " + domain + " at path " + path)
+	if !Utility.Exists(path) {
+		return "", errors.New("no token found for domain " + domain + " at path " + path)
 	}
 
 	token, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Println()
-		return "",  errors.New("fail to read token at path " + path + " with error: " + err.Error())
+		return "", errors.New("fail to read token at path " + path + " with error: " + err.Error())
 	}
 
 	return string(token), nil
@@ -284,7 +293,6 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 		port = 80
 	}
 
-
 	// Try over
 	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
 	if err != nil {
@@ -292,7 +300,7 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 		if err != nil {
 			return nil, err
 		}
-	
+
 	}
 
 	defer resp.Body.Close()
@@ -628,17 +636,6 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			if s["Root"] != nil {
 				if s["Name"] == "file.FileService" {
 					s["Root"] = GetDataDir() + "/files"
-					// append public path from file services accessible to configuration client...
-					if s["Public"] != nil {
-						for i := 0; i < len(s["Public"].([]interface{})); i++ {
-							path := s["Public"].([]interface{})[i].(string)
-							if Utility.Exists(path) {
-								if !Utility.Contains(GetPublicDirs(), path) {
-									public = append(GetPublicDirs(), path)
-								}
-							}
-						}
-					}
 				} else {
 					s["Root"] = GetDataDir()
 				}
@@ -772,7 +769,7 @@ func initConfig() {
 			fmt.Println("fail to initialyse service configuration from file "+path, " with error ", err)
 		} else {
 			// save back the file...
-			s["ConfigPath"] =  strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
+			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
 			services = append(services, s)
 		}
 	}
@@ -812,16 +809,30 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 	serviceDir := GetServicesConfigDir()
 	serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal("NewWatcher failed: ", err)
+	}
+	defer watcher.Close()
+
+	// register file to watch...
+	for i := 0; i < len(services); i++ {
+		// watch for configuration change
+		err = watcher.Add(services[i]["ConfigPath"].(string))
+		if err != nil {
+			log.Fatal("Add failed:", err)
+		}
+	}
 
 	for {
 		select {
 		case infos := <-saveServiceConfigChan:
-
 			s := infos["service_config"].(map[string]interface{})
 			path := s["ConfigPath"].(string)
 			return_chan := infos["return"].(chan error)
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
+			fmt.Println("save service configuation call for service ", s["Name"])
 			if err != nil {
 				fmt.Println("fail to save service configuration", err)
 				return_chan <- err
@@ -911,6 +922,35 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				err = errors.New("no services found with name " + name)
 			}
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": services_, "error": err}
+
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Op == fsnotify.Write {
+				data, err := os.ReadFile(event.Name)
+				s := make(map[string]interface{})
+				err = json.Unmarshal(data, &s)
+				if err != nil {
+					fmt.Println("fail to unmarshal configuration at path ", event.Name, err)
+				}else{
+					// set the service values found from the file.
+					for i := 0; i < len(services); i++ {
+						if services[i]["Id"] == s["Id"] {
+							services[i] = s
+							// Here I will send service change event.
+							
+							break
+						}
+					}
+
+				}
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			fmt.Println("error:", err)
 		}
 
 	}

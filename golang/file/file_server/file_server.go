@@ -37,6 +37,8 @@ import (
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/title/title_client"
+	"github.com/globulario/services/golang/title/titlepb"
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/jasonlvhit/gocron"
 	"github.com/nfnt/resize"
 	"github.com/polds/imgbase64"
@@ -132,6 +134,9 @@ type server struct {
 	// This map will contain video conversion error so the server will not try
 	// to convert the same file again and again.
 	videoConversionErrors *sync.Map
+
+	// This map will contain video convertion logs.
+	videoConversionLogs *sync.Map
 
 	// The task scheduler.
 	scheduler *gocron.Scheduler
@@ -735,14 +740,16 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 func (file_server *server) formatPath(path string) string {
 
-	path = strings.ReplaceAll(path, "\\", "//")
+	path = strings.ReplaceAll(path, "\\", "/")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
 				if !file_server.isPublic(path) {
 					// Must be in the root path if it's not in public path.
-					if !strings.HasPrefix(path, file_server.Root) {
+					if Utility.Exists(file_server.Root + path) {
 						path = file_server.Root + path
+					} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
+						path = config.GetDataDir() + "/files" + path
 					}
 				}
 			} else {
@@ -753,12 +760,76 @@ func (file_server *server) formatPath(path string) string {
 			path = file_server.Root
 		}
 	}
+
 	return path
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Directory operations
 ////////////////////////////////////////////////////////////////////////////////
+// Append public dir to the list of dir...
+func (file_server *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path "+rqst.Path+"dosen't exist")))
+	}
+
+	// So here I will test if the path is already in the public path...
+	if Utility.Contains(file_server.Public, rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+rqst.Path+" already exist in Pulbic paths")))
+	}
+
+	// Append the path in the list...
+	file_server.Public = append(file_server.Public, rqst.Path)
+
+	// save it in the configuration...
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.AddPublicDirResponse{}, nil
+}
+
+// Append public dir to the list of dir...
+func (file_server *server) RemovePublicDir(ctx context.Context, rqst *filepb.RemovePublicDirRequest) (*filepb.RemovePublicDirResponse, error) {
+	if !Utility.Exists(rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path "+rqst.Path+"dosen't exist")))
+	}
+
+	// So here I will test if the path is already in the public path...
+	if !Utility.Contains(file_server.Public, rqst.Path) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+rqst.Path+" dosen exist in Pulbic paths")))
+	}
+
+	// Append the path in the list...
+	file_server.Public = Utility.RemoveString(file_server.Public, rqst.Path)
+
+	// save it in the configuration...
+	err := file_server.Save()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.RemovePublicDirResponse{}, nil
+}
+
+// Return the list of public path from a given file server...
+func (file_server *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsRequest) (*filepb.GetPublicDirsResponse, error) {
+	return &filepb.GetPublicDirsResponse{Dirs: file_server.Public}, nil
+}
+
 func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
 	path := file_server.formatPath(rqst.GetPath())
@@ -1044,7 +1115,35 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No directory with path "+path+" was found!")))
 	}
-	err := os.RemoveAll(path)
+
+	// Remove file asscociation contain by file in that directry
+	client, err := getTitleClient()
+	if err != nil {
+		return nil, err
+	}
+
+	titles := make(map[string][]*titlepb.Title, 0)
+	file_server.getFileTitlesAssociation(client, rqst.GetPath(), titles)
+
+	videos := make(map[string][]*titlepb.Video, 0)
+	file_server.getFileVideosAssociation(client, rqst.GetPath(), videos)
+
+	// Dissociates titles...
+	for f, titles_ := range titles {
+		for _, title := range titles_ {
+			client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, f)
+		}
+	}
+
+	// Dissociates videos...
+	for f, video_ := range videos {
+		for _, video := range video_ {
+			client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f)
+		}
+	}
+
+	// Remove the file itself.
+	err = os.RemoveAll(path)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -1052,6 +1151,7 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Delete resource permission.
 	rbac_client_, err = getRbacClient()
 	if err != nil {
 		return nil, status.Errorf(
@@ -1245,6 +1345,9 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 		}
 	}
 
+	// Now I will disscociate the file.
+	dissociateFileWithTitle(rqst.GetPath())
+
 	return &filepb.DeleteFileResponse{
 		Result: true,
 	}, nil
@@ -1347,152 +1450,164 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
 
-func generateVideoPreviewListener(evt *eventpb.Event) {
-	path := string(evt.Data)
+// Recursively get all titles for a given path...
+func (file_server *server) getFileTitlesAssociation(client *title_client.Title_Client, path string, titles map[string][]*titlepb.Title) error {
 
-	if !Utility.Exists(path) {
-		if Utility.Exists(config.GetDataDir() + "/files" + path) {
-			path = config.GetDataDir() + "/files" + path
+	path_ := file_server.formatPath(path)
+
+	info, err := os.Stat(path_)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() && !Utility.Exists(path_+"/playlist.m3u8") {
+		files, err := ioutil.ReadDir(path_)
+		if err == nil {
+			for _, f := range files {
+				path_ := path + "/" + f.Name()
+				if !strings.Contains(path_, ".hidden/") {
+					file_server.getFileTitlesAssociation(client, path_, titles)
+				}
+			}
+		}
+	} else {
+		titles_, err := client.GetFileTitles(config.GetDataDir()+"/search/titles", path)
+		if err == nil {
+			titles[path] = titles_
 		}
 	}
 
-	createVideoPreview(path, 20, 128, false)
-	go func() {
-		generateVideoGifPreview(path, 10, 320, 30, false)
-		createVideoTimeLine(path, 180, .2, false) // 1 frame per 5 seconds.
-	}()
-
-	client, err := getEventClient()
-	if err == nil {
-		dir := []byte(string(evt.Data)[0:strings.LastIndex(string(evt.Data), "/")])
-		client.Publish("reload_dir_event", dir)
-	}
+	return nil
 }
 
-// That service is use to give access to SQL.
-// port number must be pass as argument.
-func main() {
-
-	// The actual server implementation.
-	s_impl := new(server)
-
-	// The name must the same as the grpc service name.
-	s_impl.Name = string(filepb.File_file_proto.Services().Get(0).FullName())
-	s_impl.Proto = filepb.File_file_proto.Path()
-	s_impl.Port = defaultPort
-	s_impl.Proxy = defaultProxy
-	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
-	s_impl.Version = "0.0.1"
-	s_impl.AllowAllOrigins = allow_all_origins
-	s_impl.AllowedOrigins = allowed_origins
-	s_impl.PublisherId = "globulario"
-	s_impl.Permissions = make([]interface{}, 12)
-	s_impl.Keywords = make([]string, 0)
-	s_impl.Repositories = make([]string, 0)
-	s_impl.Discoveries = make([]string, 0)
-	s_impl.Dependencies = []string{"rbac.RbacService"}
-	s_impl.Process = -1
-	s_impl.ProxyProcess = -1
-	s_impl.KeepAlive = true
-	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
-
-	// Video conversion retalted configuration.
-	s_impl.scheduler = gocron.NewScheduler()
-	s_impl.videoConversionErrors = new(sync.Map)
-	s_impl.AutomaticStreamConversion = false
-	s_impl.AutomaticVideoConversion = false
-	s_impl.MaximumVideoConversionDelay = "00:00" // convert for 8 hours...
-	s_impl.StartVideoConversionHour = "00:00"    // start conversion at midnight, when every one sleep
-
-	// So here I will set the default permissions for services actions.
-	// Permission are use in conjonctions of resource.
-	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[1] = map[string]interface{}{"action": "/file.FileService/CreateDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[2] = map[string]interface{}{"action": "/file.FileService/DeleteDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	s_impl.Permissions[3] = map[string]interface{}{"action": "/file.FileService/Rename", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[4] = map[string]interface{}{"action": "/file.FileService/GetFileInfo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[5] = map[string]interface{}{"action": "/file.FileService/ReadFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[6] = map[string]interface{}{"action": "/file.FileService/SaveFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[7] = map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
-	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
-
-	// Set the root path if is pass as argument.
-	if len(s_impl.Root) == 0 {
-		s_impl.Root = os.TempDir()
-	}
-
-	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
-	}
-
-	// Here I will retreive the list of connections from file if there are some...
-	err := s_impl.Init()
+/**
+ * Return the list of videos description and file association
+ */
+func (file_server *server) getFileVideosAssociation(client *title_client.Title_Client, path string, videos map[string][]*titlepb.Video) error {
+	path_ := file_server.formatPath(path)
+	info, err := os.Stat(path_)
 	if err != nil {
-		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		return err
 	}
 
-	// Register the echo services
-	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
-	reflection.Register(s_impl.grpcServer)
-
-	// Now the event client service.
-	go func() {
-		client, err := getEventClient()
+	if info.IsDir() && !Utility.Exists(path_+"/playlist.m3u8") {
+		files, err := ioutil.ReadDir(path_)
 		if err == nil {
-
-			// refresh dir event
-			client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), generateVideoPreviewListener)
-		} else {
+			for _, f := range files {
+				path_ := path + "/" + f.Name()
+				if !strings.Contains(path_, ".hidden/") {
+					file_server.getFileVideosAssociation(client, path_, videos)
+				}
+			}
 		}
-
-	}()
-
-	// Process video at every day at the given hour...
-	s_impl.scheduler.Every(1).Day().At(s_impl.StartVideoConversionHour).Do(processVideos, s_impl)
-
-	if s_impl.AutomaticVideoConversion {
-		// Start the scheduler
-		fmt.Println("start scheduler!")
-		s_impl.scheduler.Start()
+	} else {
+		videos_, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path)
+		if err == nil {
+			videos[path] = videos_
+		}
 	}
 
-	// Start the service.
-	s_impl.StartService()
-
+	return nil
 }
 
 // Move a file/directory
 func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (*filepb.MoveResponse, error) {
 
-	// So here I will call the function mv at repetition for each path...
+	// So here I will try to retreive indexation for the file...
+	client, err := getTitleClient()
+	if err != nil {
+		return nil, err
+	}
+
 	for i := 0; i < len(rqst.Files); i++ {
-		path := file_server.Root + rqst.Files[i]
-		if Utility.Exists(path) {
-			err := Utility.Move(path, file_server.Root+rqst.Path)
-			if err != nil {
-				fmt.Println(err)
+		// TODO test if rqst.Path is in the root path...
+		from := file_server.formatPath(rqst.Files[i])
+		dest := file_server.formatPath(rqst.Path)
+		info, _ := os.Stat(from)
+		fmt.Println("move ", from, "to", dest)
+		if Utility.Exists(from) {
+
+			titles := make(map[string][]*titlepb.Title, 0)
+			file_server.getFileTitlesAssociation(client, rqst.Files[i], titles)
+
+			videos := make(map[string][]*titlepb.Video, 0)
+			file_server.getFileVideosAssociation(client, rqst.Files[i], videos)
+
+			// Dissociates titles...
+			for f, titles_ := range titles {
+				for _, title := range titles_ {
+					client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, f)
+				}
 			}
 
-			// If hidden folder exist for it...
-			path_ := path[0:strings.LastIndex(path, "/")]
-			fileName := path[strings.LastIndex(path, "/")+1:]
-			if strings.Contains(fileName, ".") {
-				fileName = fileName[0:strings.LastIndex(fileName, ".")]
+			// Dissociates videos...
+			for f, video_ := range videos {
+				for _, video := range video_ {
+					err := client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f)
+					if err != nil {
+						fmt.Println("fail to dissocite file ", err)
+					}
+				}
 			}
-			hiddenFolder := path_ + "/.hidden/" + fileName
 
-			if Utility.Exists(hiddenFolder) {
-				Utility.CreateDirIfNotExist(file_server.Root + rqst.Path + "/.hidden")
-				err := Utility.Move(hiddenFolder, file_server.Root+rqst.Path+"/.hidden")
-				if err != nil {
-					fmt.Println(err)
+			// Move the file...
+			// TODO test if rqst.Path is in the root path...
+			err := Utility.Move(from, dest)
+			if err == nil {
+				// Associate titles...
+				for f, titles_ := range titles {
+					for _, title := range titles_ {
+						var f_ string
+						if !info.IsDir() {
+							f_ = rqst.Path + "/" + f[strings.LastIndex(f, "/")+1:]
+						} else {
+							values := strings.Split(rqst.Files[i], "/")
+							dest := rqst.Path + "/" + values[len(values)-1]
+							f_ = strings.ReplaceAll(f, rqst.Files[i], dest)
+						}
+						client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, f_)
+						if err != nil {
+							fmt.Println("fail to asscociate file ", err)
+						}
+					}
+				}
+
+				// Associate videos...
+				for f, video_ := range videos {
+					for _, video := range video_ {
+						var f_ string
+						if !info.IsDir() {
+							f_ = rqst.Path + "/" + f[strings.LastIndex(f, "/")+1:]
+						} else {
+							values := strings.Split(rqst.Files[i], "/")
+							dest := rqst.Path + "/" + values[len(values)-1]
+							f_ = strings.ReplaceAll(f, rqst.Files[i], dest)
+						}
+
+						err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f_)
+						if err != nil {
+							fmt.Println("fail to asscociate file ", err)
+						}
+					}
+				}
+
+				// If hidden folder exist for it...
+				path_ := from[0:strings.LastIndex(from, "/")]
+				fileName := from[strings.LastIndex(from, "/")+1:]
+				if strings.Contains(fileName, ".") {
+					fileName = fileName[0:strings.LastIndex(fileName, ".")]
+				}
+				hiddenFolder := path_ + "/.hidden/" + fileName
+
+				if Utility.Exists(hiddenFolder) {
+					Utility.CreateDirIfNotExist(dest + "/.hidden")
+					err := Utility.Move(hiddenFolder, dest+"/.hidden")
+					if err != nil {
+						fmt.Println(err)
+					}
+					
+					output := dest + "/.hidden/" + fileName + "/__timeline__"
+					createVttFile(output, 0.2)
 				}
 			}
 		}
@@ -1723,9 +1838,62 @@ func processVideos(file_server *server) {
 
 	for _, video := range videos {
 		// Create preview and timeline...
-		createVideoPreview(video, 20, 128, false)
-		generateVideoGifPreview(video, 10, 320, 30, false)
-		createVideoTimeLine(video, 180, .2, false) // 1 frame per 5 seconds.
+		createVideoPreviewLog := new(filepb.VideoConversionLog)
+		createVideoPreviewLog.LogTime = time.Now().Unix()
+		createVideoPreviewLog.Msg = "Create video preview"
+		createVideoPreviewLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
+		createVideoPreviewLog.Status = "running"
+		file_server.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
+		file_server.publishConvertionLogEvent(createVideoPreviewLog)
+
+		err := createVideoPreview(video, 20, 128, false)
+		if err != nil {
+			createVideoPreviewLog.Status = "fail"
+			file_server.publishConvertionLogEvent(createVideoPreviewLog)
+			file_server.publishConvertionLogError(createVideoPreviewLog.Path, err)
+			err = nil
+		} else {
+			createVideoPreviewLog.Status = "done"
+			file_server.publishConvertionLogEvent(createVideoPreviewLog)
+		}
+
+		generateVideoGifPreviewLog := new(filepb.VideoConversionLog)
+		generateVideoGifPreviewLog.LogTime = time.Now().Unix()
+		generateVideoGifPreviewLog.Msg = "Generate video Gif image"
+		generateVideoGifPreviewLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
+		generateVideoGifPreviewLog.Status = "running"
+		file_server.videoConversionLogs.Store(generateVideoGifPreviewLog.LogTime, generateVideoGifPreviewLog)
+		file_server.publishConvertionLogEvent(generateVideoGifPreviewLog)
+
+		err = generateVideoGifPreview(video, 10, 320, 30, false)
+		if err != nil {
+			generateVideoGifPreviewLog.Status = "fail"
+			file_server.publishConvertionLogEvent(generateVideoGifPreviewLog)
+			file_server.publishConvertionLogError(generateVideoGifPreviewLog.Path, err)
+			err = nil
+		} else {
+			generateVideoGifPreviewLog.Status = "done"
+			file_server.publishConvertionLogEvent(generateVideoGifPreviewLog)
+		}
+
+		createVideoTimeLineLog := new(filepb.VideoConversionLog)
+		createVideoTimeLineLog.LogTime = time.Now().Unix()
+		createVideoTimeLineLog.Msg = "Generate video time line"
+		createVideoTimeLineLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
+		createVideoTimeLineLog.Status = "running"
+		file_server.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
+		file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+
+		err = createVideoTimeLine(video, 180, .2, false) // 1 frame per 5 seconds.
+		if err != nil {
+			createVideoTimeLineLog.Status = "fail"
+			file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+			file_server.publishConvertionLogError(createVideoTimeLineLog.Path, err)
+			err = nil
+		} else {
+			createVideoTimeLineLog.Status = "done"
+			file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+		}
 	}
 
 	// Step 2 Convert .mp4 to stream...
@@ -1743,23 +1911,50 @@ func processVideos(file_server *server) {
 				if !hasAlreadyFail {
 					fmt.Println("try to process video ", video)
 					if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
+
+						createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
+						createVideoMpeg4H264Log.LogTime = time.Now().Unix()
+						createVideoMpeg4H264Log.Msg = "Convert video to mp4"
+						createVideoMpeg4H264Log.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
+						createVideoMpeg4H264Log.Status = "running"
+						file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+						file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
 						video_, err := createVideoMpeg4H264(video)
 						if err != nil {
 							if err != nil {
+								createVideoMpeg4H264Log.Status = "fail"
+								file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
 								fmt.Println("fail with error", err.Error())
-								file_server.videoConversionErrors.Store(video_, err.Error())
+
+								file_server.publishConvertionLogError(video_, err)
 							}
 						} else {
 							video = video_
+							createVideoMpeg4H264Log.Status = "done"
+							file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
 						}
 					}
 
 					// Convert to stream...
 					if err == nil && file_server.AutomaticStreamConversion {
+						createHlsStreamFromMpeg4H264Log := new(filepb.VideoConversionLog)
+						createHlsStreamFromMpeg4H264Log.LogTime = time.Now().Unix()
+						createHlsStreamFromMpeg4H264Log.Msg = "Convert video to mp4"
+						createHlsStreamFromMpeg4H264Log.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
+						createHlsStreamFromMpeg4H264Log.Status = "running"
+						file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
+						file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 						err := createHlsStreamFromMpeg4H264(video)
 						if err != nil {
 							fmt.Println("fail with error", err.Error())
-							file_server.videoConversionErrors.Store(video, err.Error())
+							createHlsStreamFromMpeg4H264Log.Status = "fail"
+							file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+							file_server.publishConvertionLogError(video, err)
+
+						} else {
+							createHlsStreamFromMpeg4H264Log.Status = "done"
+							file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 						}
 					}
 				}
@@ -1805,9 +2000,9 @@ func getVideoPaths() []string {
 					return err
 				}
 
-				path_ := strings.ToLower(path)
-				if !strings.Contains(path, ".hidden") && strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
-					medias = append(medias, path)
+				path_ := strings.ReplaceAll(path, "\\", "/")
+				if !strings.Contains(path_, ".hidden") && strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
+					medias = append(medias, path_)
 				}
 				return nil
 			})
@@ -1917,14 +2112,46 @@ func createVideoMpeg4H264(path string) (string, error) {
 	if err != nil {
 		return "", errors.New(cmd.String() + " " + err.Error())
 	}
+
 	// Here I will remove the input file...
 	os.Remove(path)
 
 	return output, nil
 }
 
-func associatePath(path string) error {
+// Dissociate file, if the if is deleted...
+func dissociateFileWithTitle(path string) error {
 	path = strings.ReplaceAll(path, "\\", "/")
+
+	// So here I will try to retreive indexation for the file...
+	client, err := getTitleClient()
+	if err != nil {
+		return err
+	}
+
+	titles, err := client.GetFileTitles(config.GetDataDir()+"/search/titles", path)
+	if err == nil {
+		// Here I will asscociate the path
+		for _, title := range titles {
+			client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
+		}
+	}
+
+	// Look for videos
+	videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path)
+	if err == nil {
+		// Here I will asscociate the path
+		for _, video := range videos {
+			client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
+		}
+	}
+	return nil
+}
+
+// Reassociate a path when it name was change...
+func reassociatePath(path, new_path string) error {
+	path = strings.ReplaceAll(path, "\\", "/")
+
 	// So here I will try to retreive indexation for the file...
 	client, err := getTitleClient()
 	if err != nil {
@@ -1932,25 +2159,32 @@ func associatePath(path string) error {
 	}
 
 	// Now I will asscociate the title.
-	output_path := path[0:strings.LastIndex(path, ".")]
-
-	titles, err := client.GetFileTitles(config.GetDataDir()+"/search/titles", strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
+	titles, err := client.GetFileTitles(config.GetDataDir()+"/search/titles", path)
 	if err == nil {
 		// Here I will asscociate the path
 		for _, title := range titles {
-			client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, strings.ReplaceAll(output_path, config.GetDataDir()+"/files", ""))
-			client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
+			client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, new_path)
+			client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
 		}
 	}
 
 	// Look for videos
-	videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
+	videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path)
+
 	if err == nil {
 		// Here I will asscociate the path
 		for _, video := range videos {
-			client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, strings.ReplaceAll(output_path, config.GetDataDir()+"/files", ""))
-			client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, strings.ReplaceAll(path, config.GetDataDir()+"/files", ""))
+			err_0 := client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, new_path)
+			if err_0 != nil {
+				fmt.Println("fail to associte file ", err)
+			}
+			err_1 := client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
+			if err_1 != nil {
+				fmt.Println("fail to dissocite file ", err_1)
+			}
 		}
+	} else {
+		fmt.Println("no videos found for ", config.GetDataDir()+"/search/videos", " ", path, err)
 	}
 
 	return nil
@@ -2137,11 +2371,13 @@ func createHlsStreamFromMpeg4H264(path string) error {
 
 	// remove the mp4 file...
 	if Utility.Exists(output_path + "/playlist.m3u8") {
-		// Try to associate the path...
-		associatePath(path)
+
+		// reassociate the title here...
+		path_ := strings.ReplaceAll(path, config.GetDataDir()+"/files", "")
+		reassociatePath(path_, path_[0:strings.LastIndex(path_, ".")])
 
 		// remove the original file.
-		os.Remove(path)
+		os.Remove(path) // remove the orignal file.
 	}
 
 	return nil
@@ -2193,7 +2429,7 @@ func formatDuration(duration time.Duration) string {
 
 // Create the video preview...
 func generateVideoGifPreview(path string, fps, scale, duration int, force bool) error {
-	path = strings.ReplaceAll(path, "\\", "/")
+
 	duration_total := getVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec")
@@ -2229,6 +2465,7 @@ func generateVideoGifPreview(path string, fps, scale, duration int, force bool) 
 
 func createVttFile(output string, fps float32) error {
 	// Now I will generate the WEBVTT file with the infos...
+	output = strings.ReplaceAll(output, "\\", "/")
 	webvtt := "WEBVTT\n\n"
 
 	// So here I will read the file (each file represent is valid for 1/fps second...)
@@ -2252,7 +2489,7 @@ func createVttFile(output string, fps float32) error {
 			end_ := time.Duration(time_ * int(time.Second))
 
 			webvtt += formatDuration(start_) + " --> " + formatDuration(end_) + "\n"
-			webvtt += localConfig["Protocol"].(string) + "://" + address + "/" + strings.ReplaceAll(output, config.GetDataDir()+"/files", "") + "/" + thumbnail.Name() + "\n\n"
+			webvtt += localConfig["Protocol"].(string) + "://" + address + "/" + strings.ReplaceAll(output, config.GetDataDir()+"/files/", "") + "/" + thumbnail.Name() + "\n\n"
 			index++
 		}
 
@@ -2277,6 +2514,10 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 		width = 180 // px
 	}
 
+	if Utility.Exists(path+"/playlist.m3u8") && !strings.HasSuffix(path, "playlist.m3u8") {
+		path += "/playlist.m3u8"
+	}
+
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
 
@@ -2288,7 +2529,7 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 	}
 
 	output := path_ + "/.hidden/" + name_ + "/__timeline__"
-
+	fmt.Println("create time line for file ", output)
 	if Utility.Exists(output) {
 		if !force {
 			return createVttFile(output, fps)
@@ -2296,6 +2537,7 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 		os.Remove(output)
 	}
 
+	fmt.Println("create dir ", output)
 	Utility.CreateDirIfNotExist(output)
 
 	duration := getVideoDuration(path)
@@ -2313,6 +2555,7 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
+		fmt.Println("fail to create time line with error: ", err)
 		return err
 	}
 
@@ -2322,6 +2565,8 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 // Here I will create the small viedeo video
 func createVideoPreview(path string, nb int, height int, force bool) error {
 	path = strings.ReplaceAll(path, "\\", "/")
+	fmt.Println("create preview for ", path)
+	// This is the parent path.
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
 
@@ -2341,7 +2586,12 @@ func createVideoPreview(path string, nb int, height int, force bool) error {
 		os.Remove(output)
 	}
 
-	Utility.CreateDirIfNotExist(output)
+	fmt.Println("try to create dir ", output)
+	err := Utility.CreateDirIfNotExist(output)
+	if err != nil {
+		fmt.Print("fail to create dir ", output)
+		return err
+	}
 
 	duration := getVideoDuration(path)
 	if duration == 0 {
@@ -2359,7 +2609,8 @@ func createVideoPreview(path string, nb int, height int, force bool) error {
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+
+	err = cmd.Run()
 	if err != nil {
 		return err
 	}
@@ -2414,25 +2665,80 @@ func getVideoDuration(path string) float64 {
 	return duration
 }
 
+func (file_server *server) publishConvertionLogError(path string, err error) {
+	file_server.videoConversionErrors.Store(path, err.Error())
+	client, err := getEventClient()
+	if err == nil {
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(&filepb.VideoConversionError{Path: path, Error: err.Error()})
+		if err == nil {
+			client.Publish("conversion_error_event", []byte(jsonStr))
+		}
+	}
+}
+
+func (file_server *server) publishConvertionLogEvent(convertionLog *filepb.VideoConversionLog) {
+	client, err := getEventClient()
+	if err == nil {
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(convertionLog)
+		if err == nil {
+			client.Publish("conversion_log_event", []byte(jsonStr))
+		}
+	}
+}
+
 // Create a viedeo Preview...
 func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.CreateVideoPreviewRequest) (*filepb.CreateVideoPreviewResponse, error) {
-	if !Utility.Exists(rqst.Path) {
+
+	path := file_server.formatPath(rqst.Path)
+
+	if !Utility.Exists(path) {
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}
 
-	err := createVideoPreview(rqst.Path, int(rqst.Nb), int(rqst.Height), true)
+	createVideoPreviewLog := new(filepb.VideoConversionLog)
+	createVideoPreviewLog.LogTime = time.Now().Unix()
+	createVideoPreviewLog.Msg = "Create Video Preview"
+	createVideoPreviewLog.Path = rqst.Path
+	createVideoPreviewLog.Status = "running"
+
+	// Store the conversion log...
+	file_server.videoConversionLogs.Store(createVideoPreviewLog.LogTime, createVideoPreviewLog)
+	file_server.publishConvertionLogEvent(createVideoPreviewLog)
+
+	err := createVideoPreview(path, int(rqst.Nb), int(rqst.Height), true)
 	if err != nil {
+		createVideoPreviewLog.Status = "fail"
+		file_server.publishConvertionLogEvent(createVideoPreviewLog)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	createVideoPreviewLog.Status = "done"
+	file_server.publishConvertionLogEvent(createVideoPreviewLog)
+
+	generateVideoGifLog := new(filepb.VideoConversionLog)
+	generateVideoGifLog.LogTime = time.Now().Unix()
+	generateVideoGifLog.Msg = "Create Video Gif image"
+	generateVideoGifLog.Path = path
+	generateVideoGifLog.Status = "running"
+
+	// Store the conversion log...
+	file_server.videoConversionLogs.Store(generateVideoGifLog.LogTime, generateVideoGifLog)
+	file_server.publishConvertionLogEvent(generateVideoGifLog)
+	err = generateVideoGifPreview(path, 10, 320, 30, true)
+	if err != nil {
+		generateVideoGifLog.Status = "fail"
+		file_server.publishConvertionLogEvent(generateVideoGifLog)
+		file_server.publishConvertionLogError(rqst.Path, err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = generateVideoGifPreview(rqst.Path, 10, 320, 30, true)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+	generateVideoGifLog.Status = "done"
+	file_server.publishConvertionLogEvent(generateVideoGifLog)
 
 	return &filepb.CreateVideoPreviewResponse{}, nil
 
@@ -2444,12 +2750,27 @@ func (file_server *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}
 
+	createVideoTimeLineLog := new(filepb.VideoConversionLog)
+	createVideoTimeLineLog.LogTime = time.Now().Unix()
+	createVideoTimeLineLog.Msg = "Create Video time line"
+	createVideoTimeLineLog.Path = rqst.Path
+	createVideoTimeLineLog.Status = "running"
+
+	file_server.videoConversionLogs.Store(createVideoTimeLineLog.LogTime, createVideoTimeLineLog)
+	file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+
 	err := createVideoTimeLine(rqst.Path, int(rqst.Width), rqst.Fps, true)
 	if err != nil {
+		createVideoTimeLineLog.Status = "fail"
+		file_server.publishConvertionLogEvent(createVideoTimeLineLog)
+		file_server.publishConvertionLogError(rqst.Path, err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	createVideoTimeLineLog.Status = "done"
+	file_server.publishConvertionLogEvent(createVideoTimeLineLog)
 
 	return &filepb.CreateVideoTimeLineResponse{}, nil
 }
@@ -2460,13 +2781,28 @@ func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *fi
 		return nil, errors.New("no file found at path " + rqst.Path)
 	}
 
+	createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
+	createVideoMpeg4H264Log.LogTime = time.Now().Unix()
+	createVideoMpeg4H264Log.Msg = "Convert video to mp4"
+	createVideoMpeg4H264Log.Path = rqst.Path
+	createVideoMpeg4H264Log.Status = "running"
+
+	file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+	file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
 	_, err := createVideoMpeg4H264(rqst.Path)
 	if err != nil {
-		file_server.videoConversionErrors.Store(rqst.Path, err.Error())
+		file_server.publishConvertionLogError(rqst.Path, err)
+		createVideoMpeg4H264Log.Status = "fail"
+		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	createVideoMpeg4H264Log.Status = "done"
+	file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
 
 	return &filepb.ConvertVideoToMpeg4H264Response{}, nil
 }
@@ -2481,22 +2817,49 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 	// in case of a mkv Need conversion before...
 	if strings.HasSuffix(rqst.Path, ".mkv") || strings.HasPrefix(rqst.Path, ".MKV") {
 		var err error
+		createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
+		createVideoMpeg4H264Log.LogTime = time.Now().Unix()
+		createVideoMpeg4H264Log.Msg = "Convert video to mp4"
+		createVideoMpeg4H264Log.Path = rqst.Path
+		createVideoMpeg4H264Log.Status = "running"
+
+		file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
 		rqst.Path, err = createVideoMpeg4H264(rqst.Path)
 		if err != nil {
+			file_server.publishConvertionLogError(rqst.Path, err)
+			createVideoMpeg4H264Log.Status = "fail"
+			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
+		createVideoMpeg4H264Log.Status = "done"
+		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
 	}
 
 	// Create the hls stream from MPEG-4 H264 file.
+	createHlsStreamFromMpeg4H264Log := new(filepb.VideoConversionLog)
+	createHlsStreamFromMpeg4H264Log.LogTime = time.Now().Unix()
+	createHlsStreamFromMpeg4H264Log.Msg = "Convert video to stream"
+	createHlsStreamFromMpeg4H264Log.Path = rqst.Path
+	createHlsStreamFromMpeg4H264Log.Status = "running"
+	file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
+	file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+
 	err := createHlsStreamFromMpeg4H264(rqst.Path)
 	if err != nil {
-		file_server.videoConversionErrors.Store(rqst.Path, err.Error())
+		file_server.publishConvertionLogError(rqst.Path, err)
+		createHlsStreamFromMpeg4H264Log.Status = "fail"
+		file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	createHlsStreamFromMpeg4H264Log.Status = "done"
+	file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 
 	return &filepb.ConvertVideoToHlsResponse{}, nil
 }
@@ -2632,4 +2995,151 @@ func (file_server *server) ClearVideoConversionErrors(ctx context.Context, rqst 
 func (file_server *server) ClearVideoConversionError(ctx context.Context, rqst *filepb.ClearVideoConversionErrorRequest) (*filepb.ClearVideoConversionErrorResponse, error) {
 	file_server.videoConversionErrors.Delete(rqst.Path)
 	return &filepb.ClearVideoConversionErrorResponse{}, nil
+}
+
+// Clear a specific video conversion log
+func (file_server *server) ClearVideoConversionLogs(ctx context.Context, rqst *filepb.ClearVideoConversionLogsRequest) (*filepb.ClearVideoConversionLogsResponse, error) {
+
+	file_server.videoConversionLogs.Range(func(key, value interface{}) bool {
+		file_server.videoConversionLogs.Delete(key)
+		return true
+	})
+
+	return &filepb.ClearVideoConversionLogsResponse{}, nil
+}
+
+// Return the list of log messages
+func (file_server *server) GetVideoConversionLogs(ctx context.Context, rqst *filepb.GetVideoConversionLogsRequest) (*filepb.GetVideoConversionLogsResponse, error) {
+	logs := make([]*filepb.VideoConversionLog, 0)
+
+	file_server.videoConversionLogs.Range(func(key, value interface{}) bool {
+		logs = append(logs, value.(*filepb.VideoConversionLog))
+		return true
+	})
+
+	return &filepb.GetVideoConversionLogsResponse{Logs: logs}, nil
+}
+
+// That service is use to give access to SQL.
+// port number must be pass as argument.
+func main() {
+
+	// The actual server implementation.
+	s_impl := new(server)
+
+	// The name must the same as the grpc service name.
+	s_impl.Name = string(filepb.File_file_proto.Services().Get(0).FullName())
+	s_impl.Proto = filepb.File_file_proto.Path()
+	s_impl.Port = defaultPort
+	s_impl.Proxy = defaultProxy
+	s_impl.Protocol = "grpc"
+	s_impl.Domain = domain
+	s_impl.Version = "0.0.1"
+	s_impl.AllowAllOrigins = allow_all_origins
+	s_impl.AllowedOrigins = allowed_origins
+	s_impl.PublisherId = "globulario"
+	s_impl.Permissions = make([]interface{}, 12)
+	s_impl.Keywords = make([]string, 0)
+	s_impl.Repositories = make([]string, 0)
+	s_impl.Discoveries = make([]string, 0)
+	s_impl.Dependencies = []string{"rbac.RbacService"}
+	s_impl.Process = -1
+	s_impl.ProxyProcess = -1
+	s_impl.KeepAlive = true
+	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
+
+	// Video conversion retalted configuration.
+	s_impl.scheduler = gocron.NewScheduler()
+	s_impl.videoConversionErrors = new(sync.Map)
+	s_impl.videoConversionLogs = new(sync.Map)
+	s_impl.AutomaticStreamConversion = false
+	s_impl.AutomaticVideoConversion = false
+	s_impl.MaximumVideoConversionDelay = "00:00" // convert for 8 hours...
+	s_impl.StartVideoConversionHour = "00:00"    // start conversion at midnight, when every one sleep
+
+	// So here I will set the default permissions for services actions.
+	// Permission are use in conjonctions of resource.
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/file.FileService/ReadDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/file.FileService/CreateDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/file.FileService/DeleteDir", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[3] = map[string]interface{}{"action": "/file.FileService/Rename", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[4] = map[string]interface{}{"action": "/file.FileService/GetFileInfo", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[5] = map[string]interface{}{"action": "/file.FileService/ReadFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[6] = map[string]interface{}{"action": "/file.FileService/SaveFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[7] = map[string]interface{}{"action": "/file.FileService/DeleteFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[8] = map[string]interface{}{"action": "/file.FileService/GetThumbnails", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+	s_impl.Permissions[9] = map[string]interface{}{"action": "/file.FileService/WriteExcelFile", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[10] = map[string]interface{}{"action": "/file.FileService/CreateAchive", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+
+	// Set the root path if is pass as argument.
+	if len(s_impl.Root) == 0 {
+		s_impl.Root = os.TempDir()
+	}
+
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+
+	// Here I will retreive the list of connections from file if there are some...
+	err := s_impl.Init()
+	if err != nil {
+		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+	}
+
+	// Register the echo services
+	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
+	reflection.Register(s_impl.grpcServer)
+
+	// Now the event client service.
+	go func() {
+
+		client, err := getEventClient()
+		if err == nil {
+
+			processing := make(chan string)
+
+			// Process request received...
+			go func() {
+				for {
+					select {
+					case data := <-processing:
+						path := s_impl.formatPath(data)
+						fmt.Println("generate preview and time line for ", path)
+						createVideoPreview(path, 20, 128, false)
+						dir := string(data)[0:strings.LastIndex(string(data), "/")]
+						client.Publish("reload_dir_event", []byte(dir))
+						generateVideoGifPreview(path, 10, 320, 30, false)
+						createVideoTimeLine(path, 180, .2, false) // 1 frame per 5 seconds.
+					}
+				}
+			}()
+
+			// refresh dir event
+			err := client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
+				processing <- string(evt.Data)
+			})
+			if err != nil {
+				fmt.Println("Fail to connect to event channel generate_video_preview_event")
+			}
+
+		}
+
+	}()
+
+	// Process video at every day at the given hour...
+	s_impl.scheduler.Every(1).Day().At(s_impl.StartVideoConversionHour).Do(processVideos, s_impl)
+
+	if s_impl.AutomaticVideoConversion {
+		// Start the scheduler
+		fmt.Println("start scheduler!")
+		s_impl.scheduler.Start()
+	}
+
+	// Start the service.
+	s_impl.StartService()
+
 }
