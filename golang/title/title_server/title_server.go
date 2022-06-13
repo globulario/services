@@ -442,6 +442,9 @@ func (srv *server) getIndex(path string) (bleve.Index, error) {
 }
 
 func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
+	if !Utility.Exists(indexPath){
+		return nil, errors.New("no database found at path " + indexPath)
+	}
 
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
@@ -696,7 +699,11 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 }
 
 func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) error {
+	if !Utility.Exists(indexPath){
+		return errors.New("no database found at path " + indexPath)
+	}
 
+	fmt.Println("remove ", titleId, indexPath, filePath)
 	// I will use the file checksum as file id...
 	var uuid string
 	fileInfo, err := os.Stat(filePath)
@@ -723,51 +730,63 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		srv.associations[indexPath].Open(`{"path":"` + indexPath + `", "name":"titles"}`)
 	}
 
-	data, err := srv.associations[indexPath].GetItem(uuid)
-	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
+	file_data, err := srv.associations[indexPath].GetItem(uuid)
+	file_association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
 	if err == nil {
-		err = json.Unmarshal(data, association)
+		err = json.Unmarshal(file_data, file_association)
 		if err != nil {
 			return err
 		}
+	}else{
+		fmt.Println("-----------> no file association found with error ", err)
 	}
 
+	fmt.Println("-------------> file association found ", file_association)
 	// so here i will remove the path from the list of path.
-	association.Paths = Utility.RemoveString(association.Paths, filePath)
-	association.Paths = Utility.RemoveString(association.Titles, titleId)
-	if len(association.Paths) == 0 || len(association.Titles) == 0 {
+	file_association.Paths = Utility.RemoveString(file_association.Paths, filePath)
+	file_association.Paths = Utility.RemoveString(file_association.Titles, titleId)
+
+	if len(file_association.Paths) == 0 || len(file_association.Titles) == 0 {
 		srv.associations[indexPath].RemoveItem(uuid)
 	} else {
 		// Now I will set back the item in the store.
-		data, _ = json.Marshal(association)
+		data, _ := json.Marshal(file_association)
 		err = srv.associations[indexPath].SetItem(uuid, data)
 		if err != nil {
 			return err
 		}
 	}
-	fmt.Println("-------------> 749 ", association)
+	fmt.Println("-------------> file association ", file_association)
 
-	data, err = srv.associations[indexPath].GetItem(titleId)
-	association = &fileTileAssociation{ID: titleId, Titles: []string{}, Paths: []string{}}
+	title_data, err := srv.associations[indexPath].GetItem(titleId)
+	title_association := &fileTileAssociation{ID: titleId, Titles: []string{}, Paths: []string{}}
 	if err == nil {
-		err = json.Unmarshal(data, association)
+		err = json.Unmarshal(title_data, title_association)
 		if err != nil {
 			return err
 		}
+	}else{
+		fmt.Println("-----------> no title association found with error ", indexPath, titleId, err)
 	}
 
+	fmt.Println("-------------> title association found ", title_association)
+
 	// so here i will remove the path from the list of path.
-	association.Paths = Utility.RemoveString(association.Paths, filePath)
-	if len(association.Paths) == 0 {
+	title_association.Paths = Utility.RemoveString(title_association.Paths, filePath)
+
+	if len(title_association.Paths) == 0 {
 		srv.associations[indexPath].RemoveItem(titleId)
 	} else {
 		// Now I will set back the item in the store.
-		data, _ = json.Marshal(association)
+		data, _:= json.Marshal(title_association)
 		err = srv.associations[indexPath].SetItem(titleId, data)
 		if err != nil {
 			return err
 		}
 	}
+
+	fmt.Println("-------------> title association ", title_association)
+
 	return nil
 
 }
@@ -801,6 +820,9 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 }
 
 func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, error) {
+	if !Utility.Exists(indexPath){
+		return nil, errors.New("no database found at path " + indexPath)
+	}
 
 	// I will use the file checksum as file id...
 	var uuid string
@@ -962,6 +984,9 @@ func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 }
 
 func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, error) {
+	if !Utility.Exists(indexPath){
+		return nil, errors.New("no database found at path " + indexPath)
+	}
 
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
@@ -1077,6 +1102,9 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 }
 
 func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) {
+	if !Utility.Exists(indexPath){
+		return nil, errors.New("no database found at path " + indexPath)
+	}
 
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
@@ -1162,6 +1190,9 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 }
 
 func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
+	if !Utility.Exists(indexPath){
+		return nil, errors.New("no database found at path " + indexPath)
+	}
 
 	index, err := srv.getIndex(indexPath)
 	if err != nil {
@@ -1326,6 +1357,10 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 // Return the list of files associate with a title
 func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
+	
+	if !Utility.Exists(indexPath){
+		return nil, errors.New("no database found at path " + indexPath)
+	}
 
 	// I will use the file checksum as file id...
 	if srv.associations == nil {
@@ -1352,7 +1387,7 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 			return nil, err
 		}
 	}
-	fmt.Println("-----------> association ", association)
+	fmt.Println("-----------> association ",indexPath,titleId, association)
 
 	// Here I will remove path that no more exist...
 	paths := make([]string, 0)
