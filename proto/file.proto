@@ -275,6 +275,29 @@ message ClearVideoConversionErrorResponse{
 
 }
 
+message ClearVideoConversionLogsRequest{
+
+}
+
+message ClearVideoConversionLogsResponse{
+
+}
+
+message VideoConversionLog{
+	string path = 1;
+	string msg = 2;
+	int64 log_time = 3;
+	string status = 4;
+}
+
+message GetVideoConversionLogsRequest{
+
+}
+
+message GetVideoConversionLogsResponse{
+	repeated VideoConversionLog logs = 1;
+}
+
 message StopRequest {
 	
 }
@@ -403,6 +426,12 @@ service FileService {
 
 	// Clear a specific video conversion error
 	rpc ClearVideoConversionError(ClearVideoConversionErrorRequest) returns (ClearVideoConversionErrorResponse) {};
+
+	// Clear a specific video conversion log
+	rpc ClearVideoConversionLogs(ClearVideoConversionLogsRequest) returns (ClearVideoConversionLogsResponse) {};
+
+	// Return the list of log messages
+	rpc GetVideoConversionLogs(GetVideoConversionLogsRequest) returns (GetVideoConversionLogsResponse){};
 
 	// Excel files...
 	rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse){};

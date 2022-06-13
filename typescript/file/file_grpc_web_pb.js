@@ -1827,6 +1827,128 @@ proto.file.FileServicePromiseClient.prototype.clearVideoConversionError =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.ClearVideoConversionLogsRequest,
+ *   !proto.file.ClearVideoConversionLogsResponse>}
+ */
+const methodDescriptor_FileService_ClearVideoConversionLogs = new grpc.web.MethodDescriptor(
+  '/file.FileService/ClearVideoConversionLogs',
+  grpc.web.MethodType.UNARY,
+  proto.file.ClearVideoConversionLogsRequest,
+  proto.file.ClearVideoConversionLogsResponse,
+  /**
+   * @param {!proto.file.ClearVideoConversionLogsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.ClearVideoConversionLogsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.ClearVideoConversionLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.ClearVideoConversionLogsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.ClearVideoConversionLogsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.clearVideoConversionLogs =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/ClearVideoConversionLogs',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_ClearVideoConversionLogs,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.ClearVideoConversionLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.ClearVideoConversionLogsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.clearVideoConversionLogs =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/ClearVideoConversionLogs',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_ClearVideoConversionLogs);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.GetVideoConversionLogsRequest,
+ *   !proto.file.GetVideoConversionLogsResponse>}
+ */
+const methodDescriptor_FileService_GetVideoConversionLogs = new grpc.web.MethodDescriptor(
+  '/file.FileService/GetVideoConversionLogs',
+  grpc.web.MethodType.UNARY,
+  proto.file.GetVideoConversionLogsRequest,
+  proto.file.GetVideoConversionLogsResponse,
+  /**
+   * @param {!proto.file.GetVideoConversionLogsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.GetVideoConversionLogsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.GetVideoConversionLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.GetVideoConversionLogsResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.GetVideoConversionLogsResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.getVideoConversionLogs =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/GetVideoConversionLogs',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GetVideoConversionLogs,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.GetVideoConversionLogsRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.GetVideoConversionLogsResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.getVideoConversionLogs =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/GetVideoConversionLogs',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GetVideoConversionLogs);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.WriteExcelFileRequest,
  *   !proto.file.WriteExcelFileResponse>}
  */

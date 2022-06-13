@@ -653,7 +653,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	if !Utility.Contains(association.Titles, rqst.TitleId) {
 		association.Titles = append(association.Titles, rqst.TitleId)
 	}
-	fmt.Println("-------------> 657 ", association)
+
 	// Now I will set back the item in the store.
 	data, _ = json.Marshal(association)
 	err = srv.associations[rqst.IndexPath].SetItem(uuid, data)
@@ -674,7 +674,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
-	fmt.Println("-------------> 678 ", association)
+
 	// Append the path if not already there.
 	if !Utility.Contains(association.Paths, rqst.FilePath) {
 		association.Paths = append(association.Paths, rqst.FilePath)
@@ -745,7 +745,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 			return err
 		}
 	}
-	fmt.Println("-------------> 749 ", association)
 
 	data, err = srv.associations[indexPath].GetItem(titleId)
 	association = &fileTileAssociation{ID: titleId, Titles: []string{}, Paths: []string{}}
