@@ -510,13 +510,13 @@ func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectT
 
 }
 
-func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
 
-	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
@@ -671,7 +671,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = svr.addResourceOwner(uuid, clientId, rbacpb.SubjectType_ACCOUNT)
+	err = svr.addResourceOwner(uuid, "conversation", clientId, rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

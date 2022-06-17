@@ -68,7 +68,7 @@ type server struct {
 	AllowAllOrigins    bool
 	AllowedOrigins     string // comma separated string.
 	Domain             string
-	Address         string
+	Address            string
 	Description        string
 	Keywords           []string
 	Repositories       []string
@@ -88,7 +88,7 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
-	State           string
+	State              string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -629,7 +629,7 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 			}
 
 			// Close the stream...
-			err_:= stream.SendAndClose(&mailpb.SendEmailWithAttachementsRsp{
+			err_ := stream.SendAndClose(&mailpb.SendEmailWithAttachementsRsp{
 				Result: true,
 			})
 
@@ -740,11 +740,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
@@ -764,7 +764,6 @@ func main() {
 			certFile = certFile[0:strings.Index(certFile, "server.crt")] + s_impl.Domain + ".crt"
 		}
 
-
 		// The backend connection.
 		store, err := persistence_client.NewPersistenceService_Client(s_impl.Persistence_address, "persistence.PersistenceService")
 		if err != nil {
@@ -773,7 +772,7 @@ func main() {
 
 		address := string(strings.Split(s_impl.DbIpV4, ":")[0])
 		port := Utility.ToInt(strings.Split(s_impl.DbIpV4, ":")[1])
-		
+
 		// set variable for imap and smtp
 		imap.Backend_address = address
 		smtp.Backend_address = address
@@ -784,7 +783,7 @@ func main() {
 		smtp.Store = store
 
 		// Open the backend main connection
-		err = store.CreateConnection("local_ressource", "local_ressource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
+		err = store.CreateConnection("local_resource", "local_resource", address, float64(port), 0, "sa", s_impl.Password, 5000, "", false)
 		if err != nil {
 			return
 		}

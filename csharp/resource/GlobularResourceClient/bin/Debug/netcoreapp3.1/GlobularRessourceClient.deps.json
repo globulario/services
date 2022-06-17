@@ -6,14 +6,14 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v3.1": {
-      "GlobularRessourceClient/1.0.0": {
+      "GlobularResourceClient/1.0.0": {
         "dependencies": {
           "GlobularClient": "1.0.2",
           "Google.Protobuf": "3.13.0",
           "Grpc": "2.32.0"
         },
         "runtime": {
-          "GlobularRessourceClient.dll": {}
+          "GlobularResourceClient.dll": {}
         }
       },
       "Google.Protobuf/3.13.0": {
@@ -111,7 +111,7 @@
     }
   },
   "libraries": {
-    "GlobularRessourceClient/1.0.0": {
+    "GlobularResourceClient/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

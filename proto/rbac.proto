@@ -13,6 +13,7 @@ import "google/protobuf/struct.proto";
 // Permission message struct.
 message Permission {
 	string name = 1; // read, write, delete ... what you need
+	
 	repeated string applications = 2;
 	repeated string peers = 3;
 	repeated string accounts = 4;
@@ -29,11 +30,13 @@ message Permissions {
 /** Return a resource permissions **/
 message GetResourcePermissionsRqst{
 	string path = 1;
+	
 }
 
 /** Get resource permissions **/
 message GetResourcePermissionsRsp{
 	Permissions permissions = 1;
+	string resource_type = 2;
 }
 
 /** Delete a resource permissions **/
@@ -61,7 +64,8 @@ message DeleteResourcePermissionRsp{
 /** Set all resource permissions **/
 message SetResourcePermissionsRqst{
 	string path = 1;
-	Permissions permissions = 2;
+	string resourceType = 2;
+	Permissions permissions = 3;
 }
 
 message SetResourcePermissionsRsp{
@@ -81,6 +85,7 @@ message GetResourcePermissionRqst{
 
 message GetResourcePermissionRsp{
 	Permission permission = 1;
+	string resource_type = 2;
 }
 
 message SetResourcePermissionRqst{
@@ -95,8 +100,9 @@ message SetResourcePermissionRsp{
 
 message AddResourceOwnerRqst{
 	string path = 1;
-	string subject = 2;
-	SubjectType type = 3;
+	string resourceType = 2;
+	string subject = 3;
+	SubjectType type = 4;
 }
 
 message AddResourceOwnerRsp {
@@ -218,7 +224,7 @@ message UnshareResourceRsp {
 }
 
 /**
- * Get the list of accessible ressource for a given subject.
+ * Get the list of accessible resource for a given subject.
  */
 message GetSharedResourceRqst {
 	string subject = 1;
@@ -295,7 +301,7 @@ service RbacService {
 		
 	/////////////////////////// Rpc Action Valdisation ////////////////////////////////
 	
-	/** Return the action ressource informations. */
+	/** Return the action resource informations. */
 	rpc GetActionResourceInfos(GetActionResourceInfosRqst) returns(GetActionResourceInfosRsp);
 	
 	/** Validate the actions */
@@ -309,7 +315,7 @@ service RbacService {
 	// Remove the share
 	rpc UshareResource(UnshareResourceRqst) returns(UnshareResourceRsp);
 
-	// Get the list of accessible shared ressources.
+	// Get the list of accessible shared resources.
 	rpc GetSharedResource(GetSharedResourceRqst) returns(GetSharedResourceRsp);
 
 	// Remove a subject from a share.

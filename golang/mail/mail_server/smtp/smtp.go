@@ -113,7 +113,7 @@ func splitAddress(addr string) (local, domain string, err error) {
 
 func hasAccount(email string) bool {
 	query := `{"email":"` + email + `"}`
-	count, _ := Store.Count("local_ressource", "local_ressource", "Accounts", query, "")
+	count, _ := Store.Count("local_resource", "local_resource", "Accounts", query, "")
 
 	if count == 1 {
 		return true
@@ -150,7 +150,7 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 			},
 			AuthMechs:    map[string]bool{},
 			AuthRequired: false,
-			Handler: func(remoteAddr net.Addr, from string, to []string, data []byte) error{
+			Handler: func(remoteAddr net.Addr, from string, to []string, data []byte) error {
 				// push message in to incomming...
 				for i := 0; i < len(to); i++ {
 					if hasAccount(to[i]) {
@@ -190,7 +190,7 @@ func startSmtp(domain string, port int, keyFile string, certFile string) {
 func saveMessage(email string, mailBox string, body []byte, flags []string) error {
 
 	query := `{"email":"` + email + `"}`
-	info, err := Store.FindOne("local_ressource", "local_ressource", "Accounts", query, "")
+	info, err := Store.FindOne("local_resource", "local_resource", "Accounts", query, "")
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func saveMessage(email string, mailBox string, body []byte, flags []string) erro
 	// TODO Insert large one...
 
 	// Now I will insert the message into the inbox of the user.
-	_, err = Store.InsertOne("local_ressource", info["name"].(string)+"_db", mailBox, jsonStr, "")
+	_, err = Store.InsertOne("local_resource", info["name"].(string)+"_db", mailBox, jsonStr, "")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -263,7 +263,7 @@ func StartSmtp(store *persistence_client.Persistence_Client, backend_address str
 					answer_ <- map[string]interface{}{"valid": true, "err": nil}
 				}
 
-			//case rcpt := <-validateRcpt:
+				//case rcpt := <-validateRcpt:
 				//log.Println(rcpt)
 			}
 		}

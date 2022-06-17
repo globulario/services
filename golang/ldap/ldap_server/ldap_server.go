@@ -40,7 +40,7 @@ var (
 	// The default domain
 	domain string = "localhost"
 
-	// The ressource service to register account and create group...
+	// The resource service to register account and create group...
 	resource_client_ *resource_client.Resource_Client
 )
 
@@ -768,7 +768,7 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 	}, nil
 }
 
-// Synchronize the list user and group whith ressources...
+// Synchronize the list user and group whith resources...
 // Here is an exemple of ldap configuration...
 // "LdapSyncInfos": {
 //     "my__ldap":

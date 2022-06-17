@@ -49,8 +49,8 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 	return rbac_server.permissions.SetItem(subject, data)
 }
 
-// Save the ressource permission
-func (rbac_server *server) setResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+// Save the resource permission
+func (rbac_server *server) setResourcePermissions(path, resource_type string, permissions *rbacpb.Permissions) error {
 	// fmt.Println("setResourcePermissions", path)
 	// First of all I need to remove the existing permission.
 	rbac_server.deleteResourcePermissions(path, permissions)
@@ -300,7 +300,7 @@ func (rbac_server *server) setResourcePermissions(path string, permissions *rbac
 //* Set resource permissions this method will replace existing permission at once *
 func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRqst, error) {
 	fmt.Println("---> set resource permission ", rqst.Path, rqst.Permissions)
-	err := rbac_server.setResourcePermissions(rqst.Path, rqst.Permissions)
+	err := rbac_server.setResourcePermissions(rqst.Path, rqst.ResourceType, rqst.Permissions)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -347,7 +347,7 @@ func (rbac_server *server) deleteSubjectResourcePermissions(subject string, path
 
 }
 
-// Remouve a ressource permission
+// Remouve a resource permission
 func (rbac_server *server) deleteResourcePermissions(path string, permissions *rbacpb.Permissions) error {
 
 	// Allowed resources
@@ -626,12 +626,12 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 	return needSave, subjects
 }
 
-// Return a ressource permission.
-func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+// Return a resource permission.
+func (rbac_server *server) getResourcePermissions(path string) (string, *rbacpb.Permissions, error) {
 	// fmt.Println("getResourcePermissions", path)
 	data, err := rbac_server.permissions.GetItem(path)
 	if err != nil {
-		return nil, status.Errorf(
+		return "", nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
@@ -639,22 +639,25 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 	permissions := new(rbacpb.Permissions)
 	err = json.Unmarshal(data, &permissions)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
+
+	// TODO get resource type from the path...
+	resourceType := ""
 
 	// remove deleted subjects
 	needSave, permissions := rbac_server.cleanupPermissions(permissions)
 	// save the value...
 	if needSave {
-		rbac_server.setResourcePermissions(path, permissions)
+		rbac_server.setResourcePermissions(path, resourceType, permissions)
 	}
 
-	return permissions, nil
+	return resourceType, permissions, nil
 }
 
 //* Delete a resource permissions (when a resource is deleted) *
 func (rbac_server *server) DeleteResourcePermissions(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionsRqst) (*rbacpb.DeleteResourcePermissionsRqst, error) {
-	permissions, err := rbac_server.getResourcePermissions(rqst.Path)
+	_, permissions, err := rbac_server.getResourcePermissions(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -674,7 +677,7 @@ func (rbac_server *server) DeleteResourcePermissions(ctx context.Context, rqst *
 //* Delete a specific resource permission *
 func (rbac_server *server) DeleteResourcePermission(ctx context.Context, rqst *rbacpb.DeleteResourcePermissionRqst) (*rbacpb.DeleteResourcePermissionRqst, error) {
 
-	permissions, err := rbac_server.getResourcePermissions(rqst.Path)
+	resourceType, permissions, err := rbac_server.getResourcePermissions(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -699,7 +702,7 @@ func (rbac_server *server) DeleteResourcePermission(ctx context.Context, rqst *r
 		}
 		permissions.Denied = denied
 	}
-	err = rbac_server.setResourcePermissions(rqst.Path, permissions)
+	err = rbac_server.setResourcePermissions(rqst.Path, resourceType, permissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -709,9 +712,9 @@ func (rbac_server *server) DeleteResourcePermission(ctx context.Context, rqst *r
 	return &rbacpb.DeleteResourcePermissionRqst{}, nil
 }
 
-//* Get the ressource Permission.
+//* Get the resource Permission.
 func (rbac_server *server) GetResourcePermission(ctx context.Context, rqst *rbacpb.GetResourcePermissionRqst) (*rbacpb.GetResourcePermissionRsp, error) {
-	permissions, err := rbac_server.getResourcePermissions(rqst.Path)
+	resourceType, permissions, err := rbac_server.getResourcePermissions(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -722,7 +725,7 @@ func (rbac_server *server) GetResourcePermission(ctx context.Context, rqst *rbac
 	if rqst.Type == rbacpb.PermissionType_ALLOWED {
 		for i := 0; i < len(permissions.Allowed); i++ {
 			if permissions.Allowed[i].Name == rqst.Name {
-				return &rbacpb.GetResourcePermissionRsp{Permission: permissions.Allowed[i]}, nil
+				return &rbacpb.GetResourcePermissionRsp{Permission: permissions.Allowed[i], ResourceType: resourceType}, nil
 			}
 		}
 	} else if rqst.Type == rbacpb.PermissionType_DENIED { // search in denied permissions.
@@ -741,7 +744,7 @@ func (rbac_server *server) GetResourcePermission(ctx context.Context, rqst *rbac
 
 //* Set specific resource permission  ex. read permission... *
 func (rbac_server *server) SetResourcePermission(ctx context.Context, rqst *rbacpb.SetResourcePermissionRqst) (*rbacpb.SetResourcePermissionRsp, error) {
-	permissions, err := rbac_server.getResourcePermissions(rqst.Path)
+	resourceType, permissions, err := rbac_server.getResourcePermissions(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -772,7 +775,7 @@ func (rbac_server *server) SetResourcePermission(ctx context.Context, rqst *rbac
 		}
 		permissions.Denied = denied
 	}
-	err = rbac_server.setResourcePermissions(rqst.Path, permissions)
+	err = rbac_server.setResourcePermissions(rqst.Path, resourceType, permissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -784,17 +787,17 @@ func (rbac_server *server) SetResourcePermission(ctx context.Context, rqst *rbac
 
 //* Get resource permissions *
 func (rbac_server *server) GetResourcePermissions(ctx context.Context, rqst *rbacpb.GetResourcePermissionsRqst) (*rbacpb.GetResourcePermissionsRsp, error) {
-	permissions, err := rbac_server.getResourcePermissions(rqst.Path)
+	resourceType, permissions, err := rbac_server.getResourcePermissions(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &rbacpb.GetResourcePermissionsRsp{Permissions: permissions}, nil
+	return &rbacpb.GetResourcePermissionsRsp{Permissions: permissions, ResourceType:resourceType}, nil
 }
 
-func (rbac_server *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+func (rbac_server *server) addResourceOwner(path, resourceType_, subject string, subjectType rbacpb.SubjectType) error {
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
 			return errors.New("no account exist with id " + subject)
@@ -819,7 +822,7 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 		}
 	}
 
-	permissions, err := rbac_server.getResourcePermissions(path)
+	resourceType, permissions, err := rbac_server.getResourcePermissions(path)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "item not found") {
@@ -837,6 +840,10 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 					Organizations: []string{},
 				},
 			}
+
+			// Set the given resource type
+			resourceType = resourceType_
+
 		} else {
 			return err
 		}
@@ -875,7 +882,7 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 	// Save permission if ti owner has changed.
 	if needSave {
 		permissions.Owners = owners
-		err = rbac_server.setResourcePermissions(path, permissions)
+		err = rbac_server.setResourcePermissions(path, resourceType, permissions)
 		if err != nil {
 			return err
 		}
@@ -886,7 +893,7 @@ func (rbac_server *server) addResourceOwner(path string, subject string, subject
 //* Add resource owner do nothing if it already exist
 func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourceOwnerRqst) (*rbacpb.AddResourceOwnerRsp, error) {
 
-	err := rbac_server.addResourceOwner(rqst.Path, rqst.Subject, rqst.Type)
+	err := rbac_server.addResourceOwner(rqst.Path, rqst.ResourceType, rqst.Subject, rqst.Type)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -898,7 +905,7 @@ func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.Ad
 
 func (rbac_server *server) removeResourceOwner(owner string, subjectType rbacpb.SubjectType, path string) error {
 	// fmt.Println("removeResourceOwner")
-	permissions, err := rbac_server.getResourcePermissions(path)
+	resourceType, permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		return err
 	}
@@ -928,7 +935,7 @@ func (rbac_server *server) removeResourceOwner(owner string, subjectType rbacpb.
 	}
 
 	permissions.Owners = owners
-	err = rbac_server.setResourcePermissions(path, permissions)
+	err = rbac_server.setResourcePermissions(path, resourceType, permissions)
 	if err != nil {
 		return err
 	}
@@ -939,7 +946,7 @@ func (rbac_server *server) removeResourceOwner(owner string, subjectType rbacpb.
 // Remove a Subject from denied list and allowed list.
 func (rbac_server *server) removeResourceSubject(subject string, subjectType rbacpb.SubjectType, path string) error {
 	// fmt.Println("removeResourceSubject")
-	permissions, err := rbac_server.getResourcePermissions(path)
+	resourceType, permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		return err
 	}
@@ -1064,7 +1071,7 @@ func (rbac_server *server) removeResourceSubject(subject string, subjectType rba
 		}
 	}
 
-	err = rbac_server.setResourcePermissions(path, permissions)
+	err = rbac_server.setResourcePermissions(path, resourceType, permissions)
 	if err != nil {
 		return err
 	}
@@ -1172,7 +1179,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	// first I will test if permissions is define
-	permissions, err := rbac_server.getResourcePermissions(path)
+	_, permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		if permissions == nil {
 			fmt.Println("no permissions found for path ", path)
@@ -1184,7 +1191,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		return false, false, err
 	}
 
-	// Test if the Subject is owner of the ressource in that case I will git him access.
+	// Test if the Subject is owner of the resource in that case I will git him access.
 	owners := permissions.Owners
 	isOwner := false
 	subjectStr := ""
@@ -1236,14 +1243,14 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0 {
 
-		// In that case I will try to get parent ressource permission.
+		// In that case I will try to get parent resource permission.
 		if len(strings.Split(path, "/")) > 1 {
 			parentPath := path[0:strings.LastIndex(path, "/")]
 			// test for it parent.
 			return rbac_server.validateAccess(subject, subjectType, name, parentPath)
 		}
 
-		// if no permission are define for a ressource anyone can access it.
+		// if no permission are define for a resource anyone can access it.
 		return true, false, nil
 	}
 
@@ -1457,7 +1464,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	return true, false, nil
 }
 
-//* Validate if a account can get access to a given ressource for a given operation (read, write...) That function is recursive. *
+//* Validate if a account can get access to a given resource for a given operation (read, write...) That function is recursive. *
 func (rbac_server *server) ValidateAccess(ctx context.Context, rqst *rbacpb.ValidateAccessRqst) (*rbacpb.ValidateAccessRsp, error) {
 	// Here I will get information from context.
 	hasAccess, accessDenied, err := rbac_server.validateAccess(rqst.Subject, rqst.Type, rqst.Permission, rqst.Path)
@@ -1472,7 +1479,7 @@ func (rbac_server *server) ValidateAccess(ctx context.Context, rqst *rbacpb.Vali
 }
 
 /** Set action permissions.
-When gRPC service methode are called they must validate the ressource pass in parameters.
+When gRPC service methode are called they must validate the resource pass in parameters.
 So each service is reponsible to give access permissions requirement.
 */
 func (rbac_server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
@@ -1487,7 +1494,7 @@ func (rbac_server *server) setActionResourcesPermissions(permissions map[string]
 }
 
 /**
- * Set Action Ressource
+ * Set Action Resource
  */
 func (rbac_server *server) SetActionResourcesPermissions(ctx context.Context, rqst *rbacpb.SetActionResourcesPermissionsRqst) (*rbacpb.SetActionResourcesPermissionsRsp, error) {
 
@@ -1501,7 +1508,7 @@ func (rbac_server *server) SetActionResourcesPermissions(ctx context.Context, rq
 	return &rbacpb.SetActionResourcesPermissionsRsp{}, nil
 }
 
-// Retreive the ressource infos from the database.
+// Retreive the resource infos from the database.
 func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbacpb.ResourceInfos, error) {
 	// fmt.Println("getActionResourcesPermissions")
 	if len(action) == 0 {
@@ -1529,7 +1536,7 @@ func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbac
 }
 
 //* Return the action resource informations. That function must be called
-// before calling ValidateAction. In that way the list of ressource affected
+// before calling ValidateAction. In that way the list of resource affected
 // by the rpc method will be given and resource access validated.
 // ex. CopyFile(src, dest) -> src and dest are resource path and must be validated
 // for read and write access respectivly.
@@ -1548,7 +1555,7 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  * Validate an action and also validate it resources
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
-	fmt.Println("validateAction ", action, subjectType, resources)
+	fmt.Println("------------------------------------------------------> validateAction ", subject, action, resources)
 	// test if the subject exist.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		if !rbac_server.accountExist(subject) {
@@ -1618,6 +1625,8 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 
 		account, err := rbac_server.getAccount(subject)
+		fmt.Println(`--------------------------------------> account retreive: `, account)
+
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, err
@@ -1706,7 +1715,7 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 	}, nil
 }
 
-// Set the subject share ressource.
+// Set the subject share resource.
 func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string) error {
 	// fmt.Println("setSubjectSharedResource")
 	shared := make([]string, 0)
@@ -1931,7 +1940,7 @@ func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.Unsh
 	return &rbacpb.UnshareResourceRsp{}, nil
 }
 
-// Get the list of accessible shared ressource.
+// Get the list of accessible shared resource.
 // TODO if account also get share for groups and organization that the acount is part of...
 func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.SubjectType) ([]*rbacpb.Share, error) {
 	// fmt.Println("getSharedResource")
@@ -2079,7 +2088,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 	return share_, nil
 }
 
-// Get the list of accessible shared ressources.
+// Get the list of accessible shared resources.
 func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.GetSharedResourceRqst) (*rbacpb.GetSharedResourceRsp, error) {
 	share, err := rbac_server.getSharedResource(rqst.Subject, rqst.Type)
 
@@ -2092,10 +2101,10 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 	return &rbacpb.GetSharedResourceRsp{SharedResource: share}, nil
 }
 
-func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rbacpb.SubjectType, ressourceId string) error {
+func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rbacpb.SubjectType, resourceId string) error {
 
 	// fmt.Println("removeSubjectFromShare")
-	data, err := rbac_server.permissions.GetItem(ressourceId)
+	data, err := rbac_server.permissions.GetItem(resourceId)
 	if err != nil {
 		return err
 	}

@@ -77,7 +77,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Now I will set it in the rbac as ressource owner...
+	// Now I will set it in the rbac as resource owner...
 	permissions := &rbacpb.Permissions{
 		Allowed: []*rbacpb.Permission{},
 		Denied:  []*rbacpb.Permission{},
@@ -92,7 +92,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 	}
 
 	// Set the owner of the conversation.
-	err = svr.setResourcePermissions(token, uuid, permissions)
+	err = svr.setResourcePermissions(token, uuid, "blog", permissions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

@@ -234,7 +234,7 @@ func (client *Rbac_Client) SetCaFile(caFile string) {
 ////////////////////////////////////  Api  /////////////////////////////////////
 
 /** Set resource permissions this method will replace existing permission at once **/
-func (client *Rbac_Client) SetResourcePermissions(token, path string, permissions *rbacpb.Permissions) error {
+func (client *Rbac_Client) SetResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
 	rqst := &rbacpb.SetResourcePermissionsRqst{
 		Path:        path,
 		Permissions: permissions,
@@ -314,11 +314,12 @@ func (client *Rbac_Client) SetResourcePermission(path string, permission *rbacpb
 }
 
 /** Add resource owner do nothing if it already exist */
-func (client *Rbac_Client) AddResourceOwner(path string, owner string, subjectType rbacpb.SubjectType) error {
+func (client *Rbac_Client) AddResourceOwner(path, resourceType, owner string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.AddResourceOwnerRqst{
 		Type:    subjectType,
 		Subject: owner,
 		Path:    path,
+		ResourceType: resourceType,
 	}
 
 	_, err := client.c.AddResourceOwner(client.GetCtx(), rqst)
@@ -389,7 +390,7 @@ func (client *Rbac_Client) ValidateAction(action string, subject string, subject
 }
 
 /**
- * Get action ressource paramater infos...
+ * Get action resource paramater infos...
  */
 func (client *Rbac_Client) GetActionResourceInfos(action string) ([]*rbacpb.ResourceInfos, error) {
 	rqst := &rbacpb.GetActionResourceInfosRqst{
@@ -415,7 +416,7 @@ func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]
 
 	_, err = client.c.SetActionResourcesPermissions(client.GetCtx(), rqst)
 	if err != nil {
-		fmt.Println("--------> set action ressources permissions fail! ", permissions, err)
+		fmt.Println("--------> set action resources permissions fail! ", permissions, err)
 		return err
 	}
 	return nil

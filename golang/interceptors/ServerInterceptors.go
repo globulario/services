@@ -42,7 +42,7 @@ var (
 	cache sync.Map
 
 	// keep map in memory.
-	ressourceInfos sync.Map
+	resourceInfos sync.Map
 
 	// Client connections.
 	clients sync.Map
@@ -128,8 +128,8 @@ func invoke(address, method string, rqst interface{}, ctx context.Context) (inte
  */
 func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, error) {
 
-	// init the ressourceInfos
-	val, ok := ressourceInfos.Load(method)
+	// init the resourceInfos
+	val, ok := resourceInfos.Load(method)
 	if ok {
 		return val.([]*rbacpb.ResourceInfos), nil
 	}
@@ -145,7 +145,7 @@ func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, er
 		return nil, err
 	}
 
-	ressourceInfos.Store(method, infos)
+	resourceInfos.Store(method, infos)
 
 	return infos, nil
 
@@ -158,7 +158,7 @@ func validateAction(token, application, address, organization, method, subject s
 		id += infos[i].Permission + infos[i].Path
 	}
 
-	// generate a uuid for the action and it's ressource permissions.
+	// generate a uuid for the action and it's resource permissions.
 	uuid := Utility.GenerateUUID(id)
 	item, ok := cache.Load(uuid)
 
@@ -181,10 +181,8 @@ func validateAction(token, application, address, organization, method, subject s
 		return false, err
 	}
 
-	fmt.Println("-----------> 184 ", method, subject, subjectType, infos)
 	hasAccess, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
-		fmt.Println("-----------> 187 ", method, err)
 		return false, err
 	}
 
@@ -271,7 +269,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	var clientId string
 	var err error
 	var issuer string
-	
+
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
 		if err != nil && !hasAccess {
@@ -285,7 +283,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Test if peer has access
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
-		
+
 		infos, err := getActionResourceInfos(address, method)
 		if err == nil && infos != nil {
 			hasAccess = false

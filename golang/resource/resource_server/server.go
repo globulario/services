@@ -462,7 +462,7 @@ func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error
 func (server *server) getPeerPublicKey(address, mac string) (string, error) {
 
 	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
-	if err !=nil {
+	if err != nil {
 		return "", err
 	}
 
@@ -497,7 +497,7 @@ func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if peer.ExternalIpAddress == Utility.MyIP() {
 		hosts.AddHost(peer.LocalIpAddress, peer.GetDomain())
 	} else {
@@ -574,13 +574,13 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return rbac_client_, nil
 }
 
-func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
-	
-	err = rbac_client_.AddResourceOwner(path, subject, subjectType)
+
+	err = rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 	return err
 }
 
@@ -784,7 +784,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	// Create the user file directory.
 	path := "/users/" + id
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
-	err = resource_server.addResourceOwner(path, id, rbacpb.SubjectType_ACCOUNT)
+	err = resource_server.addResourceOwner(path, "file", id, rbacpb.SubjectType_ACCOUNT)
 	return err
 }
 
@@ -922,8 +922,8 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 		}
 	}
 
-	// Now create the ressource permission.
-	resource_server.addResourceOwner(id, owner, rbacpb.SubjectType_ACCOUNT)
+	// Now create the resource permission.
+	resource_server.addResourceOwner(id, "group", owner, rbacpb.SubjectType_ACCOUNT)
 
 	return nil
 }
@@ -1026,7 +1026,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 // port number must be pass as argument.
 func main() {
 
-	log.Println("start service ressource manager")
+	log.Println("start service resource manager")
 	// Set the log information in case of crash...
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 

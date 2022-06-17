@@ -117,7 +117,7 @@ function randomUUID(): string {
 
 window.onbeforeunload = function (e: any) {
 
-  console.log("cleanup network ressources...");
+  console.log("cleanup network resources...");
 
   return undefined;
 };

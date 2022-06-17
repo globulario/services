@@ -386,6 +386,7 @@ func (server *server) SetKeepAlive(val bool) {
 func (server *server) GetPermissions() []interface{} {
 	return server.Permissions
 }
+
 func (server *server) SetPermissions(permissions []interface{}) {
 	server.Permissions = permissions
 }
@@ -423,7 +424,7 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 		}
 	}
 
-	// Now I will set it in the rbac as ressource owner...
+	// Now I will set it in the rbac as resource owner...
 	permissions := &rbacpb.Permissions{
 		Allowed: []*rbacpb.Permission{},
 		Denied:  []*rbacpb.Permission{},
@@ -443,7 +444,7 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 		return err
 	}
 
-	err = rbac_client_.SetResourcePermissions(token, path, permissions)
+	err = rbac_client_.SetResourcePermissions(token, path, "domain", permissions)
 
 	if err != nil {
 		return err

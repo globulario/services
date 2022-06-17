@@ -13,12 +13,12 @@ import (
 
 var (
 	// Connect to the services client.
-	domain = "localhost"
+	domain              = "localhost"
 	rbac_client_, _     = NewRbacService_Client(domain, "rbac.RbacService")
 	resource_client_, _ = resource_client.NewResourceService_Client(domain, "resource.ResourceService")
 )
 
-/** Create All ressource to be use to test permission **/
+/** Create All resource to be use to test permission **/
 func TestSetResources(t *testing.T) {
 	log.Println("----> Create resources...")
 	/** Create organization **/
@@ -124,10 +124,10 @@ func TestSetResources(t *testing.T) {
 func TestSetResourcePermissions(t *testing.T) {
 
 	// Here I will create a file and set permission on it.
-	
+
 	// A fictive file path...
 	filePath := "/tmp/toto.txt"
-	if Utility.Exists(filePath){
+	if Utility.Exists(filePath) {
 		os.Remove(filePath)
 	}
 	err := ioutil.WriteFile(filePath, []byte("La vie ne vaut rien, mais rien ne vaut la vie!"), 0777)
@@ -135,7 +135,6 @@ func TestSetResourcePermissions(t *testing.T) {
 		log.Println(err)
 		t.Fail()
 	}
-
 
 	permissions := &rbacpb.Permissions{
 		Allowed: []*rbacpb.Permission{
@@ -219,7 +218,7 @@ func TestGetResourcePermission(t *testing.T) {
 }
 
 func TestSetResourcePermission(t *testing.T) {
-	filePath := "/tmp/toto.txt"
+	filePath := "file:/tmp/toto.txt"
 	err := rbac_client_.DeleteResourcePermission(filePath, "execute", rbacpb.PermissionType_ALLOWED)
 	if err != nil {
 		log.Println(err)
@@ -227,7 +226,7 @@ func TestSetResourcePermission(t *testing.T) {
 }
 
 func TestValidateAccess(t *testing.T) {
-	filePath := "/tmp/toto.txt"
+	filePath := "file:/tmp/toto.txt"
 
 	// Test if account owner can do anything.
 	hasPermission_0, _, err := rbac_client_.ValidateAccess("account_0", rbacpb.SubjectType_ACCOUNT, "read", filePath)
@@ -242,7 +241,7 @@ func TestValidateAccess(t *testing.T) {
 		t.Fail()
 	}
 
-	// Now I will test remove the ressource owner and play the same action again.
+	// Now I will test remove the resource owner and play the same action again.
 	err = rbac_client_.RemoveResourceOwner(filePath, "account_0", rbacpb.SubjectType_ACCOUNT)
 	if err != nil {
 		log.Println(err)
@@ -389,7 +388,7 @@ func TestValidateAccess(t *testing.T) {
 	}
 }
 
-// Test delete a specific ressource permission...
+// Test delete a specific resource permission...
 func TestDeleteResourcePermissions(t *testing.T) {
 	filePath := "/tmp/toto.txt"
 

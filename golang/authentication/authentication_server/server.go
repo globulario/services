@@ -488,12 +488,12 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	return rbac_client_, nil
 }
 
-func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+	return rbac_client_.AddResourceOwner(path,resourceType, subject, subjectType)
 }
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////

@@ -1016,7 +1016,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 		}
 	}
 
-	// Now I will set it in the rbac as ressource owner...
+	// Now I will set it in the rbac as resource owner...
 	permissions := &rbacpb.Permissions{
 		Allowed: []*rbacpb.Permission{},
 		Denied:  []*rbacpb.Permission{},
@@ -1036,7 +1036,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 		return err
 	}
 
-	err = rbac_client_.SetResourcePermissions(token, path, permissions)
+	err = rbac_client_.SetResourcePermissions(token, path, "file", permissions)
 
 	if err != nil {
 		return err
@@ -1605,7 +1605,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 					if err != nil {
 						fmt.Println(err)
 					}
-					
+
 					output := dest + "/.hidden/" + fileName + "/__timeline__"
 					createVttFile(output, 0.2)
 				}
@@ -2435,6 +2435,10 @@ func generateVideoGifPreview(path string, fps, scale, duration int, force bool) 
 		return errors.New("the video lenght is 0 sec")
 	}
 
+	if Utility.Exists(path+"/playlist.m3u8") && !strings.HasSuffix(path, "playlist.m3u8") {
+		path += "/playlist.m3u8"
+	}
+
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
 
@@ -2566,6 +2570,11 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 func createVideoPreview(path string, nb int, height int, force bool) error {
 	path = strings.ReplaceAll(path, "\\", "/")
 	fmt.Println("create preview for ", path)
+
+	if Utility.Exists(path+"/playlist.m3u8") && !strings.HasSuffix(path, "playlist.m3u8") {
+		path += "/playlist.m3u8"
+	}
+
 	// This is the parent path.
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := ""
@@ -3108,7 +3117,6 @@ func main() {
 					select {
 					case data := <-processing:
 						path := s_impl.formatPath(data)
-						fmt.Println("generate preview and time line for ", path)
 						createVideoPreview(path, 20, 128, false)
 						dir := string(data)[0:strings.LastIndex(string(data), "/")]
 						client.Publish("reload_dir_event", []byte(dir))

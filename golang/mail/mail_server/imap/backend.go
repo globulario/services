@@ -19,7 +19,7 @@ func (self *Backend_impl) Login(connInfo *imap.ConnInfo, username, password stri
 
 	// retreive account info.
 	query := `{"name":"` + username + `"}`
-	info, err := Store.FindOne("local_ressource", "local_ressource", "Accounts", query, "")
+	info, err := Store.FindOne("local_resource", "local_resource", "Accounts", query, "")
 	if err != nil {
 		return nil, err
 	}

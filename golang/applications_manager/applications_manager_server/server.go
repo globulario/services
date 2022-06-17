@@ -601,12 +601,12 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
 	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
 
-func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+func (svr *server) addResourceOwner(path, resourcePath, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := svr.GetRbacClient()
 	if err != nil {
 		return err
 	}
-	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+	return rbac_client_.AddResourceOwner(path, resourcePath, subject, subjectType)
 }
 
 // That service is use to give access to SQL.

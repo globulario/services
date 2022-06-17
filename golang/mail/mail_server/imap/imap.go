@@ -40,7 +40,7 @@ func saveMessage(user string, mailBox string, body []byte, flags []string, date 
 		return err
 	}
 	// Now I will insert the message into the inbox of the user.
-	_, err = Store.InsertOne("local_ressource", user+"_db", mailBox, jsonStr, "")
+	_, err = Store.InsertOne("local_resource", user+"_db", mailBox, jsonStr, "")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -54,7 +54,7 @@ func saveMessage(user string, mailBox string, body []byte, flags []string, date 
 func renameCollection(database string, name string, rename string) error {
 
 	script := `db=db.getSiblingDB('admin');db.adminCommand({renameCollection:'` + database + `.` + name + `', to:'` + database + `.` + rename + `'})`
-	err := Store.RunAdminCmd("local_ressource", "sa", Backend_password, script)
+	err := Store.RunAdminCmd("local_resource", "sa", Backend_password, script)
 	return err
 }
 

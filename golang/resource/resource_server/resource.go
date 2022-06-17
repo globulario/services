@@ -321,9 +321,9 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		account := accounts[i].(map[string]interface{})
 		a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string)}
 
-		if  account["domain"] != nil {
+		if account["domain"] != nil {
 			a.Domain = account["domain"].(string)
-		}else{
+		} else {
 			a.Domain = resource_server.Domain
 		}
 
@@ -674,10 +674,10 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
 		if role["domain"] != nil {
 			r.Domain = role["domain"].(string)
-		}else{
+		} else {
 			r.Domain = resource_server.Domain
 		}
-		
+
 		if role["actions"] != nil {
 			actions := []interface{}(role["actions"].(primitive.A))
 			if actions != nil {
@@ -1012,8 +1012,6 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 
 func (resource_server *server) save_application(app *resourcepb.Application, userId string) error {
 
-	
-
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
@@ -1082,11 +1080,11 @@ func (resource_server *server) save_application(app *resourcepb.Application, use
 	path := "/applications/" + app.Name
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 
-	// Add ressource owner
-	resource_server.addResourceOwner(path, app.Name, rbacpb.SubjectType_APPLICATION)
+	// Add resource owner
+	resource_server.addResourceOwner(path, "file", app.Name, rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
-	resource_server.addResourceOwner(app.Id, userId, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(app.Id, "application", userId, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
 	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
@@ -1098,7 +1096,7 @@ func (resource_server *server) save_application(app *resourcepb.Application, use
 // Application
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
-	
+
 	var clientId string
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -1480,7 +1478,7 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 ////////////////////////////////////////////////////////////////////////////////
 // Peer's Authorization and Authentication code.
 ////////////////////////////////////////////////////////////////////////////////
-func getLocalPeer()*resourcepb.Peer {
+func getLocalPeer() *resourcepb.Peer {
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
 	domain, _ := config.GetDomain()
@@ -1576,8 +1574,6 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	peer["hostname"] = rqst.Peer.Hostname
 	peer["domain"] = rqst.Peer.Domain
 
-
-	
 	var marshaler jsonpb.Marshaler
 
 	// If no mac address was given it mean the request came from a web application
@@ -1652,7 +1648,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 
 			// in case local dns is use that peers will be able to change values releated to it domain.
 			// but no other peer will be able to do it...
-			resource_server.addResourceOwner(domain, peer_.Mac, rbacpb.SubjectType_PEER)
+			resource_server.addResourceOwner(domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
 
 			jsonStr, err := marshaler.MarshalToString(peer_)
 			if err != nil {
@@ -1725,7 +1721,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 					if len(rqst.Peer.Domain) > 0 {
 						domain += "." + rqst.Peer.Domain
 					}
-					resource_server.addResourceOwner(domain, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+					resource_server.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 				}
 			}
 		}
@@ -1831,7 +1827,7 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 
 	// in case local dns is use that peers will be able to change values releated to it domain.
 	// but no other peer will be able to do it...
-	resource_server.addResourceOwner(domain, rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+	resource_server.addResourceOwner(domain, "domain", rqst.Peer.Mac, rbacpb.SubjectType_PEER)
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Peer)
 	if err != nil {
@@ -2398,7 +2394,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}
 
 	// create the resource owner.
-	resource_server.addResourceOwner(rqst.Organization.GetId(), clientId, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(rqst.Organization.GetId(), "organisation", clientId, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -2472,8 +2468,8 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 		organization.Description = o["description"].(string)
 		organization.Email = o["email"].(string)
 		if o["domain"] != nil {
-			organization.Domain =  o["domain"].(string)
-		}else{
+			organization.Domain = o["domain"].(string)
+		} else {
 			organization.Domain = resource_server.Domain
 		}
 
@@ -2909,9 +2905,9 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 	for i := 0; i < len(groups); i++ {
 
 		g := &resourcepb.Group{Name: groups[i].(map[string]interface{})["name"].(string), Id: groups[i].(map[string]interface{})["_id"].(string), Description: groups[i].(map[string]interface{})["description"].(string), Members: make([]string, 0)}
-		if  groups[i].(map[string]interface{})["domain"] != nil {
+		if groups[i].(map[string]interface{})["domain"] != nil {
 			g.Domain = groups[i].(map[string]interface{})["domain"].(string)
-		}else{
+		} else {
 			g.Domain = resource_server.Domain
 		}
 
@@ -2965,7 +2961,6 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 //* Delete organization
 func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroupRqst) (*resourcepb.DeleteGroupRsp, error) {
 
-	
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3010,7 +3005,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	
+
 	resource_server.deleteResourcePermissions(rqst.Group)
 	resource_server.publishEvent("delete_group_"+rqst.Group+"_evt", []byte{})
 

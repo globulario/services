@@ -509,7 +509,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// Set the path of the directory where the application can store files.
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
-	err = server.addResourceOwner("/applications/"+name, name, rbacpb.SubjectType_APPLICATION)
+	err = server.addResourceOwner("/applications/"+name, "file", name, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return err
 	}

@@ -741,7 +741,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		fmt.Println("-----------> no file association found with error ", err)
 	}
 
-	fmt.Println("-------------> file association found ", file_association)
 	// so here i will remove the path from the list of path.
 	file_association.Paths = Utility.RemoveString(file_association.Paths, filePath)
 	file_association.Paths = Utility.RemoveString(file_association.Titles, titleId)

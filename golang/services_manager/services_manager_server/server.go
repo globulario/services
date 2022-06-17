@@ -67,7 +67,7 @@ type server struct {
 	Process         int
 	ProxyProcess    int
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 	TLS             bool
 
@@ -163,7 +163,6 @@ func (svr *server) GetState() string {
 func (svr *server) SetState(state string) {
 	svr.State = state
 }
-
 
 // The last error
 func (svr *server) GetLastError() string {
@@ -493,7 +492,7 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
 	return resource_client_, nil
 }
 
-/////////////////////// Ressource manager function ////////////////////////////////////////
+/////////////////////// Resource manager function ////////////////////////////////////////
 func (server *server) removeRolesAction(action string) error {
 
 	resourceClient, err := server.getResourceClient()
@@ -735,11 +734,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 

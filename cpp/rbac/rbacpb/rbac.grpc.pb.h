@@ -128,7 +128,7 @@ class RbacService final {
     }
     // ///////////////////////// Rpc Action Valdisation ////////////////////////////////
     //
-    // * Return the action ressource informations. 
+    // * Return the action resource informations. 
     virtual ::grpc::Status GetActionResourceInfos(::grpc::ClientContext* context, const ::rbac::GetActionResourceInfosRqst& request, ::rbac::GetActionResourceInfosRsp* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rbac::GetActionResourceInfosRsp>> AsyncGetActionResourceInfos(::grpc::ClientContext* context, const ::rbac::GetActionResourceInfosRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rbac::GetActionResourceInfosRsp>>(AsyncGetActionResourceInfosRaw(context, request, cq));
@@ -162,7 +162,7 @@ class RbacService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rbac::UnshareResourceRsp>> PrepareAsyncUshareResource(::grpc::ClientContext* context, const ::rbac::UnshareResourceRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rbac::UnshareResourceRsp>>(PrepareAsyncUshareResourceRaw(context, request, cq));
     }
-    // Get the list of accessible shared ressources.
+    // Get the list of accessible shared resources.
     virtual ::grpc::Status GetSharedResource(::grpc::ClientContext* context, const ::rbac::GetSharedResourceRqst& request, ::rbac::GetSharedResourceRsp* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rbac::GetSharedResourceRsp>> AsyncGetSharedResource(::grpc::ClientContext* context, const ::rbac::GetSharedResourceRqst& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::rbac::GetSharedResourceRsp>>(AsyncGetSharedResourceRaw(context, request, cq));
@@ -268,7 +268,7 @@ class RbacService final {
       #endif
       // ///////////////////////// Rpc Action Valdisation ////////////////////////////////
       //
-      // * Return the action ressource informations. 
+      // * Return the action resource informations. 
       virtual void GetActionResourceInfos(::grpc::ClientContext* context, const ::rbac::GetActionResourceInfosRqst* request, ::rbac::GetActionResourceInfosRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void GetActionResourceInfos(::grpc::ClientContext* context, const ::rbac::GetActionResourceInfosRqst* request, ::rbac::GetActionResourceInfosRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
@@ -298,7 +298,7 @@ class RbacService final {
       #else
       virtual void UshareResource(::grpc::ClientContext* context, const ::rbac::UnshareResourceRqst* request, ::rbac::UnshareResourceRsp* response, ::grpc::experimental::ClientUnaryReactor* reactor) = 0;
       #endif
-      // Get the list of accessible shared ressources.
+      // Get the list of accessible shared resources.
       virtual void GetSharedResource(::grpc::ClientContext* context, const ::rbac::GetSharedResourceRqst* request, ::rbac::GetSharedResourceRsp* response, std::function<void(::grpc::Status)>) = 0;
       #ifdef GRPC_CALLBACK_API_NONEXPERIMENTAL
       virtual void GetSharedResource(::grpc::ClientContext* context, const ::rbac::GetSharedResourceRqst* request, ::rbac::GetSharedResourceRsp* response, ::grpc::ClientUnaryReactor* reactor) = 0;
@@ -701,7 +701,7 @@ class RbacService final {
     virtual ::grpc::Status SetActionResourcesPermissions(::grpc::ServerContext* context, const ::rbac::SetActionResourcesPermissionsRqst* request, ::rbac::SetActionResourcesPermissionsRsp* response);
     // ///////////////////////// Rpc Action Valdisation ////////////////////////////////
     //
-    // * Return the action ressource informations. 
+    // * Return the action resource informations. 
     virtual ::grpc::Status GetActionResourceInfos(::grpc::ServerContext* context, const ::rbac::GetActionResourceInfosRqst* request, ::rbac::GetActionResourceInfosRsp* response);
     // * Validate the actions 
     virtual ::grpc::Status ValidateAction(::grpc::ServerContext* context, const ::rbac::ValidateActionRqst* request, ::rbac::ValidateActionRsp* response);
@@ -711,7 +711,7 @@ class RbacService final {
     virtual ::grpc::Status ShareResource(::grpc::ServerContext* context, const ::rbac::ShareResourceRqst* request, ::rbac::ShareResourceRsp* response);
     // Remove the share
     virtual ::grpc::Status UshareResource(::grpc::ServerContext* context, const ::rbac::UnshareResourceRqst* request, ::rbac::UnshareResourceRsp* response);
-    // Get the list of accessible shared ressources.
+    // Get the list of accessible shared resources.
     virtual ::grpc::Status GetSharedResource(::grpc::ServerContext* context, const ::rbac::GetSharedResourceRqst* request, ::rbac::GetSharedResourceRsp* response);
     // Remove a subject from a share.
     virtual ::grpc::Status RemoveSubjectFromShare(::grpc::ServerContext* context, const ::rbac::RemoveSubjectFromShareRqst* request, ::rbac::RemoveSubjectFromShareRsp* response);

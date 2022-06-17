@@ -264,7 +264,7 @@ public:
             }else{
 
                 // Now if the action has resource access permission defines...
-                // TODO validate ressource access here.
+                // TODO validate resource access here.
             }
         }
 

@@ -523,12 +523,12 @@ func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, 
 	return rbac_client_.GetResourcePermissions(path)
 }
 
-func (server *server) setResourcePermissions(token, path string, permissions *rbacpb.Permissions) error {
+func (server *server) setResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
 	rbac_client_, err := GetRbacClient(server.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.SetResourcePermissions(token, path, permissions)
+	return rbac_client_.SetResourcePermissions(token, path, resource_type, permissions)
 }
 
 func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
@@ -541,12 +541,12 @@ func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectT
 
 }
 
-func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
@@ -804,7 +804,7 @@ func main() {
 	}
 
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[1] =  map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
 	// Open the connetion with the store.
 	Utility.CreateDirIfNotExist(s_impl.Root + "/blogs")

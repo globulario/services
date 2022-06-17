@@ -66,7 +66,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 
 	TLS bool
@@ -436,12 +436,12 @@ func (server *server) getResourcePermissions(path string) (*rbacpb.Permissions, 
 	return rbac_client_.GetResourcePermissions(path)
 }
 
-func (server *server) setResourcePermissions(token, path string, permissions *rbacpb.Permissions) error {
+func (server *server) setResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
 	rbac_client_, err := GetRbacClient(server.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.SetResourcePermissions(token, path, permissions)
+	return rbac_client_.SetResourcePermissions(token, path, resource_type, permissions)
 }
 
 func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
@@ -454,12 +454,12 @@ func (server *server) validateAccess(subject string, subjectType rbacpb.SubjectT
 
 }
 
-func (svr *server) addResourceOwner(path string, subject string, subjectType rbacpb.SubjectType) error {
+func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
 		return err
 	}
-	return rbac_client_.AddResourceOwner(path, subject, subjectType)
+	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -574,7 +574,7 @@ func (server *server) publishPackage(token, user, organization, discovery, repos
 		}
 
 		// Set the permissions.
-		err = server.setResourcePermissions(token, path_, permissions)
+		err = server.setResourcePermissions(token, path_, "package", permissions)
 		if err != nil {
 			fmt.Println("fail to publish package with error: ", err.Error())
 			return err
@@ -594,7 +594,7 @@ func (server *server) publishPackage(token, user, organization, discovery, repos
 	}
 
 	// Save the permissions.
-	err = server.setResourcePermissions(token, path_, permissions)
+	err = server.setResourcePermissions(token, path_, "package", permissions)
 	if err != nil {
 		fmt.Println("publishPackage 539 ", err)
 		return err
@@ -657,11 +657,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

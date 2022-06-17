@@ -3,10 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/davecourtois/Utility"
-	"github.com/emicklei/proto"
-	"github.com/fsnotify/fsnotify"
-	"github.com/syndtr/goleveldb/leveldb/errors"
 	"io/ioutil"
 	"log"
 	"net"
@@ -15,6 +11,11 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/davecourtois/Utility"
+	"github.com/emicklei/proto"
+	"github.com/fsnotify/fsnotify"
+	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 //////////////////////////////////////////////////////////////////////////////////////
@@ -668,7 +669,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			s["Address"], _ = GetAddress()
 			s["Mac"] = localConfig["Mac"]
 
-			// Set the session timeout in minutes (ressource has that values.)
+			// Set the session timeout in minutes (resource has that values.)
 			if s["SessionTimeout"] != nil {
 				s["SessionTimeout"] = localConfig["SessionTimeout"]
 			}
@@ -933,13 +934,13 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				err = json.Unmarshal(data, &s)
 				if err != nil {
 					fmt.Println("fail to unmarshal configuration at path ", event.Name, err)
-				}else{
+				} else {
 					// set the service values found from the file.
 					for i := 0; i < len(services); i++ {
 						if services[i]["Id"] == s["Id"] {
 							services[i] = s
 							// Here I will send service change event.
-							
+
 							break
 						}
 					}
