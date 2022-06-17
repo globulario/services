@@ -376,7 +376,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// Create the user file directory.
-		path := "/users/sa"
+		path := "/users/sa" 
 		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 		server.addResourceOwner(path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
 
@@ -431,9 +431,11 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	claims, _ := security.ValidateToken(tokenString)
 
 	// Create the user file directory.
-	path := "/users/" + claims.Id
-	Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-	server.addResourceOwner(path, "file", claims.Id, rbacpb.SubjectType_ACCOUNT)
+	path := "/users/" + claims.Id + "@" + account.Domain
+	if !Utility.Exists(path){
+		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
+		server.addResourceOwner(path, "file", claims.Id, rbacpb.SubjectType_ACCOUNT)
+	}
 
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
@@ -446,6 +448,11 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	}
 
 	return tokenString, err
+}
+
+// Process existing file...
+func (server *server) processFiles(){
+
 }
 
 //* Authenticate a user *

@@ -437,12 +437,12 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 	return resourceClient.GetAccount(accountId)
 }
 
-func (server *server) accountExist(id string) bool {
+func (server *server) accountExist(id string) (bool, string) {
 	a, err := server.getAccount(id)
 	if err != nil || a == nil {
-		return false
+		return false, ""
 	}
-	return true
+	return true, a.Id + "@" + a.Domain
 }
 
 /**
@@ -469,12 +469,12 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 /**
  * Test if a group exist.
  */
-func (server *server) groupExist(id string) bool {
+func (server *server) groupExist(id string) (bool, string) {
 	g, err := server.getGroup(id)
 	if err != nil || g == nil {
-		return false
+		return false, ""
 	}
-	return true
+	return true, g.Id + "@" + g.Domain
 }
 
 /**
@@ -504,12 +504,12 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 /**
  * Test if a application exist.
  */
-func (server *server) applicationExist(id string) bool {
-	g, err := server.getApplication(id)
-	if err != nil || g == nil {
-		return false
+func (server *server) applicationExist(id string) (bool, string) {
+	a, err := server.getApplication(id)
+	if err != nil || a == nil {
+		return false, ""
 	}
-	return true
+	return true, a.Id + "@" + a.Domain
 }
 
 /**
@@ -568,12 +568,12 @@ func (server *server) getOrganization(organisationId string) (*resourcepb.Organi
 /**
  * Test if a organisation exist.
  */
-func (server *server) organisationExist(id string) bool {
+func (server *server) organisationExist(id string) (bool, string) {
 	o, err := server.getOrganization(id)
 	if err != nil || o == nil {
-		return false
+		return false, ""
 	}
-	return true
+	return true, o.Id + "@" + o.Domain
 }
 
 /**
@@ -600,12 +600,12 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 /**
  * Test if a role exist.
  */
-func (server *server) roleExist(id string) bool {
+func (server *server) roleExist(id string) (bool, string) {
 	r, err := server.getRole(id)
 	if err != nil || r == nil {
-		return false
+		return false, ""
 	}
-	return true
+	return true, r.Id + "@" + r.Domain
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

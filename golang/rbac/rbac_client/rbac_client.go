@@ -235,8 +235,13 @@ func (client *Rbac_Client) SetCaFile(caFile string) {
 
 /** Set resource permissions this method will replace existing permission at once **/
 func (client *Rbac_Client) SetResourcePermissions(token, path, resource_type string, permissions *rbacpb.Permissions) error {
+	// set value if not already set...
+	permissions.Path = path
+	permissions.ResourceType = resource_type
+
 	rqst := &rbacpb.SetResourcePermissionsRqst{
 		Path:        path,
+		ResourceType: resource_type,
 		Permissions: permissions,
 	}
 

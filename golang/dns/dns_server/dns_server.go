@@ -406,6 +406,7 @@ func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 
 func (server *server) createPermission(ctx context.Context, path string) error {
 	var clientId string
+	var domain string
 	var err error
 	var token string
 
@@ -431,7 +432,7 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 		Owners: &rbacpb.Permission{
 			Name:          "owner", // The name is informative in that particular case.
 			Applications:  []string{},
-			Accounts:      []string{clientId},
+			Accounts:      []string{clientId + "@" + domain},
 			Groups:        []string{},
 			Peers:         []string{},
 			Organizations: []string{},

@@ -571,6 +571,8 @@ func (server *server) publishPackage(token, user, organization, discovery, repos
 				Peers:         []string{},
 				Organizations: []string{},
 			},
+			Path: path_,
+			ResourceType: "package",
 		}
 
 		// Set the permissions.

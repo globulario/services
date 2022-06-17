@@ -13,7 +13,6 @@ import "google/protobuf/struct.proto";
 // Permission message struct.
 message Permission {
 	string name = 1; // read, write, delete ... what you need
-	
 	repeated string applications = 2;
 	repeated string peers = 3;
 	repeated string accounts = 4;
@@ -22,21 +21,31 @@ message Permission {
 }
 
 message Permissions {
-	Permission owners = 1;
-	repeated Permission allowed = 2;
-	repeated Permission denied = 3;
+	string path = 1;
+	string resource_type = 2;
+	Permission owners = 3;
+	repeated Permission allowed = 4;
+	repeated Permission denied = 5;
 }
 
 /** Return a resource permissions **/
 message GetResourcePermissionsRqst{
 	string path = 1;
-	
 }
 
 /** Get resource permissions **/
 message GetResourcePermissionsRsp{
 	Permissions permissions = 1;
-	string resource_type = 2;
+}
+
+/** Return a resource permissions **/
+message GetResourcePermissionsByResourceTypeRqst{
+	string resourceType = 1;
+}
+
+/** Get resource permissions **/
+message GetResourcePermissionsByResourceTypeRsp{
+	repeated Permissions permissions = 1;
 }
 
 /** Delete a resource permissions **/
@@ -85,7 +94,6 @@ message GetResourcePermissionRqst{
 
 message GetResourcePermissionRsp{
 	Permission permission = 1;
-	string resource_type = 2;
 }
 
 message SetResourcePermissionRqst{

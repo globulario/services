@@ -823,6 +823,7 @@ func (svr *server) removeParticipantConversation(paticipant string, conversation
 func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversationpb.KickoutFromConversationRequest) (*conversationpb.KickoutFromConversationResponse, error) {
 
 	var clientId string
+	var domain string
 	var err error
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -833,6 +834,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 				return nil, err
 			}
 			clientId = claims.Id
+			domain = claims.Domain
 		} else {
 			return nil, errors.New("KickoutFromConversation no token was given")
 		}
@@ -848,8 +850,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Validate the clientId is the owner of the conversation.
-
-	isOwner, _, err := svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	isOwner, _, err := svr.validateAccess(clientId + "@" + domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 
 	if err != nil {
 
@@ -971,7 +972,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	_, _, err = svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	_, _, err = svr.validateAccess(clientId + "@" + domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
 		// Here I will simply remove the converstion from the paticipant.
 		err := svr.removeConversationParticipant(clientId, rqst.ConversationUuid)
@@ -1273,7 +1274,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	hasAccess, _, err := svr.validateAccess(clientId, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
+	hasAccess, _, err := svr.validateAccess(clientId + "@" + domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

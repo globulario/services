@@ -559,6 +559,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	name := account["name"].(string)
+	domain:= account["domain"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
 	// so before remove database I need to remove the accout from it contacts...
@@ -600,11 +601,12 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	// Remove the file...
-	resource_server.deleteResourcePermissions("/users/" + name)
-	os.RemoveAll(config.GetDataDir() + "/files/users/" + name)
+	resource_server.deleteResourcePermissions("/users/" + name + "@" + domain)
+	os.RemoveAll(config.GetDataDir() + "/files/users/" + name+ "@" + domain)
 
-	resource_server.publishEvent("delete_account_"+name+"_evt", []byte{})
-	resource_server.publishEvent("delete_account_evt", []byte(name))
+	// Publish delete account event.
+	resource_server.publishEvent("delete_account_"+name+ "@" + domain+"_evt", []byte{})
+	resource_server.publishEvent("delete_account_evt", []byte(name+ "@" + domain))
 
 	return &resourcepb.DeleteAccountRsp{
 		Result: rqst.Id,

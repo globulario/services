@@ -203,8 +203,8 @@ func refreshLocalToken(token string) (string, error) {
 // Here I will keep the token in a map so it will be less file reading...
 var tokens = new(sync.Map)
 
-func getLocalToken(mac string) (string, error) {
-	token, ok := tokens.Load(mac)
+func getLocalToken(domain string) (string, error) {
+	token, ok := tokens.Load(domain)
 	if ok {
 		if token != nil {
 			return token.(string), nil

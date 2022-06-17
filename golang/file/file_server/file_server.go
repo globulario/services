@@ -908,6 +908,7 @@ func (file_server *server) isPublic(path string) bool {
 func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.CreateArchiveRequest) (*filepb.CreateArchiveResponse, error) {
 
 	var user string
+	var domain string
 	var err error
 
 	// Now I will index the conversation to be retreivable for it creator...
@@ -921,6 +922,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			user = claims.Id
+			domain = claims.Domain
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -978,7 +980,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 	var buf bytes.Buffer
 	Utility.CompressDir(tmp, &buf)
-	dest := "/users/" + user + "/" + rqst.GetName() + ".tgz"
+	dest := "/users/" + user + "@" + domain + "/" + rqst.GetName() + ".tgz"
 
 	// Set user as owner.
 	file_server.createPermission(ctx, dest)
@@ -1000,20 +1002,26 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 func (file_server *server) createPermission(ctx context.Context, path string) error {
 	var clientId string
+	var domain string
 	var err error
 	var token string
-	// Now I will index the conversation to be retreivable for it creator...
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return err
+	if ctx != nil {
+		// Now I will index the conversation to be retreivable for it creator...
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			token = strings.Join(md["token"], "")
+			if len(token) > 0 {
+				claims, err := security.ValidateToken(token)
+				if err != nil {
+					return err
+				}
+				clientId = claims.Id
+				domain = claims.Domain
+			} else {
+				errors.New("file manager createPermission no token was given for path " + path)
 			}
-			clientId = claims.Id
-		} else {
-			errors.New("file manager createPermission no token was given")
 		}
+	} else {
+		return errors.New("no valid context found")
 	}
 
 	// Now I will set it in the rbac as resource owner...
@@ -1023,7 +1031,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 		Owners: &rbacpb.Permission{
 			Name:          "owner", // The name is informative in that particular case.
 			Applications:  []string{},
-			Accounts:      []string{clientId},
+			Accounts:      []string{clientId + "@" + domain},
 			Groups:        []string{},
 			Peers:         []string{},
 			Organizations: []string{},
@@ -3099,6 +3107,15 @@ func main() {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 
+	if len(s_impl.MaximumVideoConversionDelay) == 0 {
+		s_impl.StartVideoConversionHour = "00:00"
+
+	}
+
+	if len(s_impl.StartVideoConversionHour) == 0 {
+		s_impl.StartVideoConversionHour = "00:00"
+	}
+
 	// Register the echo services
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
@@ -3116,12 +3133,54 @@ func main() {
 				for {
 					select {
 					case data := <-processing:
+						// Now I will create the ownership...
+						if strings.HasPrefix(data, "/users/") {
+							
+							values := strings.Split(data, "/")
+							if len(values) > 1 {
+								owner := values[2]
+								fmt.Println("---------------> set owner ", owner, "for", data)
+								// Now I will set it in the rbac as resource owner...
+								permissions := &rbacpb.Permissions{
+									Allowed: []*rbacpb.Permission{},
+									Denied:  []*rbacpb.Permission{},
+									Owners: &rbacpb.Permission{
+										Name:          "owner", // The name is informative in that particular case.
+										Applications:  []string{},
+										Accounts:      []string{owner},
+										Groups:        []string{},
+										Peers:         []string{},
+										Organizations: []string{},
+									},
+								}
+
+								// Set the owner of the conversation.
+								rbac_client_, err = getRbacClient()
+								if err == nil {
+									domain, _ := config.GetDomain()
+									token, err := os.ReadFile(config.GetConfigDir() + "/tokens/" + domain + "_token")
+									if err == nil {
+										err = rbac_client_.SetResourcePermissions(string(token), data, "file", permissions)
+										if err != nil {
+											fmt.Println("fail to set file owner with error ", err)
+										}
+									}else{
+										fmt.Println("fail to get local token with error: ", err)
+									}
+
+								}
+
+	
+
+							}
+						}
 						path := s_impl.formatPath(data)
 						createVideoPreview(path, 20, 128, false)
 						dir := string(data)[0:strings.LastIndex(string(data), "/")]
 						client.Publish("reload_dir_event", []byte(dir))
 						generateVideoGifPreview(path, 10, 320, 30, false)
 						createVideoTimeLine(path, 180, .2, false) // 1 frame per 5 seconds.
+
 					}
 				}
 			}()
@@ -3146,6 +3205,8 @@ func main() {
 		fmt.Println("start scheduler!")
 		s_impl.scheduler.Start()
 	}
+
+	// Now i will be sure that users are owner of every file in their user dir.
 
 	// Start the service.
 	s_impl.StartService()

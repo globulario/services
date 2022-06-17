@@ -782,7 +782,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	}
 
 	// Create the user file directory.
-	path := "/users/" + id
+	path := "/users/" + id + "@" + domain
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 	err = resource_server.addResourceOwner(path, "file", id, rbacpb.SubjectType_ACCOUNT)
 	return err

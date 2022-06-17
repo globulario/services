@@ -29,6 +29,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 
 	// So here I will create a new blog from the infromation sent by the user.
 	var clientId string
+	var domain string
 	var err error
 	var token string
 
@@ -43,6 +44,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			clientId = claims.Id
+			domain = claims.Domain
 		} else {
 			err := errors.New("CreateBlogPost no token was given")
 			return nil, status.Errorf(
@@ -84,7 +86,7 @@ func (svr *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 		Owners: &rbacpb.Permission{
 			Name:          "owner", // The name is informative in that particular case.
 			Applications:  []string{},
-			Accounts:      []string{clientId},
+			Accounts:      []string{clientId + "@" + domain},
 			Groups:        []string{},
 			Peers:         []string{},
 			Organizations: []string{},
