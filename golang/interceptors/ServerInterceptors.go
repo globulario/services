@@ -283,7 +283,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	// Test if peer has access
 	if method != "/rbac.RbacService/GetActionResourceInfos" {
-
 		infos, err := getActionResourceInfos(address, method)
 		if err == nil && infos != nil {
 			hasAccess = false

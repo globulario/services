@@ -34,6 +34,8 @@ type RbacServiceClient interface {
 	SetResourcePermission(ctx context.Context, in *SetResourcePermissionRqst, opts ...grpc.CallOption) (*SetResourcePermissionRsp, error)
 	//* Get resource permissions *
 	GetResourcePermissions(ctx context.Context, in *GetResourcePermissionsRqst, opts ...grpc.CallOption) (*GetResourcePermissionsRsp, error)
+	//* Get the list of all resource permission for a given resource type ex. blog or file...
+	GetResourcePermissionsByResourceType(ctx context.Context, in *GetResourcePermissionsByResourceTypeRqst, opts ...grpc.CallOption) (RbacService_GetResourcePermissionsByResourceTypeClient, error)
 	//* Add resource owner do nothing if it already exist
 	AddResourceOwner(ctx context.Context, in *AddResourceOwnerRqst, opts ...grpc.CallOption) (*AddResourceOwnerRsp, error)
 	//* Remove resource owner
@@ -120,6 +122,38 @@ func (c *rbacServiceClient) GetResourcePermissions(ctx context.Context, in *GetR
 		return nil, err
 	}
 	return out, nil
+}
+
+func (c *rbacServiceClient) GetResourcePermissionsByResourceType(ctx context.Context, in *GetResourcePermissionsByResourceTypeRqst, opts ...grpc.CallOption) (RbacService_GetResourcePermissionsByResourceTypeClient, error) {
+	stream, err := c.cc.NewStream(ctx, &RbacService_ServiceDesc.Streams[0], "/rbac.RbacService/GetResourcePermissionsByResourceType", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &rbacServiceGetResourcePermissionsByResourceTypeClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type RbacService_GetResourcePermissionsByResourceTypeClient interface {
+	Recv() (*GetResourcePermissionsByResourceTypeRsp, error)
+	grpc.ClientStream
+}
+
+type rbacServiceGetResourcePermissionsByResourceTypeClient struct {
+	grpc.ClientStream
+}
+
+func (x *rbacServiceGetResourcePermissionsByResourceTypeClient) Recv() (*GetResourcePermissionsByResourceTypeRsp, error) {
+	m := new(GetResourcePermissionsByResourceTypeRsp)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *rbacServiceClient) AddResourceOwner(ctx context.Context, in *AddResourceOwnerRqst, opts ...grpc.CallOption) (*AddResourceOwnerRsp, error) {
@@ -246,6 +280,8 @@ type RbacServiceServer interface {
 	SetResourcePermission(context.Context, *SetResourcePermissionRqst) (*SetResourcePermissionRsp, error)
 	//* Get resource permissions *
 	GetResourcePermissions(context.Context, *GetResourcePermissionsRqst) (*GetResourcePermissionsRsp, error)
+	//* Get the list of all resource permission for a given resource type ex. blog or file...
+	GetResourcePermissionsByResourceType(*GetResourcePermissionsByResourceTypeRqst, RbacService_GetResourcePermissionsByResourceTypeServer) error
 	//* Add resource owner do nothing if it already exist
 	AddResourceOwner(context.Context, *AddResourceOwnerRqst) (*AddResourceOwnerRsp, error)
 	//* Remove resource owner
@@ -293,6 +329,9 @@ func (UnimplementedRbacServiceServer) SetResourcePermission(context.Context, *Se
 }
 func (UnimplementedRbacServiceServer) GetResourcePermissions(context.Context, *GetResourcePermissionsRqst) (*GetResourcePermissionsRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetResourcePermissions not implemented")
+}
+func (UnimplementedRbacServiceServer) GetResourcePermissionsByResourceType(*GetResourcePermissionsByResourceTypeRqst, RbacService_GetResourcePermissionsByResourceTypeServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetResourcePermissionsByResourceType not implemented")
 }
 func (UnimplementedRbacServiceServer) AddResourceOwner(context.Context, *AddResourceOwnerRqst) (*AddResourceOwnerRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddResourceOwner not implemented")
@@ -448,6 +487,27 @@ func _RbacService_GetResourcePermissions_Handler(srv interface{}, ctx context.Co
 		return srv.(RbacServiceServer).GetResourcePermissions(ctx, req.(*GetResourcePermissionsRqst))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_GetResourcePermissionsByResourceType_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetResourcePermissionsByResourceTypeRqst)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(RbacServiceServer).GetResourcePermissionsByResourceType(m, &rbacServiceGetResourcePermissionsByResourceTypeServer{stream})
+}
+
+type RbacService_GetResourcePermissionsByResourceTypeServer interface {
+	Send(*GetResourcePermissionsByResourceTypeRsp) error
+	grpc.ServerStream
+}
+
+type rbacServiceGetResourcePermissionsByResourceTypeServer struct {
+	grpc.ServerStream
+}
+
+func (x *rbacServiceGetResourcePermissionsByResourceTypeServer) Send(m *GetResourcePermissionsByResourceTypeRsp) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _RbacService_AddResourceOwner_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -746,6 +806,12 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RbacService_DeleteSubjectShare_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetResourcePermissionsByResourceType",
+			Handler:       _RbacService_GetResourcePermissionsByResourceType_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "rbac.proto",
 }

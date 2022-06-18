@@ -17,7 +17,34 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// Return a resource permission.
+func (rbac_server *server) getResourceTypePathIndexation(resource_type string) ([]*rbacpb.Permissions, error) {
+	fmt.Println("getResourceTypePathIndexation for resource type ", resource_type)
+	data, err := rbac_server.permissions.GetItem(resource_type)
+	if err != nil {
+		return nil, err
+	}
+
+	paths := make([]string, 0)
+	err = json.Unmarshal(data, &paths)
+	if err != nil {
+		return nil, err
+	}
+
+	permissions := make([]*rbacpb.Permissions, 0)
+	for i:=0; i<len(paths); i++ {
+		p, err := rbac_server.getResourcePermissions(paths[i])
+		if err == nil {
+			permissions = append(permissions, p)
+		}
+	}
+
+	return permissions, nil
+}
+
 func (rbac_server *server) setResourceTypePathIndexation(resource_type string, path string) error {
+
+	fmt.Println("--------------> set resource type indexation ", resource_type, path)
 	// fmt.Println("setSubjectResourcePermissions", path)
 	// Here I will retreive the actual list of paths use by this user.
 	data, err := rbac_server.permissions.GetItem(resource_type)
@@ -85,12 +112,15 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 // Save the resource permission
 func (rbac_server *server) setResourcePermissions(path, resource_type string, permissions *rbacpb.Permissions) error {
 
+	// The metod
+	fmt.Println("setResourcePermissions")
+
 	// be sure the path and the resource type are set in the permissions itself.
 	permissions.Path = path
 	permissions.ResourceType = resource_type
 
 	// First of all I need to remove the existing permission.
-	rbac_server.deleteResourcePermissions(path, permissions)
+	err := rbac_server.deleteResourcePermissions(path, permissions)
 
 	// Each permissions object has a share objet associated with it so I will create it...
 	share := new(rbacpb.Share)
@@ -344,19 +374,16 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 	// simply marshal the permission and put it into the store.
 	data, err := json.Marshal(permissions)
 	if err != nil {
-		fmt.Println("--------------->333", err)
 		return err
 	}
 
 	err = rbac_server.permissions.SetItem(path, data)
 	if err != nil {
-		fmt.Println("--------------->338", err)
 		return err
 	}
 
 	err = rbac_server.shareResource(share)
 	if err != nil {
-		fmt.Println("--------------->343", err)
 		return err
 	}
 
@@ -1309,6 +1336,8 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			// so here I will recursively get it parent permission...
 			if strings.LastIndex(path, "/") > 0 {
 				return rbac_server.validateAccess(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
+			}else{
+				return true, false, nil // No permission is define for that resource so I need to give access in that case.
 			}
 		}
 		return false, false, err
@@ -1321,34 +1350,54 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	if owners != nil {
 		if subjectType == rbacpb.SubjectType_ACCOUNT {
 			subjectStr = "Account"
+			exist, a := rbac_server.accountExist(subject)
+			if !exist {
+				return false, false, errors.New("no account exist with id " + a)
+			}
 			if owners.Accounts != nil {
-				if Utility.Contains(owners.Accounts, subject) {
+				if Utility.Contains(owners.Accounts, subject) ||  Utility.Contains(owners.Accounts, a){
 					isOwner = true
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_APPLICATION {
 			subjectStr = "Application"
+			exist, a := rbac_server.applicationExist(subject)
+			if !exist {
+				return false, false, errors.New("no application exist with id " + a)
+			}
 			if owners.Applications != nil {
-				if Utility.Contains(owners.Applications, subject) {
+				if Utility.Contains(owners.Applications, subject) || Utility.Contains(owners.Applications, subject) {
 					isOwner = true
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_GROUP {
 			subjectStr = "Group"
+			exist, g := rbac_server.groupExist(subject)
+			if !exist{
+				return false, false, errors.New("no group exist with id " + g)
+			}
 			if owners.Groups != nil {
-				if Utility.Contains(owners.Groups, subject) {
+				if Utility.Contains(owners.Groups, subject) || Utility.Contains(owners.Groups, g) {
 					isOwner = true
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 			subjectStr = "Organization"
+			exist, o := rbac_server.organisationExist(subject)
+			if !exist {
+				return false, false, errors.New("no organization exist with id " + o)
+			}
 			if owners.Organizations != nil {
-				if Utility.Contains(owners.Organizations, subject) {
+				if Utility.Contains(owners.Organizations, subject) || Utility.Contains(owners.Organizations, o){
 					isOwner = true
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_PEER {
 			subjectStr = "Peer"
+			if !rbac_server.peerExist(subject) {
+				return false, false, errors.New("no peer exist with id " + subject)
+			}
+
 			if owners.Peers != nil {
 				if Utility.Contains(owners.Peers, subject) {
 					isOwner = true
@@ -1433,13 +1482,21 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 		} else if subjectType == rbacpb.SubjectType_APPLICATION {
 			// Here the Subject is an application.
+			exist, a := rbac_server.applicationExist(subject)
+			if !exist {
+				return false, false, errors.New("no application exist with id " + a)
+			}
 			if denied.Applications != nil {
-				accessDenied = Utility.Contains(denied.Applications, subject)
+				accessDenied = Utility.Contains(denied.Applications, subject) ||  Utility.Contains(denied.Applications, a)
 			}
 		} else if subjectType == rbacpb.SubjectType_GROUP {
+			exist, g := rbac_server.groupExist(subject)
+			if !exist{
+				return false, false, errors.New("no group exist with id " + g)
+			}
 			// Here the Subject is a group
 			if denied.Groups != nil {
-				accessDenied = Utility.Contains(denied.Groups, subject)
+				accessDenied = Utility.Contains(denied.Groups, subject) || Utility.Contains(denied.Groups, g)
 			}
 
 			// The access is not denied for the account itself, I will validate
@@ -1465,11 +1522,19 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 
 		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+			exist, o := rbac_server.organisationExist(subject)
+			if !exist {
+				return false, false, errors.New("no organization exist with id " + o)
+			}
 			// Here the Subject is an Organisations.
 			if denied.Organizations != nil {
-				accessDenied = Utility.Contains(denied.Organizations, subject)
+				accessDenied = Utility.Contains(denied.Organizations, subject) ||  Utility.Contains(denied.Organizations, o)
 			}
 		} else if subjectType == rbacpb.SubjectType_PEER {
+			if !rbac_server.peerExist(subject) {
+				return false, false, errors.New("no peer exist with id " + subject)
+			}
+
 			// Here the Subject is a Peer.
 			if denied.Peers != nil {
 				accessDenied = Utility.Contains(denied.Peers, subject)
@@ -1494,8 +1559,12 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	if allowed != nil {
 		// Test if the access is allowed
 		if subjectType == rbacpb.SubjectType_ACCOUNT {
+			exist, a := rbac_server.accountExist(subject)
+			if !exist {
+				return false, false, errors.New("no account exist with id " + a)
+			}
 			if allowed.Accounts != nil {
-				hasAccess = Utility.Contains(allowed.Accounts, subject)
+				hasAccess = Utility.Contains(allowed.Accounts, subject) || Utility.Contains(allowed.Accounts, a)
 				if hasAccess {
 					return true, false, nil
 				}
@@ -1532,7 +1601,11 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		} else if subjectType == rbacpb.SubjectType_GROUP {
 			// validate the group access
 			if allowed.Groups != nil {
-				hasAccess = Utility.Contains(allowed.Groups, subject)
+				exist, g := rbac_server.groupExist(subject)
+				if !exist{
+					return false, false, errors.New("no group exist with id " + g)
+				}
+				hasAccess = Utility.Contains(allowed.Groups, subject) || Utility.Contains(allowed.Groups, g)
 				if hasAccess {
 					return true, false, nil
 				}
@@ -1553,8 +1626,12 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+			exist, o := rbac_server.organisationExist(subject)
+			if !exist {
+				return false, false, errors.New("no organization exist with id " + o)
+			}
 			if allowed.Organizations != nil {
-				hasAccess = Utility.Contains(allowed.Organizations, subject)
+				hasAccess = Utility.Contains(allowed.Organizations, subject) || Utility.Contains(allowed.Organizations, subject)
 				if hasAccess {
 					return true, false, nil
 				}
@@ -1569,8 +1646,13 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 		} else if subjectType == rbacpb.SubjectType_APPLICATION {
 			// Here the Subject is an application.
+			exist, a := rbac_server.applicationExist(subject)
+			if !exist {
+				return false, false, errors.New("no application exist with id " + a)
+			}
+	
 			if allowed.Applications != nil {
-				hasAccess = Utility.Contains(allowed.Applications, subject)
+				hasAccess = Utility.Contains(allowed.Applications, subject) ||  Utility.Contains(allowed.Applications, a)
 				if hasAccess {
 					return true, false, nil
 				}
@@ -2074,49 +2156,41 @@ func (rbac_server *server) UshareResource(ctx context.Context, rqst *rbacpb.Unsh
 // Get the list of accessible shared resource.
 // TODO if account also get share for groups and organization that the acount is part of...
 func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.SubjectType) ([]*rbacpb.Share, error) {
-	// fmt.Println("getSharedResource")
-	if subjectType == rbacpb.SubjectType_ACCOUNT {
-		exist, a := rbac_server.accountExist(subject)
-		if !exist {
-			return nil, errors.New("no account exist with id " + a)
-		}
-	} else if subjectType == rbacpb.SubjectType_APPLICATION {
-		exist, a := rbac_server.applicationExist(subject)
-		if !exist {
-			return nil, errors.New("no application exist with id " + a)
-		}
-
-	} else if subjectType == rbacpb.SubjectType_GROUP {
-		exist, g := rbac_server.groupExist(subject)
-		if !exist{
-			return nil, errors.New("no group exist with id " + g)
-		}
-
-	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
-		exist, o := rbac_server.organisationExist(subject)
-		if !exist {
-			return nil, errors.New("no organization exist with id " + o)
-		}
-	} else if subjectType == rbacpb.SubjectType_PEER {
-		if !rbac_server.peerExist(subject) {
-			return nil, errors.New("no peer exist with id " + subject)
-		}
-	}
+	fmt.Println("getSharedResource")
 
 	// So here I will get the share resource for a given subject.
 	id := "SHARED/"
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		id += "ACCOUNTS"
+		exist, a := rbac_server.accountExist(subject)
+		if !exist {
+			return nil, errors.New("no account exist with id " + a)
+		}
+		id += "/" + a
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		id += "APPLICATIONS"
+		exist, a := rbac_server.applicationExist(subject)
+		if !exist {
+			return nil, errors.New("no application exist with id " + a)
+		}
+		id += "/" + a
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		id += "GROUPS"
+		exist, g := rbac_server.groupExist(subject)
+		if !exist{
+			return nil, errors.New("no group exist with id " + g)
+		}
+		id += "/" + g
 	} else if subjectType == rbacpb.SubjectType_PEER {
-		id += "PEERS"
+		id += "PEERS/" + subject
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		id += "ORGANIZATIONS"
+		exist, o := rbac_server.organisationExist(subject)
+		if !exist {
+			return nil, errors.New("no organization exist with id " + o)
+		}
+		id += "/" + o
 	}
-	id += "/" + subject
 
 	// Now I will retreive the list of existing path.
 	shared := make([]string, 0)
@@ -2253,14 +2327,30 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 	// Remove the subject from the share...
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		share.Accounts = Utility.RemoveString(share.Accounts, subject)
+		exist, a := rbac_server.accountExist(subject)
+		if exist {
+			share.Accounts = Utility.RemoveString(share.Accounts, a)
+		}
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		share.Applications = Utility.RemoveString(share.Applications, subject)
+		exist, a := rbac_server.applicationExist(subject)
+		if !exist {
+			share.Applications = Utility.RemoveString(share.Applications, a)
+		}
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		share.Groups = Utility.RemoveString(share.Groups, subject)
+		exist, g := rbac_server.groupExist(subject)
+		if exist{
+			share.Groups = Utility.RemoveString(share.Groups, g)
+		}
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		share.Peers = Utility.RemoveString(share.Peers, subject)
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		share.Organizations = Utility.RemoveString(share.Organizations, subject)
+		exist, o := rbac_server.organisationExist(subject)
+		if exist {
+			share.Organizations = Utility.RemoveString(share.Organizations, o)
+		}
 	}
 
 	err = rbac_server.shareResource(share)
@@ -2296,17 +2386,37 @@ func (rbac_server *server) deleteSubjectShare(subject string, subjectType rbacpb
 
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		id += "ACCOUNTS"
+		exist, a := rbac_server.accountExist(subject)
+		if !exist {
+			return errors.New("no account exist with id " + a)
+		}
+		id += "/" + a
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		id += "APPLICATIONS"
+		exist, a := rbac_server.applicationExist(subject)
+		if !exist {
+			return errors.New("no application exist with id " + a)
+		}
+		id += "/" + a
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		id += "GROUPS"
+		exist, g := rbac_server.groupExist(subject)
+		if !exist{
+			return errors.New("no group exist with id " + g)
+		}
+		id += "/" + g
 	} else if subjectType == rbacpb.SubjectType_PEER {
-		id += "PEERS"
+		id += "PEERS/" + subject
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		id += "ORGANIZATIONS"
+		exist, o := rbac_server.organisationExist(subject)
+		if !exist {
+			return errors.New("no organization exist with id " + o)
+		}
+		id += "/" + o
 	}
 
-	id += "/" + subject
+	// id += "/" + subject
 
 	// Now I will retreive the list of existing path.
 	shared := make([]string, 0)
@@ -2347,4 +2457,29 @@ func (rbac_server *server) DeleteSubjectShare(ctx context.Context, rqst *rbacpb.
 	}
 
 	return &rbacpb.DeleteSubjectShareRsp{}, nil
+}
+
+
+//* Get the list of all resource permission for a given resource type ex. blog or file...
+func (server *server) GetResourcePermissionsByResourceType(rqst *rbacpb.GetResourcePermissionsByResourceTypeRqst, stream rbacpb.RbacService_GetResourcePermissionsByResourceTypeServer) error {
+	permissions, err := server.getResourceTypePathIndexation(rqst.ResourceType)
+
+	if err != nil {
+		status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will return the list of permissions for a given permission type ex. blog, file, application, package etc.
+	nb := 25 // the number of object to be send a each iteration...
+	for i:=0; i < len(permissions); i+=nb {
+		if i + nb < len(permissions) {
+			stream.Send(&rbacpb.GetResourcePermissionsByResourceTypeRsp{Permissions: permissions[i:i+10]})
+		}else{
+			// send the remaining.
+			stream.Send(&rbacpb.GetResourcePermissionsByResourceTypeRsp{Permissions: permissions[i:]})
+		}
+	}
+
+	return nil
 }

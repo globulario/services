@@ -26,6 +26,8 @@ goog.exportSymbol('proto.rbac.GetActionResourceInfosRqst', null, global);
 goog.exportSymbol('proto.rbac.GetActionResourceInfosRsp', null, global);
 goog.exportSymbol('proto.rbac.GetResourcePermissionRqst', null, global);
 goog.exportSymbol('proto.rbac.GetResourcePermissionRsp', null, global);
+goog.exportSymbol('proto.rbac.GetResourcePermissionsByResourceTypeRqst', null, global);
+goog.exportSymbol('proto.rbac.GetResourcePermissionsByResourceTypeRsp', null, global);
 goog.exportSymbol('proto.rbac.GetResourcePermissionsRqst', null, global);
 goog.exportSymbol('proto.rbac.GetResourcePermissionsRsp', null, global);
 goog.exportSymbol('proto.rbac.GetSharedResourceRqst', null, global);
@@ -431,7 +433,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.rbac.Permissions.repeatedFields_ = [2,3];
+proto.rbac.Permissions.repeatedFields_ = [4,5];
 
 
 
@@ -462,6 +464,8 @@ proto.rbac.Permissions.prototype.toObject = function(opt_includeInstance) {
  */
 proto.rbac.Permissions.toObject = function(includeInstance, msg) {
   var f, obj = {
+    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    resourceType: jspb.Message.getFieldWithDefault(msg, 2, ""),
     owners: (f = msg.getOwners()) && proto.rbac.Permission.toObject(includeInstance, f),
     allowedList: jspb.Message.toObjectList(msg.getAllowedList(),
     proto.rbac.Permission.toObject, includeInstance),
@@ -504,16 +508,24 @@ proto.rbac.Permissions.deserializeBinaryFromReader = function(msg, reader) {
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPath(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setResourceType(value);
+      break;
+    case 3:
       var value = new proto.rbac.Permission;
       reader.readMessage(value,proto.rbac.Permission.deserializeBinaryFromReader);
       msg.setOwners(value);
       break;
-    case 2:
+    case 4:
       var value = new proto.rbac.Permission;
       reader.readMessage(value,proto.rbac.Permission.deserializeBinaryFromReader);
       msg.addAllowed(value);
       break;
-    case 3:
+    case 5:
       var value = new proto.rbac.Permission;
       reader.readMessage(value,proto.rbac.Permission.deserializeBinaryFromReader);
       msg.addDenied(value);
@@ -547,10 +559,24 @@ proto.rbac.Permissions.prototype.serializeBinary = function() {
  */
 proto.rbac.Permissions.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
+  f = message.getPath();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getResourceType();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
   f = message.getOwners();
   if (f != null) {
     writer.writeMessage(
-      1,
+      3,
       f,
       proto.rbac.Permission.serializeBinaryToWriter
     );
@@ -558,7 +584,7 @@ proto.rbac.Permissions.serializeBinaryToWriter = function(message, writer) {
   f = message.getAllowedList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      2,
+      4,
       f,
       proto.rbac.Permission.serializeBinaryToWriter
     );
@@ -566,7 +592,7 @@ proto.rbac.Permissions.serializeBinaryToWriter = function(message, writer) {
   f = message.getDeniedList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      3,
+      5,
       f,
       proto.rbac.Permission.serializeBinaryToWriter
     );
@@ -575,18 +601,48 @@ proto.rbac.Permissions.serializeBinaryToWriter = function(message, writer) {
 
 
 /**
- * optional Permission owners = 1;
+ * optional string path = 1;
+ * @return {string}
+ */
+proto.rbac.Permissions.prototype.getPath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.rbac.Permissions.prototype.setPath = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string resource_type = 2;
+ * @return {string}
+ */
+proto.rbac.Permissions.prototype.getResourceType = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.rbac.Permissions.prototype.setResourceType = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional Permission owners = 3;
  * @return {?proto.rbac.Permission}
  */
 proto.rbac.Permissions.prototype.getOwners = function() {
   return /** @type{?proto.rbac.Permission} */ (
-    jspb.Message.getWrapperField(this, proto.rbac.Permission, 1));
+    jspb.Message.getWrapperField(this, proto.rbac.Permission, 3));
 };
 
 
 /** @param {?proto.rbac.Permission|undefined} value */
 proto.rbac.Permissions.prototype.setOwners = function(value) {
-  jspb.Message.setWrapperField(this, 1, value);
+  jspb.Message.setWrapperField(this, 3, value);
 };
 
 
@@ -600,23 +656,23 @@ proto.rbac.Permissions.prototype.clearOwners = function() {
  * @return {!boolean}
  */
 proto.rbac.Permissions.prototype.hasOwners = function() {
-  return jspb.Message.getField(this, 1) != null;
+  return jspb.Message.getField(this, 3) != null;
 };
 
 
 /**
- * repeated Permission allowed = 2;
+ * repeated Permission allowed = 4;
  * @return {!Array<!proto.rbac.Permission>}
  */
 proto.rbac.Permissions.prototype.getAllowedList = function() {
   return /** @type{!Array<!proto.rbac.Permission>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.rbac.Permission, 2));
+    jspb.Message.getRepeatedWrapperField(this, proto.rbac.Permission, 4));
 };
 
 
 /** @param {!Array<!proto.rbac.Permission>} value */
 proto.rbac.Permissions.prototype.setAllowedList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 2, value);
+  jspb.Message.setRepeatedWrapperField(this, 4, value);
 };
 
 
@@ -626,7 +682,7 @@ proto.rbac.Permissions.prototype.setAllowedList = function(value) {
  * @return {!proto.rbac.Permission}
  */
 proto.rbac.Permissions.prototype.addAllowed = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.rbac.Permission, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 4, opt_value, proto.rbac.Permission, opt_index);
 };
 
 
@@ -636,18 +692,18 @@ proto.rbac.Permissions.prototype.clearAllowedList = function() {
 
 
 /**
- * repeated Permission denied = 3;
+ * repeated Permission denied = 5;
  * @return {!Array<!proto.rbac.Permission>}
  */
 proto.rbac.Permissions.prototype.getDeniedList = function() {
   return /** @type{!Array<!proto.rbac.Permission>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.rbac.Permission, 3));
+    jspb.Message.getRepeatedWrapperField(this, proto.rbac.Permission, 5));
 };
 
 
 /** @param {!Array<!proto.rbac.Permission>} value */
 proto.rbac.Permissions.prototype.setDeniedList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 3, value);
+  jspb.Message.setRepeatedWrapperField(this, 5, value);
 };
 
 
@@ -657,7 +713,7 @@ proto.rbac.Permissions.prototype.setDeniedList = function(value) {
  * @return {!proto.rbac.Permission}
  */
 proto.rbac.Permissions.prototype.addDenied = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 3, opt_value, proto.rbac.Permission, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 5, opt_value, proto.rbac.Permission, opt_index);
 };
 
 
@@ -964,6 +1020,316 @@ proto.rbac.GetResourcePermissionsRsp.prototype.clearPermissions = function() {
  */
 proto.rbac.GetResourcePermissionsRsp.prototype.hasPermissions = function() {
   return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.rbac.GetResourcePermissionsByResourceTypeRqst, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.rbac.GetResourcePermissionsByResourceTypeRqst.displayName = 'proto.rbac.GetResourcePermissionsByResourceTypeRqst';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.prototype.toObject = function(opt_includeInstance) {
+  return proto.rbac.GetResourcePermissionsByResourceTypeRqst.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRqst} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    resourcetype: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.rbac.GetResourcePermissionsByResourceTypeRqst}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.rbac.GetResourcePermissionsByResourceTypeRqst;
+  return proto.rbac.GetResourcePermissionsByResourceTypeRqst.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRqst} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.rbac.GetResourcePermissionsByResourceTypeRqst}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setResourcetype(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.rbac.GetResourcePermissionsByResourceTypeRqst.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRqst} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getResourcetype();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string resourceType = 1;
+ * @return {string}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.prototype.getResourcetype = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.rbac.GetResourcePermissionsByResourceTypeRqst.prototype.setResourcetype = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.rbac.GetResourcePermissionsByResourceTypeRsp.repeatedFields_, null);
+};
+goog.inherits(proto.rbac.GetResourcePermissionsByResourceTypeRsp, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.rbac.GetResourcePermissionsByResourceTypeRsp.displayName = 'proto.rbac.GetResourcePermissionsByResourceTypeRsp';
+}
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.prototype.toObject = function(opt_includeInstance) {
+  return proto.rbac.GetResourcePermissionsByResourceTypeRsp.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRsp} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    permissionsList: jspb.Message.toObjectList(msg.getPermissionsList(),
+    proto.rbac.Permissions.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.rbac.GetResourcePermissionsByResourceTypeRsp}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.rbac.GetResourcePermissionsByResourceTypeRsp;
+  return proto.rbac.GetResourcePermissionsByResourceTypeRsp.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRsp} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.rbac.GetResourcePermissionsByResourceTypeRsp}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.rbac.Permissions;
+      reader.readMessage(value,proto.rbac.Permissions.deserializeBinaryFromReader);
+      msg.addPermissions(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.rbac.GetResourcePermissionsByResourceTypeRsp.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRsp} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getPermissionsList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.rbac.Permissions.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated Permissions permissions = 1;
+ * @return {!Array<!proto.rbac.Permissions>}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.prototype.getPermissionsList = function() {
+  return /** @type{!Array<!proto.rbac.Permissions>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.rbac.Permissions, 1));
+};
+
+
+/** @param {!Array<!proto.rbac.Permissions>} value */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.prototype.setPermissionsList = function(value) {
+  jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.rbac.Permissions=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.rbac.Permissions}
+ */
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.prototype.addPermissions = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.rbac.Permissions, opt_index);
+};
+
+
+proto.rbac.GetResourcePermissionsByResourceTypeRsp.prototype.clearPermissionsList = function() {
+  this.setPermissionsList([]);
 };
 
 
@@ -1628,6 +1994,7 @@ proto.rbac.SetResourcePermissionsRqst.prototype.toObject = function(opt_includeI
 proto.rbac.SetResourcePermissionsRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
     path: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    resourcetype: jspb.Message.getFieldWithDefault(msg, 2, ""),
     permissions: (f = msg.getPermissions()) && proto.rbac.Permissions.toObject(includeInstance, f)
   };
 
@@ -1670,6 +2037,10 @@ proto.rbac.SetResourcePermissionsRqst.deserializeBinaryFromReader = function(msg
       msg.setPath(value);
       break;
     case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setResourcetype(value);
+      break;
+    case 3:
       var value = new proto.rbac.Permissions;
       reader.readMessage(value,proto.rbac.Permissions.deserializeBinaryFromReader);
       msg.setPermissions(value);
@@ -1710,10 +2081,17 @@ proto.rbac.SetResourcePermissionsRqst.serializeBinaryToWriter = function(message
       f
     );
   }
+  f = message.getResourcetype();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
   f = message.getPermissions();
   if (f != null) {
     writer.writeMessage(
-      2,
+      3,
       f,
       proto.rbac.Permissions.serializeBinaryToWriter
     );
@@ -1737,18 +2115,33 @@ proto.rbac.SetResourcePermissionsRqst.prototype.setPath = function(value) {
 
 
 /**
- * optional Permissions permissions = 2;
+ * optional string resourceType = 2;
+ * @return {string}
+ */
+proto.rbac.SetResourcePermissionsRqst.prototype.getResourcetype = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.rbac.SetResourcePermissionsRqst.prototype.setResourcetype = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional Permissions permissions = 3;
  * @return {?proto.rbac.Permissions}
  */
 proto.rbac.SetResourcePermissionsRqst.prototype.getPermissions = function() {
   return /** @type{?proto.rbac.Permissions} */ (
-    jspb.Message.getWrapperField(this, proto.rbac.Permissions, 2));
+    jspb.Message.getWrapperField(this, proto.rbac.Permissions, 3));
 };
 
 
 /** @param {?proto.rbac.Permissions|undefined} value */
 proto.rbac.SetResourcePermissionsRqst.prototype.setPermissions = function(value) {
-  jspb.Message.setWrapperField(this, 2, value);
+  jspb.Message.setWrapperField(this, 3, value);
 };
 
 
@@ -1762,7 +2155,7 @@ proto.rbac.SetResourcePermissionsRqst.prototype.clearPermissions = function() {
  * @return {!boolean}
  */
 proto.rbac.SetResourcePermissionsRqst.prototype.hasPermissions = function() {
-  return jspb.Message.getField(this, 2) != null;
+  return jspb.Message.getField(this, 3) != null;
 };
 
 
@@ -2614,8 +3007,9 @@ proto.rbac.AddResourceOwnerRqst.prototype.toObject = function(opt_includeInstanc
 proto.rbac.AddResourceOwnerRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
     path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    subject: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 3, 0)
+    resourcetype: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    subject: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    type: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -2658,9 +3052,13 @@ proto.rbac.AddResourceOwnerRqst.deserializeBinaryFromReader = function(msg, read
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setSubject(value);
+      msg.setResourcetype(value);
       break;
     case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setSubject(value);
+      break;
+    case 4:
       var value = /** @type {!proto.rbac.SubjectType} */ (reader.readEnum());
       msg.setType(value);
       break;
@@ -2700,17 +3098,24 @@ proto.rbac.AddResourceOwnerRqst.serializeBinaryToWriter = function(message, writ
       f
     );
   }
-  f = message.getSubject();
+  f = message.getResourcetype();
   if (f.length > 0) {
     writer.writeString(
       2,
       f
     );
   }
+  f = message.getSubject();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
   f = message.getType();
   if (f !== 0.0) {
     writer.writeEnum(
-      3,
+      4,
       f
     );
   }
@@ -2733,32 +3138,47 @@ proto.rbac.AddResourceOwnerRqst.prototype.setPath = function(value) {
 
 
 /**
- * optional string subject = 2;
+ * optional string resourceType = 2;
  * @return {string}
  */
-proto.rbac.AddResourceOwnerRqst.prototype.getSubject = function() {
+proto.rbac.AddResourceOwnerRqst.prototype.getResourcetype = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /** @param {string} value */
-proto.rbac.AddResourceOwnerRqst.prototype.setSubject = function(value) {
+proto.rbac.AddResourceOwnerRqst.prototype.setResourcetype = function(value) {
   jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
 /**
- * optional SubjectType type = 3;
+ * optional string subject = 3;
+ * @return {string}
+ */
+proto.rbac.AddResourceOwnerRqst.prototype.getSubject = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/** @param {string} value */
+proto.rbac.AddResourceOwnerRqst.prototype.setSubject = function(value) {
+  jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional SubjectType type = 4;
  * @return {!proto.rbac.SubjectType}
  */
 proto.rbac.AddResourceOwnerRqst.prototype.getType = function() {
-  return /** @type {!proto.rbac.SubjectType} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+  return /** @type {!proto.rbac.SubjectType} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
 };
 
 
 /** @param {!proto.rbac.SubjectType} value */
 proto.rbac.AddResourceOwnerRqst.prototype.setType = function(value) {
-  jspb.Message.setProto3EnumField(this, 3, value);
+  jspb.Message.setProto3EnumField(this, 4, value);
 };
 
 

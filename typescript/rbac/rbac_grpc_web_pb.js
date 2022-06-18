@@ -441,6 +441,62 @@ proto.rbac.RbacServicePromiseClient.prototype.getResourcePermissions =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.GetResourcePermissionsByResourceTypeRqst,
+ *   !proto.rbac.GetResourcePermissionsByResourceTypeRsp>}
+ */
+const methodDescriptor_RbacService_GetResourcePermissionsByResourceType = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/GetResourcePermissionsByResourceType',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.rbac.GetResourcePermissionsByResourceTypeRqst,
+  proto.rbac.GetResourcePermissionsByResourceTypeRsp,
+  /**
+   * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetResourcePermissionsByResourceTypeRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRqst} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetResourcePermissionsByResourceTypeRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.getResourcePermissionsByResourceType =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/rbac.RbacService/GetResourcePermissionsByResourceType',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetResourcePermissionsByResourceType);
+};
+
+
+/**
+ * @param {!proto.rbac.GetResourcePermissionsByResourceTypeRqst} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetResourcePermissionsByResourceTypeRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServicePromiseClient.prototype.getResourcePermissionsByResourceType =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/rbac.RbacService/GetResourcePermissionsByResourceType',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetResourcePermissionsByResourceType);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.rbac.AddResourceOwnerRqst,
  *   !proto.rbac.AddResourceOwnerRsp>}
  */

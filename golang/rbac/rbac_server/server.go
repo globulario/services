@@ -2,8 +2,10 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -63,7 +65,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 
 	TLS bool
@@ -438,7 +440,21 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 }
 
 func (server *server) accountExist(id string) (bool, string) {
-	a, err := server.getAccount(id)
+
+	// So here I will test if the domain is correct.
+	domain, _ := config.GetDomain()
+	localDomain := domain
+	accountId := id
+	if strings.Contains(id, "@"){
+		domain = strings.Split(id, "@")[1]
+		accountId = strings.Split(id, "@")[0]
+	}
+	
+	if localDomain != domain {
+		fmt.Println("-----------------> the account is not local!!!!! ", domain)
+	}
+
+	a, err := server.getAccount(accountId)
 	if err != nil || a == nil {
 		return false, ""
 	}
@@ -494,9 +510,6 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 	if len(applications) == 0 {
 		return nil, errors.New("no application found wiht name or _id " + applicationId)
 	}
-
-	//str_, _ := Utility.ToJson(applications[0])
-	//server.logServiceInfo("getApplication", Utility.FileLine(), Utility.FunctionName(), str_ )
 
 	return applications[0], nil
 }
@@ -618,6 +631,7 @@ func (server *server) SetPermissions(permissions []interface{}) {
 	server.Permissions = permissions
 }
 
+
 // Create the configuration file if is not already exist.
 func (server *server) Init() error {
 
@@ -687,11 +701,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

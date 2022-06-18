@@ -291,6 +291,9 @@ service RbacService {
 	
 	/** Get resource permissions **/
 	rpc GetResourcePermissions(GetResourcePermissionsRqst) returns(GetResourcePermissionsRsp);
+
+	/** Get the list of all resource permission for a given resource type ex. blog or file...*/
+	rpc GetResourcePermissionsByResourceType(GetResourcePermissionsByResourceTypeRqst) returns(stream GetResourcePermissionsByResourceTypeRsp);
 	
 	/** Add resource owner do nothing if it already exist */
 	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);
