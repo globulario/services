@@ -928,7 +928,31 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	return nil
 }
 
-func (resource_server *server) createRole(id string, name string, actions []string) error {
+func (resource_server *server) CreateAccountDir() error {
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	accounts, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", "{}", "")
+	if err != nil {
+		return err
+	}
+	for i := 0; i < len(accounts); i++ {
+		a := accounts[i].(map[string]interface{})
+		id := a["_id"].(string)
+		domain := a["domain"].(string)
+		path := "/users/" + id + "@" + domain
+		if !Utility.Exists(config.GetDataDir() + "/files" + path) {
+			Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
+			resource_server.addResourceOwner(path, "file", id, rbacpb.SubjectType_ACCOUNT)
+		}
+	}
+
+	return nil
+}
+
+func (resource_server *server) createRole(id, name, owner string, actions []string) error {
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -952,6 +976,7 @@ func (resource_server *server) createRole(id string, name string, actions []stri
 		return err
 	}
 
+	resource_server.addResourceOwner(id, "role", owner, rbacpb.SubjectType_ACCOUNT)
 	return nil
 }
 
@@ -1122,10 +1147,10 @@ func main() {
 	}
 
 	/** Can do anything */
-	s_impl.createRole("admin", "admin", []string{})
+	s_impl.createRole("admin", "admin", "sa", []string{})
 
 	/** Regist the guest role **/
-	s_impl.createRole("guest", "guest", []string{
+	s_impl.createRole("guest", "guest", "sa", []string{
 		"/admin.AdminService/RunCmd",
 		"/admin.AdminService/SaveConfig",
 		"/conversation.ConversationService/AcceptInvitation",
@@ -1194,6 +1219,9 @@ func main() {
 		"/resource.ResourceService/CreateNotification",
 		"/resource.ResourceService/DeleteNotification",
 	})
+
+	// Here I will create user directories if their not already exist...
+	s_impl.CreateAccountDir()
 
 	// Start the service.
 	s_impl.StartService()

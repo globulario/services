@@ -250,7 +250,7 @@ func (client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.Packa
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Organisation
+// organization
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new Organization
@@ -291,12 +291,12 @@ func (client *Resource_Client) DeleteOrganization(token, id string) error {
 
 }
 
-// Add to Organisation...
-func (client *Resource_Client) AddOrganizationAccount(token, organisationId, accountId string) error {
+// Add to organization...
+func (client *Resource_Client) AddOrganizationAccount(token, organizationId, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationAccountRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		AccountId:      accountId,
 	}
 
@@ -308,11 +308,11 @@ func (client *Resource_Client) AddOrganizationAccount(token, organisationId, acc
 	return err
 }
 
-func (client *Resource_Client) AddOrganizationRole(token, organisationId, roleId string) error {
+func (client *Resource_Client) AddOrganizationRole(token, organizationId, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationRoleRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		RoleId:         roleId,
 	}
 
@@ -324,11 +324,11 @@ func (client *Resource_Client) AddOrganizationRole(token, organisationId, roleId
 	return err
 }
 
-func (client *Resource_Client) AddOrganizationGroup(token, organisationId, groupId string) error {
+func (client *Resource_Client) AddOrganizationGroup(token, organizationId, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationGroupRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		GroupId:        groupId,
 	}
 
@@ -340,11 +340,11 @@ func (client *Resource_Client) AddOrganizationGroup(token, organisationId, group
 	return err
 }
 
-func (client *Resource_Client) AddOrganizationApplication(token, organisationId, applicationId string) error {
+func (client *Resource_Client) AddOrganizationApplication(token, organizationId, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.AddOrganizationApplicationRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		ApplicationId:  applicationId,
 	}
 
@@ -358,11 +358,11 @@ func (client *Resource_Client) AddOrganizationApplication(token, organisationId,
 
 // Remove from organization
 
-func (client *Resource_Client) RemoveOrganizationAccount(token, organisationId, accountId string) error {
+func (client *Resource_Client) RemoveOrganizationAccount(token, organizationId, accountId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationAccountRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		AccountId:      accountId,
 	}
 
@@ -374,11 +374,11 @@ func (client *Resource_Client) RemoveOrganizationAccount(token, organisationId, 
 	return err
 }
 
-func (client *Resource_Client) RemoveOrganizationRole(token, organisationId, roleId string) error {
+func (client *Resource_Client) RemoveOrganizationRole(token, organizationId, roleId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationRoleRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		RoleId:         roleId,
 	}
 
@@ -390,11 +390,11 @@ func (client *Resource_Client) RemoveOrganizationRole(token, organisationId, rol
 	return err
 }
 
-func (client *Resource_Client) RemoveOrganizationGroup(token, organisationId, groupId string) error {
+func (client *Resource_Client) RemoveOrganizationGroup(token, organizationId, groupId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationGroupRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		GroupId:        groupId,
 	}
 
@@ -406,11 +406,11 @@ func (client *Resource_Client) RemoveOrganizationGroup(token, organisationId, gr
 	return err
 }
 
-func (client *Resource_Client) RemoveOrganizationApplication(token, organisationId, applicationId string) error {
+func (client *Resource_Client) RemoveOrganizationApplication(token, organizationId, applicationId string) error {
 
 	// Create a new Organization.
 	rqst := &resourcepb.RemoveOrganizationApplicationRqst{
-		OrganizationId: organisationId,
+		OrganizationId: organizationId,
 		ApplicationId:  applicationId,
 	}
 
@@ -440,7 +440,7 @@ func (client *Resource_Client) IsOrganizationMemeber(user, organization string) 
 func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Organization, error) {
 
 	// Open the stream...
-	organisations := make([]*resourcepb.Organization, 0)
+	organizations := make([]*resourcepb.Organization, 0)
 
 	// I will execute a simple ldap search here...
 	rqst := new(resourcepb.GetOrganizationsRqst)
@@ -463,14 +463,14 @@ func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Org
 			return nil, err
 		}
 
-		organisations = append(organisations, msg.Organizations...)
+		organizations = append(organizations, msg.Organizations...)
 
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return organisations, err
+	return organizations, err
 }
 
 ////////////////////////////////////////////////////////////////////////////////

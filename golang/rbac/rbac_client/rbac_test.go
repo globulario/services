@@ -334,7 +334,7 @@ func TestValidateAccess(t *testing.T) {
 		log.Println("account_0 can delete  " + filePath)
 	}
 
-	// Test permission denied because of account is in denied organisation.
+	// Test permission denied because of account is in denied organization.
 	hasPermission_6, _, err := rbac_client_.ValidateAccess("account_1", rbacpb.SubjectType_ACCOUNT, "delete", filePath)
 	if err != nil {
 		log.Println(err)

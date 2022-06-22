@@ -2,16 +2,16 @@ package resource_client
 
 import (
 	//"encoding/json"
-	"testing"
 	"log"
+	"testing"
 
 	"github.com/globulario/services/golang/authentication/authentication_client"
 )
 
 var (
 	// Connect to the plc client.
-	domain = "globule-dell.globular.cloud"
-	client, _       = NewResourceService_Client(domain, "resource.ResourceService")
+	domain                    = "globule-dell.globular.cloud"
+	client, _                 = NewResourceService_Client(domain, "resource.ResourceService")
 	authentication_client_, _ = authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
 	//token, _                  = authentication_client_.Authenticate("sa", "adminadmin")
 )
@@ -20,12 +20,12 @@ var (
 /** Test create Organization */
 func TestCreateOrganization(t *testing.T) {
 	authentication_client_.Authenticate("sa", "adminadmin")
-	log.Println("---> test create organisation.")
+	log.Println("---> test create organization.")
 	err := client.CreateOrganization("globulario", "globulario", "globulario@globuar.io", "description", "")
 	if err != nil {
 		log.Println("---> create organization fail! ", err)
 	} else {
-		log.Println("successed create organisation globulario")
+		log.Println("successed create organization globulario")
 	}
 }
 
@@ -139,44 +139,44 @@ func TestAddAccountRole(t *testing.T) {
 
 func TestValidateAction(t *testing.T) {
 	/*
-	infos, err := client.GetActionResourceInfos("/file.FileService/ReadDir")
-	if err != nil {
-		log.Println("---> ", err)
-		return
-	}
+		infos, err := client.GetActionResourceInfos("/file.FileService/ReadDir")
+		if err != nil {
+			log.Println("---> ", err)
+			return
+		}
 
-	// Set the path to read...
-	path := "/tmp/test.txt"
-	infos[0].Path = path
+		// Set the path to read...
+		path := "/tmp/test.txt"
+		infos[0].Path = path
 
-	// Give permission.
-	permissions := &resourcepb.Permissions{
-		Allowed: []*resourcepb.Permission{
-			&resourcepb.Permission{
-				Name:          "read",
-				Applications:  []string{},
-				Accounts:      []string{"dave"},
-				Groups:        []string{},
-				Peers:         []string{},
-				Organizations: []string{},
+		// Give permission.
+		permissions := &resourcepb.Permissions{
+			Allowed: []*resourcepb.Permission{
+				&resourcepb.Permission{
+					Name:          "read",
+					Applications:  []string{},
+					Accounts:      []string{"dave"},
+					Groups:        []string{},
+					Peers:         []string{},
+					Organizations: []string{},
+				},
 			},
-		},
-		Denied: []*resourcepb.Permission{},
-		Owners: &resourcepb.Permission{},
-	}
+			Denied: []*resourcepb.Permission{},
+			Owners: &resourcepb.Permission{},
+		}
 
-	rbac_client_.SetResourcePermissions(path, permissions)
+		rbac_client_.SetResourcePermissions(path, permissions)
 
-	hasAccess, err := client.ValidateAction("/file.FileService/ReadDir", "dave", resourcepb.SubjectType_ACCOUNT, infos)
-	if err != nil {
-		log.Println(err)
-	}
+		hasAccess, err := client.ValidateAction("/file.FileService/ReadDir", "dave", resourcepb.SubjectType_ACCOUNT, infos)
+		if err != nil {
+			log.Println(err)
+		}
 
-	if hasAccess {
-		log.Println("----------> dave has access to read file " + path)
-	} else {
-		log.Println("----------> dave has not access to read file " + path)
-	}
+		if hasAccess {
+			log.Println("----------> dave has access to read file " + path)
+		} else {
+			log.Println("----------> dave has not access to read file " + path)
+		}
 	*/
 }
 
@@ -202,6 +202,7 @@ func TestDeleteRole(t *testing.T) {
 		log.Println("---> ", err)
 	}
 }
+
 /*
 // Remove an account.
 func TestDeleteAccount(t *testing.T) {

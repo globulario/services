@@ -3,6 +3,7 @@ package rbac_client
 import (
 	"context"
 	"fmt"
+	"io"
 
 	// "github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
@@ -251,7 +252,6 @@ func (client *Rbac_Client) SetResourcePermissions(token, path, resource_type str
 
 	_, err := client.c.SetResourcePermissions(ctx, rqst)
 
-	fmt.Println("200 SetResourcePermissions ", err)
 	return err
 
 }
@@ -293,6 +293,35 @@ func (client *Rbac_Client) DeleteResourcePermissions(path string) error {
 	_, err := client.c.DeleteResourcePermissions(client.GetCtx(), rqst)
 	return err
 }
+
+/** Get the list of resource permission by type **/
+func (client *Rbac_Client) GetResourcePermissionsByResourceType(resource_type string) ([]*rbacpb.Permissions, error){
+	rqst := &rbacpb.GetResourcePermissionsByResourceTypeRqst{
+		ResourceType: resource_type,
+	}
+
+	stream, err := client.c.GetResourcePermissionsByResourceType(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	permissions := make([]*rbacpb.Permissions, 0)
+
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF || len(msg.Permissions) == 0 {
+			// end of stream...
+			break
+		} else if err != nil {
+			return nil, err
+		} else {
+			permissions = append(permissions, msg.Permissions...)
+		}
+	}
+
+	return permissions, nil
+}
+
 
 /** Delete a specific resource permission **/
 func (client *Rbac_Client) DeleteResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) error {

@@ -281,7 +281,7 @@ export function uploadFiles(globule: Globular, path: string, files: File[], comp
   xhr.upload.addEventListener("progress", progressHandler, false);
   xhr.addEventListener("error", errorHandler, false);
   xhr.addEventListener("abort", abortHandler, false);
-
+  
   // The load event...
   xhr.onload = function () {
     if (xhr.status >= 200 && xhr.status < 300) {

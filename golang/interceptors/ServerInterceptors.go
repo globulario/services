@@ -290,7 +290,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if !hasAccess && len(clientId) > 0 {
-
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, address)
 	}
 

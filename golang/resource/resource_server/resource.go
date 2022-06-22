@@ -467,7 +467,7 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 
 }
 
-// Test if account is a member of organisation.
+// Test if account is a member of organization.
 func (resource_server *server) isOrganizationMemeber(account string, organization string) bool {
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -559,7 +559,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	name := account["name"].(string)
-	domain:= account["domain"].(string)
+	domain := account["domain"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
 	// so before remove database I need to remove the accout from it contacts...
@@ -602,11 +602,11 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	// Remove the file...
 	resource_server.deleteResourcePermissions("/users/" + name + "@" + domain)
-	os.RemoveAll(config.GetDataDir() + "/files/users/" + name+ "@" + domain)
+	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
 
 	// Publish delete account event.
-	resource_server.publishEvent("delete_account_"+name+ "@" + domain+"_evt", []byte{})
-	resource_server.publishEvent("delete_account_evt", []byte(name+ "@" + domain))
+	resource_server.publishEvent("delete_account_"+name+"@"+domain+"_evt", []byte{})
+	resource_server.publishEvent("delete_account_evt", []byte(name+"@"+domain))
 
 	return &resourcepb.DeleteAccountRsp{
 		Result: rqst.Id,
@@ -619,8 +619,31 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 //* Create a role with given action list *
 func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
+	var clientId string
+	var domain string
+	var err error
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			clientId = claims.Id
+			domain = claims.Domain
+		} else {
+			return nil, errors.New("SetAccountPassword no token was given")
+		}
+	}
+
 	// That service made user of persistence service.
-	err := resource_server.createRole(rqst.Role.Id, rqst.Role.Name, rqst.Role.Actions)
+	err = resource_server.createRole(rqst.Role.Id, rqst.Role.Name, clientId+"@"+domain, rqst.Role.Actions)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -788,6 +811,7 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	// TODO delete role permissions
+	resource_server.deleteResourcePermissions(rqst.RoleId)
 	resource_server.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{})
 	resource_server.publishEvent("delete_role_evt", []byte(rqst.RoleId))
 	return &resourcepb.DeleteRoleRsp{Result: true}, nil
@@ -1012,7 +1036,7 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 	return &resourcepb.RemoveAccountRoleRsp{Result: true}, nil
 }
 
-func (resource_server *server) save_application(app *resourcepb.Application, userId string) error {
+func (resource_server *server) save_application(app *resourcepb.Application, owner string) error {
 
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1086,7 +1110,7 @@ func (resource_server *server) save_application(app *resourcepb.Application, use
 	resource_server.addResourceOwner(path, "file", app.Name, rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
-	resource_server.addResourceOwner(app.Id, "application", userId, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(app.Id, "application", owner, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
 	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
@@ -1100,6 +1124,8 @@ func (resource_server *server) save_application(app *resourcepb.Application, use
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
 
 	var clientId string
+	var domain string
+
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
@@ -1111,12 +1137,13 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			clientId = claims.Id
+			clientId = claims.Domain
 		} else {
 			return nil, errors.New("resource server CreateApplication no token was given")
 		}
 	}
 
-	err := resource_server.save_application(rqst.Application, clientId)
+	err := resource_server.save_application(rqst.Application, clientId+"@"+domain)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1165,6 +1192,7 @@ func (resource_server *server) DeleteApplication(ctx context.Context, rqst *reso
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	resource_server.deleteResourcePermissions(rqst.ApplicationId)
 	resource_server.publishEvent("delete_application_"+rqst.ApplicationId+"_evt", []byte{})
 	resource_server.publishEvent("delete_application_evt", []byte(rqst.ApplicationId))
 
@@ -2315,6 +2343,8 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 func (resource_server *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
 
 	var clientId string
+	var domain string
+
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
@@ -2326,6 +2356,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			clientId = claims.Id
+			domain = claims.Domain
 		} else {
 			return nil, errors.New("resource server CreateOrganization no token was given")
 		}
@@ -2356,7 +2387,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	o["description"] = rqst.Organization.Email
 	o["domain"] = resource_server.Domain
 
-	// Those are the list of entity linked to the organisation
+	// Those are the list of entity linked to the organization
 	o["accounts"] = make([]interface{}, 0)
 	o["groups"] = make([]interface{}, 0)
 	o["roles"] = make([]interface{}, 0)
@@ -2396,7 +2427,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}
 
 	// create the resource owner.
-	resource_server.addResourceOwner(rqst.Organization.GetId(), "organisation", clientId, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(rqst.Organization.GetId(), "organization", clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -2778,6 +2809,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	resource_server.deleteResourcePermissions(rqst.Organization)
 	resource_server.publishEvent("delete_organization_"+rqst.Organization+"_evt", []byte{})
 	resource_server.publishEvent("delete_organization_evt", []byte(rqst.Organization))
 
@@ -2844,6 +2876,8 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 
 	var clientId string
+	var domain string
+
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token := strings.Join(md["token"], "")
@@ -2855,13 +2889,14 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			clientId = claims.Id
+			domain = claims.Domain
 		} else {
 			return nil, errors.New("CreateGroup no token was given")
 		}
 	}
 
 	// Get the persistence connection
-	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, clientId, rqst.Group.Description, rqst.Group.Members)
+	err := resource_server.createGroup(rqst.Group.Id, rqst.Group.Name, clientId+"@"+domain, rqst.Group.Description, rqst.Group.Members)
 
 	if err != nil {
 		return nil, status.Errorf(

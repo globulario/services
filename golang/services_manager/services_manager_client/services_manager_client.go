@@ -308,3 +308,14 @@ func (client *Services_Manager_Client) RestartAllServices() error {
 
 	return nil
 }
+
+func (client *Services_Manager_Client) GetAllActions() ([]string, error) {
+	rqst := new(services_managerpb.GetAllActionsRequest)
+
+	rsp, err := client.c.GetAllActions(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	return rsp.Actions, nil
+}

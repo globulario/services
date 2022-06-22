@@ -9,6 +9,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -371,8 +372,34 @@ func (server *server) SetKeepAlive(val bool) {
 // Singleton.
 var (
 	resourceClient *resource_client.Resource_Client
+	event_client_  *event_client.Event_Client
 	log_client_    *log_client.Log_Client
 )
+
+////////////////////////////////////////////////////////////////////////////////////////
+// Event function
+////////////////////////////////////////////////////////////////////////////////////////
+
+func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ == nil {
+		address, _ := config.GetAddress()
+		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return event_client_, nil
+}
+
+func (server *server) publish(event string, data []byte) error {
+	eventClient, err := server.getEventClient()
+	if err != nil {
+		return err
+	}
+	return eventClient.Publish(event, data)
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Logger function
@@ -445,13 +472,13 @@ func (server *server) accountExist(id string) (bool, string) {
 	domain, _ := config.GetDomain()
 	localDomain := domain
 	accountId := id
-	if strings.Contains(id, "@"){
+	if strings.Contains(id, "@") {
 		domain = strings.Split(id, "@")[1]
 		accountId = strings.Split(id, "@")[0]
 	}
-	
+
 	if localDomain != domain {
-		fmt.Println("-----------------> the account is not local!!!!! ", domain)
+		fmt.Println("-----------------> the account is not local!!!!! ", localDomain, domain)
 	}
 
 	a, err := server.getAccount(accountId)
@@ -486,7 +513,20 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
  * Test if a group exist.
  */
 func (server *server) groupExist(id string) (bool, string) {
-	g, err := server.getGroup(id)
+	// So here I will test if the domain is correct.
+	domain, _ := config.GetDomain()
+	localDomain := domain
+	groupId := id
+	if strings.Contains(id, "@") {
+		domain = strings.Split(id, "@")[1]
+		groupId = strings.Split(id, "@")[0]
+	}
+
+	if localDomain != domain {
+		fmt.Println("-----------------> the group is not local!!!!! ", localDomain, domain)
+	}
+
+	g, err := server.getGroup(groupId)
 	if err != nil || g == nil {
 		return false, ""
 	}
@@ -518,10 +558,30 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
  * Test if a application exist.
  */
 func (server *server) applicationExist(id string) (bool, string) {
-	a, err := server.getApplication(id)
+	domain, _ := config.GetDomain()
+	localDomain := domain
+	applicationId := id
+	if strings.Contains(id, "@") {
+		domain = strings.Split(id, "@")[1]
+		applicationId = strings.Split(id, "@")[0]
+	}
+
+	if localDomain != domain {
+		fmt.Println("-----------------> the application is not local!!!!! ", localDomain, domain)
+	}
+
+	a, err := server.getApplication(applicationId)
 	if err != nil || a == nil {
 		return false, ""
 	}
+
+	// Set the local domain if no domain was given...
+	if len(a.Domain) == 0 {
+		a.Domain = localDomain
+	}
+
+	fmt.Println("---------------------------> ",  a.Id + "@" + a.Domain)
+
 	return true, a.Id + "@" + a.Domain
 }
 
@@ -560,29 +620,41 @@ func (server *server) peerExist(id string) bool {
 /**
  * Return a peer with a given id
  */
-func (server *server) getOrganization(organisationId string) (*resourcepb.Organization, error) {
+func (server *server) getOrganization(organizationId string) (*resourcepb.Organization, error) {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
 		return nil, err
 	}
 
-	organisations, err := resourceClient.GetOrganizations(`{"$or":[{"_id":"` + organisationId + `"},{"name":"` + organisationId + `"} ]}`)
+	organizations, err := resourceClient.GetOrganizations(`{"$or":[{"_id":"` + organizationId + `"},{"name":"` + organizationId + `"} ]}`)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(organisations) == 0 {
-		return nil, errors.New("no organization found wiht name or _id " + organisationId)
+	if len(organizations) == 0 {
+		return nil, errors.New("no organization found wiht name or _id " + organizationId)
 	}
 
-	return organisations[0], nil
+	return organizations[0], nil
 }
 
 /**
- * Test if a organisation exist.
+ * Test if a organization exist.
  */
-func (server *server) organisationExist(id string) (bool, string) {
-	o, err := server.getOrganization(id)
+func (server *server) organizationExist(id string) (bool, string) {
+	domain, _ := config.GetDomain()
+	localDomain := domain
+	organizationId := id
+	if strings.Contains(id, "@") {
+		domain = strings.Split(id, "@")[1]
+		organizationId = strings.Split(id, "@")[0]
+	}
+
+	if localDomain != domain {
+		fmt.Println("-----------------> the organization is not local!!!!! ", localDomain, domain)
+	}
+
+	o, err := server.getOrganization(organizationId)
 	if err != nil || o == nil {
 		return false, ""
 	}
@@ -614,7 +686,19 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
  * Test if a role exist.
  */
 func (server *server) roleExist(id string) (bool, string) {
-	r, err := server.getRole(id)
+	domain, _ := config.GetDomain()
+	localDomain := domain
+	roleId := id
+	if strings.Contains(id, "@") {
+		domain = strings.Split(id, "@")[1]
+		roleId = strings.Split(id, "@")[0]
+	}
+
+	if localDomain != domain {
+		fmt.Println("-----------------> the role is not local!!!!! ", localDomain, domain)
+	}
+
+	r, err := server.getRole(roleId)
 	if err != nil || r == nil {
 		return false, ""
 	}
@@ -630,7 +714,6 @@ func (server *server) GetPermissions() []interface{} {
 func (server *server) SetPermissions(permissions []interface{}) {
 	server.Permissions = permissions
 }
-
 
 // Create the configuration file if is not already exist.
 func (server *server) Init() error {
@@ -725,6 +808,7 @@ func main() {
 
 	// Need to be the owner in order to change permissions
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/rbac.RbacService/SetResourcePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}})
+
 
 	// Start the service.
 	s_impl.StartService()
