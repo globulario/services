@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	// "fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -117,7 +116,6 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 // Save the resource permission
 func (rbac_server *server) setResourcePermissions(path, resource_type string, permissions *rbacpb.Permissions) error {
 
-	fmt.Println("set resource permissions for ", path)
 	// be sure the path and the resource type are set in the permissions itself.
 	permissions.Path = path
 	permissions.ResourceType = resource_type
@@ -393,7 +391,6 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 		return err
 	}
 
-	fmt.Println("send event ", permissions)
 	encoded := []byte(base64.StdEncoding.EncodeToString(data_))
 	rbac_server.publish("set_resources_permissions_event", encoded)
 
@@ -871,8 +868,6 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 		return nil, err
 	}
 
-	fmt.Println("permission was found ", permissions)
-
 	// remove deleted subjects
 	needSave, permissions, err := rbac_server.cleanupPermissions(permissions)
 	if err != nil {
@@ -1035,7 +1030,6 @@ func (rbac_server *server) GetResourcePermissions(ctx context.Context, rqst *rba
 
 func (rbac_server *server) addResourceOwner(path, resourceType_, subject string, subjectType rbacpb.SubjectType) error {
 
-	fmt.Println("--------> add resource owner ", path, subject)
 
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
@@ -1066,7 +1060,6 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 	}
 
 	permissions, err := rbac_server.getResourcePermissions(path)
-	fmt.Println("-----------------> ressource permissions: ",permissions)
 
 	needSave := false
 	if err != nil {
@@ -1134,7 +1127,6 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 		}
 	}
 
-	fmt.Println("----------------------------> owners ", owners)
 	// Save permission if ti owner has changed.
 	if needSave {
 		permissions.Owners = owners

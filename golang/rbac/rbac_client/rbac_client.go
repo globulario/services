@@ -2,7 +2,6 @@ package rbac_client
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	// "github.com/davecourtois/Utility"
@@ -450,7 +449,6 @@ func (client *Rbac_Client) SetActionResourcesPermissions(permissions map[string]
 
 	_, err = client.c.SetActionResourcesPermissions(client.GetCtx(), rqst)
 	if err != nil {
-		fmt.Println("--------> set action resources permissions fail! ", permissions, err)
 		return err
 	}
 	return nil

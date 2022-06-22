@@ -197,7 +197,7 @@ func validateAction(token, application, address, organization, method, subject s
 func validateActionRequest(token string, application string, organization string, rqst interface{}, method string, subject string, subjectType rbacpb.SubjectType, domain string) (bool, error) {
 
 	infos, err := getActionResourceInfos(domain, method)
-	fmt.Println("validate action request ", method, subject, infos)
+	//fmt.Println("validate action request ", method, subject, infos)
 	if err != nil {
 		infos = make([]*rbacpb.ResourceInfos, 0)
 	} else {

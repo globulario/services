@@ -596,7 +596,6 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 	s := make(map[string]interface{})
 	err = json.Unmarshal(config, &s)
 	if err != nil {
-		log.Println("fail to unmarshal configuration path:", path, err)
 		return nil, err
 	}
 
@@ -833,7 +832,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			return_chan := infos["return"].(chan error)
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
-			fmt.Println("save service configuation call for service ", s["Name"])
 			if err != nil {
 				fmt.Println("fail to save service configuration", err)
 				return_chan <- err
@@ -932,9 +930,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				data, err := os.ReadFile(event.Name)
 				s := make(map[string]interface{})
 				err = json.Unmarshal(data, &s)
-				if err != nil {
-					fmt.Println("fail to unmarshal configuration at path ", event.Name, err)
-				} else {
+				if err == nil {
 					// set the service values found from the file.
 					for i := 0; i < len(services); i++ {
 						if services[i]["Id"] == s["Id"] {

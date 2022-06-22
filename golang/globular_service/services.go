@@ -260,7 +260,6 @@ func InitService(s Service) error {
 
 		err = json.Unmarshal(str, &s)
 		if err != nil {
-			fmt.Println("fail to unmarshal configuration at path ", s.GetConfigurationPath(), err)
 			return err
 		}
 	} else {
@@ -536,9 +535,7 @@ func StartService(s Service, server *grpc.Server) error {
 					// reinit the service...
 					data, err := os.ReadFile(s.GetConfigurationPath())
 					err = json.Unmarshal(data, &s)
-					if err != nil {
-						fmt.Println("fail to unmarshal configuration at path ", s.GetConfigurationPath(), err)
-					} else {
+					if err == nil {
 						// Publish the configuration change event.
 						event_client_, err := getEventClient()
 						if err == nil {

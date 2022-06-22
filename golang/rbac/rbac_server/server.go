@@ -10,6 +10,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/event/eventpb"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -580,8 +581,6 @@ func (server *server) applicationExist(id string) (bool, string) {
 		a.Domain = localDomain
 	}
 
-	fmt.Println("---------------------------> ",  a.Id + "@" + a.Domain)
-
 	return true, a.Id + "@" + a.Domain
 }
 
@@ -809,6 +808,20 @@ func main() {
 	// Need to be the owner in order to change permissions
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/rbac.RbacService/SetResourcePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}})
 
+	// 
+	event_client_, err := s_impl.getEventClient()
+	if err == nil {
+		// That function will be call when a group will be deleted...
+		event_client_.Subscribe("delete_group_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
+
+		})
+	}else{
+		fmt.Println("-------------------------------------------------------------------> fail to subscribe to event!", err)
+	}
+
+	if err != nil {
+		fmt.Println("Fail to connect to event channel generate_video_preview_event")
+	}
 
 	// Start the service.
 	s_impl.StartService()
