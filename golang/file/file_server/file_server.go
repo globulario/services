@@ -1211,11 +1211,7 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 				}
 			}
 		}
-
-	}
-
-	// get the existing permissions
-	if permissions != nil {
+	} else if permissions != nil {
 		// change it path to the new path.
 		rbac_client_.DeleteResourcePermissions(from)
 
@@ -1875,7 +1871,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 				if info.IsDir() {
 					// So here I will get the list of all file permission and change the one with
 					// the old file prefix...
-			
+
 					for j := 0; j < len(file_permissions); j++ {
 						p := file_permissions[j]
 						if strings.HasPrefix(p.Path, rqst.Files[i]) {
@@ -1890,10 +1886,10 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 						}
 					}
 
-				}else{
+				} else {
 					rbac_client_.DeleteResourcePermissions(rqst.Files[i])
 					fmt.Println("remove permission ", rqst.Files[i])
-					permissions.Path  = rqst.Path + "/" + permissions.Path[strings.LastIndex(permissions.Path, "/")+1:]
+					permissions.Path = rqst.Path + "/" + permissions.Path[strings.LastIndex(permissions.Path, "/")+1:]
 					fmt.Println("set permission ", permissions.Path)
 					err := rbac_client_.SetResourcePermissions(token, permissions.Path, permissions.ResourceType, permissions)
 					if err != nil {
@@ -1928,6 +1924,25 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 
 // Copy a file/directory
 func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
+	var token string
+	if ctx != nil {
+		// Now I will index the conversation to be retreivable for it creator...
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			token = strings.Join(md["token"], "")
+			if len(token) == 0 {
+				return nil, errors.New("No token given")
+			}
+		}
+	} else {
+		return nil, errors.New("no valid context found")
+	}
+
+	// get the rbac client.
+	rbac_client_, err := getRbacClient()
+	if err != nil {
+		return nil, err
+	}
+
 	// So here I will call the function mv at repetition for each path...
 	for i := 0; i < len(rqst.Files); i++ {
 		f := file_server.Root + rqst.Files[i]
@@ -1937,6 +1952,9 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 		if err != nil {
 			return nil, err
 		}
+
+		file_permissions, _ := rbac_client_.GetResourcePermissionsByResourceType("file")
+		permissions, _ := rbac_client_.GetResourcePermissions(rqst.Files[i])
 
 		titles := make(map[string][]*titlepb.Title, 0)
 		file_server.getFileTitlesAssociation(client, rqst.Files[i], titles)
@@ -1980,6 +1998,21 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 						}
 					}
 
+					// So here I will get the list of all file permission and change the one with
+					// the old file prefix...
+					for j := 0; j < len(file_permissions); j++ {
+						p := file_permissions[j]
+						if strings.HasPrefix(p.Path, rqst.Files[i]) {
+							values := strings.Split(rqst.Files[i], "/")
+							dest := rqst.Path + "/" + values[len(values)-1]
+							p.Path = strings.ReplaceAll(p.Path, rqst.Files[i], dest)
+							err := rbac_client_.SetResourcePermissions(token, p.Path, p.ResourceType, p)
+							if err != nil {
+								fmt.Println("fail to update the permission: ", err)
+							}
+						}
+					}
+
 				} else {
 					// Copy the file
 					Utility.CopyFile(f, file_server.Root+rqst.Path)
@@ -2006,6 +2039,13 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 								fmt.Println("fail to asscociate file ", err)
 							}
 						}
+					}
+
+					permissions.Path = rqst.Path + "/" + permissions.Path[strings.LastIndex(permissions.Path, "/")+1:]
+					fmt.Println("set permission ", permissions.Path)
+					err := rbac_client_.SetResourcePermissions(token, permissions.Path, permissions.ResourceType, permissions)
+					if err != nil {
+						fmt.Println("fail to update the permission: ", err)
 					}
 
 					// If hidden folder exist for it...
