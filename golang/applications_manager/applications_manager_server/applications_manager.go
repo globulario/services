@@ -521,12 +521,12 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 
 	if len(organization) > 0 {
-		err = server.addResourceOwner(name + "@" + domain, "application", organization, rbacpb.SubjectType_ORGANIZATION)
+		err = server.addResourceOwner(name, "application", organization + "@" + domain, rbacpb.SubjectType_ORGANIZATION)
 		if err != nil {
 			return err
 		}
 	}else if len(user) > 0 {
-		err = server.addResourceOwner(name + "@" + domain, "application", user, rbacpb.SubjectType_ACCOUNT)
+		err = server.addResourceOwner(name, "application", user + "@" + domain, rbacpb.SubjectType_ACCOUNT)
 		if err != nil {
 			return err
 		}
