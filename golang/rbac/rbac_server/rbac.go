@@ -358,6 +358,7 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 					}
 					share.Organizations = append(share.Organizations, o)
 				} else {
+
 					fmt.Println("no organization found with id ", owners.Organizations[j])
 				}
 			}
@@ -374,10 +375,12 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 	if err != nil {
 		return err
 	}
-
-	err = rbac_server.shareResource(share)
-	if err != nil {
-		return err
+	
+	if permissions.ResourceType == "file" {
+		err = rbac_server.shareResource(share)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = rbac_server.setResourceTypePathIndexation(resource_type, path)
@@ -679,7 +682,9 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 	rbac_server.deleteResourceTypePathIndexation(permissions.ResourceType, path)
 
 	// unshare the resource
-	rbac_server.unshareResource(rbac_server.Domain, path)
+	if permissions.ResourceType == "file" {
+		rbac_server.unshareResource(rbac_server.Domain, path)
+	}
 
 	// Remove the path
 	err := rbac_server.permissions.RemoveItem(path)
@@ -748,7 +753,6 @@ func (rbac_server *server) cleanupPermissions(permissions *rbacpb.Permissions) (
 		deleted := false
 		if strings.HasPrefix(permissions.Path, "/users/") || strings.HasPrefix(permissions.Path, "/applications/") {
 			if !Utility.Exists(config.GetDataDir() + "/files" + permissions.Path) {
-				fmt.Println("file does not exist ", config.GetDataDir()+"/files"+permissions.Path)
 				rbac_server.deleteResourcePermissions(permissions.Path, permissions)
 				deleted = true
 			}
@@ -764,11 +768,9 @@ func (rbac_server *server) cleanupPermissions(permissions *rbacpb.Permissions) (
 				return false, nil, err
 			}
 			encoded := []byte(base64.StdEncoding.EncodeToString(data))
-			fmt.Println("----------> 696 ", permissions)
 			rbac_server.publish("delete_resources_permissions_event", encoded)
 			return false, nil, errors.New("file does not exist " + permissions.Path)
 		}
-
 	}
 
 	hasChange := false
@@ -1030,7 +1032,6 @@ func (rbac_server *server) GetResourcePermissions(ctx context.Context, rqst *rba
 
 func (rbac_server *server) addResourceOwner(path, resourceType_, subject string, subjectType rbacpb.SubjectType) error {
 
-
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
@@ -1095,6 +1096,8 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 				owners.Accounts = append(owners.Accounts, a)
 				needSave = true
 			}
+		} else {
+			return errors.New("account with id " + subject + " donsent exit")
 		}
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
@@ -1103,6 +1106,8 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 				owners.Applications = append(owners.Applications, a)
 				needSave = true
 			}
+		} else {
+			return errors.New("application with id " + subject + " donsent exit")
 		}
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		exist, g := rbac_server.groupExist(subject)
@@ -1111,6 +1116,8 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 				owners.Groups = append(owners.Groups, g)
 				needSave = true
 			}
+		} else {
+			return errors.New("group with id " + subject + " donsent exit")
 		}
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		exist, o := rbac_server.organizationExist(subject)
@@ -1119,6 +1126,8 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 				owners.Organizations = append(owners.Organizations, o)
 				needSave = true
 			}
+		} else {
+			return errors.New("organisation with id " + subject + " donsent exit")
 		}
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		if !Utility.Contains(owners.Peers, subject) {
@@ -1143,6 +1152,7 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourceOwnerRqst) (*rbacpb.AddResourceOwnerRsp, error) {
 
 	err := rbac_server.addResourceOwner(rqst.Path, rqst.ResourceType, rqst.Subject, rqst.Type)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1343,8 +1353,41 @@ func (rbac_server *server) RemoveResourceOwner(ctx context.Context, rqst *rbacpb
 //* That function must be call when a subject is removed to clean up permissions.
 func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.DeleteAllAccessRqst) (*rbacpb.DeleteAllAccessRsp, error) {
 
+	subjectId := ""
+	if rqst.Type == rbacpb.SubjectType_ACCOUNT {
+		exist, a := rbac_server.accountExist(rqst.Subject)
+		if exist {
+			subjectId = "PERMISSIONS/ACCOUNTS/" + a
+		} else {
+			return nil, errors.New("no account found with id " + rqst.Subject)
+		}
+	} else if rqst.Type == rbacpb.SubjectType_APPLICATION {
+		exist, a := rbac_server.applicationExist(rqst.Subject)
+		if exist {
+			subjectId = "PERMISSIONS/APPLICATIONS/" + a
+		} else {
+			return nil, errors.New("no application found with id " + rqst.Subject)
+		}
+	} else if rqst.Type == rbacpb.SubjectType_GROUP {
+		exist, g := rbac_server.groupExist(rqst.Subject)
+		if exist {
+			subjectId = "PERMISSIONS/GROUPS/" + g
+		} else {
+			return nil, errors.New("no group found with id " + rqst.Subject)
+		}
+	} else if rqst.Type == rbacpb.SubjectType_ORGANIZATION {
+		exist, o := rbac_server.organizationExist(rqst.Subject)
+		if exist {
+			subjectId = "PERMISSIONS/ORGANIZATIONS/" + o
+		} else {
+			return nil, errors.New("no organization found with id " + rqst.Subject)
+		}
+	} else if rqst.Type == rbacpb.SubjectType_PEER {
+		subjectId = "PERMISSIONS/PEERS/" + subjectId
+	}
+
 	// Here I must remove the subject from all permissions.
-	data, err := rbac_server.permissions.GetItem(rqst.Subject)
+	data, err := rbac_server.permissions.GetItem(subjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -1355,6 +1398,7 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 		return nil, err
 	}
 
+	// Remove the suject from all permissions with given paths.
 	for i := 0; i < len(paths); i++ {
 
 		// Remove from owner
@@ -1363,9 +1407,21 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 		// Remove from subject.
 		rbac_server.removeResourceSubject(rqst.Subject, rqst.Type, paths[i])
 
+		// Now I will send an update event.
+		permissions, err := rbac_server.getResourcePermissions(paths[i])
+		if err == nil {
+			// That's the way to marshal object as evt data
+			data_, _ := proto.Marshal(permissions)
+			if err == nil {
+
+				encoded := []byte(base64.StdEncoding.EncodeToString(data_))
+				rbac_server.publish("set_resources_permissions_event", encoded)
+			}
+		}
 	}
 
-	err = rbac_server.permissions.RemoveItem(rqst.Subject)
+	// remove the indexation...
+	err = rbac_server.permissions.RemoveItem(subjectId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1391,7 +1447,7 @@ func isPublic(path string) bool {
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-
+	fmt.Println("validate access for ", subject, name, path)
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
@@ -2135,7 +2191,7 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 
 	for i := 0; i < len(share.Organizations); i++ {
 		organizationExist, organizationId := rbac_server.organizationExist(share.Organizations[i])
-		if organizationExist {
+		if !organizationExist {
 			return errors.New("no organization exist with id " + share.Organizations[i])
 		}
 		o := "SHARED/ORGANIZATIONS/" + organizationId

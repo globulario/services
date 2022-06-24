@@ -550,6 +550,8 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	}
 
+	resource_server.deleteAllAccess(accountId + "@" + domain, rbacpb.SubjectType_ACCOUNT)
+	
 	// Try to delete the account...
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, "")
 	if err != nil {
@@ -602,6 +604,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	// Remove the file...
 	resource_server.deleteResourcePermissions("/users/" + name + "@" + domain)
+	
 	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
 
 	// Publish delete account event.
@@ -1184,6 +1187,8 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 //* Delete an application from the server. *
 func (resource_server *server) DeleteApplication(ctx context.Context, rqst *resourcepb.DeleteApplicationRqst) (*resourcepb.DeleteApplicationRsp, error) {
 
+	resource_server.deleteAllAccess(rqst.ApplicationId, rbacpb.SubjectType_APPLICATION)
+
 	// That service made user of persistence service.
 	err := resource_server.deleteApplication(rqst.ApplicationId)
 	if err != nil {
@@ -1193,6 +1198,7 @@ func (resource_server *server) DeleteApplication(ctx context.Context, rqst *reso
 	}
 
 	resource_server.deleteResourcePermissions(rqst.ApplicationId)
+	
 	resource_server.publishEvent("delete_application_"+rqst.ApplicationId+"_evt", []byte{})
 	resource_server.publishEvent("delete_application_evt", []byte(rqst.ApplicationId))
 
@@ -1488,7 +1494,7 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 				actions = append(actions, actions_[i].(string))
 			}
 		}
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Actions: actions}
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions}
 
 		// TODO validate token...
 		application.Password = values_["password"].(string)
@@ -1670,15 +1676,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			// set the remote peer in /etc/hosts
 			resource_server.setLocalHosts(peer_)
 
-			// Here I will append the resource owner...
-			domain := peer_.Hostname
-			if len(peer_.Domain) > 0 {
-				domain += "." + peer_.Domain
-			}
-
 			// in case local dns is use that peers will be able to change values releated to it domain.
 			// but no other peer will be able to do it...
-			resource_server.addResourceOwner(domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
+			resource_server.addResourceOwner(peer_.Domain, "domain", peer_.Mac, rbacpb.SubjectType_PEER)
 
 			jsonStr, err := marshaler.MarshalToString(peer_)
 			if err != nil {
@@ -2109,6 +2109,8 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 		}, nil
 	}
 
+	resource_server.deleteAllAccess(rqst.Peer.Mac, rbacpb.SubjectType_PEER)
+
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Peers", `{"mac":"`+rqst.Peer.Mac+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
@@ -2138,7 +2140,7 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	// remove permission associated with that peer...
 	resource_server.deleteResourcePermissions(domain)
-
+	
 	// signal peers changes...
 	resource_server.publishEvent("delete_peer"+rqst.Peer.Mac+"_evt", []byte{})
 	resource_server.publishEvent("delete_peer_evt", []byte(rqst.Peer.Mac))
@@ -2801,6 +2803,8 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		}
 	}
 
+	resource_server.deleteAllAccess(rqst.Organization, rbacpb.SubjectType_ORGANIZATION)
+
 	// Try to delete the account...
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.Organization+`"}`, "")
 	if err != nil {
@@ -2810,6 +2814,7 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 	}
 
 	resource_server.deleteResourcePermissions(rqst.Organization)
+
 	resource_server.publishEvent("delete_organization_"+rqst.Organization+"_evt", []byte{})
 	resource_server.publishEvent("delete_organization_evt", []byte(rqst.Organization))
 
@@ -3001,6 +3006,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
+		fmt.Println("fail to get persistence connection ", err)
 		return nil, err
 	}
 
@@ -3014,7 +3020,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 	group := values.(map[string]interface{})
 
 	// I will remove it from accounts...
-
+	
 	if group["members"] != nil {
 		members := []interface{}(group["members"].(primitive.A))
 		for j := 0; j < len(members); j++ {
@@ -3036,15 +3042,21 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		}
 	}
 
+	resource_server.deleteAllAccess(rqst.Group + "@" +  group["domain"].(string), rbacpb.SubjectType_GROUP)
+
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.Group+`"}`, "")
 	if err != nil {
+		fmt.Println("3043", err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	resource_server.deleteResourcePermissions(rqst.Group)
+
 	resource_server.publishEvent("delete_group_"+rqst.Group+"_evt", []byte{})
+
+	resource_server.publishEvent("delete_group_evt", []byte(rqst.Group))
 
 	return &resourcepb.DeleteGroupRsp{
 		Result: true,

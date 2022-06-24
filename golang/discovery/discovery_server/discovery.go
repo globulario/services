@@ -144,5 +144,7 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// So here I will 
+
 	return &discoverypb.PublishApplicationResponse{}, nil
 }

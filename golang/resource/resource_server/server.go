@@ -592,6 +592,15 @@ func (svr *server) deleteResourcePermissions(path string) error {
 	return rbac_client_.DeleteResourcePermissions(path)
 }
 
+func (svr *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType) error {
+	rbac_client_, err := GetRbacClient(svr.Address)
+	if err != nil {
+		return err
+	}
+	return rbac_client_.DeleteAllAccess(suject, subjectType)
+}
+
+
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
 
 // Create the configuration file if is not already exist.

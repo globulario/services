@@ -27,8 +27,8 @@ import (
 	"google.golang.org/grpc/codes"
 
 	//"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Uninstall application...
@@ -393,6 +393,9 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 		if len(msg.Domain) > 0 {
 			domain = msg.Domain
+			if strings.Contains(domain, ":"){
+				domain = domain[0:strings.Index(domain, ":")]
+			}
 		}
 		if len(msg.Organization) > 0 {
 			organization = msg.Organization
@@ -509,10 +512,26 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// Set the path of the directory where the application can store files.
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
-	err = server.addResourceOwner("/applications/"+name, "file", name, rbacpb.SubjectType_APPLICATION)
+	err = server.addResourceOwner("/applications/"+name, "file", name+ "@" + domain, rbacpb.SubjectType_APPLICATION)
+
 	if err != nil {
 		return err
 	}
+
+
+
+	if len(organization) > 0 {
+		err = server.addResourceOwner(name + "@" + domain, "application", organization, rbacpb.SubjectType_ORGANIZATION)
+		if err != nil {
+			return err
+		}
+	}else if len(user) > 0 {
+		err = server.addResourceOwner(name + "@" + domain, "application", user, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
