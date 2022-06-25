@@ -3429,7 +3429,7 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	}, nil
 }
 
-//* Return the list of all services *
+//* Return the list of all packages *
 func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorRequest, stream resourcepb.ResourceService_GetPackagesDescriptorServer) error {
 	p, err := server.getPersistenceStore()
 	if err != nil {
@@ -3438,7 +3438,12 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", `{}`, "")
+	query := rqst.Query
+	if len(query) == 0 {
+		query = "{}"
+	}
+
+	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query , rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

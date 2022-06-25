@@ -625,26 +625,15 @@ func getThumbnails(info *fileInfo) []interface{} {
  */
 func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool) (*fileInfo, error) {
 
-	//fmt.Println("read dir ", path, recursive)
+	fmt.Println("read dir ", path, recursive)
+
 	// get the file info
 	info, err := getFileInfo(s, path)
 	if err != nil {
 		return nil, err
 	}
 	if !info.IsDir {
-		return nil, errors.New(path + " is a directory")
-	} else {
-		path, err := os.Getwd()
-		if err == nil {
-			path = path + "/mimetypes/inode-directory.png"
-			icon, err := os.Open(path)
-			if err == nil {
-				info.Thumbnail = createThumbnail(path, icon, 80, 80)
-				icon.Close()
-			} else {
-				fmt.Println(err)
-			}
-		}
+		return nil, errors.New(path + " is not a directory")
 	}
 
 	files, err := ioutil.ReadDir(path)
@@ -688,7 +677,6 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			}
 
 			if !info_.IsDir {
-
 				f_, err := os.Open(path + "/" + f.Name())
 				if err != nil {
 					return nil, err
@@ -698,7 +686,6 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 				if strings.Contains(f.Name(), ".") {
 					fileExtension := f.Name()[strings.LastIndex(f.Name(), "."):]
-
 					info_.Mime = mime.TypeByExtension(fileExtension)
 				} else {
 					info_.Mime, _ = Utility.GetFileContentType(f_)
@@ -750,21 +737,9 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						}
 					}
 				}
-			} else {
-				path, err := os.Getwd()
-				if err == nil {
-					path = path + "/mimetypes/inode-directory.png"
-					icon, err := os.Open(path)
-					if err == nil {
-						info_.Thumbnail = createThumbnail(path, icon, 80, 80)
-						icon.Close()
-					} else {
-						fmt.Println(err)
-					}
-				}
-			}
 
-			info.Files = append(info.Files, info_)
+				info.Files = append(info.Files, info_)
+			}
 		}
 
 	}

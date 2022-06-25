@@ -850,7 +850,7 @@ func (svr *server) KickoutFromConversation(ctx context.Context, rqst *conversati
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	isOwner, _, err := svr.validateAccess(clientId + "@" + domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	isOwner, _, err := svr.validateAccess(clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 
 	if err != nil {
 
@@ -972,7 +972,7 @@ func (svr *server) DeleteConversation(ctx context.Context, rqst *conversationpb.
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	_, _, err = svr.validateAccess(clientId + "@" + domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
+	_, _, err = svr.validateAccess(clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.ConversationUuid)
 	if err != nil {
 		// Here I will simply remove the converstion from the paticipant.
 		err := svr.removeConversationParticipant(clientId, rqst.ConversationUuid)
@@ -1274,7 +1274,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 	}
 
 	// Validate the clientId is the owner of the conversation.
-	hasAccess, _, err := svr.validateAccess(clientId + "@" + domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
+	hasAccess, _, err := svr.validateAccess(clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT, "owner", rqst.Invitation.Conversation)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1410,6 +1410,20 @@ func (svr *server) getConversation(uuid string) (*conversationpb.Conversation, e
 	}
 
 	return conversation, nil
+}
+
+// Return a conversation with a given id.
+func (svr *server) GetConversation(ctx context.Context, rqst *conversationpb.GetConversationRequest) (*conversationpb.GetConversationResponse, error) {
+	convesation, err := svr.getConversation(rqst.Id)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &conversationpb.GetConversationResponse{
+		Conversation: convesation,
+	}, nil
 }
 
 /**
@@ -2091,7 +2105,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"rbac.RbacService"}
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 2)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
@@ -2111,6 +2125,11 @@ func main() {
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
+	// Set permission
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/conversation.ConversationService/DeleteConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/conversation.ConversationService/KickoutFromConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+
+	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

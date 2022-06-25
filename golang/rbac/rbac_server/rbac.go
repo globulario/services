@@ -1489,6 +1489,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		if permissions == nil {
+			fmt.Println("no permission exist for ", path)
 			// so here I will recursively get it parent permission...
 			if strings.LastIndex(path, "/") > 0 {
 				return rbac_server.validateAccess(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
@@ -1497,6 +1498,8 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 		}
 		return false, false, err
+	}else{
+		fmt.Println("permissions found ", permissions)
 	}
 
 	// Test if the Subject is owner of the resource in that case I will git him access.
@@ -1729,6 +1732,8 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 				account, err := rbac_server.getAccount(subject)
 				if err == nil {
+					fmt.Println("----------------> roles: ", account.Roles)
+					fmt.Println("----------------> organisation: ", account.Organizations)
 					// from the account I will get the list of group.
 					if account.Groups != nil {
 						for i := 0; i < len(account.Groups); i++ {
@@ -1917,6 +1922,7 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 
+	fmt.Println("-------------------> validate action for ", action, subject)
 	// test if the subject exist.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
@@ -1997,7 +2003,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 
 		account, err := rbac_server.getAccount(subject)
-
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
 			return false, err
@@ -2007,11 +2012,17 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		if account.Roles != nil {
 			for i := 0; i < len(account.Roles); i++ {
 				roleId := account.Roles[i]
-				hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
-				if hasAccess_ {
-					hasAccess = hasAccess_
+				if(roleId == "admin"){
+					hasAccess = true
 					break
+				}else{
+					hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
+					if hasAccess_ {
+						hasAccess = hasAccess_
+						break
+					}
 				}
+
 			}
 		}
 	}

@@ -549,30 +549,38 @@ func (server *server) publishPackage(token, user, organization, discovery, repos
 	var err error
 	permissions, err = server.getResourcePermissions(path_)
 	if err != nil {
-		// Create the permission...
-		permissions = &rbacpb.Permissions{
-			Allowed: []*rbacpb.Permission{
-				//  Exemple of possible permission values.
-				&rbacpb.Permission{
-					Name:          "publish", // member of the organization can publish the service.
-					Applications:  []string{},
+		if len(organization) > 0 {
+			// Create the permission...
+			permissions = &rbacpb.Permissions{
+				Allowed: []*rbacpb.Permission{},
+				Denied:  []*rbacpb.Permission{},
+				Owners: &rbacpb.Permission{
+					Name:          "owner",
 					Accounts:      []string{},
+					Applications:  []string{},
 					Groups:        []string{},
 					Peers:         []string{},
 					Organizations: []string{organization},
 				},
-			},
-			Denied: []*rbacpb.Permission{},
-			Owners: &rbacpb.Permission{
-				Name:          "owner",
-				Accounts:      []string{user},
-				Applications:  []string{},
-				Groups:        []string{},
-				Peers:         []string{},
-				Organizations: []string{},
-			},
-			Path: path_,
-			ResourceType: "package",
+				Path:         path_,
+				ResourceType: "package",
+			}
+		} else {
+			// Create the permission...
+			permissions = &rbacpb.Permissions{
+				Allowed: []*rbacpb.Permission{},
+				Denied:  []*rbacpb.Permission{},
+				Owners: &rbacpb.Permission{
+					Name:          "owner",
+					Accounts:      []string{user},
+					Applications:  []string{},
+					Groups:        []string{},
+					Peers:         []string{},
+					Organizations: []string{},
+				},
+				Path:         path_,
+				ResourceType: "package",
+			}
 		}
 
 		// Set the permissions.
@@ -583,29 +591,22 @@ func (server *server) publishPackage(token, user, organization, discovery, repos
 		}
 	}
 
-	// Test the permission before actualy publish the package.
-	hasAccess, isDenied, err := server.validateAccess(user, rbacpb.SubjectType_ACCOUNT, "publish", path_)
-	if !hasAccess || isDenied || err != nil {
-		fmt.Println("publishPackage 527 ", err)
-		return err
-	}
-
 	// Append the user into the list of owner if is not already part of it.
-	if !Utility.Contains(permissions.Owners.Accounts, user) {
-		permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
+	if len(organization) == 0 {
+		if !Utility.Contains(permissions.Owners.Accounts, user) {
+			permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
+		}
 	}
 
 	// Save the permissions.
 	err = server.setResourcePermissions(token, path_, "package", permissions)
 	if err != nil {
-		fmt.Println("publishPackage 539 ", err)
 		return err
 	}
 
 	// Fist of all publish the package descriptor.
 	err = server.publishPackageDescriptor(descriptor)
 	if err != nil {
-		fmt.Println("publishPackage 546 ", err)
 		return err
 	}
 
@@ -650,7 +651,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = []string{"rbac.RbacService", "resource.ResourceService"}
-	s_impl.Permissions = make([]interface{}, 0)
+	s_impl.Permissions = make([]interface{}, 2)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
@@ -663,6 +664,9 @@ func main() {
 		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
+
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/discovery.DiscoveryService/PublishService", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/discovery.DiscoveryService/PublishApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()

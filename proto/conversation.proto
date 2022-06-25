@@ -229,6 +229,14 @@ message KickoutFromConversationResponse{
 	/** nothing to do here */
 }
 
+message GetConversationRequest{
+	string id = 1;
+}
+
+message GetConversationResponse{
+	Conversation conversation = 1;
+}
+
 message GetConversationsRequest{
 	string creator = 1;
 }
@@ -345,6 +353,9 @@ service ConversationService {
 
   // Leave a given conversation.
   rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse);
+
+  // Return a conversation with a given id.
+  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
 
   // Return the list of conversations created by a given user.
   rpc GetConversations(GetConversationsRequest) returns (GetConversationsResponse);

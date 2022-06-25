@@ -551,6 +551,67 @@ proto.conversation.ConversationServicePromiseClient.prototype.leaveConversation 
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.conversation.GetConversationRequest,
+ *   !proto.conversation.GetConversationResponse>}
+ */
+const methodDescriptor_ConversationService_GetConversation = new grpc.web.MethodDescriptor(
+  '/conversation.ConversationService/GetConversation',
+  grpc.web.MethodType.UNARY,
+  proto.conversation.GetConversationRequest,
+  proto.conversation.GetConversationResponse,
+  /**
+   * @param {!proto.conversation.GetConversationRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.conversation.GetConversationResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.conversation.GetConversationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.conversation.GetConversationResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.conversation.GetConversationResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.conversation.ConversationServiceClient.prototype.getConversation =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/conversation.ConversationService/GetConversation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_GetConversation,
+      callback);
+};
+
+
+/**
+ * @param {!proto.conversation.GetConversationRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.conversation.GetConversationResponse>}
+ *     Promise that resolves to the response
+ */
+proto.conversation.ConversationServicePromiseClient.prototype.getConversation =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/conversation.ConversationService/GetConversation',
+      request,
+      metadata || {},
+      methodDescriptor_ConversationService_GetConversation);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.conversation.GetConversationsRequest,
  *   !proto.conversation.GetConversationsResponse>}
  */
