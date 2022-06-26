@@ -756,7 +756,8 @@ func initConfig() {
 	fmt.Println("Load services configuration from: ", serviceDir)
 	files, err := Utility.FindFileByName(serviceDir, "config.json")
 	if err != nil {
-		fmt.Println("fail to find service configurations at at path ", serviceDir)
+
+		fmt.Println("fail to find service configurations at at path ", serviceDir, "with error ", err)
 		return
 	}
 	services := make([]map[string]interface{}, 0)

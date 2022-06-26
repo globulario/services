@@ -251,30 +251,86 @@ proto.blog.BlogServicePromiseClient.prototype.getBlogPostsByAuthors =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
- *   !proto.blog.SearchBlogsPostRequest,
- *   !proto.blog.SearchBlogsPostResponse>}
+ *   !proto.blog.GetBlogPostsRequest,
+ *   !proto.blog.GetBlogPostsResponse>}
  */
-const methodDescriptor_BlogService_SearchBlogPosts = new grpc.web.MethodDescriptor(
-  '/blog.BlogService/SearchBlogPosts',
+const methodDescriptor_BlogService_GetBlogPosts = new grpc.web.MethodDescriptor(
+  '/blog.BlogService/GetBlogPosts',
   grpc.web.MethodType.SERVER_STREAMING,
-  proto.blog.SearchBlogsPostRequest,
-  proto.blog.SearchBlogsPostResponse,
+  proto.blog.GetBlogPostsRequest,
+  proto.blog.GetBlogPostsResponse,
   /**
-   * @param {!proto.blog.SearchBlogsPostRequest} request
+   * @param {!proto.blog.GetBlogPostsRequest} request
    * @return {!Uint8Array}
    */
   function(request) {
     return request.serializeBinary();
   },
-  proto.blog.SearchBlogsPostResponse.deserializeBinary
+  proto.blog.GetBlogPostsResponse.deserializeBinary
 );
 
 
 /**
- * @param {!proto.blog.SearchBlogsPostRequest} request The request proto
+ * @param {!proto.blog.GetBlogPostsRequest} request The request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!grpc.web.ClientReadableStream<!proto.blog.SearchBlogsPostResponse>}
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.GetBlogPostsResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.blog.BlogServiceClient.prototype.getBlogPosts =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/blog.BlogService/GetBlogPosts',
+      request,
+      metadata || {},
+      methodDescriptor_BlogService_GetBlogPosts);
+};
+
+
+/**
+ * @param {!proto.blog.GetBlogPostsRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.GetBlogPostsResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.blog.BlogServicePromiseClient.prototype.getBlogPosts =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/blog.BlogService/GetBlogPosts',
+      request,
+      metadata || {},
+      methodDescriptor_BlogService_GetBlogPosts);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.blog.SearchBlogPostsRequest,
+ *   !proto.blog.SearchBlogPostsResponse>}
+ */
+const methodDescriptor_BlogService_SearchBlogPosts = new grpc.web.MethodDescriptor(
+  '/blog.BlogService/SearchBlogPosts',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.blog.SearchBlogPostsRequest,
+  proto.blog.SearchBlogPostsResponse,
+  /**
+   * @param {!proto.blog.SearchBlogPostsRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.blog.SearchBlogPostsResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.blog.SearchBlogPostsRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.SearchBlogPostsResponse>}
  *     The XHR Node Readable Stream
  */
 proto.blog.BlogServiceClient.prototype.searchBlogPosts =
@@ -288,10 +344,10 @@ proto.blog.BlogServiceClient.prototype.searchBlogPosts =
 
 
 /**
- * @param {!proto.blog.SearchBlogsPostRequest} request The request proto
+ * @param {!proto.blog.SearchBlogPostsRequest} request The request proto
  * @param {?Object<string, string>=} metadata User defined
  *     call metadata
- * @return {!grpc.web.ClientReadableStream<!proto.blog.SearchBlogsPostResponse>}
+ * @return {!grpc.web.ClientReadableStream<!proto.blog.SearchBlogPostsResponse>}
  *     The XHR Node Readable Stream
  */
 proto.blog.BlogServicePromiseClient.prototype.searchBlogPosts =

@@ -519,7 +519,6 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no title was given")))
 
 	}
-	fmt.Println("create new title with name ", rqst.Title.Name)
 
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
@@ -703,7 +702,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		return errors.New("no database found at path " + indexPath)
 	}
 
-	fmt.Println("remove ", titleId, indexPath, filePath)
 	// I will use the file checksum as file id...
 	var uuid string
 	fileInfo, err := os.Stat(filePath)
@@ -767,8 +765,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		fmt.Println("-----------> no title association found with error ", indexPath, titleId, err)
 	}
 
-	fmt.Println("-------------> title association found ", title_association)
-
 	// so here i will remove the path from the list of path.
 	title_association.Paths = Utility.RemoveString(title_association.Paths, filePath)
 
@@ -783,7 +779,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		}
 	}
 
-	fmt.Println("-------------> title association ", title_association)
 
 	return nil
 
@@ -1385,7 +1380,6 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 			return nil, err
 		}
 	}
-	fmt.Println("-----------> association ",indexPath,titleId, association)
 
 	// Here I will remove path that no more exist...
 	paths := make([]string, 0)
@@ -1397,16 +1391,13 @@ func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
 		}
 	}
 
-	fmt.Println("-----------> association paths", paths)
 	if len(paths) != len(association.Paths) {
 		association.Paths = paths
 		// if no more file are link I will remove the association...
 		if len(association.Paths) == 0 {
-			fmt.Println("-----------> remove assoication", association)
 			srv.associations[indexPath].RemoveItem(titleId)
 			srv.associations[indexPath].RemoveItem(association.ID)
 		} else {
-			fmt.Println("-----------> update assoication", association)
 			data, _ = json.Marshal(association)
 			srv.associations[indexPath].SetItem(association.ID, data)
 			srv.associations[indexPath].SetItem(titleId, data)

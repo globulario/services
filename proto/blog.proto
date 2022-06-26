@@ -99,19 +99,17 @@ message BlogPost {
 
   /** The mac address of the peer where the blog is publish */
   string mac = 12;
-  
 }
 
 message CreateBlogPostRequest {
+  /** Where the search indexation will be store**/
+  string indexPath = 1;
 
   /** The author of the post */
-  string account_id = 1;
+  string account_id = 2;
 
   /** The blog post language */
-	string language = 2;
-
-  /** The text */
-  string text = 3; 
+	string language = 3;
 
   /** List of keywords */
   repeated  string keywords = 4;
@@ -122,15 +120,20 @@ message CreateBlogPostRequest {
   /** A image url */
   string thumbnail = 6;
 
+  /** The text */
+  string text = 7; 
+
 }
 
 message CreateBlogPostResponse {
   BlogPost blog_post = 1;
+
 }
 
 /** Update a blog post */
 message SaveBlogPostRequest {
   BlogPost blog_post = 1;
+  string indexPath = 2;
 }
 
 message SaveBlogPostResponse {
@@ -150,19 +153,20 @@ message GetBlogPostsByAuthorsResponse{
  BlogPost blog_post = 1;
 }
 
-/** Search post by keyword's */
-message SearchBlogsPostRequest{
-  string query = 1;
+/** Get blogs by uuids */
+message GetBlogPostsRequest{
+  repeated string uuids = 1;
 }
 
-message SearchBlogsPostResponse{
-  /** The list of post */
+message GetBlogPostsResponse{
+  /** Return post one by one... */
   BlogPost blog_post = 1;
 }
 
 /** Delete a post */
 message DeleteBlogPostRequest{
   string uuid = 1;
+  string indexPath = 2;
 }
 
 message DeleteBlogPostResponse{
@@ -204,11 +208,64 @@ message RemoveCommentRequest {
 message RemoveCommentResponse{
 }
 
+////////////////////// Search ///////////////////////
+message Snippet {
+	string field = 1;
+	repeated string fragments = 2;
+}
+
+message SearchHit {
+	int32 index = 1;
+	double score = 2;
+	repeated Snippet snippets = 3;
+
+	// the underlying values.
+	BlogPost blog = 4;
+}
+
+message SearchSummary {
+	string query = 1; // the search input
+	uint64 total = 2; // number of found match
+	int64 took = 3;
+}
+
+message SearchFacetTerm {
+	string term = 1;
+	int32 count = 2;
+}
+
+message SearchFacet {
+	string field = 1;
+	int32 total = 2; 
+	repeated SearchFacetTerm terms = 3;
+	int32 other = 4;
+}
+
+message SearchFacets {
+	repeated SearchFacet facets = 1;
+}
+
+message SearchBlogPostsRequest {
+	string query = 1;
+	repeated string fields = 2;
+	string indexPath = 3;
+	int32 size = 4;
+	int32 offset = 5;
+}
+
+message SearchBlogPostsResponse {
+    oneof result  {
+        SearchSummary summary = 1;
+        SearchHit hit = 2;
+	      SearchFacets facets = 3;
+    }
+}
 
 
 /** A blogger for globular */
 service BlogService {
-	
+
+
   // One request followed by one response
 	rpc CreateBlogPost(CreateBlogPostRequest) returns (CreateBlogPostResponse);
 
@@ -219,7 +276,10 @@ service BlogService {
   rpc GetBlogPostsByAuthors(GetBlogPostsByAuthorsRequest) returns (stream GetBlogPostsByAuthorsResponse);
 
   // Search blog by keyword's or text find in the post...
-  rpc SearchBlogPosts(SearchBlogsPostRequest) returns (stream SearchBlogsPostResponse);
+  rpc GetBlogPosts(GetBlogPostsRequest) returns (stream GetBlogPostsResponse);
+
+  // Search blogpost...
+	rpc SearchBlogPosts(SearchBlogPostsRequest) returns (stream SearchBlogPostsResponse);
 
   // Delete a blog.
   rpc DeleteBlogPost(DeleteBlogPostRequest) returns (DeleteBlogPostResponse);

@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/blog/blog_client"
 	"github.com/globulario/services/golang/blog/blogpb"
@@ -20,7 +21,6 @@ import (
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
@@ -91,14 +91,14 @@ type server struct {
 	// The grpc server.
 	grpcServer *grpc.Server
 
-	// The search engine..
-	search_engine *search_engine.XapianEngine
-
 	// Store global conversation information like conversation owner's participant...
 	store *storage_store.LevelDB_store
 
 	// keep in map active conversation db connections.
 	blogs *sync.Map
+
+	// Contain indexation.
+	indexs map[string]bleve.Index
 }
 
 // The http address where the configuration can be found /config
@@ -401,9 +401,6 @@ func (svr *server) Init() error {
 		return err
 	}
 
-	// Initialyse the search engine.
-	svr.search_engine = new(search_engine.XapianEngine)
-
 	// Create a new local store.
 	svr.store = storage_store.NewLevelDB_store()
 
@@ -431,6 +428,31 @@ var (
 	log_client_   *log_client.Log_Client
 	event_client_ *event_client.Event_Client
 )
+
+/**
+ * Return indexation for a given path...
+ */
+func (srv *server) getIndex(path string) (bleve.Index, error) {
+	if srv.indexs[path] == nil {
+		index, err := bleve.Open(path) // try to open existing index.
+		if err != nil {
+			mapping := bleve.NewIndexMapping()
+			var err error
+			index, err = bleve.New(path, mapping)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if srv.indexs == nil {
+			srv.indexs = make(map[string]bleve.Index, 0)
+		}
+
+		srv.indexs[path] = index
+	}
+
+	return srv.indexs[path], nil
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Logger function
@@ -682,7 +704,6 @@ func (svr *server) deleteBlogPost(author, uuid string) error {
 
 	// first I will remove it from it author indexation.
 	blogs_, err := svr.store.GetItem(blog.Author)
-
 	ids := make([]string, 0)
 	if err == nil {
 		err = json.Unmarshal(blogs_, &ids)
@@ -746,12 +767,6 @@ func (svr *server) saveBlogPost(author string, blogPost *blogpb.BlogPost) error 
 		return err
 	}
 
-	// Now I will set the search information for conversations...
-	err = svr.search_engine.IndexJsonObject(svr.Root+"/blogs/search_data", jsonStr, blogPost.Language, "uuid", []string{"keywords"}, jsonStr)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -777,7 +792,7 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
-	s_impl.Permissions = make([]interface{}, 2)
+	s_impl.Permissions = make([]interface{}, 3)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
@@ -797,14 +812,16 @@ func main() {
 		s_impl.Root = os.TempDir()
 	}
 
+	// specific permissions.
+	s_impl.Permissions[0] = map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
+	s_impl.Permissions[1] = map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
+	s_impl.Permissions[2] = map[string]interface{}{"action": "/blog.BlogService/GetBlogPosts", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "read"}}}
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
-
-	s_impl.Permissions[0] = map[string]interface{}{"action": "/blog.BlogService/SaveBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "write"}}}
-	s_impl.Permissions[1] = map[string]interface{}{"action": "/blog.BlogService/DeleteBlogPost", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
 	// Open the connetion with the store.
 	Utility.CreateDirIfNotExist(s_impl.Root + "/blogs")
