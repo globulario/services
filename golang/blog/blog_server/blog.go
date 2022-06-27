@@ -69,6 +69,7 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 		Language:     rqst.Language,
 		Text:         rqst.Text,
 		Title:        rqst.Title,
+		Subtitle:     rqst.Subtitle,
 		Thumbnail:    rqst.Thumbnail,
 		Status:       blogpb.BogPostStatus_DRAFT,
 	}
@@ -179,7 +180,7 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 	}
 
 	// Index the title and put it in the search engine.
-	err = index.Index( rqst.BlogPost.Uuid,  rqst.BlogPost)
+	err = index.Index(rqst.BlogPost.Uuid, rqst.BlogPost)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -245,24 +246,24 @@ func (srv *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsReque
 // Search blog by id's or text find in the post...
 func (srv *server) GetBlogPosts(rqst *blogpb.GetBlogPostsRequest, stream blogpb.BlogService_GetBlogPostsServer) error {
 	// So here I will return the list of blogs that match the uuid's...
-	for i:=0; i < len(rqst.Uuids); i++{
+	for i := 0; i < len(rqst.Uuids); i++ {
 		data, err := srv.store.GetItem(rqst.Uuids[i])
-		if err ==  nil {
+		if err == nil {
 			b := new(blogpb.BlogPost)
 			err := jsonpb.UnmarshalString(string(data), b)
 
 			if err != nil {
 				fmt.Println("fail to unmarchal blog with uuid:", rqst.Uuids[i])
-			}else{
+			} else {
 				// Here I will send the blog post...
 				stream.Send(&blogpb.GetBlogPostsResponse{BlogPost: b})
 			}
 
-		}else{
+		} else {
 			fmt.Println("fail to retreive blog with uuid:", rqst.Uuids[i])
 		}
 	}
-	
+
 	return nil
 }
 

@@ -13,13 +13,13 @@ option go_package="blog/blogpb";
 message Emoji {
 
   /** The account id you set the like */
-  string account_id = 1;
+  string Account_id = 1;
 
   /** The creation time. */
-  int64 creationTime = 2;
+  int64 CreationTime = 2;
 
   /** The post or the comment */
-  string parent = 3;
+  string Parent = 3;
 
   /** The emoji json string */
   string emoji = 4;
@@ -30,28 +30,28 @@ message Emoji {
  */
 message Comment {
   /** Help to track comment **/
-  string uuid = 1;
+  string Uuid = 1;
 
   /** can be the blog or other comment */
-  string parent = 2;
+  string Parent = 2;
 
   /** The account id you set the like */
-  string account_id = 3;
+  string Account_id = 3;
 
   /** The creation time. */
-  int64 creationTime = 4;
+  int64 CreationTime = 4;
 
   /** The language ex. en, es, fr*/
-	string language = 5;
+	string Language = 5;
 
   /** The comment text */
-  string text = 6;
+  string Text = 6;
 
   /** If there is answer's */
-  repeated Comment comments = 7;
+  repeated Comment Comments = 7;
 
   /** The list of pepole's reation */
-  repeated Emoji emotions = 8;
+  repeated Emoji Emotions = 8;
 }
 
 /**
@@ -65,40 +65,46 @@ enum BogPostStatus{
 
 message BlogPost {
   /** A unique identifier */
-  string uuid = 1;
+  string Uuid = 1;
 
   /** The author of the post */
-  string author = 2;
+  string Author = 2;
 
   /** The text will be a json object that contain the Blog text */
-  string text = 3;
+  string Text = 3;
 
   /** A title **/
-  string title = 4;
+  string Title = 4;
+
+    /** A subtitle **/
+  string Subtitle = 5;
 
 	/** The language ex. en, es, fr*/
-	string language = 5;
+	string Language = 6;
 
   /** Keywords Can be use by the search engine **/
-	repeated  string keywords = 6;
+	repeated  string Keywords = 7;
 
   /** The creation time. */
-  int64 creationTime = 7;
+  int64 CreationTime = 8;
 
   /** Th list of unlike's */
-  repeated Emoji emotions = 8;
+  repeated Emoji Emotions = 9;
 
   /** The list of comment's */
-  repeated Comment comments = 9;
+  repeated Comment Comments = 10;
 
   /** A thumbnail to display quickly **/
-  string thumbnail = 10;
+  string Thumbnail = 11;
 
   /** The satus of the blog */
-  BogPostStatus status = 11;
+  BogPostStatus Status = 12;
 
   /** The mac address of the peer where the blog is publish */
-  string mac = 12;
+  string Mac = 13;
+
+  /** The domain where the blog is publish */
+  string Domain = 14;
 }
 
 message CreateBlogPostRequest {
@@ -117,11 +123,14 @@ message CreateBlogPostRequest {
   /** A title **/
   string title = 5;
 
+  /** A subtitle **/
+  string subtitle = 6;
+
   /** A image url */
-  string thumbnail = 6;
+  string thumbnail = 7;
 
   /** The text */
-  string text = 7; 
+  string text = 8;
 
 }
 

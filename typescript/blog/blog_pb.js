@@ -663,7 +663,7 @@ if (goog.DEBUG && !COMPILED) {
  * @private {!Array<number>}
  * @const
  */
-proto.blog.BlogPost.repeatedFields_ = [6,8,9];
+proto.blog.BlogPost.repeatedFields_ = [7,9,10];
 
 
 
@@ -698,16 +698,18 @@ proto.blog.BlogPost.toObject = function(includeInstance, msg) {
     author: jspb.Message.getFieldWithDefault(msg, 2, ""),
     text: jspb.Message.getFieldWithDefault(msg, 3, ""),
     title: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    language: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    keywordsList: jspb.Message.getRepeatedField(msg, 6),
-    creationtime: jspb.Message.getFieldWithDefault(msg, 7, 0),
+    subtitle: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    language: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    keywordsList: jspb.Message.getRepeatedField(msg, 7),
+    creationtime: jspb.Message.getFieldWithDefault(msg, 8, 0),
     emotionsList: jspb.Message.toObjectList(msg.getEmotionsList(),
     proto.blog.Emoji.toObject, includeInstance),
     commentsList: jspb.Message.toObjectList(msg.getCommentsList(),
     proto.blog.Comment.toObject, includeInstance),
-    thumbnail: jspb.Message.getFieldWithDefault(msg, 10, ""),
-    status: jspb.Message.getFieldWithDefault(msg, 11, 0),
-    mac: jspb.Message.getFieldWithDefault(msg, 12, "")
+    thumbnail: jspb.Message.getFieldWithDefault(msg, 11, ""),
+    status: jspb.Message.getFieldWithDefault(msg, 12, 0),
+    mac: jspb.Message.getFieldWithDefault(msg, 13, ""),
+    domain: jspb.Message.getFieldWithDefault(msg, 14, "")
   };
 
   if (includeInstance) {
@@ -762,37 +764,45 @@ proto.blog.BlogPost.deserializeBinaryFromReader = function(msg, reader) {
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setLanguage(value);
+      msg.setSubtitle(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.addKeywords(value);
+      msg.setLanguage(value);
       break;
     case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addKeywords(value);
+      break;
+    case 8:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setCreationtime(value);
       break;
-    case 8:
+    case 9:
       var value = new proto.blog.Emoji;
       reader.readMessage(value,proto.blog.Emoji.deserializeBinaryFromReader);
       msg.addEmotions(value);
       break;
-    case 9:
+    case 10:
       var value = new proto.blog.Comment;
       reader.readMessage(value,proto.blog.Comment.deserializeBinaryFromReader);
       msg.addComments(value);
       break;
-    case 10:
+    case 11:
       var value = /** @type {string} */ (reader.readString());
       msg.setThumbnail(value);
       break;
-    case 11:
+    case 12:
       var value = /** @type {!proto.blog.BogPostStatus} */ (reader.readEnum());
       msg.setStatus(value);
       break;
-    case 12:
+    case 13:
       var value = /** @type {string} */ (reader.readString());
       msg.setMac(value);
+      break;
+    case 14:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDomain(value);
       break;
     default:
       reader.skipField();
@@ -851,31 +861,38 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
-  f = message.getLanguage();
+  f = message.getSubtitle();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
+  f = message.getLanguage();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
   f = message.getKeywordsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
-      6,
+      7,
       f
     );
   }
   f = message.getCreationtime();
   if (f !== 0) {
     writer.writeInt64(
-      7,
+      8,
       f
     );
   }
   f = message.getEmotionsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      8,
+      9,
       f,
       proto.blog.Emoji.serializeBinaryToWriter
     );
@@ -883,7 +900,7 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
   f = message.getCommentsList();
   if (f.length > 0) {
     writer.writeRepeatedMessage(
-      9,
+      10,
       f,
       proto.blog.Comment.serializeBinaryToWriter
     );
@@ -891,21 +908,28 @@ proto.blog.BlogPost.serializeBinaryToWriter = function(message, writer) {
   f = message.getThumbnail();
   if (f.length > 0) {
     writer.writeString(
-      10,
+      11,
       f
     );
   }
   f = message.getStatus();
   if (f !== 0.0) {
     writer.writeEnum(
-      11,
+      12,
       f
     );
   }
   f = message.getMac();
   if (f.length > 0) {
     writer.writeString(
-      12,
+      13,
+      f
+    );
+  }
+  f = message.getDomain();
+  if (f.length > 0) {
+    writer.writeString(
+      14,
       f
     );
   }
@@ -973,32 +997,47 @@ proto.blog.BlogPost.prototype.setTitle = function(value) {
 
 
 /**
- * optional string language = 5;
+ * optional string subtitle = 5;
  * @return {string}
  */
-proto.blog.BlogPost.prototype.getLanguage = function() {
+proto.blog.BlogPost.prototype.getSubtitle = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.BlogPost.prototype.setLanguage = function(value) {
+proto.blog.BlogPost.prototype.setSubtitle = function(value) {
   jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * repeated string keywords = 6;
+ * optional string language = 6;
+ * @return {string}
+ */
+proto.blog.BlogPost.prototype.getLanguage = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/** @param {string} value */
+proto.blog.BlogPost.prototype.setLanguage = function(value) {
+  jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * repeated string keywords = 7;
  * @return {!Array<string>}
  */
 proto.blog.BlogPost.prototype.getKeywordsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
 };
 
 
 /** @param {!Array<string>} value */
 proto.blog.BlogPost.prototype.setKeywordsList = function(value) {
-  jspb.Message.setField(this, 6, value || []);
+  jspb.Message.setField(this, 7, value || []);
 };
 
 
@@ -1007,7 +1046,7 @@ proto.blog.BlogPost.prototype.setKeywordsList = function(value) {
  * @param {number=} opt_index
  */
 proto.blog.BlogPost.prototype.addKeywords = function(value, opt_index) {
-  jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  jspb.Message.addToRepeatedField(this, 7, value, opt_index);
 };
 
 
@@ -1017,33 +1056,33 @@ proto.blog.BlogPost.prototype.clearKeywordsList = function() {
 
 
 /**
- * optional int64 creationTime = 7;
+ * optional int64 creationTime = 8;
  * @return {number}
  */
 proto.blog.BlogPost.prototype.getCreationtime = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 7, 0));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 8, 0));
 };
 
 
 /** @param {number} value */
 proto.blog.BlogPost.prototype.setCreationtime = function(value) {
-  jspb.Message.setProto3IntField(this, 7, value);
+  jspb.Message.setProto3IntField(this, 8, value);
 };
 
 
 /**
- * repeated Emoji emotions = 8;
+ * repeated Emoji emotions = 9;
  * @return {!Array<!proto.blog.Emoji>}
  */
 proto.blog.BlogPost.prototype.getEmotionsList = function() {
   return /** @type{!Array<!proto.blog.Emoji>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Emoji, 8));
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Emoji, 9));
 };
 
 
 /** @param {!Array<!proto.blog.Emoji>} value */
 proto.blog.BlogPost.prototype.setEmotionsList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 8, value);
+  jspb.Message.setRepeatedWrapperField(this, 9, value);
 };
 
 
@@ -1053,7 +1092,7 @@ proto.blog.BlogPost.prototype.setEmotionsList = function(value) {
  * @return {!proto.blog.Emoji}
  */
 proto.blog.BlogPost.prototype.addEmotions = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 8, opt_value, proto.blog.Emoji, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.blog.Emoji, opt_index);
 };
 
 
@@ -1063,18 +1102,18 @@ proto.blog.BlogPost.prototype.clearEmotionsList = function() {
 
 
 /**
- * repeated Comment comments = 9;
+ * repeated Comment comments = 10;
  * @return {!Array<!proto.blog.Comment>}
  */
 proto.blog.BlogPost.prototype.getCommentsList = function() {
   return /** @type{!Array<!proto.blog.Comment>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.blog.Comment, 9));
+    jspb.Message.getRepeatedWrapperField(this, proto.blog.Comment, 10));
 };
 
 
 /** @param {!Array<!proto.blog.Comment>} value */
 proto.blog.BlogPost.prototype.setCommentsList = function(value) {
-  jspb.Message.setRepeatedWrapperField(this, 9, value);
+  jspb.Message.setRepeatedWrapperField(this, 10, value);
 };
 
 
@@ -1084,7 +1123,7 @@ proto.blog.BlogPost.prototype.setCommentsList = function(value) {
  * @return {!proto.blog.Comment}
  */
 proto.blog.BlogPost.prototype.addComments = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 9, opt_value, proto.blog.Comment, opt_index);
+  return jspb.Message.addToRepeatedWrapperField(this, 10, opt_value, proto.blog.Comment, opt_index);
 };
 
 
@@ -1094,47 +1133,62 @@ proto.blog.BlogPost.prototype.clearCommentsList = function() {
 
 
 /**
- * optional string thumbnail = 10;
+ * optional string thumbnail = 11;
  * @return {string}
  */
 proto.blog.BlogPost.prototype.getThumbnail = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 11, ""));
 };
 
 
 /** @param {string} value */
 proto.blog.BlogPost.prototype.setThumbnail = function(value) {
-  jspb.Message.setProto3StringField(this, 10, value);
+  jspb.Message.setProto3StringField(this, 11, value);
 };
 
 
 /**
- * optional BogPostStatus status = 11;
+ * optional BogPostStatus status = 12;
  * @return {!proto.blog.BogPostStatus}
  */
 proto.blog.BlogPost.prototype.getStatus = function() {
-  return /** @type {!proto.blog.BogPostStatus} */ (jspb.Message.getFieldWithDefault(this, 11, 0));
+  return /** @type {!proto.blog.BogPostStatus} */ (jspb.Message.getFieldWithDefault(this, 12, 0));
 };
 
 
 /** @param {!proto.blog.BogPostStatus} value */
 proto.blog.BlogPost.prototype.setStatus = function(value) {
-  jspb.Message.setProto3EnumField(this, 11, value);
+  jspb.Message.setProto3EnumField(this, 12, value);
 };
 
 
 /**
- * optional string mac = 12;
+ * optional string mac = 13;
  * @return {string}
  */
 proto.blog.BlogPost.prototype.getMac = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 12, ""));
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 13, ""));
 };
 
 
 /** @param {string} value */
 proto.blog.BlogPost.prototype.setMac = function(value) {
-  jspb.Message.setProto3StringField(this, 12, value);
+  jspb.Message.setProto3StringField(this, 13, value);
+};
+
+
+/**
+ * optional string domain = 14;
+ * @return {string}
+ */
+proto.blog.BlogPost.prototype.getDomain = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
+};
+
+
+/** @param {string} value */
+proto.blog.BlogPost.prototype.setDomain = function(value) {
+  jspb.Message.setProto3StringField(this, 14, value);
 };
 
 
@@ -1197,8 +1251,9 @@ proto.blog.CreateBlogPostRequest.toObject = function(includeInstance, msg) {
     language: jspb.Message.getFieldWithDefault(msg, 3, ""),
     keywordsList: jspb.Message.getRepeatedField(msg, 4),
     title: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    thumbnail: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    text: jspb.Message.getFieldWithDefault(msg, 7, "")
+    subtitle: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    thumbnail: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    text: jspb.Message.getFieldWithDefault(msg, 8, "")
   };
 
   if (includeInstance) {
@@ -1257,9 +1312,13 @@ proto.blog.CreateBlogPostRequest.deserializeBinaryFromReader = function(msg, rea
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.setThumbnail(value);
+      msg.setSubtitle(value);
       break;
     case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setThumbnail(value);
+      break;
+    case 8:
       var value = /** @type {string} */ (reader.readString());
       msg.setText(value);
       break;
@@ -1327,17 +1386,24 @@ proto.blog.CreateBlogPostRequest.serializeBinaryToWriter = function(message, wri
       f
     );
   }
-  f = message.getThumbnail();
+  f = message.getSubtitle();
   if (f.length > 0) {
     writer.writeString(
       6,
       f
     );
   }
-  f = message.getText();
+  f = message.getThumbnail();
   if (f.length > 0) {
     writer.writeString(
       7,
+      f
+    );
+  }
+  f = message.getText();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
       f
     );
   }
@@ -1434,32 +1500,47 @@ proto.blog.CreateBlogPostRequest.prototype.setTitle = function(value) {
 
 
 /**
- * optional string thumbnail = 6;
+ * optional string subtitle = 6;
  * @return {string}
  */
-proto.blog.CreateBlogPostRequest.prototype.getThumbnail = function() {
+proto.blog.CreateBlogPostRequest.prototype.getSubtitle = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.CreateBlogPostRequest.prototype.setThumbnail = function(value) {
+proto.blog.CreateBlogPostRequest.prototype.setSubtitle = function(value) {
   jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
 /**
- * optional string text = 7;
+ * optional string thumbnail = 7;
  * @return {string}
  */
-proto.blog.CreateBlogPostRequest.prototype.getText = function() {
+proto.blog.CreateBlogPostRequest.prototype.getThumbnail = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
 
 /** @param {string} value */
-proto.blog.CreateBlogPostRequest.prototype.setText = function(value) {
+proto.blog.CreateBlogPostRequest.prototype.setThumbnail = function(value) {
   jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string text = 8;
+ * @return {string}
+ */
+proto.blog.CreateBlogPostRequest.prototype.getText = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/** @param {string} value */
+proto.blog.CreateBlogPostRequest.prototype.setText = function(value) {
+  jspb.Message.setProto3StringField(this, 8, value);
 };
 
 
