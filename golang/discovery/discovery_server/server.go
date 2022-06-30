@@ -542,7 +542,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 func (server *server) publishPackage(token, user, organization, discovery, repository, platform, path string, descriptor *resourcepb.PackageDescriptor) error {
 
 	// Ladies and Gentlemans After one year after tow years services as resource!
-	path_ := descriptor.PublisherId + "/" + descriptor.Name + "/" + descriptor.Id + "/" + descriptor.Version
+	path_ := descriptor.PublisherId + "|" + descriptor.Name + "|" + descriptor.Id + "|" + descriptor.Version
 
 	// So here I will set the permissions
 	var permissions *rbacpb.Permissions

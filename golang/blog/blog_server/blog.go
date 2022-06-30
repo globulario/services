@@ -315,7 +315,6 @@ func (srv *server) SearchBlogPosts(rqst *blogpb.SearchBlogPostsRequest, stream b
 	// Now I will generate the hits informations...
 	for i, hit := range result.Hits {
 		id := hit.ID
-
 		hit_ := new(blogpb.SearchHit)
 		hit_.Score = hit.Score
 		hit_.Index = int32(i)

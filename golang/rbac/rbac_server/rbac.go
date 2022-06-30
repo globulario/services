@@ -375,7 +375,7 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 	if err != nil {
 		return err
 	}
-	
+
 	if permissions.ResourceType == "file" {
 		err = rbac_server.shareResource(share)
 		if err != nil {
@@ -1498,15 +1498,15 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 		}
 		return false, false, err
-	}else{
+	} else {
 		fmt.Println("permissions found ", permissions)
 	}
 
 	// Test if the Subject is owner of the resource in that case I will git him access.
 	owners := permissions.Owners
-	isOwner := false
 	subjectStr := ""
 	if owners != nil {
+		fmt.Println("----------> permission owner found ", subject, path, owners)
 		if subjectType == rbacpb.SubjectType_ACCOUNT {
 			subjectStr = "Account"
 			exist, a := rbac_server.accountExist(subject)
@@ -1515,9 +1515,38 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 			if owners.Accounts != nil {
 				if Utility.Contains(owners.Accounts, subject) || Utility.Contains(owners.Accounts, a) {
-					isOwner = true
+					return true, false, nil
 				}
+			} else {
+				account, err := rbac_server.getAccount(subject)
+				if err != nil {
+					return false, false, errors.New("no account named " + subject + " exist")
+				}
+
+				if account.Groups != nil {
+					for i := 0; i < len(account.Groups); i++ {
+						groupId := account.Groups[i]
+						isOwner, _, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
+						if isOwner {
+							return true, false, nil
+						}
+					}
+				}
+
+				// from the account I will get the list of group.
+				
+					if account.Organizations != nil {
+						for i := 0; i < len(account.Organizations); i++ {
+							organizationId := account.Organizations[i]
+							isOwner, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+							if isOwner {
+								return true, false, nil
+							}
+						}
+					}
+				
 			}
+
 		} else if subjectType == rbacpb.SubjectType_APPLICATION {
 			subjectStr = "Application"
 			exist, a := rbac_server.applicationExist(subject)
@@ -1526,7 +1555,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 			if owners.Applications != nil {
 				if Utility.Contains(owners.Applications, subject) || Utility.Contains(owners.Applications, subject) {
-					isOwner = true
+					return true, false, nil
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_GROUP {
@@ -1537,7 +1566,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 			if owners.Groups != nil {
 				if Utility.Contains(owners.Groups, subject) || Utility.Contains(owners.Groups, g) {
-					isOwner = true
+					return true, false, nil
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
@@ -1548,7 +1577,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 			if owners.Organizations != nil {
 				if Utility.Contains(owners.Organizations, subject) || Utility.Contains(owners.Organizations, o) {
-					isOwner = true
+					return true, false, nil
 				}
 			}
 		} else if subjectType == rbacpb.SubjectType_PEER {
@@ -1559,17 +1588,15 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 			if owners.Peers != nil {
 				if Utility.Contains(owners.Peers, subject) {
-					isOwner = true
+					return true, false, nil
 				}
 			}
 		}
 	}
 
-	// If the user is the owner no other validation are required.
-	if isOwner {
-		return true, false, nil
-	} else if name == "owner" {
-		return false, false, errors.New("only the owner can do that action")
+	// if the permission is owner...
+	if name == "owner" {
+		return false, false, errors.New("no valid owner found for " + path)
 	}
 
 	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0 {
@@ -1732,8 +1759,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 
 				account, err := rbac_server.getAccount(subject)
 				if err == nil {
-					fmt.Println("----------------> roles: ", account.Roles)
-					fmt.Println("----------------> organisation: ", account.Organizations)
 					// from the account I will get the list of group.
 					if account.Groups != nil {
 						for i := 0; i < len(account.Groups); i++ {
@@ -2010,19 +2035,17 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 		// call the rpc method.
 		if account.Roles != nil {
-			for i := 0; i < len(account.Roles); i++ {
-				roleId := account.Roles[i]
-				if(roleId == "admin"){
-					hasAccess = true
-					break
-				}else{
+			if Utility.Contains(account.Roles, "admin") {
+				hasAccess = true
+			} else {
+				for i := 0; i < len(account.Roles); i++ {
+					roleId := account.Roles[i]
 					hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
 					if hasAccess_ {
 						hasAccess = hasAccess_
 						break
 					}
 				}
-
 			}
 		}
 	}
@@ -2057,7 +2080,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			if len(resources[i].Path) > 0 { // Here if the path is empty i will simply not validate it.
 				hasAccess, accessDenied, _ := rbac_server.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
 				if !hasAccess || accessDenied {
-
 					err := errors.New("subject " + subject + " can call the method '" + action + "' but has not the permission to " + resources[i].Permission + " resource '" + resources[i].Path + "'")
 					return false, err
 				} else if hasAccess {
