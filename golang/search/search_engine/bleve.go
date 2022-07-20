@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"github.com/blevesearch/bleve"
 	"github.com/globulario/services/golang/search/searchpb"
+	"log"
 )
 
 /**
@@ -27,7 +27,6 @@ func (engine *BleveSearchEngine) getIndex(path string) (bleve.Index, error) {
 			var err error
 			index, err = bleve.New(path, mapping)
 			if err != nil {
-				fmt.Println("30 ---------> err", err)
 				return nil, err
 			}
 		}
@@ -47,7 +46,6 @@ func (engine *BleveSearchEngine) GetVersion() string {
 	return "2.0"
 }
 
-
 // Set a document from list of db from given paths...
 func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string, fields []string, q string, offset, pageSize, snippetLength int32) (*searchpb.SearchResults, error) {
 	results := new(searchpb.SearchResults)
@@ -61,6 +59,9 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 		query := bleve.NewQueryStringQuery(q)
 		searchRequest := bleve.NewSearchRequest(query)
 		searchRequest.Fields = fields
+		searchRequest.From = int(offset)
+		searchRequest.Size = int(pageSize)
+		searchRequest.Highlight = bleve.NewHighlightWithStyle("html")
 		searchResult, err := index.Search(searchRequest)
 		if err != nil {
 			return nil, err
@@ -71,7 +72,7 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 			return nil, errors.New("No matches") // return as error...
 		}
 
-		// Now I will return the data 
+		// Now I will return the data
 		for _, val := range searchResult.Hits {
 			id := val.ID
 			raw, err := index.GetInternal([]byte(id))
@@ -80,10 +81,16 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 			}
 			result := new(searchpb.SearchResult)
 			result.Data = string(raw)
-			
+
 			result.DocId = id
-			result.Rank = int32(val.Score)
-			result.Snippet = val.String()
+			result.Rank = int32(val.Score * 100)
+
+			// serialyse the fragment and set it as snippet.
+			data, err := json.Marshal(val.Fragments)
+			if err == nil {
+				result.Snippet = string(data)
+			}
+
 			results.Results = append(results.Results, result)
 		}
 
@@ -94,7 +101,18 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 
 // Delete a document with a given path and id.
 func (engine *BleveSearchEngine) DeleteDocument(path string, id string) error {
-	return errors.New("not implemented")
+	fmt.Println("Try to index object...", path)
+	index, err := engine.getIndex(path)
+	if err != nil {
+		return err
+	}
+
+	err = index.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (search_engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj map[string]interface{}, language string, id string, indexs []string, data string) error {
@@ -107,14 +125,13 @@ func (search_engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj m
 	// Associated original object here...
 	if len(data) > 0 {
 		err = index.SetInternal([]byte(id_), []byte(data))
-	}else{
+	} else {
 		var data_ []byte
 		data_, err = json.Marshal(obj)
 		if err == nil {
 			err = index.SetInternal([]byte(id_), data_)
 		}
 	}
-
 
 	return err
 }
@@ -152,5 +169,13 @@ func (engine *BleveSearchEngine) IndexJsonObject(path string, jsonStr string, la
 
 // Count the number of document in a db.
 func (engine *BleveSearchEngine) Count(path string) int32 {
-	return -1
+	index, err := engine.getIndex(path)
+	if err != nil {
+		return -1
+	}
+
+	total, err := index.DocCount()
+
+	// convert to int 32
+	return int32(total)
 }

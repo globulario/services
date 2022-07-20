@@ -1534,17 +1534,17 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 				}
 
 				// from the account I will get the list of group.
-				
-					if account.Organizations != nil {
-						for i := 0; i < len(account.Organizations); i++ {
-							organizationId := account.Organizations[i]
-							isOwner, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-							if isOwner {
-								return true, false, nil
-							}
+				if account.Organizations != nil {
+					for i := 0; i < len(account.Organizations); i++ {
+						organizationId := account.Organizations[i]
+						fmt.Println("-----------> validate organization: ", organizationId, path)
+						isOwner, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+						if isOwner {
+							return true, false, nil
 						}
 					}
-				
+				}
+
 			}
 
 		} else if subjectType == rbacpb.SubjectType_APPLICATION {
@@ -2036,6 +2036,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		// call the rpc method.
 		if account.Roles != nil {
 			if Utility.Contains(account.Roles, "admin") {
+				fmt.Println("----------> ", subject, " is admin!")
 				hasAccess = true
 			} else {
 				for i := 0; i < len(account.Roles); i++ {
