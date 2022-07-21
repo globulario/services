@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -11,9 +10,7 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/search/searchpb"
-	"github.com/globulario/services/golang/storage/storage_store"
 
-	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 
 	globular "github.com/globulario/services/golang/globular_service"
@@ -84,8 +81,6 @@ type server struct {
 	// Specific to file server.
 	Root string
 
-	// The cache will contain the result of query.
-	cache *storage_store.BigCache_store
 
 	search_engine search_engine.SearchEngine
 }
@@ -426,6 +421,7 @@ func (search_server *server) GetEngineVersion(ctx context.Context, rqst *searchp
 // Remove a document from the db
 func (search_server *server) DeleteDocument(ctx context.Context, rqst *searchpb.DeleteDocumentRequest) (*searchpb.DeleteDocumentResponse, error) {
 	err := search_server.search_engine.DeleteDocument(rqst.Path, rqst.Id)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -449,42 +445,11 @@ func (search_server *server) SearchDocuments(rqst *searchpb.SearchDocumentsReque
 	results := new(searchpb.SearchResults)
 	var err error
 
-	resultKey := ""
-	// Set the list of path
-	for i := 0; i < len(rqst.Paths); i++ {
-		resultKey += rqst.Paths[i]
-	}
-
-	// Set the list fields.
-	for i := 0; i < len(rqst.Fields); i++ {
-		resultKey += rqst.Fields[i]
-	}
-	resultKey += Utility.ToString(rqst.Query)
-	resultKey += Utility.ToString(rqst.Offset)
-	resultKey += Utility.ToString(rqst.PageSize)
-
-	// Set as Hash key
-	resultKey = Utility.GenerateUUID(resultKey)
-
-	data, err := search_server.cache.GetItem(resultKey)
-	if err == nil {
-		results = new(searchpb.SearchResults)
-		err = jsonpb.UnmarshalString(string(data), results)
-	} else {
-		results, err := search_server.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
+		results, err = search_server.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
 		if err != nil {
 			return err
 		}
-
-		// Keep the result in the cache.
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(results)
-		if err != nil {
-			return err
-		}
-
-		search_server.cache.SetItem(resultKey, []byte(jsonStr))
-	}
+	
 
 	stream.Send(&searchpb.SearchDocumentsResponse{
 		Results: results,
@@ -534,12 +499,6 @@ func main() {
 	s_impl.Repositories = make([]string, 0)
 	s_impl.Discoveries = make([]string, 0)
 	s_impl.Dependencies = make([]string, 0)
-	// Create the new big cache.
-	s_impl.cache = storage_store.NewBigCache_store()
-	err := s_impl.cache.Open("")
-	if err != nil {
-		fmt.Println(err)
-	}
 
 	// Set the root path if is pass as argument.
 	if len(os.Args) > 2 {
@@ -547,7 +506,7 @@ func main() {
 	}
 
 	// Here I will retreive the list of connections from file if there are some...
-	err = s_impl.Init()
+	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}

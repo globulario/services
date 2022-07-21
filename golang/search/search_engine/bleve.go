@@ -101,7 +101,7 @@ func (engine *BleveSearchEngine) SearchDocuments(paths []string, language string
 
 // Delete a document with a given path and id.
 func (engine *BleveSearchEngine) DeleteDocument(path string, id string) error {
-	fmt.Println("Try to index object...", path)
+
 	index, err := engine.getIndex(path)
 	if err != nil {
 		return err
