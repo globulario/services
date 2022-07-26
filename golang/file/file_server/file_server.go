@@ -625,8 +625,6 @@ func getThumbnails(info *fileInfo) []interface{} {
  */
 func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool) (*fileInfo, error) {
 
-	fmt.Println("read dir ", path, recursive)
-
 	// get the file info
 	info, err := getFileInfo(s, path)
 	if err != nil {

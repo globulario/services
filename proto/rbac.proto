@@ -48,10 +48,25 @@ message GetResourcePermissionsByResourceTypeRsp{
 	repeated Permissions permissions = 1;
 }
 
+
+/** Return a resource permissions **/
+message GetResourcePermissionsBySubjectRqst{
+	string subject = 1;
+	SubjectType subject_type = 2;
+	string resource_type = 3;
+}
+
+/** Get resource permissions **/
+message GetResourcePermissionsBySubjectRsp{
+	repeated Permissions permissions = 1;
+}
+
+
 /** Delete a resource permissions **/
 message DeleteResourcePermissionsRqst{
 	string path = 1;
 }
+
 
 /** Return permissions **/
 message DeleteResourcePermissionsRsp{
@@ -294,6 +309,9 @@ service RbacService {
 
 	/** Get the list of all resource permission for a given resource type ex. blog or file...*/
 	rpc GetResourcePermissionsByResourceType(GetResourcePermissionsByResourceTypeRqst) returns(stream GetResourcePermissionsByResourceTypeRsp);
+
+	/** Return the list of permissions for a given subject. If no resource type was given all resource will be return. **/
+	rpc GetResourcePermissionsBySubject(GetResourcePermissionsBySubjectRqst) returns(stream GetResourcePermissionsBySubjectRsp);
 	
 	/** Add resource owner do nothing if it already exist */
 	rpc AddResourceOwner(AddResourceOwnerRqst) returns(AddResourceOwnerRsp);

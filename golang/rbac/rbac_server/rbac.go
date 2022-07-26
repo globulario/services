@@ -113,6 +113,12 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 	return rbac_server.permissions.SetItem(subject, data)
 }
 
+// The function return the list of permissions associtated with a given subject.
+func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type string, subject_type rbacpb.SubjectType) ([]*rbacpb.Permissions, error) {
+	// So here I will retreive the subject permissions, and filter resource_type as needed...
+	return nil, errors.New(("not implemented"))
+}
+
 // Save the resource permission
 func (rbac_server *server) setResourcePermissions(path, resource_type string, permissions *rbacpb.Permissions) error {
 
@@ -1447,7 +1453,7 @@ func isPublic(path string) bool {
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
-	fmt.Println("validate access for ", subject, name, path)
+
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
@@ -1481,7 +1487,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	// .hidden files can be read by all... also file in public directory can be read by all...
-	if strings.Contains(path, "/.hidden/") || isPublic(path) {
+	if strings.Contains(path, "/.hidden/") || (isPublic(path) && name == "read") {
 		return true, false, nil
 	}
 
@@ -1506,7 +1512,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	owners := permissions.Owners
 	subjectStr := ""
 	if owners != nil {
-		fmt.Println("----------> permission owner found ", subject, path, owners)
 		if subjectType == rbacpb.SubjectType_ACCOUNT {
 			subjectStr = "Account"
 			exist, a := rbac_server.accountExist(subject)
@@ -1537,7 +1542,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 				if account.Organizations != nil {
 					for i := 0; i < len(account.Organizations); i++ {
 						organizationId := account.Organizations[i]
-						fmt.Println("-----------> validate organization: ", organizationId, path)
 						isOwner, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
 						if isOwner {
 							return true, false, nil
@@ -1947,7 +1951,6 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 
-	fmt.Println("-------------------> validate action for ", action, subject)
 	// test if the subject exist.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
@@ -2672,6 +2675,31 @@ func (server *server) GetResourcePermissionsByResourceType(rqst *rbacpb.GetResou
 		} else {
 			// send the remaining.
 			stream.Send(&rbacpb.GetResourcePermissionsByResourceTypeRsp{Permissions: permissions[i:]})
+		}
+	}
+
+	return nil
+}
+
+//* Return the list of permissions for a given subject. If no resource type was given all resource will be return. *
+func (server *server) GetResourcePermissionsBySubject(rqst *rbacpb.GetResourcePermissionsBySubjectRqst, stream rbacpb.RbacService_GetResourcePermissionsBySubjectServer) error {
+
+	permissions, err := server.getSubjectResourcePermissions(rqst.Subject, rqst.ResourceType, rqst.SubjectType)
+
+	if err != nil {
+		status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Now I will return the list of permissions for a given permission type ex. blog, file, application, package etc.
+	nb := 25 // the number of object to be send a each iteration...
+	for i := 0; i < len(permissions); i += nb {
+		if i+nb < len(permissions) {
+			stream.Send(&rbacpb.GetResourcePermissionsBySubjectRsp{Permissions: permissions[i : i+nb]})
+		} else {
+			// send the remaining.
+			stream.Send(&rbacpb.GetResourcePermissionsBySubjectRsp{Permissions: permissions[i:]})
 		}
 	}
 
