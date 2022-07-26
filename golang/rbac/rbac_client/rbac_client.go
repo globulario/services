@@ -402,6 +402,23 @@ func (client *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.Sub
 	return rsp.HasAccess, rsp.AccessDenied, nil
 }
 
+/** Validate if a user can get access to a given Resource for a given operation (read, write...) **/
+func (client *Rbac_Client) ValidateSubjectSpace(subject string, subjectType rbacpb.SubjectType, required_space int) (bool, error) {
+
+	rqst := &rbacpb.ValidateSubjectSpaceRqst{
+		Subject:    subject,
+		Type:       subjectType,
+		RequiredSpace: int32(required_space),
+	}
+
+	rsp, err := client.c.ValidateSubjectSpace(client.GetCtx(), rqst)
+	if err != nil {
+		return  false, err
+	}
+
+	return rsp.HasSpace, nil
+}
+
 /**
  * Validata action...
  */

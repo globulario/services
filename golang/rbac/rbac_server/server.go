@@ -609,8 +609,8 @@ func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
  * Test if a peer exist.
  */
 func (server *server) peerExist(id string) bool {
-	g, err := server.getPeer(id)
-	if err != nil || g == nil {
+	p, err := server.getPeer(id)
+	if err != nil || p == nil {
 		return false
 	}
 	return true

@@ -497,6 +497,62 @@ proto.rbac.RbacServicePromiseClient.prototype.getResourcePermissionsByResourceTy
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.GetResourcePermissionsBySubjectRqst,
+ *   !proto.rbac.GetResourcePermissionsBySubjectRsp>}
+ */
+const methodDescriptor_RbacService_GetResourcePermissionsBySubject = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/GetResourcePermissionsBySubject',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.rbac.GetResourcePermissionsBySubjectRqst,
+  proto.rbac.GetResourcePermissionsBySubjectRsp,
+  /**
+   * @param {!proto.rbac.GetResourcePermissionsBySubjectRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetResourcePermissionsBySubjectRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.GetResourcePermissionsBySubjectRqst} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetResourcePermissionsBySubjectRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.getResourcePermissionsBySubject =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/rbac.RbacService/GetResourcePermissionsBySubject',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetResourcePermissionsBySubject);
+};
+
+
+/**
+ * @param {!proto.rbac.GetResourcePermissionsBySubjectRqst} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetResourcePermissionsBySubjectRsp>}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServicePromiseClient.prototype.getResourcePermissionsBySubject =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/rbac.RbacService/GetResourcePermissionsBySubject',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetResourcePermissionsBySubject);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.rbac.AddResourceOwnerRqst,
  *   !proto.rbac.AddResourceOwnerRsp>}
  */
@@ -918,6 +974,250 @@ proto.rbac.RbacServicePromiseClient.prototype.validateAction =
       request,
       metadata || {},
       methodDescriptor_RbacService_ValidateAction);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.ValidateSubjectSpaceRqst,
+ *   !proto.rbac.ValidateSubjectSpaceRsp>}
+ */
+const methodDescriptor_RbacService_ValidateSubjectSpace = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/ValidateSubjectSpace',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.ValidateSubjectSpaceRqst,
+  proto.rbac.ValidateSubjectSpaceRsp,
+  /**
+   * @param {!proto.rbac.ValidateSubjectSpaceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.ValidateSubjectSpaceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.ValidateSubjectSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.ValidateSubjectSpaceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.ValidateSubjectSpaceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.validateSubjectSpace =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/ValidateSubjectSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_ValidateSubjectSpace,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.ValidateSubjectSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.ValidateSubjectSpaceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.validateSubjectSpace =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/ValidateSubjectSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_ValidateSubjectSpace);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.GetSubjectAvailableSpaceRqst,
+ *   !proto.rbac.GetSubjectAvailableSpaceRsp>}
+ */
+const methodDescriptor_RbacService_GetSubjectAvailableSpace = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/GetSubjectAvailableSpace',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.GetSubjectAvailableSpaceRqst,
+  proto.rbac.GetSubjectAvailableSpaceRsp,
+  /**
+   * @param {!proto.rbac.GetSubjectAvailableSpaceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetSubjectAvailableSpaceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.GetSubjectAvailableSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.GetSubjectAvailableSpaceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetSubjectAvailableSpaceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.getSubjectAvailableSpace =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/GetSubjectAvailableSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetSubjectAvailableSpace,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.GetSubjectAvailableSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.GetSubjectAvailableSpaceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.getSubjectAvailableSpace =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/GetSubjectAvailableSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetSubjectAvailableSpace);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.GetSubjectAllocatedSpaceRqst,
+ *   !proto.rbac.GetSubjectAllocatedSpaceRsp>}
+ */
+const methodDescriptor_RbacService_GetSubjectAllocatedSpace = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/GetSubjectAllocatedSpace',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.GetSubjectAllocatedSpaceRqst,
+  proto.rbac.GetSubjectAllocatedSpaceRsp,
+  /**
+   * @param {!proto.rbac.GetSubjectAllocatedSpaceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.GetSubjectAllocatedSpaceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.GetSubjectAllocatedSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.GetSubjectAllocatedSpaceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.GetSubjectAllocatedSpaceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.getSubjectAllocatedSpace =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/GetSubjectAllocatedSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetSubjectAllocatedSpace,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.GetSubjectAllocatedSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.GetSubjectAllocatedSpaceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.getSubjectAllocatedSpace =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/GetSubjectAllocatedSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_GetSubjectAllocatedSpace);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.rbac.SetSubjectAllocatedSpaceRqst,
+ *   !proto.rbac.SetSubjectAllocatedSpaceRsp>}
+ */
+const methodDescriptor_RbacService_SetSubjectAllocatedSpace = new grpc.web.MethodDescriptor(
+  '/rbac.RbacService/SetSubjectAllocatedSpace',
+  grpc.web.MethodType.UNARY,
+  proto.rbac.SetSubjectAllocatedSpaceRqst,
+  proto.rbac.SetSubjectAllocatedSpaceRsp,
+  /**
+   * @param {!proto.rbac.SetSubjectAllocatedSpaceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.rbac.SetSubjectAllocatedSpaceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.rbac.SetSubjectAllocatedSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.rbac.SetSubjectAllocatedSpaceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.rbac.SetSubjectAllocatedSpaceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.rbac.RbacServiceClient.prototype.setSubjectAllocatedSpace =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/rbac.RbacService/SetSubjectAllocatedSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_SetSubjectAllocatedSpace,
+      callback);
+};
+
+
+/**
+ * @param {!proto.rbac.SetSubjectAllocatedSpaceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.rbac.SetSubjectAllocatedSpaceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.rbac.RbacServicePromiseClient.prototype.setSubjectAllocatedSpace =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/rbac.RbacService/SetSubjectAllocatedSpace',
+      request,
+      metadata || {},
+      methodDescriptor_RbacService_SetSubjectAllocatedSpace);
 };
 
 

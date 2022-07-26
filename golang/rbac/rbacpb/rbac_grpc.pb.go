@@ -52,6 +52,14 @@ type RbacServiceClient interface {
 	GetActionResourceInfos(ctx context.Context, in *GetActionResourceInfosRqst, opts ...grpc.CallOption) (*GetActionResourceInfosRsp, error)
 	//* Validate the actions
 	ValidateAction(ctx context.Context, in *ValidateActionRqst, opts ...grpc.CallOption) (*ValidateActionRsp, error)
+	//* Validate if the subject has enought space to store file *
+	ValidateSubjectSpace(ctx context.Context, in *ValidateSubjectSpaceRqst, opts ...grpc.CallOption) (*ValidateSubjectSpaceRsp, error)
+	//* Return the subject available disk space *
+	GetSubjectAvailableSpace(ctx context.Context, in *GetSubjectAvailableSpaceRqst, opts ...grpc.CallOption) (*GetSubjectAvailableSpaceRsp, error)
+	//* Return the subject allocated disk space *
+	GetSubjectAllocatedSpace(ctx context.Context, in *GetSubjectAllocatedSpaceRqst, opts ...grpc.CallOption) (*GetSubjectAllocatedSpaceRsp, error)
+	//* Set the user allocated space *
+	SetSubjectAllocatedSpace(ctx context.Context, in *SetSubjectAllocatedSpaceRqst, opts ...grpc.CallOption) (*SetSubjectAllocatedSpaceRsp, error)
 	// That function will set a share or update existing share... ex. add/delete account, group
 	ShareResource(ctx context.Context, in *ShareResourceRqst, opts ...grpc.CallOption) (*ShareResourceRsp, error)
 	// Remove the share
@@ -253,6 +261,42 @@ func (c *rbacServiceClient) ValidateAction(ctx context.Context, in *ValidateActi
 	return out, nil
 }
 
+func (c *rbacServiceClient) ValidateSubjectSpace(ctx context.Context, in *ValidateSubjectSpaceRqst, opts ...grpc.CallOption) (*ValidateSubjectSpaceRsp, error) {
+	out := new(ValidateSubjectSpaceRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/ValidateSubjectSpace", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) GetSubjectAvailableSpace(ctx context.Context, in *GetSubjectAvailableSpaceRqst, opts ...grpc.CallOption) (*GetSubjectAvailableSpaceRsp, error) {
+	out := new(GetSubjectAvailableSpaceRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/GetSubjectAvailableSpace", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) GetSubjectAllocatedSpace(ctx context.Context, in *GetSubjectAllocatedSpaceRqst, opts ...grpc.CallOption) (*GetSubjectAllocatedSpaceRsp, error) {
+	out := new(GetSubjectAllocatedSpaceRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/GetSubjectAllocatedSpace", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rbacServiceClient) SetSubjectAllocatedSpace(ctx context.Context, in *SetSubjectAllocatedSpaceRqst, opts ...grpc.CallOption) (*SetSubjectAllocatedSpaceRsp, error) {
+	out := new(SetSubjectAllocatedSpaceRsp)
+	err := c.cc.Invoke(ctx, "/rbac.RbacService/SetSubjectAllocatedSpace", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *rbacServiceClient) ShareResource(ctx context.Context, in *ShareResourceRqst, opts ...grpc.CallOption) (*ShareResourceRsp, error) {
 	out := new(ShareResourceRsp)
 	err := c.cc.Invoke(ctx, "/rbac.RbacService/ShareResource", in, out, opts...)
@@ -332,6 +376,14 @@ type RbacServiceServer interface {
 	GetActionResourceInfos(context.Context, *GetActionResourceInfosRqst) (*GetActionResourceInfosRsp, error)
 	//* Validate the actions
 	ValidateAction(context.Context, *ValidateActionRqst) (*ValidateActionRsp, error)
+	//* Validate if the subject has enought space to store file *
+	ValidateSubjectSpace(context.Context, *ValidateSubjectSpaceRqst) (*ValidateSubjectSpaceRsp, error)
+	//* Return the subject available disk space *
+	GetSubjectAvailableSpace(context.Context, *GetSubjectAvailableSpaceRqst) (*GetSubjectAvailableSpaceRsp, error)
+	//* Return the subject allocated disk space *
+	GetSubjectAllocatedSpace(context.Context, *GetSubjectAllocatedSpaceRqst) (*GetSubjectAllocatedSpaceRsp, error)
+	//* Set the user allocated space *
+	SetSubjectAllocatedSpace(context.Context, *SetSubjectAllocatedSpaceRqst) (*SetSubjectAllocatedSpaceRsp, error)
 	// That function will set a share or update existing share... ex. add/delete account, group
 	ShareResource(context.Context, *ShareResourceRqst) (*ShareResourceRsp, error)
 	// Remove the share
@@ -392,6 +444,18 @@ func (UnimplementedRbacServiceServer) GetActionResourceInfos(context.Context, *G
 }
 func (UnimplementedRbacServiceServer) ValidateAction(context.Context, *ValidateActionRqst) (*ValidateActionRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateAction not implemented")
+}
+func (UnimplementedRbacServiceServer) ValidateSubjectSpace(context.Context, *ValidateSubjectSpaceRqst) (*ValidateSubjectSpaceRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidateSubjectSpace not implemented")
+}
+func (UnimplementedRbacServiceServer) GetSubjectAvailableSpace(context.Context, *GetSubjectAvailableSpaceRqst) (*GetSubjectAvailableSpaceRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSubjectAvailableSpace not implemented")
+}
+func (UnimplementedRbacServiceServer) GetSubjectAllocatedSpace(context.Context, *GetSubjectAllocatedSpaceRqst) (*GetSubjectAllocatedSpaceRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSubjectAllocatedSpace not implemented")
+}
+func (UnimplementedRbacServiceServer) SetSubjectAllocatedSpace(context.Context, *SetSubjectAllocatedSpaceRqst) (*SetSubjectAllocatedSpaceRsp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetSubjectAllocatedSpace not implemented")
 }
 func (UnimplementedRbacServiceServer) ShareResource(context.Context, *ShareResourceRqst) (*ShareResourceRsp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ShareResource not implemented")
@@ -696,6 +760,78 @@ func _RbacService_ValidateAction_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RbacService_ValidateSubjectSpace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateSubjectSpaceRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).ValidateSubjectSpace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/ValidateSubjectSpace",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).ValidateSubjectSpace(ctx, req.(*ValidateSubjectSpaceRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_GetSubjectAvailableSpace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSubjectAvailableSpaceRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).GetSubjectAvailableSpace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/GetSubjectAvailableSpace",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).GetSubjectAvailableSpace(ctx, req.(*GetSubjectAvailableSpaceRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_GetSubjectAllocatedSpace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSubjectAllocatedSpaceRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).GetSubjectAllocatedSpace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/GetSubjectAllocatedSpace",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).GetSubjectAllocatedSpace(ctx, req.(*GetSubjectAllocatedSpaceRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RbacService_SetSubjectAllocatedSpace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetSubjectAllocatedSpaceRqst)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RbacServiceServer).SetSubjectAllocatedSpace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rbac.RbacService/SetSubjectAllocatedSpace",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RbacServiceServer).SetSubjectAllocatedSpace(ctx, req.(*SetSubjectAllocatedSpaceRqst))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RbacService_ShareResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ShareResourceRqst)
 	if err := dec(in); err != nil {
@@ -844,6 +980,22 @@ var RbacService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateAction",
 			Handler:    _RbacService_ValidateAction_Handler,
+		},
+		{
+			MethodName: "ValidateSubjectSpace",
+			Handler:    _RbacService_ValidateSubjectSpace_Handler,
+		},
+		{
+			MethodName: "GetSubjectAvailableSpace",
+			Handler:    _RbacService_GetSubjectAvailableSpace_Handler,
+		},
+		{
+			MethodName: "GetSubjectAllocatedSpace",
+			Handler:    _RbacService_GetSubjectAllocatedSpace_Handler,
+		},
+		{
+			MethodName: "SetSubjectAllocatedSpace",
+			Handler:    _RbacService_SetSubjectAllocatedSpace_Handler,
 		},
 		{
 			MethodName: "ShareResource",

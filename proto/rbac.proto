@@ -284,6 +284,44 @@ message DeleteSubjectShareRsp{
 
 }
 
+message SetSubjectAllocatedSpaceRqst {
+	string subject = 1;
+	SubjectType type = 2;
+	int32 allocated_space = 3;
+}
+
+message SetSubjectAllocatedSpaceRsp {
+
+}
+
+message GetSubjectAllocatedSpaceRqst {
+	string subject = 1;
+	SubjectType type = 2;
+}
+
+message GetSubjectAllocatedSpaceRsp {
+	int32 allocated_space = 3;
+}
+
+message GetSubjectAvailableSpaceRqst {
+	string subject = 1;
+	SubjectType type = 2;
+}
+
+message GetSubjectAvailableSpaceRsp {
+	int32 available_space = 3;
+}
+
+message ValidateSubjectSpaceRqst {
+	string subject = 1;
+	SubjectType type = 2;
+	int32 required_space = 3;
+}
+
+message ValidateSubjectSpaceRsp {
+	bool hasSpace = 1;
+}
+
 /**
  * The service to control action and resource access.
  */
@@ -335,6 +373,20 @@ service RbacService {
 	
 	/** Validate the actions */
 	rpc ValidateAction(ValidateActionRqst) returns(ValidateActionRsp);
+
+	///////////////////////// Disk usage ////////////////////////
+
+	/** Validate if the subject has enought space to store file **/
+	rpc ValidateSubjectSpace(ValidateSubjectSpaceRqst) returns(ValidateSubjectSpaceRsp);
+
+	/** Return the subject available disk space **/
+	rpc GetSubjectAvailableSpace(GetSubjectAvailableSpaceRqst) returns(GetSubjectAvailableSpaceRsp);
+
+	/** Return the subject allocated disk space **/
+	rpc GetSubjectAllocatedSpace(GetSubjectAllocatedSpaceRqst) returns(GetSubjectAllocatedSpaceRsp);
+
+	/** Set the user allocated space **/
+	rpc SetSubjectAllocatedSpace(SetSubjectAllocatedSpaceRqst) returns(SetSubjectAllocatedSpaceRsp);
 
 	///////////////////////// Share ////////////////////////////
 
