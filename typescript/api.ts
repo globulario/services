@@ -275,7 +275,6 @@ export function uploadFiles(globule: Globular, path: string, files: File[], comp
 
   // create the request
   var xhr = new XMLHttpRequest();
-  xhr.timeout = 1500;
 
   // Connect handling functions.
   xhr.upload.addEventListener("progress", progressHandler, false);

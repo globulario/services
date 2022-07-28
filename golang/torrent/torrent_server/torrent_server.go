@@ -663,6 +663,7 @@ func percent(actual, total int64) float64 {
 
 func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *torrentpb.TorrentInfo {
 
+	
 	var updatedAt, downloaded int64
 	if torrentInfo == nil {
 		torrentInfo = new(torrentpb.TorrentInfo)
@@ -821,7 +822,6 @@ func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, strea
 	<- svr.getTorrentsInfo(stream)
 
 	// wait until the stream is close by the client...
-	fmt.Println("-----------> exit GetTorrentInfos")
 	return nil
 	
 }
@@ -844,7 +844,6 @@ func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.Download
 //* Trop the torrent...
 func (svr *server) DropTorrent(ctx context.Context, rqst *torrentpb.DropTorrentRequest) (*torrentpb.DropTorrentResponse, error) {
 
-	fmt.Println("-----------> drop torrent: ", rqst.Name)
 	// simply trop the torrent file...
 	svr.dropTorrent(rqst.Name)
 

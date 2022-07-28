@@ -151,6 +151,15 @@ func getActionResourceInfos(address, method string) ([]*rbacpb.ResourceInfos, er
 
 }
 
+func ValidateSubjectSpace(subject,  address string, subjectType rbacpb.SubjectType, required_space uint64) (bool, error) {
+	rbac_client_, err := GetRbacClient(address)
+	if err != nil {
+		return false, err
+	}
+	hasSpace, err := rbac_client_.ValidateSubjectSpace(subject, subjectType, required_space)
+	return hasSpace, err
+}
+
 func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, error) {
 
 	id := address + method + token
@@ -262,7 +271,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	hasAccess := true
 
 	// Set the list of restricted method here...
-	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" {
+	if method == "/services_manager.ServicesManagerServices/GetServicesConfig" || method == "/rbac.RbacService/SetSubjectAllocatedSpace/"{
 		hasAccess = false
 	}
 
@@ -291,6 +300,11 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 
 	if !hasAccess && len(clientId) > 0 {
 		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, clientId, rbacpb.SubjectType_ACCOUNT, address)
+		/** Append other method that need disk space here **/
+		if(method == "/torrent.TorrentService/DownloadTorrent"){
+			// Test if the space is not already bust...
+			ValidateSubjectSpace(clientId, address, rbacpb.SubjectType_ACCOUNT, 0)
+		}
 	}
 
 	if !hasAccess && len(application) > 0 {

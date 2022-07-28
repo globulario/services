@@ -267,10 +267,10 @@ func (rbac_server *server) getSubjectOwnedFiles(dir string) ([]string, error) {
 			if err != nil {
 				return err
 			}
-			if !strings.Contains(path, ".hidden"){
+			if !strings.Contains(path, ".hidden") {
 				files = append(files, path)
 			}
-			
+
 			return nil
 		})
 	if err != nil {
@@ -353,7 +353,7 @@ func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type
 				// In that case I will get all files contain in that directory...
 				files, err := rbac_server.getSubjectOwnedFiles(path)
 				if err == nil {
-					for j:=0; j < len(files); j++ {
+					for j := 0; j < len(files); j++ {
 						path := files[j]
 						if !Utility.Contains(owned_files, path) {
 							owned_files = append(owned_files, path)
