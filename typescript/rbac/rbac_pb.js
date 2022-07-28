@@ -8590,7 +8590,7 @@ proto.rbac.SetSubjectAllocatedSpaceRqst.deserializeBinaryFromReader = function(m
       msg.setType(value);
       break;
     case 3:
-      var value = /** @type {number} */ (reader.readInt32());
+      var value = /** @type {number} */ (reader.readUint64());
       msg.setAllocatedSpace(value);
       break;
     default:
@@ -8638,7 +8638,7 @@ proto.rbac.SetSubjectAllocatedSpaceRqst.serializeBinaryToWriter = function(messa
   }
   f = message.getAllocatedSpace();
   if (f !== 0) {
-    writer.writeInt32(
+    writer.writeUint64(
       3,
       f
     );
@@ -8683,7 +8683,7 @@ proto.rbac.SetSubjectAllocatedSpaceRqst.prototype.setType = function(value) {
 
 
 /**
- * optional int32 allocated_space = 3;
+ * optional uint64 allocated_space = 3;
  * @return {number}
  */
 proto.rbac.SetSubjectAllocatedSpaceRqst.prototype.getAllocatedSpace = function() {
@@ -9031,7 +9031,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.deserializeBinaryFromReader = function(ms
     var field = reader.getFieldNumber();
     switch (field) {
     case 3:
-      var value = /** @type {number} */ (reader.readInt32());
+      var value = /** @type {number} */ (reader.readUint64());
       msg.setAllocatedSpace(value);
       break;
     default:
@@ -9065,7 +9065,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.serializeBinaryToWriter = function(messag
   var f = undefined;
   f = message.getAllocatedSpace();
   if (f !== 0) {
-    writer.writeInt32(
+    writer.writeUint64(
       3,
       f
     );
@@ -9074,7 +9074,7 @@ proto.rbac.GetSubjectAllocatedSpaceRsp.serializeBinaryToWriter = function(messag
 
 
 /**
- * optional int32 allocated_space = 3;
+ * optional uint64 allocated_space = 3;
  * @return {number}
  */
 proto.rbac.GetSubjectAllocatedSpaceRsp.prototype.getAllocatedSpace = function() {
@@ -9321,7 +9321,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.deserializeBinaryFromReader = function(ms
     var field = reader.getFieldNumber();
     switch (field) {
     case 3:
-      var value = /** @type {number} */ (reader.readInt32());
+      var value = /** @type {number} */ (reader.readUint64());
       msg.setAvailableSpace(value);
       break;
     default:
@@ -9355,7 +9355,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.serializeBinaryToWriter = function(messag
   var f = undefined;
   f = message.getAvailableSpace();
   if (f !== 0) {
-    writer.writeInt32(
+    writer.writeUint64(
       3,
       f
     );
@@ -9364,7 +9364,7 @@ proto.rbac.GetSubjectAvailableSpaceRsp.serializeBinaryToWriter = function(messag
 
 
 /**
- * optional int32 available_space = 3;
+ * optional uint64 available_space = 3;
  * @return {number}
  */
 proto.rbac.GetSubjectAvailableSpaceRsp.prototype.getAvailableSpace = function() {
@@ -9461,7 +9461,7 @@ proto.rbac.ValidateSubjectSpaceRqst.deserializeBinaryFromReader = function(msg, 
       msg.setType(value);
       break;
     case 3:
-      var value = /** @type {number} */ (reader.readInt32());
+      var value = /** @type {number} */ (reader.readUint64());
       msg.setRequiredSpace(value);
       break;
     default:
@@ -9509,7 +9509,7 @@ proto.rbac.ValidateSubjectSpaceRqst.serializeBinaryToWriter = function(message, 
   }
   f = message.getRequiredSpace();
   if (f !== 0) {
-    writer.writeInt32(
+    writer.writeUint64(
       3,
       f
     );
@@ -9554,7 +9554,7 @@ proto.rbac.ValidateSubjectSpaceRqst.prototype.setType = function(value) {
 
 
 /**
- * optional int32 required_space = 3;
+ * optional uint64 required_space = 3;
  * @return {number}
  */
 proto.rbac.ValidateSubjectSpaceRqst.prototype.getRequiredSpace = function() {

@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"strings"
+
+	"encoding/binary"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -83,12 +87,12 @@ func (rbac_server *server) setResourceTypePathIndexation(resource_type string, p
 }
 
 func (rbac_server *server) setSubjectResourcePermissions(subject string, path string) error {
-	// fmt.Println("setSubjectResourcePermissions", path)
+
 	// Here I will retreive the actual list of paths use by this user.
-	data, err := rbac_server.permissions.GetItem(subject)
+	data, _ := rbac_server.permissions.GetItem(subject)
 	paths_ := make([]interface{}, 0)
 
-	if err == nil {
+	if data != nil {
 		err := json.Unmarshal(data, &paths_)
 		if err != nil {
 			return err
@@ -107,11 +111,17 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 	}
 
 	// simply marshal the permission and put it into the store.
-	data, err = json.Marshal(paths)
+	data, err := json.Marshal(paths)
 	if err != nil {
 		return err
 	}
-	return rbac_server.permissions.SetItem(subject, data)
+
+	err = rbac_server.permissions.SetItem(subject, data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // The function return the list of permissions associtated with a given subject.
@@ -119,23 +129,54 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 	// set the key to looking for...
 	id := "PERMISSIONS/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
-		id += "ACCOUNT/"
+		id += "ACCOUNTS/"
+		exist, a := rbac_server.accountExist(subject)
+		if exist {
+			id += a
+		} else {
+			return nil, errors.New("no account found with id " + subject)
+		}
 	} else if subject_type == rbacpb.SubjectType_APPLICATION {
-		id += "APPLICATION/"
+		id += "APPLICATIONS/"
+		exist, a := rbac_server.applicationExist(subject)
+		if exist {
+			id += a
+		} else {
+			return nil, errors.New("no application found with id " + subject)
+		}
 	} else if subject_type == rbacpb.SubjectType_GROUP {
-		id += "GROUP/"
+		id += "GROUPS/"
+		exist, g := rbac_server.groupExist(subject)
+		if exist {
+			id += g
+		} else {
+			return nil, errors.New("no group found with id " + subject)
+		}
 	} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
-		id += "ORGANIZATION/"
-	} else if subject_type == rbacpb.SubjectType_ROLE {
-		id += "ROLE/"
+		id += "ORGANIZATIONS/"
+		exist, o := rbac_server.groupExist(subject)
+		if exist {
+			id += o
+		} else {
+			return nil, errors.New("no organization found with id " + subject)
+		}
+	} else if subject_type == rbacpb.SubjectType_PEER {
+		id += "PEERS/"
+		id += subject
 	}
 
 	// Set the subject.
-	id += subject
-
 	data, err := rbac_server.permissions.GetItem(id)
-	paths := make([]interface{}, 0)
 
+	// retreive path
+	permissions := make([]*rbacpb.Permissions, 0)
+
+	if err != nil {
+		fmt.Println("fail to retreive item with id ", id, "with error", err)
+		return permissions, nil
+	}
+
+	paths := make([]interface{}, 0)
 	if err == nil {
 		err := json.Unmarshal(data, &paths)
 		if err != nil {
@@ -143,8 +184,6 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 		}
 	}
 
-	// retreive path
-	permissions := make([]*rbacpb.Permissions, 0)
 	for i := 0; i < len(paths); i++ {
 		p, err := rbac_server.getResourcePermissions(paths[i].(string))
 		if err == nil && p != nil {
@@ -163,111 +202,102 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 func (rbac_server *server) ValidateSubjectSpace(ctx context.Context, rqst *rbacpb.ValidateSubjectSpaceRqst) (*rbacpb.ValidateSubjectSpaceRsp, error) {
 	available_space, err := rbac_server.getSubjectAvailableSpace(rqst.Subject, rqst.Type)
 	if err != nil {
-		return  &rbacpb.ValidateSubjectSpaceRsp{HasSpace: false} , status.Errorf(
+		return &rbacpb.ValidateSubjectSpaceRsp{HasSpace: false}, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	return &rbacpb.ValidateSubjectSpaceRsp{HasSpace: available_space > int(rqst.RequiredSpace)}, nil
+	return &rbacpb.ValidateSubjectSpaceRsp{HasSpace: available_space > rqst.RequiredSpace}, nil
 
 }
 
 /**
  * Return the subject allocated space...
  */
-func (rbac_server *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.SubjectType) (int, error) {
+func (rbac_server *server) getSubjectAllocatedSpace(subject string, subject_type rbacpb.SubjectType) (uint64, error) {
+	id := "ALLOCATED_SPACE/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
-			return -1, errors.New("no account exist with id " + a)
+			return 0, errors.New("no account exist with id " + a)
 		}
+		id += "ACCOUNT/" + a
 	} else if subject_type == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
-			return -1, errors.New("no application exist with id " + a)
+			return 0, errors.New("no application exist with id " + a)
 		}
-
+		id += "APPLICATION/" + a
 	} else if subject_type == rbacpb.SubjectType_GROUP {
 		exist, g := rbac_server.groupExist(subject)
 		if !exist {
-			return -1, errors.New("no group exist with id " + g)
+			return 0, errors.New("no group exist with id " + g)
 		}
-
+		id += "GROUP/" + g
 	} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
 		exist, o := rbac_server.organizationExist(subject)
 		if !exist {
-			return -1, errors.New("no organization exist with id " + o)
+			return 0, errors.New("no organization exist with id " + o)
 		}
+		id += "ORGANIZATION/" + o
 	} else if subject_type == rbacpb.SubjectType_PEER {
 		if !rbac_server.peerExist(subject) {
-			return -1, errors.New("no peer exist with id " + subject)
+			return 0, errors.New("no peer exist with id " + subject)
 		}
+		id += "PEER/" + subject
 	}
-
-	id := "ALLOCATED_SPACE/"
-	if subject_type == rbacpb.SubjectType_ACCOUNT {
-		id += "ACCOUNT/"
-	} else if subject_type == rbacpb.SubjectType_APPLICATION {
-		id += "APPLICATION/"
-	} else if subject_type == rbacpb.SubjectType_GROUP {
-		id += "GROUP/"
-	} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
-		id += "ORGANIZATION/"
-	} else if subject_type == rbacpb.SubjectType_ROLE {
-		id += "ROLE/"
-	}
-
-	// Set the subject.
-	id += subject
 
 	data, err := rbac_server.permissions.GetItem(id)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
-	return Utility.ToInt(data), nil
+	var ret uint64
+	buf := bytes.NewBuffer(data)
+	binary.Read(buf, binary.LittleEndian, &ret)
+
+	return ret, nil
 }
 
-func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type rbacpb.SubjectType) (int, error) {
+// return all files contain in a given directory recursively...
+func (rbac_server *server) getSubjectOwnedFiles(dir string) ([]string, error) {
+	files := make([]string, 0)
+	err := filepath.Walk(dir,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !strings.Contains(path, ".hidden"){
+				files = append(files, path)
+			}
+			
+			return nil
+		})
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	return files, err
+}
+
+func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type rbacpb.SubjectType) (uint64, error) {
 
 	// So the I must get the list of owned file from the subject, and calculate the their total space...
 	permissions, err := rbac_server.getSubjectResourcePermissions(subject, "file", subject_type)
-	if subject_type == rbacpb.SubjectType_ACCOUNT {
-		exist, a := rbac_server.accountExist(subject)
-		if !exist {
-			return -1, errors.New("no account exist with id " + a)
-		}
-	} else if subject_type == rbacpb.SubjectType_APPLICATION {
-		exist, a := rbac_server.applicationExist(subject)
-		if !exist {
-			return -1, errors.New("no application exist with id " + a)
-		}
-
-	} else if subject_type == rbacpb.SubjectType_GROUP {
-		exist, g := rbac_server.groupExist(subject)
-		if !exist {
-			return -1, errors.New("no group exist with id " + g)
-		}
-
-	} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
-		exist, o := rbac_server.organizationExist(subject)
-		if !exist {
-			return -1, errors.New("no organization exist with id " + o)
-		}
-	} else if subject_type == rbacpb.SubjectType_PEER {
-		if !rbac_server.peerExist(subject) {
-			return -1, errors.New("no peer exist with id " + subject)
-		}
+	if err != nil {
+		return 0, err
 	}
 
-	used_space := 0
+	// From permission I will get the list of all file owned by that user.
+	owned_files := make([]string, 0)
 	for i := 0; i < len(permissions); i++ {
 		path := permissions[i].Path
 
 		// so here I will retreive the local file.
 		if !Utility.Exists(path) {
-			if Utility.Exists(config.GetDataDir() + path) {
-				path = config.GetDataDir() + path
+			if Utility.Exists(config.GetDataDir() + "/files" + path) {
+				path = config.GetDataDir() + "/files" + path
 			}
 		}
 
@@ -275,27 +305,59 @@ func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type
 			fi, err := os.Stat(path)
 			if !fi.IsDir() && err == nil {
 				// get the size
-				size := int(fi.Size())
+
 				if subject_type == rbacpb.SubjectType_ACCOUNT {
-					if Utility.Contains(permissions[i].Owners.Accounts, subject) {
-						used_space += size
+					exist, a := rbac_server.accountExist(subject)
+					if exist {
+						if Utility.Contains(permissions[i].Owners.Accounts, a) {
+							if !Utility.Contains(owned_files, path) {
+								owned_files = append(owned_files, path)
+							}
+						}
 					}
 				} else if subject_type == rbacpb.SubjectType_APPLICATION {
-
-					if Utility.Contains(permissions[i].Owners.Applications, subject) {
-						used_space += size
+					exist, a := rbac_server.applicationExist(subject)
+					if exist {
+						if Utility.Contains(permissions[i].Owners.Applications, a) {
+							if !Utility.Contains(owned_files, path) {
+								owned_files = append(owned_files, path)
+							}
+						}
 					}
 				} else if subject_type == rbacpb.SubjectType_GROUP {
-					if Utility.Contains(permissions[i].Owners.Groups, subject) {
-						used_space += size
+					exist, g := rbac_server.groupExist(subject)
+					if exist {
+						if Utility.Contains(permissions[i].Owners.Groups, g) {
+							if !Utility.Contains(owned_files, path) {
+								owned_files = append(owned_files, path)
+							}
+						}
 					}
 				} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
-					if Utility.Contains(permissions[i].Owners.Organizations, subject) {
-						used_space += size
+					exist, o := rbac_server.groupExist(subject)
+					if exist {
+						if Utility.Contains(permissions[i].Owners.Organizations, o) {
+							if !Utility.Contains(owned_files, path) {
+								owned_files = append(owned_files, path)
+							}
+						}
 					}
 				} else if subject_type == rbacpb.SubjectType_PEER {
 					if Utility.Contains(permissions[i].Owners.Peers, subject) {
-						used_space += size
+						if !Utility.Contains(owned_files, path) {
+							owned_files = append(owned_files, path)
+						}
+					}
+				}
+			} else if fi.IsDir() {
+				// In that case I will get all files contain in that directory...
+				files, err := rbac_server.getSubjectOwnedFiles(path)
+				if err == nil {
+					for j:=0; j < len(files); j++ {
+						path := files[j]
+						if !Utility.Contains(owned_files, path) {
+							owned_files = append(owned_files, path)
+						}
 					}
 				}
 			}
@@ -304,12 +366,24 @@ func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type
 		}
 	}
 
-	allocated_space, err := rbac_server.getSubjectAllocatedSpace(subject, subject_type)
-	if err != nil {
-		return -1, err
+	// Calculate used space.
+	used_space := uint64(0)
+	for i := 0; i < len(owned_files); i++ {
+		path := owned_files[i]
+		fi, err := os.Stat(path)
+		if !fi.IsDir() && err == nil {
+			used_space += uint64(fi.Size())
+		}
 	}
 
-	return allocated_space - used_space, nil
+	allocated_space, err := rbac_server.getSubjectAllocatedSpace(subject, subject_type)
+	if err != nil {
+		return 0, err
+	}
+
+	available_space := allocated_space - used_space
+
+	return available_space, nil
 }
 
 //* Return the subject available disk space *
@@ -320,7 +394,7 @@ func (rbac_server *server) GetSubjectAvailableSpace(ctx context.Context, rqst *r
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return &rbacpb.GetSubjectAvailableSpaceRsp{AvailableSpace: int32(available_space)}, nil
+	return &rbacpb.GetSubjectAvailableSpaceRsp{AvailableSpace: available_space}, nil
 }
 
 //* Return the subject allocated disk space *
@@ -331,59 +405,49 @@ func (rbac_server *server) GetSubjectAllocatedSpace(ctx context.Context, rqst *r
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-	return &rbacpb.GetSubjectAllocatedSpaceRsp{AllocatedSpace: int32(allocated_space)}, nil
+	return &rbacpb.GetSubjectAllocatedSpaceRsp{AllocatedSpace: allocated_space}, nil
 }
 
 //* Set the user allocated space *
 func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *rbacpb.SetSubjectAllocatedSpaceRqst) (*rbacpb.SetSubjectAllocatedSpaceRsp, error) {
 	subject_type := rqst.Type
 	subject := rqst.Subject
-
+	id := "ALLOCATED_SPACE/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
 			return nil, errors.New("no account exist with id " + a)
 		}
+		id += "ACCOUNT/" + a
 	} else if subject_type == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
 			return nil, errors.New("no application exist with id " + a)
 		}
-
+		id += "APPLICATION/" + a
 	} else if subject_type == rbacpb.SubjectType_GROUP {
 		exist, g := rbac_server.groupExist(subject)
 		if !exist {
 			return nil, errors.New("no group exist with id " + g)
 		}
-
+		id += "GROUP/" + g
 	} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
 		exist, o := rbac_server.organizationExist(subject)
 		if !exist {
 			return nil, errors.New("no organization exist with id " + o)
 		}
+
+		id += "ORGANIZATION/" + o
 	} else if subject_type == rbacpb.SubjectType_PEER {
 		if !rbac_server.peerExist(subject) {
 			return nil, errors.New("no peer exist with id " + subject)
 		}
+		id += "PEER/" + subject
 	}
 
-	id := "ALLOCATED_SPACE/"
-	if subject_type == rbacpb.SubjectType_ACCOUNT {
-		id += "ACCOUNT/"
-	} else if subject_type == rbacpb.SubjectType_APPLICATION {
-		id += "APPLICATION/"
-	} else if subject_type == rbacpb.SubjectType_GROUP {
-		id += "GROUP/"
-	} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
-		id += "ORGANIZATION/"
-	} else if subject_type == rbacpb.SubjectType_ROLE {
-		id += "ROLE/"
-	}
-
-	id += subject
-
-	allocated_space, _ := Utility.ToBytes(rqst.AllocatedSpace)
-	err := rbac_server.permissions.SetItem(id, allocated_space)
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, rqst.AllocatedSpace)
+	err := rbac_server.permissions.SetItem(id, b)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -563,10 +627,10 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 
 	// Owned resources
 	owners := permissions.Owners
+
 	if owners != nil {
 		// Acccounts
 		if owners.Accounts != nil {
-
 			for j := 0; j < len(owners.Accounts); j++ {
 				exist, a := rbac_server.accountExist(owners.Accounts[j])
 				if exist {
@@ -2313,7 +2377,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		// call the rpc method.
 		if account.Roles != nil {
 			if Utility.Contains(account.Roles, "admin") {
-				fmt.Println("----------> ", subject, " is admin!")
 				hasAccess = true
 			} else {
 				for i := 0; i < len(account.Roles); i++ {
