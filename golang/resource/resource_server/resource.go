@@ -160,7 +160,27 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	if err != nil {
 		return nil, err
 	}
+	
 	accountId := rqst.AccountId
+
+	if strings.Contains(accountId, "@"){
+		domain = strings.Split(accountId, "@")[1]
+		accountId = strings.Split(accountId, "@")[0]
+		
+		_domain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if _domain != domain {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot find " + accountId + " from domain " + domain + " on " + _domain))) 
+		}
+	}
+
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
@@ -170,7 +190,6 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 	account := values.(map[string]interface{})
 	a := &resourcepb.Account{Id: account["_id"].(string), Name: account["name"].(string), Email: account["email"].(string), Password: account["password"].(string), Domain: account["domain"].(string)}
-
 	if account["groups"] != nil {
 		groups := []interface{}(account["groups"].(primitive.A))
 		if groups != nil {

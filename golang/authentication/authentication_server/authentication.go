@@ -376,7 +376,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// Create the user file directory.
-		path := "/users/sa" 
+		path := "/users/sa"
 		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 		server.addResourceOwner(path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
 
@@ -406,7 +406,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 				return "", err
 			}
 
-			err = server.changeAccountPassword(account.Id, token,  "", pwd)
+			err = server.changeAccountPassword(account.Id, token, "", pwd)
 			if err != nil {
 				fmt.Println("fail to change password: ", account.Id, err)
 				return "", err
@@ -432,7 +432,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 	// Create the user file directory.
 	path := "/users/" + claims.Id + "@" + account.Domain
-	if !Utility.Exists(path){
+	if !Utility.Exists(path) {
 		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 		server.addResourceOwner(path, "file", claims.Id, rbacpb.SubjectType_ACCOUNT)
 	}
@@ -451,16 +451,35 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 }
 
 // Process existing file...
-func (server *server) processFiles(){
+func (server *server) processFiles() {
 
 }
 
 //* Authenticate a user *
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 
+	mac, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
+
 	// Set the mac addresse
 	if len(rqst.Issuer) == 0 {
-		rqst.Issuer, _ = Utility.MyMacAddr(Utility.MyLocalIP())
+		rqst.Issuer = mac
+	} else {
+		// The request came from external source...
+		if rqst.Issuer != mac {
+			domain, err := config.GetDomain()
+			if err != nil {
+				return nil, err
+			}
+
+			// Try autenticate...
+			if strings.HasSuffix(rqst.Name, "@"+domain) {
+				rqst.Issuer = mac
+				rqst.Name = rqst.Name[0:strings.Index(rqst.Name, "@")]
+			}
+		}
 	}
 
 	// Try to authenticate on the server directy...
@@ -468,7 +487,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 
 	// Now I will try each peer...
 	if err != nil {
-		fmt.Println("fail to authenticate on " + rqst.Issuer + " i will try to authenticate peers...")
+		fmt.Println("fail to authenticate on " + rqst.Issuer + " i will try to authenticate on other peers...")
 		uuid := Utility.GenerateUUID(rqst.Name + rqst.Password + rqst.Issuer)
 		// no matter what happen the token must be remove...
 		defer Utility.RemoveString(server.authentications_, uuid)
@@ -485,9 +504,9 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 			for i := 0; i < len(peers); i++ {
 				peer := peers[i]
 				address := peer.Domain
-				if(peer.Protocol == "https"){
+				if peer.Protocol == "https" {
 					address += ":" + Utility.ToString(peer.PortHttps)
-				}else{
+				} else {
 					address += ":" + Utility.ToString(peer.PortHttp)
 				}
 				resource_client_, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
@@ -520,4 +539,38 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	return &authenticationpb.AuthenticateRsp{
 		Token: tokenString,
 	}, nil
+}
+
+//* Generate a token for a peer with a given mac address *
+func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb.GeneratePeerTokenRequest) (*authenticationpb.GeneratePeerTokenResponse, error) {
+
+	var userId, userName, email string
+
+	// Now I will index the conversation to be retreivable for it creator...
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token := strings.Join(md["token"], "")
+		if len(token) > 0 {
+			claims, err := security.ValidateToken(token)
+
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			// So here I will 
+			userId = claims.Id
+
+
+		} else {
+			return nil, errors.New("no token was given")
+		}
+	}
+
+	// The generated token.
+	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, userName, email) 
+
+	return &authenticationpb.GeneratePeerTokenResponse{
+		Token: token,
+	}, err
 }

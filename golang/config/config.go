@@ -70,7 +70,9 @@ func GetName() (string, error) {
 func GetDomain() (string, error) {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
+
 		domain := localConfig["Name"].(string)
+
 		if len(localConfig["Domain"].(string)) > 0 {
 			if len(domain) > 0 {
 				domain += "."
@@ -78,6 +80,8 @@ func GetDomain() (string, error) {
 			domain += localConfig["Domain"].(string)
 		}
 		return strings.ToLower(domain), nil
+	}else{
+		fmt.Println("fail to retreive local configuration with error ", err)
 	}
 
 	// if not configuration already exist on the server I will return it hostname...
@@ -379,6 +383,14 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Set the mac address
+	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
+	if err != nil {
+		return nil, err
+	}
+	
+	config["Mac"] = macAddress
 
 	if lazy {
 		config_ = config

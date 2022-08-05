@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -133,13 +134,18 @@ func ValidateToken(token string) (*Claims, error) {
 		}
 
 		// Get the jwt key from file.
-		if len(claims.Audience) > 0 {
-			if claims.Audience != macAddress {
-				return GetPeerKey(claims.Audience)
+		if len(claims.StandardClaims.Audience) > 0 {
+			if claims.StandardClaims.Audience != macAddress {
+				return GetPeerKey(claims.StandardClaims.Audience)
 			}
 		}
 
-		return GetPeerKey(claims.Issuer)
+		fmt.Println("validate with the local issuer ", claims.StandardClaims.Issuer)
+		key, err := GetPeerKey(claims.StandardClaims.Issuer)
+		if err != nil {
+			return "", err
+		}
+		return key, nil
 	})
 
 	if time.Now().After(time.Unix(claims.ExpiresAt, 0)) {
@@ -168,13 +174,13 @@ func refreshLocalToken(token string) (string, error) {
 			return "", err
 		}
 		
-		if len(claims.Audience) > 0 {
-			if claims.Audience != macAddress {
-				return GetPeerKey(claims.Audience)
+		if len(claims.StandardClaims.Audience) > 0 {
+			if claims.StandardClaims.Audience != macAddress {
+				return GetPeerKey(claims.StandardClaims.Audience)
 			}
 		}
 
-		return GetPeerKey(claims.Issuer)
+		return GetPeerKey(claims.StandardClaims.Issuer)
 	})
 
 	if err != nil && !strings.HasPrefix(err.Error(), "token is expired") {
@@ -193,7 +199,7 @@ func refreshLocalToken(token string) (string, error) {
 		return "", err
 	}
 
-	token, err = GenerateToken(Utility.ToInt(globular["SessionTimeout"]), claims.Issuer, claims.Id, claims.Username, claims.Email)
+	token, err = GenerateToken(Utility.ToInt(globular["SessionTimeout"]), claims.StandardClaims.Issuer, claims.Id, claims.Username, claims.Email)
 	if err != nil {
 		return "", err
 	}

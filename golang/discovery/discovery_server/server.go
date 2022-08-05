@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -465,12 +466,12 @@ func (svr *server) addResourceOwner(path, resourceType, subject string, subjectT
 ////////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 ////////////////////////////////////////////////////////////////////////////////////////
-func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
+func (server *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	var err error
 	if resourceClient != nil {
 		return resourceClient, nil
 	}
-	address, _ := config.GetAddress()
+
 	resourceClient, err = resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		resourceClient = nil
@@ -482,7 +483,15 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
 
 /////////////////////// Resource function ///////////////////////////////////////////
 func (server *server) isOrganizationMember(user, organization string) (bool, error) {
-	resourceClient, err := server.getResourceClient()
+
+	address, _ := config.GetAddress()
+	if strings.Contains(user, "@") {
+		address = strings.Split(user, "@")[1]
+		user = strings.Split(user, "@")[0]
+	}
+	
+
+	resourceClient, err := server.getResourceClient(address)
 	if err != nil {
 		return false, err
 	}
@@ -492,7 +501,8 @@ func (server *server) isOrganizationMember(user, organization string) (bool, err
 
 // Create/Update the package descriptor.
 func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {
-	resourceClient, err := server.getResourceClient()
+	address, _ := config.GetAddress()
+	resourceClient, err := server.getResourceClient(address)
 	if err != nil {
 		return err
 	}

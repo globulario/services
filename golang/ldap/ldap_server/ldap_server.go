@@ -791,7 +791,7 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 func (server *server) synchronize() error {
 
 	// Here I will get the local token to generate the groups
-	mac, _ := Utility.MyMacAddr(Utility.MyIP())
+	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
 	token, err := security.GetLocalToken(mac)
 	if err != nil {
 		return err

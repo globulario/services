@@ -475,6 +475,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		roles_[i] = new(resourcepb.Role)
 		roles_[i].Id = roles[i].Id
 		roles_[i].Name = roles[i].Name
+		roles_[i].Domain = roles[i].Domain
 		roles_[i].Actions = roles[i].Actions
 	}
 
@@ -483,6 +484,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		groups_[i] = new(resourcepb.Group)
 		groups_[i].Id = groups[i].Id
 		groups_[i].Name = groups[i].Name
+		groups_[i].Domain = groups[i].Domain
 		groups_[i].Description = groups[i].Description
 	}
 
@@ -512,24 +514,25 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// Set the path of the directory where the application can store files.
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
-	err = server.addResourceOwner("/applications/"+name, "file", name+ "@" + domain, rbacpb.SubjectType_APPLICATION)
 
+	err = server.addResourceOwner("/applications/"+name, "file", name+ "@" + domain, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return err
 	}
-
-
+	fmt.Println("Permission was created for : ",  name+ "@" + domain)
 
 	if len(organization) > 0 {
 		err = server.addResourceOwner(name, "application", organization + "@" + domain, rbacpb.SubjectType_ORGANIZATION)
 		if err != nil {
 			return err
 		}
+		fmt.Println("Permission was created for : ",  organization + "@" + domain)
 	}else if len(user) > 0 {
 		err = server.addResourceOwner(name, "application", user + "@" + domain, rbacpb.SubjectType_ACCOUNT)
 		if err != nil {
 			return err
 		}
+		fmt.Println("Permission was created for : ",  user + "@" + domain)
 	}
 
 	return nil

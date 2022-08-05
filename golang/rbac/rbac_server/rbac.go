@@ -200,6 +200,17 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 
 //* Validate if the subject has enought space to store a file *
 func (rbac_server *server) ValidateSubjectSpace(ctx context.Context, rqst *rbacpb.ValidateSubjectSpaceRqst) (*rbacpb.ValidateSubjectSpaceRsp, error) {
+
+	// in case of sa not space validation must be done...
+	if rqst.Type == rbacpb.SubjectType_ACCOUNT {
+		exist, a := rbac_server.accountExist(rqst.Subject) 
+		if exist {
+			if strings.HasPrefix(a, "sa@"){
+				return &rbacpb.ValidateSubjectSpaceRsp{HasSpace: true}, nil
+			}
+		}
+	}
+
 	available_space, err := rbac_server.getSubjectAvailableSpace(rqst.Subject, rqst.Type)
 	if err != nil {
 		return &rbacpb.ValidateSubjectSpaceRsp{HasSpace: false}, status.Errorf(
@@ -1797,6 +1808,11 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		if !exist {
 			return false, false, errors.New("no account exist with id " + a)
 		}
+
+		if strings.HasPrefix(a, "sa@"){
+			return true, false, nil
+		}
+
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
@@ -1830,6 +1846,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	// first I will test if permissions is define
+	fmt.Println("-----------------> try to find permission for ", path)
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		if permissions == nil {
@@ -1843,7 +1860,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		}
 		return false, false, err
 	} else {
-		fmt.Println("permissions found ", permissions)
+		fmt.Println("---------------------------> permissions found ", permissions)
 	}
 
 	// Test if the Subject is owner of the resource in that case I will git him access.

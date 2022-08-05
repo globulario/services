@@ -68,6 +68,20 @@ message SetRootEmailResponse {
 }
 
 /**
+ * Generate a token for a given mac... must be one of peer...
+ */
+message GeneratePeerTokenRequest {
+	string mac = 2;
+}
+
+/**
+ * Get the token back...
+ */
+message GeneratePeerTokenResponse {
+	string token = 1;
+}
+
+/**
  * That service must be use to authencate user.
  * to see...
  * https://youtu.be/B3xnJI2lHmc
@@ -79,6 +93,9 @@ service AuthenticationService {
 		
 	/** Refresh token get a new token **/
 	rpc RefreshToken(RefreshTokenRqst) returns(RefreshTokenRsp);
+
+	/** Generate a token for a peer with a given mac address **/
+	rpc GeneratePeerToken(GeneratePeerTokenRequest) returns(GeneratePeerTokenResponse);
 
 	/** Set the account password **/
   	rpc SetPassword(SetPasswordRequest) returns(SetPasswordResponse);

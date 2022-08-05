@@ -839,6 +839,8 @@ func GetPeerKey(id string) ([]byte, error) {
 	// Read the public key file
 	file_public, err := os.Open(keyPath + "/" + id + "_public")
 
+	fmt.Println("public key: ", keyPath + "/" + id + "_public")
+
 	if err != nil {
 		return nil, err
 	}
@@ -863,19 +865,16 @@ func GetPeerKey(id string) ([]byte, error) {
 	//x509
 	publicStream, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("866 tls.go --------------------->", err)
 		return nil, err
 	}
 
 	// Interface converted to public key
 	puba := publicStream.(*ecdsa.PublicKey)
-	macAddress, err = Utility.MyMacAddr(Utility.MyLocalIP())
-	if err != nil {
-		return nil, err
-	}
 
 	//1, open the private key file and read the content
 	file_private, err := os.Open(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
+	fmt.Println("private key: ", keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
@@ -885,7 +884,7 @@ func GetPeerKey(id string) ([]byte, error) {
 
 	info, err = file_private.Stat()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("888 tls.go --------------------->", err)
 		return nil, err
 	}
 
@@ -903,7 +902,7 @@ func GetPeerKey(id string) ([]byte, error) {
 	//x509 decryption
 	privb, err := x509.ParseECPrivateKey(block.Bytes)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("906 tls.go --------------------->", err)
 		return nil, err
 	}
 

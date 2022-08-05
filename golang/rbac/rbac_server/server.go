@@ -478,11 +478,14 @@ func (server *server) accountExist(id string) (bool, string) {
 	}
 
 	if localDomain != domain {
-		fmt.Println("-----------------> the account is not local!!!!! ", localDomain, domain)
+		fmt.Println("-----------------> the account",accountId,"is not local!!!!! ", localDomain, domain)
 	}
 
 	a, err := server.getAccount(accountId)
 	if err != nil || a == nil {
+		if err != nil {
+			fmt.Println("fail to find account ", accountId, domain, err)
+		}
 		return false, ""
 	}
 	return true, a.Id + "@" + a.Domain
@@ -658,6 +661,7 @@ func (server *server) organizationExist(id string) (bool, string) {
 	if err != nil || o == nil {
 		return false, ""
 	}
+
 	return true, o.Id + "@" + o.Domain
 }
 

@@ -69,6 +69,7 @@ export interface IServices {
  */
 export interface IConfig {
   Name: string;
+  Mac: string;
   Domain: string;
   PortHttp: number;
   PortHttps: number;

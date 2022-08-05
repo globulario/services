@@ -195,6 +195,67 @@ proto.authentication.AuthenticationServicePromiseClient.prototype.refreshToken =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.authentication.GeneratePeerTokenRequest,
+ *   !proto.authentication.GeneratePeerTokenResponse>}
+ */
+const methodDescriptor_AuthenticationService_GeneratePeerToken = new grpc.web.MethodDescriptor(
+  '/authentication.AuthenticationService/GeneratePeerToken',
+  grpc.web.MethodType.UNARY,
+  proto.authentication.GeneratePeerTokenRequest,
+  proto.authentication.GeneratePeerTokenResponse,
+  /**
+   * @param {!proto.authentication.GeneratePeerTokenRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.authentication.GeneratePeerTokenResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.authentication.GeneratePeerTokenRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.authentication.GeneratePeerTokenResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.authentication.GeneratePeerTokenResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.authentication.AuthenticationServiceClient.prototype.generatePeerToken =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/authentication.AuthenticationService/GeneratePeerToken',
+      request,
+      metadata || {},
+      methodDescriptor_AuthenticationService_GeneratePeerToken,
+      callback);
+};
+
+
+/**
+ * @param {!proto.authentication.GeneratePeerTokenRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.authentication.GeneratePeerTokenResponse>}
+ *     Promise that resolves to the response
+ */
+proto.authentication.AuthenticationServicePromiseClient.prototype.generatePeerToken =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/authentication.AuthenticationService/GeneratePeerToken',
+      request,
+      metadata || {},
+      methodDescriptor_AuthenticationService_GeneratePeerToken);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.authentication.SetPasswordRequest,
  *   !proto.authentication.SetPasswordResponse>}
  */
