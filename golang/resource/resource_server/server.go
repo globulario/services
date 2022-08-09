@@ -727,7 +727,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	}
 
 	// first of all the Persistence service must be active.
-	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+id+`"},{"name":"`+id+`"} ]}`, "")
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+id+`"},{"name":"`+id+`"},{"name":"`+name+`"} ]}`, "")
 	if err != nil {
 		return err
 	}
@@ -739,7 +739,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 	// set the account object and set it basic roles.
 	account := make(map[string]interface{})
-	account["_id"] = id
+	account["_id"] = Utility.RandomUUID() // The id must be unique in the universe.
 	account["name"] = name
 	account["email"] = email
 	account["domain"] = domain
@@ -750,9 +750,18 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	account["groups"] = make([]interface{}, 0)
 	account["organizations"] = make([]interface{}, 0)
 
+	// retreive the guess role
+	guess, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"name":"guess"}`, "")
+	if err != nil {
+		return err
+	}
+
+	// get the guess role id
+	guessId := guess.(map[string]interface{})["id"].(string)
+
 	// append guest role if not already exist.
-	if !Utility.Contains(roles, "guest") {
-		roles = append(roles, "guest")
+	if !Utility.Contains(roles, guessId) {
+		roles = append(roles, guessId)
 	}
 
 	// Here I will insert the account in the database.
@@ -905,7 +914,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
-	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+id+`"}`, "")
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Groups", `{"$or":[{"_id":"`+id+`"},{"name":"`+id+`"},{"name":"`+name+`"} ]}`, "")
 	if count > 0 {
 		return errors.New("Group with name '" + id + "' already exist!")
 	}
@@ -913,7 +922,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
 	g := make(map[string]interface{}, 0)
-	g["_id"] = id
+	g["_id"] = Utility.RandomUUID() // the id must be unique in the universe
 	g["name"] = name
 	g["description"] = description
 	g["domain"] = resource_server.Domain
@@ -968,14 +977,14 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 		return err
 	}
 
-	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+id+`"}`, ``)
+	_, err = p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"$or":[{"_id":"`+id+`"},{"name":"`+id+`"},{"name":"`+name+`"} ]}`, ``)
 	if err == nil {
 		return errors.New("Role named " + name + " already exist!")
 	}
 
 	// Here will create the new role.
 	role := make(map[string]interface{})
-	role["_id"] = id
+	role["_id"] = Utility.RandomUUID() // the id must be unique in the universe
 	role["name"] = name
 	role["actions"] = actions
 	role["domain"] = resource_server.Domain

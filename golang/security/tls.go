@@ -30,7 +30,7 @@ var (
 /**
  * Get the ca certificate
  */
- func getCaCertificate(address string, port int) (string, error) {
+func getCaCertificate(address string, port int) (string, error) {
 	// try with http
 	certificate, err := getCaCertificate_(address, port, "http")
 	if err == nil {
@@ -58,7 +58,6 @@ func getCaCertificate_(address string, port int, protocol string) (string, error
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
-	
 
 	// I will firt try with http protocol...
 	var caAddress = protocol + "://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
@@ -79,7 +78,6 @@ func getCaCertificate_(address string, port int, protocol string) (string, error
 
 	return "", errors.New("fail to retreive ca certificate with error " + Utility.ToString(resp.StatusCode))
 }
-
 
 func signCaCertificate(address string, csr string, port int) (string, error) {
 	certificate, err := signCaCertificate_(address, csr, port, "http")
@@ -108,7 +106,7 @@ func signCaCertificate_(address string, csr string, port int, protocol string) (
 	var signCertificateAddress = protocol + "://" + address + ":" + Utility.ToString(port) + "/sign_ca_certificate"
 	resp, err = http.Get(signCertificateAddress + "?csr=" + csr_str)
 	if err != nil {
-			return "", err
+		return "", err
 	}
 
 	defer resp.Body.Close()
@@ -693,12 +691,12 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 ////////////////////////////////////////////////////////////////////////////////////
 func DeletePublicKey(id string) error {
 	id = strings.ReplaceAll(id, ":", "_")
-	if !Utility.Exists(keyPath + "/" + id + "_public"){
-		fmt.Println("public key", keyPath + "/" + id + "_public dosen't exist!")
+	if !Utility.Exists(keyPath + "/" + id + "_public") {
+		fmt.Println("public key", keyPath+"/"+id+"_public dosen't exist!")
 		return nil
 	}
-	
-	fmt.Println("delete public key", keyPath + "/" + id + "_public")
+
+	fmt.Println("delete public key", keyPath+"/"+id+"_public")
 
 	return os.Remove(keyPath + "/" + id + "_public")
 }
@@ -712,43 +710,51 @@ func GeneratePeerKeys(id string) error {
 	}
 
 	id = strings.ReplaceAll(id, ":", "_")
+	var privateKey *ecdsa.PrivateKey
 
-	if Utility.Exists(keyPath + "/" + id + "_private") {
-		return nil // not realy an error the key already exist.
-	}
+	// The error
+	var err error
 
-	// Use ecdsa to generate a key pair
-	privateKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
-	if err != nil {
-		return err
-	}
+	if !Utility.Exists(keyPath + "/" + id + "_private") {
 
-	// Use 509
-	private, err := x509.MarshalECPrivateKey(privateKey) //here
-	if err != nil {
-		return err
-	}
+		// Use ecdsa to generate a key pair
+		privateKey, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+		if err != nil {
+			return err
+		}
 
-	//pem
-	block := pem.Block{
-		Type:  "esdsa private key",
-		Bytes: private,
-	}
+		// Use 509
+		private, err := x509.MarshalECPrivateKey(privateKey) //here
+		if err != nil {
+			return err
+		}
 
-	err = Utility.CreateDirIfNotExist(keyPath)
-	if err != nil {
-		return err
-	}
+		//pem
+		block := pem.Block{
+			Type:  "esdsa private key",
+			Bytes: private,
+		}
 
-	file, err := os.Create(keyPath + "/" + id + "_private")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+		err = Utility.CreateDirIfNotExist(keyPath)
+		if err != nil {
+			return err
+		}
 
-	err = pem.Encode(file, &block)
-	if err != nil {
-		return err
+		file, err := os.Create(keyPath + "/" + id + "_private")
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		err = pem.Encode(file, &block)
+		if err != nil {
+			return err
+		}
+	} else {
+		privateKey, err = readPrivateKey(id)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Handle the public key
@@ -766,7 +772,7 @@ func GeneratePeerKeys(id string) error {
 		Bytes: publicKey,
 	}
 
-	file, err = os.Create(keyPath + "/" + id + "_public")
+	file, err := os.Create(keyPath + "/" + id + "_public")
 	if err != nil {
 		return err
 	}
@@ -811,6 +817,78 @@ func GetLocalKey() ([]byte, error) {
 }
 
 /**
+ * Read the private key.
+ */
+func readPrivateKey(id string) (*ecdsa.PrivateKey, error) {
+	id = strings.ReplaceAll(id, ":", "_")
+
+	//1, open the private key file and read the content
+	file_private, err := os.Open(keyPath + "/" + id + "_private")
+	if err != nil {
+		return nil, err
+	}
+
+	defer file_private.Close()
+
+	info, err := file_private.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	buf := make([]byte, info.Size())
+	file_private.Read(buf)
+
+	//2, pem decryption
+	block, _ := pem.Decode(buf)
+	if block == nil {
+		os.Remove(keyPath + "/" + id + "_private")
+		return nil, errors.New("Corrupted local keys was found for peer " + id + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
+	}
+
+	//x509 decryption
+	return x509.ParseECPrivateKey(block.Bytes)
+}
+
+func readPublicKey(id string) (*ecdsa.PublicKey, error) {
+	id = strings.ReplaceAll(id, ":", "_")
+
+	// Read the public key file
+	file_public, err := os.Open(keyPath + "/" + id + "_public")
+	if err != nil {
+		return nil, err
+	}
+
+	defer file_public.Close()
+
+	info, err := file_public.Stat()
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	buf := make([]byte, info.Size())
+	file_public.Read(buf)
+
+	//pem decoding
+	block, _ := pem.Decode(buf)
+	if block == nil {
+		os.Remove(keyPath + "/" + id + "_public")
+		return nil, errors.New("Corrupted local keys was found for peer " + id + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
+	}
+
+	//x509
+	publicStream, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	// Interface converted to public key
+	puba := publicStream.(*ecdsa.PublicKey)
+
+	return puba, nil
+}
+
+/**
  * Return a jwt token key for a given peer id (mac address)
  */
 func GetPeerKey(id string) ([]byte, error) {
@@ -820,6 +898,7 @@ func GetPeerKey(id string) ([]byte, error) {
 	}
 
 	id = strings.ReplaceAll(id, ":", "_")
+
 	macAddress, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
 		return nil, err
@@ -836,73 +915,13 @@ func GetPeerKey(id string) ([]byte, error) {
 		return nil, err
 	}
 
-	// Read the public key file
-	file_public, err := os.Open(keyPath + "/" + id + "_public")
-
-	fmt.Println("public key: ", keyPath + "/" + id + "_public")
-
+	puba, err := readPublicKey(id)
 	if err != nil {
 		return nil, err
 	}
 
-	defer file_public.Close()
-
-	info, err := file_public.Stat()
+	privb, err := readPrivateKey(macAddress)
 	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-	buf := make([]byte, info.Size())
-	file_public.Read(buf)
-	//pem decoding
-	block, _ := pem.Decode(buf)
-	if block == nil {
-		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
-		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_public")
-		return nil, errors.New("Corrupted local keys was found for peer " + strings.ReplaceAll(macAddress, ":", "_") + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
-	}
-	
-	//x509
-	publicStream, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		fmt.Println("866 tls.go --------------------->", err)
-		return nil, err
-	}
-
-	// Interface converted to public key
-	puba := publicStream.(*ecdsa.PublicKey)
-
-	//1, open the private key file and read the content
-	file_private, err := os.Open(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
-	fmt.Println("private key: ", keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
-	if err != nil {
-		fmt.Println(err)
-		return nil, err
-	}
-
-	defer file_private.Close()
-
-	info, err = file_private.Stat()
-	if err != nil {
-		fmt.Println("888 tls.go --------------------->", err)
-		return nil, err
-	}
-
-	buf = make([]byte, info.Size())
-	file_private.Read(buf)
-
-	//2, pem decryption
-	block, _ = pem.Decode(buf)
-	if block == nil {
-		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_private")
-		os.Remove(keyPath + "/" + strings.ReplaceAll(macAddress, ":", "_") + "_public")
-		return nil, errors.New("Corrupted local keys was found for peer " + strings.ReplaceAll(macAddress, ":", "_") + " key's was deleted. You must reconnect all your peer's to be able to connect with them.")
-	}
-
-	//x509 decryption
-	privb, err := x509.ParseECPrivateKey(block.Bytes)
-	if err != nil {
-		fmt.Println("906 tls.go --------------------->", err)
 		return nil, err
 	}
 

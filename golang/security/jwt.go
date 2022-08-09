@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -140,7 +139,6 @@ func ValidateToken(token string) (*Claims, error) {
 			}
 		}
 
-		fmt.Println("validate with the local issuer ", claims.StandardClaims.Issuer)
 		key, err := GetPeerKey(claims.StandardClaims.Issuer)
 		if err != nil {
 			return "", err

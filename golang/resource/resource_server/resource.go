@@ -2391,7 +2391,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
-	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.Organization.Id+`"}`, "")
+	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Organizations", `{"$or":[{"_id":"`+rqst.Organization.Id+`"},{"name":"`+rqst.Organization.Id+`"},{"name":"`+rqst.Organization.Name+`"} ]}`, "")
 	if count > 0 {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2401,7 +2401,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
 	o := make(map[string]interface{}, 0)
-	o["_id"] = rqst.Organization.Id
+	o["_id"] = Utility.RandomUUID() // The id must be unique in the universe.
 	o["name"] = rqst.Organization.Name
 	o["icon"] = rqst.Organization.Icon
 	o["email"] = rqst.Organization.Email

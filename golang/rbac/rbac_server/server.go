@@ -472,6 +472,7 @@ func (server *server) accountExist(id string) (bool, string) {
 	domain, _ := config.GetDomain()
 	localDomain := domain
 	accountId := id
+
 	if strings.Contains(id, "@") {
 		domain = strings.Split(id, "@")[1]
 		accountId = strings.Split(id, "@")[0]
@@ -488,6 +489,7 @@ func (server *server) accountExist(id string) (bool, string) {
 		}
 		return false, ""
 	}
+
 	return true, a.Id + "@" + a.Domain
 }
 
@@ -706,6 +708,7 @@ func (server *server) roleExist(id string) (bool, string) {
 	if err != nil || r == nil {
 		return false, ""
 	}
+
 	return true, r.Id + "@" + r.Domain
 }
 

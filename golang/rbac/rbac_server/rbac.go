@@ -203,9 +203,9 @@ func (rbac_server *server) ValidateSubjectSpace(ctx context.Context, rqst *rbacp
 
 	// in case of sa not space validation must be done...
 	if rqst.Type == rbacpb.SubjectType_ACCOUNT {
-		exist, a := rbac_server.accountExist(rqst.Subject) 
+		exist, a := rbac_server.accountExist(rqst.Subject)
 		if exist {
-			if strings.HasPrefix(a, "sa@"){
+			if strings.HasPrefix(a, "sa@") {
 				return &rbacpb.ValidateSubjectSpaceRsp{HasSpace: true}, nil
 			}
 		}
@@ -1809,7 +1809,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			return false, false, errors.New("no account exist with id " + a)
 		}
 
-		if strings.HasPrefix(a, "sa@"){
+		if strings.HasPrefix(a, "sa@") {
 			return true, false, nil
 		}
 
@@ -2369,7 +2369,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 		// If the role is sa then I will it has all permission...
 		domain, _ := config.GetDomain()
-		if role.Domain == domain && role.Id == "admin" {
+		if role.Domain == domain && role.Name == "admin" {
 			return true, nil
 		}
 
@@ -2393,11 +2393,14 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 		// call the rpc method.
 		if account.Roles != nil {
-			if Utility.Contains(account.Roles, "admin") {
-				hasAccess = true
-			} else {
-				for i := 0; i < len(account.Roles); i++ {
-					roleId := account.Roles[i]
+			for i := 0; i < len(account.Roles); i++ {
+				roleId := account.Roles[i]
+				role, err := rbac_server.getRole(roleId)
+				if err == nil {
+					if role.Name == "admin"{
+						return true, nil
+					}
+
 					hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
 					if hasAccess_ {
 						hasAccess = hasAccess_
