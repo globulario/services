@@ -442,7 +442,7 @@ func (srv *server) getIndex(path string) (bleve.Index, error) {
 }
 
 func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, error) {
-	if !Utility.Exists(indexPath){
+	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
 
@@ -466,13 +466,15 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 	var title *titlepb.Title
 	// Now I will return the data
 	for _, val := range searchResult.Hits {
-		id := val.ID
-		raw, err := index.GetInternal([]byte(id))
-		if err != nil {
-			return nil, err
+		if titleId == val.ID {
+			raw, err := index.GetInternal([]byte(val.ID))
+			if err != nil {
+				return nil, err
+			}
+			title = new(titlepb.Title)
+			jsonpb.UnmarshalString(string(raw), title)
+			break
 		}
-		title = new(titlepb.Title)
-		jsonpb.UnmarshalString(string(raw), title)
 
 	}
 
@@ -698,7 +700,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 }
 
 func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) error {
-	if !Utility.Exists(indexPath){
+	if !Utility.Exists(indexPath) {
 		return errors.New("no database found at path " + indexPath)
 	}
 
@@ -735,7 +737,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		if err != nil {
 			return err
 		}
-	}else{
+	} else {
 		fmt.Println("-----------> no file association found with error ", err)
 	}
 
@@ -761,7 +763,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		if err != nil {
 			return err
 		}
-	}else{
+	} else {
 		fmt.Println("-----------> no title association found with error ", indexPath, titleId, err)
 	}
 
@@ -772,13 +774,12 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		srv.associations[indexPath].RemoveItem(titleId)
 	} else {
 		// Now I will set back the item in the store.
-		data, _:= json.Marshal(title_association)
+		data, _ := json.Marshal(title_association)
 		err = srv.associations[indexPath].SetItem(titleId, data)
 		if err != nil {
 			return err
 		}
 	}
-
 
 	return nil
 
@@ -813,7 +814,7 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 }
 
 func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, error) {
-	if !Utility.Exists(indexPath){
+	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
 
@@ -977,7 +978,7 @@ func (srv *server) DeletePublisher(ctx context.Context, rqst *titlepb.DeletePubl
 }
 
 func (srv *server) getPublisherById(indexPath, id string) (*titlepb.Publisher, error) {
-	if !Utility.Exists(indexPath){
+	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
 
@@ -1095,7 +1096,7 @@ func (srv *server) DeletePerson(ctx context.Context, rqst *titlepb.DeletePersonR
 }
 
 func (srv *server) getPersonById(indexPath, id string) (*titlepb.Person, error) {
-	if !Utility.Exists(indexPath){
+	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
 
@@ -1183,7 +1184,7 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 }
 
 func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
-	if !Utility.Exists(indexPath){
+	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
 
@@ -1205,15 +1206,19 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 	}
 
 	var video *titlepb.Video
+
 	// Now I will return the data
 	for _, val := range searchResult.Hits {
-		id := val.ID
-		raw, err := index.GetInternal([]byte(id))
-		if err != nil {
-			return nil, err
+		if val.ID == id {
+			raw, err := index.GetInternal([]byte(val.ID))
+			if err != nil {
+				return nil, err
+			}
+
+			video = new(titlepb.Video)
+			jsonpb.UnmarshalString(string(raw), video)
+			break
 		}
-		video = new(titlepb.Video)
-		jsonpb.UnmarshalString(string(raw), video)
 
 	}
 
@@ -1299,6 +1304,8 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
 	}
 
+	fmt.Println("-----------------> get file videos infos: ", filePath)
+
 	// I will use the file checksum as file id...
 	var uuid string
 	fileInfo, err := os.Stat(filePath)
@@ -1350,8 +1357,8 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 // Return the list of files associate with a title
 func (srv *server) getTitleFiles(indexPath, titleId string) ([]string, error) {
-	
-	if !Utility.Exists(indexPath){
+
+	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
 
@@ -1558,10 +1565,10 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			term := new(titlepb.SearchFacetTerm)
 			term.Count = int32(t.Count)
 			term.Term = t.Term
-			
+
 			facet_.Terms = append(facet_.Terms, term)
 		}
-		
+
 		// Numeric Range terms...
 		for _, t := range f.NumericRanges {
 			term := new(titlepb.SearchFacetTerm)
