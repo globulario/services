@@ -248,7 +248,7 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
 /**
  * Intall a new application or update an existing one.
  */
-func (client *Applications_Manager_Client) InstallApplication(token string, domain string, user string, discoveryId string, publisherId string, applicationId string, set_as_default bool) error {
+func (client *Applications_Manager_Client) InstallApplication(token,  domain, user, discoveryId, publisherId, applicationId string, set_as_default bool) error {
 
 	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId

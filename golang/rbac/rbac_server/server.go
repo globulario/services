@@ -458,8 +458,10 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
  * Return an application with a given id
  */
 func (server *server) getAccount(accountId string) (*resourcepb.Account, error) {
+	fmt.Println("try get account ", accountId)
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
+		fmt.Println("fail to get account ", accountId)
 		return nil, err
 	}
 

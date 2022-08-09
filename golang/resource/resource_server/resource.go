@@ -1125,11 +1125,11 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	}
 
 	// Create the application file directory.
-	path := "/applications/" + app.Name
+	path := "/applications/" + app.Id
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 
 	// Add resource owner
-	resource_server.addResourceOwner(path, "file", app.Name, rbacpb.SubjectType_APPLICATION)
+	resource_server.addResourceOwner(path, "file", app.Id, rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
 	resource_server.addResourceOwner(app.Id, "application", owner, rbacpb.SubjectType_ACCOUNT)
@@ -1159,7 +1159,7 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 			clientId = claims.Id
-			clientId = claims.Domain
+			domain = claims.Domain
 		} else {
 			return nil, errors.New("resource server CreateApplication no token was given")
 		}
@@ -2401,7 +2401,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
 	o := make(map[string]interface{}, 0)
-	o["_id"] = Utility.RandomUUID() // The id must be unique in the universe.
+	o["_id"] = rqst.Organization.Id
 	o["name"] = rqst.Organization.Name
 	o["icon"] = rqst.Organization.Icon
 	o["email"] = rqst.Organization.Email

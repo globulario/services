@@ -739,7 +739,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 	// set the account object and set it basic roles.
 	account := make(map[string]interface{})
-	account["_id"] = Utility.RandomUUID() // The id must be unique in the universe.
+	account["_id"] = id
 	account["name"] = name
 	account["email"] = email
 	account["domain"] = domain
@@ -750,18 +750,9 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	account["groups"] = make([]interface{}, 0)
 	account["organizations"] = make([]interface{}, 0)
 
-	// retreive the guess role
-	guess, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"name":"guess"}`, "")
-	if err != nil {
-		return err
-	}
-
-	// get the guess role id
-	guessId := guess.(map[string]interface{})["id"].(string)
-
 	// append guest role if not already exist.
-	if !Utility.Contains(roles, guessId) {
-		roles = append(roles, guessId)
+	if !Utility.Contains(roles, "guest") {
+		roles = append(roles, "guest")
 	}
 
 	// Here I will insert the account in the database.
@@ -779,10 +770,8 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	createUserScript := fmt.Sprintf("db=db.getSiblingDB('%s_db');db.createCollection('user_data');db=db.getSiblingDB('admin');db.createUser({user: '%s', pwd: '%s',roles: [{ role: 'dbOwner', db: '%s_db' }]});", name, name, password, name)
 
 	// I will execute the sript with the admin function.
-	err = p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
-	if err != nil {
-		return err
-	}
+	p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
+
 
 	// Organizations
 	for i := 0; i < len(organizations); i++ {
@@ -922,7 +911,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
 	g := make(map[string]interface{}, 0)
-	g["_id"] = Utility.RandomUUID() // the id must be unique in the universe
+	g["_id"] = id
 	g["name"] = name
 	g["description"] = description
 	g["domain"] = resource_server.Domain
@@ -984,7 +973,7 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 
 	// Here will create the new role.
 	role := make(map[string]interface{})
-	role["_id"] = Utility.RandomUUID() // the id must be unique in the universe
+	role["_id"] = id
 	role["name"] = name
 	role["actions"] = actions
 	role["domain"] = resource_server.Domain

@@ -236,7 +236,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 }
 
 // Intall
-func (server *server) installApplication(token, domain, name, publisherId, version, description string, icon string, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
+func (server *server) installApplication(token, domain, name, publisherId, version, description, icon, alias string, r io.Reader, actions []string, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group, set_as_default bool) error {
 
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
@@ -279,6 +279,17 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	// Recreate the dir and move file in it.
 	Utility.CreateDirIfNotExist(abosolutePath)
 	Utility.CopyDir(__extracted_path__+"/.", abosolutePath)
+	if len(alias) == 0 {
+		return errors.New("no application alias was given")
+	}
+
+	if len(name) == 0 {
+		return errors.New("no application name was given")
+	}
+
+	if len(version) == 0 {
+		return errors.New("no application version was given")
+	}
 
 	err = server.createApplication(token, name, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
 	if err != nil {
@@ -337,11 +348,18 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// - Get the information from the package.json (npm package, the version, the keywords and set the package descriptor with it.
 	var token string
+	var domain string
+	var user string
+
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) == 0 {
 			return errors.New("Application Manager DeployApplication no token was given")
 		}
+
+		domain = strings.Join(md["domain"], "")
+		user = strings.Join(md["id"], "")
+
 	}
 
 	// The bundle will cantain the necessary information to install the service.
@@ -349,8 +367,6 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// Here is necessary information to publish an application.
 	var name string
-	var domain string
-	var user string
 	var organization string
 	var version string
 	var description string
@@ -400,6 +416,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		if len(msg.Organization) > 0 {
 			organization = msg.Organization
 		}
+		
 		if len(msg.User) > 0 {
 			user = msg.User
 		}

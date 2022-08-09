@@ -1386,28 +1386,39 @@ func (rbac_server *server) GetResourcePermissions(ctx context.Context, rqst *rba
 }
 
 func (rbac_server *server) addResourceOwner(path, resourceType_, subject string, subjectType rbacpb.SubjectType) error {
+	if len(path) == 0 {
+		return errors.New("no resource path was given")
+	}
+
+	if len(subject) == 0 {
+		return errors.New("no subject was given")
+	}
+
+	if len(subject) == 0 {
+		return errors.New("no resource type was given")
+	}
 
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
-		exist, a := rbac_server.accountExist(subject)
+		exist, _ := rbac_server.accountExist(subject)
 		if !exist {
-			return errors.New("no account exist with id " + a)
+			return errors.New("no account exist with id " + subject)
 		}
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
-		exist, a := rbac_server.applicationExist(subject)
+		exist, _ := rbac_server.applicationExist(subject)
 		if !exist {
-			return errors.New("no application exist with id " + a)
+			return errors.New("no application exist with id " + subject)
 		}
 
 	} else if subjectType == rbacpb.SubjectType_GROUP {
-		exist, g := rbac_server.groupExist(subject)
+		exist, _ := rbac_server.groupExist(subject)
 		if !exist {
-			return errors.New("no group exist with id " + g)
+			return errors.New("no group exist with id " +subject)
 		}
 
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
-		exist, o := rbac_server.organizationExist(subject)
+		exist, _ := rbac_server.organizationExist(subject)
 		if !exist {
-			return errors.New("no organization exist with id " + o)
+			return errors.New("no organization exist with id " + subject)
 		}
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		if !rbac_server.peerExist(subject) {
@@ -1506,6 +1517,7 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 //* Add resource owner do nothing if it already exist
 func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourceOwnerRqst) (*rbacpb.AddResourceOwnerRsp, error) {
 
+	fmt.Println("add resource owner for ", rqst.Path, rqst.Subject)
 	err := rbac_server.addResourceOwner(rqst.Path, rqst.ResourceType, rqst.Subject, rqst.Type)
 
 	if err != nil {
@@ -2395,18 +2407,16 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		if account.Roles != nil {
 			for i := 0; i < len(account.Roles); i++ {
 				roleId := account.Roles[i]
-				role, err := rbac_server.getRole(roleId)
-				if err == nil {
-					if role.Name == "admin"{
-						return true, nil
-					}
-
-					hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
-					if hasAccess_ {
-						hasAccess = hasAccess_
-						break
-					}
+				if roleId == "admin" {
+					return true, nil
 				}
+
+				hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
+				if hasAccess_ {
+					hasAccess = hasAccess_
+					break
+				}
+
 			}
 		}
 	}
