@@ -160,13 +160,13 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	if err != nil {
 		return nil, err
 	}
-	
+
 	accountId := rqst.AccountId
 
-	if strings.Contains(accountId, "@"){
+	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]
 		accountId = strings.Split(accountId, "@")[0]
-		
+
 		_domain, err := config.GetDomain()
 		if err != nil {
 			return nil, status.Errorf(
@@ -175,9 +175,24 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		}
 
 		if _domain != domain {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot find " + accountId + " from domain " + domain + " on " + _domain))) 
+			resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot find "+accountId+" from domain "+domain+" on "+_domain)))
+			}
+
+			a, err := resource_.GetAccount(accountId)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot find "+accountId+" from domain "+domain+" on "+_domain)))
+			}
+
+			return &resourcepb.GetAccountRsp{
+				Account: a, // Return the token string.
+			}, nil
+
 		}
 	}
 
@@ -569,8 +584,8 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	}
 
-	resource_server.deleteAllAccess(accountId + "@" + domain, rbacpb.SubjectType_ACCOUNT)
-	
+	resource_server.deleteAllAccess(accountId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+
 	// Try to delete the account...
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, "")
 	if err != nil {
@@ -623,7 +638,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 	// Remove the file...
 	resource_server.deleteResourcePermissions("/users/" + name + "@" + domain)
-	
+
 	os.RemoveAll(config.GetDataDir() + "/files/users/" + name + "@" + domain)
 
 	// Publish delete account event.
@@ -1217,7 +1232,7 @@ func (resource_server *server) DeleteApplication(ctx context.Context, rqst *reso
 	}
 
 	resource_server.deleteResourcePermissions(rqst.ApplicationId)
-	
+
 	resource_server.publishEvent("delete_application_"+rqst.ApplicationId+"_evt", []byte{})
 	resource_server.publishEvent("delete_application_evt", []byte(rqst.ApplicationId))
 
@@ -2159,7 +2174,7 @@ func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.
 
 	// remove permission associated with that peer...
 	resource_server.deleteResourcePermissions(domain)
-	
+
 	// signal peers changes...
 	resource_server.publishEvent("delete_peer"+rqst.Peer.Mac+"_evt", []byte{})
 	resource_server.publishEvent("delete_peer_evt", []byte(rqst.Peer.Mac))
@@ -3039,7 +3054,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 	group := values.(map[string]interface{})
 
 	// I will remove it from accounts...
-	
+
 	if group["members"] != nil {
 		members := []interface{}(group["members"].(primitive.A))
 		for j := 0; j < len(members); j++ {
@@ -3061,7 +3076,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		}
 	}
 
-	resource_server.deleteAllAccess(rqst.Group + "@" +  group["domain"].(string), rbacpb.SubjectType_GROUP)
+	resource_server.deleteAllAccess(rqst.Group+"@"+group["domain"].(string), rbacpb.SubjectType_GROUP)
 
 	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.Group+`"}`, "")
 	if err != nil {
@@ -3462,7 +3477,7 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 		query = "{}"
 	}
 
-	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query , rqst.Options)
+	data, err := p.Find(context.Background(), "local_resource", "local_resource", "Packages", query, rqst.Options)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

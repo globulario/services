@@ -427,25 +427,36 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
-			return nil, errors.New("no account exist with id " + a)
+			return nil, errors.New("no account exist with id " + subject)
 		}
 		id += "ACCOUNT/" + a
+
+		// Here I will create the account directory...
+		path := config.GetDataDir() + "/files/users/" + a
+		if !Utility.Exists(path) {
+			Utility.CreateDirIfNotExist(path)
+			err := rbac_server.addResourceOwner("/users/"+a, "file", a, rbacpb.SubjectType_ACCOUNT)
+			if err != nil {
+				fmt.Println("fail to set resource owner: ", err)
+			}
+		}
+
 	} else if subject_type == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
-			return nil, errors.New("no application exist with id " + a)
+			return nil, errors.New("no application exist with id " + subject)
 		}
 		id += "APPLICATION/" + a
 	} else if subject_type == rbacpb.SubjectType_GROUP {
 		exist, g := rbac_server.groupExist(subject)
 		if !exist {
-			return nil, errors.New("no group exist with id " + g)
+			return nil, errors.New("no group exist with id " + subject)
 		}
 		id += "GROUP/" + g
 	} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
 		exist, o := rbac_server.organizationExist(subject)
 		if !exist {
-			return nil, errors.New("no organization exist with id " + o)
+			return nil, errors.New("no organization exist with id " + subject)
 		}
 
 		id += "ORGANIZATION/" + o
@@ -1412,7 +1423,7 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		exist, _ := rbac_server.groupExist(subject)
 		if !exist {
-			return errors.New("no group exist with id " +subject)
+			return errors.New("no group exist with id " + subject)
 		}
 
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
@@ -1502,13 +1513,14 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 		}
 	}
 
-	// Save permission if ti owner has changed.
+	// Save permission if it's owner has changed.
 	if needSave {
 		permissions.Owners = owners
 		err = rbac_server.setResourcePermissions(path, permissions.ResourceType, permissions)
 		if err != nil {
 			return err
 		}
+		fmt.Println("ressource owner was set for ", subject, path)
 	}
 
 	return nil
@@ -2350,7 +2362,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	var actions []string
 	// All action from those services are available...
 	if len(resources) == 0 {
-		if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") {
+		if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") || action == "/file.FileService/GetFileInfo" {
 			return true, nil
 		}
 	}
@@ -2729,21 +2741,21 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 		id += "ACCOUNTS"
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
-			return nil, errors.New("no account exist with id " + a)
+			return nil, errors.New("no account exist with id " + subject)
 		}
 		id += "/" + a
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		id += "APPLICATIONS"
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
-			return nil, errors.New("no application exist with id " + a)
+			return nil, errors.New("no application exist with id " + subject)
 		}
 		id += "/" + a
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		id += "GROUPS"
 		exist, g := rbac_server.groupExist(subject)
 		if !exist {
-			return nil, errors.New("no group exist with id " + g)
+			return nil, errors.New("no group exist with id " + subject)
 		}
 		id += "/" + g
 	} else if subjectType == rbacpb.SubjectType_PEER {
@@ -2752,7 +2764,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 		id += "ORGANIZATIONS"
 		exist, o := rbac_server.organizationExist(subject)
 		if !exist {
-			return nil, errors.New("no organization exist with id " + o)
+			return nil, errors.New("no organization exist with id " + subject)
 		}
 		id += "/" + o
 	}

@@ -337,15 +337,15 @@ func (client *Authentication_Client) SetRootEmail(oldEmail, newEmail string) err
 /**
  * Return an error if the token is not valid.
  */
-func (client *Authentication_Client) ValidateToken(token string) error {
+func (client *Authentication_Client) ValidateToken(token string) (string, int64, error) {
 	rqst := new(authenticationpb.ValidateTokenRqst)
 
 	rqst.Token = token
 
-	_, err := client.c.ValidateToken(client.GetCtx(), rqst)
+	 rsp, err := client.c.ValidateToken(client.GetCtx(), rqst)
 	if err != nil {
-		return err
+		return "", -1, err
 	}
 
-	return nil
+	return rsp.ClientId, rsp.Expired, nil
 }

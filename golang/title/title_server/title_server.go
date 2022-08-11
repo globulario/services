@@ -1488,6 +1488,8 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	summary.Took = result.Took.Milliseconds()
 	summary.Total = result.Total
 
+	fmt.Println( "Search title", rqst.IndexPath ,rqst.Query, "results: ", result.Total)
+
 	// Here I will send the summary...
 	stream.Send(&titlepb.SearchTitlesResponse{
 		Result: &titlepb.SearchTitlesResponse_Summary{

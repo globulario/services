@@ -361,10 +361,6 @@ var config_ map[string]interface{}
  */
 func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	// display configuration value.
-	if config_ != nil && lazy {
-		return config_, nil
-	}
-
 	ConfigPath := GetConfigDir() + "/config.json"
 	if !Utility.Exists(ConfigPath) {
 		err := errors.New("no local Globular configuration found")

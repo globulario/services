@@ -312,7 +312,10 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	}
 
 	if !hasAccess && len(issuer) > 0 {
-		hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, address)
+		macAddress, _ := Utility.MyMacAddr(Utility.MyIP())
+		if issuer != macAddress {
+			hasAccess, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, address)
+		}
 	}
 
 	if !hasAccess {

@@ -117,8 +117,8 @@ func InitClient(client Client, address string, id string) error {
 	// http server. If not given thas mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
+	localConfig, _ := config.GetLocalConfig(true)
 	if !strings.Contains(address, ":") {
-		localConfig, _ := config.GetLocalConfig(true)
 		if strings.HasPrefix(address_, address) {
 			// this is local
 			if localConfig["Protocol"].(string) == "https" {
@@ -135,10 +135,7 @@ func InitClient(client Client, address string, id string) error {
 	values := strings.Split(address, ":")
 	domain := values[0]
 	port := Utility.ToInt(values[1])
-
 	isLocal := address_ == address
-
-
 	if isLocal {
 		// Local client configuration
 		config_, err = client.GetConfiguration(address, id)
@@ -146,8 +143,18 @@ func InitClient(client Client, address string, id string) error {
 			config_, err = config.GetServiceConfigurationById(id)
 		}
 	} else {
-		// Remote client configuration
-		config_, err = config.GetRemoteConfig(domain, port, id)
+		fmt.Println("-----------> ", localConfig)
+		// so here I try to get more information from peers...
+		if localConfig["Peers"].(map[string]interface{})[domain] != nil {
+			peer := localConfig["Peers"].(map[string]interface{})[domain].(map[string]interface{})
+			port = Utility.ToInt(peer["port"])
+			address = peer["domain"].(string) + ":" + Utility.ToString(peer["port"])
+			config_, err = config.GetRemoteConfig(peer["domain"].(string), port, id)
+
+		} else {
+			config_, err = config.GetRemoteConfig(domain, port, id)
+		}
+
 	}
 
 	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
@@ -393,7 +400,7 @@ func GetClientContext(client Client) context.Context {
 	macAddress, _ := Utility.MyMacAddr(Utility.MyLocalIP())
 
 	if err == nil {
-		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac":macAddress})
+		md := metadata.New(map[string]string{"token": string(token), "domain": client.GetAddress(), "mac": macAddress})
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 		return ctx
 	}

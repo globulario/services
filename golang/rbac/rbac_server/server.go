@@ -476,23 +476,36 @@ func (server *server) accountExist(id string) (bool, string) {
 	accountId := id
 
 	if strings.Contains(id, "@") {
-		domain = strings.Split(id, "@")[1]
-		accountId = strings.Split(id, "@")[0]
+		domain = strings.TrimSpace(strings.Split(id, "@")[1])
+		accountId = strings.TrimSpace(strings.Split(id, "@")[0])
 	}
 
 	if localDomain != domain {
-		fmt.Println("-----------------> the account",accountId,"is not local!!!!! ", localDomain, domain)
-	}
-
-	a, err := server.getAccount(accountId)
-	if err != nil || a == nil {
+		fmt.Println("-----------------> the account", accountId, "is not local!!!!! ", localDomain, domain)
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
 		if err != nil {
-			fmt.Println("fail to find account ", accountId, domain, err)
+			return false, ""
 		}
-		return false, ""
-	}
 
-	return true, a.Id + "@" + a.Domain
+		a, err := resource_.GetAccount(accountId)
+		if err != nil {
+			return false, ""
+		}
+
+		// In that case I will
+		return true, a.Id + "@" + a.Domain
+
+	} else {
+
+		a, err := server.getAccount(accountId)
+		if err != nil {
+			fmt.Println("fail to find local account ", accountId, domain, err)
+			return false, ""
+		}
+
+		return true, a.Id + "@" + a.Domain
+	}
 }
 
 /**
@@ -530,15 +543,30 @@ func (server *server) groupExist(id string) (bool, string) {
 	}
 
 	if localDomain != domain {
-		fmt.Println("-----------------> the group is not local!!!!! ", localDomain, domain)
-	}
+		fmt.Println("-----------------> the group", groupId, "is not local!!!!! ", localDomain, domain)
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return false, ""
+		}
 
-	g, err := server.getGroup(groupId)
-	if err != nil || g == nil {
-		fmt.Println("fail to find group ", groupId)
-		return false, ""
+		groups, err := resource_.GetGroups(`{"_id":"` + groupId + `"}`)
+		if err != nil || len(groups) == 1 {
+			return false, ""
+		}
+
+		// In that case I will
+		return true, groups[0].Id + "@" + groups[0].Domain
+
+	} else {
+
+		g, err := server.getGroup(groupId)
+		if err != nil || g == nil {
+			fmt.Println("fail to find group ", groupId)
+			return false, ""
+		}
+		return true, g.Id + "@" + g.Domain
 	}
-	return true, g.Id + "@" + g.Domain
 }
 
 /**
@@ -575,20 +603,34 @@ func (server *server) applicationExist(id string) (bool, string) {
 	}
 
 	if localDomain != domain {
-		fmt.Println("-----------------> the application is not local!!!!! ", localDomain, domain)
-	}
+		fmt.Println("-----------------> the group", applicationId, "is not local!!!!! ", localDomain, domain)
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return false, ""
+		}
 
-	a, err := server.getApplication(applicationId)
-	if err != nil || a == nil {
-		return false, ""
-	}
+		applications, err := resource_.GetApplications(`{"_id":"` + applicationId + `"}`)
+		if err != nil || len(applications) == 1 {
+			return false, ""
+		}
 
-	// Set the local domain if no domain was given...
-	if len(a.Domain) == 0 {
-		a.Domain = localDomain
-	}
+		// In that case I will
+		return true, applications[0].Id + "@" + applications[0].Domain
 
-	return true, a.Id + "@" + a.Domain
+	} else {
+		a, err := server.getApplication(applicationId)
+		if err != nil || a == nil {
+			return false, ""
+		}
+
+		// Set the local domain if no domain was given...
+		if len(a.Domain) == 0 {
+			a.Domain = localDomain
+		}
+
+		return true, a.Id + "@" + a.Domain
+	}
 }
 
 /**
@@ -658,15 +700,30 @@ func (server *server) organizationExist(id string) (bool, string) {
 	}
 
 	if localDomain != domain {
-		fmt.Println("-----------------> the organization is not local!!!!! ", localDomain, domain)
-	}
+		fmt.Println("-----------------> the organization", organizationId, "is not local!!!!! ", localDomain, domain)
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return false, ""
+		}
 
-	o, err := server.getOrganization(organizationId)
-	if err != nil || o == nil {
-		return false, ""
-	}
+		organizations, err := resource_.GetOrganizations(`{"_id":"` + organizationId + `"}`)
+		if err != nil || len(organizations) == 1 {
+			return false, ""
+		}
 
-	return true, o.Id + "@" + o.Domain
+		// In that case I will
+		return true, organizations[0].Id + "@" + organizations[0].Domain
+
+	} else {
+
+		o, err := server.getOrganization(organizationId)
+		if err != nil || o == nil {
+			return false, ""
+		}
+
+		return true, o.Id + "@" + o.Domain
+	}
 }
 
 /**
@@ -703,15 +760,29 @@ func (server *server) roleExist(id string) (bool, string) {
 	}
 
 	if localDomain != domain {
-		fmt.Println("-----------------> the role is not local!!!!! ", localDomain, domain)
-	}
+		fmt.Println("-----------------> the organization", roleId, "is not local!!!!! ", localDomain, domain)
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return false, ""
+		}
 
-	r, err := server.getRole(roleId)
-	if err != nil || r == nil {
-		return false, ""
-	}
+		roles, err := resource_.GetRoles(`{"_id":"` + roleId + `"}`)
+		if err != nil || len(roles) == 1 {
+			return false, ""
+		}
 
-	return true, r.Id + "@" + r.Domain
+		// In that case I will
+		return true, roles[0].Id + "@" + roles[0].Domain
+
+	} else {
+		r, err := server.getRole(roleId)
+		if err != nil || r == nil {
+			return false, ""
+		}
+
+		return true, r.Id + "@" + r.Domain
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -817,7 +888,6 @@ func main() {
 
 	// Need to be the owner in order to change permissions
 	s_impl.setActionResourcesPermissions(map[string]interface{}{"action": "/rbac.RbacService/SetResourcePermissions", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}})
-
 
 	if err != nil {
 		fmt.Println("Fail to connect to event channel generate_video_preview_event")

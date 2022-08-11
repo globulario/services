@@ -264,7 +264,7 @@ export enum OwnerType {
 
 ///////////////////////////////////// File operations /////////////////////////////////
 
-export function uploadFiles(globule: Globular, path: string, files: File[], completeHandler: () => void, errorHandler?: (event: any) => void, progressHandler?: (event: any) => void, abortHandler?: (event: any) => void, port?: number) {
+export function uploadFiles(globule: Globular, token: string, path: string, files: File[], completeHandler: () => void, errorHandler?: (event: any) => void, progressHandler?: (event: any) => void, abortHandler?: (event: any) => void, port?: number) {
   var fd = new FormData();
   // add all selected files
   for (var i = 0; i < files.length; i++) {
@@ -317,7 +317,7 @@ export function uploadFiles(globule: Globular, path: string, files: File[], comp
   xhr.open("POST", url, true);
 
   // path to server would be where you'd normally post the form to
-  xhr.setRequestHeader("token", getToken());
+  xhr.setRequestHeader("token", token);
   xhr.setRequestHeader("application", application);
   xhr.setRequestHeader("domain",  globule.config.Domain);
   xhr.send(fd);

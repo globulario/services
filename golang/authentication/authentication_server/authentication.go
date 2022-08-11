@@ -431,11 +431,10 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	claims, _ := security.ValidateToken(tokenString)
 
 	// Create the user file directory.
-	path := "/users/" + claims.Id + "@" + account.Domain
-	if !Utility.Exists(path) {
-		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-		server.addResourceOwner(path, "file", claims.Id, rbacpb.SubjectType_ACCOUNT)
-	}
+	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + claims.Id + "@" + account.Domain)
+	
+	// be sure the user is the owner of that directory...
+	server.addResourceOwner("/users/" + claims.Id + "@" + account.Domain, "file", claims.Id+"@"+account.Domain, rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
@@ -558,9 +557,8 @@ func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticatio
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			// So here I will 
+			// So here I will
 			userId = claims.Id
-
 
 		} else {
 			return nil, errors.New("no token was given")
@@ -568,7 +566,7 @@ func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticatio
 	}
 
 	// The generated token.
-	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, userName, email) 
+	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, userName, email)
 
 	return &authenticationpb.GeneratePeerTokenResponse{
 		Token: token,

@@ -26,6 +26,7 @@ import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb
 import { PackageRepositoryPromiseClient } from './repository/repository_grpc_web_pb';
 import { TitleServicePromiseClient } from './title/title_grpc_web_pb';
 import { TorrentServicePromiseClient } from './torrent/torrent_grpc_web_pb';
+import { GeneratePeerTokenRequest } from './authentication/authentication_pb';
 const domain = window.location.hostname;
 const application = window.location.pathname.split("/").join("");
 
