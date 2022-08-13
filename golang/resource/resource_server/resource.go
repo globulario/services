@@ -175,20 +175,12 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		}
 
 		if _domain != domain {
-			resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+			a, err := resource_server.getRemoteAccount(accountId, domain)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot find "+accountId+" from domain "+domain+" on "+_domain)))
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
-			a, err := resource_.GetAccount(accountId)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("cannot find "+accountId+" from domain "+domain+" on "+_domain)))
-			}
-
 			return &resourcepb.GetAccountRsp{
 				Account: a, // Return the token string.
 			}, nil
@@ -462,6 +454,7 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 
 func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcepb.AccountExistRqst) (*resourcepb.AccountExistRsp, error) {
 	var exist bool
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -469,6 +462,37 @@ func (resource_server *server) AccountExist(ctx context.Context, rqst *resourcep
 	}
 	// Test with the _id
 	accountId := rqst.Id
+
+	if strings.Contains(accountId, "@") {
+		domain := strings.Split(accountId, "@")[1]
+		accountId = strings.Split(accountId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		// find account on other domain.
+		if localDomain != domain {
+
+			_, err := resource_server.getRemoteAccount(accountId, domain)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			// return true.
+			return &resourcepb.AccountExistRsp{
+				Result: true,
+			}, nil
+
+		}
+
+	}
+
 	count, _ := p.Count(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, "")
 	if count > 0 {
 		exist = true
@@ -540,12 +564,34 @@ func (resource_server *server) IsOrgnanizationMember(ctx context.Context, rqst *
 
 //* Delete an account *
 func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAccountRqst) (*resourcepb.DeleteAccountRsp, error) {
+	accountId := rqst.Id
+
+	if strings.Contains(accountId, "@") {
+		domain := strings.Split(accountId, "@")[1]
+		accountId = strings.Split(accountId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if localDomain != domain {
+
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("i cant's delete object from domain "+domain+" from domain "+localDomain)))
+		}
+
+	}
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
-	accountId := rqst.Id
+
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
@@ -609,7 +655,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 
 			if err == nil {
 				// Here I will send delete contact event.
-				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"_evt", []byte{})
+				resource_server.publishEvent("update_account_"+contact["_id"].(string)+"@"+contact["domain"].(string)+"_evt", []byte{})
 			}
 
 		}
@@ -733,7 +779,7 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 
 	for i := 0; i < len(roles); i++ {
 		role := roles[i].(map[string]interface{})
-		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Actions: make([]string, 0)}
+		r := &resourcepb.Role{Id: role["_id"].(string), Name: role["name"].(string), Domain: role["domain"].(string), Actions: make([]string, 0)}
 		if role["domain"] != nil {
 			r.Domain = role["domain"].(string)
 		} else {
@@ -805,6 +851,27 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 //* Delete a role with a given id *
 func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRqst) (*resourcepb.DeleteRoleRsp, error) {
 
+	// set the role id.
+	roleId := rqst.RoleId
+	if strings.Contains(roleId, "@") {
+		domain := strings.Split(roleId, "@")[1]
+		roleId = strings.Split(roleId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if localDomain != domain {
+
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("i cant's delete object from domain "+domain+" from domain "+localDomain)))
+		}
+	}
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -812,13 +879,12 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	}
 
 	// Remove references
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
 	if err != nil {
 		return nil, err
 	}
 
 	role := values.(map[string]interface{})
-	roleId := role["_id"].(string)
 
 	// Remove it from the accounts
 	if role["members"] != nil {
@@ -840,7 +906,7 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 		}
 	}
 
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, ``)
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -856,13 +922,33 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 
 //* Append an action to existing role. *
 func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleActionsRqst) (*resourcepb.AddRoleActionsRsp, error) {
+	roleId := rqst.RoleId
+	if strings.Contains(roleId, "@") {
+		domain := strings.Split(roleId, "@")[1]
+		roleId = strings.Split(roleId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if localDomain != domain {
+
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("i cant's delete object from domain "+domain+" from domain "+localDomain)))
+		}
+	}
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -899,7 +985,7 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		// jsonStr, _ := json.Marshal(role)
 		jsonStr := serialyseObject(role)
 
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -963,7 +1049,7 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			resource_server.publishEvent("update_role_"+role["_id"].(string)+"_evt", []byte{})
+			resource_server.publishEvent("update_role_"+role["_id"].(string)+"@"+role["domain"].(string)+"_evt", []byte{})
 
 		}
 	}
@@ -973,6 +1059,25 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 
 //* Remove an action to existing role. *
 func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.RemoveRoleActionRqst) (*resourcepb.RemoveRoleActionRsp, error) {
+	roleId := rqst.RoleId
+	if strings.Contains(roleId, "@") {
+		domain := strings.Split(roleId, "@")[1]
+		roleId = strings.Split(roleId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if localDomain != domain {
+
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("i cant's delete object from domain "+domain+" from domain "+localDomain)))
+		}
+	}
 
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -980,7 +1085,7 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1010,7 +1115,7 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 		} else {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Role named "+rqst.RoleId+"not contain actions named "+rqst.Action+"!")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Role named "+roleId+"not contain actions named "+rqst.Action+"!")))
 		}
 	}
 
@@ -1018,7 +1123,7 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 		// jsonStr, _ := json.Marshal(role)
 		jsonStr := serialyseObject(role)
 
-		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, string(jsonStr), ``)
+		err := p.ReplaceOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+roleId+`"}`, string(jsonStr), ``)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1040,7 +1145,7 @@ func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourc
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{})
 	return &resourcepb.AddAccountRoleRsp{Result: true}, nil
 }
 
@@ -1075,6 +1180,7 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 
 func (resource_server *server) save_application(app *resourcepb.Application, owner string) error {
 
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
@@ -1097,6 +1203,15 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	application["keywords"] = app.Keywords
 	application["icon"] = app.Icon
 	application["alias"] = app.Alias
+
+	// be sure the domain is set correctly
+	if len(app.Domain) == 0 {
+		app.Domain, _ = config.GetDomain()
+	}
+
+	application["domain"] = app.Domain
+
+	
 	application["password"] = app.Password
 	if len(application["password"].(string)) == 0 {
 		application["password"] = app.Id
@@ -1147,10 +1262,10 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	resource_server.addResourceOwner(path, "file", app.Id, rbacpb.SubjectType_APPLICATION)
 
 	// Add application owner
-	resource_server.addResourceOwner(app.Id, "application", owner, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(app.Id+"@"+app.Domain, "application", owner, rbacpb.SubjectType_ACCOUNT)
 
 	// Publish application.
-	resource_server.publishEvent("update_application_"+app.Id+"_evt", []byte{})
+	resource_server.publishEvent("update_application_"+app.Id+"@"+app.Domain+"_evt", []byte{})
 
 	return nil
 }
@@ -1221,8 +1336,6 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 //* Delete an application from the server. *
 func (resource_server *server) DeleteApplication(ctx context.Context, rqst *resourcepb.DeleteApplicationRqst) (*resourcepb.DeleteApplicationRsp, error) {
 
-	resource_server.deleteAllAccess(rqst.ApplicationId, rbacpb.SubjectType_APPLICATION)
-
 	// That service made user of persistence service.
 	err := resource_server.deleteApplication(rqst.ApplicationId)
 	if err != nil {
@@ -1230,11 +1343,6 @@ func (resource_server *server) DeleteApplication(ctx context.Context, rqst *reso
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	resource_server.deleteResourcePermissions(rqst.ApplicationId)
-
-	resource_server.publishEvent("delete_application_"+rqst.ApplicationId+"_evt", []byte{})
-	resource_server.publishEvent("delete_application_evt", []byte(rqst.ApplicationId))
 
 	// TODO delete dir permission associate with the application.
 
@@ -1528,7 +1636,7 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 				actions = append(actions, actions_[i].(string))
 			}
 		}
-		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions}
+		application := &resourcepb.Application{Id: values_["_id"].(string), Name: values_["_id"].(string), Domain: values_["domain"].(string), Path: values_["path"].(string), CreationDate: creationDate, LastDeployed: lastDeployed, Alias: values_["alias"].(string), Icon: values_["icon"].(string), Description: values_["description"].(string), Publisherid: values_["publisherid"].(string), Version: values_["version"].(string), Actions: actions}
 
 		// TODO validate token...
 		application.Password = values_["password"].(string)
@@ -2413,6 +2521,20 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Organization with name '"+rqst.Organization.Id+"' already exist!")))
 	}
 
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// test if the given domain is the local domain.
+	if rqst.Organization.Domain != localDomain {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("you can't register group "+rqst.Organization.Id+" with domain "+rqst.Organization.Domain+" on domain "+localDomain)))
+	}
+
 	// No authorization exist for that peer I will insert it.
 	// Here will create the new peer.
 	o := make(map[string]interface{}, 0)
@@ -2463,7 +2585,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}
 
 	// create the resource owner.
-	resource_server.addResourceOwner(rqst.Organization.GetId(), "organization", clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(rqst.Organization.GetId() + "@" + rqst.Organization.Domain, "organization", clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,
@@ -2506,6 +2628,7 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 
 //* Return the list of organizations
 func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, stream resourcepb.ResourceService_GetOrganizationsServer) error {
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -2767,13 +2890,33 @@ func (resource_server *server) RemoveOrganizationApplication(ctx context.Context
 //* Delete organization
 func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.DeleteOrganizationRqst) (*resourcepb.DeleteOrganizationRsp, error) {
 
+	organizationId := rqst.Organization
+	if strings.Contains(organizationId, "@") {
+		domain := strings.Split(organizationId, "@")[1]
+		organizationId = strings.Split(organizationId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if localDomain != domain {
+
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("i cant's delete object from domain "+domain+" from domain "+localDomain)))
+		}
+	}
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.Organization+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+organizationId+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2837,20 +2980,21 @@ func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *res
 		}
 	}
 
-	resource_server.deleteAllAccess(rqst.Organization, rbacpb.SubjectType_ORGANIZATION)
+	// Delete organization
+	organizationId = organization["_id"].(string) + "@" + organization["domain"].(string)
+	resource_server.deleteAllAccess(organizationId, rbacpb.SubjectType_ORGANIZATION)
 
 	// Try to delete the account...
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+rqst.Organization+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Organizations", `{"_id":"`+organization["_id"].(string)+`"}`, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	resource_server.deleteResourcePermissions(rqst.Organization)
-
-	resource_server.publishEvent("delete_organization_"+rqst.Organization+"_evt", []byte{})
-	resource_server.publishEvent("delete_organization_evt", []byte(rqst.Organization))
+	resource_server.deleteResourcePermissions(organizationId)
+	resource_server.publishEvent("delete_organization_"+organizationId+"_evt", []byte{})
+	resource_server.publishEvent("delete_organization_evt", []byte(organizationId))
 
 	return &resourcepb.DeleteOrganizationRsp{Result: true}, nil
 }
@@ -3037,6 +3181,26 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 //* Delete organization
 func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroupRqst) (*resourcepb.DeleteGroupRsp, error) {
 
+	groupId := rqst.Group
+	if strings.Contains(groupId, "@") {
+		domain := strings.Split(groupId, "@")[1]
+		groupId = strings.Split(groupId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if localDomain != domain {
+
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("i cant's delete object from domain "+domain+" from domain "+localDomain)))
+		}
+	}
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3044,7 +3208,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		return nil, err
 	}
 
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.Group+`"}`, ``)
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+groupId+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3076,9 +3240,10 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		}
 	}
 
-	resource_server.deleteAllAccess(rqst.Group+"@"+group["domain"].(string), rbacpb.SubjectType_GROUP)
+	groupId = group["_id"].(string) + "@" + group["domain"].(string)
+	resource_server.deleteAllAccess(groupId, rbacpb.SubjectType_GROUP)
 
-	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+rqst.Group+`"}`, "")
+	err = p.DeleteOne(context.Background(), "local_resource", "local_resource", "Groups", `{"_id":"`+group["_id"].(string)+`"}`, "")
 	if err != nil {
 		fmt.Println("3043", err)
 		return nil, status.Errorf(
@@ -3088,9 +3253,9 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 
 	resource_server.deleteResourcePermissions(rqst.Group)
 
-	resource_server.publishEvent("delete_group_"+rqst.Group+"_evt", []byte{})
+	resource_server.publishEvent("delete_group_"+groupId+"_evt", []byte{})
 
-	resource_server.publishEvent("delete_group_evt", []byte(rqst.Group))
+	resource_server.publishEvent("delete_group_evt", []byte(groupId))
 
 	return &resourcepb.DeleteGroupRsp{
 		Result: true,

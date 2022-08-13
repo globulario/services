@@ -35,8 +35,6 @@ var (
 	// comma separeated values.
 	allowed_origins string = ""
 
-	domain string = "localhost"
-
 	rbac_client_ *rbac_client.Rbac_Client
 )
 
@@ -442,13 +440,13 @@ func (svr *server) deleteApplication(token, applicationId string) error {
 	return resourceClient.DeleteApplication(token, applicationId)
 }
 
-func (svr *server) createApplication(token, id, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
+func (svr *server) createApplication(token, id, domain, password, path, publisherId, version, description, alias, icon string, actions, keywords []string) error {
 	resourceClient, err := svr.getResourceClient()
 	if err != nil {
 		return err
 	}
 
-	return resourceClient.CreateApplication(token, id, password, path, publisherId, version, description, alias, icon, actions, keywords)
+	return resourceClient.CreateApplication(token, id, domain, password, path, publisherId, version, description, alias, icon, actions, keywords)
 
 }
 
@@ -626,7 +624,7 @@ func main() {
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "Application manager service"

@@ -143,7 +143,6 @@ func InitClient(client Client, address string, id string) error {
 			config_, err = config.GetServiceConfigurationById(id)
 		}
 	} else {
-		fmt.Println("-----------> ", localConfig)
 		// so here I try to get more information from peers...
 		if localConfig["Peers"].(map[string]interface{})[domain] != nil {
 			peer := localConfig["Peers"].(map[string]interface{})[domain].(map[string]interface{})

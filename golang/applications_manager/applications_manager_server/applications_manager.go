@@ -291,7 +291,7 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 		return errors.New("no application version was given")
 	}
 
-	err = server.createApplication(token, name, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
+	err = server.createApplication(token, name, domain, Utility.GenerateUUID(name), "/"+name, publisherId, version, description, alias, icon, actions, keywords)
 	if err != nil {
 		return err
 	}
@@ -348,7 +348,6 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// - Get the information from the package.json (npm package, the version, the keywords and set the package descriptor with it.
 	var token string
-	var domain string
 	var user string
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
@@ -356,8 +355,6 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		if len(token) == 0 {
 			return errors.New("Application Manager DeployApplication no token was given")
 		}
-
-		domain = strings.Join(md["domain"], "")
 		user = strings.Join(md["id"], "")
 
 	}
@@ -407,16 +404,10 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 			alias = msg.Alias
 		}
 
-		if len(msg.Domain) > 0 {
-			domain = msg.Domain
-			if strings.Contains(domain, ":"){
-				domain = domain[0:strings.Index(domain, ":")]
-			}
-		}
 		if len(msg.Organization) > 0 {
 			organization = msg.Organization
 		}
-		
+
 		if len(msg.User) > 0 {
 			user = msg.User
 		}
@@ -456,6 +447,11 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 			set_as_default = true
 		}
 
+	}
+
+	domain, _ := config.GetDomain()
+	if len(domain) == 0 {
+		return errors.New("No domain was found")
 	}
 
 	if len(repositoryId) == 0 {
@@ -531,25 +527,28 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	// Set the path of the directory where the application can store files.
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
+	if len(domain) == 0 {
+		return errors.New("no domain given for application")
+	}
 
-	err = server.addResourceOwner("/applications/"+name, "file", name+ "@" + domain, rbacpb.SubjectType_APPLICATION)
+	err = server.addResourceOwner("/applications/"+name, "file", name+"@"+domain, rbacpb.SubjectType_APPLICATION)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Permission was created for : ",  name+ "@" + domain)
 
 	if len(organization) > 0 {
-		err = server.addResourceOwner(name, "application", organization + "@" + domain, rbacpb.SubjectType_ORGANIZATION)
+		err = server.addResourceOwner(name+"@"+domain, "application", organization, rbacpb.SubjectType_ORGANIZATION)
 		if err != nil {
 			return err
 		}
-		fmt.Println("Permission was created for : ",  organization + "@" + domain)
-	}else if len(user) > 0 {
-		err = server.addResourceOwner(name, "application", user + "@" + domain, rbacpb.SubjectType_ACCOUNT)
+
+	} else if len(user) > 0 {
+
+		err = server.addResourceOwner(name+"@"+domain, "application", user, rbacpb.SubjectType_ACCOUNT)
 		if err != nil {
 			return err
 		}
-		fmt.Println("Permission was created for : ",  user + "@" + domain)
+
 	}
 
 	return nil

@@ -436,7 +436,6 @@ func (server *server) publishRemoteEvent(address, evt string, data []byte) error
 func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
-		fmt.Println("-------> 439 NewResourceService_Client", err)
 		return nil, err
 	}
 
@@ -445,12 +444,10 @@ func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error
 
 	peers, err := client.GetPeers(`{"mac":"` + mac + `"}`)
 	if err != nil {
-		fmt.Println("-------> 448 GetPeers", err)
 		return nil, err
 	}
 
 	if len(peers) == 0 {
-		fmt.Println("-------> 453 ", err)
 		return nil, errors.New("no peer found with mac address " + mac + " at address " + address)
 	}
 
@@ -600,7 +597,6 @@ func (svr *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType
 	return rbac_client_.DeleteAllAccess(suject, subjectType)
 }
 
-
 //////////////////////////////////////// Resource Functions ///////////////////////////////////////////////
 
 // Create the configuration file if is not already exist.
@@ -720,6 +716,15 @@ func (resource_server *server) validatePassword(password string, hash string) er
  */
 func (resource_server *server) registerAccount(domain, id, name, email, password string, organizations []string, roles []string, groups []string) error {
 
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return err
+	}
+
+	if domain != localDomain {
+		return errors.New("you cant register account with domain " + domain + " on domain " + localDomain)
+	}
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -751,8 +756,8 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	account["organizations"] = make([]interface{}, 0)
 
 	// append guest role if not already exist.
-	if !Utility.Contains(roles, "guest") {
-		roles = append(roles, "guest")
+	if !Utility.Contains(roles, "guest@"+localDomain) {
+		roles = append(roles, "guest@"+localDomain)
 	}
 
 	// Here I will insert the account in the database.
@@ -761,7 +766,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 		return err
 	}
 
-	// replace @ and . by _
+	// replace @ and . by _  * active directory
 	name = strings.ReplaceAll(strings.ReplaceAll(name, "@", "_"), ".", "_")
 
 	// Each account will have their own database and a use that can read and write
@@ -771,7 +776,6 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 	// I will execute the sript with the admin function.
 	p.RunAdminCmd(context.Background(), "local_resource", resource_server.Backend_user, resource_server.Backend_password, createUserScript)
-
 
 	// Organizations
 	for i := 0; i < len(organizations); i++ {
@@ -789,13 +793,27 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 	}
 
 	// Create the user file directory.
-	path := "/users/" + id + "@" + domain
+	path := "/users/" + id + "@" + localDomain
 	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files" + path)
 	err = resource_server.addResourceOwner(path, "file", id, rbacpb.SubjectType_ACCOUNT)
 	return err
 }
 
 func (resource_server *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
+
+	if strings.Contains(targetId, "@") {
+		domain := strings.Split(targetId, "@")[1]
+		targetId = strings.Split(targetId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return err
+		}
+
+		if localDomain != domain {
+			return errors.New("i cant's modify object from domain " + domain + " from domain " + localDomain)
+		}
+	}
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, `{"_id":"`+targetId+`"}`, ``)
 	if err != nil {
@@ -826,13 +844,43 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 	return nil
 }
 
-func (resource_server *server) createReference(p persistence_store.Store, id, sourceCollection, field, targetId, targetCollection string) error {
-	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, `{"_id":"`+id+`"}`, ``)
+func (resource_server *server) getRemoteAccount(id string, domain string) (*resourcepb.Account, error) {
+	fmt.Println("get account ", id, "from", domain)
+	client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	source := values.(map[string]interface{})
+	return client.GetAccount(id)
+}
+
+func (resource_server *server) createReference(p persistence_store.Store, id, sourceCollection, field, targetId, targetCollection string) error {
+
+	fmt.Println("try to find ", id, "in", sourceCollection)
+	var err error
+	var source map[string]interface{}
+
+	if strings.Contains(id, "@") {
+		domain := strings.Split(id, "@")[1]
+		id = strings.Split(id, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return err
+		}
+
+		if localDomain != domain {
+			return errors.New("i cant's modify object from domain " + domain + " from domain " + localDomain)
+		}
+	}
+
+	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, `{"_id":"`+id+`"}`, ``)
+	if err != nil {
+		return errors.New("fail to find object with id " + id + " in collection " + sourceCollection + " err: " + err.Error())
+	}
+
+	source = values.(map[string]interface{})
+
 	references := make([]interface{}, 0)
 	if source[field] != nil {
 		references = []interface{}(source[field].(primitive.A))
@@ -895,6 +943,21 @@ func serialyseObject(obj map[string]interface{}) string {
 }
 
 func (resource_server *server) createGroup(id, name, owner, description string, members []string) error {
+
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return err
+	}
+
+	// test if the given domain is the local domain.
+	if strings.Contains(id, "@") {
+		domain := strings.Split(id, "@")[1]
+		id = strings.Split(id, "@")[0]
+		if domain != localDomain {
+			return errors.New("you can't register group " + id + " with domain " + domain + " on domain " + localDomain)
+		}
+	}
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -930,8 +993,9 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 	}
 
 	// Now create the resource permission.
-	resource_server.addResourceOwner(id, "group", owner, rbacpb.SubjectType_ACCOUNT)
 
+	resource_server.addResourceOwner(id + "@" + resource_server.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
+	fmt.Println("group ", id, "was create with owner ", owner)
 	return nil
 }
 
@@ -960,6 +1024,20 @@ func (resource_server *server) CreateAccountDir() error {
 }
 
 func (resource_server *server) createRole(id, name, owner string, actions []string) error {
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return err
+	}
+
+	// test if the given domain is the local domain.
+	if strings.Contains(id, "@") {
+		domain := strings.Split(id, "@")[1]
+		id = strings.Split(id, "@")[0]
+		if domain != localDomain {
+			return errors.New("you can't create role " + id + " with domain " + domain + " on domain " + localDomain)
+		}
+	}
+
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -983,7 +1061,7 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 		return err
 	}
 
-	resource_server.addResourceOwner(id, "role", owner, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(id + "@" + resource_server.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
 	return nil
 }
 
@@ -991,6 +1069,20 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
  * Delete application Data from the backend.
  */
 func (resource_server *server) deleteApplication(applicationId string) error {
+
+	if strings.Contains(applicationId, "@") {
+		domain := strings.Split(applicationId, "@")[1]
+		applicationId = strings.Split(applicationId, "@")[0]
+
+		localDomain, err := config.GetDomain()
+		if err != nil {
+			return err
+		}
+
+		if localDomain != domain {
+			return errors.New("i cant's delete object from domain " + domain + " from domain " + localDomain)
+		}
+	}
 
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -1050,6 +1142,14 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	if err != nil {
 		return err
 	}
+
+	// set back the domain part
+	applicationId = application["_id"].(string) + "@" +  application["domain"].(string)
+
+	resource_server.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
+	resource_server.deleteResourcePermissions(applicationId)
+	resource_server.publishEvent("delete_application_"+applicationId+"_evt", []byte{})
+	resource_server.publishEvent("delete_application_evt", []byte(applicationId))
 
 	return nil
 }

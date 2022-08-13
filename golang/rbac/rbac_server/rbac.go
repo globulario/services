@@ -677,8 +677,6 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 						return err
 					}
 					share.Applications = append(share.Applications, a)
-				} else {
-					fmt.Println("no application found with id ", owners.Applications[j])
 				}
 			}
 
@@ -737,6 +735,7 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 		return err
 	}
 
+	fmt.Println("---------> set permissions path ", path, permissions)
 	err = rbac_server.permissions.SetItem(path, data)
 	if err != nil {
 		return err
@@ -1409,33 +1408,6 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 		return errors.New("no resource type was given")
 	}
 
-	if subjectType == rbacpb.SubjectType_ACCOUNT {
-		exist, _ := rbac_server.accountExist(subject)
-		if !exist {
-			return errors.New("no account exist with id " + subject)
-		}
-	} else if subjectType == rbacpb.SubjectType_APPLICATION {
-		exist, _ := rbac_server.applicationExist(subject)
-		if !exist {
-			return errors.New("no application exist with id " + subject)
-		}
-
-	} else if subjectType == rbacpb.SubjectType_GROUP {
-		exist, _ := rbac_server.groupExist(subject)
-		if !exist {
-			return errors.New("no group exist with id " + subject)
-		}
-
-	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
-		exist, _ := rbac_server.organizationExist(subject)
-		if !exist {
-			return errors.New("no organization exist with id " + subject)
-		}
-	} else if subjectType == rbacpb.SubjectType_PEER {
-		if !rbac_server.peerExist(subject) {
-			return errors.New("no peer exist with id " + subject)
-		}
-	}
 
 	permissions, err := rbac_server.getResourcePermissions(path)
 
@@ -1732,6 +1704,7 @@ func (rbac_server *server) RemoveResourceOwner(ctx context.Context, rqst *rbacpb
 //* That function must be call when a subject is removed to clean up permissions.
 func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.DeleteAllAccessRqst) (*rbacpb.DeleteAllAccessRsp, error) {
 
+	fmt.Println("----------> delete all access for ", rqst.Subject)
 	subjectId := ""
 	if rqst.Type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(rqst.Subject)
@@ -1768,6 +1741,7 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 	// Here I must remove the subject from all permissions.
 	data, err := rbac_server.permissions.GetItem(subjectId)
 	if err != nil {
+		fmt.Println("----------> fail to retreive ", subjectId)
 		return nil, err
 	}
 
@@ -1870,7 +1844,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	// first I will test if permissions is define
-	fmt.Println("-----------------> try to find permission for ", path)
 	permissions, err := rbac_server.getResourcePermissions(path)
 	if err != nil {
 		if permissions == nil {
@@ -1883,8 +1856,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			}
 		}
 		return false, false, err
-	} else {
-		fmt.Println("---------------------------> permissions found ", permissions)
 	}
 
 	// Test if the Subject is owner of the resource in that case I will git him access.

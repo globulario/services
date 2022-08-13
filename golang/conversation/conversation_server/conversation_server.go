@@ -634,7 +634,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			clientId = claims.Id
+			clientId = claims.Id + "@" + claims.Domain
 		} else {
 			errors.New("CreateConversation no token was given")
 		}

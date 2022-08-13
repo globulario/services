@@ -458,179 +458,183 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
  * Return an application with a given id
  */
 func (server *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	fmt.Println("try get account ", accountId)
-	resourceClient, err := server.getResourceClient()
-	if err != nil {
-		fmt.Println("fail to get account ", accountId)
-		return nil, err
+	domain, _ := config.GetDomain()
+	localDomain := domain
+
+	if strings.Contains(accountId, "@") {
+		if len(strings.Split(accountId, "@")[1]) == 0 {
+			domain = strings.Split(accountId, "@")[1]
+		}
+		accountId = strings.Split(accountId, "@")[0]
+
 	}
 
-	return resourceClient.GetAccount(accountId)
+	if localDomain != domain  && len(domain) > 0{
+
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return nil, err
+		}
+
+		account, err := resource_.GetAccount(`{"_id":"` + accountId + `"}`)
+		if err != nil {
+			return nil, err
+		}
+
+		// In that case I will
+		return account, nil
+
+	} else {
+		resourceClient, err := server.getResourceClient()
+		if err != nil {
+			fmt.Println("fail to get account ", accountId)
+			return nil, err
+		}
+
+		return resourceClient.GetAccount(accountId)
+	}
 }
 
 func (server *server) accountExist(id string) (bool, string) {
 
-	// So here I will test if the domain is correct.
-	domain, _ := config.GetDomain()
-	localDomain := domain
-	accountId := id
-
-	if strings.Contains(id, "@") {
-		domain = strings.TrimSpace(strings.Split(id, "@")[1])
-		accountId = strings.TrimSpace(strings.Split(id, "@")[0])
+	a, err := server.getAccount(id)
+	if err != nil {
+		fmt.Println("fail to find account ", id, domain, err)
+		return false, ""
 	}
 
-	if localDomain != domain {
-		fmt.Println("-----------------> the account", accountId, "is not local!!!!! ", localDomain, domain)
-		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
-		if err != nil {
-			return false, ""
-		}
 
-		a, err := resource_.GetAccount(accountId)
-		if err != nil {
-			return false, ""
-		}
 
-		// In that case I will
-		return true, a.Id + "@" + a.Domain
+	return true, a.Id + "@" + a.Domain
 
-	} else {
-
-		a, err := server.getAccount(accountId)
-		if err != nil {
-			fmt.Println("fail to find local account ", accountId, domain, err)
-			return false, ""
-		}
-
-		return true, a.Id + "@" + a.Domain
-	}
 }
 
 /**
  * Return a group with a given id
  */
 func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
-	resourceClient, err := server.getResourceClient()
-	if err != nil {
-		return nil, err
+	domain, _ := config.GetDomain()
+	localDomain := domain
+
+	if strings.Contains(groupId, "@") {
+
+		if len(strings.Split(groupId, "@")[1]) == 0 {
+			domain = strings.Split(groupId, "@")[1]
+		}
+		groupId = strings.Split(groupId, "@")[0]
 	}
 
-	groups, err := resourceClient.GetGroups(`{"$or":[{"_id":"` + groupId + `"},{"name":"` + groupId + `"} ]}`)
-	if err != nil {
-		return nil, err
-	}
+	if localDomain != domain  && len(domain) > 0{
 
-	if len(groups) == 0 {
-		return nil, errors.New("no group found wiht name or _id " + groupId)
-	}
+		// so here I will get the group from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return nil, err
+		}
 
-	return groups[0], nil
+		groups, err := resource_.GetGroups(`{"_id":"` + groupId + `"}`)
+		if err != nil || len(groups) == 1 {
+			return nil, err
+		}
+
+		// In that case I will
+		return groups[0], nil
+
+	} else {
+		resourceClient, err := server.getResourceClient()
+		if err != nil {
+			return nil, err
+		}
+
+		groups, err := resourceClient.GetGroups(`{"$or":[{"_id":"` + groupId + `"},{"name":"` + groupId + `"} ]}`)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(groups) == 0 {
+			return nil, errors.New("no group found wiht name or _id " + groupId)
+		}
+
+		return groups[0], nil
+	}
 }
 
 /**
  * Test if a group exist.
  */
 func (server *server) groupExist(id string) (bool, string) {
-	// So here I will test if the domain is correct.
-	domain, _ := config.GetDomain()
-	localDomain := domain
-	groupId := id
-	if strings.Contains(id, "@") {
-		domain = strings.Split(id, "@")[1]
-		groupId = strings.Split(id, "@")[0]
+
+	g, err := server.getGroup(id)
+	if err != nil || g == nil {
+		fmt.Println("fail to find group ", id)
+		return false, ""
 	}
+	return true, g.Id + "@" + g.Domain
 
-	if localDomain != domain {
-		fmt.Println("-----------------> the group", groupId, "is not local!!!!! ", localDomain, domain)
-		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
-		if err != nil {
-			return false, ""
-		}
-
-		groups, err := resource_.GetGroups(`{"_id":"` + groupId + `"}`)
-		if err != nil || len(groups) == 1 {
-			return false, ""
-		}
-
-		// In that case I will
-		return true, groups[0].Id + "@" + groups[0].Domain
-
-	} else {
-
-		g, err := server.getGroup(groupId)
-		if err != nil || g == nil {
-			fmt.Println("fail to find group ", groupId)
-			return false, ""
-		}
-		return true, g.Id + "@" + g.Domain
-	}
 }
 
 /**
  * Return an application with a given id
  */
 func (server *server) getApplication(applicationId string) (*resourcepb.Application, error) {
-	resourceClient, err := server.getResourceClient()
-	if err != nil {
-		return nil, err
+	domain, _ := config.GetDomain()
+	localDomain := domain
+
+	if strings.Contains(applicationId, "@") {
+		if len(strings.Split(applicationId, "@")[1]) == 0 {
+			domain = strings.Split(applicationId, "@")[1]
+		}
+		
+		applicationId = strings.Split(applicationId, "@")[0]
+
 	}
 
-	applications, err := resourceClient.GetApplications(`{"$or":[{"_id":"` + applicationId + `"},{"name":"` + applicationId + `"} ]}`)
-	if err != nil {
-		return nil, err
-	}
+	if localDomain != domain && len(domain) > 0{
 
-	if len(applications) == 0 {
-		return nil, errors.New("no application found wiht name or _id " + applicationId)
-	}
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return nil, err
+		}
 
-	return applications[0], nil
+		applications, err := resource_.GetApplications(`{"_id":"` + applicationId + `"}`)
+		if err != nil || len(applications) == 1 {
+			return nil, err
+		}
+
+		// In that case I will
+		return applications[0], nil
+
+	} else {
+		resourceClient, err := server.getResourceClient()
+		if err != nil {
+			return nil, err
+		}
+
+		applications, err := resourceClient.GetApplications(`{"$or":[{"_id":"` + applicationId + `"},{"name":"` + applicationId + `"} ]}`)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(applications) == 0 {
+			return nil, errors.New("no application found wiht name or _id " + applicationId)
+		}
+
+		return applications[0], nil
+	}
 }
 
 /**
  * Test if a application exist.
  */
 func (server *server) applicationExist(id string) (bool, string) {
-	domain, _ := config.GetDomain()
-	localDomain := domain
-	applicationId := id
-	if strings.Contains(id, "@") {
-		domain = strings.Split(id, "@")[1]
-		applicationId = strings.Split(id, "@")[0]
+	fmt.Println("try to find application: ", id)
+	a, err := server.getApplication(id)
+	if err != nil || a == nil {
+		return false, ""
 	}
-
-	if localDomain != domain {
-		fmt.Println("-----------------> the group", applicationId, "is not local!!!!! ", localDomain, domain)
-		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
-		if err != nil {
-			return false, ""
-		}
-
-		applications, err := resource_.GetApplications(`{"_id":"` + applicationId + `"}`)
-		if err != nil || len(applications) == 1 {
-			return false, ""
-		}
-
-		// In that case I will
-		return true, applications[0].Id + "@" + applications[0].Domain
-
-	} else {
-		a, err := server.getApplication(applicationId)
-		if err != nil || a == nil {
-			return false, ""
-		}
-
-		// Set the local domain if no domain was given...
-		if len(a.Domain) == 0 {
-			a.Domain = localDomain
-		}
-
-		return true, a.Id + "@" + a.Domain
-	}
+	return true, a.Id + "@" + a.Domain
 }
 
 /**
@@ -669,120 +673,130 @@ func (server *server) peerExist(id string) bool {
  * Return a peer with a given id
  */
 func (server *server) getOrganization(organizationId string) (*resourcepb.Organization, error) {
-	resourceClient, err := server.getResourceClient()
-	if err != nil {
-		return nil, err
+
+	domain, _ := config.GetDomain()
+	localDomain := domain
+	if strings.Contains(organizationId, "@") {
+		if len(strings.Split(organizationId, "@")[1]) == 0 {
+			domain = strings.Split(organizationId, "@")[1]
+		}
+		organizationId = strings.Split(organizationId, "@")[0]
+
 	}
 
-	organizations, err := resourceClient.GetOrganizations(`{"$or":[{"_id":"` + organizationId + `"},{"name":"` + organizationId + `"} ]}`)
-	if err != nil {
-		return nil, err
-	}
+	if localDomain != domain  && len(domain) > 0{
 
-	if len(organizations) == 0 {
-		return nil, errors.New("no organization found wiht name or _id " + organizationId)
-	}
+		// so here I will get the account from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return nil, err
+		}
 
-	return organizations[0], nil
+		organizations, err := resource_.GetOrganizations(`{"_id":"` + organizationId + `"}`)
+		if err != nil || len(organizations) == 1 {
+			return nil, err
+		}
+
+		// In that case I will
+		return organizations[0], nil
+
+	} else {
+
+		resourceClient, err := server.getResourceClient()
+		if err != nil {
+			return nil, err
+		}
+
+		organizations, err := resourceClient.GetOrganizations(`{"$or":[{"_id":"` + organizationId + `"},{"name":"` + organizationId + `"} ]}`)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(organizations) == 0 {
+			return nil, errors.New("no organization found wiht name or _id " + organizationId)
+		}
+
+		return organizations[0], nil
+	}
 }
 
 /**
  * Test if a organization exist.
  */
 func (server *server) organizationExist(id string) (bool, string) {
-	fmt.Println("try to find organization named ", id)
-	domain, _ := config.GetDomain()
-	localDomain := domain
-	organizationId := id
-	if strings.Contains(id, "@") {
-		domain = strings.Split(id, "@")[1]
-		organizationId = strings.Split(id, "@")[0]
+
+	o, err := server.getOrganization(id)
+	if err != nil || o == nil {
+		return false, ""
 	}
 
-	if localDomain != domain {
-		fmt.Println("-----------------> the organization", organizationId, "is not local!!!!! ", localDomain, domain)
-		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
-		if err != nil {
-			return false, ""
-		}
+	return true, o.Id + "@" + o.Domain
 
-		organizations, err := resource_.GetOrganizations(`{"_id":"` + organizationId + `"}`)
-		if err != nil || len(organizations) == 1 {
-			return false, ""
-		}
-
-		// In that case I will
-		return true, organizations[0].Id + "@" + organizations[0].Domain
-
-	} else {
-
-		o, err := server.getOrganization(organizationId)
-		if err != nil || o == nil {
-			return false, ""
-		}
-
-		return true, o.Id + "@" + o.Domain
-	}
 }
 
 /**
  * Return a role with a given id
  */
 func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
-	resourceClient, err := server.getResourceClient()
-	if err != nil {
-		return nil, err
+
+	domain, _ := config.GetDomain()
+	localDomain := domain
+	if strings.Contains(roleId, "@") {
+		if len(strings.Split(roleId, "@")[1]) == 0 {
+			domain = strings.Split(roleId, "@")[1]
+		}
+
+		domain = strings.Split(roleId, "@")[1]
+
 	}
 
-	roles, err := resourceClient.GetRoles(`{"$or":[{"_id":"` + roleId + `"},{"name":"` + roleId + `"} ]}`)
-	if err != nil {
-		return nil, err
-	}
+	if localDomain != domain  && len(domain) > 0{
 
-	if len(roles) == 0 {
-		return nil, errors.New("no role found wiht name or _id " + roleId)
-	}
+		// so here I will get the role from it domain resource manager.
+		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		if err != nil {
+			return nil, err
+		}
 
-	return roles[0], nil
+		roles, err := resource_.GetRoles(`{"_id":"` + roleId + `"}`)
+		if err != nil || len(roles) == 1 {
+			return nil, err
+		}
+
+		// In that case I will
+		return roles[0], nil
+
+	} else {
+		resourceClient, err := server.getResourceClient()
+		if err != nil {
+			return nil, err
+		}
+
+		roles, err := resourceClient.GetRoles(`{"$or":[{"_id":"` + roleId + `"},{"name":"` + roleId + `"} ]}`)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(roles) == 0 {
+			return nil, errors.New("no role found wiht name or _id " + roleId)
+		}
+
+		return roles[0], nil
+	}
 }
 
 /**
  * Test if a role exist.
  */
 func (server *server) roleExist(id string) (bool, string) {
-	domain, _ := config.GetDomain()
-	localDomain := domain
-	roleId := id
-	if strings.Contains(id, "@") {
-		domain = strings.Split(id, "@")[1]
-		roleId = strings.Split(id, "@")[0]
+
+	r, err := server.getRole(id)
+	if err != nil || r == nil {
+		return false, ""
 	}
 
-	if localDomain != domain {
-		fmt.Println("-----------------> the organization", roleId, "is not local!!!!! ", localDomain, domain)
-		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
-		if err != nil {
-			return false, ""
-		}
+	return true, r.Id + "@" + r.Domain
 
-		roles, err := resource_.GetRoles(`{"_id":"` + roleId + `"}`)
-		if err != nil || len(roles) == 1 {
-			return false, ""
-		}
-
-		// In that case I will
-		return true, roles[0].Id + "@" + roles[0].Domain
-
-	} else {
-		r, err := server.getRole(roleId)
-		if err != nil || r == nil {
-			return false, ""
-		}
-
-		return true, r.Id + "@" + r.Domain
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
