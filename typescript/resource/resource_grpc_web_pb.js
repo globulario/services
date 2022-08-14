@@ -73,6 +73,128 @@ proto.resource.ResourceServicePromiseClient =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.CreateReferenceRqst,
+ *   !proto.resource.CreateReferenceRsp>}
+ */
+const methodDescriptor_ResourceService_CreateReference = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/CreateReference',
+  grpc.web.MethodType.UNARY,
+  proto.resource.CreateReferenceRqst,
+  proto.resource.CreateReferenceRsp,
+  /**
+   * @param {!proto.resource.CreateReferenceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.CreateReferenceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.CreateReferenceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.CreateReferenceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.CreateReferenceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.createReference =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/CreateReference',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_CreateReference,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.CreateReferenceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.CreateReferenceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.createReference =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/CreateReference',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_CreateReference);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.DeleteReferenceRqst,
+ *   !proto.resource.DeleteReferenceRsp>}
+ */
+const methodDescriptor_ResourceService_DeleteReference = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/DeleteReference',
+  grpc.web.MethodType.UNARY,
+  proto.resource.DeleteReferenceRqst,
+  proto.resource.DeleteReferenceRsp,
+  /**
+   * @param {!proto.resource.DeleteReferenceRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.DeleteReferenceRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.DeleteReferenceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.DeleteReferenceRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.DeleteReferenceRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.deleteReference =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/DeleteReference',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_DeleteReference,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.DeleteReferenceRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.DeleteReferenceRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.deleteReference =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/DeleteReference',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_DeleteReference);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.resource.CreateOrganizationRqst,
  *   !proto.resource.CreateOrganizationRsp>}
  */

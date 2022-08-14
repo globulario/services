@@ -162,7 +162,6 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	}
 
 	accountId := rqst.AccountId
-
 	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]
 		accountId = strings.Split(accountId, "@")[0]
@@ -696,6 +695,46 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}, nil
 }
 
+// Create an object reference inside another object, ex. add a reference to an account (field 'members') into a group.
+func (resource_server *server) CreateReference(ctx context.Context, rqst *resourcepb.CreateReferenceRqst) (*resourcepb.CreateReferenceRsp, error) {
+	// That service made user of persistence service.
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = resource_server.createReference(p, rqst.SourceId, rqst.SourceCollection, rqst.FieldName, rqst.TargetId, rqst.TargetCollection)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// reference was created...
+	return &resourcepb.CreateReferenceRsp{}, nil
+}
+
+// Delete a reference from an object.
+func (resource_server *server) DeleteReference(ctx context.Context, rqst *resourcepb.DeleteReferenceRqst) (*resourcepb.DeleteReferenceRsp, error) {
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = resource_server.deleteReference(p, rqst.RefId, rqst.TargetId, rqst.TargetField, rqst.TargetCollection)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.DeleteReferenceRsp{}, nil
+}
+
 /**
  * Crete a new role or Update existing one if it already exist.
  */
@@ -1180,7 +1219,6 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 
 func (resource_server *server) save_application(app *resourcepb.Application, owner string) error {
 
-
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
@@ -1211,7 +1249,6 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 
 	application["domain"] = app.Domain
 
-	
 	application["password"] = app.Password
 	if len(application["password"].(string)) == 0 {
 		application["password"] = app.Id
@@ -2585,7 +2622,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 	}
 
 	// create the resource owner.
-	resource_server.addResourceOwner(rqst.Organization.GetId() + "@" + rqst.Organization.Domain, "organization", clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(rqst.Organization.GetId()+"@"+rqst.Organization.Domain, "organization", clientId+"@"+domain, rbacpb.SubjectType_ACCOUNT)
 
 	return &resourcepb.CreateOrganizationRsp{
 		Result: true,

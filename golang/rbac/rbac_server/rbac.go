@@ -426,6 +426,7 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 	id := "ALLOCATED_SPACE/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
+		fmt.Println("------> try to find account ", subject)
 		if !exist {
 			return nil, errors.New("no account exist with id " + subject)
 		}

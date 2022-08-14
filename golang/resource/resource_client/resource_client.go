@@ -235,6 +235,34 @@ func (client *Resource_Client) SetCaFile(caFile string) {
 ////////////// API ////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
+// Object Reference
+////////////////////////////////////////////////////////////////////////////////
+func (client *Resource_Client) CreateReference(id, sourceCollection, field, targetId, targetCollection string) error {
+	rqst := &resourcepb.CreateReferenceRqst{
+		SourceId: id,
+		SourceCollection: sourceCollection,
+		FieldName: field,
+		TargetId: targetId,
+		TargetCollection: targetCollection,
+	}
+
+	_, err := client.c.CreateReference(client.GetCtx(), rqst)
+	return err
+}
+
+func (client *Resource_Client) DeleteReference(refId, targetId, targetField, targetCollection string) error {
+	rqst := &resourcepb.DeleteReferenceRqst{
+		RefId: refId,
+		TargetId: targetId,
+		TargetField: targetField,
+		TargetCollection: targetCollection,
+	}
+
+	_, err := client.c.DeleteReference(client.GetCtx(), rqst)
+	return err
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Package Descriptor
 ////////////////////////////////////////////////////////////////////////////////
 func (client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {

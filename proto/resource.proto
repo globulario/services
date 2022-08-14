@@ -708,6 +708,32 @@ message GetSessionRequest { string accountId = 1; }
 
 message GetSessionResponse { Session session = 1; }
 
+/////////////////////////////////////////////////////////
+// References
+////////////////////////////////////////////////////////
+message CreateReferenceRqst {
+  string sourceId = 1;
+  string sourceCollection = 2;
+  string fieldName = 3;
+  string targetId = 4;
+  string targetCollection = 5;
+}
+
+message CreateReferenceRsp{
+  /** Nothing here at the moment */
+}
+
+message DeleteReferenceRqst{
+  string refId = 1;
+  string targetId = 2;
+  string targetField = 3;
+  string targetCollection = 4;
+}
+
+message DeleteReferenceRsp{
+  /** Nothing here at the moment */
+}
+
 /**
  * That service is use to manage Globular resource like permissions and accounts
  * or role. The service made use of Persistence service to store various
@@ -716,12 +742,21 @@ message GetSessionResponse { Session session = 1; }
 service ResourceService {
 
   ////////////////////////////////////////////////////////////////////////////
+  // Object Referecence's
+  ////////////////////////////////////////////////////////////////////////////
+
+  // Create an object reference inside another object, ex. add a reference to an account (field 'members') into a group.
+  rpc CreateReference(CreateReferenceRqst) returns(CreateReferenceRsp);
+
+  // Delete a reference from an object.
+  rpc DeleteReference(DeleteReferenceRqst) returns(DeleteReferenceRsp);
+
+  ////////////////////////////////////////////////////////////////////////////
   // Organization's
   ////////////////////////////////////////////////////////////////////////////
 
   /** Register a new organization */
-  rpc CreateOrganization(CreateOrganizationRqst)
-      returns (CreateOrganizationRsp);
+  rpc CreateOrganization(CreateOrganizationRqst) returns (CreateOrganizationRsp);
 
   /** Update a organization */
   rpc UpdateOrganization(UpdateOrganizationRqst) returns (UpdateOrganizationRsp);
@@ -999,4 +1034,5 @@ service ResourceService {
 
   /** Return a session for a given user */
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+
 }

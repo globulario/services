@@ -462,7 +462,7 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 	localDomain := domain
 
 	if strings.Contains(accountId, "@") {
-		if len(strings.Split(accountId, "@")[1]) == 0 {
+		if len(strings.Split(accountId, "@")[1])  > 0 {
 			domain = strings.Split(accountId, "@")[1]
 		}
 		accountId = strings.Split(accountId, "@")[0]
@@ -477,7 +477,7 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 			return nil, err
 		}
 
-		account, err := resource_.GetAccount(`{"_id":"` + accountId + `"}`)
+		account, err := resource_.GetAccount(accountId)
 		if err != nil {
 			return nil, err
 		}
@@ -519,7 +519,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 
 	if strings.Contains(groupId, "@") {
 
-		if len(strings.Split(groupId, "@")[1]) == 0 {
+		if len(strings.Split(groupId, "@")[1])  > 0 {
 			domain = strings.Split(groupId, "@")[1]
 		}
 		groupId = strings.Split(groupId, "@")[0]
@@ -582,7 +582,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 	localDomain := domain
 
 	if strings.Contains(applicationId, "@") {
-		if len(strings.Split(applicationId, "@")[1]) == 0 {
+		if len(strings.Split(applicationId, "@")[1])  > 0 {
 			domain = strings.Split(applicationId, "@")[1]
 		}
 		
@@ -677,7 +677,7 @@ func (server *server) getOrganization(organizationId string) (*resourcepb.Organi
 	domain, _ := config.GetDomain()
 	localDomain := domain
 	if strings.Contains(organizationId, "@") {
-		if len(strings.Split(organizationId, "@")[1]) == 0 {
+		if len(strings.Split(organizationId, "@")[1])  > 0 {
 			domain = strings.Split(organizationId, "@")[1]
 		}
 		organizationId = strings.Split(organizationId, "@")[0]
@@ -742,7 +742,7 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 	domain, _ := config.GetDomain()
 	localDomain := domain
 	if strings.Contains(roleId, "@") {
-		if len(strings.Split(roleId, "@")[1]) == 0 {
+		if len(strings.Split(roleId, "@")[1])  > 0 {
 			domain = strings.Split(roleId, "@")[1]
 		}
 

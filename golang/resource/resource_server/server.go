@@ -801,6 +801,7 @@ func (resource_server *server) registerAccount(domain, id, name, email, password
 
 func (resource_server *server) deleteReference(p persistence_store.Store, refId, targetId, targetField, targetCollection string) error {
 
+	fmt.Println("try to remove ", refId, "from", targetId, "field", targetField, "collection", targetCollection)
 	if strings.Contains(targetId, "@") {
 		domain := strings.Split(targetId, "@")[1]
 		targetId = strings.Split(targetId, "@")[0]
@@ -811,9 +812,22 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 		}
 
 		if localDomain != domain {
-			return errors.New("i cant's modify object from domain " + domain + " from domain " + localDomain)
+			// so here I will redirect the call to the resource server at remote location.
+			client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+			if err != nil {
+				return err
+			}
+			fmt.Println("remote call from ", localDomain, "to", domain)
+			err = client.DeleteReference(refId, targetId, targetField, targetCollection)
+			if err != nil {
+				return err
+			}
+
+			return nil
 		}
 	}
+
+	fmt.Println("-----------> remove local target Id ", targetId)
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, `{"_id":"`+targetId+`"}`, ``)
 	if err != nil {
@@ -856,7 +870,6 @@ func (resource_server *server) getRemoteAccount(id string, domain string) (*reso
 
 func (resource_server *server) createReference(p persistence_store.Store, id, sourceCollection, field, targetId, targetCollection string) error {
 
-	fmt.Println("try to find ", id, "in", sourceCollection)
 	var err error
 	var source map[string]interface{}
 
@@ -870,7 +883,18 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 		}
 
 		if localDomain != domain {
-			return errors.New("i cant's modify object from domain " + domain + " from domain " + localDomain)
+			// so here I will redirect the call to the resource server at remote location.
+			client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+			if err != nil {
+				return err
+			}
+
+			err = client.CreateReference(id, sourceCollection, field, targetId, targetCollection)
+			if err != nil {
+				return err
+			}
+
+			return nil // exit...
 		}
 	}
 
@@ -994,7 +1018,7 @@ func (resource_server *server) createGroup(id, name, owner, description string, 
 
 	// Now create the resource permission.
 
-	resource_server.addResourceOwner(id + "@" + resource_server.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(id+"@"+resource_server.Domain, "group", owner, rbacpb.SubjectType_ACCOUNT)
 	fmt.Println("group ", id, "was create with owner ", owner)
 	return nil
 }
@@ -1061,7 +1085,7 @@ func (resource_server *server) createRole(id, name, owner string, actions []stri
 		return err
 	}
 
-	resource_server.addResourceOwner(id + "@" + resource_server.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
+	resource_server.addResourceOwner(id+"@"+resource_server.Domain, "role", owner, rbacpb.SubjectType_ACCOUNT)
 	return nil
 }
 
@@ -1144,7 +1168,7 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 	}
 
 	// set back the domain part
-	applicationId = application["_id"].(string) + "@" +  application["domain"].(string)
+	applicationId = application["_id"].(string) + "@" + application["domain"].(string)
 
 	resource_server.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
 	resource_server.deleteResourcePermissions(applicationId)
