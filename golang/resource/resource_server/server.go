@@ -411,13 +411,24 @@ func (server *server) getEventClient() (*event_client.Event_Client, error) {
 }
 
 // when services state change that publish
-func (server *server) publishEvent(evt string, data []byte) error {
-	client, err := server.getEventClient()
-	if err != nil {
-		return err
-	}
+func (server *server) publishEvent(evt string, data []byte, domain string) error {
 
-	return client.Publish(evt, data)
+	localDomain_, _ := config.GetDomain()
+	if domain == localDomain_ {
+		client, err := server.getEventClient()
+		if err != nil {
+			return err
+		}
+
+		return client.Publish(evt, data)
+	}else{
+		client, err := event_client.NewEventService_Client(domain, "event.EventService")
+		if err != nil {
+			return err
+		}
+
+		return client.Publish(evt, data)
+	}
 }
 
 // Public event to a peer other than the default one...
@@ -1175,8 +1186,8 @@ func (resource_server *server) deleteApplication(applicationId string) error {
 
 	resource_server.deleteAllAccess(applicationId, rbacpb.SubjectType_APPLICATION)
 	resource_server.deleteResourcePermissions(applicationId)
-	resource_server.publishEvent("delete_application_"+applicationId+"_evt", []byte{})
-	resource_server.publishEvent("delete_application_evt", []byte(applicationId))
+	resource_server.publishEvent("delete_application_"+applicationId+"_evt", []byte{}, application["domain"].(string))
+	resource_server.publishEvent("delete_application_evt", []byte(applicationId), application["domain"].(string))
 
 	return nil
 }
