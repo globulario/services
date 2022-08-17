@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -37,13 +38,14 @@ type Claims struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
-	Domain   string `json:"domain"`
+	Domain   string `json:"domain"` // Where the token was generated
+	UserDomain string `json:"user_domain"`
 	Address  string `json:"address"`
 	jwt.StandardClaims
 }
 
 // Generate a token for a ginven user.
-func GenerateToken(timeout int, mac, userId, userName, email string) (string, error) {
+func GenerateToken(timeout int, mac, userId, userName, email, userDomain string) (string, error) {
 
 	issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
 	if err != nil {
@@ -57,9 +59,10 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 	}
 
 	var jwtKey []byte
-
+	fmt.Println("generate token for audience ", audience, "from", mac, "issuer", issuer)
 	// Here I will get the key...
 	if len(audience) > 0 {
+		
 		jwtKey, err = GetPeerKey(audience)
 		if err != nil {
 			return "", err
@@ -90,6 +93,7 @@ func GenerateToken(timeout int, mac, userId, userName, email string) (string, er
 	claims := &Claims{
 		ID:       userId,
 		Username: userName,
+		UserDomain: userDomain,
 		Email:    email,
 		Domain:   domain,
 		Address:  address,
@@ -197,7 +201,7 @@ func refreshLocalToken(token string) (string, error) {
 		return "", err
 	}
 
-	token, err = GenerateToken(Utility.ToInt(globular["SessionTimeout"]), claims.StandardClaims.Issuer, claims.Id, claims.Username, claims.Email)
+	token, err = GenerateToken(Utility.ToInt(globular["SessionTimeout"]), claims.StandardClaims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
 	if err != nil {
 		return "", err
 	}

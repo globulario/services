@@ -872,15 +872,14 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 	var err error
 	var source map[string]interface{}
+	localDomain, err := config.GetDomain()
+	if err != nil {
+		return err
+	}
 
 	if strings.Contains(id, "@") {
 		domain := strings.Split(id, "@")[1]
 		id = strings.Split(id, "@")[0]
-
-		localDomain, err := config.GetDomain()
-		if err != nil {
-			return err
-		}
 
 		if localDomain != domain {
 			// so here I will redirect the call to the resource server at remote location.
@@ -896,6 +895,10 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 			return nil // exit...
 		}
+	}
+
+	if !strings.Contains(targetId, "@") {
+		targetId += "@" + localDomain
 	}
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", sourceCollection, `{"_id":"`+id+`"}`, ``)

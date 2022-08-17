@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"io/ioutil"
+	
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
@@ -18,6 +19,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
+	config_ "github.com/globulario/services/golang/config"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -65,7 +67,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("the token cannot be refresh after 7 day")))
 	}
 
-	tokenString, err := security.GenerateToken(server.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email)
+	tokenString, err := security.GenerateToken(server.SessionTimeout, claims.Issuer, claims.Id, claims.Username, claims.Email, claims.UserDomain)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -229,8 +231,10 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	localDomain, _ := config_.GetDomain()
+
 	// The token string
-	tokenString, err := security.GenerateToken(server.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string))
+	tokenString, err := security.GenerateToken(server.SessionTimeout, macAddress, "sa", "sa", config["AdminEmail"].(string), localDomain)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -318,7 +322,7 @@ func (server *server) setKey(mac string) error {
 
 /* Authenticate a user */
 func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
-
+	fmt.Println("authenticate ", accountId, "issuer", issuer)
 	// If the user is the root...
 	if accountId == "sa" {
 		fmt.Println("autenticate sa")
@@ -368,7 +372,8 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 			return "", err
 		}
 
-		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string))
+		localDomain, _ := config_.GetDomain()
+		tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, "sa", "sa", config["AdminEmail"].(string), localDomain)
 		if err != nil {
 			return "", status.Errorf(
 				codes.Internal,
@@ -421,7 +426,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	session.AccountId = account.Id
 
 	// The token string
-	tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, account.Id, account.Name, account.Email)
+	tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, account.Id, account.Name, account.Email, account.Domain)
 	if err != nil {
 		server.logServiceInfo("Authenticate", Utility.FileLine(), Utility.FunctionName(), err.Error())
 		return "", err
@@ -465,21 +470,21 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	// Set the mac addresse
 	if len(rqst.Issuer) == 0 {
 		rqst.Issuer = mac
-	} else {
+	} /*else {
 		// The request came from external source...
 		if rqst.Issuer != mac {
-			domain, err := config.GetDomain()
+			localDomain, err := config.GetDomain()
 			if err != nil {
 				return nil, err
 			}
 
 			// Try autenticate...
-			if strings.HasSuffix(rqst.Name, "@"+domain) {
+			if strings.HasSuffix(rqst.Name, "@"+localDomain) {
 				rqst.Issuer = mac
 				rqst.Name = rqst.Name[0:strings.Index(rqst.Name, "@")]
 			}
 		}
-	}
+	}*/
 
 	// Try to authenticate on the server directy...
 	tokenString, err := server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
@@ -543,7 +548,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 //* Generate a token for a peer with a given mac address *
 func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb.GeneratePeerTokenRequest) (*authenticationpb.GeneratePeerTokenResponse, error) {
 
-	var userId, userName, email string
+	var userId, userName, email, userDomain string
 
 	// Now I will index the conversation to be retreivable for it creator...
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -559,6 +564,7 @@ func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticatio
 
 			// So here I will
 			userId = claims.Id
+			userDomain = claims.UserDomain
 
 		} else {
 			return nil, errors.New("no token was given")
@@ -566,7 +572,7 @@ func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticatio
 	}
 
 	// The generated token.
-	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, userName, email)
+	token, err := security.GenerateToken(server.SessionTimeout, rqst.Mac, userId, userName, email, userDomain)
 
 	return &authenticationpb.GeneratePeerTokenResponse{
 		Token: token,

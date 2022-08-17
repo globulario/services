@@ -22,6 +22,7 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
+	"github.com/globulario/services/golang/security"
 	"github.com/golang/protobuf/jsonpb"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
@@ -349,13 +350,20 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 	// - Get the information from the package.json (npm package, the version, the keywords and set the package descriptor with it.
 	var token string
 	var user string
+	var domain string
 
 	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) == 0 {
 			return errors.New("Application Manager DeployApplication no token was given")
+		} else {
+			claims, err := security.ValidateToken(token)
+			if err != nil {
+				return err
+			}
+			user = claims.Id + "@" + claims.UserDomain
+			domain = claims.Domain
 		}
-		user = strings.Join(md["id"], "")
 
 	}
 
@@ -411,6 +419,7 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 		if len(msg.User) > 0 {
 			user = msg.User
 		}
+
 		if len(msg.Version) > 0 {
 			version = msg.Version
 		}
@@ -449,7 +458,6 @@ func (server *server) DeployApplication(stream applications_managerpb.Applicatio
 
 	}
 
-	domain, _ := config.GetDomain()
 	if len(domain) == 0 {
 		return errors.New("No domain was found")
 	}

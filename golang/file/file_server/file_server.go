@@ -1008,7 +1008,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 func (file_server *server) createPermission(ctx context.Context, path string) error {
 	var clientId string
-	var domain string
+
 	var err error
 	var token string
 	if ctx != nil {
@@ -1020,8 +1020,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 				if err != nil {
 					return err
 				}
-				clientId = claims.Id
-				domain = claims.Domain
+				clientId = claims.Id + "@" + claims.UserDomain
 			} else {
 				errors.New("file manager createPermission no token was given for path " + path)
 			}
@@ -1037,7 +1036,7 @@ func (file_server *server) createPermission(ctx context.Context, path string) er
 		Owners: &rbacpb.Permission{
 			Name:          "owner", // The name is informative in that particular case.
 			Applications:  []string{},
-			Accounts:      []string{clientId + "@" + domain},
+			Accounts:      []string{clientId},
 			Groups:        []string{},
 			Peers:         []string{},
 			Organizations: []string{},

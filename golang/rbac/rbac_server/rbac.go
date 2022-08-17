@@ -426,7 +426,6 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 	id := "ALLOCATED_SPACE/"
 	if subject_type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
-		fmt.Println("------> try to find account ", subject)
 		if !exist {
 			return nil, errors.New("no account exist with id " + subject)
 		}
@@ -1224,7 +1223,7 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 
 // Return a resource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-
+	fmt.Println("get resource permission for: ", path)
 	data, err := rbac_server.permissions.GetItem(path)
 	if err != nil {
 		return nil, err
@@ -1408,7 +1407,6 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 	if len(subject) == 0 {
 		return errors.New("no resource type was given")
 	}
-
 
 	permissions, err := rbac_server.getResourcePermissions(path)
 
@@ -2306,25 +2304,27 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
-			return false, errors.New("no account exist with id " + a)
+			return false, errors.New("no account exist with id " + subject)
 		}
+		subject = a
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
-			return false, errors.New("no application exist with id " + a)
+			return false, errors.New("no application exist with id " + subject)
 		}
-
+		subject = a
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		exist, g := rbac_server.groupExist(subject)
 		if !exist {
-			return false, errors.New("no group exist with id " + g)
+			return false, errors.New("no group exist with id " + subject)
 		}
-
+		subject = g
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		exist, o := rbac_server.organizationExist(subject)
 		if !exist {
-			return false, errors.New("no organization exist with id " + o)
+			return false, errors.New("no organization exist with id " + subject)
 		}
+		subject = o
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		if !rbac_server.peerExist(subject) {
 			return false, errors.New("no peer exist with id " + subject)
@@ -2362,7 +2362,11 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	} else if subjectType == rbacpb.SubjectType_ROLE {
 		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
 		role, err := rbac_server.getRole(subject)
-
+		if err != nil {
+			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
+			return false, err
+		}
+		
 		// If the role is sa then I will it has all permission...
 		domain, _ := config.GetDomain()
 		if role.Domain == domain && role.Name == "admin" {
@@ -2377,7 +2381,8 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
 		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for account "+subject)
 		// If the user is the super admin i will return true.
-		if subject == "sa" {
+		localDomain, _ := config.GetDomain()
+		if subject == "sa@" +  localDomain{
 			return true, nil
 		}
 
@@ -2389,16 +2394,18 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 
 		// call the rpc method.
 		if account.Roles != nil {
+			localDomain, _ := config.GetDomain()
 			for i := 0; i < len(account.Roles); i++ {
 				roleId := account.Roles[i]
-				if roleId == "admin" {
+				// if the role id is local admin
+				if roleId == "admin@"+localDomain {
 					return true, nil
-				}
-
-				hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
-				if hasAccess_ {
-					hasAccess = hasAccess_
-					break
+				} else if strings.HasSuffix(roleId, "@"+localDomain) {
+					hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
+					if hasAccess_ {
+						hasAccess = hasAccess_
+						break
+					}
 				}
 
 			}

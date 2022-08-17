@@ -458,8 +458,8 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
  * Return an application with a given id
  */
 func (server *server) getAccount(accountId string) (*resourcepb.Account, error) {
-	domain, _ := config.GetDomain()
-	localDomain := domain
+	localDomain, _ := config.GetDomain()
+	var domain string
 
 	if strings.Contains(accountId, "@") {
 		if len(strings.Split(accountId, "@")[1])  > 0 {
@@ -514,8 +514,8 @@ func (server *server) accountExist(id string) (bool, string) {
  * Return a group with a given id
  */
 func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
-	domain, _ := config.GetDomain()
-	localDomain := domain
+	localDomain, _ := config.GetDomain()
+	var domain string
 
 	if strings.Contains(groupId, "@") {
 
@@ -578,8 +578,9 @@ func (server *server) groupExist(id string) (bool, string) {
  * Return an application with a given id
  */
 func (server *server) getApplication(applicationId string) (*resourcepb.Application, error) {
-	domain, _ := config.GetDomain()
-	localDomain := domain
+
+	localDomain, _ := config.GetDomain()
+	var domain string
 
 	if strings.Contains(applicationId, "@") {
 		if len(strings.Split(applicationId, "@")[1])  > 0 {
@@ -674,8 +675,9 @@ func (server *server) peerExist(id string) bool {
  */
 func (server *server) getOrganization(organizationId string) (*resourcepb.Organization, error) {
 
-	domain, _ := config.GetDomain()
-	localDomain := domain
+	localDomain, _ := config.GetDomain()
+	var domain string
+
 	if strings.Contains(organizationId, "@") {
 		if len(strings.Split(organizationId, "@")[1])  > 0 {
 			domain = strings.Split(organizationId, "@")[1]
@@ -739,15 +741,16 @@ func (server *server) organizationExist(id string) (bool, string) {
  */
 func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 
-	domain, _ := config.GetDomain()
-	localDomain := domain
+	fmt.Println("try to find role: ", roleId)
+
+	localDomain, _ := config.GetDomain()
+	var domain string
 	if strings.Contains(roleId, "@") {
 		if len(strings.Split(roleId, "@")[1])  > 0 {
 			domain = strings.Split(roleId, "@")[1]
 		}
 
-		domain = strings.Split(roleId, "@")[1]
-
+		roleId = strings.Split(roleId, "@")[0]
 	}
 
 	if localDomain != domain  && len(domain) > 0{

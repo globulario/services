@@ -286,7 +286,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err
 		}
-		clientId = claims.Id
+		clientId = claims.Id + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
 
@@ -463,7 +463,7 @@ func ServerStreamInterceptor(srv interface{}, stream grpc.ServerStream, info *gr
 			return err
 		}
 
-		clientId = claims.Id
+		clientId = claims.Id + "@" + claims.UserDomain
 		issuer = claims.Issuer
 	}
 

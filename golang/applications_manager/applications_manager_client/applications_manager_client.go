@@ -481,14 +481,14 @@ func (client *Applications_Manager_Client) DeployApplication(user string, name s
 		}
 	}
 
-	fmt.Println("484")
+
 	_, err = stream.CloseAndRecv()
-	fmt.Println("486")
+
 	if err != nil && err != io.EOF {
-		fmt.Println(err)
+		
 		return -1, err
 	}
-	fmt.Println("491")
+
 	fmt.Println("finish transfert data")
 	return size, nil
 }

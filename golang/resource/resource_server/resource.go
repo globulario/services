@@ -126,7 +126,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	tokenString, _ := security.GenerateToken(resource_server.SessionTimeout, macAddress, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email)
+	tokenString, _ := security.GenerateToken(resource_server.SessionTimeout, macAddress, rqst.Account.Id, rqst.Account.Name, rqst.Account.Email, rqst.Account.Domain)
 	claims, err := security.ValidateToken(tokenString)
 	if err != nil {
 		return nil, status.Errorf(
@@ -251,7 +251,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			clientId = claims.Id
+			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, errors.New("SetAccountPassword no token was given")
 		}
@@ -757,7 +757,7 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 
-			clientId = claims.Id
+			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
 		} else {
 			return nil, errors.New("SetAccountPassword no token was given")
@@ -1325,7 +1325,7 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			clientId = claims.Id
+			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
 		} else {
 			return nil, errors.New("resource server CreateApplication no token was given")
@@ -2536,7 +2536,7 @@ func (resource_server *server) CreateOrganization(ctx context.Context, rqst *res
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			clientId = claims.Id
+			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
 		} else {
 			return nil, errors.New("resource server CreateOrganization no token was given")
@@ -3108,7 +3108,7 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-			clientId = claims.Id
+			clientId = claims.Id + "@" + claims.UserDomain
 			domain = claims.Domain
 		} else {
 			return nil, errors.New("CreateGroup no token was given")

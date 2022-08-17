@@ -85,36 +85,20 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
 
 	fmt.Println("try to publish application ", rqst.Name, "...")
-
-	// Make sure the user is part of the organization if one is given.
-	publisherId := rqst.User
-	if len(rqst.Organization) > 0 {
-		isMember, err := server.isOrganizationMember(rqst.User, rqst.Organization)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-		publisherId = rqst.Organization
-		if !isMember {
-			err := errors.New(rqst.User + " is not member of " + rqst.Organization)
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-
-
 	var token string
+	var publisherId string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) > 0 {
-			_, err := security.ValidateToken(token)
+			claims, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
+
+			publisherId = claims.Id + "@" + claims.UserDomain
+			domain = claims.Domain
 
 		} else {
 			return nil, errors.New("PublishApplication no token was given")

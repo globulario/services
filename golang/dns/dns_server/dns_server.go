@@ -406,7 +406,6 @@ func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
 
 func (server *server) createPermission(ctx context.Context, path string) error {
 	var clientId string
-	var domain string
 	var err error
 	var token string
 
@@ -419,7 +418,7 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 				return err
 			}
 
-			clientId = claims.Id
+			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			errors.New("dns serveer createPermission no token was given")
 		}
@@ -432,7 +431,7 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 		Owners: &rbacpb.Permission{
 			Name:          "owner", // The name is informative in that particular case.
 			Applications:  []string{},
-			Accounts:      []string{clientId + "@" + domain},
+			Accounts:      []string{clientId},
 			Groups:        []string{},
 			Peers:         []string{},
 			Organizations: []string{},
