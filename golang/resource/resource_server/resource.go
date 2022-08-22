@@ -428,7 +428,6 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no contact was given")))
 	}
 
-	
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -438,13 +437,13 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	}
 
 	accountId := rqst.AccountId
-	if strings.Contains( accountId, "@"){
+	if strings.Contains(accountId, "@") {
 		domain := strings.Split(accountId, "@")[1]
 		localDomain, _ := config.GetDomain()
 		if domain != localDomain {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to get account " + accountId + " with domain " + domain + " from globule at domain " + localDomain ))) 
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("fail to get account "+accountId+" with domain "+domain+" from globule at domain "+localDomain)))
 		}
 		accountId = strings.Split(accountId, "@")[0]
 	}
@@ -463,9 +462,8 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	// send event.
-	resource_server.publishEvent("update_account_"+rqst.Contact.Id +"_evt", []byte{}, strings.Split(rqst.Contact.Id, "@")[1])
+	resource_server.publishEvent("update_account_"+rqst.Contact.Id+"_evt", []byte{}, strings.Split(rqst.Contact.Id, "@")[1])
 	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
 
 	return &resourcepb.SetAccountContactRsp{Result: true}, nil
@@ -621,7 +619,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			organizationId := organizations[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, organizationId, "accounts", "Organizations")
 			resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, localDomain)
-			if strings.Contains(organizationId, "@"){
+			if strings.Contains(organizationId, "@") {
 				resource_server.publishEvent("update_organization_"+organizationId+"_evt", []byte{}, strings.Split(organizationId, "@")[1])
 			}
 		}
@@ -633,7 +631,7 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			groupId := groups[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, groupId, "members", "Groups")
 			resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, localDomain)
-			if strings.Contains(groupId, "@"){
+			if strings.Contains(groupId, "@") {
 				resource_server.publishEvent("update_group_"+groupId+"_evt", []byte{}, strings.Split(groupId, "@")[1])
 			}
 		}
@@ -645,8 +643,8 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 			roleId := roles[i].(map[string]interface{})["$id"].(string)
 			resource_server.deleteReference(p, rqst.Id, roleId, "members", "Roles")
 			resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, localDomain)
-			if strings.Contains(roleId, "@"){
-				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, strings.Split( roleId, "@")[1])
+			if strings.Contains(roleId, "@") {
+				resource_server.publishEvent("update_role_"+roleId+"_evt", []byte{}, strings.Split(roleId, "@")[1])
 			}
 		}
 
@@ -922,7 +920,6 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 		domain := strings.Split(roleId, "@")[1]
 		roleId = strings.Split(roleId, "@")[0]
 
-
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -982,7 +979,7 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	resource_server.deleteResourcePermissions(rqst.RoleId)
 	resource_server.publishEvent("delete_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
 	resource_server.publishEvent("delete_role_evt", []byte(rqst.RoleId), localDomain)
-	
+
 	return &resourcepb.DeleteRoleRsp{Result: true}, nil
 }
 
@@ -995,7 +992,6 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 		domain := strings.Split(roleId, "@")[1]
 		roleId = strings.Split(roleId, "@")[0]
 
-		
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1071,7 +1067,6 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 
 	localDomain, _ := config.GetDomain()
 
-
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1136,7 +1131,6 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 		domain := strings.Split(roleId, "@")[1]
 		roleId = strings.Split(roleId, "@")[0]
 
-		
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -1244,7 +1238,6 @@ func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *reso
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
 
 	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, strings.Split(rqst.RoleId, "@")[1])
 	resource_server.publishEvent("update_account_"+rqst.AccountId+"_evt", []byte{}, strings.Split(rqst.AccountId, "@")[1])
@@ -1400,7 +1393,7 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	localDomain, _:= config.GetDomain()
+	localDomain, _ := config.GetDomain()
 	resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, localDomain)
 
 	return &resourcepb.UpdateApplicationRsp{}, nil
@@ -1545,7 +1538,6 @@ func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *
 		}
 	}
 
-	
 	resource_server.publishEvent("update_application_"+rqst.ApplicationId+"_evt", []byte{}, application["domain"].(string))
 
 	return &resourcepb.AddApplicationActionsRsp{Result: true}, nil
@@ -2554,7 +2546,6 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 			}
 		}
 
-		
 		if needSave {
 			localDomain, _ := config.GetDomain()
 			jsonStr := serialyseObject(peer)
@@ -3291,7 +3282,6 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 		domain := strings.Split(groupId, "@")[1]
 		groupId = strings.Split(groupId, "@")[0]
 
-		
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -3418,6 +3408,35 @@ func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqs
 //* Create a notification
 func (resource_server *server) CreateNotification(ctx context.Context, rqst *resourcepb.CreateNotificationRqst) (*resourcepb.CreateNotificationRsp, error) {
 
+	// if the account is not on the domain will redirect the request...
+	if rqst.Notification.NotificationType == resourcepb.NotificationType_USER_NOTIFICATION {
+		recipient := rqst.Notification.Recipient
+		if strings.Contains(recipient, "@") {
+			domain := strings.Split(recipient, "@")[1]
+			localDomain, _ := config.GetDomain()
+			if localDomain != domain {
+				client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+				if err != nil {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+
+				err = client.CreateNotification(rqst.Notification)
+				if err != nil {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+
+				return &resourcepb.CreateNotificationRsp{}, nil
+			}
+		}
+	}
+
+	// so the recipient here is the id of the user...
+	recipient := strings.Split(rqst.Notification.Recipient, "@")[0]
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -3425,7 +3444,7 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	_, err = p.InsertOne(context.Background(), "local_resource", rqst.Notification.Recipient+"_db", "Notifications", rqst.Notification, "")
+	_, err = p.InsertOne(context.Background(), "local_resource", recipient+"_db", "Notifications", rqst.Notification, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3445,6 +3464,9 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 //* Retreive notifications
 func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, stream resourcepb.ResourceService_GetNotificationsServer) error {
 
+	recipient := strings.Split(rqst.Recipient, "@")[0]
+
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3453,7 +3475,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 
 	query := `{}`
 
-	notifications, err := p.Find(context.Background(), "local_resource", rqst.Recipient+"_db", "Notifications", query, "")
+	notifications, err := p.Find(context.Background(), "local_resource", recipient+"_db", "Notifications", query, "")
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -3501,6 +3523,9 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 //* Remove a notification
 func (resource_server *server) DeleteNotification(ctx context.Context, rqst *resourcepb.DeleteNotificationRqst) (*resourcepb.DeleteNotificationRsp, error) {
 
+	recipient := strings.Split(rqst.Recipient, "@")[0]
+
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -3508,7 +3533,7 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.DeleteOne(context.Background(), "local_resource", rqst.Recipient+"_db", "Notifications", `{"id":"`+rqst.Id+`"}`, ``)
+	err = p.DeleteOne(context.Background(), "local_resource", recipient+"_db", "Notifications", `{"id":"`+rqst.Id+`"}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -3524,6 +3549,9 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 
 //* Remove all Notification
 func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.ClearAllNotificationsRqst) (*resourcepb.ClearAllNotificationsRsp, error) {
+	
+	recipient := strings.Split(rqst.Recipient, "@")[0]
+
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -3531,7 +3559,7 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.Delete(context.Background(), "local_resource", rqst.Recipient+"_db", "Notifications", `{}`, ``)
+	err = p.Delete(context.Background(), "local_resource", recipient+"_db", "Notifications", `{}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
