@@ -101,7 +101,7 @@ message Conversations {
 
 /** Connect */
 message ConnectRequest{
-	string uuid = 1; // a connection uuid.
+	string uuid = 1; // a connection uuid..
 }
 
 /** The message stream */

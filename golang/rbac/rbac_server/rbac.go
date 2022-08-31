@@ -1500,7 +1500,7 @@ func (rbac_server *server) addResourceOwner(path, resourceType_, subject string,
 //* Add resource owner do nothing if it already exist
 func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.AddResourceOwnerRqst) (*rbacpb.AddResourceOwnerRsp, error) {
 
-	fmt.Println("add resource owner for ", rqst.Path, rqst.Subject)
+	
 	err := rbac_server.addResourceOwner(rqst.Path, rqst.ResourceType, rqst.Subject, rqst.Type)
 
 	if err != nil {
@@ -1508,7 +1508,7 @@ func (rbac_server *server) AddResourceOwner(ctx context.Context, rqst *rbacpb.Ad
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
+	fmt.Println("add resource owner for ", rqst.Path, rqst.ResourceType, rqst.Subject, rqst.Type)
 	return &rbacpb.AddResourceOwnerRsp{}, nil
 }
 
