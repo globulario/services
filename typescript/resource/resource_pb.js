@@ -7507,7 +7507,9 @@ proto.resource.Contact.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
     invitationtime: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    status: jspb.Message.getFieldWithDefault(msg, 3, "")
+    status: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    ringtone: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    profilepicture: jspb.Message.getFieldWithDefault(msg, 5, "")
   };
 
   if (includeInstance) {
@@ -7555,6 +7557,14 @@ proto.resource.Contact.deserializeBinaryFromReader = function(msg, reader) {
     case 3:
       var value = /** @type {string} */ (reader.readString());
       msg.setStatus(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRingtone(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setProfilepicture(value);
       break;
     default:
       reader.skipField();
@@ -7606,6 +7616,20 @@ proto.resource.Contact.serializeBinaryToWriter = function(message, writer) {
       f
     );
   }
+  f = message.getRingtone();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getProfilepicture();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
 };
 
 
@@ -7651,6 +7675,36 @@ proto.resource.Contact.prototype.getStatus = function() {
 /** @param {string} value */
 proto.resource.Contact.prototype.setStatus = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string ringtone = 4;
+ * @return {string}
+ */
+proto.resource.Contact.prototype.getRingtone = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.Contact.prototype.setRingtone = function(value) {
+  jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string profilePicture = 5;
+ * @return {string}
+ */
+proto.resource.Contact.prototype.getProfilepicture = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/** @param {string} value */
+proto.resource.Contact.prototype.setProfilepicture = function(value) {
+  jspb.Message.setProto3StringField(this, 5, value);
 };
 
 

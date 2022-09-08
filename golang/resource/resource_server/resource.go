@@ -453,7 +453,7 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `"}`
+	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `", "ringtone":"` + rqst.Contact.Ringtone+ `", "profilePicture":"` + rqst.Contact.ProfilePicture + `"}`
 
 	err = p.ReplaceOne(context.Background(), "local_resource", db, "Contacts", `{"_id":"`+rqst.Contact.Id+`"}`, sentInvitation, `[{"upsert":true}]`)
 	if err != nil {

@@ -220,6 +220,10 @@ message Contact {
   string id = 1;
   int64 invitationTime = 2;
   string status = 3;
+  
+  // optional informations...
+  string ringtone = 4;
+  string profilePicture = 5;
 }
 
 message SetAccountContactRqst {
