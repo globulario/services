@@ -754,6 +754,9 @@ func (file_server *server) formatPath(path string) string {
 					// Must be in the root path if it's not in public path.
 					if Utility.Exists(file_server.Root + path) {
 						path = file_server.Root + path
+					}else if Utility.Exists(config.GetWebRootDir() + path) {
+						path = config.GetWebRootDir() + path
+						
 					} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
 						path = config.GetDataDir() + "/files" + path
 					}

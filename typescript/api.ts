@@ -378,7 +378,7 @@ export function deleteFile(
   errorCallback: (err: any) => void
 ) {
   const rqst = new DeleteFileRequest();
-  path = path.replace("/webroot", ""); // remove the /webroot part.
+  path = path.replace(globular.config.WebRoot, ""); // remove the /webroot part.
   if (path.length === 0) {
     path = "/";
   }
