@@ -589,6 +589,11 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 	info.ModTime = fileStat.ModTime()
 	info.Path = path
 
+	if strings.Contains(fileStat.Name(), ".") {
+		fileExtension := fileStat.Name()[strings.LastIndex(fileStat.Name(), "."):]
+		info.Mime = mime.TypeByExtension(fileExtension)
+	}
+
 	// Cut the root part of the path if it start with the root path.
 	if len(s.Root) > 0 {
 		startindex := strings.Index(info.Path, s.Root)
@@ -623,7 +628,7 @@ func getThumbnails(info *fileInfo) []interface{} {
 /**
  * Read the directory and return the file info.
  */
-func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool) (*fileInfo, error) {
+func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string) (*fileInfo, error) {
 
 	// get the file info
 	info, err := getFileInfo(s, path)
@@ -650,13 +655,13 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			isHls := Utility.Exists(dirPath + "/playlist.m3u8")
 
 			if recursive && !isHls {
-				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true)
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, token)
 				if err != nil {
 					return nil, err
 				}
 				info.Files = append(info.Files, info_)
 			} else {
-				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false)
+				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token)
 				if err != nil {
 					return nil, err
 				}
@@ -665,6 +670,14 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				}
 
 				info.Files = append(info.Files, info_)
+			}
+
+			if !strings.Contains(path, ".hidden") {
+				err = s.generatePlaylist(path, token)
+				if err != nil {
+					fmt.Println("fail to generate playlist with error, ", err)
+				}
+
 			}
 
 		} else if readFiles {
@@ -754,9 +767,9 @@ func (file_server *server) formatPath(path string) string {
 					// Must be in the root path if it's not in public path.
 					if Utility.Exists(file_server.Root + path) {
 						path = file_server.Root + path
-					}else if Utility.Exists(config.GetWebRootDir() + path) {
+					} else if Utility.Exists(config.GetWebRootDir() + path) {
 						path = config.GetWebRootDir() + path
-						
+
 					} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
 						path = config.GetDataDir() + "/files" + path
 					}
@@ -841,9 +854,29 @@ func (file_server *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsR
 
 func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
+	var err error
+	var token string
+	ctx := stream.Context()
+	if ctx != nil {
+		// Now I will index the conversation to be retreivable for it creator...
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			token = strings.Join(md["token"], "")
+			if len(token) > 0 {
+				_, err := security.ValidateToken(token)
+				if err != nil {
+					return err
+				}
+			} else {
+				errors.New("no token was given for path " + rqst.Path)
+			}
+		}
+	} else {
+		return errors.New("no valid context found")
+	}
+
 	path := file_server.formatPath(rqst.GetPath())
 
-	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true)
+	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -2053,6 +2086,20 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 
 // Return the list of thumbnail for a given directory...
 func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stream filepb.FileService_GetThumbnailsServer) error {
+	var token string
+	ctx := stream.Context()
+	if ctx != nil {
+		// Now I will index the conversation to be retreivable for it creator...
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			token = strings.Join(md["token"], "")
+			if len(token) == 0 {
+				return errors.New("No token given")
+			}
+		}
+	} else {
+		return errors.New("no valid context found")
+	}
+
 	path := rqst.GetPath()
 
 	// The root will be the Root specefied by the server.
@@ -2062,7 +2109,7 @@ func (file_server *server) GetThumbnails(rqst *filepb.GetThumbnailsRequest, stre
 		path = strings.Replace(path, "\\", "/", -1)
 	}
 
-	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true)
+	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailHeight(), rqst.GetThumnailWidth(), true, token)
 	if err != nil {
 		return err
 	}
@@ -3143,6 +3190,191 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 
 	return &filepb.CreateVideoPreviewResponse{}, nil
 
+}
+
+// Generate an audio playlist
+func (file_server *server) generateAudioPlaylist(path, token string, paths []string) error {
+	if len(paths) == 0 {
+		return errors.New("no paths was given")
+	}
+
+	client, err := getTitleClient()
+	if err != nil {
+		return err
+	}
+
+	playlist := "#EXTM3U\n\n"
+	playlist += "#PLAYLIST: " + strings.ReplaceAll(path, config.GetDataDir()+"/files/", "/") + "\n\n"
+
+	for i := 0; i < len(paths); i++ {
+
+		videos := make(map[string][]*titlepb.Video, 0)
+		file_server.getFileVideosAssociation(client, paths[i], videos)
+		duration := Utility.ToInt(getVideoDuration(paths[i]))
+		if duration > 0 {
+			playlist += "#EXTINF:" + Utility.ToString(duration) + ","
+
+			if len(videos[paths[i]]) > 0 {
+				videoInfo := videos[paths[i]][0]
+				playlist += ` tvg-logo="` + videoInfo.Poster.ContentUrl + `"` + ` tvg-id="` + videoInfo.ID + `"` + ` tvg-url="` + videoInfo.URL + `"` + "," +videoInfo.Description
+			}
+
+			playlist += "\n"
+
+			// now I will generate the url...
+			localConfig, _ := config.GetLocalConfig(true)
+			domain, _ := config.GetDomain()
+			url := localConfig["Protocol"].(string) + "://" + domain + ":"
+			if localConfig["Protocol"] == "https" {
+				url += Utility.ToString(localConfig["PortHttps"])
+			} else {
+				url += Utility.ToString(localConfig["PortHttp"])
+			}
+
+			url += strings.ReplaceAll(paths[i], config.GetDataDir()+"/files/", "/")
+			if !file_server.isPublic(path) {
+				url += "?token=" + token
+			}
+			playlist += url + "\n\n"
+		}
+	}
+
+	// Here I will save the file...
+	Utility.WriteStringToFile(path+"/audio.m3u", playlist)
+
+	return nil
+}
+
+// Generate an audio playlist
+func (file_server *server) generateVideoPlaylist(path, token string, paths []string) error {
+	if len(paths) == 0 {
+		return errors.New("no paths was given")
+	}
+	client, err := getTitleClient()
+	if err != nil {
+		return err
+	}
+
+	playlist := "#EXTM3U\n\n"
+	playlist += "#PLAYLIST: " + strings.ReplaceAll(path, config.GetDataDir()+"/files/", "/") + "\n\n"
+
+	for i := 0; i < len(paths); i++ {
+
+		videos := make(map[string][]*titlepb.Video, 0)
+		file_server.getFileVideosAssociation(client, paths[i], videos)
+		duration := getVideoDuration(paths[i])
+
+		if duration > 0 {
+
+			playlist += "#EXTINF:" + Utility.ToString(duration)
+
+			if len(videos[paths[i]]) > 0 {
+				videoInfo := videos[paths[i]][0]
+				playlist += ` tvg-logo="` + videoInfo.Poster.ContentUrl + `"` + ` tvg-id="` + videoInfo.ID + `"` + ` tvg-url="` + videoInfo.URL + `"` + "," +videoInfo.Description
+			}
+
+			playlist += "\n"
+
+			// now I will generate the url...
+			localConfig, _ := config.GetLocalConfig(true)
+			domain, _ := config.GetDomain()
+			url := localConfig["Protocol"].(string) + "://" + domain + ":"
+			if localConfig["Protocol"] == "https" {
+				url += Utility.ToString(localConfig["PortHttps"])
+			} else {
+				url += Utility.ToString(localConfig["PortHttp"])
+			}
+
+			url += strings.ReplaceAll(paths[i], config.GetDataDir()+"/files/", "/")
+			if !file_server.isPublic(path) {
+				url += "?token=" + token
+			}
+			playlist += url + "\n\n"
+		}
+	}
+
+	// Here I will save the file...
+	Utility.WriteStringToFile(path+"/video.m3u", playlist)
+
+	return nil
+}
+
+// Generate video and audio playlist for a given directory.
+func (file_server *server) generatePlaylist(path, token string) error {
+
+	// first of all I will retreive media files from the folder...
+	infos, err := Utility.ReadDir(path) // getFileInfo(file_server, path)
+
+	if err != nil {
+		return err
+	}
+
+	videos := make([]string, 0)
+	audios := make([]string, 0)
+
+	for i := 0; i < len(infos); i++ {
+		filename := filepath.Join(path, infos[i].Name())
+		if !strings.HasSuffix(filename, ".m3u") {
+			info, err := getFileInfo(file_server, filename)
+			if err == nil {
+				if strings.HasPrefix(info.Mime, "audio/") {
+					audios = append(audios, filename)
+				} else if strings.HasPrefix(info.Mime, "video/") {
+					videos = append(videos, filename)
+				}
+			}
+		}
+	}
+
+	// here I will generate the audio playlist
+	if len(audios) > 0 {
+		file_server.generateAudioPlaylist(path, token, audios)
+	}
+
+	// Here I will generate video playlist.
+	if len(videos) > 0 {
+		file_server.generateVideoPlaylist(path, token, videos)
+	}
+
+	return nil
+}
+
+// Generate the playlists for a directory...
+func (file_server *server) GeneratePlaylist(ctx context.Context, rqst *filepb.GeneratePlaylistRequest) (*filepb.GeneratePlaylistResponse, error) {
+	token := ""
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		token = strings.Join(md["token"], "")
+		if len(token) > 0 {
+			_, err := security.ValidateToken(token)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+		} else {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("GeneratePlaylist no token was given")))
+		}
+	}
+
+	// retreive the path...
+	path := file_server.formatPath(rqst.Dir)
+
+	if !Utility.Exists(path) {
+		return nil, errors.New("no file found at path " + rqst.Dir)
+	}
+
+	err := file_server.generatePlaylist(path, token)
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.GeneratePlaylistResponse{}, nil
 }
 
 // Create video time line

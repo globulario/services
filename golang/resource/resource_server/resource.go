@@ -137,7 +137,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.updateSession(claims.Id, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
+	err = resource_server.updateSession(claims.Id + "@" + claims.UserDomain, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,

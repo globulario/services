@@ -333,6 +333,16 @@ message GetPublicDirsResponse {
 	repeated string dirs = 1;
 }
 
+// Generate playlist for a given directory
+message GeneratePlaylistRequest {
+	string dir = 1;
+}
+
+message GeneratePlaylistResponse {
+
+}
+
+
 service FileService {
   	// Stop the server.
  	rpc Stop(StopRequest) returns (StopResponse);
@@ -432,6 +442,9 @@ service FileService {
 
 	// Return the list of log messages
 	rpc GetVideoConversionLogs(GetVideoConversionLogsRequest) returns (GetVideoConversionLogsResponse){};
+
+	// Generate the playlists for a directory...
+	rpc GeneratePlaylist(GeneratePlaylistRequest) returns (GeneratePlaylistResponse) {};
 
 	// Excel files...
 	rpc WriteExcelFile(WriteExcelFileRequest) returns (WriteExcelFileResponse){};

@@ -78,7 +78,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	session, err := server.getSession(claims.Id)
 	if err != nil {
 		session = new(resourcepb.Session)
-		session.AccountId = claims.Id
+		session.AccountId = claims.Id + "@" + claims.UserDomain
 		session.State = resourcepb.SessionState_ONLINE
 	}
 
@@ -423,7 +423,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 	// Now I will create the session and generate it token.
 	session := new(resourcepb.Session)
-	session.AccountId = account.Id
+	session.AccountId = account.Id + "@" + account.Domain
 
 	// The token string
 	tokenString, err := security.GenerateToken(server.SessionTimeout, issuer, account.Id, account.Name, account.Email, account.Domain)

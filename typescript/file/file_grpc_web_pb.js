@@ -1949,6 +1949,67 @@ proto.file.FileServicePromiseClient.prototype.getVideoConversionLogs =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.GeneratePlaylistRequest,
+ *   !proto.file.GeneratePlaylistResponse>}
+ */
+const methodDescriptor_FileService_GeneratePlaylist = new grpc.web.MethodDescriptor(
+  '/file.FileService/GeneratePlaylist',
+  grpc.web.MethodType.UNARY,
+  proto.file.GeneratePlaylistRequest,
+  proto.file.GeneratePlaylistResponse,
+  /**
+   * @param {!proto.file.GeneratePlaylistRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.GeneratePlaylistResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.GeneratePlaylistRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.GeneratePlaylistResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.GeneratePlaylistResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.generatePlaylist =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/GeneratePlaylist',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GeneratePlaylist,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.GeneratePlaylistRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.GeneratePlaylistResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.generatePlaylist =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/GeneratePlaylist',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GeneratePlaylist);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.WriteExcelFileRequest,
  *   !proto.file.WriteExcelFileResponse>}
  */
