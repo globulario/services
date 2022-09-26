@@ -9,6 +9,7 @@ import (
 	"fmt"
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
+	"github.com/dhowden/tag"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
@@ -49,8 +50,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/dhowden/tag"
 )
 
 // TODO take care of TLS/https
@@ -612,7 +611,6 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 	if (strings.HasPrefix(info.Mime, "audio") || strings.HasPrefix(info.Mime, "video")) && !strings.HasSuffix(info.Name, ".mu3") {
 		info.Metadata, _ = readMetadata(path)
 		if info.Metadata != nil {
-			fmt.Println("metadata found ", info.Metadata)
 			// so here I will update the title...
 			// Remove file asscociation contain by file in that directry
 			client, err := getTitleClient()
@@ -633,7 +631,7 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 					track.Artist = info.Metadata["Artist"].(string)
 					track.Comment = info.Metadata["Comment"].(string)
 					track.Composer = info.Metadata["Composer"].(string)
-					track.Genre = info.Metadata["Genre"].(string)
+					track.Genres = strings.Split(info.Metadata["Genre"].(string), " / ")
 					track.Lyrics = info.Metadata["Lyrics"].(string)
 					track.Title = info.Metadata["Title"].(string)
 					track.Year = int32(Utility.ToInt(info.Metadata["Year"]))
@@ -641,6 +639,7 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 					track.DiscTotal = int32(Utility.ToInt(info.Metadata["DiscTotal"]))
 					track.TrackNumber = int32(Utility.ToInt(info.Metadata["TrackNumber"]))
 					track.TrackTotal = int32(Utility.ToInt(info.Metadata["TrackTotal"]))
+					track.Duration = int32(Utility.ToInt(getVideoDuration(path)))
 
 					imageUrl := ""
 					if info.Metadata["ImageUrl"] != nil {
@@ -691,6 +690,10 @@ func toBase64(b []byte) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
+func fileNameWithoutExtension(fileName string) string {
+	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
+}
+
 func readMetadata(path string) (map[string]interface{}, error) {
 
 	f_, err := os.Open(path)
@@ -715,7 +718,12 @@ func readMetadata(path string) (map[string]interface{}, error) {
 		metadata["Picture"] = m.Picture()
 		metadata["Raw"] = m.Raw()
 		metadata["Title"] = m.Title()
+		if len(m.Title()) == 0 {
+			metadata["Title"] =  fileNameWithoutExtension(filepath.Base(path))
+		}
 		metadata["Year"] = m.Year()
+
+
 
 		metadata["DisckNumber"], _ = m.Disc()
 		_, metadata["DiscTotal"] = m.Disc()
@@ -726,7 +734,7 @@ func readMetadata(path string) (map[string]interface{}, error) {
 		if m.Picture() != nil {
 
 			var base64Encoding string
-		
+
 			// Determine the content type of the image file
 			mimeType := m.Picture().MIMEType
 
@@ -751,8 +759,12 @@ func readMetadata(path string) (map[string]interface{}, error) {
 			// Try to find the cover image...
 			if Utility.Exists(imagePath + "/cover.jpg") {
 				imagePath += "/cover.jpg"
+			} else if Utility.Exists(imagePath + "/Cover.jpg") {
+				imagePath += "/Cover.jpg"
 			} else if Utility.Exists(imagePath + "/folder.jpg") {
 				imagePath += "/folder.jpg"
+			} else if Utility.Exists(imagePath + "/Folder.jpg") {
+				imagePath += "/Folder.jpg"
 			} else if Utility.Exists(imagePath + "/AlbumArt.jpg") {
 				imagePath += "/AlbumArt.jpg"
 			}
@@ -2457,6 +2469,35 @@ func (file_server *server) isExpired() bool {
 	return false
 }
 
+func (file_server *server) startProcessAudios() {
+	// Start feeding the time series...
+	ticker := time.NewTicker(15 * time.Minute)
+	go func() {
+		for {
+			select {
+
+			case <-ticker.C:
+				processAudios(file_server)
+			}
+		}
+	}()
+}
+
+/**
+ * Create playlist and search informations.
+ */
+func processAudios(file_server *server) {
+
+	audios := getAudioPaths()
+
+	for _, audio := range audios {
+		dir := filepath.Dir(audio)
+		if !Utility.Exists(dir + "/audio.m3u") {
+			file_server.generatePlaylist(dir, "")
+		}
+	}
+}
+
 func processVideos(file_server *server) {
 
 	if file_server.isProcessing {
@@ -2603,6 +2644,40 @@ func processVideos(file_server *server) {
 
 	file_server.isProcessing = false
 
+}
+
+func getAudioPaths() []string {
+	// Here I will use at most one concurrent ffmeg...
+	medias := make([]string, 0)
+	dirs := make([]string, 0)
+	dirs = append(dirs, config.GetPublicDirs()...)
+	dirs = append(dirs, config.GetDataDir()+"/files")
+
+	for _, dir := range dirs {
+		filepath.Walk(dir,
+			func(path string, info os.FileInfo, err error) error {
+
+				if info.IsDir() {
+					isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())
+					if err == nil && isEmpty {
+						// remove empty dir...
+						os.RemoveAll(path + "/" + info.Name())
+					}
+				}
+				if err != nil {
+					return err
+				}
+
+				path_ := strings.ReplaceAll(path, "\\", "/")
+				if !strings.Contains(path_, ".hidden") && strings.HasSuffix(path_, ".mp3") || strings.HasSuffix(path_, ".wav") || strings.HasSuffix(path_, ".flac") || strings.HasSuffix(path_, ".flc") || strings.HasSuffix(path_, ".acc") || strings.HasSuffix(path_, ".ogg") {
+					medias = append(medias, path_)
+				}
+				return nil
+			})
+	}
+
+	// Return the list of file to be process...
+	return medias
 }
 
 // Recursively convert all video that are not in the correct
@@ -3412,7 +3487,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 
 			if len(audios[paths[i]]) > 0 {
 				audioInfo := audios[paths[i]][0]
-				playlist += ` tvg-logo="` + audioInfo.Poster.ContentUrl + `"` + ` tvg-id="` + audioInfo.ID + `"` + ` tvg-url="` + audioInfo.URL + `"` + "," + audioInfo.Title
+				playlist += audioInfo.Title + `, tvg-id="` + audioInfo.ID + `"` + ` tvg-url="` + audioInfo.URL + `"`
 			}
 
 			playlist += "\n"
@@ -3439,7 +3514,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 
 			url_ += path_
 
-			if !file_server.isPublic(path) {
+			if !file_server.isPublic(path) && len(token) > 0 {
 				url_ += "?token=" + token
 			}
 
@@ -3478,7 +3553,7 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 
 			if len(videos[paths[i]]) > 0 {
 				videoInfo := videos[paths[i]][0]
-				playlist += ` tvg-logo="` + videoInfo.Poster.ContentUrl + `"` + ` tvg-id="` + videoInfo.ID + `"` + ` tvg-url="` + videoInfo.URL + `"` + "," + videoInfo.Description
+				playlist += ` tvg-id="` + videoInfo.ID + `"` + ` tvg-url="` + videoInfo.URL + `"` + "," + videoInfo.Description
 			}
 
 			playlist += "\n"
@@ -4038,7 +4113,11 @@ func main() {
 		s_impl.scheduler.Start()
 	}
 
+	// start process the audio files...
+	go processAudios(s_impl)
+
 	// Now i will be sure that users are owner of every file in their user dir.
+	s_impl.startProcessAudios()
 
 	// Start the service.
 	s_impl.StartService()

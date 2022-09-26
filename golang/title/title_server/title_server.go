@@ -920,7 +920,6 @@ func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePubl
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no publisher was given")))
 
 	}
-	fmt.Println("create new publisher with name ", rqst.Publisher.Name)
 
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
@@ -1038,7 +1037,6 @@ func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonR
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no publisher was given")))
 
 	}
-	fmt.Println("create new person info with name ", rqst.Person.FullName)
 
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
@@ -1154,7 +1152,6 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no video was given")))
 
 	}
-	fmt.Println("create new video with id ", rqst.Video.ID)
 
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
@@ -1453,10 +1450,6 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	genres := bleve.NewFacetRequest("Genres", int(rqst.Size))
 	request.AddFacet("Genres", genres)
 
-	// single genre, from music album...
-	genre := bleve.NewFacetRequest("Genre", int(rqst.Size))
-	request.AddFacet("Genre", genre)
-
 	// The type facet...
 	types := bleve.NewFacetRequest("Type", int(rqst.Size))
 	request.AddFacet("Types", types)
@@ -1489,8 +1482,6 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	summary.Query = rqst.Query // set back the input query.
 	summary.Took = result.Took.Milliseconds()
 	summary.Total = result.Total
-
-	fmt.Println("Search title", rqst.IndexPath, rqst.Query, "results: ", result.Total)
 
 	// Here I will send the summary...
 	stream.Send(&titlepb.SearchTitlesResponse{
@@ -1625,7 +1616,6 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no audio was given")))
 
 	}
-	fmt.Println("create new audio with id ", rqst.Audio.ID)
 
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
@@ -1655,7 +1645,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	_, err = srv.getAlbum(rqst.IndexPath, rqst.Audio.Album)
 	if err != nil {
 		// In that case the album dosent exist... so I will create it.
-		album := &titlepb.Album{ID: rqst.Audio.Album, Artist: rqst.Audio.AlbumArtist, Year: rqst.Audio.Year, Genre: rqst.Audio.Genre, Poster: rqst.Audio.Poster}
+		album := &titlepb.Album{ID: rqst.Audio.Album, Artist: rqst.Audio.AlbumArtist, Year: rqst.Audio.Year, Genres: rqst.Audio.Genres, Poster: rqst.Audio.Poster}
 		jsonStr, err := marshaler.MarshalToString(album)
 		if err == nil {
 			err = index.SetInternal([]byte(album.ID), []byte(jsonStr))

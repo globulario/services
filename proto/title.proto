@@ -365,7 +365,7 @@ message Audio {
 	string Album = 5;
 	string Comment = 6;
 	string Composer = 7;
-	string Genre = 8;
+	repeated string Genres = 8; // The kind of video ex. adult, music ect.
 	string Lyrics = 9;
 	string Title = 10;
 	int32 Year = 11;
@@ -374,6 +374,7 @@ message Audio {
 	int32 TrackNumber = 14;
 	int32 TrackTotal = 15;
 	Poster Poster = 16;
+	int32 Duration = 17;
 }
 
 /**
@@ -383,7 +384,7 @@ message Album {
 	string ID = 1;
 	string Artist = 2;
 	int32  Year = 3;
-	string Genre = 4;
+	repeated string Genres = 4; // The kind of video ex. adult, music ect.
 	Audios tracks = 5;
 	Poster Poster = 6;
 }
