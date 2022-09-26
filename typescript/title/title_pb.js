@@ -11,8 +11,13 @@ var jspb = require('google-protobuf');
 var goog = jspb;
 var global = Function('return this')();
 
+goog.exportSymbol('proto.title.Album', null, global);
 goog.exportSymbol('proto.title.AssociateFileWithTitleRequest', null, global);
 goog.exportSymbol('proto.title.AssociateFileWithTitleResponse', null, global);
+goog.exportSymbol('proto.title.Audio', null, global);
+goog.exportSymbol('proto.title.Audios', null, global);
+goog.exportSymbol('proto.title.CreateAudioRequest', null, global);
+goog.exportSymbol('proto.title.CreateAudioResponse', null, global);
 goog.exportSymbol('proto.title.CreatePersonRequest', null, global);
 goog.exportSymbol('proto.title.CreatePersonResponse', null, global);
 goog.exportSymbol('proto.title.CreatePublisherRequest', null, global);
@@ -21,6 +26,10 @@ goog.exportSymbol('proto.title.CreateTitleRequest', null, global);
 goog.exportSymbol('proto.title.CreateTitleResponse', null, global);
 goog.exportSymbol('proto.title.CreateVideoRequest', null, global);
 goog.exportSymbol('proto.title.CreateVideoResponse', null, global);
+goog.exportSymbol('proto.title.DeleteAlbumRequest', null, global);
+goog.exportSymbol('proto.title.DeleteAlbumResponse', null, global);
+goog.exportSymbol('proto.title.DeleteAudioRequest', null, global);
+goog.exportSymbol('proto.title.DeleteAudioResponse', null, global);
 goog.exportSymbol('proto.title.DeletePersonRequest', null, global);
 goog.exportSymbol('proto.title.DeletePersonResponse', null, global);
 goog.exportSymbol('proto.title.DeletePublisherRequest', null, global);
@@ -31,6 +40,12 @@ goog.exportSymbol('proto.title.DeleteVideoRequest', null, global);
 goog.exportSymbol('proto.title.DeleteVideoResponse', null, global);
 goog.exportSymbol('proto.title.DissociateFileWithTitleRequest', null, global);
 goog.exportSymbol('proto.title.DissociateFileWithTitleResponse', null, global);
+goog.exportSymbol('proto.title.GetAlbumRequest', null, global);
+goog.exportSymbol('proto.title.GetAlbumResponse', null, global);
+goog.exportSymbol('proto.title.GetAudioByIdRequest', null, global);
+goog.exportSymbol('proto.title.GetAudioByIdResponse', null, global);
+goog.exportSymbol('proto.title.GetFileAudiosRequest', null, global);
+goog.exportSymbol('proto.title.GetFileAudiosResponse', null, global);
 goog.exportSymbol('proto.title.GetFileTitlesRequest', null, global);
 goog.exportSymbol('proto.title.GetFileTitlesResponse', null, global);
 goog.exportSymbol('proto.title.GetFileVideosRequest', null, global);
@@ -6602,7 +6617,7 @@ proto.title.SearchHit.repeatedFields_ = [3];
  * @private {!Array<!Array<number>>}
  * @const
  */
-proto.title.SearchHit.oneofGroups_ = [[4,5]];
+proto.title.SearchHit.oneofGroups_ = [[4,5,6]];
 
 /**
  * @enum {number}
@@ -6610,7 +6625,8 @@ proto.title.SearchHit.oneofGroups_ = [[4,5]];
 proto.title.SearchHit.ResultCase = {
   RESULT_NOT_SET: 0,
   TITLE: 4,
-  VIDEO: 5
+  VIDEO: 5,
+  AUDIO: 6
 };
 
 /**
@@ -6654,7 +6670,8 @@ proto.title.SearchHit.toObject = function(includeInstance, msg) {
     snippetsList: jspb.Message.toObjectList(msg.getSnippetsList(),
     proto.title.Snippet.toObject, includeInstance),
     title: (f = msg.getTitle()) && proto.title.Title.toObject(includeInstance, f),
-    video: (f = msg.getVideo()) && proto.title.Video.toObject(includeInstance, f)
+    video: (f = msg.getVideo()) && proto.title.Video.toObject(includeInstance, f),
+    audio: (f = msg.getAudio()) && proto.title.Audio.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -6713,6 +6730,11 @@ proto.title.SearchHit.deserializeBinaryFromReader = function(msg, reader) {
       var value = new proto.title.Video;
       reader.readMessage(value,proto.title.Video.deserializeBinaryFromReader);
       msg.setVideo(value);
+      break;
+    case 6:
+      var value = new proto.title.Audio;
+      reader.readMessage(value,proto.title.Audio.deserializeBinaryFromReader);
+      msg.setAudio(value);
       break;
     default:
       reader.skipField();
@@ -6779,6 +6801,14 @@ proto.title.SearchHit.serializeBinaryToWriter = function(message, writer) {
       5,
       f,
       proto.title.Video.serializeBinaryToWriter
+    );
+  }
+  f = message.getAudio();
+  if (f != null) {
+    writer.writeMessage(
+      6,
+      f,
+      proto.title.Audio.serializeBinaryToWriter
     );
   }
 };
@@ -6902,6 +6932,36 @@ proto.title.SearchHit.prototype.clearVideo = function() {
  */
 proto.title.SearchHit.prototype.hasVideo = function() {
   return jspb.Message.getField(this, 5) != null;
+};
+
+
+/**
+ * optional Audio audio = 6;
+ * @return {?proto.title.Audio}
+ */
+proto.title.SearchHit.prototype.getAudio = function() {
+  return /** @type{?proto.title.Audio} */ (
+    jspb.Message.getWrapperField(this, proto.title.Audio, 6));
+};
+
+
+/** @param {?proto.title.Audio|undefined} value */
+proto.title.SearchHit.prototype.setAudio = function(value) {
+  jspb.Message.setOneofWrapperField(this, 6, proto.title.SearchHit.oneofGroups_[0], value);
+};
+
+
+proto.title.SearchHit.prototype.clearAudio = function() {
+  this.setAudio(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.SearchHit.prototype.hasAudio = function() {
+  return jspb.Message.getField(this, 6) != null;
 };
 
 
@@ -10059,6 +10119,2953 @@ proto.title.GetPersonByIdResponse.prototype.clearPerson = function() {
  */
 proto.title.GetPersonByIdResponse.prototype.hasPerson = function() {
   return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.Audio = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.Audio, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.Audio.displayName = 'proto.title.Audio';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.Audio.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.Audio.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.Audio} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.Audio.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    url: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    artist: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    albumartist: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    album: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    comment: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    composer: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    genre: jspb.Message.getFieldWithDefault(msg, 8, ""),
+    lyrics: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    title: jspb.Message.getFieldWithDefault(msg, 10, ""),
+    year: jspb.Message.getFieldWithDefault(msg, 11, 0),
+    discnumber: jspb.Message.getFieldWithDefault(msg, 12, 0),
+    disctotal: jspb.Message.getFieldWithDefault(msg, 13, 0),
+    tracknumber: jspb.Message.getFieldWithDefault(msg, 14, 0),
+    tracktotal: jspb.Message.getFieldWithDefault(msg, 15, 0),
+    poster: (f = msg.getPoster()) && proto.title.Poster.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.Audio}
+ */
+proto.title.Audio.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.Audio;
+  return proto.title.Audio.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.Audio} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.Audio}
+ */
+proto.title.Audio.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUrl(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtist(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlbumartist(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlbum(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setComment(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setComposer(value);
+      break;
+    case 8:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setGenre(value);
+      break;
+    case 9:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setLyrics(value);
+      break;
+    case 10:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setTitle(value);
+      break;
+    case 11:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setYear(value);
+      break;
+    case 12:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setDiscnumber(value);
+      break;
+    case 13:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setDisctotal(value);
+      break;
+    case 14:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setTracknumber(value);
+      break;
+    case 15:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setTracktotal(value);
+      break;
+    case 16:
+      var value = new proto.title.Poster;
+      reader.readMessage(value,proto.title.Poster.deserializeBinaryFromReader);
+      msg.setPoster(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.Audio.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.Audio.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.Audio} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.Audio.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getUrl();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getArtist();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getAlbumartist();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getAlbum();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getComment();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+  f = message.getComposer();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
+  f = message.getGenre();
+  if (f.length > 0) {
+    writer.writeString(
+      8,
+      f
+    );
+  }
+  f = message.getLyrics();
+  if (f.length > 0) {
+    writer.writeString(
+      9,
+      f
+    );
+  }
+  f = message.getTitle();
+  if (f.length > 0) {
+    writer.writeString(
+      10,
+      f
+    );
+  }
+  f = message.getYear();
+  if (f !== 0) {
+    writer.writeInt32(
+      11,
+      f
+    );
+  }
+  f = message.getDiscnumber();
+  if (f !== 0) {
+    writer.writeInt32(
+      12,
+      f
+    );
+  }
+  f = message.getDisctotal();
+  if (f !== 0) {
+    writer.writeInt32(
+      13,
+      f
+    );
+  }
+  f = message.getTracknumber();
+  if (f !== 0) {
+    writer.writeInt32(
+      14,
+      f
+    );
+  }
+  f = message.getTracktotal();
+  if (f !== 0) {
+    writer.writeInt32(
+      15,
+      f
+    );
+  }
+  f = message.getPoster();
+  if (f != null) {
+    writer.writeMessage(
+      16,
+      f,
+      proto.title.Poster.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional string ID = 1;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setId = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string URL = 2;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getUrl = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setUrl = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string Artist = 3;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getArtist = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setArtist = function(value) {
+  jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string AlbumArtist = 4;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getAlbumartist = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setAlbumartist = function(value) {
+  jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional string Album = 5;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getAlbum = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setAlbum = function(value) {
+  jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string Comment = 6;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getComment = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setComment = function(value) {
+  jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+/**
+ * optional string Composer = 7;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getComposer = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setComposer = function(value) {
+  jspb.Message.setProto3StringField(this, 7, value);
+};
+
+
+/**
+ * optional string Genre = 8;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getGenre = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 8, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setGenre = function(value) {
+  jspb.Message.setProto3StringField(this, 8, value);
+};
+
+
+/**
+ * optional string Lyrics = 9;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getLyrics = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 9, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setLyrics = function(value) {
+  jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional string Title = 10;
+ * @return {string}
+ */
+proto.title.Audio.prototype.getTitle = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 10, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Audio.prototype.setTitle = function(value) {
+  jspb.Message.setProto3StringField(this, 10, value);
+};
+
+
+/**
+ * optional int32 Year = 11;
+ * @return {number}
+ */
+proto.title.Audio.prototype.getYear = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 11, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Audio.prototype.setYear = function(value) {
+  jspb.Message.setProto3IntField(this, 11, value);
+};
+
+
+/**
+ * optional int32 DiscNumber = 12;
+ * @return {number}
+ */
+proto.title.Audio.prototype.getDiscnumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 12, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Audio.prototype.setDiscnumber = function(value) {
+  jspb.Message.setProto3IntField(this, 12, value);
+};
+
+
+/**
+ * optional int32 DiscTotal = 13;
+ * @return {number}
+ */
+proto.title.Audio.prototype.getDisctotal = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 13, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Audio.prototype.setDisctotal = function(value) {
+  jspb.Message.setProto3IntField(this, 13, value);
+};
+
+
+/**
+ * optional int32 TrackNumber = 14;
+ * @return {number}
+ */
+proto.title.Audio.prototype.getTracknumber = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 14, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Audio.prototype.setTracknumber = function(value) {
+  jspb.Message.setProto3IntField(this, 14, value);
+};
+
+
+/**
+ * optional int32 TrackTotal = 15;
+ * @return {number}
+ */
+proto.title.Audio.prototype.getTracktotal = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 15, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Audio.prototype.setTracktotal = function(value) {
+  jspb.Message.setProto3IntField(this, 15, value);
+};
+
+
+/**
+ * optional Poster Poster = 16;
+ * @return {?proto.title.Poster}
+ */
+proto.title.Audio.prototype.getPoster = function() {
+  return /** @type{?proto.title.Poster} */ (
+    jspb.Message.getWrapperField(this, proto.title.Poster, 16));
+};
+
+
+/** @param {?proto.title.Poster|undefined} value */
+proto.title.Audio.prototype.setPoster = function(value) {
+  jspb.Message.setWrapperField(this, 16, value);
+};
+
+
+proto.title.Audio.prototype.clearPoster = function() {
+  this.setPoster(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.Audio.prototype.hasPoster = function() {
+  return jspb.Message.getField(this, 16) != null;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.Album = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.Album, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.Album.displayName = 'proto.title.Album';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.Album.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.Album.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.Album} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.Album.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    artist: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    year: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    genre: jspb.Message.getFieldWithDefault(msg, 4, ""),
+    tracks: (f = msg.getTracks()) && proto.title.Audios.toObject(includeInstance, f),
+    poster: (f = msg.getPoster()) && proto.title.Poster.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.Album}
+ */
+proto.title.Album.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.Album;
+  return proto.title.Album.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.Album} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.Album}
+ */
+proto.title.Album.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setId(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setArtist(value);
+      break;
+    case 3:
+      var value = /** @type {number} */ (reader.readInt32());
+      msg.setYear(value);
+      break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setGenre(value);
+      break;
+    case 5:
+      var value = new proto.title.Audios;
+      reader.readMessage(value,proto.title.Audios.deserializeBinaryFromReader);
+      msg.setTracks(value);
+      break;
+    case 6:
+      var value = new proto.title.Poster;
+      reader.readMessage(value,proto.title.Poster.deserializeBinaryFromReader);
+      msg.setPoster(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.Album.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.Album.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.Album} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.Album.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getArtist();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getYear();
+  if (f !== 0) {
+    writer.writeInt32(
+      3,
+      f
+    );
+  }
+  f = message.getGenre();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
+      f
+    );
+  }
+  f = message.getTracks();
+  if (f != null) {
+    writer.writeMessage(
+      5,
+      f,
+      proto.title.Audios.serializeBinaryToWriter
+    );
+  }
+  f = message.getPoster();
+  if (f != null) {
+    writer.writeMessage(
+      6,
+      f,
+      proto.title.Poster.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional string ID = 1;
+ * @return {string}
+ */
+proto.title.Album.prototype.getId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Album.prototype.setId = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string Artist = 2;
+ * @return {string}
+ */
+proto.title.Album.prototype.getArtist = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Album.prototype.setArtist = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional int32 Year = 3;
+ * @return {number}
+ */
+proto.title.Album.prototype.getYear = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/** @param {number} value */
+proto.title.Album.prototype.setYear = function(value) {
+  jspb.Message.setProto3IntField(this, 3, value);
+};
+
+
+/**
+ * optional string Genre = 4;
+ * @return {string}
+ */
+proto.title.Album.prototype.getGenre = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/** @param {string} value */
+proto.title.Album.prototype.setGenre = function(value) {
+  jspb.Message.setProto3StringField(this, 4, value);
+};
+
+
+/**
+ * optional Audios tracks = 5;
+ * @return {?proto.title.Audios}
+ */
+proto.title.Album.prototype.getTracks = function() {
+  return /** @type{?proto.title.Audios} */ (
+    jspb.Message.getWrapperField(this, proto.title.Audios, 5));
+};
+
+
+/** @param {?proto.title.Audios|undefined} value */
+proto.title.Album.prototype.setTracks = function(value) {
+  jspb.Message.setWrapperField(this, 5, value);
+};
+
+
+proto.title.Album.prototype.clearTracks = function() {
+  this.setTracks(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.Album.prototype.hasTracks = function() {
+  return jspb.Message.getField(this, 5) != null;
+};
+
+
+/**
+ * optional Poster Poster = 6;
+ * @return {?proto.title.Poster}
+ */
+proto.title.Album.prototype.getPoster = function() {
+  return /** @type{?proto.title.Poster} */ (
+    jspb.Message.getWrapperField(this, proto.title.Poster, 6));
+};
+
+
+/** @param {?proto.title.Poster|undefined} value */
+proto.title.Album.prototype.setPoster = function(value) {
+  jspb.Message.setWrapperField(this, 6, value);
+};
+
+
+proto.title.Album.prototype.clearPoster = function() {
+  this.setPoster(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.Album.prototype.hasPoster = function() {
+  return jspb.Message.getField(this, 6) != null;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.Audios = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.title.Audios.repeatedFields_, null);
+};
+goog.inherits(proto.title.Audios, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.Audios.displayName = 'proto.title.Audios';
+}
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.title.Audios.repeatedFields_ = [1];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.Audios.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.Audios.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.Audios} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.Audios.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    audiosList: jspb.Message.toObjectList(msg.getAudiosList(),
+    proto.title.Audio.toObject, includeInstance)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.Audios}
+ */
+proto.title.Audios.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.Audios;
+  return proto.title.Audios.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.Audios} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.Audios}
+ */
+proto.title.Audios.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.title.Audio;
+      reader.readMessage(value,proto.title.Audio.deserializeBinaryFromReader);
+      msg.addAudios(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.Audios.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.Audios.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.Audios} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.Audios.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAudiosList();
+  if (f.length > 0) {
+    writer.writeRepeatedMessage(
+      1,
+      f,
+      proto.title.Audio.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * repeated Audio audios = 1;
+ * @return {!Array<!proto.title.Audio>}
+ */
+proto.title.Audios.prototype.getAudiosList = function() {
+  return /** @type{!Array<!proto.title.Audio>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.title.Audio, 1));
+};
+
+
+/** @param {!Array<!proto.title.Audio>} value */
+proto.title.Audios.prototype.setAudiosList = function(value) {
+  jspb.Message.setRepeatedWrapperField(this, 1, value);
+};
+
+
+/**
+ * @param {!proto.title.Audio=} opt_value
+ * @param {number=} opt_index
+ * @return {!proto.title.Audio}
+ */
+proto.title.Audios.prototype.addAudios = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.title.Audio, opt_index);
+};
+
+
+proto.title.Audios.prototype.clearAudiosList = function() {
+  this.setAudiosList([]);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.CreateAudioRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.CreateAudioRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.CreateAudioRequest.displayName = 'proto.title.CreateAudioRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.CreateAudioRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.CreateAudioRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.CreateAudioRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.CreateAudioRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    audio: (f = msg.getAudio()) && proto.title.Audio.toObject(includeInstance, f),
+    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.CreateAudioRequest}
+ */
+proto.title.CreateAudioRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.CreateAudioRequest;
+  return proto.title.CreateAudioRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.CreateAudioRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.CreateAudioRequest}
+ */
+proto.title.CreateAudioRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.title.Audio;
+      reader.readMessage(value,proto.title.Audio.deserializeBinaryFromReader);
+      msg.setAudio(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIndexpath(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.CreateAudioRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.CreateAudioRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.CreateAudioRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.CreateAudioRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAudio();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.title.Audio.serializeBinaryToWriter
+    );
+  }
+  f = message.getIndexpath();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional Audio audio = 1;
+ * @return {?proto.title.Audio}
+ */
+proto.title.CreateAudioRequest.prototype.getAudio = function() {
+  return /** @type{?proto.title.Audio} */ (
+    jspb.Message.getWrapperField(this, proto.title.Audio, 1));
+};
+
+
+/** @param {?proto.title.Audio|undefined} value */
+proto.title.CreateAudioRequest.prototype.setAudio = function(value) {
+  jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+proto.title.CreateAudioRequest.prototype.clearAudio = function() {
+  this.setAudio(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.CreateAudioRequest.prototype.hasAudio = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional string indexPath = 2;
+ * @return {string}
+ */
+proto.title.CreateAudioRequest.prototype.getIndexpath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.CreateAudioRequest.prototype.setIndexpath = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.CreateAudioResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.CreateAudioResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.CreateAudioResponse.displayName = 'proto.title.CreateAudioResponse';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.CreateAudioResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.CreateAudioResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.CreateAudioResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.CreateAudioResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.CreateAudioResponse}
+ */
+proto.title.CreateAudioResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.CreateAudioResponse;
+  return proto.title.CreateAudioResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.CreateAudioResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.CreateAudioResponse}
+ */
+proto.title.CreateAudioResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.CreateAudioResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.CreateAudioResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.CreateAudioResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.CreateAudioResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.GetAudioByIdRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.GetAudioByIdRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.GetAudioByIdRequest.displayName = 'proto.title.GetAudioByIdRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.GetAudioByIdRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.GetAudioByIdRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.GetAudioByIdRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAudioByIdRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    audioid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.GetAudioByIdRequest}
+ */
+proto.title.GetAudioByIdRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.GetAudioByIdRequest;
+  return proto.title.GetAudioByIdRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.GetAudioByIdRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.GetAudioByIdRequest}
+ */
+proto.title.GetAudioByIdRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAudioid(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIndexpath(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.GetAudioByIdRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.GetAudioByIdRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.GetAudioByIdRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAudioByIdRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAudioid();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getIndexpath();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string audioId = 1;
+ * @return {string}
+ */
+proto.title.GetAudioByIdRequest.prototype.getAudioid = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.GetAudioByIdRequest.prototype.setAudioid = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string indexPath = 2;
+ * @return {string}
+ */
+proto.title.GetAudioByIdRequest.prototype.getIndexpath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.GetAudioByIdRequest.prototype.setIndexpath = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.GetAudioByIdResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.title.GetAudioByIdResponse.repeatedFields_, null);
+};
+goog.inherits(proto.title.GetAudioByIdResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.GetAudioByIdResponse.displayName = 'proto.title.GetAudioByIdResponse';
+}
+/**
+ * List of repeated fields within this message type.
+ * @private {!Array<number>}
+ * @const
+ */
+proto.title.GetAudioByIdResponse.repeatedFields_ = [2];
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.GetAudioByIdResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.GetAudioByIdResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.GetAudioByIdResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAudioByIdResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    audio: (f = msg.getAudio()) && proto.title.Audio.toObject(includeInstance, f),
+    filespathsList: jspb.Message.getRepeatedField(msg, 2)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.GetAudioByIdResponse}
+ */
+proto.title.GetAudioByIdResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.GetAudioByIdResponse;
+  return proto.title.GetAudioByIdResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.GetAudioByIdResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.GetAudioByIdResponse}
+ */
+proto.title.GetAudioByIdResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.title.Audio;
+      reader.readMessage(value,proto.title.Audio.deserializeBinaryFromReader);
+      msg.setAudio(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addFilespaths(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.GetAudioByIdResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.GetAudioByIdResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.GetAudioByIdResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAudioByIdResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAudio();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.title.Audio.serializeBinaryToWriter
+    );
+  }
+  f = message.getFilespathsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional Audio audio = 1;
+ * @return {?proto.title.Audio}
+ */
+proto.title.GetAudioByIdResponse.prototype.getAudio = function() {
+  return /** @type{?proto.title.Audio} */ (
+    jspb.Message.getWrapperField(this, proto.title.Audio, 1));
+};
+
+
+/** @param {?proto.title.Audio|undefined} value */
+proto.title.GetAudioByIdResponse.prototype.setAudio = function(value) {
+  jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+proto.title.GetAudioByIdResponse.prototype.clearAudio = function() {
+  this.setAudio(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.GetAudioByIdResponse.prototype.hasAudio = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * repeated string filesPaths = 2;
+ * @return {!Array<string>}
+ */
+proto.title.GetAudioByIdResponse.prototype.getFilespathsList = function() {
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
+};
+
+
+/** @param {!Array<string>} value */
+proto.title.GetAudioByIdResponse.prototype.setFilespathsList = function(value) {
+  jspb.Message.setField(this, 2, value || []);
+};
+
+
+/**
+ * @param {!string} value
+ * @param {number=} opt_index
+ */
+proto.title.GetAudioByIdResponse.prototype.addFilespaths = function(value, opt_index) {
+  jspb.Message.addToRepeatedField(this, 2, value, opt_index);
+};
+
+
+proto.title.GetAudioByIdResponse.prototype.clearFilespathsList = function() {
+  this.setFilespathsList([]);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.DeleteAudioRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.DeleteAudioRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.DeleteAudioRequest.displayName = 'proto.title.DeleteAudioRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.DeleteAudioRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.DeleteAudioRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.DeleteAudioRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAudioRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    audioid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.DeleteAudioRequest}
+ */
+proto.title.DeleteAudioRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.DeleteAudioRequest;
+  return proto.title.DeleteAudioRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.DeleteAudioRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.DeleteAudioRequest}
+ */
+proto.title.DeleteAudioRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAudioid(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIndexpath(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.DeleteAudioRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.DeleteAudioRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.DeleteAudioRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAudioRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAudioid();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getIndexpath();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string audioId = 1;
+ * @return {string}
+ */
+proto.title.DeleteAudioRequest.prototype.getAudioid = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.DeleteAudioRequest.prototype.setAudioid = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string indexPath = 2;
+ * @return {string}
+ */
+proto.title.DeleteAudioRequest.prototype.getIndexpath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.DeleteAudioRequest.prototype.setIndexpath = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.DeleteAudioResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.DeleteAudioResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.DeleteAudioResponse.displayName = 'proto.title.DeleteAudioResponse';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.DeleteAudioResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.DeleteAudioResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.DeleteAudioResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAudioResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.DeleteAudioResponse}
+ */
+proto.title.DeleteAudioResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.DeleteAudioResponse;
+  return proto.title.DeleteAudioResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.DeleteAudioResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.DeleteAudioResponse}
+ */
+proto.title.DeleteAudioResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.DeleteAudioResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.DeleteAudioResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.DeleteAudioResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAudioResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.GetFileAudiosRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.GetFileAudiosRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.GetFileAudiosRequest.displayName = 'proto.title.GetFileAudiosRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.GetFileAudiosRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.GetFileAudiosRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.GetFileAudiosRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetFileAudiosRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    filepath: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.GetFileAudiosRequest}
+ */
+proto.title.GetFileAudiosRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.GetFileAudiosRequest;
+  return proto.title.GetFileAudiosRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.GetFileAudiosRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.GetFileAudiosRequest}
+ */
+proto.title.GetFileAudiosRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setFilepath(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIndexpath(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.GetFileAudiosRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.GetFileAudiosRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.GetFileAudiosRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetFileAudiosRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getFilepath();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getIndexpath();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string filePath = 1;
+ * @return {string}
+ */
+proto.title.GetFileAudiosRequest.prototype.getFilepath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.GetFileAudiosRequest.prototype.setFilepath = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string indexPath = 2;
+ * @return {string}
+ */
+proto.title.GetFileAudiosRequest.prototype.getIndexpath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.GetFileAudiosRequest.prototype.setIndexpath = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.GetFileAudiosResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.GetFileAudiosResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.GetFileAudiosResponse.displayName = 'proto.title.GetFileAudiosResponse';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.GetFileAudiosResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.GetFileAudiosResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.GetFileAudiosResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetFileAudiosResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    audios: (f = msg.getAudios()) && proto.title.Audios.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.GetFileAudiosResponse}
+ */
+proto.title.GetFileAudiosResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.GetFileAudiosResponse;
+  return proto.title.GetFileAudiosResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.GetFileAudiosResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.GetFileAudiosResponse}
+ */
+proto.title.GetFileAudiosResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.title.Audios;
+      reader.readMessage(value,proto.title.Audios.deserializeBinaryFromReader);
+      msg.setAudios(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.GetFileAudiosResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.GetFileAudiosResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.GetFileAudiosResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetFileAudiosResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAudios();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.title.Audios.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional Audios audios = 1;
+ * @return {?proto.title.Audios}
+ */
+proto.title.GetFileAudiosResponse.prototype.getAudios = function() {
+  return /** @type{?proto.title.Audios} */ (
+    jspb.Message.getWrapperField(this, proto.title.Audios, 1));
+};
+
+
+/** @param {?proto.title.Audios|undefined} value */
+proto.title.GetFileAudiosResponse.prototype.setAudios = function(value) {
+  jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+proto.title.GetFileAudiosResponse.prototype.clearAudios = function() {
+  this.setAudios(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.GetFileAudiosResponse.prototype.hasAudios = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.GetAlbumRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.GetAlbumRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.GetAlbumRequest.displayName = 'proto.title.GetAlbumRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.GetAlbumRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.GetAlbumRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.GetAlbumRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAlbumRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    albumid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.GetAlbumRequest}
+ */
+proto.title.GetAlbumRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.GetAlbumRequest;
+  return proto.title.GetAlbumRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.GetAlbumRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.GetAlbumRequest}
+ */
+proto.title.GetAlbumRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlbumid(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIndexpath(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.GetAlbumRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.GetAlbumRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.GetAlbumRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAlbumRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAlbumid();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getIndexpath();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string albumId = 1;
+ * @return {string}
+ */
+proto.title.GetAlbumRequest.prototype.getAlbumid = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.GetAlbumRequest.prototype.setAlbumid = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string indexPath = 2;
+ * @return {string}
+ */
+proto.title.GetAlbumRequest.prototype.getIndexpath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.GetAlbumRequest.prototype.setIndexpath = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.GetAlbumResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.GetAlbumResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.GetAlbumResponse.displayName = 'proto.title.GetAlbumResponse';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.GetAlbumResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.GetAlbumResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.GetAlbumResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAlbumResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    album: (f = msg.getAlbum()) && proto.title.Album.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.GetAlbumResponse}
+ */
+proto.title.GetAlbumResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.GetAlbumResponse;
+  return proto.title.GetAlbumResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.GetAlbumResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.GetAlbumResponse}
+ */
+proto.title.GetAlbumResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.title.Album;
+      reader.readMessage(value,proto.title.Album.deserializeBinaryFromReader);
+      msg.setAlbum(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.GetAlbumResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.GetAlbumResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.GetAlbumResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.GetAlbumResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAlbum();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.title.Album.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional Album album = 1;
+ * @return {?proto.title.Album}
+ */
+proto.title.GetAlbumResponse.prototype.getAlbum = function() {
+  return /** @type{?proto.title.Album} */ (
+    jspb.Message.getWrapperField(this, proto.title.Album, 1));
+};
+
+
+/** @param {?proto.title.Album|undefined} value */
+proto.title.GetAlbumResponse.prototype.setAlbum = function(value) {
+  jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+proto.title.GetAlbumResponse.prototype.clearAlbum = function() {
+  this.setAlbum(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {!boolean}
+ */
+proto.title.GetAlbumResponse.prototype.hasAlbum = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.DeleteAlbumRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.DeleteAlbumRequest, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.DeleteAlbumRequest.displayName = 'proto.title.DeleteAlbumRequest';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.DeleteAlbumRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.DeleteAlbumRequest.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.DeleteAlbumRequest} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAlbumRequest.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    albumid: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    indexpath: jspb.Message.getFieldWithDefault(msg, 2, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.DeleteAlbumRequest}
+ */
+proto.title.DeleteAlbumRequest.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.DeleteAlbumRequest;
+  return proto.title.DeleteAlbumRequest.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.DeleteAlbumRequest} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.DeleteAlbumRequest}
+ */
+proto.title.DeleteAlbumRequest.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setAlbumid(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setIndexpath(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.DeleteAlbumRequest.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.DeleteAlbumRequest.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.DeleteAlbumRequest} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAlbumRequest.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getAlbumid();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getIndexpath();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string albumId = 1;
+ * @return {string}
+ */
+proto.title.DeleteAlbumRequest.prototype.getAlbumid = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.title.DeleteAlbumRequest.prototype.setAlbumid = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string indexPath = 2;
+ * @return {string}
+ */
+proto.title.DeleteAlbumRequest.prototype.getIndexpath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/** @param {string} value */
+proto.title.DeleteAlbumRequest.prototype.setIndexpath = function(value) {
+  jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.title.DeleteAlbumResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.title.DeleteAlbumResponse, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  proto.title.DeleteAlbumResponse.displayName = 'proto.title.DeleteAlbumResponse';
+}
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto suitable for use in Soy templates.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     com.google.apps.jspb.JsClassTemplate.JS_RESERVED_WORDS.
+ * @param {boolean=} opt_includeInstance Whether to include the JSPB instance
+ *     for transitional soy proto support: http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.title.DeleteAlbumResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.title.DeleteAlbumResponse.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Whether to include the JSPB
+ *     instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.title.DeleteAlbumResponse} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAlbumResponse.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.title.DeleteAlbumResponse}
+ */
+proto.title.DeleteAlbumResponse.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.title.DeleteAlbumResponse;
+  return proto.title.DeleteAlbumResponse.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.title.DeleteAlbumResponse} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.title.DeleteAlbumResponse}
+ */
+proto.title.DeleteAlbumResponse.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.title.DeleteAlbumResponse.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.title.DeleteAlbumResponse.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.title.DeleteAlbumResponse} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.title.DeleteAlbumResponse.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
 };
 
 

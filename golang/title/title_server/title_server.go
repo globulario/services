@@ -1304,8 +1304,6 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
 	}
 
-	fmt.Println("-----------------> get file videos infos: ", filePath)
-
 	// I will use the file checksum as file id...
 	var uuid string
 	fileInfo, err := os.Stat(filePath)
@@ -1455,6 +1453,10 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	genres := bleve.NewFacetRequest("Genres", int(rqst.Size))
 	request.AddFacet("Genres", genres)
 
+	// single genre, from music album...
+	genre := bleve.NewFacetRequest("Genre", int(rqst.Size))
+	request.AddFacet("Genre", genre)
+
 	// The type facet...
 	types := bleve.NewFacetRequest("Type", int(rqst.Size))
 	request.AddFacet("Types", types)
@@ -1488,7 +1490,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	summary.Took = result.Took.Milliseconds()
 	summary.Total = result.Total
 
-	fmt.Println( "Search title", rqst.IndexPath ,rqst.Query, "results: ", result.Total)
+	fmt.Println("Search title", rqst.IndexPath, rqst.Query, "results: ", result.Total)
 
 	// Here I will send the summary...
 	stream.Send(&titlepb.SearchTitlesResponse{
@@ -1522,7 +1524,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		raw, err := index.GetInternal([]byte(id))
 		if err == nil {
 			title := new(titlepb.Title)
-			err = jsonpb.UnmarshalString(string(raw), title)
+			err := jsonpb.UnmarshalString(string(raw), title)
 			if err == nil {
 				hit_.Result = &titlepb.SearchHit_Title{
 					Title: title,
@@ -1536,7 +1538,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 			} else {
 				// Here I will try with a video...
 				video := new(titlepb.Video)
-				err = jsonpb.UnmarshalString(string(raw), video)
+				err := jsonpb.UnmarshalString(string(raw), video)
 				if err == nil {
 					hit_.Result = &titlepb.SearchHit_Video{
 						Video: video,
@@ -1547,6 +1549,20 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 							Hit: hit_,
 						},
 					})
+				} else {
+					audio := new(titlepb.Audio)
+					err := jsonpb.UnmarshalString(string(raw), audio)
+					if err == nil {
+						hit_.Result = &titlepb.SearchHit_Audio{
+							Audio: audio,
+						}
+						// Here I will send the search result...
+						stream.Send(&titlepb.SearchTitlesResponse{
+							Result: &titlepb.SearchTitlesResponse_Hit{
+								Hit: hit_,
+							},
+						})
+					}
 				}
 			}
 		}
@@ -1597,6 +1613,326 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 	})
 
 	return nil
+}
+
+/////////////////////////////////// Audio specific functions ////////////////////////////////////////
+
+// Insert a audio information in the database or update it if it already exist.
+func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioRequest) (*titlepb.CreateAudioResponse, error) {
+	if rqst.Audio == nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no audio was given")))
+
+	}
+	fmt.Println("create new audio with id ", rqst.Audio.ID)
+
+	// So here Will create the indexation for the movie...
+	index, err := srv.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Index the title and put it in the search engine.
+	err = index.Index(rqst.Audio.ID, rqst.Audio)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Associated original object here...
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(rqst.Audio)
+
+	if err == nil {
+		err = index.SetInternal([]byte(rqst.Audio.ID), []byte(jsonStr))
+	}
+
+	// Now I will create the album from the track info...
+	_, err = srv.getAlbum(rqst.IndexPath, rqst.Audio.Album)
+	if err != nil {
+		// In that case the album dosent exist... so I will create it.
+		album := &titlepb.Album{ID: rqst.Audio.Album, Artist: rqst.Audio.AlbumArtist, Year: rqst.Audio.Year, Genre: rqst.Audio.Genre, Poster: rqst.Audio.Poster}
+		jsonStr, err := marshaler.MarshalToString(album)
+		if err == nil {
+			err = index.SetInternal([]byte(album.ID), []byte(jsonStr))
+		}
+	}
+
+	return &titlepb.CreateAudioResponse{}, nil
+}
+
+func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
+	if !Utility.Exists(indexPath) {
+		return nil, errors.New("no database found at path " + indexPath)
+	}
+
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	query := bleve.NewQueryStringQuery(id)
+	searchRequest := bleve.NewSearchRequest(query)
+	searchResult, err := index.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now from the result I will
+	if searchResult.Total == 0 {
+		return nil, errors.New("No matches")
+	}
+
+	var audio *titlepb.Audio
+
+	// Now I will return the data
+	for _, val := range searchResult.Hits {
+		if val.ID == id {
+			raw, err := index.GetInternal([]byte(val.ID))
+			if err != nil {
+				return nil, err
+			}
+
+			audio = new(titlepb.Audio)
+			jsonpb.UnmarshalString(string(raw), audio)
+			break
+		}
+
+	}
+
+	return audio, nil
+}
+
+// Get a audio by a given id.
+func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdRequest) (*titlepb.GetAudioByIdResponse, error) {
+	audio, err := srv.getAudioById(rqst.IndexPath, rqst.AudioId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	filePaths := []string{}
+
+	// get the list of associated files if there some...
+	if srv.associations != nil {
+		if srv.associations[rqst.IndexPath] != nil {
+			data, err := srv.associations[rqst.IndexPath].GetItem(rqst.AudioId)
+			if err == nil {
+				association := new(fileTileAssociation)
+				err = json.Unmarshal(data, association)
+				if err == nil {
+					// In that case I will get the files...
+					filePaths = association.Paths
+				}
+			}
+		}
+	}
+
+	return &titlepb.GetAudioByIdResponse{
+		Audio:      audio,
+		FilesPaths: filePaths,
+	}, nil
+}
+
+func (srv *server) getAlbum(indexPath, id string) (*titlepb.Album, error) {
+	if !Utility.Exists(indexPath) {
+		return nil, errors.New("no database found at path " + indexPath)
+	}
+
+	index, err := srv.getIndex(indexPath)
+	if err != nil {
+		return nil, err
+	}
+
+	query := bleve.NewQueryStringQuery(id)
+	searchRequest := bleve.NewSearchRequest(query)
+	searchResult, err := index.Search(searchRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now from the result I will
+	if searchResult.Total == 0 {
+		return nil, errors.New("No matches")
+	}
+
+	var album *titlepb.Album
+
+	// Now I will return the data
+	for _, val := range searchResult.Hits {
+		if val.ID == id {
+			raw, err := index.GetInternal([]byte(val.ID))
+			if err != nil {
+				return nil, err
+			}
+
+			album_ := new(titlepb.Album)
+			err_ := jsonpb.UnmarshalString(string(raw), album_)
+			if err_ == nil {
+				album = album_
+			} else {
+				track := new(titlepb.Audio)
+				err_ := jsonpb.UnmarshalString(string(raw), track)
+
+				if err_ == nil {
+					if track.Album == id {
+						if album.Tracks == nil {
+							album.Tracks = new(titlepb.Audios)
+							album.Tracks.Audios = make([]*titlepb.Audio, 0)
+						}
+						album.Tracks.Audios = append(album.Tracks.Audios, track)
+					}
+				}
+			}
+			break
+		}
+	}
+
+	return album, nil
+}
+
+// Return the album information for a given id.
+func (srv *server) GetAlbum(ctx context.Context, rqst *titlepb.GetAlbumRequest) (*titlepb.GetAlbumResponse, error) {
+
+	indexPath := rqst.IndexPath
+	id := rqst.AlbumId
+
+	album, err := srv.getAlbum(indexPath, id)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &titlepb.GetAlbumResponse{Album: album}, nil
+}
+
+// Delete a audio from the database.
+func (srv *server) DeleteAudio(ctx context.Context, rqst *titlepb.DeleteAudioRequest) (*titlepb.DeleteAudioResponse, error) {
+	index, err := srv.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.Delete(rqst.AudioId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.DeleteInternal([]byte(rqst.AudioId))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// TODO remove asscociated files...
+
+	return &titlepb.DeleteAudioResponse{}, nil
+}
+
+func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumRequest) (*titlepb.DeleteAlbumResponse, error) {
+	index, err := srv.getIndex(rqst.IndexPath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.Delete(rqst.AlbumId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = index.DeleteInternal([]byte(rqst.AlbumId))
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// TODO remove asscociated files...
+
+	return &titlepb.DeleteAlbumResponse{}, nil
+}
+
+// Return the list of audios asscociate with a file.
+func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudiosRequest) (*titlepb.GetFileAudiosResponse, error) {
+
+	// So here I will get the list of titles asscociated with a file...
+	filePath := rqst.FilePath
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	if !Utility.Exists(filePath) {
+		// Here I will try to get it from the users dirs...
+		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
+			filePath = config.GetDataDir() + "/files" + filePath
+		}
+	}
+
+	if !Utility.Exists(filePath) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+	}
+
+	// I will use the file checksum as file id...
+	var uuid string
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	if fileInfo.IsDir() {
+		// is a directory
+		uuid = Utility.GenerateUUID(filePath)
+	} else {
+		// is not a directory
+		uuid = Utility.CreateFileChecksum(filePath)
+	}
+
+	if srv.associations == nil {
+		srv.associations = make(map[string]*storage_store.Badger_store)
+	}
+
+	if srv.associations[rqst.IndexPath] == nil {
+		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+	}
+
+	data, err := srv.associations[rqst.IndexPath].GetItem(uuid)
+	association := &fileTileAssociation{ID: uuid, Titles: []string{}, Paths: []string{}}
+	if err == nil {
+		err = json.Unmarshal(data, association)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	audios := make([]*titlepb.Audio, 0)
+	for i := 0; i < len(association.Titles); i++ {
+		audio, err := srv.getAudioById(rqst.IndexPath, association.Titles[i])
+		if err == nil {
+			audios = append(audios, audio)
+		}
+	}
+
+	return &titlepb.GetFileAudiosResponse{Audios: &titlepb.Audios{Audios: audios}}, nil
 }
 
 // That service is use to give access to SQL.

@@ -2,7 +2,9 @@ package title_client
 
 import (
 	"context"
+	"errors"
 	"io"
+
 	//"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -249,6 +251,24 @@ func (client *Title_Client) CreateTitle( token, path string, title *titlepb.Titl
 	return err
 }
 
+func (client *Title_Client) CreateAudio( token, path string, track *titlepb.Audio) error{
+
+	rqst := &titlepb.CreateAudioRequest{
+		Audio: track,
+		IndexPath: path,
+	}
+
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		md.Append("token", string(token))
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+	
+	_, err := client.c.CreateAudio(ctx, rqst)
+
+	return err
+}
 /**
  * Return the list of title asscociated with a given path.
  */
@@ -271,6 +291,10 @@ func (client *Title_Client)  GetFileTitles(indexPath, path string)  ([]*titlepb.
 		return nil, err
 	}
 
+	if len(rsp.Titles.Titles) == 0 {
+		return nil, errors.New("no titles found")
+	}
+
 	return rsp.Titles.Titles, nil
 }
 
@@ -283,7 +307,27 @@ func (client *Title_Client)  GetFileVideos(indexPath, path string)  ([]*titlepb.
 		return nil, err
 	}
 
+	if len(rsp.Videos.Videos) == 0 {
+		return nil, errors.New("no videos found")
+	}
+
 	return rsp.Videos.Videos, nil
+}
+
+// Return the list of audios for a given path...
+func (client *Title_Client)  GetFileAudios(indexPath, path string)  ([]*titlepb.Audio, error){
+	rqst := &titlepb.GetFileAudiosRequest{IndexPath: indexPath, FilePath: path}
+
+	rsp, err := client.c.GetFileAudios(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rsp.Audios.Audios) == 0 {
+		return nil, errors.New("no audios found")
+	}
+
+	return rsp.Audios.Audios, nil
 }
 
 /**

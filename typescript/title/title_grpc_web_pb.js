@@ -622,6 +622,311 @@ proto.title.TitleServicePromiseClient.prototype.deleteTitle =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.CreateAudioRequest,
+ *   !proto.title.CreateAudioResponse>}
+ */
+const methodDescriptor_TitleService_CreateAudio = new grpc.web.MethodDescriptor(
+  '/title.TitleService/CreateAudio',
+  grpc.web.MethodType.UNARY,
+  proto.title.CreateAudioRequest,
+  proto.title.CreateAudioResponse,
+  /**
+   * @param {!proto.title.CreateAudioRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.CreateAudioResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.CreateAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.CreateAudioResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.CreateAudioResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.createAudio =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/CreateAudio',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_CreateAudio,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.CreateAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.CreateAudioResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.createAudio =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/CreateAudio',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_CreateAudio);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.GetAudioByIdRequest,
+ *   !proto.title.GetAudioByIdResponse>}
+ */
+const methodDescriptor_TitleService_GetAudioById = new grpc.web.MethodDescriptor(
+  '/title.TitleService/GetAudioById',
+  grpc.web.MethodType.UNARY,
+  proto.title.GetAudioByIdRequest,
+  proto.title.GetAudioByIdResponse,
+  /**
+   * @param {!proto.title.GetAudioByIdRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.GetAudioByIdResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.GetAudioByIdRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.GetAudioByIdResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.GetAudioByIdResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.getAudioById =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/GetAudioById',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetAudioById,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.GetAudioByIdRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.GetAudioByIdResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.getAudioById =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/GetAudioById',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetAudioById);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.GetAlbumRequest,
+ *   !proto.title.GetAlbumResponse>}
+ */
+const methodDescriptor_TitleService_GetAlbum = new grpc.web.MethodDescriptor(
+  '/title.TitleService/GetAlbum',
+  grpc.web.MethodType.UNARY,
+  proto.title.GetAlbumRequest,
+  proto.title.GetAlbumResponse,
+  /**
+   * @param {!proto.title.GetAlbumRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.GetAlbumResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.GetAlbumRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.GetAlbumResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.GetAlbumResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.getAlbum =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/GetAlbum',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetAlbum,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.GetAlbumRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.GetAlbumResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.getAlbum =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/GetAlbum',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetAlbum);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.DeleteAudioRequest,
+ *   !proto.title.DeleteAudioResponse>}
+ */
+const methodDescriptor_TitleService_DeleteAudio = new grpc.web.MethodDescriptor(
+  '/title.TitleService/DeleteAudio',
+  grpc.web.MethodType.UNARY,
+  proto.title.DeleteAudioRequest,
+  proto.title.DeleteAudioResponse,
+  /**
+   * @param {!proto.title.DeleteAudioRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.DeleteAudioResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.DeleteAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.DeleteAudioResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.DeleteAudioResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.deleteAudio =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/DeleteAudio',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_DeleteAudio,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.DeleteAudioRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.DeleteAudioResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.deleteAudio =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/DeleteAudio',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_DeleteAudio);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.DeleteAlbumRequest,
+ *   !proto.title.DeleteAlbumResponse>}
+ */
+const methodDescriptor_TitleService_DeleteAlbum = new grpc.web.MethodDescriptor(
+  '/title.TitleService/DeleteAlbum',
+  grpc.web.MethodType.UNARY,
+  proto.title.DeleteAlbumRequest,
+  proto.title.DeleteAlbumResponse,
+  /**
+   * @param {!proto.title.DeleteAlbumRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.DeleteAlbumResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.DeleteAlbumRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.DeleteAlbumResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.DeleteAlbumResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.deleteAlbum =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/DeleteAlbum',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_DeleteAlbum,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.DeleteAlbumRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.DeleteAlbumResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.deleteAlbum =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/DeleteAlbum',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_DeleteAlbum);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.title.CreateVideoRequest,
  *   !proto.title.CreateVideoResponse>}
  */
@@ -1043,6 +1348,67 @@ proto.title.TitleServicePromiseClient.prototype.getFileVideos =
       request,
       metadata || {},
       methodDescriptor_TitleService_GetFileVideos);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.title.GetFileAudiosRequest,
+ *   !proto.title.GetFileAudiosResponse>}
+ */
+const methodDescriptor_TitleService_GetFileAudios = new grpc.web.MethodDescriptor(
+  '/title.TitleService/GetFileAudios',
+  grpc.web.MethodType.UNARY,
+  proto.title.GetFileAudiosRequest,
+  proto.title.GetFileAudiosResponse,
+  /**
+   * @param {!proto.title.GetFileAudiosRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.title.GetFileAudiosResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.title.GetFileAudiosRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.title.GetFileAudiosResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.title.GetFileAudiosResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.title.TitleServiceClient.prototype.getFileAudios =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/title.TitleService/GetFileAudios',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetFileAudios,
+      callback);
+};
+
+
+/**
+ * @param {!proto.title.GetFileAudiosRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.title.GetFileAudiosResponse>}
+ *     Promise that resolves to the response
+ */
+proto.title.TitleServicePromiseClient.prototype.getFileAudios =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/title.TitleService/GetFileAudios',
+      request,
+      metadata || {},
+      methodDescriptor_TitleService_GetFileAudios);
 };
 
 

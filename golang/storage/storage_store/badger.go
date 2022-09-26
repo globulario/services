@@ -128,10 +128,6 @@ func (store *Badger_store) getItem(key string) (val []byte, err error) {
 		return err
 	})
 
-	if err != nil {
-		fmt.Println("item", key, "not found with err", err)
-	}
-
 	return 
 }
 

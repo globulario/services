@@ -253,6 +253,7 @@ message SearchHit {
 	oneof result  {
 		Title title = 4;
 		Video video = 5;
+		Audio audio = 6;
 	 }
 }
 
@@ -348,6 +349,104 @@ message GetPersonByIdResponse {
 	Person person = 1;
 }
 
+////////////////////////////////////////////
+// Audio
+///////////////////////////////////////////
+
+/**
+ * This contain information about audio track. The information can be found in the 
+ * file metadata.
+ */
+message Audio {
+	string ID = 1;
+	string URL = 2;
+	string Artist = 3;
+	string AlbumArtist = 4;
+	string Album = 5;
+	string Comment = 6;
+	string Composer = 7;
+	string Genre = 8;
+	string Lyrics = 9;
+	string Title = 10;
+	int32 Year = 11;
+	int32 DiscNumber = 12;
+	int32 DiscTotal = 13;
+	int32 TrackNumber = 14;
+	int32 TrackTotal = 15;
+	Poster Poster = 16;
+}
+
+/**
+ * The album info.
+ */
+message Album {
+	string ID = 1;
+	string Artist = 2;
+	int32  Year = 3;
+	string Genre = 4;
+	Audios tracks = 5;
+	Poster Poster = 6;
+}
+
+message Audios {
+	repeated Audio audios = 1;
+}
+
+message CreateAudioRequest {
+	Audio audio = 1;
+	string indexPath = 2;
+}
+
+message CreateAudioResponse {
+	/** Nothing here **/
+}
+
+message GetAudioByIdRequest{
+	string audioId = 1;
+	string indexPath = 2;
+}
+
+message GetAudioByIdResponse{
+	Audio audio = 1;
+	repeated string filesPaths = 2;
+}
+
+message DeleteAudioRequest{
+	string audioId = 1;
+	string indexPath = 2;
+}
+
+message DeleteAudioResponse{
+	/** Nothing here **/
+}
+
+message GetFileAudiosRequest{
+	string filePath = 1;
+	string indexPath = 2;
+}
+
+message GetFileAudiosResponse{
+	Audios audios = 1;
+}
+
+message GetAlbumRequest{
+	string albumId = 1;
+	string indexPath = 2;
+}
+
+message GetAlbumResponse{
+	Album album = 1;;
+}
+
+message DeleteAlbumRequest{
+	string albumId = 1;
+	string indexPath = 2;
+}
+
+message DeleteAlbumResponse {
+
+}
+
 /**
  * That service is use to manage and get access to title informations it offer
  * search functionalities to retreives movies, series, episode information and ther
@@ -385,6 +484,22 @@ service TitleService {
 	// Delete a title from the database.
 	rpc DeleteTitle(DeleteTitleRequest) returns (DeleteTitleResponse);
 
+	/////////////////////////////////// Audio specific functions ////////////////////////////////////////
+	// Insert a audio information in the database or update it if it already exist.
+	rpc CreateAudio(CreateAudioRequest) returns (CreateAudioResponse);
+
+	// Get a audio by a given id.
+	rpc GetAudioById(GetAudioByIdRequest) returns (GetAudioByIdResponse);
+
+	// Return the album information for a given id.
+	rpc GetAlbum(GetAlbumRequest) returns (GetAlbumResponse);
+
+	// Delete a audio from the database.
+	rpc DeleteAudio(DeleteAudioRequest) returns (DeleteAudioResponse);
+
+	// Delete album from the database.
+	rpc DeleteAlbum(DeleteAlbumRequest) returns (DeleteAlbumResponse);
+
 	/////////////////////////////////// Video specific functions ////////////////////////////////////////
   	// Insert a video in the database or update it if it already exist.
 	rpc CreateVideo(CreateVideoRequest) returns (CreateVideoResponse);
@@ -408,6 +523,9 @@ service TitleService {
 
 	// Return the list of videos asscociate with a file.
 	rpc GetFileVideos(GetFileVideosRequest) returns (GetFileVideosResponse);
+
+	// Return the list of audios asscociate with a file.
+	rpc GetFileAudios(GetFileAudiosRequest) returns (GetFileAudiosResponse);
 
 	// Return the list of files associate with a title
 	rpc GetTitleFiles(GetTitleFilesRequest) returns (GetTitleFilesResponse);
