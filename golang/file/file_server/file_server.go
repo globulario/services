@@ -144,6 +144,8 @@ type server struct {
 	scheduler *gocron.Scheduler
 
 	isProcessing bool
+
+	isProcessingAudio bool
 }
 
 // The http address where the configuration can be found /config
@@ -506,6 +508,7 @@ func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbna
 	}
 
 	if err != nil {
+		fmt.Println("fail to create thumnail with error: ", err)
 		return ""
 	}
 
@@ -546,6 +549,7 @@ func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbna
 	}
 
 	if err != nil {
+		fmt.Println("fail to generate thumbnail with error ", err)
 		return ""
 	}
 
@@ -570,8 +574,6 @@ type fileInfo struct {
 	Mime      string
 	Thumbnail string
 	Files     []*fileInfo
-
-	Metadata map[string]interface{}
 }
 
 func getFileInfo(s *server, path string) (*fileInfo, error) {
@@ -609,54 +611,33 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 
 	// get the metadata if there's some.
 	if (strings.HasPrefix(info.Mime, "audio") || strings.HasPrefix(info.Mime, "video")) && !strings.HasSuffix(info.Name, ".mu3") {
-		info.Metadata, _ = readMetadata(path)
-		if info.Metadata != nil {
-			// so here I will update the title...
-			// Remove file asscociation contain by file in that directry
-			client, err := getTitleClient()
-			if err != nil {
-				fmt.Println("fail to get title client ", err)
-				return nil, err
-			}
-
-			audios := make(map[string][]*titlepb.Audio, 0)
-			err = s.getFileAudiosAssociation(client, path, audios)
-			if err != nil {
-				if err.Error() == "no audios found" {
-					// so here I will create the information from the metadata...
-					track := new(titlepb.Audio)
-					track.ID = Utility.GenerateUUID(info.Metadata["Album"].(string) + ":" + info.Metadata["Title"].(string) + ":" + info.Metadata["AlbumArtist"].(string))
-					track.Album = info.Metadata["Album"].(string)
-					track.AlbumArtist = info.Metadata["AlbumArtist"].(string)
-					track.Artist = info.Metadata["Artist"].(string)
-					track.Comment = info.Metadata["Comment"].(string)
-					track.Composer = info.Metadata["Composer"].(string)
-					track.Genres = strings.Split(info.Metadata["Genre"].(string), " / ")
-					track.Lyrics = info.Metadata["Lyrics"].(string)
-					track.Title = info.Metadata["Title"].(string)
-					track.Year = int32(Utility.ToInt(info.Metadata["Year"]))
-					track.DiscNumber = int32(Utility.ToInt(info.Metadata["DiscNumber"]))
-					track.DiscTotal = int32(Utility.ToInt(info.Metadata["DiscTotal"]))
-					track.TrackNumber = int32(Utility.ToInt(info.Metadata["TrackNumber"]))
-					track.TrackTotal = int32(Utility.ToInt(info.Metadata["TrackTotal"]))
-					track.Duration = int32(Utility.ToInt(getVideoDuration(path)))
-
-					imageUrl := ""
-					if info.Metadata["ImageUrl"] != nil {
-						imageUrl = info.Metadata["ImageUrl"].(string)
-					}
-
-					track.Poster = &titlepb.Poster{ID: track.ID, URL: "", TitleId: track.ID, ContentUrl: imageUrl}
-
-					err := client.CreateAudio("", config.GetDataDir()+"/search/audios", track)
+		metadata, _ := readMetadata(path)
+		if metadata != nil {
+			if metadata["ImageUrl"] != nil {
+				info.Thumbnail = metadata["ImageUrl"].(string)
+			} else if strings.HasPrefix(info.Mime, "video/") {
+				path, err := os.Getwd()
+				if err == nil {
+					path = path + "/mimetypes/video-x-generic.png"
+					icon, err := os.Open(path)
 					if err == nil {
-						fmt.Println("audio info was created for ", path)
-						err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/audios", track.ID, path)
-						if err != nil {
-							fmt.Println("fail to asscociate file ", err)
-						}
+						info.Thumbnail = createThumbnail(path, icon, 80, 80)
+						icon.Close()
 					} else {
-						fmt.Println("fail to create audio info with error: ", err)
+						fmt.Println(err)
+					}
+				}
+
+			} else if strings.HasPrefix(info.Mime, "audio/") {
+				path, err := os.Getwd()
+				if err == nil {
+					path = path + "/mimetypes/audio-x-generic.png"
+					icon, err := os.Open(path)
+					if err == nil {
+						info.Thumbnail = createThumbnail(path, icon, 80, 80)
+						icon.Close()
+					} else {
+						fmt.Println(err)
 					}
 				}
 
@@ -701,6 +682,8 @@ func readMetadata(path string) (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	defer f_.Close()
+
 	m, err := tag.ReadFrom(f_)
 	var metadata map[string]interface{}
 
@@ -719,11 +702,9 @@ func readMetadata(path string) (map[string]interface{}, error) {
 		metadata["Raw"] = m.Raw()
 		metadata["Title"] = m.Title()
 		if len(m.Title()) == 0 {
-			metadata["Title"] =  fileNameWithoutExtension(filepath.Base(path))
+			metadata["Title"] = fileNameWithoutExtension(filepath.Base(path))
 		}
 		metadata["Year"] = m.Year()
-
-
 
 		metadata["DisckNumber"], _ = m.Disc()
 		_, metadata["DiscTotal"] = m.Disc()
@@ -769,37 +750,37 @@ func readMetadata(path string) (map[string]interface{}, error) {
 				imagePath += "/AlbumArt.jpg"
 			} else if Utility.Exists(imagePath + "/Front.jpg") {
 				imagePath += "/Front.jpg"
-			}else if Utility.Exists(imagePath + "/front.jpg") {
+			} else if Utility.Exists(imagePath + "/front.jpg") {
 				imagePath += "/front.jpg"
-			}else if Utility.Exists(imagePath + "/thumb.jpg") {
+			} else if Utility.Exists(imagePath + "/thumb.jpg") {
 				imagePath += "/thumb.jpg"
-			}else if Utility.Exists(imagePath + "/Thumbnail.jpg") {
+			} else if Utility.Exists(imagePath + "/Thumbnail.jpg") {
 				imagePath += "/Thumbnail.jpg"
-			}else{
+			} else {
 				// take the first found image it that case...
 				images := Utility.GetFilePathsByExtension(imagePath, ".jpg")
 				if len(images) > 0 {
 					imagePath = images[0]
-					for i:=0; i<len(images); i++ {
+					for i := 0; i < len(images); i++ {
 						imagePath_ := images[i]
 						if strings.Index(strings.ToLower(imagePath_), "front") != -1 || strings.Index(strings.ToLower(imagePath_), "folder") != -1 || strings.Index(strings.ToLower(imagePath_), "cover") != -1 {
-							
+
 							imagePath = imagePath_
 							if strings.HasSuffix(strings.ToLower(imagePath_), "front.jpg") || strings.HasSuffix(strings.ToLower(imagePath_), "cover.jpg") {
-								break;
+								break
 							}
 						}
 					}
-				}else {
+				} else {
 					images := Utility.GetFilePathsByExtension(imagePath[0:strings.LastIndex(imagePath, "/")], ".jpg")
 					if len(images) > 0 {
 						imagePath = images[0]
-						for i:=0; i<len(images); i++ {
+						for i := 0; i < len(images); i++ {
 							imagePath_ := images[i]
 							if strings.Index(strings.ToLower(imagePath_), "front") != -1 || strings.Index(strings.ToLower(imagePath_), "folder") != -1 || strings.Index(strings.ToLower(imagePath_), "cover") != -1 {
 								imagePath = imagePath_
 								if strings.HasSuffix(strings.ToLower(imagePath_), "front.jpg") || strings.HasSuffix(strings.ToLower(imagePath_), "cover.jpg") {
-									break;
+									break
 								}
 							}
 						}
@@ -809,18 +790,17 @@ func readMetadata(path string) (map[string]interface{}, error) {
 			}
 
 			if Utility.Exists(imagePath) {
-				var base64Encoding string
-
-				// Prepend the appropriate URI scheme header depending
-				// on the MIME type
-				base64Encoding += "data:image/jpeg;base64,"
-				data, err := os.ReadFile(imagePath)
-
-				// Append the base64 encoded output
+				img , err := os.Open(imagePath)
 				if err == nil {
-					base64Encoding += toBase64(data)
-					metadata["ImageUrl"] = base64Encoding
+					defer img.Close()
+
+					if err == nil {
+						metadata["ImageUrl"]  = createThumbnail(imagePath, img, 300, 300)
+					}
+	
 				}
+			
+
 			}
 		}
 	} else {
@@ -899,53 +879,12 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				}
 
 				// Create thumbnail if the path is not in hidden file...
-				if !strings.Contains(path, ".hidden") {
+				if !strings.Contains(path, ".hidden") && len(info_.Thumbnail) == 0 {
 					if strings.HasPrefix(info_.Mime, "image/") {
 						if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 							info_.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 						}
-					} else if strings.HasPrefix(info_.Mime, "video/") {
-						path, err := os.Getwd()
-						if err == nil {
-							path = path + "/mimetypes/video-x-generic.png"
-							icon, err := os.Open(path)
-							if err == nil {
-								info_.Thumbnail = createThumbnail(path, icon, 80, 80)
-								icon.Close()
-							} else {
-								fmt.Println(err)
-							}
-						}
-
-					} else if strings.HasPrefix(info_.Mime, "audio/") {
-
-						// Try to get metadata from the audio file...
-						info.Metadata, _ = readMetadata(path + "/" + f.Name())
-						if info.Metadata["ImageUrl"] != nil {
-							info_.Thumbnail = info.Metadata["ImageUrl"].(string)
-						} else {
-							icon_path, err := os.Getwd()
-							if err == nil {
-								icon_path = icon_path + "/mimetypes/audio-x-generic.png"
-								icon, err := os.Open(icon_path)
-								if err == nil {
-									info_.Thumbnail = createThumbnail(icon_path, icon, 80, 80)
-									icon.Close()
-								} else {
-									fmt.Println(err)
-								}
-							}
-
-						}
-
-						// generate the playlist...
-						err = s.generatePlaylist(path, token)
-						if err != nil {
-							fmt.Println("fail to generate playlist with error, ", err)
-						}
-
 					} else if strings.Contains(info_.Mime, "/") {
-
 						// In that case I will get read image from png file and create a
 						// thumbnail with it...
 						path, err := os.Getwd()
@@ -957,7 +896,6 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 								icon.Close()
 							}
 						}
-
 					} else {
 						path, err := os.Getwd()
 						if err == nil {
@@ -2527,6 +2465,12 @@ func (file_server *server) startProcessAudios() {
  */
 func processAudios(file_server *server) {
 
+	if(file_server.isProcessingAudio){
+		return
+	}
+
+	file_server.isProcessingAudio = true
+	// Process audio files... 
 	audios := getAudioPaths()
 
 	for _, audio := range audios {
@@ -2535,6 +2479,7 @@ func processAudios(file_server *server) {
 			file_server.generatePlaylist(dir, "")
 		}
 	}
+	file_server.isProcessingAudio = false
 }
 
 func processVideos(file_server *server) {
@@ -3504,10 +3449,6 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 		return errors.New("no paths was given")
 	}
 
-	if Utility.Exists(path + "/audio.m3u") {
-		os.Remove(path + "/audio.m3u")
-	}
-
 	client, err := getTitleClient()
 	if err != nil {
 		return err
@@ -3517,18 +3458,13 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 	playlist += "#PLAYLIST: " + strings.ReplaceAll(path, config.GetDataDir()+"/files/", "/") + "\n\n"
 
 	for i := 0; i < len(paths); i++ {
-
-		audios := make(map[string][]*titlepb.Audio, 0)
-		file_server.getFileAudiosAssociation(client, paths[i], audios)
+		metadata, err := readMetadata(paths[i])
 		duration := Utility.ToInt(getVideoDuration(paths[i]))
-		if duration > 0 {
+		if duration > 0 && err == nil {
+
+			id := Utility.GenerateUUID(metadata["Album"].(string) + ":" + metadata["Title"].(string) + ":" + metadata["AlbumArtist"].(string))
 			playlist += "#EXTINF:" + Utility.ToString(duration) + ","
-
-			if len(audios[paths[i]]) > 0 {
-				audioInfo := audios[paths[i]][0]
-				playlist += audioInfo.Title + `, tvg-id="` + audioInfo.ID + `"` + ` tvg-url="` + audioInfo.URL + `"`
-			}
-
+			playlist += metadata["Title"].(string) + `, tvg-id="` + id + `"` + ` tvg-url=""`
 			playlist += "\n"
 
 			// now I will generate the url...
@@ -3558,6 +3494,51 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 			}
 
 			playlist += url_ + "\n\n"
+
+			// here I will create the info in the title server...
+			audios := make(map[string][]*titlepb.Audio, 0)
+			err = file_server.getFileAudiosAssociation(client, paths[i], audios)
+			if err != nil {
+				if err.Error() == "no audios found" {
+					// so here I will create the information from the metadata...
+					track := new(titlepb.Audio)
+					track.ID = Utility.GenerateUUID(metadata["Album"].(string) + ":" + metadata["Title"].(string) + ":" + metadata["AlbumArtist"].(string))
+					track.Album = metadata["Album"].(string)
+					track.AlbumArtist = metadata["AlbumArtist"].(string)
+					track.Artist = metadata["Artist"].(string)
+					track.Comment = metadata["Comment"].(string)
+					track.Composer = metadata["Composer"].(string)
+					track.Genres = strings.Split(metadata["Genre"].(string), " / ")
+					track.Lyrics = metadata["Lyrics"].(string)
+					track.Title = metadata["Title"].(string)
+					track.Year = int32(Utility.ToInt(metadata["Year"]))
+					track.DiscNumber = int32(Utility.ToInt(metadata["DiscNumber"]))
+					track.DiscTotal = int32(Utility.ToInt(metadata["DiscTotal"]))
+					track.TrackNumber = int32(Utility.ToInt(metadata["TrackNumber"]))
+					track.TrackTotal = int32(Utility.ToInt(metadata["TrackTotal"]))
+					fmt.Println("-----------> file duration is ", getVideoDuration(path))
+					track.Duration = int32(Utility.ToInt(getVideoDuration(path)))
+
+					imageUrl := ""
+					if metadata["ImageUrl"] != nil {
+						imageUrl = metadata["ImageUrl"].(string)
+					}
+
+					track.Poster = &titlepb.Poster{ID: track.ID, URL: "", TitleId: track.ID, ContentUrl: imageUrl}
+
+					err := client.CreateAudio("", config.GetDataDir()+"/search/audios", track)
+					if err == nil {
+						fmt.Println("audio info was created for ", paths[i])
+						err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/audios", track.ID, paths[i])
+						if err != nil {
+							fmt.Println("fail to asscociate file ", err)
+						}
+					} else {
+						fmt.Println("fail to create audio info with error: ", err)
+					}
+				}
+			}
+
 		}
 	}
 
@@ -3683,10 +3664,13 @@ func (file_server *server) GeneratePlaylist(ctx context.Context, rqst *filepb.Ge
 
 	// retreive the path...
 	path := file_server.formatPath(rqst.Dir)
-
 	if !Utility.Exists(path) {
 		return nil, errors.New("no file found at path " + rqst.Dir)
 	}
+
+	// remove the previous playlist...
+	os.Remove(path + "/audio.mu3")
+	os.Remove(path + "/video.mu3")
 
 	err := file_server.generatePlaylist(path, token)
 
