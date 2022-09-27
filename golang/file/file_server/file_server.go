@@ -650,7 +650,7 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 
 					err := client.CreateAudio("", config.GetDataDir()+"/search/audios", track)
 					if err == nil {
-						fmt.Println("audio info was created!")
+						fmt.Println("audio info was created for ", path)
 						err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/audios", track.ID, path)
 						if err != nil {
 							fmt.Println("fail to asscociate file ", err)
@@ -767,6 +767,45 @@ func readMetadata(path string) (map[string]interface{}, error) {
 				imagePath += "/Folder.jpg"
 			} else if Utility.Exists(imagePath + "/AlbumArt.jpg") {
 				imagePath += "/AlbumArt.jpg"
+			} else if Utility.Exists(imagePath + "/Front.jpg") {
+				imagePath += "/Front.jpg"
+			}else if Utility.Exists(imagePath + "/front.jpg") {
+				imagePath += "/front.jpg"
+			}else if Utility.Exists(imagePath + "/thumb.jpg") {
+				imagePath += "/thumb.jpg"
+			}else if Utility.Exists(imagePath + "/Thumbnail.jpg") {
+				imagePath += "/Thumbnail.jpg"
+			}else{
+				// take the first found image it that case...
+				images := Utility.GetFilePathsByExtension(imagePath, ".jpg")
+				if len(images) > 0 {
+					imagePath = images[0]
+					for i:=0; i<len(images); i++ {
+						imagePath_ := images[i]
+						if strings.Index(strings.ToLower(imagePath_), "front") != -1 || strings.Index(strings.ToLower(imagePath_), "folder") != -1 || strings.Index(strings.ToLower(imagePath_), "cover") != -1 {
+							
+							imagePath = imagePath_
+							if strings.HasSuffix(strings.ToLower(imagePath_), "front.jpg") || strings.HasSuffix(strings.ToLower(imagePath_), "cover.jpg") {
+								break;
+							}
+						}
+					}
+				}else {
+					images := Utility.GetFilePathsByExtension(imagePath[0:strings.LastIndex(imagePath, "/")], ".jpg")
+					if len(images) > 0 {
+						imagePath = images[0]
+						for i:=0; i<len(images); i++ {
+							imagePath_ := images[i]
+							if strings.Index(strings.ToLower(imagePath_), "front") != -1 || strings.Index(strings.ToLower(imagePath_), "folder") != -1 || strings.Index(strings.ToLower(imagePath_), "cover") != -1 {
+								imagePath = imagePath_
+								if strings.HasSuffix(strings.ToLower(imagePath_), "front.jpg") || strings.HasSuffix(strings.ToLower(imagePath_), "cover.jpg") {
+									break;
+								}
+							}
+						}
+					}
+
+				}
 			}
 
 			if Utility.Exists(imagePath) {
@@ -3466,7 +3505,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 	}
 
 	if Utility.Exists(path + "/audio.m3u") {
-		return nil
+		os.Remove(path + "/audio.m3u")
 	}
 
 	client, err := getTitleClient()
