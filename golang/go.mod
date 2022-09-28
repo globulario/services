@@ -15,6 +15,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.10.0
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/dhowden/tag v0.0.0-20220618230019-adf36e896086
 	github.com/djimenez/iconv-go v0.0.0-20160305225143-8960e66bd3da
 	github.com/emersion/go-imap v1.1.0
 	github.com/emersion/go-message v0.14.1
@@ -36,6 +37,7 @@ require (
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/struCoder/pidusage v0.2.1
 	github.com/syndtr/goleveldb v1.0.0
+	github.com/tcolgate/mp3 v0.0.0-20170426193717-e79c5a46d300
 	github.com/tealeg/xlsx v1.0.5
 	github.com/txn2/txeh v1.3.0
 	go.mongodb.org/mongo-driver v1.5.2
@@ -83,7 +85,6 @@ require (
 	github.com/couchbase/vellum v1.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
-	github.com/dhowden/tag v0.0.0-20220618230019-adf36e896086 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect

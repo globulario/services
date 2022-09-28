@@ -2448,7 +2448,7 @@ func (file_server *server) isExpired() bool {
 
 func (file_server *server) startProcessAudios() {
 	// Start feeding the time series...
-	ticker := time.NewTicker(15 * time.Minute)
+	ticker := time.NewTicker(5 * time.Minute)
 	go func() {
 		for {
 			select {
@@ -3340,6 +3340,7 @@ func getVideoResolution(path string) (int, int) {
 	return Utility.ToInt(strings.TrimSpace(w)), Utility.ToInt(strings.TrimSpace(h))
 }
 
+
 func getVideoDuration(path string) float64 {
 	path = strings.ReplaceAll(path, "\\", "/")
 	// original command...
@@ -3459,7 +3460,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 
 	for i := 0; i < len(paths); i++ {
 		metadata, err := readMetadata(paths[i])
-		duration := Utility.ToInt(getVideoDuration(paths[i]))
+		duration := Utility.ToInt(getVideoDuration(paths[i]) + 0.5)
 		if duration > 0 && err == nil {
 
 			id := Utility.GenerateUUID(metadata["Album"].(string) + ":" + metadata["Title"].(string) + ":" + metadata["AlbumArtist"].(string))
@@ -3516,8 +3517,8 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 					track.DiscTotal = int32(Utility.ToInt(metadata["DiscTotal"]))
 					track.TrackNumber = int32(Utility.ToInt(metadata["TrackNumber"]))
 					track.TrackTotal = int32(Utility.ToInt(metadata["TrackTotal"]))
-					fmt.Println("-----------> file duration is ", getVideoDuration(path))
-					track.Duration = int32(Utility.ToInt(getVideoDuration(path)))
+					fmt.Println("-----------> file duration is ", duration)
+					track.Duration = int32(duration)
 
 					imageUrl := ""
 					if metadata["ImageUrl"] != nil {
