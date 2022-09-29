@@ -349,6 +349,24 @@ func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []str
 }
 
 /**
+ * Get the video by it id.
+ */
+ func (client *Title_Client) GetVideoById(path, id string) (*titlepb.Video, []string, error){
+	rqst := &titlepb.GetVideoByIdRequest{
+		IndexPath: path,
+		VidoeId: id,
+	}
+
+	rsp, err := client.c.GetVideoById(client.GetCtx(), rqst)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Return a title.
+	return rsp.GetVideo(), rsp.GetFilesPaths(), nil
+}
+
+/**
  * Search titles with a query, title, genre etc...
  */
 func (client *Title_Client) SearchTitle(path, query string, fields []string) (*titlepb.SearchSummary, []*titlepb.SearchHit, *titlepb.SearchFacets, error){

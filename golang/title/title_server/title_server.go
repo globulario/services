@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/blevesearch/bleve"
@@ -543,7 +547,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	jsonStr, err := marshaler.MarshalToString(rqst.Title)
 
 	if err == nil {
-		err = index.SetInternal([]byte(rqst.Title.ID), []byte(jsonStr))
+		 index.SetInternal([]byte(rqst.Title.ID), []byte(jsonStr))
 	}
 
 	return &titlepb.CreateTitleResponse{}, nil
@@ -591,6 +595,37 @@ type fileTileAssociation struct {
 	Paths  []string // list of file path's where file can be found on the local disck.
 }
 
+/**
+ * Store meta data into a file.
+ */
+func setMetadata(path, key, value string) error {
+	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
+	path = strings.ReplaceAll(path, "\\", "/")
+
+	fileName := filepath.Base(path)
+	
+	// original command...
+	os.Remove(os.TempDir() + "/" + fileName)
+
+	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
+	cmd := exec.Command("ffmpeg", `-i`, path, `-metadata`, key+`=`+value, `-c`, `copy`, os.TempDir() + "/" + fileName)
+
+	cmd.Dir = os.TempDir()
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if err != nil {
+		return err
+	}
+
+	Utility.Move(os.TempDir() + "/" + fileName, path)
+
+	return nil
+}
+
 // Associate a file and a title info, so file can be found from title informations...
 func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
 
@@ -617,6 +652,47 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// Now I will set the title url in the media file to keep track of the title
+	// information. If the title is lost it will be possible to recreate it from
+	// that url.
+	if strings.HasSuffix(rqst.IndexPath, "/search/titles") {
+		title, err := srv.getTitleById(rqst.IndexPath, rqst.TitleId)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(title)
+		if err != nil {
+			return nil, err
+		}
+
+		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+		setMetadata(filePath, "comment", encoded)
+
+	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
+		video, err := srv.getVideoById(rqst.IndexPath, rqst.TitleId)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(video)
+		if err != nil {
+			return nil, err
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+		err = setMetadata(filePath, "comment", encoded)
+		if err != nil {
+			fmt.Println("fail to set the metada! ", jsonStr, err)
+		}
+	}
+
 	var uuid string
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
@@ -1174,7 +1250,7 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	jsonStr, err := marshaler.MarshalToString(rqst.Video)
 
 	if err == nil {
-		err = index.SetInternal([]byte(rqst.Video.ID), []byte(jsonStr))
+		index.SetInternal([]byte(rqst.Video.ID), []byte(jsonStr))
 	}
 
 	return &titlepb.CreateVideoResponse{}, nil

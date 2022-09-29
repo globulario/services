@@ -7,6 +7,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"io"
+	"io/ioutil"
+	"log"
+	"math"
+	"mime"
+	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
 	"github.com/dhowden/tag"
@@ -24,32 +40,13 @@ import (
 	"github.com/globulario/services/golang/title/titlepb"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/jasonlvhit/gocron"
-	"github.com/nfnt/resize"
-	"github.com/polds/imgbase64"
+
 	"github.com/tealeg/xlsx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
-	"image"
-	"image/gif"
-	"image/jpeg"
-	"image/png"
-	"io"
-	"io/ioutil"
-	"log"
-	"math"
-	"mime"
-	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"reflect"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
 )
 
 // TODO take care of TLS/https
@@ -143,9 +140,14 @@ type server struct {
 	// The task scheduler.
 	scheduler *gocron.Scheduler
 
+	// processing video conversion (mp4, m3u8 etc...)
 	isProcessing bool
 
+	// Generate playlist and titles for audio
 	isProcessingAudio bool
+
+	// Generate playlist and titles for video and movies (series and episode.)
+	isProcessingVideo bool
 }
 
 // The http address where the configuration can be found /config
@@ -469,100 +471,6 @@ func (file_server *server) Stop(context.Context, *filepb.StopRequest) (*filepb.S
 	return &filepb.StopResponse{}, file_server.StopService()
 }
 
-/**
- * Create a thumbnail...
- */
-func createThumbnail(path string, file *os.File, thumbnailMaxHeight int, thumbnailMaxWidth int) string {
-
-	// Here if thumbnail already exist in hiden files I will use it...
-	_fileName := strings.ReplaceAll(file.Name(), "\\", "/")
-	endIndex := strings.LastIndex(_fileName, ".")
-	if endIndex == -1 {
-		endIndex = len(_fileName)
-	}
-	_fileName = _fileName[strings.LastIndex(_fileName, "/")+1 : endIndex]
-
-	_path := path + "/.hidden/" + _fileName + "/_thumbnail_"
-	if Utility.Exists(path + "/.hidden/" + _fileName) {
-		thumbnail, err := ioutil.ReadFile(_path)
-		if err == nil {
-			return string(thumbnail)
-		}
-	}
-
-	Utility.CreateDirIfNotExist(path + "/.hidden/" + _fileName)
-
-	// Set the buffer pointer back to the begening of the file...
-	file.Seek(0, 0)
-	var originalImg image.Image
-	var err error
-
-	if strings.HasSuffix(file.Name(), ".png") || strings.HasSuffix(file.Name(), ".PNG") {
-		originalImg, err = png.Decode(file)
-	} else if strings.HasSuffix(file.Name(), ".jpeg") || strings.HasSuffix(file.Name(), ".jpg") || strings.HasSuffix(file.Name(), ".JPEG") || strings.HasSuffix(file.Name(), ".JPG") {
-		originalImg, err = jpeg.Decode(file)
-	} else if strings.HasSuffix(file.Name(), ".gif") || strings.HasSuffix(file.Name(), ".GIF") {
-		originalImg, err = gif.Decode(file)
-	} else {
-		return ""
-	}
-
-	if err != nil {
-		fmt.Println("fail to create thumnail with error: ", err)
-		return ""
-	}
-
-	// I will get the ratio for the new image size to respect the scale.
-	hRatio := thumbnailMaxHeight / originalImg.Bounds().Size().Y
-	wRatio := thumbnailMaxWidth / originalImg.Bounds().Size().X
-
-	var h int
-	var w int
-
-	// First I will try with the height
-	if hRatio*originalImg.Bounds().Size().Y < thumbnailMaxWidth {
-		h = thumbnailMaxHeight
-		w = hRatio * originalImg.Bounds().Size().Y
-	} else {
-		// So here i will use it width
-		h = wRatio * thumbnailMaxHeight
-		w = thumbnailMaxWidth
-	}
-
-	// do not zoom...
-	if hRatio > 1 {
-		h = originalImg.Bounds().Size().Y
-	}
-
-	if wRatio > 1 {
-		w = originalImg.Bounds().Size().X
-	}
-
-	// Now I will calculate the image size...
-	img := resize.Resize(uint(h), uint(w), originalImg, resize.Lanczos3)
-
-	var buf bytes.Buffer
-	if strings.HasSuffix(file.Name(), ".png") || strings.HasSuffix(file.Name(), ".PNG") {
-		err = png.Encode(&buf, img)
-	} else {
-		err = jpeg.Encode(&buf, img, &jpeg.Options{jpeg.DefaultQuality})
-	}
-
-	if err != nil {
-		fmt.Println("fail to generate thumbnail with error ", err)
-		return ""
-	}
-
-	// Now I will save the buffer containt to the thumbnail...
-	thumbnail := imgbase64.FromBuffer(buf)
-	file.Seek(0, 0) // Set the reader back to the begenin of the file...
-
-	// Save the thumbnail into a file to not having to recreate-it each time...
-	ioutil.WriteFile(_path, []byte(thumbnail), 0644)
-
-	return thumbnail
-}
-
 type fileInfo struct {
 	Name    string      // base name of the file
 	Size    int64       // length in bytes for regular files; system-dependent for others
@@ -619,26 +527,16 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 				path, err := os.Getwd()
 				if err == nil {
 					path = path + "/mimetypes/video-x-generic.png"
-					icon, err := os.Open(path)
-					if err == nil {
-						info.Thumbnail = createThumbnail(path, icon, 80, 80)
-						icon.Close()
-					} else {
-						fmt.Println(err)
-					}
+
+					info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
+
 				}
 
 			} else if strings.HasPrefix(info.Mime, "audio/") {
 				path, err := os.Getwd()
 				if err == nil {
 					path = path + "/mimetypes/audio-x-generic.png"
-					icon, err := os.Open(path)
-					if err == nil {
-						info.Thumbnail = createThumbnail(path, icon, 80, 80)
-						icon.Close()
-					} else {
-						fmt.Println(err)
-					}
+					info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
 				}
 
 			}
@@ -720,19 +618,27 @@ func readMetadata(path string) (map[string]interface{}, error) {
 			mimeType := m.Picture().MIMEType
 
 			// Prepend the appropriate URI scheme header depending
+			fileName := Utility.RandomUUID()
+
 			// on the MIME type
 			switch mimeType {
 			case "image/jpg":
-				base64Encoding += "data:image/jpeg;base64,"
+				fileName += "jpg"
 			case "image/jpeg":
-				base64Encoding += "data:image/jpeg;base64,"
+				fileName += "jpg"
 			case "image/png":
-				base64Encoding += "data:image/png;base64,"
+				fileName += "png"
 			}
 
-			// Append the base64 encoded output
-			base64Encoding += toBase64(m.Picture().Data)
+			imagePath := os.TempDir() + "/" + fileName
+			defer os.Remove(imagePath)
+
+			os.WriteFile(imagePath, m.Picture().Data, 0664)
+
 			metadata["ImageUrl"] = base64Encoding
+			if Utility.Exists(imagePath) {
+				metadata["ImageUrl"], _ = Utility.CreateThumbnail(imagePath, 300, 300)
+			}
 
 		} else {
 			imagePath := path[:strings.LastIndex(path, "/")]
@@ -790,17 +696,7 @@ func readMetadata(path string) (map[string]interface{}, error) {
 			}
 
 			if Utility.Exists(imagePath) {
-				img , err := os.Open(imagePath)
-				if err == nil {
-					defer img.Close()
-
-					if err == nil {
-						metadata["ImageUrl"]  = createThumbnail(imagePath, img, 300, 300)
-					}
-	
-				}
-			
-
+				metadata["ImageUrl"], _ = Utility.CreateThumbnail(imagePath, 300, 300)
 			}
 		}
 	} else {
@@ -882,7 +778,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				if !strings.Contains(path, ".hidden") && len(info_.Thumbnail) == 0 {
 					if strings.HasPrefix(info_.Mime, "image/") {
 						if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-							info_.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+							info_.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 						}
 					} else if strings.Contains(info_.Mime, "/") {
 						// In that case I will get read image from png file and create a
@@ -890,23 +786,15 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						path, err := os.Getwd()
 						if err == nil {
 							path = path + "/mimetypes/" + strings.ReplaceAll(strings.Split(info_.Mime, ";")[0], "/", "-") + ".png"
-							icon, err := os.Open(path)
-							if err == nil {
-								info_.Thumbnail = createThumbnail(path, icon, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-								icon.Close()
-							}
+
+							info_.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+
 						}
 					} else {
 						path, err := os.Getwd()
 						if err == nil {
 							path = path + "/mimetypes/unknown.png"
-							icon, err := os.Open(path)
-							if err == nil {
-								info_.Thumbnail = createThumbnail(path, icon, 80, 80)
-								icon.Close()
-							} else {
-								fmt.Println(err)
-							}
+							info_.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
 						}
 					}
 				}
@@ -1549,21 +1437,15 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 		// in case of image...
 		if strings.HasPrefix(info.Mime, "image/") {
 			if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-				info.Thumbnail = createThumbnail(path, f_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+				info.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			} else {
-				info.Thumbnail = createThumbnail(path, f_, 80, 80)
+				info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
 			}
 		} else if strings.HasPrefix(info.Mime, "video/") {
 			path, err := os.Getwd()
 			if err == nil {
 				path = path + "/mimetypes/video-x-generic.png"
-				icon, err := os.Open(path)
-				if err == nil {
-					info.Thumbnail = createThumbnail(path, icon, 80, 80)
-					icon.Close()
-				} else {
-					fmt.Println(err)
-				}
+				info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
 			}
 		} else if strings.Contains(info.Mime, "/") {
 
@@ -1572,23 +1454,15 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 			path, err := os.Getwd()
 			if err == nil {
 				path = path + "/mimetypes/" + strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-") + ".png"
-				icon, err := os.Open(path)
-				if err == nil {
-					info.Thumbnail = createThumbnail(path, icon, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-					icon.Close()
-				}
+				info.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			}
+			
 		} else {
 			path, err := os.Getwd()
 			if err == nil {
 				path = path + "/mimetypes/unknown.png"
-				icon, err := os.Open(path)
-				if err == nil {
-					info.Thumbnail = createThumbnail(path, icon, 80, 80)
-					icon.Close()
-				} else {
-					fmt.Println(err)
-				}
+
+				info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
 			}
 		}
 	} else {
@@ -1597,16 +1471,10 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 		path, err := os.Getwd()
 		if err == nil {
 			path = path + "/mimetypes/inode-directory.png"
-			icon, err := os.Open(path)
-			if err == nil {
-				if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-					info.Thumbnail = createThumbnail(path, icon, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-				} else {
-					info.Thumbnail = createThumbnail(path, icon, 80, 80)
-				}
-				icon.Close()
+			if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
+				info.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			} else {
-				fmt.Println(err)
+				info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
 			}
 		}
 
@@ -2460,17 +2328,135 @@ func (file_server *server) startProcessAudios() {
 	}()
 }
 
+func (file_server *server) startProcessVideos() {
+	// Start feeding the time series...
+	ticker := time.NewTicker(1 * time.Minute)
+	go func() {
+		for {
+			select {
+
+			case <-ticker.C:
+				processVideosInfos(file_server)
+
+			}
+		}
+	}()
+}
+
+func processVideosInfos(file_server *server) {
+
+	if file_server.isProcessingVideo {
+		return
+	}
+
+	file_server.isProcessingVideo = true
+	videos := getVideoPaths()
+
+	for i := 0; i < len(videos); i++ {
+		infos, err := getVideoInfos(videos[i])
+		if err == nil {
+			if infos["format"] != nil {
+				if infos["format"].(map[string]interface{})["tags"] != nil {
+					tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
+					if tags["comment"] != nil {
+						comment := tags["comment"].(string)
+						if len(comment) > 0 {
+							jsonStr, _ := base64.StdEncoding.DecodeString(comment)
+							title := new(titlepb.Title)
+							err = jsonpb.UnmarshalString(string(jsonStr), title)
+							if err == nil {
+								// so here I will make sure the title exist...
+								client, err := getTitleClient()
+								if err == nil {
+									t, paths, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
+									if err != nil {
+										// the title was no found...
+										if t == nil {
+											err := client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
+											if err == nil {
+												// now I will associate the path.
+												path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+												client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
+											} else {
+												fmt.Println(title.ID, " fail to create title with error: ", err)
+											}
+										}
+
+									} else {
+										fmt.Println("title was found ", t.Name, " with paths: ", paths)
+										path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+										if !Utility.Contains(paths, path) {
+											// associate the path.
+											client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
+										}
+									}
+								}
+							} else {
+								video := new(titlepb.Video)
+								err := jsonpb.UnmarshalString(string(jsonStr), video)
+								if err == nil {
+									// so here I will make sure the title exist...
+									client, err := getTitleClient()
+									if err == nil {
+										v, paths, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
+										if v == nil {
+											// the title was no found...
+											err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
+											if err == nil {
+												// now I will associate the path.
+												path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+												client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
+											}
+
+										} else {
+											fmt.Println("title was found ", v.Description, " with paths: ", paths)
+											path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+											if !Utility.Contains(paths, path) {
+												// associate the path.
+												client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		} else {
+			fmt.Println("fail to process video ", videos[i], err)
+		}
+
+	}
+
+	// Generate various video artefact...
+	for i := 0; i < len(videos); i++ {
+		createVideoPreview(videos[i], 20, 128, false)
+	}
+
+	for i := 0; i < len(videos); i++ {
+		generateVideoGifPreview(videos[i], 10, 320, 30, false)
+	}
+
+
+	for i := 0; i < len(videos); i++ {
+		createVideoTimeLine(videos[i], 180, .2, false) // 1 frame per 5 seconds.
+	}
+
+	file_server.isProcessingVideo = false
+}
+
 /**
  * Create playlist and search informations.
  */
 func processAudios(file_server *server) {
 
-	if(file_server.isProcessingAudio){
+	if file_server.isProcessingAudio {
 		return
 	}
 
 	file_server.isProcessingAudio = true
-	// Process audio files... 
+	// Process audio files...
 	audios := getAudioPaths()
 
 	for _, audio := range audios {
@@ -3340,6 +3326,33 @@ func getVideoResolution(path string) (int, int) {
 	return Utility.ToInt(strings.TrimSpace(w)), Utility.ToInt(strings.TrimSpace(h))
 }
 
+// Return the information store in a video file.
+func getVideoInfos(path string) (map[string]interface{}, error) {
+	path = strings.ReplaceAll(path, "\\", "/")
+	// original command
+	// ffprobe -hide_banner -loglevel fatal  -show_format -print_format -show_private_data json -i 9EcjWd-O4jI.mp4
+	cmd := exec.Command(`ffprobe`, `-hide_banner`, `-loglevel`, `fatal`, `-show_format`, `-print_format`, `json`, `-i`, path)
+
+	cmd.Dir = os.TempDir()
+
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if err != nil {
+		return nil, err
+	}
+
+	infos := make(map[string]interface{})
+	err = json.Unmarshal(out.Bytes(), &infos)
+	if err != nil {
+		return nil, err
+	}
+
+	return infos, nil
+}
 
 func getVideoDuration(path string) float64 {
 	path = strings.ReplaceAll(path, "\\", "/")
@@ -3517,9 +3530,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 					track.DiscTotal = int32(Utility.ToInt(metadata["DiscTotal"]))
 					track.TrackNumber = int32(Utility.ToInt(metadata["TrackNumber"]))
 					track.TrackTotal = int32(Utility.ToInt(metadata["TrackTotal"]))
-					fmt.Println("-----------> file duration is ", duration)
 					track.Duration = int32(duration)
-
 					imageUrl := ""
 					if metadata["ImageUrl"] != nil {
 						imageUrl = metadata["ImageUrl"].(string)
@@ -4137,11 +4148,11 @@ func main() {
 		s_impl.scheduler.Start()
 	}
 
-	// start process the audio files...
-	go processAudios(s_impl)
-
 	// Now i will be sure that users are owner of every file in their user dir.
 	s_impl.startProcessAudios()
+
+	// Start process video informations...
+	s_impl.startProcessVideos()
 
 	// Start the service.
 	s_impl.StartService()
