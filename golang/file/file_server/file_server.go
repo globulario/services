@@ -612,8 +612,6 @@ func readMetadata(path string) (map[string]interface{}, error) {
 
 		if m.Picture() != nil {
 
-			var base64Encoding string
-
 			// Determine the content type of the image file
 			mimeType := m.Picture().MIMEType
 
@@ -623,11 +621,11 @@ func readMetadata(path string) (map[string]interface{}, error) {
 			// on the MIME type
 			switch mimeType {
 			case "image/jpg":
-				fileName += "jpg"
+				fileName += ".jpg"
 			case "image/jpeg":
-				fileName += "jpg"
+				fileName += ".jpg"
 			case "image/png":
-				fileName += "png"
+				fileName += ".png"
 			}
 
 			imagePath := os.TempDir() + "/" + fileName
@@ -635,7 +633,6 @@ func readMetadata(path string) (map[string]interface{}, error) {
 
 			os.WriteFile(imagePath, m.Picture().Data, 0664)
 
-			metadata["ImageUrl"] = base64Encoding
 			if Utility.Exists(imagePath) {
 				metadata["ImageUrl"], _ = Utility.CreateThumbnail(imagePath, 300, 300)
 			}
@@ -4149,6 +4146,8 @@ func main() {
 	}
 
 	// Now i will be sure that users are owner of every file in their user dir.
+	go processAudios(s_impl)
+	
 	s_impl.startProcessAudios()
 
 	// Start process video informations...

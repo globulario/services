@@ -630,23 +630,23 @@ func setMetadata(path, key, value string) error {
 func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
 
 	// so the first thing I will do is to get the file on the disc.
-	filePath := rqst.FilePath
-	filePath = strings.ReplaceAll(filePath, "\\", "/")
+	absolutefilePath := rqst.FilePath
+	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
 
-	if !Utility.Exists(filePath) {
+	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
-		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
-			filePath = config.GetDataDir() + "/files" + filePath
+		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		}
 
-		if !Utility.Exists(filePath) {
+		if !Utility.Exists(absolutefilePath) {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
 		}
 	}
 
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(absolutefilePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -671,7 +671,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 
 		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		setMetadata(filePath, "comment", encoded)
+		setMetadata(absolutefilePath, "comment", encoded)
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
 		video, err := srv.getVideoById(rqst.IndexPath, rqst.TitleId)
@@ -687,20 +687,22 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			return nil, err
 		}
 		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		err = setMetadata(filePath, "comment", encoded)
+		err = setMetadata(absolutefilePath, "comment", encoded)
 		if err != nil {
 			fmt.Println("fail to set the metada! ", jsonStr, err)
 		}
 	}
 
 	var uuid string
+	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir() + "/files", "")
+
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
 		// is a directory
 		uuid = Utility.GenerateUUID(filePath)
 	} else {
 		// is not a directory
-		uuid = Utility.CreateFileChecksum(filePath)
+		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
 	if srv.associations == nil {
@@ -725,8 +727,8 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	// Append the path if not already there.
-	if !Utility.Contains(association.Paths, rqst.FilePath) {
-		association.Paths = append(association.Paths, rqst.FilePath)
+	if !Utility.Contains(association.Paths, filePath) {
+		association.Paths = append(association.Paths,  filePath)
 	}
 
 	// Append the title if not aready exist.
@@ -756,8 +758,8 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	// Append the path if not already there.
-	if !Utility.Contains(association.Paths, rqst.FilePath) {
-		association.Paths = append(association.Paths, rqst.FilePath)
+	if !Utility.Contains(association.Paths, filePath) {
+		association.Paths = append(association.Paths, filePath)
 	}
 	if !Utility.Contains(association.Titles, rqst.TitleId) {
 		association.Titles = append(association.Titles, rqst.TitleId)
@@ -775,17 +777,20 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
 }
 
-func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) error {
+func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath string) error {
 	if !Utility.Exists(indexPath) {
 		return errors.New("no database found at path " + indexPath)
 	}
 
 	// I will use the file checksum as file id...
 	var uuid string
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(absoluteFilePath)
 	if err != nil {
 		return err
 	}
+
+	// here I will remove the absolute part in case of /users /applications 
+	filePath := strings.ReplaceAll(absoluteFilePath, config.GetDataDir() + "/files", "")
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
@@ -793,7 +798,7 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 		uuid = Utility.GenerateUUID(filePath)
 	} else {
 		// is not a directory
-		uuid = Utility.CreateFileChecksum(filePath)
+		uuid = Utility.CreateFileChecksum(absoluteFilePath)
 	}
 
 	if srv.associations == nil {
@@ -865,21 +870,21 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, filePath string) 
 func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.DissociateFileWithTitleRequest) (*titlepb.DissociateFileWithTitleResponse, error) {
 
 	// so the first thing I will do is to get the file on the disc.
-	filePath := rqst.FilePath
-	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	if !Utility.Exists(filePath) {
+	absolutefilePath := rqst.FilePath
+	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
+	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
-		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
-			filePath = config.GetDataDir() + "/files" + filePath
+		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		}
 	}
-	if !Utility.Exists(filePath) {
+	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
 	}
 
-	err := srv.dissociateFileWithTitle(rqst.IndexPath, rqst.TitleId, filePath)
+	err := srv.dissociateFileWithTitle(rqst.IndexPath, rqst.TitleId, absolutefilePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -889,14 +894,14 @@ func (srv *server) DissociateFileWithTitle(ctx context.Context, rqst *titlepb.Di
 	return &titlepb.DissociateFileWithTitleResponse{}, nil
 }
 
-func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, error) {
+func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*titlepb.Title, error) {
 	if !Utility.Exists(indexPath) {
 		return nil, errors.New("no database found at path " + indexPath)
 	}
 
 	// I will use the file checksum as file id...
 	var uuid string
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(absolutePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -908,7 +913,7 @@ func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, 
 		uuid = Utility.GenerateUUID(filePath)
 	} else {
 		// is not a directory
-		uuid = Utility.CreateFileChecksum(filePath)
+		uuid = Utility.CreateFileChecksum(absolutePath)
 	}
 
 	if srv.associations == nil {
@@ -941,11 +946,11 @@ func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, 
 	}
 
 	// In case of a dir I need to recursivly get the list of title from sub-folder...
-	if fileInfo.IsDir() && !Utility.Exists(filePath+"/playlist.m3u8") {
-		files, err := ioutil.ReadDir(filePath)
+	if fileInfo.IsDir() && !Utility.Exists(absolutePath+"/playlist.m3u8") {
+		files, err := ioutil.ReadDir(absolutePath)
 		if err == nil {
 			for _, f := range files {
-				titles_, err := srv.getFileTitles(indexPath, filePath+"/"+f.Name())
+				titles_, err := srv.getFileTitles(indexPath, filePath+"/"+f.Name(), absolutePath+"/"+f.Name())
 				if err == nil {
 					// append all found title.
 					titles = append(titles, titles_...)
@@ -961,23 +966,25 @@ func (srv *server) getFileTitles(indexPath, filePath string) ([]*titlepb.Title, 
 // Return the list of titles asscociate with a file.
 func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitlesRequest) (*titlepb.GetFileTitlesResponse, error) {
 
+	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()  + "/files", "")
+
 	// So here I will get the list of titles asscociated with a file...
-	filePath := rqst.FilePath
-	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	if !Utility.Exists(filePath) {
+	absolutefilePath := rqst.FilePath
+	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
+	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
-		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
-			filePath = config.GetDataDir() + "/files" + filePath
+		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		}
 	}
 
-	if !Utility.Exists(filePath) {
+	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
 	}
 
-	titles, err := srv.getFileTitles(rqst.IndexPath, filePath)
+	titles, err := srv.getFileTitles(rqst.IndexPath, filePath, absolutefilePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1361,17 +1368,20 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 // Return the list of videos asscociate with a file.
 func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideosRequest) (*titlepb.GetFileVideosResponse, error) {
 
+	// relative path...
+	filePath := strings.ReplaceAll(rqst.FilePath, config.GetConfigDir() + "/files", "")
+
 	// So here I will get the list of titles asscociated with a file...
-	filePath := rqst.FilePath
-	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	if !Utility.Exists(filePath) {
+	absolutefilePath := rqst.FilePath
+	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
+	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
-		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
-			filePath = config.GetDataDir() + "/files" + filePath
+		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		}
 	}
 
-	if !Utility.Exists(filePath) {
+	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
@@ -1379,7 +1389,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	// I will use the file checksum as file id...
 	var uuid string
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(absolutefilePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1391,7 +1401,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		uuid = Utility.GenerateUUID(filePath)
 	} else {
 		// is not a directory
-		uuid = Utility.CreateFileChecksum(filePath)
+		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
 	if srv.associations == nil {
@@ -1936,25 +1946,28 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 // Return the list of audios asscociate with a file.
 func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudiosRequest) (*titlepb.GetFileAudiosResponse, error) {
 
+	// remove keep the part after /applications or /users
+	filePath:=strings.ReplaceAll(rqst.FilePath, config.GetDataDir() + "/files", "")
+
 	// So here I will get the list of titles asscociated with a file...
-	filePath := rqst.FilePath
-	filePath = strings.ReplaceAll(filePath, "\\", "/")
-	if !Utility.Exists(filePath) {
+	absolutefilePath := rqst.FilePath
+	absolutefilePath = strings.ReplaceAll(absolutefilePath, "\\", "/")
+	if !Utility.Exists(absolutefilePath) {
 		// Here I will try to get it from the users dirs...
-		if strings.HasPrefix(filePath, "/users/") || strings.HasPrefix(filePath, "/applications/") {
-			filePath = config.GetDataDir() + "/files" + filePath
+		if strings.HasPrefix(absolutefilePath, "/users/") || strings.HasPrefix(absolutefilePath, "/applications/") {
+			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		}
 	}
 
-	if !Utility.Exists(filePath) {
+	if !Utility.Exists(absolutefilePath) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
 	}
 
 	// I will use the file checksum as file id...
 	var uuid string
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(absolutefilePath)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1966,7 +1979,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		uuid = Utility.GenerateUUID(filePath)
 	} else {
 		// is not a directory
-		uuid = Utility.CreateFileChecksum(filePath)
+		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
 	if srv.associations == nil {
