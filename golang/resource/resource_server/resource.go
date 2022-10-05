@@ -3691,7 +3691,7 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	if len(values) == 0 {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No service descriptor with id "+rqst.ServiceId+" was found for publisher id "+rqst.PublisherId)))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No package descriptor with id "+rqst.ServiceId+" was found for publisher id "+rqst.PublisherId)))
 	}
 
 	descriptors := make([]*resourcepb.PackageDescriptor, len(values))

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -35,12 +34,12 @@ func (a *Authentication) RequireTransportSecurity() bool {
 // Create a struct that will be encoded to a JWT.
 // We add jwt.StandardClaims as an embedded type, to provide fields like expiry time
 type Claims struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Domain   string `json:"domain"` // Where the token was generated
+	ID         string `json:"id"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	Domain     string `json:"domain"` // Where the token was generated
 	UserDomain string `json:"user_domain"`
-	Address  string `json:"address"`
+	Address    string `json:"address"`
 	jwt.StandardClaims
 }
 
@@ -59,10 +58,10 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 	}
 
 	var jwtKey []byte
-	fmt.Println("generate token for audience ", audience, "from", mac, "issuer", issuer)
+
 	// Here I will get the key...
 	if len(audience) > 0 {
-		
+
 		jwtKey, err = GetPeerKey(audience)
 		if err != nil {
 			return "", err
@@ -91,12 +90,12 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 
 	// Create the JWT claims, which includes the username and expiry time
 	claims := &Claims{
-		ID:       userId,
-		Username: userName,
+		ID:         userId,
+		Username:   userName,
 		UserDomain: userDomain,
-		Email:    email,
-		Domain:   domain,
-		Address:  address,
+		Email:      email,
+		Domain:     domain,
+		Address:    address,
 		StandardClaims: jwt.StandardClaims{
 			// In JWT, the expiry time is expressed as unix milliseconds
 			Id:        userId,
@@ -159,6 +158,7 @@ func ValidateToken(token string) (*Claims, error) {
 	}
 
 	if !tkn.Valid {
+
 		return claims, errors.New("invalid token")
 	}
 
@@ -175,7 +175,7 @@ func refreshLocalToken(token string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		
+
 		if len(claims.StandardClaims.Audience) > 0 {
 			if claims.StandardClaims.Audience != macAddress {
 				return GetPeerKey(claims.StandardClaims.Audience)

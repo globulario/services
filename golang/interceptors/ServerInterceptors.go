@@ -261,9 +261,6 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		// The application...
 		application = strings.Join(md["application"], "")
 		token = strings.Join(md["token"], "")
-
-		// origin := strings.Join(md["origin"], "")
-		// fmt.Println("-------------------------------> ", origin)
 		address, _ = config.GetAddress()
 	}
 
@@ -282,6 +279,7 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
 		if err != nil && !hasAccess {
+			fmt.Println("--------> method ", method)
 			fmt.Println("--------> validate token fail with error ", err)
 			log(domain, application, clientId, method, Utility.FileLine(), Utility.FunctionName(), "fail to validate token for method "+method+" with error "+err.Error(), logpb.LogLevel_ERROR_MESSAGE)
 			return nil, err

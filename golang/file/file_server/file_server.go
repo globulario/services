@@ -775,7 +775,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				if !strings.Contains(path, ".hidden") && len(info_.Thumbnail) == 0 {
 					if strings.HasPrefix(info_.Mime, "image/") {
 						if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-							info_.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+							info_.Thumbnail, _ = Utility.CreateThumbnail(path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 						}
 					} else if strings.Contains(info_.Mime, "/") {
 						// In that case I will get read image from png file and create a
@@ -784,7 +784,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						if err == nil {
 							path = path + "/mimetypes/" + strings.ReplaceAll(strings.Split(info_.Mime, ";")[0], "/", "-") + ".png"
 
-							info_.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+							info_.Thumbnail, _ = Utility.CreateThumbnail(path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 
 						}
 					} else {
@@ -1453,7 +1453,7 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 				path = path + "/mimetypes/" + strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-") + ".png"
 				info.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			}
-			
+
 		} else {
 			path, err := os.Getwd()
 			if err == nil {
@@ -1941,9 +1941,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 
 				} else {
 					rbac_client_.DeleteResourcePermissions(rqst.Files[i])
-					fmt.Println("remove permission ", rqst.Files[i])
 					permissions.Path = rqst.Path + "/" + permissions.Path[strings.LastIndex(permissions.Path, "/")+1:]
-					fmt.Println("set permission ", permissions.Path)
 					err := rbac_client_.SetResourcePermissions(token, permissions.Path, permissions.ResourceType, permissions)
 					if err != nil {
 						fmt.Println("fail to update the permission: ", err)
@@ -2350,8 +2348,11 @@ func processVideosInfos(file_server *server) {
 	videos := getVideoPaths()
 
 	for i := 0; i < len(videos); i++ {
+
+		// get video info from metadata
 		infos, err := getVideoInfos(videos[i])
-		if err == nil {
+
+		if err == nil && infos != nil {
 			if infos["format"] != nil {
 				if infos["format"].(map[string]interface{})["tags"] != nil {
 					tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
@@ -2372,7 +2373,8 @@ func processVideosInfos(file_server *server) {
 											err := client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
 											if err == nil {
 												// now I will associate the path.
-												path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+												path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
+												path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
 												client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
 											} else {
 												fmt.Println(title.ID, " fail to create title with error: ", err)
@@ -2380,8 +2382,8 @@ func processVideosInfos(file_server *server) {
 										}
 
 									} else {
-										fmt.Println("title was found ", t.Name, " with paths: ", paths)
-										path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+										path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
+										path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
 										if !Utility.Contains(paths, path) {
 											// associate the path.
 											client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
@@ -2401,13 +2403,14 @@ func processVideosInfos(file_server *server) {
 											err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
 											if err == nil {
 												// now I will associate the path.
-												path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+												path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
+												path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
 												client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
 											}
 
 										} else {
-											fmt.Println("title was found ", v.Description, " with paths: ", paths)
-											path := strings.Replace(videos[i], config.GetDataDir() + "/files", "", -1)
+											path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
+											path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
 											if !Utility.Contains(paths, path) {
 												// associate the path.
 												client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
@@ -2434,7 +2437,6 @@ func processVideosInfos(file_server *server) {
 	for i := 0; i < len(videos); i++ {
 		generateVideoGifPreview(videos[i], 10, 320, 30, false)
 	}
-
 
 	for i := 0; i < len(videos); i++ {
 		createVideoTimeLine(videos[i], 180, .2, false) // 1 frame per 5 seconds.
@@ -2547,7 +2549,6 @@ func processVideos(file_server *server) {
 				// TODO test if delay was busted...
 
 				if !hasAlreadyFail {
-					fmt.Println("try to process video ", video)
 					if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
 
 						createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
@@ -2724,8 +2725,6 @@ func createVideoMpeg4H264(path string) (string, error) {
 	if Utility.Exists(output) {
 		os.Remove(output)
 	}
-
-	fmt.Println("try to convert ", path, "to", output)
 
 	// Test if cuda is available.
 	getVersion := exec.Command("ffmpeg", "-version")
@@ -2984,8 +2983,6 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		cmd_str_ += " " + args[i]
 	}
 
-	fmt.Println(cmd_str_)
-
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -3205,7 +3202,7 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 	}
 
 	output := path_ + "/.hidden/" + name_ + "/__timeline__"
-	fmt.Println("create time line for file ", output)
+
 	if Utility.Exists(output) {
 		if !force {
 			return createVttFile(output, fps)
@@ -3213,7 +3210,6 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 		os.Remove(output)
 	}
 
-	fmt.Println("create dir ", output)
 	Utility.CreateDirIfNotExist(output)
 
 	duration := getVideoDuration(path)
@@ -3241,7 +3237,6 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 // Here I will create the small viedeo video
 func createVideoPreview(path string, nb int, height int, force bool) error {
 	path = strings.ReplaceAll(path, "\\", "/")
-	fmt.Println("create preview for ", path)
 
 	if Utility.Exists(path+"/playlist.m3u8") && !strings.HasSuffix(path, "playlist.m3u8") {
 		path += "/playlist.m3u8"
@@ -3325,30 +3320,130 @@ func getVideoResolution(path string) (int, int) {
 
 // Return the information store in a video file.
 func getVideoInfos(path string) (map[string]interface{}, error) {
+
 	path = strings.ReplaceAll(path, "\\", "/")
-	// original command
-	// ffprobe -hide_banner -loglevel fatal  -show_format -print_format -show_private_data json -i 9EcjWd-O4jI.mp4
-	cmd := exec.Command(`ffprobe`, `-hide_banner`, `-loglevel`, `fatal`, `-show_format`, `-print_format`, `json`, `-i`, path)
 
-	cmd.Dir = os.TempDir()
+	if strings.HasSuffix(path, "playlist.m3u8") {
 
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+		// get video info from file.
+		path_ := path[0:strings.LastIndex(path, "/")]
+		if Utility.Exists(path_ + "/infos.json") {
+			data, err := os.ReadFile(path_ + "/infos.json")
+			infos := make(map[string]interface{})
+			err = json.Unmarshal(data, &infos)
+			if err != nil {
+				return nil, err
+			}
 
-	if err != nil {
-		return nil, err
+			return infos, nil
+
+		} else{
+			client, err := getTitleClient()
+			if err != nil {
+				return nil, err
+			}
+
+			// Test for videos
+			videos, err := client.GetFileVideos(config.GetDataDir() + "/search/videos", path_)
+			if err == nil && videos != nil {
+				if len(videos) > 0 {
+					// Convert the videos info to json string
+					data, err := json.Marshal(videos[0])
+					if err != nil {
+						return nil, err
+					}
+
+					// encode the data to base 64
+					str := base64.StdEncoding.EncodeToString(data)
+
+					// set the infos in a map... map->format->tags->comment
+					infos := make(map[string]interface{})
+					infos["format"] = make(map[string]interface{})
+					infos["format"].(map[string]interface{})["tags"] = make(map[string]interface{})
+					infos["format"].(map[string]interface{})["tags"].(map[string]interface{})["comment"] = str
+					
+
+					// Save it back to the json file...
+					data_, err := json.Marshal(infos)
+					if err != nil {
+						return nil, err
+					}
+
+					err = os.WriteFile(path_ + "/infos.json", data_, 0664)
+					if err != nil {
+						return nil, err
+					}
+
+					// return the infos...
+					return infos, nil
+				}
+			}
+
+			// Test for movies
+			titles, err := client.GetFileTitles(config.GetDataDir() + "/search/titles", path_)
+			if err == nil && titles != nil {
+				if len(titles) > 0 {
+					// Convert the videos info to json string
+					data, err := json.Marshal(titles[0])
+					if err != nil {
+						return nil, err
+					}
+
+					// encode the data to base 64
+					str := base64.StdEncoding.EncodeToString(data)
+
+					// set the infos in a map... map->format->tags->comment
+					infos := make(map[string]interface{})
+					infos["format"] = make(map[string]interface{})
+					infos["format"].(map[string]interface{})["tags"] = make(map[string]interface{})
+					infos["format"].(map[string]interface{})["tags"].(map[string]interface{})["comment"] = str
+					
+
+					// Save it back to the json file...
+					data_, err := json.Marshal(infos)
+					if err != nil {
+						return nil, err
+					}
+
+					err = os.WriteFile(path_ + "/infos.json", data_, 0664)
+					if err != nil {
+						return nil, err
+					}
+
+					// return the infos...
+					return infos, nil
+				}
+			}
+
+			return nil, errors.New("no inforamtion was available for file at path " + path)
+		}
+
+	}else {
+
+		// original command
+		// ffprobe -hide_banner -loglevel fatal  -show_format -print_format -show_private_data json -i 9EcjWd-O4jI.mp4
+		cmd := exec.Command(`ffprobe`, `-hide_banner`, `-loglevel`, `fatal`, `-show_format`, `-print_format`, `json`, `-i`, path)
+		cmd.Dir = os.TempDir()
+
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+
+		if err != nil {
+			return nil, err
+		}
+
+		infos := make(map[string]interface{})
+		err = json.Unmarshal(out.Bytes(), &infos)
+		if err != nil {
+			return nil, err
+		}
+
+		return infos, nil
 	}
 
-	infos := make(map[string]interface{})
-	err = json.Unmarshal(out.Bytes(), &infos)
-	if err != nil {
-		return nil, err
-	}
-
-	return infos, nil
 }
 
 func getVideoDuration(path string) float64 {
@@ -4147,7 +4242,7 @@ func main() {
 
 	// Now i will be sure that users are owner of every file in their user dir.
 	go processAudios(s_impl)
-	
+
 	s_impl.startProcessAudios()
 
 	// Start process video informations...
