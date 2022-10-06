@@ -4422,5 +4422,127 @@ proto.resource.ResourceServicePromiseClient.prototype.getSession =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.GetCallHistoryRqst,
+ *   !proto.resource.GetCallHistoryRsp>}
+ */
+const methodDescriptor_ResourceService_GetCallHistory = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/GetCallHistory',
+  grpc.web.MethodType.UNARY,
+  proto.resource.GetCallHistoryRqst,
+  proto.resource.GetCallHistoryRsp,
+  /**
+   * @param {!proto.resource.GetCallHistoryRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.GetCallHistoryRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.GetCallHistoryRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.GetCallHistoryRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.GetCallHistoryRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.getCallHistory =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/GetCallHistory',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetCallHistory,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.GetCallHistoryRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.GetCallHistoryRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.getCallHistory =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/GetCallHistory',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_GetCallHistory);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.SetCallRqst,
+ *   !proto.resource.SetCallRsp>}
+ */
+const methodDescriptor_ResourceService_SetCall = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/SetCall',
+  grpc.web.MethodType.UNARY,
+  proto.resource.SetCallRqst,
+  proto.resource.SetCallRsp,
+  /**
+   * @param {!proto.resource.SetCallRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.SetCallRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.SetCallRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.SetCallRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.SetCallRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.setCall =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/SetCall',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_SetCall,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.SetCallRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.SetCallRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.setCall =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/SetCall',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_SetCall);
+};
+
+
 module.exports = proto.resource;
 
