@@ -631,6 +631,45 @@ message RejectPeerRqst {
 message RejectPeerRsp { bool result = 1; }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Call's
+////////////////////////////////////////////////////////////////////////////////
+
+message Call {
+  string uuid = 1;
+
+  // The call initiator.
+  string caller = 2;
+
+  // The person who received the call.
+  string callee = 3;
+
+  // when the call start
+  int64 startTime = 4;
+
+  // when the call finish, if end time is 0 it's mean 
+  // there was no anwser for the call.
+  int64 endTime = 5;
+}
+
+// Return list of call for a given account.
+message GetCallHistoryRqst{
+  string account_id = 1;
+}
+
+message GetCallHistoryRsp{
+  repeated Call calls = 1;
+}
+
+// Create/update call infos...
+message SetCallRqst{
+  Call call = 1;
+}
+
+message SetCallRsp{
+  /** Nothing here **/
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Notifications
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1038,5 +1077,16 @@ service ResourceService {
 
   /** Return a session for a given user */
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Call's
+  //////////////////////////////////////////////////////////////////////////////
+
+  /** Return the list of calls for a given account **/
+  rpc GetCallHistory(GetCallHistoryRqst) returns (GetCallHistoryRsp);
+
+  /** Set calling information **/
+  rpc SetCall(SetCallRqst) returns (SetCallRsp);
+
 
 }

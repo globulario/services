@@ -137,7 +137,7 @@ func (resource_server *server) RegisterAccount(ctx context.Context, rqst *resour
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = resource_server.updateSession(claims.Id + "@" + claims.UserDomain, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
+	err = resource_server.updateSession(claims.Id+"@"+claims.UserDomain, 0, time.Now().Unix(), claims.StandardClaims.ExpiresAt)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -453,7 +453,7 @@ func (resource_server *server) SetAccountContact(ctx context.Context, rqst *reso
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `", "ringtone":"` + rqst.Contact.Ringtone+ `", "profilePicture":"` + rqst.Contact.ProfilePicture + `"}`
+	sentInvitation := `{"_id":"` + rqst.Contact.Id + `", "invitationTime":` + Utility.ToString(rqst.Contact.InvitationTime) + `, "status":"` + rqst.Contact.Status + `", "ringtone":"` + rqst.Contact.Ringtone + `", "profilePicture":"` + rqst.Contact.ProfilePicture + `"}`
 
 	err = p.ReplaceOne(context.Background(), "local_resource", db, "Contacts", `{"_id":"`+rqst.Contact.Id+`"}`, sentInvitation, `[{"upsert":true}]`)
 	if err != nil {
@@ -3466,7 +3466,6 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 
 	recipient := strings.Split(rqst.Recipient, "@")[0]
 
-
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3525,7 +3524,6 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 
 	recipient := strings.Split(rqst.Recipient, "@")[0]
 
-
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -3549,7 +3547,7 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 
 //* Remove all Notification
 func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.ClearAllNotificationsRqst) (*resourcepb.ClearAllNotificationsRsp, error) {
-	
+
 	recipient := strings.Split(rqst.Recipient, "@")[0]
 
 	p, err := resource_server.getPersistenceStore()
@@ -4078,4 +4076,127 @@ func (server *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessio
 	return &resourcepb.GetSessionResponse{
 		Session: session,
 	}, nil
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+// Call's
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//* Return the list of calls for a given account *
+func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallHistoryRqst) (*resourcepb.GetCallHistoryRsp, error) {
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Keep the id portion only...
+	accountId := rqst.AccountId
+	if strings.Contains(accountId, "@") {
+		domain := strings.Split(accountId, "@")[1]
+		localDomain, _ := config.GetDomain()
+		if domain != localDomain {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no account found with id "+accountId)))
+
+		}
+		accountId = strings.Split(accountId, "@")[0]
+	}
+
+	// set the caller id.
+	db := accountId
+	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db += "_db"
+
+	query := `{"$or":[{"caller":"` + rqst.AccountId + `"},{"callee":"` + rqst.AccountId + `"} ]}`
+
+	results, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	calls := make([]*resourcepb.Call, len(results))
+	for i := 0; i < len(results); i++ {
+		call := results[i].(map[string]interface{})
+		calls[i] = &resourcepb.Call{Caller: call["caller"].(string), Callee: call["callee"].(string), Uuid: call["_id"].(string), StartTime: call["start_time"].(int64),  EndTime: call["end_time"].(int64)}
+	}
+
+	return &resourcepb.GetCallHistoryRsp{Calls: calls}, nil
+}
+
+
+func (resource_server *server) setCall(accountId string, call *resourcepb.Call) error {
+
+	// Get the persistence connection
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	// set the caller id.
+	db := accountId
+	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db += "_db"
+
+	// rename the uuid to _id (for mongo identifier)
+	call_ := map[string]interface{}{"caller": call.Caller, "callee": call.Callee, "_id": call.Uuid, "start_time":call.StartTime,  "end_time": call.EndTime}
+	jsonStr, _ := Utility.ToJson(call_)
+
+	err = p.ReplaceOne(context.Background(), "local_resource", db, "calls", `{"_id":"`+call.Uuid+`"}`, jsonStr, `[{"upsert":true}]`)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+//* Set calling information *
+func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*resourcepb.SetCallRsp, error) {
+
+	// Get the persistence connection
+	if strings.Contains(rqst.Call.Caller, "@") {
+		domain := strings.Split(rqst.Call.Caller, "@")[1]
+		localDomain, _ := config.GetDomain()
+		if domain == localDomain {
+			err := resource_server.setCall(strings.Split(rqst.Call.Caller, "@")[0], rqst.Call)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+	} else {
+		err := resource_server.setCall(rqst.Call.Caller, rqst.Call)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	if strings.Contains(rqst.Call.Callee, "@") {
+		domain := strings.Split(rqst.Call.Callee, "@")[1]
+		localDomain, _ := config.GetDomain()
+		if domain == localDomain {
+			err := resource_server.setCall(strings.Split(rqst.Call.Callee, "@")[0], rqst.Call)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+		}
+	} else {
+		err := resource_server.setCall(rqst.Call.Callee, rqst.Call)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	return &resourcepb.SetCallRsp{}, nil
 }
