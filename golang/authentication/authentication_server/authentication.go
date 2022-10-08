@@ -79,8 +79,11 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	if err != nil {
 		session = new(resourcepb.Session)
 		session.AccountId = claims.Id + "@" + claims.UserDomain
-		session.State = resourcepb.SessionState_ONLINE
 	}
+
+	// set the last session time.
+	session.LastStateTime = time.Now().Unix()
+	session.State = resourcepb.SessionState_ONLINE
 
 	// get back the new expireAt
 	claims, _ = security.ValidateToken(tokenString)

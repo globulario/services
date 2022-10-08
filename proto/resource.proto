@@ -150,11 +150,15 @@ message Account {
   string email = 3;
   string password = 4;
   string domain = 5; // The domain where the account belong to.
+  string profilePicture = 6;
+  string firstName = 7;
+  string lastName = 8;
+  string middle = 9;
 
   // References.
-  repeated string organizations = 6;
-  repeated string groups = 7;
-  repeated string roles = 8;
+  repeated string organizations = 10;
+  repeated string groups = 11;
+  repeated string roles = 12;
 }
 
 message RegisterAccountRqst {

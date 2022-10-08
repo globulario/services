@@ -2624,6 +2624,13 @@ func getAudioPaths() []string {
 	for _, dir := range dirs {
 		filepath.Walk(dir,
 			func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
+				if(info == nil){
+					return errors.New("fail to get info for path " + path)
+				}
 
 				if info.IsDir() {
 					isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())
@@ -2661,6 +2668,14 @@ func getVideoPaths() []string {
 	for _, dir := range dirs {
 		filepath.Walk(dir,
 			func(path string, info os.FileInfo, err error) error {
+
+				if err != nil {
+					return err
+				}
+
+				if info == nil {
+					return errors.New("fail to get info for path " + path)
+				}
 
 				if info.IsDir() {
 					isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())

@@ -230,6 +230,38 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		}
 	}
 
+	// Now the profile picture.
+
+	// set the caller id.
+	db := accountId
+	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db += "_db"
+
+	fmt.Println("-------------> ", accountId, db)
+
+	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
+	if err == nil {
+		// set the user infos....
+		if user_data != nil {
+			user_data_ := user_data.(map[string]interface{})
+			if user_data_["profilPicture_"] != nil {
+				a.ProfilePicture = user_data_["profilPicture_"].(string)
+			}
+			if user_data_["firstName_"] != nil {
+				a.FirstName = user_data_["firstName_"].(string)
+			}
+			if user_data_["lastName_"] != nil {
+				a.LastName = user_data_["lastName_"].(string)
+			}
+			if user_data_["middleName_"] != nil {
+				a.Middle = user_data_["middleName_"].(string)
+			}
+
+		}
+	} else {
+		fmt.Println("---> fail to retreive user data ", db, accountId)
+	}
+
 	return &resourcepb.GetAccountRsp{
 		Account: a, // Return the token string.
 	}, nil
@@ -4122,12 +4154,11 @@ func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourc
 	calls := make([]*resourcepb.Call, len(results))
 	for i := 0; i < len(results); i++ {
 		call := results[i].(map[string]interface{})
-		calls[i] = &resourcepb.Call{Caller: call["caller"].(string), Callee: call["callee"].(string), Uuid: call["_id"].(string), StartTime: call["start_time"].(int64),  EndTime: call["end_time"].(int64)}
+		calls[i] = &resourcepb.Call{Caller: call["caller"].(string), Callee: call["callee"].(string), Uuid: call["_id"].(string), StartTime: call["start_time"].(int64), EndTime: call["end_time"].(int64)}
 	}
 
 	return &resourcepb.GetCallHistoryRsp{Calls: calls}, nil
 }
-
 
 func (resource_server *server) setCall(accountId string, call *resourcepb.Call) error {
 
@@ -4143,7 +4174,7 @@ func (resource_server *server) setCall(accountId string, call *resourcepb.Call) 
 	db += "_db"
 
 	// rename the uuid to _id (for mongo identifier)
-	call_ := map[string]interface{}{"caller": call.Caller, "callee": call.Callee, "_id": call.Uuid, "start_time":call.StartTime,  "end_time": call.EndTime}
+	call_ := map[string]interface{}{"caller": call.Caller, "callee": call.Callee, "_id": call.Uuid, "start_time": call.StartTime, "end_time": call.EndTime}
 	jsonStr, _ := Utility.ToJson(call_)
 
 	err = p.ReplaceOne(context.Background(), "local_resource", db, "calls", `{"_id":"`+call.Uuid+`"}`, jsonStr, `[{"upsert":true}]`)
