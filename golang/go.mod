@@ -25,6 +25,8 @@ require (
 	github.com/go-ldap/ldap/v3 v3.3.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/golang/protobuf v1.5.2
+	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
+	github.com/improbable-eng/grpc-web v0.15.0
 	github.com/jasonlvhit/gocron v0.0.1
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/lib/pq v1.10.2
@@ -34,6 +36,7 @@ require (
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7
 	github.com/prometheus/client_golang v1.11.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
+	github.com/soheilhy/cmux v0.1.4
 	github.com/struCoder/pidusage v0.2.1
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tealeg/xlsx v1.0.5
@@ -44,6 +47,14 @@ require (
 	google.golang.org/grpc v1.38.0
 	google.golang.org/protobuf v1.27.1
 	gopkg.in/gomail.v1 v1.0.0-20150320132819-11b919ab4933
+)
+
+require (
+	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
+	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
+	github.com/rs/cors v1.7.0 // indirect
+	google.golang.org/grpc/examples v0.0.0-20221006202345-c03925db8d3c // indirect
+	nhooyr.io/websocket v1.8.6 // indirect
 )
 
 require (
@@ -101,6 +112,7 @@ require (
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
+	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.11 // indirect
@@ -153,14 +165,13 @@ require (
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opencensus.io v0.22.6 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto v0.0.0-20210524171403-669157292da3 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	modernc.org/libc v1.11.82 // indirect
 	modernc.org/mathutil v1.4.1 // indirect
 	modernc.org/memory v1.0.5 // indirect

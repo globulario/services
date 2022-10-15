@@ -20,17 +20,207 @@ import (
 	"strings"
 	"time"
 
+	"net/http"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/kardianos/osext"
+	"github.com/soheilhy/cmux"
+	"golang.org/x/sync/errgroup"
 
 	//"github.com/globulario/services/golang/config"
 	"github.com/fsnotify/fsnotify"
+	"github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
+
+// Grpc Http1.1 / Websocket wrapper.
+type WrapperedServerOptions struct {
+	Addr                  string
+	Cert                  string
+	Key                   string
+	AllowAllOrigins       bool
+	AllowedOrigins        *[]string
+	AllowedHeaders        *[]string
+	UseWebSocket          bool
+	WebsocketPingInterval time.Duration
+}
+
+func DefaultWrapperedServerOptions() WrapperedServerOptions {
+	return WrapperedServerOptions{
+		Addr:                  ":9090",
+		Cert:                  "",
+		Key:                   "",
+		AllowAllOrigins:       true,
+		AllowedHeaders:        &[]string{},
+		AllowedOrigins:        &[]string{},
+		UseWebSocket:          true,
+		WebsocketPingInterval: 0,
+	}
+}
+
+func NewWrapperedServerOptions(addr, cert, key string, websocket bool) WrapperedServerOptions {
+	return WrapperedServerOptions{
+		Addr:                  addr,
+		Cert:                  cert,
+		Key:                   key,
+		AllowAllOrigins:       true,
+		AllowedHeaders:        &[]string{},
+		AllowedOrigins:        &[]string{},
+		UseWebSocket:          true,
+		WebsocketPingInterval: 0,
+	}
+}
+
+type WrapperedGRPCWebServer struct {
+	options    WrapperedServerOptions
+	GRPCServer *grpc.Server
+}
+
+func NewWrapperedGRPCWebServer(options WrapperedServerOptions, s *grpc.Server) *WrapperedGRPCWebServer {
+	return &WrapperedGRPCWebServer{
+		options:    options,
+		GRPCServer: s,
+	}
+}
+
+type allowedOrigins struct {
+	origins map[string]struct{}
+}
+
+func (a *allowedOrigins) IsAllowed(origin string) bool {
+	_, ok := a.origins[origin]
+	return ok
+}
+
+func makeAllowedOrigins(origins []string) *allowedOrigins {
+	o := map[string]struct{}{}
+	for _, allowedOrigin := range origins {
+		o[allowedOrigin] = struct{}{}
+	}
+	return &allowedOrigins{
+		origins: o,
+	}
+}
+
+func (s *WrapperedGRPCWebServer) makeHTTPOriginFunc(allowedOrigins *allowedOrigins) func(origin string) bool {
+	if s.options.AllowAllOrigins {
+		return func(origin string) bool {
+			return true
+		}
+	}
+	return allowedOrigins.IsAllowed
+}
+
+func (s *WrapperedGRPCWebServer) makeWebsocketOriginFunc(allowedOrigins *allowedOrigins) func(req *http.Request) bool {
+	if s.options.AllowAllOrigins {
+		return func(req *http.Request) bool {
+			return true
+		}
+	}
+	return func(req *http.Request) bool {
+		origin, err := grpcweb.WebsocketRequestOrigin(req)
+		if err != nil {
+			fmt.Println(err)
+			return false
+		}
+		return allowedOrigins.IsAllowed(origin)
+	}
+}
+
+func (s *WrapperedGRPCWebServer) Serve() error {
+	addr := s.options.Addr
+
+	if s.options.AllowAllOrigins && s.options.AllowedOrigins != nil && len(*s.options.AllowedOrigins) != 0 {
+		fmt.Println("Ambiguous --allow_all_origins and --allow_origins configuration. Either set --allow_all_origins=true OR specify one or more origins to whitelist with --allow_origins, not both.")
+	}
+
+	allowedOrigins := makeAllowedOrigins(*s.options.AllowedOrigins)
+
+	options := []grpcweb.Option{
+		grpcweb.WithCorsForRegisteredEndpointsOnly(false),
+		grpcweb.WithOriginFunc(s.makeHTTPOriginFunc(allowedOrigins)),
+	}
+
+	if s.options.UseWebSocket {
+		fmt.Println("Using websockets")
+		options = append(
+			options,
+			grpcweb.WithWebsockets(true),
+			grpcweb.WithWebsocketOriginFunc(s.makeWebsocketOriginFunc(allowedOrigins)),
+		)
+
+		if s.options.WebsocketPingInterval >= time.Second {
+			fmt.Println("websocket keepalive pinging enabled, the timeout interval is", s.options.WebsocketPingInterval.String())
+			options = append(
+				options,
+				grpcweb.WithWebsocketPingInterval(s.options.WebsocketPingInterval),
+			)
+		}
+	}
+
+	if s.options.AllowedHeaders != nil && len(*s.options.AllowedHeaders) > 0 {
+		options = append(
+			options,
+			grpcweb.WithAllowedRequestHeaders(*s.options.AllowedHeaders),
+		)
+	}
+
+	wrappedServer := grpcweb.WrapServer(s.GRPCServer, options...)
+	handler := func(resp http.ResponseWriter, req *http.Request) {
+		wrappedServer.ServeHTTP(resp, req)
+	}
+
+	httpServer := http.Server{
+		Addr:    addr,
+		Handler: http.HandlerFunc(handler),
+	}
+
+	var listener net.Listener
+
+	enableTLS := s.options.Cert != "" && s.options.Key != ""
+
+	if enableTLS {
+		cer, err := tls.LoadX509KeyPair(s.options.Cert, s.options.Key)
+		if err != nil {
+			log.Panicf("failed to load x509 key pair: %v", err)
+			return err
+		}
+		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		tls, err := tls.Listen("tcp", addr, config)
+		if err != nil {
+			log.Panicf("failed to listen: tls %v", err)
+			return err
+		}
+		listener = tls
+	} else {
+		tcp, err := net.Listen("tcp", addr)
+		if err != nil {
+			log.Panicf("failed to listen: tcp %v", err)
+			return err
+		}
+		listener = tcp
+	}
+
+	fmt.Println("Starting gRPC/gRPC-Web combo server, bind:", addr, "with TLS: ", enableTLS)
+
+	m := cmux.New(listener)
+	grpcListener := m.Match(cmux.HTTP2())
+	httpListener := m.Match(cmux.HTTP1Fast())
+	g := new(errgroup.Group)
+	g.Go(func() error { return s.GRPCServer.Serve(grpcListener) })
+	g.Go(func() error { return httpServer.Serve(httpListener) })
+	g.Go(m.Serve)
+	fmt.Println("Run server: ", g.Wait())
+	return nil
+}
 
 // The client service interface.
 type Service interface {
@@ -431,6 +621,8 @@ func GetTLSConfig(key string, cert string, ca string) *tls.Config {
 
 /**
  * Initilalsyse the grpc server that will run the service.
+ * ** Here is an exemple how to use prometheus for monitoring and the websocket as proxy
+ *    https://github.com/pion/ion-sfu/blob/master/cmd/signal/grpc/server/wrapped.go
  */
 func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) (*grpc.Server, error) {
 	var server *grpc.Server
@@ -441,13 +633,13 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 		creds := credentials.NewTLS(GetTLSConfig(s.GetKeyFile(), s.GetCertFile(), s.GetCertAuthorityTrust()))
 
 		// Create the gRPC server with the credentials
-
 		opts := []grpc.ServerOption{grpc.Creds(creds)}
 		if unaryInterceptor != nil {
-			opts = append(opts, grpc.UnaryInterceptor(unaryInterceptor))
+			opts = append(opts, grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)))
 		}
+
 		if streamInterceptor != nil {
-			opts = append(opts, grpc.StreamInterceptor(streamInterceptor))
+			opts = append(opts, grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)))
 		}
 
 		server = grpc.NewServer(opts...)
@@ -455,12 +647,16 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 	} else {
 		if unaryInterceptor != nil && streamInterceptor != nil {
 			server = grpc.NewServer(
-				grpc.UnaryInterceptor(unaryInterceptor),
-				grpc.StreamInterceptor(streamInterceptor))
+				grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptor, grpc_prometheus.UnaryServerInterceptor)),
+				grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptor, grpc_prometheus.StreamServerInterceptor)))
 		} else {
-			server = grpc.NewServer()
+			server = grpc.NewServer(grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor), grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor))
 		}
 	}
+
+	// display server health info...
+	grpc_health_v1.RegisterHealthServer(server, health.NewServer())
+	grpc_prometheus.Register(server)
 
 	return server, nil
 }
@@ -486,7 +682,10 @@ func StartService(s Service, server *grpc.Server) error {
 
 	// First of all I will create a listener.
 	// Create the channel to listen on
-	lis, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
+	var lis net.Listener
+	var err error
+
+	lis, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := errors.New("could not list at domain " + s.GetDomain() + err.Error())
 		log.Print(err_)
@@ -502,6 +701,18 @@ func StartService(s Service, server *grpc.Server) error {
 			fmt.Println("service has error ", err)
 			return
 		}
+
+		// In case we want to use wrapped proxy...
+		/*options := NewWrapperedServerOptions("0.0.0.0:" + strconv.Itoa(s.GetPort()), s.GetCertAuthorityTrust(), s.GetKeyFile(), false)
+		s.SetProxy(s.GetPort())
+		s.Save()
+
+		wrapperedSrv := NewWrapperedGRPCWebServer(options, server)
+		if err := wrapperedSrv.Serve(); err != nil {
+			fmt.Println("wrappered grpc listening error: ", err)
+			return //err
+		}*/
+
 	}()
 
 	// Wait for signal to stop.
