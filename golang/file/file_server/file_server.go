@@ -517,32 +517,6 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 		}
 	}
 
-	// get the metadata if there's some.
-	if (strings.HasPrefix(info.Mime, "audio") || strings.HasPrefix(info.Mime, "video")) && !strings.HasSuffix(info.Name, ".mu3") {
-		metadata, _ := readMetadata(path)
-		if metadata != nil {
-			if metadata["ImageUrl"] != nil {
-				info.Thumbnail = metadata["ImageUrl"].(string)
-			} else if strings.HasPrefix(info.Mime, "video/") {
-				path, err := os.Getwd()
-				if err == nil {
-					path = path + "/mimetypes/video-x-generic.png"
-
-					info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
-
-				}
-
-			} else if strings.HasPrefix(info.Mime, "audio/") {
-				path, err := os.Getwd()
-				if err == nil {
-					path = path + "/mimetypes/audio-x-generic.png"
-					info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
-				}
-
-			}
-		}
-	}
-
 	return info, nil
 }
 
@@ -737,7 +711,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 					return nil, err
 				}
 				info.Files = append(info.Files, info_)
-			} else {
+			} else if isHls {
 				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token)
 				if err != nil {
 					return nil, err
@@ -746,6 +720,13 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 					info_.Mime = "video/hls-stream"
 				}
 
+				info.Files = append(info.Files, info_)
+			} else {
+				// read the dir info...
+				info_, err := getFileInfo(s, dirPath)
+				if err != nil {
+					return nil, err
+				}
 				info.Files = append(info.Files, info_)
 			}
 
@@ -833,9 +814,9 @@ func (file_server *server) formatPath(path string) string {
 	return path
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Directory operations
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Append public dir to the list of dir...
 func (file_server *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
 	if !Utility.Exists(rqst.Path) {
@@ -2277,9 +2258,9 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 	return nil
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (file_server *server) getStartTime() time.Time {
 	values := strings.Split(file_server.StartVideoConversionHour, ":")
 	var startTime time.Time
@@ -2628,7 +2609,7 @@ func getAudioPaths() []string {
 					return err
 				}
 
-				if(info == nil){
+				if info == nil {
 					return errors.New("fail to get info for path " + path)
 				}
 
@@ -3352,14 +3333,14 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 
 			return infos, nil
 
-		} else{
+		} else {
 			client, err := getTitleClient()
 			if err != nil {
 				return nil, err
 			}
 
 			// Test for videos
-			videos, err := client.GetFileVideos(config.GetDataDir() + "/search/videos", path_)
+			videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path_)
 			if err == nil && videos != nil {
 				if len(videos) > 0 {
 					// Convert the videos info to json string
@@ -3376,7 +3357,6 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 					infos["format"] = make(map[string]interface{})
 					infos["format"].(map[string]interface{})["tags"] = make(map[string]interface{})
 					infos["format"].(map[string]interface{})["tags"].(map[string]interface{})["comment"] = str
-					
 
 					// Save it back to the json file...
 					data_, err := json.Marshal(infos)
@@ -3384,7 +3364,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 						return nil, err
 					}
 
-					err = os.WriteFile(path_ + "/infos.json", data_, 0664)
+					err = os.WriteFile(path_+"/infos.json", data_, 0664)
 					if err != nil {
 						return nil, err
 					}
@@ -3395,7 +3375,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 			}
 
 			// Test for movies
-			titles, err := client.GetFileTitles(config.GetDataDir() + "/search/titles", path_)
+			titles, err := client.GetFileTitles(config.GetDataDir()+"/search/titles", path_)
 			if err == nil && titles != nil {
 				if len(titles) > 0 {
 					// Convert the videos info to json string
@@ -3412,7 +3392,6 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 					infos["format"] = make(map[string]interface{})
 					infos["format"].(map[string]interface{})["tags"] = make(map[string]interface{})
 					infos["format"].(map[string]interface{})["tags"].(map[string]interface{})["comment"] = str
-					
 
 					// Save it back to the json file...
 					data_, err := json.Marshal(infos)
@@ -3420,7 +3399,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 						return nil, err
 					}
 
-					err = os.WriteFile(path_ + "/infos.json", data_, 0664)
+					err = os.WriteFile(path_+"/infos.json", data_, 0664)
 					if err != nil {
 						return nil, err
 					}
@@ -3433,7 +3412,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 			return nil, errors.New("no inforamtion was available for file at path " + path)
 		}
 
-	}else {
+	} else {
 
 		// original command
 		// ffprobe -hide_banner -loglevel fatal  -show_format -print_format -show_private_data json -i 9EcjWd-O4jI.mp4
@@ -3487,10 +3466,10 @@ func getVideoDuration(path string) float64 {
 func (file_server *server) publishConvertionLogError(path string, err error) {
 	file_server.videoConversionErrors.Store(path, err.Error())
 	client, err := getEventClient()
-	if err == nil {
+	if err != nil {
 		var marshaler jsonpb.Marshaler
 		jsonStr, err := marshaler.MarshalToString(&filepb.VideoConversionError{Path: path, Error: err.Error()})
-		if err == nil {
+		if err != nil {
 			client.Publish("conversion_error_event", []byte(jsonStr))
 		}
 	}
@@ -3498,10 +3477,10 @@ func (file_server *server) publishConvertionLogError(path string, err error) {
 
 func (file_server *server) publishConvertionLogEvent(convertionLog *filepb.VideoConversionLog) {
 	client, err := getEventClient()
-	if err == nil {
+	if err != nil {
 		var marshaler jsonpb.Marshaler
 		jsonStr, err := marshaler.MarshalToString(convertionLog)
-		if err == nil {
+		if err != nil {
 			client.Publish("conversion_log_event", []byte(jsonStr))
 		}
 	}

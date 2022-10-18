@@ -22,13 +22,13 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LogServiceClient interface {
-	//* Set a method into the log... *
+	// * Set a method into the log... *
 	Log(ctx context.Context, in *LogRqst, opts ...grpc.CallOption) (*LogRsp, error)
-	//* Get the list of logs *
+	// * Get the list of logs *
 	GetLog(ctx context.Context, in *GetLogRqst, opts ...grpc.CallOption) (LogService_GetLogClient, error)
-	//* Delete a single log entry *
+	// * Delete a single log entry *
 	DeleteLog(ctx context.Context, in *DeleteLogRqst, opts ...grpc.CallOption) (*DeleteLogRsp, error)
-	//* Delete all log or logs that match the key pattern... *
+	// * Delete all log or logs that match the key pattern... *
 	ClearAllLog(ctx context.Context, in *ClearAllLogRqst, opts ...grpc.CallOption) (*ClearAllLogRsp, error)
 }
 
@@ -103,13 +103,13 @@ func (c *logServiceClient) ClearAllLog(ctx context.Context, in *ClearAllLogRqst,
 // All implementations should embed UnimplementedLogServiceServer
 // for forward compatibility
 type LogServiceServer interface {
-	//* Set a method into the log... *
+	// * Set a method into the log... *
 	Log(context.Context, *LogRqst) (*LogRsp, error)
-	//* Get the list of logs *
+	// * Get the list of logs *
 	GetLog(*GetLogRqst, LogService_GetLogServer) error
-	//* Delete a single log entry *
+	// * Delete a single log entry *
 	DeleteLog(context.Context, *DeleteLogRqst) (*DeleteLogRsp, error)
-	//* Delete all log or logs that match the key pattern... *
+	// * Delete all log or logs that match the key pattern... *
 	ClearAllLog(context.Context, *ClearAllLogRqst) (*ClearAllLogRsp, error)
 }
 

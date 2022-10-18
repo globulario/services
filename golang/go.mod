@@ -1,6 +1,6 @@
 module github.com/globulario/services/golang
 
-go 1.17
+go 1.19
 
 replace github.com/davecourtois/Utility => ../../Utility
 
@@ -45,7 +45,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	google.golang.org/grpc v1.38.0
-	google.golang.org/protobuf v1.27.1
+	google.golang.org/protobuf v1.28.1
 	gopkg.in/gomail.v1 v1.0.0-20150320132819-11b919ab4933
 )
 
@@ -53,6 +53,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
 	github.com/rs/cors v1.7.0 // indirect
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0 // indirect
 	google.golang.org/grpc/examples v0.0.0-20221006202345-c03925db8d3c // indirect
 	nhooyr.io/websocket v1.8.6 // indirect
 )

@@ -26,9 +26,6 @@ import { PackageDiscoveryPromiseClient } from './discovery/discovery_grpc_web_pb
 import { PackageRepositoryPromiseClient } from './repository/repository_grpc_web_pb';
 import { TitleServicePromiseClient } from './title/title_grpc_web_pb';
 import { TorrentServicePromiseClient } from './torrent/torrent_grpc_web_pb';
-import { GeneratePeerTokenRequest } from './authentication/authentication_pb';
-const domain = window.location.hostname;
-const application = window.location.pathname.split("/").join("");
 
 /**
  * The service configuration information.
@@ -421,12 +418,6 @@ function getFileConfig(url: string, callback: (obj: any) => void, errorcallback:
       errorcallback("fail to get the configuration file at url " + url + " status " + this.status)
     }
   };
-
-  url += "?domain=" + domain
-  url += "&application=" + application
-  if (localStorage.getItem("user_token") != undefined) {
-    url += "&token=" + localStorage.getItem("user_token")
-  }
 
   xmlhttp.open("GET", url, true);
   xmlhttp.send();

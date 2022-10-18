@@ -31,6 +31,8 @@ go build -o ./title/title_server ./title/title_server
 go build -o ./torrent/torrent_server ./torrent/torrent_server
 
 # start services...
+export GLOBULAR_SERVICES_ROOT=/home/dave/globulario/services
+
 ./admin/admin_server/admin_server &
 ./applications_manager/applications_manager_server/applications_manager_server &
 ./services_manager/services_manager_server/services_manager_server &
