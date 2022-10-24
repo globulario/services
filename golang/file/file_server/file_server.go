@@ -786,7 +786,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 }
 
 func (file_server *server) formatPath(path string) string {
-
+	path, _ =  url.PathUnescape(path)
 	path = strings.ReplaceAll(path, "\\", "/")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
@@ -902,9 +902,11 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 		return errors.New("no valid context found")
 	}
 
-	path := file_server.formatPath(rqst.GetPath())
+
+	path := file_server.formatPath(rqst.Path)
 
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
+	
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,

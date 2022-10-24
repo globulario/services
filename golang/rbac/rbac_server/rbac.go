@@ -1801,6 +1801,7 @@ func isPublic(path string) bool {
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
+		
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
 			return false, false, errors.New("no account exist with id " + a)

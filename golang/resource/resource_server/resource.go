@@ -237,15 +237,13 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
 
-	fmt.Println("-------------> ", accountId, db)
-
 	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
 	if err == nil {
 		// set the user infos....
 		if user_data != nil {
 			user_data_ := user_data.(map[string]interface{})
-			if user_data_["profilPicture_"] != nil {
-				a.ProfilePicture = user_data_["profilPicture_"].(string)
+			if user_data_["profilePicture_"] != nil {
+				a.ProfilePicture = user_data_["profilePicture_"].(string)
 			}
 			if user_data_["firstName_"] != nil {
 				a.FirstName = user_data_["firstName_"].(string)
@@ -268,7 +266,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 }
 
-//* Update account password.
+// * Update account password.
 // TODO make sure only user can
 func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *resourcepb.SetAccountPasswordRqst) (*resourcepb.SetAccountPasswordRsp, error) {
 
@@ -352,7 +350,7 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	return &resourcepb.SetAccountPasswordRsp{}, nil
 }
 
-//* Return the list accounts *
+// * Return the list accounts *
 func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -418,6 +416,34 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 			}
 		}
 
+		// set the caller id.
+		db :=  a.Id
+		db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+		db += "_db"
+
+		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+ a.Id+`"},{"name":"`+ a.Id+`"} ]}`, ``)
+		if err == nil {
+			// set the user infos....
+			if user_data != nil {
+				user_data_ := user_data.(map[string]interface{})
+				if user_data_["profilePicture_"] != nil {
+					a.ProfilePicture = user_data_["profilePicture_"].(string)
+				}
+				if user_data_["firstName_"] != nil {
+					a.FirstName = user_data_["firstName_"].(string)
+				}
+				if user_data_["lastName_"] != nil {
+					a.LastName = user_data_["lastName_"].(string)
+				}
+				if user_data_["middleName_"] != nil {
+					a.Middle = user_data_["middleName_"].(string)
+				}
+
+			}
+		} else {
+			fmt.Println("---> fail to retreive user data ", db,  a.Id)
+		}
+
 		values = append(values, a)
 
 		if len(values) >= maxSize {
@@ -451,7 +477,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 	return nil
 }
 
-//* Add contact to a given account *
+// * Add contact to a given account *
 func (resource_server *server) SetAccountContact(ctx context.Context, rqst *resourcepb.SetAccountContactRqst) (*resourcepb.SetAccountContactRsp, error) {
 
 	if rqst.Contact == nil {
@@ -602,7 +628,7 @@ func (resource_server *server) isOrganizationMemeber(account string, organizatio
 
 }
 
-//* Test if an account is part of an organization *
+// * Test if an account is part of an organization *
 func (resource_server *server) IsOrgnanizationMember(ctx context.Context, rqst *resourcepb.IsOrgnanizationMemberRqst) (*resourcepb.IsOrgnanizationMemberRsp, error) {
 	result := resource_server.isOrganizationMemeber(rqst.AccountId, rqst.OrganizationId)
 
@@ -611,7 +637,7 @@ func (resource_server *server) IsOrgnanizationMember(ctx context.Context, rqst *
 	}, nil
 }
 
-//* Delete an account *
+// * Delete an account *
 func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAccountRqst) (*resourcepb.DeleteAccountRsp, error) {
 	accountId := rqst.Id
 	localDomain, _ := config.GetDomain()
@@ -793,7 +819,7 @@ func (resource_server *server) DeleteReference(ctx context.Context, rqst *resour
  * Crete a new role or Update existing one if it already exist.
  */
 
-//* Create a role with given action list *
+// * Create a role with given action list *
 func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.CreateRoleRqst) (*resourcepb.CreateRoleRsp, error) {
 	var clientId string
 	var domain string
@@ -941,7 +967,7 @@ func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream re
 	return nil
 }
 
-//* Delete a role with a given id *
+// * Delete a role with a given id *
 func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.DeleteRoleRqst) (*resourcepb.DeleteRoleRsp, error) {
 
 	// set the role id.
@@ -1015,7 +1041,7 @@ func (resource_server *server) DeleteRole(ctx context.Context, rqst *resourcepb.
 	return &resourcepb.DeleteRoleRsp{Result: true}, nil
 }
 
-//* Append an action to existing role. *
+// * Append an action to existing role. *
 func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourcepb.AddRoleActionsRqst) (*resourcepb.AddRoleActionsRsp, error) {
 	roleId := rqst.RoleId
 	localDomain, err := config.GetDomain()
@@ -1094,7 +1120,7 @@ func (resource_server *server) AddRoleActions(ctx context.Context, rqst *resourc
 	return &resourcepb.AddRoleActionsRsp{Result: true}, nil
 }
 
-//* Remove an action to existing role. *
+// * Remove an action to existing role. *
 func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *resourcepb.RemoveRolesActionRqst) (*resourcepb.RemoveRolesActionRsp, error) {
 
 	localDomain, _ := config.GetDomain()
@@ -1155,7 +1181,7 @@ func (resource_server *server) RemoveRolesAction(ctx context.Context, rqst *reso
 	return &resourcepb.RemoveRolesActionRsp{Result: true}, nil
 }
 
-//* Remove an action to existing role. *
+// * Remove an action to existing role. *
 func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resourcepb.RemoveRoleActionRqst) (*resourcepb.RemoveRoleActionRsp, error) {
 	roleId := rqst.RoleId
 	localDomain, err := config.GetDomain()
@@ -1234,7 +1260,7 @@ func (resource_server *server) RemoveRoleAction(ctx context.Context, rqst *resou
 	return &resourcepb.RemoveRoleActionRsp{Result: true}, nil
 }
 
-//* Add role to a given account *
+// * Add role to a given account *
 func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourcepb.AddAccountRoleRqst) (*resourcepb.AddAccountRoleRsp, error) {
 	// That service made user of persistence service.
 	err := resource_server.createCrossReferences(rqst.RoleId, "Roles", "members", rqst.AccountId, "Accounts", "roles")
@@ -1247,7 +1273,7 @@ func (resource_server *server) AddAccountRole(ctx context.Context, rqst *resourc
 	return &resourcepb.AddAccountRoleRsp{Result: true}, nil
 }
 
-//* Remove a role from a given account *
+// * Remove a role from a given account *
 func (resource_server *server) RemoveAccountRole(ctx context.Context, rqst *resourcepb.RemoveAccountRoleRqst) (*resourcepb.RemoveAccountRoleRsp, error) {
 
 	// That service made user of persistence service.
@@ -1367,9 +1393,9 @@ func (resource_server *server) save_application(app *resourcepb.Application, own
 	return nil
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Application
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 func (resource_server *server) CreateApplication(ctx context.Context, rqst *resourcepb.CreateApplicationRqst) (*resourcepb.CreateApplicationRsp, error) {
 
 	var clientId string
@@ -1408,7 +1434,7 @@ func (resource_server *server) CreateApplication(ctx context.Context, rqst *reso
 	return &resourcepb.CreateApplicationRsp{}, nil
 }
 
-//* Update application informations.
+// * Update application informations.
 func (resource_server *server) UpdateApplication(ctx context.Context, rqst *resourcepb.UpdateApplicationRqst) (*resourcepb.UpdateApplicationRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1431,7 +1457,7 @@ func (resource_server *server) UpdateApplication(ctx context.Context, rqst *reso
 	return &resourcepb.UpdateApplicationRsp{}, nil
 }
 
-//* Delete an application from the server. *
+// * Delete an application from the server. *
 func (resource_server *server) DeleteApplication(ctx context.Context, rqst *resourcepb.DeleteApplicationRqst) (*resourcepb.DeleteApplicationRsp, error) {
 
 	// That service made user of persistence service.
@@ -1521,7 +1547,7 @@ func (resource_server *server) GetApplicationIcon(ctx context.Context, rqst *res
 	}, nil
 }
 
-//* Append an action to existing application. *
+// * Append an action to existing application. *
 func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *resourcepb.AddApplicationActionsRqst) (*resourcepb.AddApplicationActionsRsp, error) {
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -1575,7 +1601,7 @@ func (resource_server *server) AddApplicationActions(ctx context.Context, rqst *
 	return &resourcepb.AddApplicationActionsRsp{Result: true}, nil
 }
 
-//* Remove an action to existing application. *
+// * Remove an action to existing application. *
 func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst *resourcepb.RemoveApplicationActionRqst) (*resourcepb.RemoveApplicationActionRsp, error) {
 
 	// That service made user of persistence service.
@@ -1633,7 +1659,7 @@ func (resource_server *server) RemoveApplicationAction(ctx context.Context, rqst
 	return &resourcepb.RemoveApplicationActionRsp{Result: true}, nil
 }
 
-//* Remove an action to existing application. *
+// * Remove an action to existing application. *
 func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqst *resourcepb.RemoveApplicationsActionRqst) (*resourcepb.RemoveApplicationsActionRsp, error) {
 
 	// That service made user of persistence service.
@@ -1688,7 +1714,7 @@ func (resource_server *server) RemoveApplicationsAction(ctx context.Context, rqs
 	return &resourcepb.RemoveApplicationsActionRsp{Result: true}, nil
 }
 
-///////////////////////  resource management. /////////////////
+// /////////////////////  resource management. /////////////////
 func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsRqst, stream resourcepb.ResourceService_GetApplicationsServer) error {
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -1751,9 +1777,9 @@ func (resource_server *server) GetApplications(rqst *resourcepb.GetApplicationsR
 
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Peer's Authorization and Authentication code.
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func getLocalPeer() *resourcepb.Peer {
 	// Now I will return peers actual informations.
 	hostname, _ := os.Hostname()
@@ -1813,7 +1839,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 
 }
 
-//* Connect tow peer toggether on the network.
+// * Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
 	// Get the persistence connection
@@ -2053,7 +2079,7 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 	}, nil
 }
 
-//* Return the peer public key */
+// * Return the peer public key */
 func (resource_server *server) GetPeerPublicKey(ctx context.Context, rqst *resourcepb.GetPeerPublicKeyRqst) (*resourcepb.GetPeerPublicKeyRsp, error) {
 	public_key, err := resource_server.getPeerPublicKey(rqst.RemotePeerAddress, rqst.Mac)
 	if err != nil {
@@ -2065,7 +2091,7 @@ func (resource_server *server) GetPeerPublicKey(ctx context.Context, rqst *resou
 	return &resourcepb.GetPeerPublicKeyRsp{PublicKey: public_key}, nil
 }
 
-//* Accept a given peer *
+// * Accept a given peer *
 func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.AcceptPeerRqst) (*resourcepb.AcceptPeerRsp, error) {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -2127,9 +2153,9 @@ func (resource_server *server) AcceptPeer(ctx context.Context, rqst *resourcepb.
 	return &resourcepb.AcceptPeerRsp{Result: true}, nil
 }
 
-//* Reject a given peer, note that the peer will stay reject, so
-//I will be imposible to request again and again, util it will be
-//explicitly removed from the peer's list
+// * Reject a given peer, note that the peer will stay reject, so
+// I will be imposible to request again and again, util it will be
+// explicitly removed from the peer's list
 func (resource_server *server) RejectPeer(ctx context.Context, rqst *resourcepb.RejectPeerRqst) (*resourcepb.RejectPeerRsp, error) {
 
 	p, err := resource_server.getPersistenceStore()
@@ -2208,7 +2234,7 @@ func initPeer(values interface{}) *resourcepb.Peer {
 	return p
 }
 
-//* Return the list of authorized peers *
+// * Return the list of authorized peers *
 func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.ResourceService_GetPeersServer) error {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -2282,7 +2308,7 @@ func (resource_server *server) deletePeer(token, address string) error {
 
 }
 
-//* Update a peer
+// * Update a peer
 func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.UpdatePeerRqst) (*resourcepb.UpdatePeerRsp, error) {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -2336,7 +2362,7 @@ func (resource_server *server) UpdatePeer(ctx context.Context, rqst *resourcepb.
 	return &resourcepb.UpdatePeerRsp{Result: true}, nil
 }
 
-//* Remove a peer from the network *
+// * Remove a peer from the network *
 func (resource_server *server) DeletePeer(ctx context.Context, rqst *resourcepb.DeletePeerRqst) (*resourcepb.DeletePeerRsp, error) {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -2465,7 +2491,7 @@ func (resource_server *server) addPeerActions(mac string, actions_ []string) err
 	return nil
 }
 
-//* Add peer action permission *
+// * Add peer action permission *
 func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourcepb.AddPeerActionsRqst) (*resourcepb.AddPeerActionsRsp, error) {
 
 	err := resource_server.addPeerActions(rqst.Mac, rqst.Actions)
@@ -2482,7 +2508,7 @@ func (resource_server *server) AddPeerActions(ctx context.Context, rqst *resourc
 
 }
 
-//* Remove peer action permission *
+// * Remove peer action permission *
 func (resource_server *server) RemovePeerAction(ctx context.Context, rqst *resourcepb.RemovePeerActionRqst) (*resourcepb.RemovePeerActionRsp, error) {
 	// That service made user of persistence service.
 	p, err := resource_server.getPersistenceStore()
@@ -2598,7 +2624,7 @@ func (resource_server *server) RemovePeersAction(ctx context.Context, rqst *reso
 // Organization
 /////////////////////////////////////////////////////////////////////////////////////////
 
-//* Register a new organization
+// * Register a new organization
 func (resource_server *server) CreateOrganization(ctx context.Context, rqst *resourcepb.CreateOrganizationRqst) (*resourcepb.CreateOrganizationRsp, error) {
 
 	var clientId string
@@ -2743,7 +2769,7 @@ func (resource_server *server) UpdateOrganization(ctx context.Context, rqst *res
 	}, nil
 }
 
-//* Return the list of organizations
+// * Return the list of organizations
 func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganizationsRqst, stream resourcepb.ResourceService_GetOrganizationsServer) error {
 
 	// Get the persistence connection
@@ -2860,7 +2886,7 @@ func (resource_server *server) GetOrganizations(rqst *resourcepb.GetOrganization
 	return nil
 }
 
-//* Add Account *
+// * Add Account *
 func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst *resourcepb.AddOrganizationAccountRqst) (*resourcepb.AddOrganizationAccountRsp, error) {
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "accounts", rqst.AccountId, "Accounts", "organizations")
 	if err != nil {
@@ -2875,7 +2901,7 @@ func (resource_server *server) AddOrganizationAccount(ctx context.Context, rqst 
 	return &resourcepb.AddOrganizationAccountRsp{Result: true}, nil
 }
 
-//* Add Group *
+// * Add Group *
 func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *resourcepb.AddOrganizationGroupRqst) (*resourcepb.AddOrganizationGroupRsp, error) {
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "groups", rqst.GroupId, "Groups", "organizations")
 	if err != nil {
@@ -2890,7 +2916,7 @@ func (resource_server *server) AddOrganizationGroup(ctx context.Context, rqst *r
 	return &resourcepb.AddOrganizationGroupRsp{Result: true}, nil
 }
 
-//* Add Role *
+// * Add Role *
 func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *resourcepb.AddOrganizationRoleRqst) (*resourcepb.AddOrganizationRoleRsp, error) {
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "roles", rqst.RoleId, "Roles", "organizations")
 	if err != nil {
@@ -2905,7 +2931,7 @@ func (resource_server *server) AddOrganizationRole(ctx context.Context, rqst *re
 	return &resourcepb.AddOrganizationRoleRsp{Result: true}, nil
 }
 
-//* Add Application *
+// * Add Application *
 func (resource_server *server) AddOrganizationApplication(ctx context.Context, rqst *resourcepb.AddOrganizationApplicationRqst) (*resourcepb.AddOrganizationApplicationRsp, error) {
 	err := resource_server.createCrossReferences(rqst.OrganizationId, "Organizations", "applications", rqst.ApplicationId, "Applications", "organizations")
 	if err != nil {
@@ -2920,7 +2946,7 @@ func (resource_server *server) AddOrganizationApplication(ctx context.Context, r
 	return &resourcepb.AddOrganizationApplicationRsp{Result: true}, nil
 }
 
-//* Remove Account *
+// * Remove Account *
 func (resource_server *server) RemoveOrganizationAccount(ctx context.Context, rqst *resourcepb.RemoveOrganizationAccountRqst) (*resourcepb.RemoveOrganizationAccountRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -2943,7 +2969,7 @@ func (resource_server *server) RemoveOrganizationAccount(ctx context.Context, rq
 	return &resourcepb.RemoveOrganizationAccountRsp{Result: true}, nil
 }
 
-//* Remove Group *
+// * Remove Group *
 func (resource_server *server) RemoveOrganizationGroup(ctx context.Context, rqst *resourcepb.RemoveOrganizationGroupRqst) (*resourcepb.RemoveOrganizationGroupRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -2966,7 +2992,7 @@ func (resource_server *server) RemoveOrganizationGroup(ctx context.Context, rqst
 	return &resourcepb.RemoveOrganizationGroupRsp{Result: true}, nil
 }
 
-//* Remove Role *
+// * Remove Role *
 func (resource_server *server) RemoveOrganizationRole(ctx context.Context, rqst *resourcepb.RemoveOrganizationRoleRqst) (*resourcepb.RemoveOrganizationRoleRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -2989,7 +3015,7 @@ func (resource_server *server) RemoveOrganizationRole(ctx context.Context, rqst 
 	return &resourcepb.RemoveOrganizationRoleRsp{Result: true}, nil
 }
 
-//* Remove Application *
+// * Remove Application *
 func (resource_server *server) RemoveOrganizationApplication(ctx context.Context, rqst *resourcepb.RemoveOrganizationApplicationRqst) (*resourcepb.RemoveOrganizationApplicationRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3012,7 +3038,7 @@ func (resource_server *server) RemoveOrganizationApplication(ctx context.Context
 	return &resourcepb.RemoveOrganizationApplicationRsp{Result: true}, nil
 }
 
-//* Delete organization
+// * Delete organization
 func (resource_server *server) DeleteOrganization(ctx context.Context, rqst *resourcepb.DeleteOrganizationRqst) (*resourcepb.DeleteOrganizationRsp, error) {
 
 	localDomain, err := config.GetDomain()
@@ -3181,7 +3207,7 @@ func (resource_server *server) UpdateGroup(ctx context.Context, rqst *resourcepb
 		}
 */
 
-//* Register a new group
+// * Register a new group
 func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb.CreateGroupRqst) (*resourcepb.CreateGroupRsp, error) {
 
 	var clientId string
@@ -3224,7 +3250,7 @@ func (resource_server *server) CreateGroup(ctx context.Context, rqst *resourcepb
 	}, nil
 }
 
-//* Return the list of organizations
+// * Return the list of organizations
 func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream resourcepb.ResourceService_GetGroupsServer) error {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -3304,7 +3330,7 @@ func (resource_server *server) GetGroups(rqst *resourcepb.GetGroupsRqst, stream 
 	return nil
 }
 
-//* Delete organization
+// * Delete organization
 func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb.DeleteGroupRqst) (*resourcepb.DeleteGroupRsp, error) {
 
 	groupId := rqst.Group
@@ -3390,7 +3416,7 @@ func (resource_server *server) DeleteGroup(ctx context.Context, rqst *resourcepb
 
 }
 
-//* Add a member account to the group *
+// * Add a member account to the group *
 func (resource_server *server) AddGroupMemberAccount(ctx context.Context, rqst *resourcepb.AddGroupMemberAccountRqst) (*resourcepb.AddGroupMemberAccountRsp, error) {
 
 	err := resource_server.createCrossReferences(rqst.GroupId, "Groups", "members", rqst.AccountId, "Accounts", "groups")
@@ -3406,7 +3432,7 @@ func (resource_server *server) AddGroupMemberAccount(ctx context.Context, rqst *
 	return &resourcepb.AddGroupMemberAccountRsp{Result: true}, nil
 }
 
-//* Remove member account from the group *
+// * Remove member account from the group *
 func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqst *resourcepb.RemoveGroupMemberAccountRqst) (*resourcepb.RemoveGroupMemberAccountRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3434,10 +3460,10 @@ func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqs
 	return &resourcepb.RemoveGroupMemberAccountRsp{Result: true}, nil
 }
 
-////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////
 // Notification implementation
-////////////////////////////////////////////////////////////////////////////////////
-//* Create a notification
+// //////////////////////////////////////////////////////////////////////////////////
+// * Create a notification
 func (resource_server *server) CreateNotification(ctx context.Context, rqst *resourcepb.CreateNotificationRqst) (*resourcepb.CreateNotificationRsp, error) {
 
 	// if the account is not on the domain will redirect the request...
@@ -3493,7 +3519,7 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 	return &resourcepb.CreateNotificationRsp{}, nil
 }
 
-//* Retreive notifications
+// * Retreive notifications
 func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotificationsRqst, stream resourcepb.ResourceService_GetNotificationsServer) error {
 
 	recipient := strings.Split(rqst.Recipient, "@")[0]
@@ -3551,7 +3577,7 @@ func (resource_server *server) GetNotifications(rqst *resourcepb.GetNotification
 	return nil
 }
 
-//* Remove a notification
+// * Remove a notification
 func (resource_server *server) DeleteNotification(ctx context.Context, rqst *resourcepb.DeleteNotificationRqst) (*resourcepb.DeleteNotificationRsp, error) {
 
 	recipient := strings.Split(rqst.Recipient, "@")[0]
@@ -3577,7 +3603,7 @@ func (resource_server *server) DeleteNotification(ctx context.Context, rqst *res
 	return &resourcepb.DeleteNotificationRsp{}, nil
 }
 
-//* Remove all Notification
+// * Remove all Notification
 func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *resourcepb.ClearAllNotificationsRqst) (*resourcepb.ClearAllNotificationsRsp, error) {
 
 	recipient := strings.Split(rqst.Recipient, "@")[0]
@@ -3602,7 +3628,7 @@ func (resource_server *server) ClearAllNotifications(ctx context.Context, rqst *
 	return &resourcepb.ClearAllNotificationsRsp{}, nil
 }
 
-//* Remove all notification of a given type
+// * Remove all notification of a given type
 func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqst *resourcepb.ClearNotificationsByTypeRqst) (*resourcepb.ClearNotificationsByTypeRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3700,7 +3726,7 @@ func (server *server) FindPackages(ctx context.Context, rqst *resourcepb.FindPac
 	}, nil
 }
 
-//* Retrun all version of a given packages. *
+// * Retrun all version of a given packages. *
 func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb.GetPackageDescriptorRequest) (*resourcepb.GetPackageDescriptorResponse, error) {
 	p, err := server.getPersistenceStore()
 	if err != nil {
@@ -3794,7 +3820,7 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	}, nil
 }
 
-//* Return the list of all packages *
+// * Return the list of all packages *
 func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescriptorRequest, stream resourcepb.ResourceService_GetPackagesDescriptorServer) error {
 	p, err := server.getPersistenceStore()
 	if err != nil {
@@ -3916,7 +3942,7 @@ func (server *server) SetPackageDescriptor(ctx context.Context, rqst *resourcepb
 	}, nil
 }
 
-//* Get the package bundle checksum use for validation *
+// * Get the package bundle checksum use for validation *
 func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resourcepb.GetPackageBundleChecksumRequest) (*resourcepb.GetPackageBundleChecksumResponse, error) {
 	p, err := server.getPersistenceStore()
 	if err != nil {
@@ -3939,7 +3965,7 @@ func (server *server) GetPackageBundleChecksum(ctx context.Context, rqst *resour
 
 }
 
-//* Set the package bundle (without data)
+// * Set the package bundle (without data)
 func (server *server) SetPackageBundle(ctx context.Context, rqst *resourcepb.SetPackageBundleRequest) (*resourcepb.SetPackageBundleResponse, error) {
 	bundle := rqst.Bundle
 
@@ -4003,7 +4029,7 @@ func (server *server) updateSession(accountId string, state resourcepb.SessionSt
 
 }
 
-//* Update user session informations
+// * Update user session informations
 func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.UpdateSessionRequest) (*resourcepb.UpdateSessionResponse, error) {
 
 	err := server.updateSession(rqst.Session.AccountId, rqst.Session.State, rqst.Session.LastStateTime, rqst.Session.ExpireAt)
@@ -4016,7 +4042,7 @@ func (server *server) UpdateSession(ctx context.Context, rqst *resourcepb.Update
 	return &resourcepb.UpdateSessionResponse{}, nil
 }
 
-//* Remove session
+// * Remove session
 func (server *server) RemoveSession(ctx context.Context, rqst *resourcepb.RemoveSessionRequest) (*resourcepb.RemoveSessionResponse, error) {
 	p, err := server.getPersistenceStore()
 	if err != nil {
@@ -4094,7 +4120,7 @@ func (server *server) getSession(accountId string) (*resourcepb.Session, error) 
 	return &resourcepb.Session{AccountId: session["_id"].(string), ExpireAt: int64(expireAt), LastStateTime: int64(lastStateTime), State: state}, nil
 }
 
-//* Return a session for a given user
+// * Return a session for a given user
 func (server *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessionRequest) (*resourcepb.GetSessionResponse, error) {
 
 	// Now I will remove the token...
@@ -4114,7 +4140,7 @@ func (server *server) GetSession(ctx context.Context, rqst *resourcepb.GetSessio
 // Call's
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//* Return the list of calls for a given account *
+// * Return the list of calls for a given account *
 func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourcepb.GetCallHistoryRqst) (*resourcepb.GetCallHistoryRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -4185,7 +4211,7 @@ func (resource_server *server) setCall(accountId string, call *resourcepb.Call) 
 	return nil
 }
 
-//* Set calling information *
+// * Set calling information *
 func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.SetCallRqst) (*resourcepb.SetCallRsp, error) {
 
 	// Get the persistence connection

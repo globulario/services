@@ -11,8 +11,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
@@ -547,7 +547,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	jsonStr, err := marshaler.MarshalToString(rqst.Title)
 
 	if err == nil {
-		 index.SetInternal([]byte(rqst.Title.ID), []byte(jsonStr))
+		index.SetInternal([]byte(rqst.Title.ID), []byte(jsonStr))
 	}
 
 	return &titlepb.CreateTitleResponse{}, nil
@@ -602,28 +602,37 @@ func setMetadata(path, key, value string) error {
 	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
 	path = strings.ReplaceAll(path, "\\", "/")
 
-	fileName := filepath.Base(path)
-	
-	// original command...
-	os.Remove(os.TempDir() + "/" + fileName)
+	tmpPath := path + ".temp"
 
-	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
-	cmd := exec.Command("ffmpeg", `-i`, path, `-metadata`, key+`=`+value, `-c`, `copy`, os.TempDir() + "/" + fileName)
-
-	cmd.Dir = os.TempDir()
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-
+	err := Utility.MoveFile(path, tmpPath)
 	if err != nil {
 		return err
 	}
 
-	Utility.Move(os.TempDir() + "/" + fileName, path)
+	// remove the file in case it already exist.
+	defer os.Remove(tmpPath)
 
-	return nil
+	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
+	// Try more than once...
+	nbTry := 30
+	for nbTry > 0 {
+		cmd := exec.Command("ffmpeg", `-i`, tmpPath, `-metadata`, key+`=`+value, `-c`, `copy`, path)
+		cmd.Dir = os.TempDir()
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+		if err != nil {
+			nbTry-- // give it time
+			time.Sleep(2 * time.Second)
+		}else {
+			return nil
+		}
+	}
+
+	fmt.Println("file +metadata was create at path ", path)
+	return err
 }
 
 // Associate a file and a title info, so file can be found from title informations...
@@ -694,7 +703,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	}
 
 	var uuid string
-	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir() + "/files", "")
+	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
@@ -728,7 +737,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 	// Append the path if not already there.
 	if !Utility.Contains(association.Paths, filePath) {
-		association.Paths = append(association.Paths,  filePath)
+		association.Paths = append(association.Paths, filePath)
 	}
 
 	// Append the title if not aready exist.
@@ -789,8 +798,8 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		return err
 	}
 
-	// here I will remove the absolute part in case of /users /applications 
-	filePath := strings.ReplaceAll(absoluteFilePath, config.GetDataDir() + "/files", "")
+	// here I will remove the absolute part in case of /users /applications
+	filePath := strings.ReplaceAll(absoluteFilePath, config.GetDataDir()+"/files", "")
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
@@ -966,7 +975,7 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 // Return the list of titles asscociate with a file.
 func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitlesRequest) (*titlepb.GetFileTitlesResponse, error) {
 
-	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()  + "/files", "")
+	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
@@ -994,7 +1003,7 @@ func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitle
 	return &titlepb.GetFileTitlesResponse{Titles: &titlepb.Titles{Titles: titles}}, nil
 }
 
-//////////////////////////////////////////////////////// Publisher ////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////// Publisher ////////////////////////////////////////////////////////
 // Create a publisher...
 func (srv *server) CreatePublisher(ctx context.Context, rqst *titlepb.CreatePublisherRequest) (*titlepb.CreatePublisherResponse, error) {
 	if rqst.Publisher == nil {
@@ -1111,7 +1120,7 @@ func (srv *server) GetPublisherById(ctx context.Context, rqst *titlepb.GetPublis
 	}, nil
 }
 
-//////////////////////////////////////////////////////////// Cast ////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////// Cast ////////////////////////////////////////////////////////////
 // Create a person...
 func (srv *server) CreatePerson(ctx context.Context, rqst *titlepb.CreatePersonRequest) (*titlepb.CreatePersonResponse, error) {
 	if rqst.Person == nil {
@@ -1369,7 +1378,7 @@ func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoReq
 func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideosRequest) (*titlepb.GetFileVideosResponse, error) {
 
 	// relative path...
-	filePath := strings.ReplaceAll(rqst.FilePath, config.GetConfigDir() + "/files", "")
+	filePath := strings.ReplaceAll(rqst.FilePath, config.GetConfigDir()+"/files", "")
 
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
@@ -1947,7 +1956,7 @@ func (srv *server) DeleteAlbum(ctx context.Context, rqst *titlepb.DeleteAlbumReq
 func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudiosRequest) (*titlepb.GetFileAudiosResponse, error) {
 
 	// remove keep the part after /applications or /users
-	filePath:=strings.ReplaceAll(rqst.FilePath, config.GetDataDir() + "/files", "")
+	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath

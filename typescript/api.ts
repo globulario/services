@@ -346,6 +346,9 @@ export function renameFile(
   if (path.length === 0) {
     path = "/";
   }
+
+  path = encodeURI(path)
+  
   rqst.setPath(path);
   rqst.setOldName(oldName);
   rqst.setNewName(newName);
@@ -385,6 +388,7 @@ export function deleteFile(
   if (path.length === 0) {
     path = "/";
   }
+  path = encodeURI(path)
   rqst.setPath(path);
 
   globular.fileService
@@ -422,6 +426,7 @@ export function deleteDir(
   if (path.length === 0) {
     path = "/";
   }
+  path = encodeURI(path)
   rqst.setPath(path);
   globular.fileService
     .deleteDir(rqst, {
@@ -558,7 +563,7 @@ export function downloadDir(
         setTimeout(() => {
           // wait a little and remove the archive from the server.
           const rqst = new DeleteFileRequest();
-          rqst.setPath(path + "/" + name);
+          rqst.setPath(encodeURI(path + "/" + name));
           globular.fileService
             .deleteFile(rqst, {
               token:token,
@@ -603,8 +608,12 @@ export function readDir(
   if (path.length === 0) {
     path = "/";
   }
-
+  path = encodeURI(path)
+  
+  // So here I will encode the path to be sure no emoji string or other weird character will
+  // make the request fail..
   const rqst = new ReadDirRequest();
+ 
   rqst.setPath(path);
   rqst.setRecursive(recursive);
 
@@ -668,6 +677,7 @@ export function createDir(
   if (path.length === 0) {
     path = "/";
   }
+  path = encodeURI(path)
   // Set the request.
   const rqst = new CreateDirRequest();
   rqst.setPath(path);
