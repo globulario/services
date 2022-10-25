@@ -503,9 +503,52 @@ func getFileInfo(s *server, path string) (*fileInfo, error) {
 	info.ModTime = fileStat.ModTime()
 	info.Path = path
 
-	if strings.Contains(fileStat.Name(), ".") {
+	if Utility.Exists(path + "/playlist.m3u8") {
+		path_ := path[0:strings.LastIndex(path, "/")]
+		fileName := path[strings.LastIndex(path, "/")+1:]
+		hiddenFolder := path_ + "/.hidden/" + fileName
+		if Utility.Exists(hiddenFolder) {
+			previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
+			if Utility.Exists(previewImage) {
+				// So here if the mime type is a video I will get thumbnail from it preview images.
+
+				info.Thumbnail, err = Utility.CreateThumbnail(previewImage, -1, -1)
+				if err != nil {
+					fmt.Println("fail to create thumbnail with error: ", err)
+				} else {
+					fmt.Println("thumbnail was create ", info.Name, previewImage)
+				}
+
+			}
+		}
+	} else if strings.Contains(fileStat.Name(), ".") && !strings.Contains(fileStat.Name(), ".hidden") {
 		fileExtension := fileStat.Name()[strings.LastIndex(fileStat.Name(), "."):]
 		info.Mime = mime.TypeByExtension(fileExtension)
+		if len(info.Mime) > 0 {
+			// If hidden folder exist for it...
+			path_ := path[0:strings.LastIndex(path, "/")]
+			fileName := path[strings.LastIndex(path, "/")+1:]
+			if strings.Contains(fileName, ".") {
+				fileName = fileName[0:strings.LastIndex(fileName, ".")]
+			}
+			hiddenFolder := path_ + "/.hidden/" + fileName
+
+			if Utility.Exists(hiddenFolder) {
+				previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
+				if Utility.Exists(previewImage) {
+					// So here if the mime type is a video I will get thumbnail from it preview images.
+
+					if strings.HasPrefix(info.Mime, "video/") {
+						info.Thumbnail, err = Utility.CreateThumbnail(previewImage, -1, -1)
+						if err != nil {
+							fmt.Println("fail to create thumbnail with error: ", err)
+						} else {
+							fmt.Println("thumbnail was create ", info.Name, previewImage)
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// Cut the root part of the path if it start with the root path.
@@ -765,7 +808,12 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						if err == nil {
 							path = path + "/mimetypes/" + strings.ReplaceAll(strings.Split(info_.Mime, ";")[0], "/", "-") + ".png"
 
-							info_.Thumbnail, _ = Utility.CreateThumbnail(path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+							info_.Thumbnail, err = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+							if err != nil {
+								fmt.Println("fail to create thumbnail with error ", err)
+							} else {
+								fmt.Println(info.Name, path)
+							}
 
 						}
 					} else {
@@ -786,7 +834,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 }
 
 func (file_server *server) formatPath(path string) string {
-	path, _ =  url.PathUnescape(path)
+	path, _ = url.PathUnescape(path)
 	path = strings.ReplaceAll(path, "\\", "/")
 	if strings.HasPrefix(path, "/") {
 		if len(path) > 1 {
@@ -902,11 +950,10 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 		return errors.New("no valid context found")
 	}
 
-
 	path := file_server.formatPath(rqst.Path)
 
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
-	
+
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1394,7 +1441,8 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 	if err != nil {
 		return nil, err
 	}
-
+	thumbnailMaxHeight := rqst.GetThumnailHeight()
+	thumbnailMaxWidth := rqst.GetThumnailWidth()
 	// the file
 	if !info.IsDir {
 		f_, err := os.Open(path)
@@ -1411,8 +1459,7 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 		}
 
 		info.Mime, err = Utility.GetFileContentType(f_)
-		thumbnailMaxHeight := rqst.GetThumnailHeight()
-		thumbnailMaxWidth := rqst.GetThumnailWidth()
+
 
 		// in case of image...
 		if strings.HasPrefix(info.Mime, "image/") {
@@ -1422,10 +1469,35 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 				info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
 			}
 		} else if strings.HasPrefix(info.Mime, "video/") {
-			path, err := os.Getwd()
-			if err == nil {
-				path = path + "/mimetypes/video-x-generic.png"
-				info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
+			fileExtension := path[strings.LastIndex(path, "."):]
+			info.Mime = mime.TypeByExtension(fileExtension)
+			if len(info.Mime) > 0 {
+				// If hidden folder exist for it...
+				path_ := path[0:strings.LastIndex(path, "/")]
+				fileName := path[strings.LastIndex(path, "/")+1:]
+				if strings.Contains(fileName, ".") {
+					fileName = fileName[0:strings.LastIndex(fileName, ".")]
+				}
+				hiddenFolder := path_ + "/.hidden/" + fileName
+				if Utility.Exists(hiddenFolder) {
+					previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
+					if Utility.Exists(previewImage) {
+						// So here if the mime type is a video I will get thumbnail from it preview images.
+						info.Thumbnail, err = Utility.CreateThumbnail(previewImage, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+						if err != nil {
+							fmt.Println("fail to create thumbnail with error: ", err)
+						} else {
+							fmt.Println("thumbnail was create ", info.Name, previewImage)
+						}
+
+					}
+				} else {
+					path, err := os.Getwd()
+					if err == nil {
+						path = path + "/mimetypes/video-x-generic.png"
+						info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
+					}
+				}
 			}
 		} else if strings.Contains(info.Mime, "/") {
 
@@ -1446,18 +1518,37 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 			}
 		}
 	} else {
-		thumbnailMaxHeight := rqst.GetThumnailHeight()
-		thumbnailMaxWidth := rqst.GetThumnailWidth()
-		path, err := os.Getwd()
-		if err == nil {
-			path = path + "/mimetypes/inode-directory.png"
-			if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-				info.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-			} else {
-				info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
+		if Utility.Exists(path + "/playlist.m3u8") {
+			path_ := path[0:strings.LastIndex(path, "/")]
+			fileName := path[strings.LastIndex(path, "/")+1:]
+			hiddenFolder := path_ + "/.hidden/" + fileName
+			if Utility.Exists(hiddenFolder) {
+				previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
+				if Utility.Exists(previewImage) {
+					// So here if the mime type is a video I will get thumbnail from it preview images.
+
+					info.Thumbnail, err = Utility.CreateThumbnail(previewImage, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+					if err != nil {
+						fmt.Println("fail to create thumbnail with error: ", err)
+					} else {
+						fmt.Println("thumbnail was create ", info.Name, previewImage)
+					}
+
+				}
+			}
+		} else {
+			thumbnailMaxHeight := rqst.GetThumnailHeight()
+			thumbnailMaxWidth := rqst.GetThumnailWidth()
+			path, err := os.Getwd()
+			if err == nil {
+				path = path + "/mimetypes/inode-directory.png"
+				if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
+					info.Thumbnail, _ = Utility.CreateThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+				} else {
+					info.Thumbnail, _ = Utility.CreateThumbnail(path, 80, 80)
+				}
 			}
 		}
-
 	}
 
 	if err != nil {
