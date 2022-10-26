@@ -543,7 +543,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
 					if Utility.Exists(previewImage) {
 						// So here if the mime type is a video I will get thumbnail from it preview images.
-						info.Thumbnail, err = Utility.CreateThumbnail(previewImage, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+						info.Thumbnail, err = Utility.CreateThumbnail(previewImage,-1, -1)
 						if err != nil {
 							fmt.Println("fail to create thumbnail with error: ", err)
 						} else {
@@ -592,7 +592,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				if Utility.Exists(previewImage) {
 					// So here if the mime type is a video I will get thumbnail from it preview images.
 
-					info.Thumbnail, err = Utility.CreateThumbnail(previewImage, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+					info.Thumbnail, err = Utility.CreateThumbnail(previewImage, -1, -1)
 					if err != nil {
 						fmt.Println("fail to create thumbnail with error: ", err)
 					} else {
