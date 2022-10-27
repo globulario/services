@@ -257,7 +257,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 		}
 	} else {
-		fmt.Println("---> fail to retreive user data ", db, accountId)
+		fmt.Println("---> fail to retreive user data ", db, accountId, err)
 	}
 
 	return &resourcepb.GetAccountRsp{
@@ -350,6 +350,54 @@ func (resource_server *server) SetAccountPassword(ctx context.Context, rqst *res
 	return &resourcepb.SetAccountPasswordRsp{}, nil
 }
 
+// * Save an account
+func (resource_server *server) SetAccount(ctx context.Context, rqst *resourcepb.SetAccountRqst) (*resourcepb.SetAccountRsp, error) {
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"_id":"`+rqst.Account.Id+`"}`, `{ "$set":{"name":"`+rqst.Account.Name+`"}, "$set":{"email":"`+rqst.Account.Email+`"}, "$set":{"domain":"`+rqst.Account.Domain+`"} }`, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Set values from the accound db itself.
+	db := rqst.Account.Id
+	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db += "_db"
+
+	user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+rqst.Account.Id+`"},{"name":"`+rqst.Account.Id+`"} ]}`, ``)
+	if err == nil {
+		// set the user infos....
+		if user_data != nil {
+			user_data_ := user_data.(map[string]interface{})
+			if user_data_["profilePicture_"] != nil {
+				rqst.Account.ProfilePicture = user_data_["profilePicture_"].(string)
+			}
+			if user_data_["firstName_"] != nil {
+				rqst.Account.FirstName = user_data_["firstName_"].(string)
+			}
+			if user_data_["lastName_"] != nil {
+				rqst.Account.LastName = user_data_["lastName_"].(string)
+			}
+			if user_data_["middleName_"] != nil {
+				rqst.Account.Middle = user_data_["middleName_"].(string)
+			}
+
+		}
+	} else {
+		fmt.Println("---> fail to retreive user data ", db, rqst.Account.Id, err)
+	}
+
+	return &resourcepb.SetAccountRsp{}, nil
+
+}
+
 // * Return the list accounts *
 func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, stream resourcepb.ResourceService_GetAccountsServer) error {
 	// Get the persistence connection
@@ -417,11 +465,11 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 		}
 
 		// set the caller id.
-		db :=  a.Id
+		db := a.Id
 		db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 		db += "_db"
 
-		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+ a.Id+`"},{"name":"`+ a.Id+`"} ]}`, ``)
+		user_data, err := p.FindOne(context.Background(), "local_resource", db, "user_data", `{"$or":[{"_id":"`+a.Id+`"},{"name":"`+a.Id+`"} ]}`, ``)
 		if err == nil {
 			// set the user infos....
 			if user_data != nil {
@@ -441,7 +489,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 			}
 		} else {
-			fmt.Println("---> fail to retreive user data ", db,  a.Id)
+			fmt.Println("---> fail to retreive user data ", db, a.Id, err)
 		}
 
 		values = append(values, a)

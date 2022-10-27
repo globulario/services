@@ -248,5 +248,66 @@ proto.torrent.TorrentServicePromiseClient.prototype.dropTorrent =
 };
 
 
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.torrent.GetTorrentLnksRequest,
+ *   !proto.torrent.GetTorrentLnksResponse>}
+ */
+const methodDescriptor_TorrentService_GetTorrentLnks = new grpc.web.MethodDescriptor(
+  '/torrent.TorrentService/GetTorrentLnks',
+  grpc.web.MethodType.UNARY,
+  proto.torrent.GetTorrentLnksRequest,
+  proto.torrent.GetTorrentLnksResponse,
+  /**
+   * @param {!proto.torrent.GetTorrentLnksRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.torrent.GetTorrentLnksResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.torrent.GetTorrentLnksRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.torrent.GetTorrentLnksResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.torrent.GetTorrentLnksResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.torrent.TorrentServiceClient.prototype.getTorrentLnks =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/torrent.TorrentService/GetTorrentLnks',
+      request,
+      metadata || {},
+      methodDescriptor_TorrentService_GetTorrentLnks,
+      callback);
+};
+
+
+/**
+ * @param {!proto.torrent.GetTorrentLnksRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.torrent.GetTorrentLnksResponse>}
+ *     Promise that resolves to the response
+ */
+proto.torrent.TorrentServicePromiseClient.prototype.getTorrentLnks =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/torrent.TorrentService/GetTorrentLnks',
+      request,
+      metadata || {},
+      methodDescriptor_TorrentService_GetTorrentLnks);
+};
+
+
 module.exports = proto.torrent;
 

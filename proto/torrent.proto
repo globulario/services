@@ -7,6 +7,21 @@ package torrent;
 
 option go_package="torrent/torrentpb";
 
+message TorrentLnk {
+	string Lnk = 1;
+	string Name = 2;
+	string Dest = 3;
+	bool Seed = 4;
+}
+
+message GetTorrentLnksRequest {
+	
+}
+
+message GetTorrentLnksResponse {
+	repeated TorrentLnk lnks = 1;
+}
+
 /**
  * Info about torrent files.
  */
@@ -80,7 +95,10 @@ service TorrentService {
 	/** Return a given torrent information **/
 	rpc GetTorrentInfos(GetTorrentInfosRequest) returns(stream GetTorrentInfosResponse);
 
-	/** Trop the torrent downloawd... */
+	/** Drop the torrent downloawd... */
 	rpc DropTorrent(DropTorrentRequest) returns(DropTorrentResponse);
 
+	/** Get the torrent links */
+	rpc GetTorrentLnks(GetTorrentLnksRequest) returns(GetTorrentLnksResponse);
+	
 }

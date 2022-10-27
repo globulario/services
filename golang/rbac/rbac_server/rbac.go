@@ -1807,9 +1807,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 			return false, false, errors.New("no account exist with id " + a)
 		}
 
-		if strings.HasPrefix(a, "sa@") {
-			return true, false, nil
-		}
 
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)

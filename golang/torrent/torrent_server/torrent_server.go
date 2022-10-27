@@ -485,7 +485,6 @@ func (svr *server) readTorrentLnks() ([]TorrentLnk, error) {
 	return lnks, err
 }
 
-
 /**
  * Manage torrents here...
  */
@@ -532,7 +531,7 @@ func (svr *server) processTorrent() {
 					getTorrentsInfo_actions = append(getTorrentsInfo_actions, a)
 				} else if a["action"] == "dropTorrent" {
 					// remove it from the map...
-					delete(infos,  a["name"].(string))
+					delete(infos, a["name"].(string))
 					pending_ := make([]*TorrentTransfer, 0)
 					for _, p := range pending {
 						if p.tor.Name() == a["name"].(string) {
@@ -558,41 +557,54 @@ func (svr *server) processTorrent() {
 						svr.saveTorrentLnks(lnks_)
 					}
 
+				} else if a["action"] == "getTorrentLnks"{
+					lnks, err := svr.readTorrentLnks()
+					lnks_ := make([]*torrentpb.TorrentLnk, 0)
+					fmt.Println("------------> get torrent lnks call ", lnks, len(lnks))
+					if err == nil {
+						for i:=0; i < len(lnks); i++ {
+							lnk := lnks[i]
+							lnks_ = append(lnks_, &torrentpb.TorrentLnk{Name: lnk.Name, Lnk: lnk.Lnk, Dest: lnk.Dir, Seed: lnk.Seed})
+						}
+					}
+					// return the list of link's in the channel.
+					a["lnks"].(chan []*torrentpb.TorrentLnk) <- lnks_
+
 				}
 			case <-ticker.C:
-					// get back current torrent infos...
-					infos_ := make([]*torrentpb.TorrentInfo, 0)
-					for i := 0; i < len(pending); i++ {
-						infos[pending[i].tor.Name()] = getTorrentInfo(pending[i].tor, infos[pending[i].tor.Name()])
-						infos[pending[i].tor.Name()].Destination = pending[i].dst
-						infos_ = append(infos_, infos[pending[i].tor.Name()])
-						for _, file := range infos[pending[i].tor.Name()].Files {
-							// I will copy files when they are completes...
-							if file.Percent == 100 {
-								src := svr.DownloadDir + "/" + file.Path
-								dst := pending[i].dst + "/" + file.Path
-								if Utility.Exists(src) && !Utility.Exists(dst) {
-									// Create the dir...
-									Utility.CreateDirIfNotExist(dst[0:strings.LastIndex(dst, "/")])
-									err := Utility.CopyFile(src, dst)
-									if err != nil {
-										fmt.Println("fail to copy torrent file with error ", err)
-									}
+				// get back current torrent infos...
+				infos_ := make([]*torrentpb.TorrentInfo, 0)
+				for i := 0; i < len(pending); i++ {
+					infos[pending[i].tor.Name()] = getTorrentInfo(pending[i].tor, infos[pending[i].tor.Name()])
+					infos[pending[i].tor.Name()].Destination = pending[i].dst
+					infos_ = append(infos_, infos[pending[i].tor.Name()])
+					for _, file := range infos[pending[i].tor.Name()].Files {
+						// I will copy files when they are completes...
+						if file.Percent == 100 {
+							src := svr.DownloadDir + "/" + file.Path
+							dst := pending[i].dst + "/" + file.Path
+							if Utility.Exists(src) && !Utility.Exists(dst) {
+								// Create the dir...
+								Utility.CreateDirIfNotExist(dst[0:strings.LastIndex(dst, "/")])
+								err := Utility.CopyFile(src, dst)
+								if err != nil {
+									fmt.Println("fail to copy torrent file with error ", err)
 								}
 							}
 						}
 					}
+				}
 
-					// Now I will send info_ to connected client...
-					for index, action := range getTorrentsInfo_actions {
-						stream := action["stream"].(torrentpb.TorrentService_GetTorrentInfosServer)
-						err := stream.Send(&torrentpb.GetTorrentInfosResponse{Infos: infos_})
-						if err != nil {
-							action["exit"].(chan bool) <- true;
-							// remove the stream from the array...
-							getTorrentsInfo_actions = append(getTorrentsInfo_actions[:index], getTorrentsInfo_actions[index+1:]...)
-						}
+				// Now I will send info_ to connected client...
+				for index, action := range getTorrentsInfo_actions {
+					stream := action["stream"].(torrentpb.TorrentService_GetTorrentInfosServer)
+					err := stream.Send(&torrentpb.GetTorrentInfosResponse{Infos: infos_})
+					if err != nil {
+						action["exit"].(chan bool) <- true
+						// remove the stream from the array...
+						getTorrentsInfo_actions = append(getTorrentsInfo_actions[:index], getTorrentsInfo_actions[index+1:]...)
 					}
+				}
 
 			case <-svr.done:
 				// Stop the torrent client
@@ -600,7 +612,7 @@ func (svr *server) processTorrent() {
 
 				// Close the action...
 				for _, action := range getTorrentsInfo_actions {
-					action["exit"].(chan bool) <- true;
+					action["exit"].(chan bool) <- true
 				}
 
 				return // exit the loop...
@@ -663,7 +675,6 @@ func percent(actual, total int64) float64 {
 
 func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *torrentpb.TorrentInfo {
 
-	
 	var updatedAt, downloaded int64
 	if torrentInfo == nil {
 		torrentInfo = new(torrentpb.TorrentInfo)
@@ -673,9 +684,9 @@ func getTorrentInfo(t *torrent.Torrent, torrentInfo *torrentpb.TorrentInfo) *tor
 			torrentInfo.Size = t.Length()
 		}
 		// return the values without file informations at first...
-		go func(){
+		go func() {
 			<-t.GotInfo()
-				torrentInfo.Files = make([]*torrentpb.TorrentFileInfo, len(t.Files()))
+			torrentInfo.Files = make([]*torrentpb.TorrentFileInfo, len(t.Files()))
 		}()
 	} else {
 		// get previous values.
@@ -754,10 +765,10 @@ func (svr *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInf
 
 	// Return the torrent infos...
 	a := make(map[string]interface{})
-	a["action"] = "getTorrentsInfo";
-	a["stream"] = stream;
+	a["action"] = "getTorrentsInfo"
+	a["stream"] = stream
 
-	exit := make(chan bool);
+	exit := make(chan bool)
 
 	a["exit"] = exit
 
@@ -766,6 +777,26 @@ func (svr *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInf
 
 	// wait for the result and return
 	return exit // that channel will be call when the stream will be unavailable...
+}
+
+// get torrents infos...
+func (svr *server) getTorrentLnks()  []*torrentpb.TorrentLnk {
+
+	// Return the torrent infos...
+	a := make(map[string]interface{})
+	a["action"] = "getTorrentLnks"
+
+	// set the output channel for the retreived link's
+	a["lnks"] = make(chan []*torrentpb.TorrentLnk)
+
+	// Set the action and wait for it result...
+	svr.actions <- a
+
+	// read the lnks...
+	lnks := <- a["lnks"].(chan []*torrentpb.TorrentLnk) // that channel will be call when the stream will be unavailable...
+
+	// wait for the result and return
+	return lnks
 }
 
 // NewClient creates a new torrent client based on a magnet or a torrent file.
@@ -815,18 +846,24 @@ func (svr *server) downloadTorrent(link, dest string, seed bool) error {
 	return nil
 }
 
-//* Return all torrent info... *
-func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, stream torrentpb.TorrentService_GetTorrentInfosServer) error{
+// * Get the torrent links
+func (svr *server) GetTorrentLnks(ctx context.Context, rqst *torrentpb.GetTorrentLnksRequest) (*torrentpb.GetTorrentLnksResponse, error) {
+	// simply return the list of lnks found on the server...
+	return &torrentpb.GetTorrentLnksResponse{Lnks:  svr.getTorrentLnks()}, nil
+}
+
+// * Return all torrent info... *
+func (svr *server) GetTorrentInfos(rqst *torrentpb.GetTorrentInfosRequest, stream torrentpb.TorrentService_GetTorrentInfosServer) error {
 
 	// I will get all torrents from all clients...
-	<- svr.getTorrentsInfo(stream)
+	<-svr.getTorrentsInfo(stream)
 
 	// wait until the stream is close by the client...
 	return nil
-	
+
 }
 
-//* Download a torrent file
+// * Download a torrent file
 func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.DownloadTorrentRequest) (*torrentpb.DownloadTorrentResponse, error) {
 
 	// So here I will create a new client...
@@ -841,7 +878,7 @@ func (svr *server) DownloadTorrent(ctx context.Context, rqst *torrentpb.Download
 	return &torrentpb.DownloadTorrentResponse{}, nil
 }
 
-//* Trop the torrent...
+// * Trop the torrent...
 func (svr *server) DropTorrent(ctx context.Context, rqst *torrentpb.DropTorrentRequest) (*torrentpb.DropTorrentResponse, error) {
 
 	// simply trop the torrent file...

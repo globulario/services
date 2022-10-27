@@ -536,6 +536,25 @@ func (client *Resource_Client) GetAccount(id string) (*resourcepb.Account, error
 	return rsp.Account, nil
 }
 
+// Update account values
+func (client *Resource_Client) SetAccount(token string, account *resourcepb.Account) error {
+	rqst := &resourcepb.SetAccountRqst{
+		Account:   account,
+	}
+
+	// Save account values.
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	_, err := client.c.SetAccount(ctx, rqst)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+
 // Set the new password.
 func (client *Resource_Client) SetAccountPassword(accountId, token, oldPassword, newPassword string) error {
 	rqst := &resourcepb.SetAccountPasswordRqst{

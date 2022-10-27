@@ -186,6 +186,10 @@ message GetAccountRqst { string accountId = 1; }
 
 message GetAccountRsp { Account account = 1; }
 
+message SetAccountRqst { Account account = 1; }
+
+message SetAccountRsp { /** Nothing here*/ }
+
 message SetAccountPasswordRqst {
   string accountId = 1;
   string old_password = 2;
@@ -886,6 +890,10 @@ service ResourceService {
   rpc GetAccount(GetAccountRqst) returns (GetAccountRsp);
 
   /** Save an account */
+  rpc SetAccount(SetAccountRqst)
+      returns (SetAccountRsp);
+
+    /** Save an account */
   rpc SetAccountPassword(SetAccountPasswordRqst)
       returns (SetAccountPasswordRsp);
 
