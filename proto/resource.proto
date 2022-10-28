@@ -899,6 +899,7 @@ service ResourceService {
 
   /** Return the list of accounts **/
   rpc GetAccounts(GetAccountsRqst) returns (stream GetAccountsRsp);
+  
 
   /** Add role to a given account **/
   rpc AddAccountRole(AddAccountRoleRqst) returns (AddAccountRoleRsp);
