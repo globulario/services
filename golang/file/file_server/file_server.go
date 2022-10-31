@@ -2589,11 +2589,11 @@ func processVideos(file_server *server) {
 				// TODO test if delay was busted...
 
 				if !hasAlreadyFail {
-					if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") {
+					if strings.HasSuffix(video, ".mkv") || strings.HasPrefix(video, ".MKV") || strings.HasSuffix(video, ".avi") || strings.HasPrefix(video, ".AVI") || getCodec(video) == "hevc" {
 
 						createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
 						createVideoMpeg4H264Log.LogTime = time.Now().Unix()
-						createVideoMpeg4H264Log.Msg = "Convert video to mp4"
+						createVideoMpeg4H264Log.Msg = "Convert video to mp4 h.264"
 						createVideoMpeg4H264Log.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
 						createVideoMpeg4H264Log.Status = "running"
 						file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
@@ -2772,18 +2772,23 @@ func getStreamFrameRateInterval(path string) (int, error) {
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
 func createVideoMpeg4H264(path string) (string, error) {
+
 	path = strings.ReplaceAll(path, "\\", "/")
 	path_ := path[0:strings.LastIndex(path, "/")]
 	name_ := path[strings.LastIndex(path, "/"):strings.LastIndex(path, ".")]
 	output := path_ + "/" + name_ + ".mp4"
 
-	if Utility.Exists(output) {
-		os.Remove(output)
+	if !strings.HasSuffix(path, ".mp4") {
+		if Utility.Exists(output) {
+			os.Remove(output)
+		}
+	}else{
+		path =  path_ + "/" + name_ + ".hevc"
+		if Utility.Exists(path) {
+			return "", errors.New("currently processing video " + output)
+		}
+		Utility.MoveFile(output, path)
 	}
-
-	// Test if cuda is available.
-	getVersion := exec.Command("ffmpeg", "-version")
-	version, _ := getVersion.CombinedOutput()
 
 	var cmd *exec.Cmd
 
@@ -2803,11 +2808,12 @@ func createVideoMpeg4H264(path string) (string, error) {
 	}
 
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
-	if strings.Index(string(version), "--enable-cuda-nvcc") > -1 {
+	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output)
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
 
 		} else {
@@ -2821,8 +2827,8 @@ func createVideoMpeg4H264(path string) (string, error) {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", output)
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			// cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
+			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 
@@ -2916,6 +2922,24 @@ func reassociatePath(path, new_path string) error {
 	return nil
 }
 
+func hasEnableCudaNvcc() bool {
+	getVersion := exec.Command("ffmpeg", "-encoders")
+	encoders, _ := getVersion.CombinedOutput()
+
+	if strings.Index(string(encoders), "hevc_nvenc") > -1 {
+		return true
+	}
+	return false
+}
+
+func getCodec(path string) string {
+	
+	// ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 video.mkv
+	getVersion := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", path)
+	codec, _ := getVersion.CombinedOutput()
+	return strings.TrimSpace( string(codec))
+}
+
 // Create the streams...
 // segment_target_duration  	try to create a new segment every X seconds
 // max_bitrate_ratio 			maximum accepted bitrate fluctuations
@@ -2940,17 +2964,14 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		}
 	}
 
-	getVersion := exec.Command("ffmpeg", "-version")
-	version, _ := getVersion.CombinedOutput()
-
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
-	if strings.Index(string(version), "--enable-cuda-nvcc") > -1 {
+	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
-			// in future when all browser will support H.265 I will compile it with this line instead.
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "hevc_nvenc",  "-c:a", "aac", output)
+
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "hevc_nvenc", "-c:a", "aac"}
 
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
@@ -2963,8 +2984,9 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			// cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-c:a", "aac"}
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 			fmt.Println(err.Error())
@@ -3700,7 +3722,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 
 			playlist += url_ + "\n\n"
 
-			file_server.createAudio(client, paths[i], duration, metadata )
+			file_server.createAudio(client, paths[i], duration, metadata)
 
 		}
 	}
@@ -3917,7 +3939,7 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 	}
 
 	// in case of a mkv Need conversion before...
-	if strings.HasSuffix(rqst.Path, ".mkv") || strings.HasPrefix(rqst.Path, ".MKV") {
+	if strings.HasSuffix(rqst.Path, ".avi") || strings.HasPrefix(rqst.Path, ".AVI") || strings.HasSuffix(rqst.Path, ".mkv") || strings.HasPrefix(rqst.Path, ".MKV") || getCodec(rqst.Path) == "hevc" {
 		var err error
 		createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
 		createVideoMpeg4H264Log.LogTime = time.Now().Unix()
@@ -4303,6 +4325,9 @@ func main() {
 	go processAudios(s_impl)
 
 	s_impl.startProcessAudios()
+
+
+	go processVideos(s_impl)
 
 	// Start process video informations...
 	s_impl.startProcessVideos()
