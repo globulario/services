@@ -382,8 +382,12 @@ func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type
 	for i := 0; i < len(owned_files); i++ {
 		path := owned_files[i]
 		fi, err := os.Stat(path)
-		if !fi.IsDir() && err == nil {
-			used_space += uint64(fi.Size())
+		if err == nil {
+			if !fi.IsDir() {
+				used_space += uint64(fi.Size())
+			}
+		}else {
+			fmt.Println("fail to get stat for file  ", path, "with error", err)
 		}
 	}
 

@@ -601,12 +601,20 @@ type fileTileAssociation struct {
 func setMetadata(path, key, value string) error {
 	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
 	path = strings.ReplaceAll(path, "\\", "/")
-
+	fmt.Println("----------> move ", path, " to ", path + ".temp")
 	tmpPath := path + ".temp"
 
-	err := Utility.MoveFile(path, tmpPath)
-	if err != nil {
-		return err
+	
+	nbTry := 60 * 60
+	for nbTry > 0 {
+		err := Utility.MoveFile(path, tmpPath)
+		if err != nil {
+			fmt.Println("fail to create metadata with error ", err, " try again in 5 sec...", nbTry)
+			nbTry-- // give it time
+			time.Sleep(5 * time.Second)
+		}else{
+			break
+		}
 	}
 
 	// remove the file in case it already exist.
@@ -614,7 +622,8 @@ func setMetadata(path, key, value string) error {
 
 	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
 	// Try more than once...
-	nbTry := 30
+	nbTry = 60 * 60
+	var err error
 	for nbTry > 0 {
 		cmd := exec.Command("ffmpeg", `-i`, tmpPath, `-metadata`, key+`=`+value, `-c`, `copy`, path)
 		cmd.Dir = os.TempDir()
@@ -624,13 +633,14 @@ func setMetadata(path, key, value string) error {
 		cmd.Stderr = &stderr
 		err = cmd.Run()
 		if err != nil {
+			fmt.Println("fail to create metadata with error ", err, " try again in 5 sec...", nbTry)
 			nbTry-- // give it time
-			time.Sleep(2 * time.Second)
+			time.Sleep(5 * time.Second)
 		}else {
 			return nil
 		}
 	}
-
+	
 	fmt.Println("file +metadata was create at path ", path)
 	return err
 }
@@ -680,7 +690,12 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 
 		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		setMetadata(absolutefilePath, "comment", encoded)
+		err = setMetadata(absolutefilePath, "comment", encoded)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
 		video, err := srv.getVideoById(rqst.IndexPath, rqst.TitleId)
@@ -698,12 +713,15 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
 		err = setMetadata(absolutefilePath, "comment", encoded)
 		if err != nil {
-			fmt.Println("fail to set the metada! ", jsonStr, err)
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 	}
 
 	var uuid string
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
+
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
@@ -925,6 +943,8 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		uuid = Utility.CreateFileChecksum(absolutePath)
 	}
 
+	fmt.Println("----------> getFileTitles",absolutePath, uuid, indexPath)
+	
 	if srv.associations == nil {
 		srv.associations = make(map[string]*storage_store.Badger_store)
 	}
@@ -946,8 +966,10 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		}
 	}
 
+	fmt.Println("----------> number of found title is ", len(association.Titles))
 	titles := make([]*titlepb.Title, 0)
 	for i := 0; i < len(association.Titles); i++ {
+		fmt.Println("--------> ", association.Titles[i])
 		title, err := srv.getTitleById(indexPath, association.Titles[i])
 		if err == nil {
 			titles = append(titles, title)
@@ -1390,7 +1412,10 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 		}
 	}
 
+	fmt.Println("1401 -----------> ", absolutefilePath)
+
 	if !Utility.Exists(absolutefilePath) {
+		
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))

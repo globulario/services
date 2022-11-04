@@ -554,7 +554,9 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 						}
 						hiddenFolder := path_ + "/.hidden/" + fileName
 						if Utility.Exists(hiddenFolder) {
+
 							previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
+							fmt.Println("get preview image file: ", previewImage)
 							if Utility.Exists(previewImage) {
 								// So here if the mime type is a video I will get thumbnail from it preview images.
 								info.Thumbnail, err = Utility.CreateThumbnail(previewImage, -1, -1)
@@ -667,6 +669,7 @@ func fileNameWithoutExtension(fileName string) string {
 
 func readMetadata(path string, thumnailHeight, thumbnailWidth int) (map[string]interface{}, error) {
 
+	path = strings.ReplaceAll(path, "\\", "/")
 	f_, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -730,6 +733,7 @@ func readMetadata(path string, thumnailHeight, thumbnailWidth int) (map[string]i
 			}
 
 		} else {
+
 			imagePath := path[:strings.LastIndex(path, "/")]
 
 			// Try to find the cover image...
@@ -792,6 +796,46 @@ func readMetadata(path string, thumnailHeight, thumbnailWidth int) (map[string]i
 		return nil, err
 	}
 	return metadata, nil
+}
+
+/**
+ * Store meta data into a file.
+ */
+ func setMetadata(path, key, value string) error {
+	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
+	path = strings.ReplaceAll(path, "\\", "/")
+
+	tmpPath := path + ".temp"
+
+	err := Utility.MoveFile(path, tmpPath)
+	if err != nil {
+		return err
+	}
+
+	// remove the file in case it already exist.
+	defer os.Remove(tmpPath)
+
+	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
+	// Try more than once...
+	nbTry := 30
+	for nbTry > 0 {
+		cmd := exec.Command("ffmpeg", `-i`, tmpPath, `-metadata`, key+`=`+value, `-c`, `copy`, path)
+		cmd.Dir = os.TempDir()
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+		if err != nil {
+			nbTry-- // give it time
+			time.Sleep(2 * time.Second)
+		}else {
+			return nil
+		}
+	}
+
+	fmt.Println("file +metadata was create at path ", path)
+	return err
 }
 
 /**
@@ -4302,6 +4346,7 @@ func main() {
 
 			// refresh dir event
 			err := client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
+				
 				channel_0 <- string(evt.Data)
 			})
 			if err != nil {

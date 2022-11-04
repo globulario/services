@@ -516,15 +516,19 @@ func (svr *server) processTorrent() {
 						lnks = make([]TorrentLnk, 0)
 					} else {
 						for _, lnk := range lnks {
-							if lnk.Name == t.tor.Name() {
+							if lnk.Lnk == t.lnk {
 								exist = true
 								break
 							}
 						}
 					}
+
 					if !exist {
 						lnks = append(lnks, TorrentLnk{Dir: t.dst, Lnk: t.lnk, Seed: t.seed, Name: t.tor.Name()})
-						svr.saveTorrentLnks(lnks)
+						err := svr.saveTorrentLnks(lnks)
+						if err == nil {
+							fmt.Println("lnk ", lnks[len(lnks)-1], " was set")
+						}
 					}
 
 				} else if a["action"] == "getTorrentsInfo" {
@@ -557,12 +561,12 @@ func (svr *server) processTorrent() {
 						svr.saveTorrentLnks(lnks_)
 					}
 
-				} else if a["action"] == "getTorrentLnks"{
+				} else if a["action"] == "getTorrentLnks" {
 					lnks, err := svr.readTorrentLnks()
 					lnks_ := make([]*torrentpb.TorrentLnk, 0)
-					fmt.Println("------------> get torrent lnks call ", lnks, len(lnks))
+
 					if err == nil {
-						for i:=0; i < len(lnks); i++ {
+						for i := 0; i < len(lnks); i++ {
 							lnk := lnks[i]
 							lnks_ = append(lnks_, &torrentpb.TorrentLnk{Name: lnk.Name, Lnk: lnk.Lnk, Dest: lnk.Dir, Seed: lnk.Seed})
 						}
@@ -780,7 +784,7 @@ func (svr *server) getTorrentsInfo(stream torrentpb.TorrentService_GetTorrentInf
 }
 
 // get torrents infos...
-func (svr *server) getTorrentLnks()  []*torrentpb.TorrentLnk {
+func (svr *server) getTorrentLnks() []*torrentpb.TorrentLnk {
 
 	// Return the torrent infos...
 	a := make(map[string]interface{})
@@ -793,7 +797,7 @@ func (svr *server) getTorrentLnks()  []*torrentpb.TorrentLnk {
 	svr.actions <- a
 
 	// read the lnks...
-	lnks := <- a["lnks"].(chan []*torrentpb.TorrentLnk) // that channel will be call when the stream will be unavailable...
+	lnks := <-a["lnks"].(chan []*torrentpb.TorrentLnk) // that channel will be call when the stream will be unavailable...
 
 	// wait for the result and return
 	return lnks
@@ -838,7 +842,6 @@ func (svr *server) downloadTorrent(link, dest string, seed bool) error {
 		// Start download...
 		t.DownloadAll()
 
-		// Set the torrent
 		svr.setTorrentTransfer(t, seed, link, dest)
 
 	}()
@@ -849,7 +852,7 @@ func (svr *server) downloadTorrent(link, dest string, seed bool) error {
 // * Get the torrent links
 func (svr *server) GetTorrentLnks(ctx context.Context, rqst *torrentpb.GetTorrentLnksRequest) (*torrentpb.GetTorrentLnksResponse, error) {
 	// simply return the list of lnks found on the server...
-	return &torrentpb.GetTorrentLnksResponse{Lnks:  svr.getTorrentLnks()}, nil
+	return &torrentpb.GetTorrentLnksResponse{Lnks: svr.getTorrentLnks()}, nil
 }
 
 // * Return all torrent info... *

@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -16,6 +17,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	config_ "github.com/globulario/services/golang/config"
@@ -940,6 +942,27 @@ func SetPeerPublicKey(id, encPub string) error {
 	err := ioutil.WriteFile(keyPath+"/"+id+"_public", []byte(encPub), 0644)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+/**
+ * Load and return certificate file.
+ */
+func ValidateCertificateExpiration(certFile, keyFile string) error {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return err
+	}
+
+	cert_, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return err
+	}
+
+	if time.Now().After(cert_.NotAfter) {
+		return errors.New("the certificate is expired " + cert_.NotAfter.Local().String())
 	}
 
 	return nil
