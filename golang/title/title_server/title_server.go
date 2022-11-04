@@ -11,12 +11,14 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"time"
 
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
@@ -99,6 +101,34 @@ type server struct {
 
 	// Contain the file and title asscociation.
 	associations map[string]*storage_store.Badger_store
+}
+
+var (
+	// The event client.
+	event_client_ *event_client.Event_Client
+)
+
+/**
+ * Return the event service.
+ */
+func getEventClient() (*event_client.Event_Client, error) {
+	var err error
+	if event_client_ == nil {
+		address, _ := config.GetAddress()
+		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return event_client_, nil
+}
+
+func (srv *server) publishReloadDirEvent(path string) {
+	client, err := getEventClient()
+	if err != nil {
+		client.Publish("reload_dir_event", []byte(path))
+	}
 }
 
 // The http address where the configuration can be found /config
@@ -601,18 +631,17 @@ type fileTileAssociation struct {
 func setMetadata(path, key, value string) error {
 	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
 	path = strings.ReplaceAll(path, "\\", "/")
-	fmt.Println("----------> move ", path, " to ", path + ".temp")
+	fmt.Println("----------> move ", path, " to ", path+".temp")
 	tmpPath := path + ".temp"
 
-	
-	nbTry := 60 * 60
+	nbTry := 15 * 60
 	for nbTry > 0 {
 		err := Utility.MoveFile(path, tmpPath)
 		if err != nil {
-			fmt.Println("fail to create metadata with error ", err, " try again in 5 sec...", nbTry)
+			fmt.Println("fail to create metadata with error ", err, " try again in 1 sec...", nbTry)
 			nbTry-- // give it time
-			time.Sleep(5 * time.Second)
-		}else{
+			time.Sleep(1 * time.Second)
+		} else {
 			break
 		}
 	}
@@ -622,7 +651,7 @@ func setMetadata(path, key, value string) error {
 
 	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
 	// Try more than once...
-	nbTry = 60 * 60
+	nbTry = 15 * 60
 	var err error
 	for nbTry > 0 {
 		cmd := exec.Command("ffmpeg", `-i`, tmpPath, `-metadata`, key+`=`+value, `-c`, `copy`, path)
@@ -635,13 +664,12 @@ func setMetadata(path, key, value string) error {
 		if err != nil {
 			fmt.Println("fail to create metadata with error ", err, " try again in 5 sec...", nbTry)
 			nbTry-- // give it time
-			time.Sleep(5 * time.Second)
-		}else {
+			time.Sleep(1 * time.Second)
+		} else {
 			return nil
 		}
 	}
-	
-	fmt.Println("file +metadata was create at path ", path)
+
 	return err
 }
 
@@ -721,15 +749,17 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 
 	var uuid string
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
-
+	var parent string
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
 		// is a directory
 		uuid = Utility.GenerateUUID(filePath)
+		parent = rqst.FilePath
 	} else {
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
+		parent = path.Dir(rqst.FilePath)
 	}
 
 	if srv.associations == nil {
@@ -799,6 +829,10 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	fmt.Println("-------------------------> reload dir event ", parent)
+	// Reload the dir...
+	srv.publishReloadDirEvent(parent)
 
 	// return empty response.
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
@@ -943,8 +977,8 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		uuid = Utility.CreateFileChecksum(absolutePath)
 	}
 
-	fmt.Println("----------> getFileTitles",absolutePath, uuid, indexPath)
-	
+	fmt.Println("----------> getFileTitles", absolutePath, uuid, indexPath)
+
 	if srv.associations == nil {
 		srv.associations = make(map[string]*storage_store.Badger_store)
 	}
@@ -1415,7 +1449,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 	fmt.Println("1401 -----------> ", absolutefilePath)
 
 	if !Utility.Exists(absolutefilePath) {
-		
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+filePath)))

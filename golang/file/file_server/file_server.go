@@ -986,21 +986,22 @@ func (file_server *server) formatPath(path string) string {
 // //////////////////////////////////////////////////////////////////////////////
 // Append public dir to the list of dir...
 func (file_server *server) AddPublicDir(ctx context.Context, rqst *filepb.AddPublicDirRequest) (*filepb.AddPublicDirResponse, error) {
-	if !Utility.Exists(rqst.Path) {
+	path := strings.ReplaceAll(rqst.Path, "\\", "/")
+	if !Utility.Exists(path) {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("file with path "+rqst.Path+"dosen't exist")))
 	}
 
 	// So here I will test if the path is already in the public path...
-	if Utility.Contains(file_server.Public, rqst.Path) {
+	if Utility.Contains(file_server.Public, path) {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+rqst.Path+" already exist in Pulbic paths")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Path "+path+" already exist in Pulbic paths")))
 	}
 
 	// Append the path in the list...
-	file_server.Public = append(file_server.Public, rqst.Path)
+	file_server.Public = append(file_server.Public, path)
 
 	// save it in the configuration...
 	err := file_server.Save()
