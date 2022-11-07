@@ -1666,7 +1666,7 @@ proto.applications_manager.DeployApplicationResponse.prototype.toObject = functi
  */
 proto.applications_manager.DeployApplicationResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+
   };
 
   if (includeInstance) {
@@ -1703,10 +1703,6 @@ proto.applications_manager.DeployApplicationResponse.deserializeBinaryFromReader
     }
     var field = reader.getFieldNumber();
     switch (field) {
-    case 1:
-      var value = /** @type {boolean} */ (reader.readBool());
-      msg.setResult(value);
-      break;
     default:
       reader.skipField();
       break;
@@ -1736,31 +1732,6 @@ proto.applications_manager.DeployApplicationResponse.prototype.serializeBinary =
  */
 proto.applications_manager.DeployApplicationResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getResult();
-  if (f) {
-    writer.writeBool(
-      1,
-      f
-    );
-  }
-};
-
-
-/**
- * optional bool result = 1;
- * @return {boolean}
- */
-proto.applications_manager.DeployApplicationResponse.prototype.getResult = function() {
-  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 1, false));
-};
-
-
-/**
- * @param {boolean} value
- * @return {!proto.applications_manager.DeployApplicationResponse} returns this
- */
-proto.applications_manager.DeployApplicationResponse.prototype.setResult = function(value) {
-  return jspb.Message.setProto3BooleanField(this, 1, value);
 };
 
 

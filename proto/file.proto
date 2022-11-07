@@ -204,6 +204,19 @@ message IsProcessVideoResponse{
 	bool isProcessVideo = 1;
 }
 
+// Upload video request
+message UploadVideoRequest {
+	string url = 1; // the url of the video to upload
+	string dest = 2; // the video destination
+	string format = 3; // can be mp3 or mp4
+}
+
+// Upload video response
+message UploadVideoResponse {
+	int32 pid = 1;
+	string result = 2;
+}
+
 // Stop process video.
 message StopProcessVideoRequest {
 	
@@ -393,6 +406,9 @@ service FileService {
 	
 	// Specific files...
 	rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse){};
+
+	// Upload a video from a given url, it use youtube-dl.
+	rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse){};
 
 	// Create a viedeo Preview...
 	rpc CreateVideoPreview(CreateVideoPreviewRequest) returns (CreateVideoPreviewResponse){};

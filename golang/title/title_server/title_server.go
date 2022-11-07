@@ -1,20 +1,15 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"strings"
-	"time"
-
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -107,6 +102,15 @@ var (
 	// The event client.
 	event_client_ *event_client.Event_Client
 )
+
+/**
+ *  The character - can't be part of uuid, bleeve use it in it query syntax so I will get rid of it
+ **/
+func generateUUID(id string) string {
+	uuid := Utility.GenerateUUID(id)
+	uuid = strings.ReplaceAll(uuid, "-", "_")
+	return uuid
+}
 
 /**
  * Return the event service.
@@ -518,7 +522,7 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 // Get a title by a given id.
 func (srv *server) GetTitleById(ctx context.Context, rqst *titlepb.GetTitleByIdRequest) (*titlepb.GetTitleByIdResponse, error) {
 
-	title, err := srv.getTitleById(rqst.IndexPath, rqst.TitleId)
+	title, err := srv.getTitleById(rqst.IndexPath, generateUUID(rqst.TitleId))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -565,7 +569,8 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// Index the title and put it in the search engine.
-	err = index.Index(rqst.Title.ID, rqst.Title)
+	rqst.Title.UUID = generateUUID(rqst.Title.ID)
+	err = index.Index(rqst.Title.UUID, rqst.Title)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -577,7 +582,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	jsonStr, err := marshaler.MarshalToString(rqst.Title)
 
 	if err == nil {
-		index.SetInternal([]byte(rqst.Title.ID), []byte(jsonStr))
+		index.SetInternal([]byte(rqst.Title.UUID), []byte(jsonStr))
 	}
 
 	return &titlepb.CreateTitleResponse{}, nil
@@ -625,54 +630,6 @@ type fileTileAssociation struct {
 	Paths  []string // list of file path's where file can be found on the local disck.
 }
 
-/**
- * Store meta data into a file.
- */
-func setMetadata(path, key, value string) error {
-	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
-	path = strings.ReplaceAll(path, "\\", "/")
-	fmt.Println("----------> move ", path, " to ", path+".temp")
-	tmpPath := path + ".temp"
-
-	nbTry := 15 * 60
-	for nbTry > 0 {
-		err := Utility.MoveFile(path, tmpPath)
-		if err != nil {
-			fmt.Println("fail to create metadata with error ", err, " try again in 1 sec...", nbTry)
-			nbTry-- // give it time
-			time.Sleep(1 * time.Second)
-		} else {
-			break
-		}
-	}
-
-	// remove the file in case it already exist.
-	defer os.Remove(tmpPath)
-
-	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
-	// Try more than once...
-	nbTry = 15 * 60
-	var err error
-	for nbTry > 0 {
-		cmd := exec.Command("ffmpeg", `-i`, tmpPath, `-metadata`, key+`=`+value, `-c`, `copy`, path)
-		cmd.Dir = os.TempDir()
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-		err = cmd.Run()
-		if err != nil {
-			fmt.Println("fail to create metadata with error ", err, " try again in 5 sec...", nbTry)
-			nbTry-- // give it time
-			time.Sleep(1 * time.Second)
-		} else {
-			return nil
-		}
-	}
-
-	return err
-}
-
 // Associate a file and a title info, so file can be found from title informations...
 func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.AssociateFileWithTitleRequest) (*titlepb.AssociateFileWithTitleResponse, error) {
 
@@ -700,66 +657,21 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Now I will set the title url in the media file to keep track of the title
-	// information. If the title is lost it will be possible to recreate it from
-	// that url.
-	if strings.HasSuffix(rqst.IndexPath, "/search/titles") {
-		title, err := srv.getTitleById(rqst.IndexPath, rqst.TitleId)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(title)
-		if err != nil {
-			return nil, err
-		}
-
-		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		err = setMetadata(absolutefilePath, "comment", encoded)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
-		video, err := srv.getVideoById(rqst.IndexPath, rqst.TitleId)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		var marshaler jsonpb.Marshaler
-		jsonStr, err := marshaler.MarshalToString(video)
-		if err != nil {
-			return nil, err
-		}
-		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		err = setMetadata(absolutefilePath, "comment", encoded)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-	}
-
 	var uuid string
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
+
 	var parent string
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
 		// is a directory
-		uuid = Utility.GenerateUUID(filePath)
-		parent = rqst.FilePath
+		uuid = generateUUID(filePath)
+		parent = filePath
 	} else {
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
-		parent = path.Dir(rqst.FilePath)
+		parent = path.Dir(filePath)
 	}
 
 	if srv.associations == nil {
@@ -830,7 +742,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	fmt.Println("-------------------------> reload dir event ", parent)
 	// Reload the dir...
 	srv.publishReloadDirEvent(parent)
 
@@ -852,11 +763,12 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 
 	// here I will remove the absolute part in case of /users /applications
 	filePath := strings.ReplaceAll(absoluteFilePath, config.GetDataDir()+"/files", "")
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
 		// is a directory
-		uuid = Utility.GenerateUUID(filePath)
+		uuid = generateUUID(filePath)
 	} else {
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absoluteFilePath)
@@ -971,13 +883,11 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 
 	if fileInfo.IsDir() {
 		// is a directory
-		uuid = Utility.GenerateUUID(filePath)
+		uuid = generateUUID(filePath)
 	} else {
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absolutePath)
 	}
-
-	fmt.Println("----------> getFileTitles", absolutePath, uuid, indexPath)
 
 	if srv.associations == nil {
 		srv.associations = make(map[string]*storage_store.Badger_store)
@@ -1000,11 +910,9 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 		}
 	}
 
-	fmt.Println("----------> number of found title is ", len(association.Titles))
 	titles := make([]*titlepb.Title, 0)
 	for i := 0; i < len(association.Titles); i++ {
-		fmt.Println("--------> ", association.Titles[i])
-		title, err := srv.getTitleById(indexPath, association.Titles[i])
+		title, err := srv.getTitleById(indexPath, generateUUID(association.Titles[i]))
 		if err == nil {
 			titles = append(titles, title)
 		}
@@ -1032,6 +940,7 @@ func (srv *server) getFileTitles(indexPath, filePath, absolutePath string) ([]*t
 func (srv *server) GetFileTitles(ctx context.Context, rqst *titlepb.GetFileTitlesRequest) (*titlepb.GetFileTitlesResponse, error) {
 
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
@@ -1294,6 +1203,7 @@ func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 
 // Insert a video in the database or update it if it already exist.
 func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
+	fmt.Println("try to create video", rqst.Video.ID)
 	if rqst.Video == nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1309,9 +1219,11 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Index the title and put it in the search engine.
-	err = index.Index(rqst.Video.ID, rqst.Video)
+	rqst.Video.UUID = generateUUID(rqst.Video.ID)
+	err = index.Index(rqst.Video.UUID, rqst.Video)
+
 	if err != nil {
+		fmt.Println("fail to index video with error", rqst.Video.ID, err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1322,7 +1234,20 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	jsonStr, err := marshaler.MarshalToString(rqst.Video)
 
 	if err == nil {
-		index.SetInternal([]byte(rqst.Video.ID), []byte(jsonStr))
+		index.SetInternal([]byte(rqst.Video.UUID), []byte(jsonStr))
+	} else {
+		fmt.Println("1353 fail to index video with error  ", rqst.Video.ID, err)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	test_, err := srv.getVideoById(rqst.IndexPath, rqst.Video.UUID)
+	if err != nil || test_ == nil {
+		fmt.Println("1362 fail to index video with error  ", rqst.Video.ID, err)
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	return &titlepb.CreateVideoResponse{}, nil
@@ -1337,7 +1262,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	//fmt.Println("---------> try to find video with id: ", id)
 	query := bleve.NewQueryStringQuery(id)
 	searchRequest := bleve.NewSearchRequest(query)
 	searchResult, err := index.Search(searchRequest)
@@ -1372,7 +1297,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 
 // Get a video by a given id.
 func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdRequest) (*titlepb.GetVideoByIdResponse, error) {
-	video, err := srv.getVideoById(rqst.IndexPath, rqst.VidoeId)
+	video, err := srv.getVideoById(rqst.IndexPath, generateUUID(rqst.VidoeId))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1435,6 +1360,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	// relative path...
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetConfigDir()+"/files", "")
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
@@ -1466,7 +1392,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	if fileInfo.IsDir() {
 		// is a directory
-		uuid = Utility.GenerateUUID(filePath)
+		uuid = generateUUID(filePath)
 	} else {
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
@@ -1495,7 +1421,7 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 
 	videos := make([]*titlepb.Video, 0)
 	for i := 0; i < len(association.Titles); i++ {
-		video, err := srv.getVideoById(rqst.IndexPath, association.Titles[i])
+		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(association.Titles[i]))
 		if err == nil {
 			videos = append(videos, video)
 		}
@@ -1779,8 +1705,10 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rqst.Audio.UUID = generateUUID(rqst.Audio.ID)
+
 	// Index the title and put it in the search engine.
-	err = index.Index(rqst.Audio.ID, rqst.Audio)
+	err = index.Index(rqst.Audio.UUID, rqst.Audio)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1792,7 +1720,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	jsonStr, err := marshaler.MarshalToString(rqst.Audio)
 
 	if err == nil {
-		err = index.SetInternal([]byte(rqst.Audio.ID), []byte(jsonStr))
+		err = index.SetInternal([]byte(generateUUID(rqst.Audio.ID)), []byte(jsonStr))
 	}
 
 	// Now I will create the album from the track info...
@@ -1853,7 +1781,7 @@ func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
 
 // Get a audio by a given id.
 func (srv *server) GetAudioById(ctx context.Context, rqst *titlepb.GetAudioByIdRequest) (*titlepb.GetAudioByIdResponse, error) {
-	audio, err := srv.getAudioById(rqst.IndexPath, rqst.AudioId)
+	audio, err := srv.getAudioById(rqst.IndexPath, generateUUID(rqst.AudioId))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2016,6 +1944,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 
 	// remove keep the part after /applications or /users
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
+	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
 	// So here I will get the list of titles asscociated with a file...
 	absolutefilePath := rqst.FilePath
@@ -2028,6 +1957,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	}
 
 	if !Utility.Exists(absolutefilePath) {
+		fmt.Println("---------> 2075")
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
@@ -2044,7 +1974,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 
 	if fileInfo.IsDir() {
 		// is a directory
-		uuid = Utility.GenerateUUID(filePath)
+		uuid = generateUUID(filePath)
 	} else {
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
@@ -2065,6 +1995,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
+			fmt.Println("---------> 2113")
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2073,9 +2004,11 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 
 	audios := make([]*titlepb.Audio, 0)
 	for i := 0; i < len(association.Titles); i++ {
-		audio, err := srv.getAudioById(rqst.IndexPath, association.Titles[i])
+		audio, err := srv.getAudioById(rqst.IndexPath, generateUUID(association.Titles[i]))
 		if err == nil {
 			audios = append(audios, audio)
+		} else {
+			fmt.Println("---------> 2126")
 		}
 	}
 

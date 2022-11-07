@@ -260,6 +260,13 @@ func (admin_server *server) RunCmd(rqst *adminpb.RunCmdRequest, stream adminpb.A
 			for {
 				select {
 				case <-done:
+
+					stream.Send(
+						&adminpb.RunCmdResponse{
+							Pid:    int32(pid),
+							Result: "done",
+						},
+					)
 					break
 
 				case result := <-output:

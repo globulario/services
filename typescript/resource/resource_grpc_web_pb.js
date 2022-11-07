@@ -16,7 +16,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 const proto = {};
-proto.resource = require('../resource/resource_pb.js');
+proto.resource = require('./resource_pb.js');
 
 /**
  * @param {string} hostname
@@ -1460,6 +1460,67 @@ proto.resource.ResourceServicePromiseClient.prototype.getAccount =
       request,
       metadata || {},
       methodDescriptor_ResourceService_GetAccount);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.SetAccountRqst,
+ *   !proto.resource.SetAccountRsp>}
+ */
+const methodDescriptor_ResourceService_SetAccount = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/SetAccount',
+  grpc.web.MethodType.UNARY,
+  proto.resource.SetAccountRqst,
+  proto.resource.SetAccountRsp,
+  /**
+   * @param {!proto.resource.SetAccountRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.SetAccountRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.SetAccountRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.SetAccountRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.SetAccountRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.setAccount =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/SetAccount',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_SetAccount,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.SetAccountRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.SetAccountRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.setAccount =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/SetAccount',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_SetAccount);
 };
 
 

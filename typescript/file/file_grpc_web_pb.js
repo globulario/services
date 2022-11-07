@@ -973,6 +973,62 @@ proto.file.FileServicePromiseClient.prototype.getThumbnails =
 /**
  * @const
  * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.UploadVideoRequest,
+ *   !proto.file.UploadVideoResponse>}
+ */
+const methodDescriptor_FileService_UploadVideo = new grpc.web.MethodDescriptor(
+  '/file.FileService/UploadVideo',
+  grpc.web.MethodType.SERVER_STREAMING,
+  proto.file.UploadVideoRequest,
+  proto.file.UploadVideoResponse,
+  /**
+   * @param {!proto.file.UploadVideoRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.UploadVideoResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.UploadVideoRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.file.UploadVideoResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.uploadVideo =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/file.FileService/UploadVideo',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_UploadVideo);
+};
+
+
+/**
+ * @param {!proto.file.UploadVideoRequest} request The request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!grpc.web.ClientReadableStream<!proto.file.UploadVideoResponse>}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServicePromiseClient.prototype.uploadVideo =
+    function(request, metadata) {
+  return this.client_.serverStreaming(this.hostname_ +
+      '/file.FileService/UploadVideo',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_UploadVideo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
  *   !proto.file.CreateVideoPreviewRequest,
  *   !proto.file.CreateVideoPreviewResponse>}
  */

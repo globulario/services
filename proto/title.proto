@@ -77,6 +77,7 @@ message Video {
 	Poster poster = 12; // Thumbnail
 	Preview preview = 13; // short play...
 	string Duration = 14;
+	string UUID = 15;
 }
 
 message Videos {
@@ -145,6 +146,7 @@ message Title {
 	int32 Season = 18;
 	int32 Episode = 19;
 	string Serie = 20;
+	string UUID = 21;
 }
 
 message Titles {
@@ -375,6 +377,7 @@ message Audio {
 	int32 TrackTotal = 15;
 	Poster Poster = 16;
 	int32 Duration = 17;
+	string UUID = 19;
 }
 
 /**

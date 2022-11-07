@@ -24,6 +24,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-ldap/ldap/v3 v3.3.0
 	github.com/go-sql-driver/mysql v1.6.0
+	github.com/gocolly/colly/v2 v2.1.0
 	github.com/golang/protobuf v1.5.2
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/improbable-eng/grpc-web v0.15.0
@@ -50,10 +51,19 @@ require (
 )
 
 require (
+	github.com/PuerkitoBio/goquery v1.5.1 // indirect
+	github.com/andybalholm/cascadia v1.2.0 // indirect
+	github.com/antchfx/htmlquery v1.2.3 // indirect
+	github.com/antchfx/xmlquery v1.2.4 // indirect
+	github.com/antchfx/xpath v1.1.8 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
+	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/rs/cors v1.7.0 // indirect
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0 // indirect
+	github.com/saintfish/chardet v0.0.0-20120816061221-3af4cd4741ca // indirect
+	github.com/temoto/robotstxt v1.1.1 // indirect
+	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/grpc/examples v0.0.0-20221006202345-c03925db8d3c // indirect
 	nhooyr.io/websocket v1.8.6 // indirect
 )
