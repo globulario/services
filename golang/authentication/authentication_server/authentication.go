@@ -53,7 +53,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	claims, err := security.ValidateToken(rqst.Token)
 
 	if err != nil {
-		if !strings.HasPrefix(err.Error(), "token is expired") {
+		if !strings.Contains(err.Error(), "token is expired") {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
