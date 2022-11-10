@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
+	"os"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/title/titlepb"
 	colly "github.com/gocolly/colly/v2"
@@ -18,8 +18,7 @@ import (
 
 // get the thumbnail fil with help of youtube dl...
 func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
-
-	fmt.Println("--------------------------> download thumbnail for ", video_path, video_id, video_url)
+	fmt.Println("download thumbnail for ", video_path)
 
 	if len(video_id) == 0 {
 		return "", errors.New("no video id was given")
@@ -45,25 +44,38 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 	}
 
 	thumbnail_path := path_ + "/.hidden/" + name_ + "/__thumbnail__"
+
+	if Utility.Exists(thumbnail_path + "/" + "data_url.txt") {
+		
+		thumbnail, err :=os.ReadFile(thumbnail_path + "/" + "data_url.txt")
+		if err != nil {
+			return "", err
+		}
+
+		return string(thumbnail), nil
+	}
+
 	Utility.CreateDirIfNotExist(thumbnail_path)
 	cmd := exec.Command("youtube-dl", video_url, "-o", video_id, "--write-thumbnail", "--skip-download")
 	cmd.Dir = thumbnail_path
 
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println("55 -------------> ", err)
 		return "", err
 	}
 
 	files, err := Utility.ReadDir(thumbnail_path)
 	if err != nil {
-		fmt.Println("61 -------------> ", err)
 		return "", err
 	}
 
 	thumbnail, err := Utility.CreateThumbnail(filepath.Join(thumbnail_path, files[0].Name()), 300, 180)
 	if err != nil {
-		fmt.Println("67 -------------> ", err)
+		return "", err
+	}
+
+	err = os.WriteFile(thumbnail_path + "/" + "data_url.txt", []byte(thumbnail), 0664)
+	if err != nil {
 		return "", err
 	}
 
