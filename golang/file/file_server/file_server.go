@@ -4319,20 +4319,6 @@ func (file_server *server) createVideoInfo(token, path, absolute_path, info_path
 				if info["duration"] != nil {
 					video.Duration = shortDur(time.Duration(Utility.ToInt(info["duration"])))
 				}
-				
-				/*
-				video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
-				var marshaler jsonpb.Marshaler
-				jsonStr, err := marshaler.MarshalToString(video)
-				if err != nil {
-					return err
-				}
-
-				encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-				err = Utility.SetMetadata(file_path, "comment", encoded)
-				if err != nil {
-					return err
-				}*/
 
 				title_client_, err := getTitleClient()
 				if err != nil {
