@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -657,6 +658,69 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Now I will set the title url in the media file to keep track of the title
+	// information. If the title is lost it will be possible to recreate it from
+	// that url.
+	if strings.HasSuffix(rqst.IndexPath, "/search/titles") {
+		title, err := srv.getTitleById(rqst.IndexPath,  generateUUID(rqst.TitleId))
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if title.Poster != nil {
+			title.Poster.ContentUrl = title.Poster.URL // set the Content url with the lnk instead of data url to save space.
+		}
+		
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(title)
+		if err != nil {
+			return nil, err
+		}
+
+		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
+		err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
+		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(rqst.TitleId))
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		if video == nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video with id " + rqst.TitleId + " was not found")))
+		}
+
+		if video.Poster != nil {
+			video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
+		}
+		
+		var marshaler jsonpb.Marshaler
+		jsonStr, err := marshaler.MarshalToString(video)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		err = Utility.SetMetadata(absolutefilePath, "comment", jsonStr)
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
 	var uuid string
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
@@ -1203,13 +1267,16 @@ func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 
 // Insert a video in the database or update it if it already exist.
 func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
-	fmt.Println("try to create video", rqst.Video.ID)
+	
 	if rqst.Video == nil {
+		fmt.Println("no video was given")
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no video was given")))
 
 	}
+
+	fmt.Println("try to create video", rqst.Video.ID)
 
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)

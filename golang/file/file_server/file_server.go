@@ -36,6 +36,7 @@ import (
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/security"
+	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
 	"github.com/golang/protobuf/jsonpb"
@@ -74,8 +75,6 @@ var (
 
 	// the authentication client
 	authentication_client_ *authentication_client.Authentication_Client
-
-
 )
 
 // Value need by Globular to start the services...
@@ -154,8 +153,8 @@ type server struct {
 	// Generate playlist and titles for video and movies (series and episode.)
 	isProcessingVideo bool
 
-	// here I will keep thumbnail's to speed up loading process.
-	thumbnails map[string] string //*sync.Map
+	// Here I will keep files info in memory...
+	cache *storage_store.BigCache_store // todo use cache instead of memory...
 }
 
 // The http address where the configuration can be found /config
@@ -496,33 +495,31 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
 	id := path + "_" + Utility.ToString(h) + "x" + Utility.ToString(w)
 
-	thumnail, ok := s.thumbnails[id] //.Load(id)
-	if ok {
-		fmt.Println("-----> thumbnail found for ", path)
-		return thumnail, nil
+	data, err := s.cache.GetItem(id)
+	if err == nil {
+		return string(data), nil
 	}
 
-	fmt.Println("-----> create thumbnail for ", path)
 	t, err := Utility.CreateThumbnail(path, h, w)
 	if err != nil {
 		return "", err
 	}
-	
-	s.thumbnails[id] = t
+
+	s.cache.SetItem(id, []byte(t))
 
 	return t, nil
 }
 
 func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth int) (*fileInfo, error) {
 
+	info := new(fileInfo)
+	info.Path = path
+
 	path = strings.ReplaceAll(path, "\\", "/")
 	fileStat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
-
-	info := new(fileInfo)
-	info.Path = path
 
 	// Cut the root part of the path if it start with the root path.
 	if len(s.Root) > 0 {
@@ -534,11 +531,18 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	}
 
 	if !strings.Contains(path, "/.hidden") {
-		if strings.HasSuffix(path, "__preview__") || strings.HasSuffix(path, "__timeline__")|| strings.HasSuffix(path, "__thumbnail__") {
+		if strings.HasSuffix(path, "__preview__") || strings.HasSuffix(path, "__timeline__") || strings.HasSuffix(path, "__thumbnail__") {
 			info.Mime = "inode/directory"
 			info.IsDir = true
 			return info, nil
 		}
+	}
+
+	// Here I will try to get the info from the cache...
+	data, err_ := s.cache.GetItem(path)
+	if err_ == nil {
+		json.Unmarshal(data, &info)
+		return info, nil
 	}
 
 	info.IsDir = fileStat.IsDir()
@@ -549,7 +553,6 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	info.Size = fileStat.Size()
 	info.Name = fileStat.Name()
 	info.ModTime = fileStat.ModTime()
-
 
 	// Now the section depending of the mime type...
 	if !strings.Contains(path, "/.hidden") {
@@ -607,15 +610,15 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 							if Utility.Exists(hiddenFolder) {
 
 								// Here I will auto generate preview if it not already exist...
-								if !Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg"){
+								if !Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
 									// generate the preview...
-									os.RemoveAll(hiddenFolder + "/__preview__") // be sure it will 
+									os.RemoveAll(hiddenFolder + "/__preview__") // be sure it will
 									go createVideoPreview(info.Path, 20, 128, true)
 
-									os.RemoveAll(hiddenFolder + "/__timeline__") // be sure it will 
+									os.RemoveAll(hiddenFolder + "/__timeline__")     // be sure it will
 									go createVideoTimeLine(info.Path, 180, .2, true) // 1 frame per 5 seconds.
-								} 
-								
+								}
+
 								if Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
 									// So here if the mime type is a video I will get thumbnail from it preview images.
 									info.Thumbnail, err = s.getThumbnail(hiddenFolder+"/__preview__/preview_00001.jpg", -1, -1)
@@ -636,10 +639,10 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 									if err == nil {
 										for i := 0; i < len(files); i++ {
 											f := files[i]
-											
+
 											info.Thumbnail, err = s.getThumbnail(hiddenFolder+"/__thumbnail__"+"/"+f.Name(), 72, 128)
 											if err == nil {
-												os.WriteFile(hiddenFolder + "/__thumbnail__/data_url.txt", []byte(info.Thumbnail), 0644)
+												os.WriteFile(hiddenFolder+"/__thumbnail__/data_url.txt", []byte(info.Thumbnail), 0644)
 												break
 											}
 										}
@@ -652,7 +655,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 									path_ = strings.ReplaceAll(path_, "\\", "/")
 									path_ = path_ + "/mimetypes/video-x-generic.png"
-									
+
 									info.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
 								}
 							}
@@ -682,7 +685,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			if err == nil {
 				path_ = strings.ReplaceAll(path_, "\\", "/")
 				path_ = path_ + "/mimetypes/inode-directory.png"
-				info.Thumbnail, _ =s.getThumbnail(path_, 80, 80)
+				info.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
 			}
 
 			if Utility.Exists(path + "/playlist.m3u8") {
@@ -694,7 +697,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					if Utility.Exists(previewImage) {
 						// So here if the mime type is a video I will get thumbnail from it preview images.
 
-						info.Thumbnail, err =s.getThumbnail(previewImage, -1, -1)
+						info.Thumbnail, err = s.getThumbnail(previewImage, -1, -1)
 						if err != nil {
 							fmt.Println("fail to create thumbnail with error: ", err)
 						}
@@ -710,6 +713,11 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				}
 			}
 		}
+	}
+
+	data, err = json.Marshal(info)
+	if err == nil {
+		s.cache.SetItem(path, data)
 	}
 
 	return info, nil
@@ -873,18 +881,10 @@ func readMetadata(s *server, path string, thumnailHeight, thumbnailWidth int) (m
 	return metadata, nil
 }
 
-
-
 /**
  * Read the directory and return the file info.
  */
 func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string) (*fileInfo, error) {
-	
-	// Plain directory info was needed...
-	//if !recursive && !readFiles {
-		fmt.Println("---------> read dir: ", path, recursive, readFiles)
-		//return nil, errors.New("function no implemented!")
-	//}
 
 	// get the file info
 	info, err := getFileInfo(s, path, int(thumbnailMaxWidth), int(thumbnailMaxWidth))
@@ -1403,6 +1403,9 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	file_permissions, _ := rbac_client_.GetResourcePermissionsByResourceType("file")
 	permissions, _ := rbac_client_.GetResourcePermissions(from)
 
+	file_server.cache.RemoveItem(path + "/" + rqst.OldName)
+	file_server.cache.RemoveItem(path)
+
 	err = os.Rename(path+"/"+rqst.OldName, path+"/"+rqst.NewName)
 
 	if err != nil {
@@ -1478,8 +1481,6 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 		}
 	}
 
-	//rbac_client_.
-
 	startIndex := strings.LastIndex(rqst.GetOldName(), "/")
 	if startIndex != -1 {
 		startIndex++
@@ -1529,6 +1530,8 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No directory with path "+path+" was found!")))
 	}
+
+	file_server.cache.RemoveItem(path)
 
 	// Remove file asscociation contain by file in that directry
 	client, err := getTitleClient()
@@ -1717,6 +1720,11 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
 	path := file_server.formatPath(rqst.GetPath())
+
+	// Here I will remove the whole
+	file_server.cache.RemoveItem(path)
+	file_server.cache.RemoveItem(filepath.Dir(path))
+
 	err := os.Remove(path)
 
 	if err != nil {
@@ -2242,7 +2250,6 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 					}
 
 					permissions.Path = rqst.Path + "/" + permissions.Path[strings.LastIndex(permissions.Path, "/")+1:]
-					fmt.Println("set permission ", permissions.Path)
 					err := rbac_client_.SetResourcePermissions(token, permissions.Path, permissions.ResourceType, permissions)
 					if err != nil {
 						fmt.Println("fail to update the permission: ", err)
@@ -2264,8 +2271,6 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 					}
 				}
 			}
-		} else {
-			fmt.Println("file " + f + " dosen't exist!")
 		}
 	}
 
@@ -2556,25 +2561,19 @@ func processVideos(file_server *server) {
 								createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
 							}()
 						}
-					} else {
+					} else if ext == "mp3" {
+						if Utility.Exists(media_path) {
+							fmt.Println("------------> ", media_path)
+							dir := filepath.Dir(media_path)
+							if !Utility.Exists(dir + "/audio.m3u") {
+								os.Remove(dir + "/audio.m3u")
+							}
 
-						dir := filepath.Dir(media_path)
-
-						//dir = filepath.Dir(dir) // move back to it parent...
-
-						//err = Utility.Move(media_path, dir)
-						//if err != nil {
-						//	fmt.Println("fail to move file with err ", media_path, err)
-						//}
-
-						if !Utility.Exists(dir + "/audio.m3u") {
-							os.Remove(dir + "/audio.m3u")
-						}
-
-						// regenerate the playlist and also save the audio info...
-						err = file_server.generatePlaylist(dir, "")
-						if err != nil {
-							fmt.Println("fail to generate playlist with error ", err)
+							// regenerate the playlist and also save the audio info...
+							err = file_server.generatePlaylist(dir, "")
+							if err != nil {
+								fmt.Println("fail to generate playlist with error ", err)
+							}
 						}
 
 					}
@@ -2936,7 +2935,7 @@ func getVideoInfoPaths() []string {
 				}
 
 				path_ := strings.ReplaceAll(path, "\\", "/")
-				if strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".info.json") {
+				if strings.HasSuffix(path_, ".info.json") {
 					medias = append(medias, path_)
 				}
 
@@ -3890,7 +3889,6 @@ func (file_server *server) createAudio(client *title_client.Title_Client, path s
 
 			err := client.CreateAudio("", config.GetDataDir()+"/search/audios", track)
 			if err == nil {
-				fmt.Println("audio info was created for ", path)
 				err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/audios", track.ID, path)
 				if err != nil {
 					fmt.Println("fail to asscociate file ", err)
@@ -3948,7 +3946,6 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 
 			values := strings.Split(path_, "/")
 			path_ = ""
-			fmt.Println(values)
 			for j := 0; j < len(values); j++ {
 
 				path_ += url.QueryEscape(values[j])
@@ -4253,91 +4250,6 @@ func (srv *server) publishReloadDirEvent(path string) {
 	}
 }
 
-/**
- * Store meta data into a file.
- */
-func setMetadata(path, key, value string) error {
-
-	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
-	path = strings.ReplaceAll(path, "\\", "/")
-
-	// ffmpeg -i input.mp4 -metadata title="The video titile" -c copy output.mp4
-	// Try more than once...
-	nbTry := 15 * 60
-	var err error
-
-	// Generate the video in a temp file...
-	dest := strings.ReplaceAll(path, ".mp4", ".temp.mp4") //strings.ReplaceAll(path, "/.hidden/", "/")
-	if Utility.Exists(dest) {
-		os.Remove(dest)
-	}
-
-	fmt.Println("----> path ", dest, path)
-
-	for nbTry > 0 {
-		cmd := exec.Command("ffmpeg", `-i`, path, `-metadata`, key+`=`+value, `-c`, `copy`, dest)
-		cmd.Dir = filepath.Dir(path)
-		done := make(chan bool)
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			fmt.Println("------------> 4214 ", err)
-			return err
-		}
-		output := make(chan string)
-
-		// Process message util the command is done.
-		go func() {
-			for {
-				select {
-				case <-done:
-					break
-
-				case result := <-output:
-					fmt.Println(result)
-				}
-			}
-		}()
-
-		// Start reading the output
-		// Start reading the output
-		go Utility.ReadOutput(output, stdout)
-		err = cmd.Run()
-		if err != nil || !Utility.Exists(dest) {
-			fmt.Println("fail to create metadata with error ", err, " try again in 5 sec...", nbTry)
-			nbTry-- // give it time
-			time.Sleep(2 * time.Second)
-		} else if Utility.Exists(dest) {
-			// Remove the original file...
-			err = os.Remove(path)
-			if err != nil {
-				return err
-			}
-
-			// rename the file...
-			err = os.Rename(dest, path)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}
-		if err != nil {
-			fmt.Println("fail to run command ", err)
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-		}
-
-		cmd.Wait()
-
-		// Close the output.
-		stdout.Close()
-		done <- true
-
-	}
-
-	return err
-}
 
 func (file_server *server) createVideoInfo(token, path, absolute_path, info_path string) error {
 
@@ -4346,7 +4258,6 @@ func (file_server *server) createVideoInfo(token, path, absolute_path, info_path
 		info := make(map[string]interface{})
 		err = json.Unmarshal(data, &info)
 		if err == nil {
-			fmt.Println("create video info for ", info["id"].(string))
 			// So here I will
 			//  indexPornhubVideo(token, video_url, index_path, video_path, file_path  string)
 			// Scrapper...
@@ -4373,7 +4284,6 @@ func (file_server *server) createVideoInfo(token, path, absolute_path, info_path
 				}
 			}
 			if err == nil && video != nil {
-				fmt.Println("4151 info was created for ", info["id"].(string))
 				// set info from the json file...
 				if info["fulltitle"] != nil {
 					video.Description = info["fulltitle"].(string)
@@ -4409,7 +4319,8 @@ func (file_server *server) createVideoInfo(token, path, absolute_path, info_path
 				if info["duration"] != nil {
 					video.Duration = shortDur(time.Duration(Utility.ToInt(info["duration"])))
 				}
-
+				
+				/*
 				video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
 				var marshaler jsonpb.Marshaler
 				jsonStr, err := marshaler.MarshalToString(video)
@@ -4418,10 +4329,10 @@ func (file_server *server) createVideoInfo(token, path, absolute_path, info_path
 				}
 
 				encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-				err = setMetadata(file_path, "comment", encoded)
+				err = Utility.SetMetadata(file_path, "comment", encoded)
 				if err != nil {
 					return err
-				}
+				}*/
 
 				title_client_, err := getTitleClient()
 				if err != nil {
@@ -4447,7 +4358,6 @@ func (file_server *server) createVideoInfo(token, path, absolute_path, info_path
 		}
 	}
 
-	fmt.Println("--------------> done creating info!")
 	return err
 }
 
@@ -4473,7 +4383,6 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 
 	baseCmd := "youtube-dl"
 	var cmdArgs []string
-	fmt.Println("try to upload ", rqst.Url, "to", path)
 
 	if rqst.Format == "mp3" {
 		cmdArgs = append(cmdArgs, []string{"-f", "bestaudio", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "--embed-thumbnail", "--embed-metadata", "--write-info-json", "-o", `%(id)s.%(ext)s`, rqst.Url}...)
@@ -4569,8 +4478,6 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 				if err != nil {
 					return err
 				}
-
-				fmt.Println("the token was refresh...")
 			}
 
 			stream.Send(
@@ -4640,29 +4547,12 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 
 	// Process audio
 	audios := Utility.GetFilePathsByExtension(path, ".mp3")
+	needRefresh := false
 	for i := 0; i < len(audios); i++ {
 		fileName := audios[i]
 		info_path := strings.ReplaceAll(fileName, ".mp3", ".info.json")
 		if Utility.Exists(info_path) {
-			dir := filepath.Dir(fileName)
-
-			//dir = filepath.Dir(dir) // move back to it parent...
-
-			//err = Utility.Move(fileName, dir)
-			//if err != nil {
-			//	fmt.Println("fail to move file with err ", path, err)
-			//}
-
-			if !Utility.Exists(dir + "/audio.m3u") {
-				os.Remove(dir + "/audio.m3u")
-			}
-
-			// regenerate the playlist and also save the audio info...
-			err = file_server.generatePlaylist(dir, "")
-			if err != nil {
-				fmt.Println("fail to generate playlist with error ", err)
-			}
-
+			needRefresh = true
 			// create the file permission...
 			err = file_server.createPermission(token, rqst.Dest+"/"+filepath.Base(fileName))
 			if err != nil {
@@ -4673,6 +4563,19 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			if err != nil {
 				fmt.Println("fail to remove file ", info_path, err)
 			}
+		}
+
+	}
+	if needRefresh {
+
+		if !Utility.Exists(path + "/audio.m3u") {
+			os.Remove(path + "/audio.m3u")
+		}
+
+		// regenerate the playlist and also save the audio info...
+		err = file_server.generatePlaylist(path, "")
+		if err != nil {
+			fmt.Println("fail to generate playlist with error ", err)
 		}
 	}
 
@@ -4870,7 +4773,8 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
-	s_impl.thumbnails = make(map[string] string)
+	s_impl.cache = storage_store.NewBigCache_store()
+	s_impl.cache.Open("")
 
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()
@@ -4931,7 +4835,6 @@ func main() {
 	s_impl.scheduler.Every(1).Day().At(s_impl.StartVideoConversionHour).Do(processVideos, s_impl)
 	if s_impl.AutomaticVideoConversion {
 		// Start the scheduler
-		fmt.Println("start scheduler!")
 		s_impl.scheduler.Start()
 	}
 
