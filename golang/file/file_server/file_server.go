@@ -530,7 +530,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		}
 	}
 
-	if !strings.Contains(path, "/.hidden") {
+	if strings.Contains(path, "/.hidden") {
 		if strings.HasSuffix(path, "__preview__") || strings.HasSuffix(path, "__timeline__") || strings.HasSuffix(path, "__thumbnail__") {
 			info.Mime = "inode/directory"
 			info.IsDir = true
@@ -681,12 +681,12 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				}
 			}
 		} else {
-			path_, err := os.Getwd()
+			/*path_, err := os.Getwd()
 			if err == nil {
 				path_ = strings.ReplaceAll(path_, "\\", "/")
 				path_ = path_ + "/mimetypes/inode-directory.png"
 				info.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
-			}
+			}*/
 
 			if Utility.Exists(path + "/playlist.m3u8") {
 				path_ := path[0:strings.LastIndex(path, "/")]
@@ -2563,7 +2563,6 @@ func processVideos(file_server *server) {
 						}
 					} else if ext == "mp3" {
 						if Utility.Exists(media_path) {
-							fmt.Println("------------> ", media_path)
 							dir := filepath.Dir(media_path)
 							if !Utility.Exists(dir + "/audio.m3u") {
 								os.Remove(dir + "/audio.m3u")
@@ -2609,53 +2608,29 @@ func processVideos(file_server *server) {
 					if tags["comment"] != nil {
 						comment := tags["comment"].(string)
 						if len(comment) > 0 {
-							jsonStr, _ := base64.StdEncoding.DecodeString(comment)
-							title := new(titlepb.Title)
-							err = jsonpb.UnmarshalString(string(jsonStr), title)
-							if err == nil {
-								// so here I will make sure the title exist...
-								client, err := getTitleClient()
-								if err == nil {
-									t, paths, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
-									if err != nil {
-										// the title was no found...
-										if t == nil {
-											err := client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
-											if err == nil {
-												// now I will associate the path.
-												path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
-												path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
-												client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
-											} else {
-												fmt.Println(title.ID, " fail to create title with error: ", err)
-											}
-										}
-
-									} else {
-										path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
-										path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
-										if !Utility.Contains(paths, path) {
-											// associate the path.
-											client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
-										}
-									}
-								}
-							} else {
-								video := new(titlepb.Video)
-								err := jsonpb.UnmarshalString(string(jsonStr), video)
+							jsonStr, err := base64.StdEncoding.DecodeString(comment)
+							if err != nil {
+								jsonStr = []byte(comment); 
+							}
+								title := new(titlepb.Title)
+								err = jsonpb.UnmarshalString(string(jsonStr), title)
 								if err == nil {
 									// so here I will make sure the title exist...
 									client, err := getTitleClient()
 									if err == nil {
-										v, paths, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
-										if v == nil {
+										t, paths, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
+										if err != nil {
 											// the title was no found...
-											err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
-											if err == nil {
-												// now I will associate the path.
-												path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
-												path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
-												client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
+											if t == nil {
+												err := client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
+												if err == nil {
+													// now I will associate the path.
+													path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
+													path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
+													client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
+												} else {
+													fmt.Println(title.ID, " fail to create title with error: ", err)
+												}
 											}
 
 										} else {
@@ -2663,12 +2638,42 @@ func processVideos(file_server *server) {
 											path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
 											if !Utility.Contains(paths, path) {
 												// associate the path.
-												client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+												client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
 											}
 										}
 									}
+								} else {
+									video := new(titlepb.Video)
+									err := jsonpb.UnmarshalString(string(jsonStr), video)
+									if err == nil {
+										// so here I will make sure the title exist...
+										client, err := getTitleClient()
+										if err == nil {
+
+											v, paths, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
+											if v == nil {
+
+												// the title was no found...
+												err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
+												if err == nil {
+													// now I will associate the path.
+													path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
+													path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
+													client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
+												}
+
+											} else {
+												path := strings.Replace(videos[i], config.GetDataDir()+"/files", "", -1)
+												path = strings.Replace(videos[i], "/playlist.m3u8", "", -1)
+												if !Utility.Contains(paths, path) {
+													// associate the path.
+													client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
+												}
+											}
+										}
+									} 
 								}
-							}
+							
 						}
 					}
 				}
@@ -2866,9 +2871,11 @@ func getVideoPaths() []string {
 	medias := make([]string, 0)
 	dirs := make([]string, 0)
 	dirs = append(dirs, config.GetPublicDirs()...)
-	dirs = append(dirs, config.GetDataDir()+"/files")
+	dirs = append(dirs, config.GetDataDir()+"/files/users")
+	dirs = append(dirs, config.GetDataDir()+"/files/applications")
 
 	for _, dir := range dirs {
+		fmt.Println("try to find video in directory ", dir)
 		filepath.Walk(dir,
 			func(path string, info os.FileInfo, err error) error {
 
@@ -2882,18 +2889,17 @@ func getVideoPaths() []string {
 
 				if info.IsDir() {
 					isEmpty, err := Utility.IsEmpty(path + "/" + info.Name())
+
 					if err == nil && isEmpty {
 						// remove empty dir...
 						os.RemoveAll(path + "/" + info.Name())
 					}
-				}
-				if err != nil {
-					return err
-				}
+				} else {
+					path_ := strings.ReplaceAll(path, "\\", "/")
 
-				path_ := strings.ReplaceAll(path, "\\", "/")
-				if !strings.Contains(path_, ".hidden") && strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
-					medias = append(medias, path_)
+					if (!strings.Contains(path_, ".hidden") && strings.HasSuffix(path_, "playlist.m3u8")) || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
+						medias = append(medias, path_)
+					}
 				}
 				return nil
 			})
@@ -4249,7 +4255,6 @@ func (srv *server) publishReloadDirEvent(path string) {
 		client.Publish("reload_dir_event", []byte(path))
 	}
 }
-
 
 func (file_server *server) createVideoInfo(token, path, absolute_path, info_path string) error {
 

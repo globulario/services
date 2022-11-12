@@ -707,13 +707,14 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		
 		var marshaler jsonpb.Marshaler
 		jsonStr, err := marshaler.MarshalToString(video)
+		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		err = Utility.SetMetadata(absolutefilePath, "comment", jsonStr)
+		err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
