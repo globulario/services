@@ -98,6 +98,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	fmt.Println("----------> ", session.AccountId, " token was refresh!")
 	// return the token string.
 	return &authenticationpb.RefreshTokenRsp{
 		Token: tokenString,
