@@ -407,7 +407,7 @@ service FileService {
 	// Specific files...
 	rpc GetThumbnails(GetThumbnailsRequest) returns (stream GetThumbnailsResponse){};
 
-	// Upload a video from a given url, it use youtube-dl.
+	// Upload a video from a given url, it use .
 	rpc UploadVideo(UploadVideoRequest) returns (stream UploadVideoResponse){};
 
 	// Create a viedeo Preview...

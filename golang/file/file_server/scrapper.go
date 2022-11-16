@@ -4,17 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/title/titlepb"
+	colly "github.com/gocolly/colly/v2"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
-	"os"
-	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/title/titlepb"
-	colly "github.com/gocolly/colly/v2"
 )
-
 
 // get the thumbnail fil with help of youtube dl...
 func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
@@ -46,8 +45,8 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 	thumbnail_path := path_ + "/.hidden/" + name_ + "/__thumbnail__"
 
 	if Utility.Exists(thumbnail_path + "/" + "data_url.txt") {
-		
-		thumbnail, err :=os.ReadFile(thumbnail_path + "/" + "data_url.txt")
+
+		thumbnail, err := os.ReadFile(thumbnail_path + "/" + "data_url.txt")
 		if err != nil {
 			return "", err
 		}
@@ -56,17 +55,21 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 	}
 
 	Utility.CreateDirIfNotExist(thumbnail_path)
-	cmd := exec.Command("youtube-dl", video_url, "-o", video_id, "--write-thumbnail", "--skip-download")
-	cmd.Dir = thumbnail_path
+	files, _ := Utility.ReadDir(thumbnail_path)
 
-	err := cmd.Run()
-	if err != nil {
-		return "", err
-	}
+	if len(files) == 0 {
+		cmd := exec.Command("yt-dlp", video_url, "-o", video_id, "--write-thumbnail", "--skip-download")
+		cmd.Dir = thumbnail_path
 
-	files, err := Utility.ReadDir(thumbnail_path)
-	if err != nil {
-		return "", err
+		err := cmd.Run()
+		if err != nil {
+			return "", err
+		}
+
+		files, err = Utility.ReadDir(thumbnail_path)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	thumbnail, err := Utility.CreateThumbnail(filepath.Join(thumbnail_path, files[0].Name()), 300, 180)
@@ -74,7 +77,7 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 		return "", err
 	}
 
-	err = os.WriteFile(thumbnail_path + "/" + "data_url.txt", []byte(thumbnail), 0664)
+	err = os.WriteFile(thumbnail_path+"/"+"data_url.txt", []byte(thumbnail), 0664)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +87,7 @@ func downloadThumbnail(video_id, video_url, video_path string) (string, error) {
 }
 
 // Upload a video from porn hub and index it in the seach engine on the server side.
-func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path  string) (*titlepb.Video, error) {
+func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path string) (*titlepb.Video, error) {
 
 	currentVideo := new(titlepb.Video)
 	currentVideo.Casting = make([]*titlepb.Person, 0)
@@ -250,7 +253,7 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 	currentVideo.Tags = []string{} // keep empty...
 	currentVideo.URL = video_url
 
-	currentVideo.ID =video_id
+	currentVideo.ID = video_id
 
 	currentVideo.Poster = new(titlepb.Poster)
 	currentVideo.Poster.ID = currentVideo.ID + "-thumnail"
@@ -354,7 +357,6 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 
 		currentVideo.Rating = like / (like + unlike) * 10 // create a score on 10
 	})
-
 
 	movieCollector.Visit(video_url)
 	return currentVideo, nil

@@ -234,15 +234,15 @@ func (client *Resource_Client) SetCaFile(caFile string) {
 
 ////////////// API ////////////////
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Object Reference
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func (client *Resource_Client) CreateReference(id, sourceCollection, field, targetId, targetCollection string) error {
 	rqst := &resourcepb.CreateReferenceRqst{
-		SourceId: id,
+		SourceId:         id,
 		SourceCollection: sourceCollection,
-		FieldName: field,
-		TargetId: targetId,
+		FieldName:        field,
+		TargetId:         targetId,
 		TargetCollection: targetCollection,
 	}
 
@@ -252,9 +252,9 @@ func (client *Resource_Client) CreateReference(id, sourceCollection, field, targ
 
 func (client *Resource_Client) DeleteReference(refId, targetId, targetField, targetCollection string) error {
 	rqst := &resourcepb.DeleteReferenceRqst{
-		RefId: refId,
-		TargetId: targetId,
-		TargetField: targetField,
+		RefId:            refId,
+		TargetId:         targetId,
+		TargetField:      targetField,
 		TargetCollection: targetCollection,
 	}
 
@@ -262,9 +262,9 @@ func (client *Resource_Client) DeleteReference(refId, targetId, targetField, tar
 	return err
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // Package Descriptor
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func (client *Resource_Client) SetPackageDescriptor(descriptor *resourcepb.PackageDescriptor) error {
 
 	// Create a new Organization.
@@ -501,6 +501,21 @@ func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Org
 	return organizations, err
 }
 
+
+func (client *Resource_Client) UpdateOrganization(token string, o *resourcepb.Organization) error {
+	rqst := new(resourcepb.UpdateOrganizationRqst)
+	rqst.OrganizationId = o.Id
+	rqst.Values = `{"$set":{"name":"` + o.Name + `","description":"` + o.Description + `", "domain":"` + o.Domain + `"}}`
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.UpdateOrganization(ctx, rqst)
+
+	return err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Account
 ////////////////////////////////////////////////////////////////////////////////
@@ -539,7 +554,7 @@ func (client *Resource_Client) GetAccount(id string) (*resourcepb.Account, error
 // Update account values
 func (client *Resource_Client) SetAccount(token string, account *resourcepb.Account) error {
 	rqst := &resourcepb.SetAccountRqst{
-		Account:   account,
+		Account: account,
 	}
 
 	// Save account values.
@@ -554,6 +569,36 @@ func (client *Resource_Client) SetAccount(token string, account *resourcepb.Acco
 	return nil
 }
 
+func (client *Resource_Client) GetAccounts(query string) ([]*resourcepb.Account, error) {
+	rqst := &resourcepb.GetAccountsRqst{Query: query}
+	stream, err := client.c.GetAccounts(context.Background(), rqst)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := make([]*resourcepb.Account, 0)
+
+	// Here I will create the final array
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			// end of stream...
+			break
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, msg.Accounts...)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return accounts, nil
+}
 
 // Set the new password.
 func (client *Resource_Client) SetAccountPassword(accountId, token, oldPassword, newPassword string) error {
@@ -576,12 +621,16 @@ func (client *Resource_Client) SetAccountPassword(accountId, token, oldPassword,
 }
 
 // Delete an account.
-func (client *Resource_Client) DeleteAccount(id string) error {
+func (client *Resource_Client) DeleteAccount(id, token string) error {
 	rqst := &resourcepb.DeleteAccountRqst{
 		Id: id,
 	}
 
-	_, err := client.c.DeleteAccount(client.GetCtx(), rqst)
+	// Save account values.
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(context.Background(), md)
+
+	_, err := client.c.DeleteAccount(ctx, rqst)
 	return err
 }
 
@@ -767,6 +816,21 @@ func (client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, err
 	return groups, err
 }
 
+
+func (client *Resource_Client) UpdateGroup(token string, g *resourcepb.Group) error {
+	rqst := new(resourcepb.UpdateGroupRqst)
+	rqst.GroupId = g.Id
+	rqst.Values = `{"$set":{"name":"` + g.Name + `","description":"` + g.Description + `", "domain":"` + g.Domain + `"}}`
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.UpdateGroup(ctx, rqst)
+
+	return err
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Role
 ////////////////////////////////////////////////////////////////////////////////
@@ -795,6 +859,20 @@ func (client *Resource_Client) DeleteRole(name string) error {
 	rqst.RoleId = name
 
 	_, err := client.c.DeleteRole(client.GetCtx(), rqst)
+
+	return err
+}
+
+func (client *Resource_Client) UpdateRole(token string, r *resourcepb.Role) error {
+	rqst := new(resourcepb.UpdateRoleRqst)
+	rqst.RoleId = r.Id
+	rqst.Values = `{"$set":{"name":"` + r.Name + `","description":"` + r.Description + `", "domain":"` + r.Domain + `"}}`
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.UpdateRole(ctx, rqst)
 
 	return err
 }
@@ -1200,6 +1278,21 @@ func (client *Resource_Client) CreateApplication(token, id, domain, password, pa
 	}
 
 	return nil
+}
+
+
+func (client *Resource_Client) UpdateApplication(token string, a *resourcepb.Application) error {
+	rqst := new(resourcepb.UpdateApplicationRqst)
+	rqst.ApplicationId = a.Id
+	rqst.Values = `{"$set":{"version":"`+a.Version+`","path":"`+a.Path+`","icon":"`+a.Icon+`","publisherid":"`+a.Publisherid+`","alias":"`+a.Alias+`","name":"` + a.Name + `","description":"` + a.Description + `", "domain":"` + a.Domain + `"}}`
+
+	// set the token in the context...
+	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
+	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
+
+	_, err := client.c.UpdateApplication(ctx, rqst)
+
+	return err
 }
 
 /**

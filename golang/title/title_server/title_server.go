@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
+	"path/filepath"
 	"strings"
+
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -578,6 +579,8 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	// Now I will get the title thumbnail...
+
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(rqst.Title)
@@ -680,12 +683,20 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 
 		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		if fileInfo.IsDir(){
+			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+					if err != nil {
+						return nil, err
+					}
+		}else{
+			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
 		}
+
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
 		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(rqst.TitleId))
@@ -714,11 +725,18 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-		if err != nil {
-			return nil, status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		if fileInfo.IsDir(){
+			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
+					if err != nil {
+						return nil, err
+					}
+		}else{
+			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
+			if err != nil {
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
 		}
 	}
 
@@ -727,16 +745,15 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
 	var parent string
+	parent = filepath.Dir(filePath)
 
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
 		// is a directory
 		uuid = generateUUID(filePath)
-		parent = filePath
 	} else {
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
-		parent = path.Dir(filePath)
 	}
 
 	if srv.associations == nil {
@@ -795,6 +812,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	if !Utility.Contains(association.Paths, filePath) {
 		association.Paths = append(association.Paths, filePath)
 	}
+
 	if !Utility.Contains(association.Titles, rqst.TitleId) {
 		association.Titles = append(association.Titles, rqst.TitleId)
 	}
@@ -2025,7 +2043,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	}
 
 	if !Utility.Exists(absolutefilePath) {
-		fmt.Println("---------> 2075")
+		fmt.Println("---------> 2075 ", absolutefilePath)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
@@ -2063,7 +2081,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
-			fmt.Println("---------> 2113")
+			fmt.Println("---------> 2113 ", err)
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2076,7 +2094,7 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		if err == nil {
 			audios = append(audios, audio)
 		} else {
-			fmt.Println("---------> 2126")
+			fmt.Println("---------> 2126 ", err)
 		}
 	}
 

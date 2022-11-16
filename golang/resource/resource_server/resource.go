@@ -921,6 +921,43 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 	return &resourcepb.CreateRoleRsp{Result: true}, nil
 }
 
+/**
+ * Create a group with a given name of update existing one.
+ */
+ func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRqst) (*resourcepb.UpdateRoleRsp, error) {
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Get the persistence connection
+	count, err := p.Count(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, "")
+	if err != nil || count == 0 {
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	} else {
+
+		err = p.UpdateOne(context.Background(), "local_resource", "local_resource", "Roles", `{"_id":"`+rqst.RoleId+`"}`, rqst.Values, "")
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+	}
+
+	localDomain, err := config.GetDomain()
+	resource_server.publishEvent("update_role_"+rqst.RoleId+"_evt", []byte{}, localDomain)
+
+	return &resourcepb.UpdateRoleRsp{
+		Result: true,
+	}, nil
+}
+
 func (resource_server *server) GetRoles(rqst *resourcepb.GetRolesRqst, stream resourcepb.ResourceService_GetRolesServer) error {
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()

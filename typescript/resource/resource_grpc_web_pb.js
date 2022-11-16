@@ -16,7 +16,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 const proto = {};
-proto.resource = require('./resource_pb.js');
+proto.resource = require('../resource/resource_pb.js');
 
 /**
  * @param {string} hostname
@@ -2004,6 +2004,67 @@ proto.resource.ResourceServicePromiseClient.prototype.createRole =
       request,
       metadata || {},
       methodDescriptor_ResourceService_CreateRole);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.UpdateRoleRqst,
+ *   !proto.resource.UpdateRoleRsp>}
+ */
+const methodDescriptor_ResourceService_UpdateRole = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/UpdateRole',
+  grpc.web.MethodType.UNARY,
+  proto.resource.UpdateRoleRqst,
+  proto.resource.UpdateRoleRsp,
+  /**
+   * @param {!proto.resource.UpdateRoleRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.UpdateRoleRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.UpdateRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.UpdateRoleRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.UpdateRoleRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.updateRole =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/UpdateRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateRole,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.UpdateRoleRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.UpdateRoleRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.updateRole =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/UpdateRole',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_UpdateRole);
 };
 
 

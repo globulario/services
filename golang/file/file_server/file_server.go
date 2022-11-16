@@ -8,11 +8,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/StalkR/imdb"
+
 	"io"
 	"io/ioutil"
 	"log"
 	"math"
 	"mime"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -2513,6 +2516,20 @@ func processAudios(file_server *server) {
 func restoreVideoInfos(video_path string) error {
 	// get video info from metadata
 	infos, err := getVideoInfos(video_path)
+	if err != nil {
+		fmt.Println("fail to get video info for file at path: ", video_path)
+		return err
+	}
+
+	// Get the title
+	// so here I will make sure the title exist...
+	client, err := getTitleClient()
+	if err != nil {
+		fmt.Println("fail to connect to local title client ", err)
+		return err
+	}
+
+	fmt.Println("try to restore file ", video_path)
 
 	if err == nil && infos != nil {
 		if infos["format"] != nil {
@@ -2528,55 +2545,93 @@ func restoreVideoInfos(video_path string) error {
 						title := new(titlepb.Title)
 						err = jsonpb.UnmarshalString(string(jsonStr), title)
 						if err == nil {
-							// so here I will make sure the title exist...
-							client, err := getTitleClient()
-							if err == nil {
-								t, paths, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
-								if err != nil {
-									// the title was no found...
-									if t == nil {
-										err := client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
-										if err == nil {
-											// now I will associate the path.
-											path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-											path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-											client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
-										} else {
-											return err
+							t, paths, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
+							if err != nil {
+								// the title was no found...
+								if t == nil {
+									client_ := http.DefaultClient
+									title__, err := imdb.NewTitle(client_, title.ID)
+									if err == nil {
+										title.Poster.URL = title__.Poster.ContentURL
+										title.Poster.ContentUrl = title__.Poster.ContentURL
+
+										// The hidden folder path...
+										lastIndex := -1
+										if strings.Contains(video_path, ".mp4") {
+											lastIndex = strings.LastIndex(video_path, ".")
 										}
+
+										// The hidden folder path...
+										path_ := video_path[0:strings.LastIndex(video_path, "/")]
+
+										name_ := video_path[strings.LastIndex(video_path, "/")+1:]
+										if lastIndex != -1 {
+											name_ = video_path[strings.LastIndex(video_path, "/")+1 : lastIndex]
+										}
+
+										thumbnail_path := path_ + "/.hidden/" + name_ + "/__thumbnail__"
+										Utility.CreateIfNotExists(thumbnail_path, 0644)
+										err = Utility.DownloadFile(title.Poster.URL, thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:])
+										if err == nil {
+											title.Poster.ContentUrl, _ = downloadThumbnail(title.ID, title.URL, video_path)
+											thumbnail, err := Utility.CreateThumbnail(thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:], 300, 180)
+											if err == nil {
+												os.WriteFile(thumbnail_path+"/"+"data_url.txt", []byte(thumbnail), 0664)
+											}
+										}
+
+										title.Rating = float32(Utility.ToNumeric(title__.Rating))
+										title.RatingCount = int32(title__.RatingCount)
 									}
 
-								} else {
-									path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
-									path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
-									if !Utility.Contains(paths, path) {
-										// associate the path.
-										client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
+									err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
+									if err == nil {
+										// now I will associate the path.
+										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
+										path = strings.ReplaceAll(video_path, "/playlist.m3u8", "")
+
+										client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, path)
+
+									} else {
+										fmt.Println("fail to create title ", title.ID, " with error ", err)
 									}
 								}
+
 							} else {
-								return err
+								path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
+								path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
+								if !Utility.Contains(paths, path) {
+									// associate the path.
+									client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, path)
+								}
 							}
+
 						} else {
 							video := new(titlepb.Video)
 							err := jsonpb.UnmarshalString(string(jsonStr), video)
-							if err == nil {
+							if err == nil && video != nil {
+
 								// so here I will make sure the title exist...
 								client, err := getTitleClient()
 								if err == nil {
 
 									v, paths, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
 									if v == nil {
+										if video.Poster == nil {
+											video.Poster = new(titlepb.Poster)
+											video.Poster.ID = video.ID
+										}
 
+										video.Poster.ContentUrl, _ = downloadThumbnail(video.ID, video.URL, video_path)
 										// the title was no found...
 										err := client.CreateVideo("", config.GetDataDir()+"/search/videos", video)
 										if err == nil {
+
 											// now I will associate the path.
 											path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
 											path = strings.Replace(video_path, "/playlist.m3u8", "", -1)
 											client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", title.ID, path)
-										} else {
-											return err
+
 										}
 
 									} else {
@@ -2587,11 +2642,7 @@ func restoreVideoInfos(video_path string) error {
 											client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", v.ID, path)
 										}
 									}
-								} else {
-									return err
 								}
-							} else {
-								return err
 							}
 						}
 
@@ -2599,6 +2650,10 @@ func restoreVideoInfos(video_path string) error {
 				}
 			}
 		}
+	}
+
+	if err != nil {
+		fmt.Println("fail to restore info for file ", video_path, err)
 	}
 
 	return err
@@ -3606,7 +3661,7 @@ func createVideoPreview(s *server, path string, nb int, height int, force bool) 
 	start := .1 * duration
 	laps := 120 // 1 minutes
 	var err error
-	for nbTry := 60 * 5;  nbTry > 0; nbTry-- {
+	for nbTry := 60 * 5; nbTry > 0; nbTry-- {
 		// Create dir fail for no reason in windows so I will try repeat it until it succed... give im time...
 		Utility.CreateDirIfNotExist(output)
 
@@ -3617,7 +3672,7 @@ func createVideoPreview(s *server, path string, nb int, height int, force bool) 
 		var stderr bytes.Buffer
 		cmd.Stdout = &out
 		cmd.Stderr = &stderr
-		
+
 		err = cmd.Run()
 		if err == nil {
 			break
@@ -3675,11 +3730,26 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 		path_ := path[0:strings.LastIndex(path, "/")]
 		if Utility.Exists(path_ + "/infos.json") {
 			data, err := os.ReadFile(path_ + "/infos.json")
-			infos := make(map[string]interface{})
-			err = json.Unmarshal(data, &infos)
+			title := make(map[string]interface{})
+			err = json.Unmarshal(data, &title)
 			if err != nil {
 				return nil, err
 			}
+
+			// Convert the videos info to json string
+			data_, err := json.Marshal(title)
+			if err != nil {
+				return nil, err
+			}
+
+			// encode the data to base 64
+			str := base64.StdEncoding.EncodeToString(data_)
+
+			// set the infos in a map... map->format->tags->comment
+			infos := make(map[string]interface{})
+			infos["format"] = make(map[string]interface{})
+			infos["format"].(map[string]interface{})["tags"] = make(map[string]interface{})
+			infos["format"].(map[string]interface{})["tags"].(map[string]interface{})["comment"] = str
 
 			return infos, nil
 
@@ -3708,13 +3778,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 					infos["format"].(map[string]interface{})["tags"] = make(map[string]interface{})
 					infos["format"].(map[string]interface{})["tags"].(map[string]interface{})["comment"] = str
 
-					// Save it back to the json file...
-					data_, err := json.Marshal(infos)
-					if err != nil {
-						return nil, err
-					}
-
-					err = os.WriteFile(path_+"/infos.json", data_, 0664)
+					err = os.WriteFile(path_+"/infos.json", data, 0664)
 					if err != nil {
 						return nil, err
 					}
@@ -3743,13 +3807,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 					infos["format"].(map[string]interface{})["tags"] = make(map[string]interface{})
 					infos["format"].(map[string]interface{})["tags"].(map[string]interface{})["comment"] = str
 
-					// Save it back to the json file...
-					data_, err := json.Marshal(infos)
-					if err != nil {
-						return nil, err
-					}
-
-					err = os.WriteFile(path_+"/infos.json", data_, 0664)
+					err = os.WriteFile(path_+"/infos.json", data, 0664)
 					if err != nil {
 						return nil, err
 					}
@@ -4400,7 +4458,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 	Utility.CreateDirIfNotExist(path)
 	done := make(chan bool)
 
-	baseCmd := "youtube-dl"
+	baseCmd := "yt-dlp"
 	var cmdArgs []string
 
 	if rqst.Format == "mp3" {
@@ -4457,6 +4515,8 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 	// Close the output.
 	stdout.Close()
 	done <- true
+
+	fmt.Println("-----------------> 4519: ", path)
 
 	// Done with upload now I will porcess videos
 	ctx := stream.Context()
@@ -4554,12 +4614,23 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 				)
 			}
 
+			if !Utility.Exists(path + "/video.m3u") {
+				os.Remove(path + "/video.m3u")
+			}
+
+			// regenerate the playlist and also save the audio info...
+			err = file_server.generatePlaylist(path, "")
+			if err != nil {
+				fmt.Println("fail to generate playlist with error ", err)
+			}
+
 			// call videos processing and return...
 			go func() {
 				fileName_ := strings.ReplaceAll(fileName, "/.hidden/", "/")
 				createVideoPreview(file_server, fileName_, 20, 128, false)
 				generateVideoGifPreview(fileName_, 10, 320, 30, true)
 				createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
+
 			}()
 		}
 	}

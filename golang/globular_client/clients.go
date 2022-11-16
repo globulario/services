@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	//"log"
 	"reflect"
 	"strings"
 
@@ -109,6 +110,13 @@ type Client interface {
  * Initialyse the client security and set it port to
  */
 func InitClient(client Client, address string, id string) error {
+	if len(address) == 0 {
+		return errors.New("no address was given for client id " + id)
+	}
+
+	if len(address) == 0 {
+		return errors.New("no id was given for client address " + address)
+	}
 
 	var config_ map[string]interface{}
 	var err error
@@ -117,8 +125,10 @@ func InitClient(client Client, address string, id string) error {
 	// http server. If not given thas mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
+
 	localConfig, _ := config.GetLocalConfig(true)
 	if !strings.Contains(address, ":") {
+		fmt.Println("--------------> 123 ", address_)
 		if strings.HasPrefix(address_, address) {
 			// this is local
 			if localConfig["Protocol"].(string) == "https" {
@@ -136,6 +146,7 @@ func InitClient(client Client, address string, id string) error {
 	domain := values[0]
 	port := Utility.ToInt(values[1])
 	isLocal := address_ == address
+
 	if isLocal {
 		// Local client configuration
 		config_, err = client.GetConfiguration(address, id)

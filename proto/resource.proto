@@ -245,6 +245,18 @@ message CreateRoleRqst { Role role = 1; }
 
 message CreateRoleRsp { bool result = 1; }
 
+
+/**
+ * Update role values...
+ */
+message UpdateRoleRqst {
+  string roleId = 1; // filter...
+  string values = 2;
+}
+
+message UpdateRoleRsp { bool result = 1; }
+
+
 /**
  * Return the list of role's.
  */
@@ -923,6 +935,9 @@ service ResourceService {
 
   /** Create / update a role with given action list **/
   rpc CreateRole(CreateRoleRqst) returns (CreateRoleRsp);
+
+  /** Update a group */
+  rpc UpdateRole(UpdateRoleRqst) returns (UpdateRoleRsp);
 
   /** Return the list of roles **/
   rpc GetRoles(GetRolesRqst) returns (stream GetRolesRsp);
