@@ -580,6 +580,18 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// Now I will get the title thumbnail...
+	thumbnail_path := os.TempDir() +"/"+rqst.Title.Poster.URL[strings.LastIndex(rqst.Title.Poster.URL, "/")+1:]
+	defer os.Remove(thumbnail_path)
+
+	// Dowload the file.
+	err = Utility.DownloadFile(rqst.Title.Poster.URL, thumbnail_path)
+	if err == nil {
+		thumbnail, err := Utility.CreateThumbnail(thumbnail_path, 300, 180)
+		if err == nil {
+			fmt.Println("--------------> thumnail was create successfully!")
+			rqst.Title.Poster.ContentUrl = thumbnail;
+		}
+	}
 
 	// Associated original object here...
 	var marshaler jsonpb.Marshaler

@@ -2573,11 +2573,13 @@ func restoreVideoInfos(video_path string) error {
 										Utility.CreateIfNotExists(thumbnail_path, 0644)
 										err = Utility.DownloadFile(title.Poster.URL, thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:])
 										if err == nil {
-											title.Poster.ContentUrl, _ = downloadThumbnail(title.ID, title.URL, video_path)
+
 											thumbnail, err := Utility.CreateThumbnail(thumbnail_path+"/"+title.Poster.URL[strings.LastIndex(title.Poster.URL, "/")+1:], 300, 180)
 											if err == nil {
 												os.WriteFile(thumbnail_path+"/"+"data_url.txt", []byte(thumbnail), 0664)
+												title.Poster.ContentUrl = thumbnail
 											}
+
 										}
 
 										title.Rating = float32(Utility.ToNumeric(title__.Rating))
@@ -2703,7 +2705,7 @@ func processVideos(file_server *server) {
 							go func() {
 								fileName_ := strings.ReplaceAll(media_path, "/.hidden/", "/")
 								createVideoPreview(file_server, fileName_, 20, 128, false)
-								generateVideoGifPreview(fileName_, 10, 320, 30, true)
+								generateVideoPreview(fileName_, 10, 320, 30, true)
 								createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
 							}()
 						}
@@ -2770,23 +2772,23 @@ func processVideos(file_server *server) {
 			file_server.publishConvertionLogEvent(createVideoPreviewLog)
 		}
 
-		generateVideoGifPreviewLog := new(filepb.VideoConversionLog)
-		generateVideoGifPreviewLog.LogTime = time.Now().Unix()
-		generateVideoGifPreviewLog.Msg = "Generate video Gif image"
-		generateVideoGifPreviewLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
-		generateVideoGifPreviewLog.Status = "running"
-		file_server.videoConversionLogs.Store(generateVideoGifPreviewLog.LogTime, generateVideoGifPreviewLog)
-		file_server.publishConvertionLogEvent(generateVideoGifPreviewLog)
+		generateVideoPreviewLog := new(filepb.VideoConversionLog)
+		generateVideoPreviewLog.LogTime = time.Now().Unix()
+		generateVideoPreviewLog.Msg = "Generate video Gif image"
+		generateVideoPreviewLog.Path = strings.ReplaceAll(video, config.GetDataDir()+"/files", "")
+		generateVideoPreviewLog.Status = "running"
+		file_server.videoConversionLogs.Store(generateVideoPreviewLog.LogTime, generateVideoPreviewLog)
+		file_server.publishConvertionLogEvent(generateVideoPreviewLog)
 
-		err = generateVideoGifPreview(video, 10, 320, 30, false)
+		err = generateVideoPreview(video, 10, 320, 30, false)
 		if err != nil {
-			generateVideoGifPreviewLog.Status = "fail"
-			file_server.publishConvertionLogEvent(generateVideoGifPreviewLog)
-			file_server.publishConvertionLogError(generateVideoGifPreviewLog.Path, err)
+			generateVideoPreviewLog.Status = "fail"
+			file_server.publishConvertionLogEvent(generateVideoPreviewLog)
+			file_server.publishConvertionLogError(generateVideoPreviewLog.Path, err)
 			err = nil
 		} else {
-			generateVideoGifPreviewLog.Status = "done"
-			file_server.publishConvertionLogEvent(generateVideoGifPreviewLog)
+			generateVideoPreviewLog.Status = "done"
+			file_server.publishConvertionLogEvent(generateVideoPreviewLog)
 		}
 
 		createVideoTimeLineLog := new(filepb.VideoConversionLog)
@@ -3461,8 +3463,8 @@ func formatDuration(duration time.Duration) string {
 }
 
 // Create the video preview...
-func generateVideoGifPreview(path string, fps, scale, duration int, force bool) error {
-
+func generateVideoPreview(path string, fps, scale, duration int, force bool) error {
+	fmt.Println("---------------------------------> generate preview ", path)
 	duration_total := getVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec")
@@ -3487,20 +3489,36 @@ func generateVideoGifPreview(path string, fps, scale, duration int, force bool) 
 	}
 
 	output := path_ + "/.hidden/" + name_
-	if Utility.Exists(output + "/preview.gif") {
+	if Utility.Exists(output + "/preview.webm") {
 		if !force {
 			return nil
 		}
 		os.Remove(output + "/preview.gif")
+		os.Remove(output + "/preview.webm")
 	}
 
 	Utility.CreateDirIfNotExist(output)
-	cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", `-loop`, `0`, `preview.gif`)
-	cmd.Dir = output // the output directory...
-	err := cmd.Run()
-	if err != nil {
-		return err
+
+	if !Utility.Exists(output + "/preview.gif") {
+		cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", `-loop`, `0`, `preview.gif`)
+		cmd.Dir = output // the output directory...
+		err := cmd.Run()
+		if err != nil {
+			return err
+		}
 	}
+
+	// Now I will generate the compact version of the gif...
+	// ffmpeg -y -i preview.gif -r 16 -c:v libvpx -quality good  -b:v 200K -crf 12 -pix_fmt yuv420p -movflags faststart test.webm
+	if !Utility.Exists(output + "/preview.webm") {
+		cmd := exec.Command("ffmpeg", "-y", "-i", "preview.gif", "-r", "16", "-c:v", "libvpx", "-quality", "good", "-b:v", "200K", "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "faststart", "preview.webm")
+		cmd.Dir = output // the output directory...
+		err := cmd.Run()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -3932,7 +3950,7 @@ func (file_server *server) CreateVideoPreview(ctx context.Context, rqst *filepb.
 	// Store the conversion log...
 	file_server.videoConversionLogs.Store(generateVideoGifLog.LogTime, generateVideoGifLog)
 	file_server.publishConvertionLogEvent(generateVideoGifLog)
-	err = generateVideoGifPreview(path, 10, 320, 30, true)
+	err = generateVideoPreview(path, 10, 320, 30, true)
 	if err != nil {
 		generateVideoGifLog.Status = "fail"
 		file_server.publishConvertionLogEvent(generateVideoGifLog)
@@ -4628,7 +4646,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			go func() {
 				fileName_ := strings.ReplaceAll(fileName, "/.hidden/", "/")
 				createVideoPreview(file_server, fileName_, 20, 128, false)
-				generateVideoGifPreview(fileName_, 10, 320, 30, true)
+				generateVideoPreview(fileName_, 10, 320, 30, true)
 				createVideoTimeLine(fileName_, 180, .2, false) // 1 frame per 5 seconds.
 
 			}()
@@ -4993,7 +5011,7 @@ func main() {
 
 					case path := <-channel_2:
 						path_ := s_impl.formatPath(path)
-						generateVideoGifPreview(path_, 10, 320, 30, false)
+						generateVideoPreview(path_, 10, 320, 30, false)
 						createVideoTimeLine(path_, 180, .2, false) // 1 frame per 5 seconds.
 					}
 				}

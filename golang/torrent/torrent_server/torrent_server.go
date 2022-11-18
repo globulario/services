@@ -593,6 +593,8 @@ func (svr *server) processTorrent() {
 								err := Utility.CopyFile(src, dst)
 								if err != nil {
 									fmt.Println("fail to copy torrent file with error ", err)
+								}else{
+									// Generate event...
 								}
 							}
 						}

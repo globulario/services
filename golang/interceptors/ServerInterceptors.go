@@ -39,6 +39,7 @@ var (
 
 	// That will contain the permission in memory to limit the number
 	// of resource request...
+	// TODO made use of real cache instead of a memory map to limit the memory usage...
 	cache sync.Map
 
 	// keep map in memory.
