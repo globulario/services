@@ -3509,7 +3509,7 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 	}
 
 	// Now I will generate the compact version of the gif...
-	// ffmpeg -y -i preview.gif -r 16 -c:v libvpx -quality good  -b:v 200K -crf 12 -pix_fmt yuv420p -movflags faststart test.webm
+	// ffmpeg -y -i preview.gif -r 16 -c:v libvpx -quality good  -b:v 200K -crf 12 -pix_fmt yuv420p -movflags faststart preview.webm
 	if !Utility.Exists(output + "/preview.webm") {
 		cmd := exec.Command("ffmpeg", "-y", "-i", "preview.gif", "-r", "16", "-c:v", "libvpx", "-quality", "good", "-b:v", "200K", "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "faststart", "preview.webm")
 		cmd.Dir = output // the output directory...
