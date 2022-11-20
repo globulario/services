@@ -895,6 +895,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 		return nil, errors.New(path + " is not a directory")
 	}
 
+	// read list of files...
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -916,7 +917,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 					return nil, err
 				}
 				info.Files = append(info.Files, info_)
-			} else {
+			} else if f.Name() != ".hidden"{ // I will not read sub-dir hidden files...
 				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token)
 				if err != nil {
 					return nil, err
@@ -2752,6 +2753,7 @@ func processVideos(file_server *server) {
 	}
 
 	for _, video := range videos {
+		fmt.Println("-----------------------> 2755: ", video)
 		// Create preview and timeline...
 		createVideoPreviewLog := new(filepb.VideoConversionLog)
 		createVideoPreviewLog.LogTime = time.Now().Unix()
@@ -2763,6 +2765,7 @@ func processVideos(file_server *server) {
 
 		err := createVideoPreview(file_server, video, 20, 128, false)
 		if err != nil {
+			fmt.Println("-----------------------> 2767: ", video, err)
 			createVideoPreviewLog.Status = "fail"
 			file_server.publishConvertionLogEvent(createVideoPreviewLog)
 			file_server.publishConvertionLogError(createVideoPreviewLog.Path, err)
@@ -2963,9 +2966,10 @@ func getVideoPaths() []string {
 					}
 				} else {
 					path_ := strings.ReplaceAll(path, "\\", "/")
-
-					if (!strings.Contains(path_, ".hidden") && strings.HasSuffix(path_, "playlist.m3u8")) || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
-						medias = append(medias, path_)
+					if !strings.Contains(path_, ".hidden"){
+						if strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
+							medias = append(medias, path_)
+						}
 					}
 				}
 				return nil
@@ -3464,7 +3468,9 @@ func formatDuration(duration time.Duration) string {
 
 // Create the video preview...
 func generateVideoPreview(path string, fps, scale, duration int, force bool) error {
-	fmt.Println("---------------------------------> generate preview ", path)
+	if strings.Contains(path, ".hidden"){
+		return nil;
+	}
 	duration_total := getVideoDuration(path)
 	if duration == 0 {
 		return errors.New("the video lenght is 0 sec")
@@ -3489,12 +3495,13 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 	}
 
 	output := path_ + "/.hidden/" + name_
-	if Utility.Exists(output + "/preview.webm") {
+	if Utility.Exists(output + "/preview.gif") &&  Utility.Exists(output + "/preview.webm") && Utility.Exists(output + "/preview.mp4"){
 		if !force {
 			return nil
 		}
 		os.Remove(output + "/preview.gif")
 		os.Remove(output + "/preview.webm")
+		os.Remove(output + "/preview.mp4")
 	}
 
 	Utility.CreateDirIfNotExist(output)
@@ -3504,6 +3511,7 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 		cmd.Dir = output // the output directory...
 		err := cmd.Run()
 		if err != nil {
+			os.Remove(output + "/preview.gif")
 			return err
 		}
 	}
@@ -3515,6 +3523,19 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 		cmd.Dir = output // the output directory...
 		err := cmd.Run()
 		if err != nil {
+			os.Remove(output + "/preview.webm")
+			return err
+		}
+	}
+
+	// ffmpeg -i preview.gif -movflags faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" preview.mp4
+	if !Utility.Exists(output + "/preview.mp4") {
+		cmd := exec.Command("ffmpeg" ,"-i", "preview.gif", "-movflags", "faststart", "-pix_fmt", "yuv420p", "-quality", "good", "-b:v", "200K", "-vf", "scale=-2:min(iw\\,if(mod(ih\\,2)\\,ih-1\\,ih))", "preview.mp4")
+		cmd.Dir = output // the output directory...
+		err := cmd.Run()
+		if err != nil {
+			fmt.Println("-------------------> ", output, err)
+			os.Remove(output + "/preview.mp4")
 			return err
 		}
 	}
@@ -3740,7 +3761,12 @@ func getVideoResolution(path string) (int, int) {
 // Return the information store in a video file.
 func getVideoInfos(path string) (map[string]interface{}, error) {
 
+
 	path = strings.ReplaceAll(path, "\\", "/")
+
+	if strings.Contains(path, ".hidden") == true{
+		return nil, errors.New("no info found for hidden file at path " + path)
+	}
 
 	if strings.HasSuffix(path, "playlist.m3u8") {
 
@@ -4361,6 +4387,9 @@ func (srv *server) publishReloadDirEvent(path string) {
 }
 
 func (file_server *server) createVideoInfo(token, path, absolute_path, info_path string) error {
+	if strings.Contains(path, ".hidden"){
+		return nil
+	}
 
 	data, err := ioutil.ReadFile(info_path)
 	if err == nil {
