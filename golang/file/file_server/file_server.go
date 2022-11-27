@@ -79,6 +79,13 @@ var (
 
 	// the authentication client
 	authentication_client_ *authentication_client.Authentication_Client
+
+	// Here I will keep files info in memory...
+	cache *storage_store.BigCache_store // todo use cache instead of memory...
+)
+
+const (
+	MAX_FFMPEG_INSTANCE = 3
 )
 
 // Value need by Globular to start the services...
@@ -156,9 +163,6 @@ type server struct {
 
 	// Generate playlist and titles for video and movies (series and episode.)
 	isProcessingVideo bool
-
-	// Here I will keep files info in memory...
-	cache *storage_store.BigCache_store // todo use cache instead of memory...
 }
 
 // The http address where the configuration can be found /config
@@ -499,7 +503,7 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
 	id := path + "_" + Utility.ToString(h) + "x" + Utility.ToString(w)
 
-	data, err := s.cache.GetItem(id)
+	data, err := cache.GetItem(id)
 	if err == nil {
 		return string(data), nil
 	}
@@ -509,7 +513,7 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 		return "", err
 	}
 
-	s.cache.SetItem(id, []byte(t))
+	cache.SetItem(id, []byte(t))
 
 	return t, nil
 }
@@ -543,7 +547,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	}
 
 	// Here I will try to get the info from the cache...
-	data, err_ := s.cache.GetItem(path)
+	data, err_ := cache.GetItem(path)
 	if err_ == nil {
 		json.Unmarshal(data, &info)
 		return info, nil
@@ -716,7 +720,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 	data, err = json.Marshal(info)
 	if err == nil {
-		s.cache.SetItem(path, data)
+		cache.SetItem(path, data)
 	}
 
 	return info, nil
@@ -917,7 +921,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 					return nil, err
 				}
 				info.Files = append(info.Files, info_)
-			} else if f.Name() != ".hidden"{ // I will not read sub-dir hidden files...
+			} else if f.Name() != ".hidden" { // I will not read sub-dir hidden files...
 				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, false, token)
 				if err != nil {
 					return nil, err
@@ -1403,8 +1407,8 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 	file_permissions, _ := rbac_client_.GetResourcePermissionsByResourceType("file")
 	permissions, _ := rbac_client_.GetResourcePermissions(from)
 
-	file_server.cache.RemoveItem(path + "/" + rqst.OldName)
-	file_server.cache.RemoveItem(path)
+	cache.RemoveItem(path + "/" + rqst.OldName)
+	cache.RemoveItem(path)
 
 	err = os.Rename(path+"/"+rqst.OldName, path+"/"+rqst.NewName)
 
@@ -1531,7 +1535,7 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("No directory with path "+path+" was found!")))
 	}
 
-	file_server.cache.RemoveItem(path)
+	cache.RemoveItem(path)
 
 	// Remove file asscociation contain by file in that directry
 	client, err := getTitleClient()
@@ -1722,8 +1726,8 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 	path := file_server.formatPath(rqst.GetPath())
 
 	// Here I will remove the whole
-	file_server.cache.RemoveItem(path)
-	file_server.cache.RemoveItem(filepath.Dir(path))
+	cache.RemoveItem(path)
+	cache.RemoveItem(filepath.Dir(path))
 
 	err := os.Remove(path)
 
@@ -1946,7 +1950,7 @@ func (file_server *server) getFileVideosAssociation(client *title_client.Title_C
 			}
 		}
 	} else {
-		videos_, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path_)
+		videos_, err := getFileVideos(path_)
 		if err == nil {
 			videos[path] = videos_
 		}
@@ -2465,7 +2469,7 @@ func (file_server *server) isExpired() bool {
 
 func (file_server *server) startProcessAudios() {
 	// Start feeding the time series...
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(4 * time.Hour)
 	go func() {
 		for {
 			select {
@@ -2479,7 +2483,7 @@ func (file_server *server) startProcessAudios() {
 
 func (file_server *server) startProcessVideos() {
 	// Start feeding the time series...
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(4 * time.Hour)
 	go func() {
 		for {
 			select {
@@ -2922,7 +2926,7 @@ func getAudioPaths() []string {
 				}
 
 				path_ := strings.ReplaceAll(path, "\\", "/")
-				if !strings.Contains(path_, ".hidden") && strings.HasSuffix(path_, ".mp3") || strings.HasSuffix(path_, ".wav") || strings.HasSuffix(path_, ".flac") || strings.HasSuffix(path_, ".flc") || strings.HasSuffix(path_, ".acc") || strings.HasSuffix(path_, ".ogg") {
+				if !strings.Contains(path_, ".hidden") &&  !strings.Contains(path_, ".temp") && strings.HasSuffix(path_, ".mp3") || strings.HasSuffix(path_, ".wav") || strings.HasSuffix(path_, ".flac") || strings.HasSuffix(path_, ".flc") || strings.HasSuffix(path_, ".acc") || strings.HasSuffix(path_, ".ogg") {
 					medias = append(medias, path_)
 				}
 				return nil
@@ -2966,7 +2970,7 @@ func getVideoPaths() []string {
 					}
 				} else {
 					path_ := strings.ReplaceAll(path, "\\", "/")
-					if !strings.Contains(path_, ".hidden"){
+					if !strings.Contains(path_, ".hidden") && !strings.Contains(path_, ".temp") {
 						if strings.HasSuffix(path_, "playlist.m3u8") || strings.HasSuffix(path_, ".mp4") || strings.HasSuffix(path_, ".mkv") || strings.HasSuffix(path_, ".avi") || strings.HasSuffix(path_, ".mov") || strings.HasSuffix(path_, ".wmv") {
 							medias = append(medias, path_)
 						}
@@ -3057,6 +3061,11 @@ func getStreamFrameRateInterval(path string) (int, error) {
  */
 func createVideoMpeg4H264(path string) (string, error) {
 
+	process, _ := Utility.GetProcessIdsByName("ffmpeg")
+	if len(process) > MAX_FFMPEG_INSTANCE {
+		return "", errors.New("number of ffmeg instance has been reach, try it latter")
+	}
+
 	if !strings.Contains(path, ".") {
 		return "", errors.New(path + " does not has extension")
 	}
@@ -3115,8 +3124,8 @@ func createVideoMpeg4H264(path string) (string, error) {
 			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", output)
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
+			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 
@@ -3158,7 +3167,7 @@ func dissociateFileWithTitle(path string) error {
 	}
 
 	// Look for videos
-	videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path)
+	videos, err := getFileVideos(path)
 	if err == nil {
 		// Here I will asscociate the path
 		for _, video := range videos {
@@ -3166,6 +3175,75 @@ func dissociateFileWithTitle(path string) error {
 		}
 	}
 	return nil
+}
+
+func getFileVideos(path string) ([]*titlepb.Video, error) {
+
+	id := path + ":videos"
+
+	data, err := cache.GetItem(id)
+	videos := new(titlepb.Videos)
+
+	if err == nil && data != nil {
+		err = jsonpb.UnmarshalString(string(data), videos)
+		if err == nil {
+			return videos.Videos, err
+		}
+		cache.RemoveItem(id)
+	}
+
+	// So here I will try to retreive indexation for the file...
+	client, err := getTitleClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// get from the title server.
+	videos.Videos, err = client.GetFileVideos(config.GetDataDir()+"/search/videos", path)
+	if err != nil {
+		return nil, err
+	}
+
+	// keep to cache...
+	var marshaler jsonpb.Marshaler
+	str, _ := marshaler.MarshalToString(videos)
+	cache.SetItem(id, []byte(str))
+
+	return videos.Videos, nil
+
+}
+
+func getFileTitles(path string) ([]*titlepb.Title, error) {
+
+	id := path + ":titles"
+
+	data, err := cache.GetItem(id)
+	titles := new(titlepb.Titles)
+
+	if err == nil && data != nil {
+		err = jsonpb.UnmarshalString(string(data), titles)
+		if err == nil {
+			return titles.Titles, err
+		}
+		cache.RemoveItem(id)
+	}
+
+	// So here I will try to retreive indexation for the file...
+	client, err := getTitleClient()
+	if err != nil {
+		return nil, err
+	}
+
+	titles.Titles, err = client.GetFileTitles(config.GetDataDir()+"/search/titles", path)
+	if err != nil {
+		return nil, err
+	}
+	// keep to cache...
+	var marshaler jsonpb.Marshaler
+	str, _ := marshaler.MarshalToString(titles)
+	cache.SetItem(id, []byte(str))
+
+	return titles.Titles, nil
 }
 
 // Reassociate a path when it name was change...
@@ -3179,7 +3257,7 @@ func reassociatePath(path, new_path string) error {
 	}
 
 	// Now I will asscociate the title.
-	titles, err := client.GetFileTitles(config.GetDataDir()+"/search/titles", path)
+	titles, err := getFileTitles(path)
 	if err == nil {
 		// Here I will asscociate the path
 		for _, title := range titles {
@@ -3189,7 +3267,7 @@ func reassociatePath(path, new_path string) error {
 	}
 
 	// Look for videos
-	videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path)
+	videos, err := getFileVideos(path)
 
 	if err == nil {
 		// Here I will asscociate the path
@@ -3233,6 +3311,12 @@ func getCodec(path string) string {
 // max_bitrate_ratio 			maximum accepted bitrate fluctuations
 // rate_monitor_buffer_ratio	maximum buffer size between bitrate conformance checks
 func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
+
+	process, _ := Utility.GetProcessIdsByName("ffmpeg")
+	if len(process) > MAX_FFMPEG_INSTANCE {
+		return errors.New("number of ffmeg instance has been reach, try it latter")
+	}
+
 	src = strings.ReplaceAll(src, "\\", "/")
 	dest = strings.ReplaceAll(dest, "\\", "/")
 	streamInfos, err := getStreamInfos(src)
@@ -3364,6 +3448,12 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 // Create a stream from a vide file, mkv, mpeg4, avi etc...
 func createHlsStreamFromMpeg4H264(path string) error {
 
+	process, _ := Utility.GetProcessIdsByName("ffmpeg")
+	if len(process) > MAX_FFMPEG_INSTANCE {
+		return errors.New("number of ffmeg instance has been reach, try it latter")
+	}
+
+
 	if !strings.Contains(path, ".") {
 		return errors.New(path + " does not has extension")
 	}
@@ -3468,8 +3558,14 @@ func formatDuration(duration time.Duration) string {
 
 // Create the video preview...
 func generateVideoPreview(path string, fps, scale, duration int, force bool) error {
-	if strings.Contains(path, ".hidden"){
-		return nil;
+
+	process, _ := Utility.GetProcessIdsByName("ffmpeg")
+	if len(process) > MAX_FFMPEG_INSTANCE {
+		return errors.New("number of ffmeg instance has been reach, try it latter")
+	}
+
+	if strings.Contains(path, ".hidden") || strings.Contains(path, ".temp") {
+		return nil
 	}
 	duration_total := getVideoDuration(path)
 	if duration == 0 {
@@ -3495,12 +3591,11 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 	}
 
 	output := path_ + "/.hidden/" + name_
-	if Utility.Exists(output + "/preview.gif") &&  Utility.Exists(output + "/preview.webm") && Utility.Exists(output + "/preview.mp4"){
+	if Utility.Exists(output+"/preview.gif") && Utility.Exists(output+"/preview.mp4") {
 		if !force {
 			return nil
 		}
 		os.Remove(output + "/preview.gif")
-		os.Remove(output + "/preview.webm")
 		os.Remove(output + "/preview.mp4")
 	}
 
@@ -3516,29 +3611,19 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 		}
 	}
 
-	// Now I will generate the compact version of the gif...
-	// ffmpeg -y -i preview.gif -r 16 -c:v libvpx -quality good  -b:v 200K -crf 12 -pix_fmt yuv420p -movflags faststart preview.webm
-	if !Utility.Exists(output + "/preview.webm") {
-		cmd := exec.Command("ffmpeg", "-y", "-i", "preview.gif", "-r", "16", "-c:v", "libvpx", "-quality", "good", "-b:v", "200K", "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "faststart", "preview.webm")
-		cmd.Dir = output // the output directory...
-		err := cmd.Run()
-		if err != nil {
-			os.Remove(output + "/preview.webm")
-			return err
-		}
-	}
-
-	// ffmpeg -i preview.gif -movflags faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" preview.mp4
+	//ffmpeg -y -i /mnt/synology_disk_01/porn/ph605344042edbd.mp4 -ss 00:00:10 -t 30 -filter_complex "[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=320:-2" -an outputfile.mp4
 	if !Utility.Exists(output + "/preview.mp4") {
-		cmd := exec.Command("ffmpeg" ,"-i", "preview.gif", "-movflags", "faststart", "-pix_fmt", "yuv420p", "-quality", "good", "-b:v", "200K", "-vf", "scale=-2:min(iw\\,if(mod(ih\\,2)\\,ih-1\\,ih))", "preview.mp4")
+		cmd := exec.Command("ffmpeg", "-y", "-i", path, "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=`+Utility.ToString(scale)+`:-2`, "-an", "preview.mp4")
 		cmd.Dir = output // the output directory...
 		err := cmd.Run()
 		if err != nil {
-			fmt.Println("-------------------> ", output, err)
+			fmt.Println("---------------> fail to generate preview for ", path, err)
 			os.Remove(output + "/preview.mp4")
 			return err
 		}
 	}
+
+	
 
 	return nil
 }
@@ -3584,6 +3669,13 @@ func createVttFile(output string, fps float32) error {
 
 // Here I will create the small viedeo video
 func createVideoTimeLine(path string, width int, fps float32, force bool) error {
+
+	process, _ := Utility.GetProcessIdsByName("ffmpeg")
+	if len(process) > MAX_FFMPEG_INSTANCE {
+		return errors.New("number of ffmeg instance has been reach, try it latter")
+	}
+
+
 	path = strings.ReplaceAll(path, "\\", "/")
 	// One frame at each 5 seconds...
 	if fps == 0 {
@@ -3647,6 +3739,13 @@ func createVideoTimeLine(path string, width int, fps float32, force bool) error 
 
 // Here I will create the small viedeo video
 func createVideoPreview(s *server, path string, nb int, height int, force bool) error {
+
+	process, _ := Utility.GetProcessIdsByName("ffmpeg")
+	if len(process) > MAX_FFMPEG_INSTANCE {
+		return  errors.New("number of ffmeg instance has been reach, try it latter")
+	}
+
+
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	if Utility.Exists(path+"/playlist.m3u8") && !strings.HasSuffix(path, "playlist.m3u8") {
@@ -3680,8 +3779,8 @@ func createVideoPreview(s *server, path string, nb int, height int, force bool) 
 	}
 
 	// remove it from the cache.
-	s.cache.RemoveItem(path)
-	s.cache.RemoveItem(output)
+	cache.RemoveItem(path)
+	cache.RemoveItem(output)
 
 	// wait for the file to be accessible...
 	duration := getVideoDuration(path)
@@ -3761,10 +3860,9 @@ func getVideoResolution(path string) (int, int) {
 // Return the information store in a video file.
 func getVideoInfos(path string) (map[string]interface{}, error) {
 
-
 	path = strings.ReplaceAll(path, "\\", "/")
 
-	if strings.Contains(path, ".hidden") == true{
+	if strings.Contains(path, ".hidden") == true {
 		return nil, errors.New("no info found for hidden file at path " + path)
 	}
 
@@ -3804,7 +3902,7 @@ func getVideoInfos(path string) (map[string]interface{}, error) {
 			}
 
 			// Test for videos
-			videos, err := client.GetFileVideos(config.GetDataDir()+"/search/videos", path_)
+			videos, err := getFileVideos(path_)
 			if err == nil && videos != nil {
 				if len(videos) > 0 {
 					// Convert the videos info to json string
@@ -4084,7 +4182,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 			path_ = ""
 			for j := 0; j < len(values); j++ {
 
-				path_ += url.QueryEscape(values[j])
+				path_ += url.PathEscape(values[j])
 				if j < len(values)-1 {
 					path_ += "/"
 				}
@@ -4387,7 +4485,7 @@ func (srv *server) publishReloadDirEvent(path string) {
 }
 
 func (file_server *server) createVideoInfo(token, path, absolute_path, info_path string) error {
-	if strings.Contains(path, ".hidden"){
+	if strings.Contains(path, ".hidden") {
 		return nil
 	}
 
@@ -4910,8 +5008,9 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
-	s_impl.cache = storage_store.NewBigCache_store()
-	s_impl.cache.Open("")
+
+	cache = storage_store.NewBigCache_store()
+	cache.Open("")
 
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()
@@ -5030,8 +5129,9 @@ func main() {
 						restoreVideoInfos(path_)
 						createVideoPreview(s_impl, path_, 20, 128, false)
 						dir := string(path)[0:strings.LastIndex(string(path), "/")]
+
 						// remove it from the cache.
-						s_impl.cache.RemoveItem(path_)
+						cache.RemoveItem(path_)
 
 						client.Publish("reload_dir_event", []byte(dir))
 						go func() {
@@ -5070,13 +5170,10 @@ func main() {
 
 	// Now i will be sure that users are owner of every file in their user dir.
 	go processAudios(s_impl)
+	s_impl.startProcessAudios()
 
-	//s_impl.startProcessAudios()
-
-	go processVideos(s_impl)
-
-	// Start process video informations...
-	//s_impl.startProcessVideos()
+	// use the scheduler instead, this is for development 
+	//go processVideos(s_impl)
 
 	// Start the service.
 	s_impl.StartService()

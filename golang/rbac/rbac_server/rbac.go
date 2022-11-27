@@ -265,7 +265,11 @@ func (rbac_server *server) getSubjectAllocatedSpace(subject string, subject_type
 
 	var ret uint64
 	buf := bytes.NewBuffer(data)
-	binary.Read(buf, binary.LittleEndian, &ret)
+	err = binary.Read(buf, binary.LittleEndian, &ret)
+	if err != nil {
+		rbac_server.permissions.RemoveItem(id)
+		return 0, err
+	}
 
 	return ret, nil
 }
@@ -384,6 +388,7 @@ func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type
 		fi, err := os.Stat(path)
 		if err == nil {
 			if !fi.IsDir() {
+				fmt.Println(path, fi.Size() )
 				used_space += uint64(fi.Size())
 			}
 		}else {
@@ -396,9 +401,12 @@ func (rbac_server *server) getSubjectAvailableSpace(subject string, subject_type
 		return 0, err
 	}
 
-	available_space := allocated_space - used_space
+	available_space := int(allocated_space) - int(used_space)
+	if(available_space < 0){
+		return 0, errors.New("no space available for " + subject);
+	}
 
-	return available_space, nil
+	return allocated_space - used_space, nil
 }
 
 //* Return the subject available disk space *
@@ -2301,6 +2309,25 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  * Validate an action and also validate it resources
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
+	
+	
+	// Exception
+	if len(resources) == 0 {
+		if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") || action == "/file.FileService/GetFileInfo" {
+			return true, nil
+		}
+	}
+
+	// Guest role.
+	guest, err := rbac_server.getRole("guest")
+	if err != nil {
+		return false, err
+	}
+	
+	// Test if the guest role contain the action...
+	if Utility.Contains(guest.Actions, action) == true{
+		return true, nil
+	}
 
 	// test if the subject exist.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
@@ -2334,12 +2361,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	}
 
 	var actions []string
-	// All action from those services are available...
-	if len(resources) == 0 {
-		if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") || action == "/file.FileService/GetFileInfo" {
-			return true, nil
-		}
-	}
 
 	// Validate the access for a given suject...
 	hasAccess := false

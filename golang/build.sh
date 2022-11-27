@@ -59,3 +59,5 @@ export GLOBULAR_SERVICES_ROOT=/home/dave/globulario/services
 ./config/config_server/config_server &
 ./title/title_server/title_server &
 ./torrent/torrent_server/torrent_server
+
+# publish services, that trigger executable update on globule who run that services.

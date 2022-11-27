@@ -114,9 +114,6 @@ type server struct {
 	// https certificate bundle path
 	CertificateAuthorityBundle string
 
-	// Update servirce watch delay in second
-	WatchUpdateDelay int
-
 	// When the service is stop...
 	done chan bool
 }
@@ -446,7 +443,7 @@ var (
 	event_client_    *event_client.Event_Client
 )
 
-///////////////////// resource service functions ////////////////////////////////////
+// /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	var err error
 	if event_client_ != nil {
@@ -476,7 +473,7 @@ func (server *server) publishUpdateServiceConfigEvent(config map[string]interfac
 	return client.Publish("update_globular_service_configuration_evt", data)
 }
 
-///////////////////// resource service functions ////////////////////////////////////
+// /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
 	var err error
 	if resource_client_ != nil {
@@ -492,7 +489,7 @@ func (server *server) getResourceClient() (*resource_client.Resource_Client, err
 	return resource_client_, nil
 }
 
-/////////////////////// Resource manager function ////////////////////////////////////////
+// ///////////////////// Resource manager function ////////////////////////////////////////
 func (server *server) removeRolesAction(action string) error {
 
 	resourceClient, err := server.getResourceClient()
@@ -592,7 +589,7 @@ func (server *server) logServiceError(name string, infos string) {
 
 ///////////////////////////// Service manager functions ///////////////////////////////////
 
-//  Stop a given service instance.
+// Stop a given service instance.
 func (server *server) stopService(s map[string]interface{}) error {
 	// Kill the service process
 	err := process.KillServiceProcess(s)
@@ -716,7 +713,6 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	s_impl.WatchUpdateDelay = 60 * 60 // validate service version at each hours...
 	s_impl.done = make(chan bool)
 
 	// Create a new sync map.

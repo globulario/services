@@ -971,10 +971,12 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 	infos := make(map[string]interface{})
 	infos["return"] = make(chan map[string]interface{})
 
-	// Wait
+	// Wait\
 	getServicesConfigChan <- infos
 
 	results_chan := infos["return"].(chan map[string]interface{})
+
+	
 	results := <-results_chan
 
 	if results["error"] != nil {

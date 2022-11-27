@@ -16,7 +16,6 @@ import (
 
 	// "golang.org/x/sys/windows/registry"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/security"
@@ -93,15 +92,19 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	if platform != platform_ {
 		return errors.New("Wrong executable platform to update from! wants " + platform_ + " not " + platform)
 	}
+	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
+	path := ""
 
-	ex, err := os.Executable()
-	if err != nil {
-		return err
+	if len(serviceRoot) > 0 {
+		path = serviceRoot[0:strings.LastIndex(serviceRoot, "/")+1] + "Globular"
+	} else {
+		path = config.GetRootDir()
 	}
 
-	path := filepath.Dir(ex)
-
 	path += "/Globular"
+	path = strings.ReplaceAll(path, "\\", "/")
+
 	if runtime.GOOS == "windows" {
 		path += ".exe"
 	}
@@ -113,7 +116,7 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	}
 
 	// Move the actual file to other file...
-	err = os.Rename(path, path+"_"+checksum)
+	err := os.Rename(path, path+"_"+existing_checksum)
 	if err != nil {
 		return err
 	}
@@ -128,7 +131,21 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	log.Println("stop globular made use systemctl to restart globular automaticaly")
 
 	// TODO restart Globular exec...
-	// Utility.TerminateProcess(pid, 0); // send signal to globular...
+	pids, err := Utility.GetProcessIdsByName("Globular")
+	if err != nil {
+		return err
+	}
+
+	err = Utility.TerminateProcess(pids[0], 0) // send signal to globular...
+	if err != nil {
+		return err
+	}
+
+	// restart globular... (see if it must be keep in system-ctlr)
+	/*cmd := exec.Command(path)
+	if err := cmd.Start(); err != nil {
+		return err
+	}*/
 
 	return nil
 }
@@ -146,21 +163,31 @@ func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularReque
 		return errors.New("Wrong executable platform to update from get " + platform + " want " + platform_)
 	}
 
-	ex, err := os.Executable()
-	if err != nil {
-		return err
+	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
+	path := ""
+
+	if len(serviceRoot) > 0 {
+		path = serviceRoot[0:strings.LastIndex(serviceRoot, "/")+1] + "Globular"
+	} else {
+		path = config.GetRootDir()
 	}
 
-	path := filepath.Dir(ex)
 	path += "/Globular"
+	path = strings.ReplaceAll(path, "\\", "/")
+
 	if runtime.GOOS == "windows" {
 		path += ".exe"
+	}
+
+	if !Utility.Exists(path) {
+		return errors.New("fail to retreive exec at path: " + path)
 	}
 
 	// No I will stream the result over the networks.
 	data, err := os.Open(path)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer data.Close()
 
@@ -373,7 +400,7 @@ func (admin_server *server) UnsetEnvironmentVariable(ctx context.Context, rqst *
 //
 // The command can return
 func (admin_server *server) GetCertificates(ctx context.Context, rqst *adminpb.GetCertificatesRequest) (*adminpb.GetCertificatesResponse, error) {
-	
+
 	path := rqst.Path
 	if len(path) == 0 {
 		path = os.TempDir()

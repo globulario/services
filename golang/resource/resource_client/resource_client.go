@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -501,7 +502,6 @@ func (client *Resource_Client) GetOrganizations(query string) ([]*resourcepb.Org
 	return organizations, err
 }
 
-
 func (client *Resource_Client) UpdateOrganization(token string, o *resourcepb.Organization) error {
 	rqst := new(resourcepb.UpdateOrganizationRqst)
 	rqst.OrganizationId = o.Id
@@ -815,7 +815,6 @@ func (client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, err
 
 	return groups, err
 }
-
 
 func (client *Resource_Client) UpdateGroup(token string, g *resourcepb.Group) error {
 	rqst := new(resourcepb.UpdateGroupRqst)
@@ -1280,11 +1279,10 @@ func (client *Resource_Client) CreateApplication(token, id, domain, password, pa
 	return nil
 }
 
-
 func (client *Resource_Client) UpdateApplication(token string, a *resourcepb.Application) error {
 	rqst := new(resourcepb.UpdateApplicationRqst)
 	rqst.ApplicationId = a.Id
-	rqst.Values = `{"$set":{"version":"`+a.Version+`","path":"`+a.Path+`","icon":"`+a.Icon+`","publisherid":"`+a.Publisherid+`","alias":"`+a.Alias+`","name":"` + a.Name + `","description":"` + a.Description + `", "domain":"` + a.Domain + `"}}`
+	rqst.Values = `{"$set":{"version":"` + a.Version + `","path":"` + a.Path + `","icon":"` + a.Icon + `","publisherid":"` + a.Publisherid + `","alias":"` + a.Alias + `","name":"` + a.Name + `","description":"` + a.Description + `", "domain":"` + a.Domain + `"}}`
 
 	// set the token in the context...
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})
@@ -1363,10 +1361,25 @@ func (client *Resource_Client) GetPackageDescriptor(pacakageId, publisherId, ver
 
 	descriptors := rsp.Results
 	descriptor := descriptors[0]
+	var lastVersion *Utility.Version
+
 	for i := 0; i < len(descriptors); i++ {
-		if descriptors[i].Version == version {
-			descriptor = descriptors[i]
-			break
+		if len(version) > 0 {
+			if descriptors[i].Version == version {
+				descriptor = descriptors[i]
+				break
+			}
+		} else {
+			if lastVersion == nil {
+				lastVersion = Utility.NewVersion(descriptors[i].Version)
+				descriptor = descriptors[i]
+			}else{
+				version_ := Utility.NewVersion(descriptors[i].Version)
+				if version_.Compare(lastVersion) == 1 {
+					lastVersion = version_;
+					descriptor = descriptors[i]
+				}
+			}
 		}
 	}
 
