@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -17,7 +15,6 @@ import (
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"google.golang.org/grpc"
@@ -547,94 +544,6 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 }
 
 /////////////////////// Discovery specific function /////////////////////////////////
-
-// Publish a package, the package can contain an application or a services.
-func (server *server) publishPackage(token, user, organization, discovery, repository, platform, path string, descriptor *resourcepb.PackageDescriptor) error {
-
-	// Ladies and Gentlemans After one year after tow years services as resource!
-	path_ := descriptor.PublisherId + "|" + descriptor.Name + "|" + descriptor.Id + "|" + descriptor.Version
-
-	// So here I will set the permissions
-	var permissions *rbacpb.Permissions
-	var err error
-	permissions, err = server.getResourcePermissions(path_)
-	if err != nil {
-		if len(organization) > 0 {
-			// Create the permission...
-			permissions = &rbacpb.Permissions{
-				Allowed: []*rbacpb.Permission{},
-				Denied:  []*rbacpb.Permission{},
-				Owners: &rbacpb.Permission{
-					Name:          "owner",
-					Accounts:      []string{},
-					Applications:  []string{},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{organization},
-				},
-				Path:         path_,
-				ResourceType: "package",
-			}
-		} else {
-			// Create the permission...
-			permissions = &rbacpb.Permissions{
-				Allowed: []*rbacpb.Permission{},
-				Denied:  []*rbacpb.Permission{},
-				Owners: &rbacpb.Permission{
-					Name:          "owner",
-					Accounts:      []string{user},
-					Applications:  []string{},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{},
-				},
-				Path:         path_,
-				ResourceType: "package",
-			}
-		}
-
-		// Set the permissions.
-		err = server.setResourcePermissions(token, path_, "package", permissions)
-		if err != nil {
-			fmt.Println("fail to publish package with error: ", err.Error())
-			return err
-		}
-	}
-
-	// Append the user into the list of owner if is not already part of it.
-	if len(organization) == 0 {
-		if !Utility.Contains(permissions.Owners.Accounts, user) {
-			permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
-		}
-	}
-
-	// Save the permissions.
-	err = server.setResourcePermissions(token, path_, "package", permissions)
-	if err != nil {
-		return err
-	}
-
-	// Fist of all publish the package descriptor.
-	err = server.publishPackageDescriptor(descriptor)
-	if err != nil {
-		return err
-	}
-
-	// Connect to the repository resourcepb.
-	services_repository, err := repository_client.NewRepositoryService_Client(repository, "repository.PackageRepository")
-	if err != nil {
-		err = errors.New("Fail to connect to package repository at " + repository)
-		fmt.Println("publishPackage 554 ", err)
-		return err
-	}
-
-	// UploadBundle
-	server.logServiceInfo(Utility.FunctionName(), Utility.FileLine(), "Upload package bundle ", discovery+" "+descriptor.Id+" "+descriptor.PublisherId+" "+descriptor.Version+" "+platform+" "+path)
-	err = services_repository.UploadBundle(discovery, descriptor.Id, descriptor.PublisherId, descriptor.Version, platform, path)
-
-	// Upload the package bundle to the repository.
-	return err
-}
 
 // That service is use to give access to SQL.
 // port number must be pass as argument.

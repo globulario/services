@@ -2,6 +2,7 @@ package discovery_client
 
 import (
 	"context"
+	"strings"
 
 	"encoding/json"
 	"errors"
@@ -245,6 +246,7 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 	if len(configs) == 0 {
 		return errors.New("no configuration file was found")
 	}
+	
 	s := make(map[string]interface{})
 	data, err := ioutil.ReadFile(configs[0])
 	if err != nil {
@@ -262,20 +264,33 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 			keywords = append(keywords, s["Keywords"].([]interface{})[i].(string))
 		}
 	}
+/*
 	if s["Repositories"] == nil {
-		s["Repositories"] = []interface{}{"localhost"}
+		s["Repositories"] = []interface{}{domain}
 	}
+
 	repositories := s["Repositories"].([]interface{})
 	if len(repositories) == 0 {
 		repositories = []interface{}{"localhost"}
-
 	}
 
 	if s["Discoveries"] == nil {
 		return errors.New("no discovery was set on that server")
 	}
+*/
 
-	discoveries := s["Discoveries"].([]interface{})
+	discoveries := []interface{}{domain}
+	repositories := []interface{}{domain}
+
+	if len(token) > 0 {
+		claims, err := security.ValidateToken(token)
+		if err != nil {
+			return err 
+		}
+		if !strings.Contains(user, "@"){
+			user += "@" +claims.UserDomain
+		}
+	} 
 
 	for i := 0; i < len(discoveries); i++ {
 		rqst := new(discoverypb.PublishServiceRequest)
@@ -294,10 +309,10 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 		ctx := Services_Manager_Client.GetCtx()
 		if len(token) > 0 {
 			md, _ := metadata.FromOutgoingContext(ctx)
-
 			if len(md.Get("token")) != 0 {
 				md.Set("token", token)
 			}
+
 			ctx = metadata.NewOutgoingContext(context.Background(), md)
 		}
 
@@ -315,6 +330,15 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
  */
 func (client *Dicovery_Client) PublishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
 	// TODO upload the package and publish the application after see old admin client code bundle from the path...
+	if len(token) > 0 {
+		claims, err := security.ValidateToken(token)
+		if err != nil {
+			return err 
+		}
+		if !strings.Contains(user, "@"){
+			user += "@" + claims.UserDomain
+		}
+	} 
 
 	rqst := &discoverypb.PublishApplicationRequest{
 		User:         user,

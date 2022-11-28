@@ -2,17 +2,19 @@ package repository_client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
+	"github.com/globulario/services/golang/rbac/rbac_client"
+	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/repository/repositorypb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
 
-	"bufio"
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
@@ -86,12 +88,12 @@ func NewRepositoryService_Client(address string, id string) (*Repository_Service
 	return client, nil
 }
 
-func (client *Repository_Service_Client) Reconnect () error{
+func (client *Repository_Service_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = repositorypb.NewPackageRepositoryClient(client.cc)
@@ -288,7 +290,7 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 /**
  * Upload a service bundle.
  */
-func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, publisherId, version, platform, packagePath string) error {
+func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, publisherId, version, platform, packagePath string) (int, error) {
 
 	// The service bundle...
 	bundle := new(resourcepb.PackageBundle)
@@ -298,17 +300,17 @@ func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, pu
 	resource_client_, err := resource_client.NewResourceService_Client(client.address, "resource.ResourceService")
 	if err != nil {
 		resource_client_ = nil
-		return err
+		return -1, err
 	}
 
 	descriptor, err := resource_client_.GetPackageDescriptor(serviceId, publisherId, version)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	bundle.PackageDescriptor = descriptor
 	if !Utility.Exists(packagePath) {
-		return errors.New("No package found at path " + packagePath)
+		return -1, errors.New("No package found at path " + packagePath)
 	}
 
 	/*bundle.Binairies*/
@@ -317,26 +319,27 @@ func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, pu
 		bundle.Binairies = data
 	}
 
-	return client.uploadBundle(bundle)
+	return client.uploadBundle(bundle, len(data))
 }
 
 /**
  * Upload a bundle into the service repository.
  */
-func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBundle) error {
+func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBundle, total int) (int, error) {
 
 	// Open the stream...
 	stream, err := client.c.UploadBundle(client.GetCtx())
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	const BufferSize = 1024 * 5 // the chunck size.
+	var size int
 	var buffer bytes.Buffer
 	enc := gob.NewEncoder(&buffer) // Will write to network.
 	err = enc.Encode(bundle)
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	for {
@@ -350,25 +353,70 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 			err = stream.Send(rqst)
 		}
 
+		size += bytesread
+		fmt.Println("transfert ", size, "of", total, " ", int(float64(size)/float64(total)*100), "%")
+
 		if err == io.EOF {
 			err = nil
 			break
 		} else if err != nil {
-			return err
+			return -1, err
 		}
 	}
 
 	_, err = stream.CloseAndRecv()
 	if err != nil && err != io.EOF {
-		return err
+		return -1, err
 	}
 
-	return nil
+	return size, nil
 
 }
 
 /**
- * Create and Upload the service archive on the server.
+ *  Create the application bundle and push it on the server
+ */
+func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, domain, name, version string) (int, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return -1, err
+	}
+
+	if !strings.HasPrefix(path, "/") {
+		path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
+	}
+
+	if len(token) > 0 {
+		claims, err := security.ValidateToken(token)
+		if err != nil {
+			return -1, err 
+		}
+		if !strings.Contains(user, "@"){
+			user += "@" +claims.UserDomain
+		}
+	} 
+
+	publisherId := user
+	if len(organization) > 0{
+		publisherId = organization
+	}
+
+	// Now I will open the data and create a archive from it.
+	// The path of the archive that contain the service package.
+	packagePath, err := client.createPackageArchive(publisherId, name, version, "webapp", path)
+	if err != nil {
+		return -1, err
+	}
+
+	defer os.RemoveAll(packagePath)
+
+	// Upload the bundle to the repository server.
+	return client.UploadBundle(domain, name, publisherId, version, "webapp", packagePath)
+
+}
+
+/**
+ * Create the service bundle and push it on the server
  */
 func (client *Repository_Service_Client) UploadServicePackage(user string, organization string, token string, domain string, path string, platform string) error {
 
@@ -376,12 +424,6 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 	configs, _ := Utility.FindFileByName(path, "config.json")
 	if len(configs) == 0 {
 		return errors.New("no configuration file was found")
-	}
-
-	// Find proto by name
-	protos, _ := Utility.FindFileByName(path, ".proto")
-	if len(protos) == 0 {
-		return errors.New("No prototype file was found at path '" + path + "'")
 	}
 
 	s := make(map[string]interface{})
@@ -395,9 +437,24 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 		return err
 	}
 
+	// Find proto by name
+	if !Utility.Exists(s["Proto"].(string)) {
+		return errors.New("No prototype file was found at path '" + s["Proto"].(string) + "'")
+	}
+
 	// set the correct information inside the configuration
+	if len(token) > 0 {
+		claims, err := security.ValidateToken(token)
+		if err != nil {
+			return err 
+		}
+		if !strings.Contains(user, "@"){
+			user += "@" +claims.UserDomain
+		}
+	} 
+
 	publisherId := user
-	if len(organization) > 0 {
+	if len(organization) > 0{
 		publisherId = organization
 	}
 
@@ -405,9 +462,6 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 
 	jsonStr, _ := Utility.ToJson(&s)
 	ioutil.WriteFile(configs[0], []byte(jsonStr), 0644)
-
-	md := metadata.New(map[string]string{"token": token, "domain": domain})
-	ctx := metadata.NewOutgoingContext(context.Background(), md)
 
 	// First of all I will create the archive for the service.
 	// If a path is given I will take it entire content. If not
@@ -430,13 +484,14 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 	}
 
 	// Now I will copy the proto file into the directory Version
-	proto := strings.ReplaceAll(protos[0], "\\", "/")
+	proto := strings.ReplaceAll(s["Proto"].(string), "\\", "/")
 	err = Utility.CopyFile(proto, tmp_dir+"/"+s["PublisherId"].(string)+"/"+s["Name"].(string)+"/"+s["Version"].(string)+"/"+proto[strings.LastIndex(proto, "/"):])
 	if err != nil {
 		return err
 	}
 
-	packagePath, err := client.createServicePackage(s["PublisherId"].(string), s["Name"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
+	// The path of the archive that contain the service package.
+	packagePath, err := client.createPackageArchive(s["PublisherId"].(string), s["Id"].(string), s["Version"].(string), platform, tmp_dir)
 	if err != nil {
 		return err
 	}
@@ -444,72 +499,93 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 	// Remove the file when it's transfer on the server...
 	defer os.RemoveAll(packagePath)
 
-	// Read the package data.
-	packageFile, err := os.Open(packagePath)
-	if err != nil {
-		return err
-	}
-	defer packageFile.Close()
-
-	// Now I will create the request to upload the package on the server.
-	// Open the stream...
-	stream, err := client.c.UploadBundle(ctx)
+	// Upload the bundle to the repository server.
+	_, err = client.UploadBundle(domain, s["Id"].(string), s["PublisherId"].(string), s["Version"].(string), platform, packagePath)
 	if err != nil {
 		return err
 	}
 
-	const chunksize = 1024 * 5 // the chunck size.
-	var count int
-	reader := bufio.NewReader(packageFile)
-	part := make([]byte, chunksize)
-	size := 0
-	for {
-
-		if count, err = reader.Read(part); err != nil {
-			break
-		}
-
-		rqst := &repositorypb.UploadBundleRequest{
-			Data: part[:count],
-		}
-
-		// send the data to the server.
-		err = stream.Send(rqst)
-		size += count
-
-		if err == io.EOF {
-			err = nil
-			break
-		} else if err != nil {
-
-			return err
-		}
-
-	}
-
-	// get the file path on the server where the package is store before being
-	// publish.
-	_, err = stream.CloseAndRecv()
+	// Ladies and Gentlemans After one year after tow years services as resource!
+	// So here I will set the permissions
+	rbac_client_, err := rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 	if err != nil {
-		if err != io.EOF {
+		return err
+	}
+
+	var permissions *rbacpb.Permissions
+	permissions, err = rbac_client_.GetResourcePermissions(s["PublisherId"].(string) + "|" + s["Name"].(string) + "|" + s["Id"].(string) + "|" + s["Version"].(string))
+
+	if err != nil {
+		if len(organization) > 0 {
+			// Create the permission...
+			permissions = &rbacpb.Permissions{
+				Allowed: []*rbacpb.Permission{},
+				Denied:  []*rbacpb.Permission{},
+				Owners: &rbacpb.Permission{
+					Name:          "owner",
+					Accounts:      []string{},
+					Applications:  []string{},
+					Groups:        []string{},
+					Peers:         []string{},
+					Organizations: []string{organization},
+				},
+				Path:         path_,
+				ResourceType: "package",
+			}
+		} else {
+			// Create the permission...
+			permissions = &rbacpb.Permissions{
+				Allowed: []*rbacpb.Permission{},
+				Denied:  []*rbacpb.Permission{},
+				Owners: &rbacpb.Permission{
+					Name:          "owner",
+					Accounts:      []string{user},
+					Applications:  []string{},
+					Groups:        []string{},
+					Peers:         []string{},
+					Organizations: []string{},
+				},
+				Path:         path_,
+				ResourceType: "package",
+			}
+		}
+
+		// Set the permissions.
+		err = rbac_client_.SetResourcePermissions(token, path_, "package", permissions)
+		if err != nil {
+			fmt.Println("fail to publish package with error: ", err.Error())
 			return err
 		}
 	}
+
+	// Append the user into the list of owner if is not already part of it.
+	if len(organization) == 0 {
+		if !Utility.Contains(permissions.Owners.Accounts, user) {
+			permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
+		}
+	}
+
+	// Save the permissions.
+	err = rbac_client_.SetResourcePermissions(token, s["PublisherId"].(string) + "|" + s["Name"].(string) + "|" + s["Id"].(string) + "|" + s["Version"].(string), "package", permissions)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 /** Create a service package **/
-func (client *Repository_Service_Client) createServicePackage(publisherId string, serviceName string, serviceId string, version string, platform string, servicePath string) (string, error) {
+func (client *Repository_Service_Client) createPackageArchive(publisherId string, id string, version string, platform string, path string) (string, error) {
 
 	// Take the information from the configuration...
-	id := publisherId + "%" + serviceName + "%" + version + "%" + serviceId + "%" + platform
+	archive_name := id  + "%" + version + "%" + id + "%" + platform
 
 	// tar + gzip
 	var buf bytes.Buffer
-	Utility.CompressDir(servicePath, &buf)
+	Utility.CompressDir(path, &buf)
 
 	// write the .tar.gzip
-	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+id+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
+	fileToWrite, err := os.OpenFile(os.TempDir()+string(os.PathSeparator)+archive_name+".tar.gz", os.O_CREATE|os.O_RDWR, os.FileMode(0755))
 	if err != nil {
 		return "", err
 	}
@@ -523,5 +599,5 @@ func (client *Repository_Service_Client) createServicePackage(publisherId string
 	if err != nil {
 		return "", err
 	}
-	return os.TempDir() + string(os.PathSeparator) + id + ".tar.gz", nil
+	return os.TempDir() + string(os.PathSeparator) + archive_name + ".tar.gz", nil
 }

@@ -1,25 +1,17 @@
 package applications_manager_client
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
+
 	"strconv"
 	"strings"
 
-	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
-	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	"github.com/polds/imgbase64"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -268,6 +260,7 @@ func (client *Applications_Manager_Client) InstallApplication(token,  domain, us
 	}
 
 	_, err := client.c.InstallApplication(ctx, rqst)
+	fmt.Println("----------------> install application: ", err)
 
 	return err
 }
@@ -298,197 +291,3 @@ func (client *Applications_Manager_Client) UninstallApplication(token string, do
 	return err
 }
 
-/**
- * Deploy the content of an application with a given name to the server.
- */
-func (client *Applications_Manager_Client) DeployApplication(user string, name string, organization string, path string, token string, domain string, set_as_default bool) (int, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return -1, err
-	}
-	if !strings.HasPrefix(path, "/") {
-		path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
-
-	}
-
-	// Now I will open the data and create a archive from it.
-	var buffer bytes.Buffer
-	total, err := Utility.CompressDir(path, &buffer)
-	if err != nil {
-		return -1, err
-	}
-
-	// From the path I will get try to find the package.json file and get information from it...
-	absolutePath, err := filepath.Abs(path)
-	if err != nil {
-		return -1, err
-	}
-
-	absolutePath = strings.ReplaceAll(absolutePath, "\\", "/")
-
-	if Utility.Exists(absolutePath + "/package.json") {
-		absolutePath += "/package.json"
-	} else if Utility.Exists(absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json") {
-		absolutePath = absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
-	} else {
-		err = errors.New("no package.config file was found")
-		return -1, err
-	}
-
-	packageConfig := make(map[string]interface{})
-	data, err := ioutil.ReadFile(absolutePath)
-	if err != nil {
-		return -1, err
-	}
-
-	err = json.Unmarshal(data, &packageConfig)
-	if err != nil {
-		return -1, err
-	}
-
-	description := packageConfig["description"].(string)
-	version := packageConfig["version"].(string)
-
-	alias := name
-	if packageConfig["alias"] != nil {
-		alias = packageConfig["alias"].(string)
-	}
-
-	// Set keywords.
-	keywords := make([]string, 0)
-	if packageConfig["keywords"] != nil {
-		for i := 0; i < len(packageConfig["keywords"].([]interface{})); i++ {
-			keywords = append(keywords, packageConfig["keywords"].([]interface{})[i].(string))
-		}
-	}
-
-	// Now The application is deploy I will set application actions from the
-	// package.json file.
-	actions := make([]string, 0)
-	if packageConfig["actions"] != nil {
-		for i := 0; i < len(packageConfig["actions"].([]interface{})); i++ {
-			actions = append(actions, packageConfig["actions"].([]interface{})[i].(string))
-		}
-	}
-
-	// Create roles.
-	roles := make([]*resourcepb.Role, 0)
-	if packageConfig["roles"] != nil {
-		// Here I will create the roles require by the applications.
-		roles_ := packageConfig["roles"].([]interface{})
-		for i := 0; i < len(roles_); i++ {
-			role_ := roles_[i].(map[string]interface{})
-			role := new(resourcepb.Role)
-			role.Id = role_["id"].(string)
-			role.Name = role_["name"].(string)
-			role.Actions = make([]string, 0)
-			for j := 0; j < len(role_["actions"].([]interface{})); j++ {
-				role.Actions = append(role.Actions, role_["actions"].([]interface{})[j].(string))
-			}
-			roles = append(roles, role)
-		}
-	}
-
-	// Create groups.
-	groups := make([]*resourcepb.Group, 0)
-	if packageConfig["groups"] != nil {
-		groups_ := packageConfig["groups"].([]interface{})
-		for i := 0; i < len(groups_); i++ {
-			group_ := groups_[i].(map[string]interface{})
-			group := new(resourcepb.Group)
-			group.Id = group_["id"].(string)
-			group.Name = group_["name"].(string)
-			group.Description = group_["description"].(string)
-			groups = append(groups, group)
-		}
-	}
-
-	var icon string
-
-	// Now the icon...
-	if packageConfig["icon"] != nil {
-		// The image icon.
-		// iconPath := absolutePath[0:strings.LastIndex(absolutePath, "/")] + "/package.json"
-		iconPath := strings.ReplaceAll(absolutePath, "\\", "/")
-		lastIndex := strings.LastIndex(iconPath, "/")
-		iconPath = iconPath[0:lastIndex] + "/" + packageConfig["icon"].(string)
-		
-		if Utility.Exists(iconPath) {
-			// Convert to png before creating the data url.
-			if strings.HasSuffix(strings.ToLower(iconPath), ".svg") {
-				pngPath := os.TempDir() + "/output.png"
-				defer os.Remove(pngPath)
-				err := Utility.SvgToPng(iconPath, pngPath, 128, 128)
-				if err == nil {
-					iconPath = pngPath
-				}
-			}
-			// So here I will create the b64 string
-			icon, _ = imgbase64.FromLocal(iconPath)
-		}
-
-	}
-
-	// Set the token into the context and send the request.
-	md := metadata.New(map[string]string{"token": string(token), "application": name, "domain": domain, "organization": organization, "user": user})
-	ctx := metadata.NewOutgoingContext(client.GetCtx(), md)
-
-	// Open the stream...
-	stream, err := client.c.DeployApplication(ctx)
-	if err != nil {
-		return -1, err
-	}
-
-	const BufferSize = 1024 * 25 // the chunck size.
-	var size int
-	for {
-		var data [BufferSize]byte
-		bytesread, err := buffer.Read(data[0:BufferSize])
-
-		if bytesread > 0 {
-			rqst := &applications_managerpb.DeployApplicationRequest{
-				Data:         data[0:bytesread],
-				Name:         name,
-				Domain:       domain,
-				Organization: organization,
-				User:         user,
-				Version:      version,
-				Description:  description,
-				Keywords:     keywords,
-				Actions:      actions,
-				Icon:         icon,
-				Alias:        alias,
-				Groups:       groups,
-				Roles:        roles,
-				SetAsDefault: set_as_default,
-			}
-			// send the data to the server.
-			err = stream.Send(rqst)
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				return -1, err
-			}
-		}
-		size += bytesread
-		fmt.Println("transfert ", size, "of", total, " ", int(float64(size)/float64(total)*100), "%")
-		if err == io.EOF || size ==  total{
-			err = nil
-			break
-		} else if err != nil {
-			fmt.Print(err)
-			return -1, err
-		}
-	}
-
-
-	_, err = stream.CloseAndRecv()
-
-	if err != nil && err != io.EOF {
-		
-		return -1, err
-	}
-
-	fmt.Println("finish transfert data")
-	return size, nil
-}

@@ -22,7 +22,6 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/globulario/services/golang/security"
 	"github.com/golang/protobuf/jsonpb"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
@@ -314,6 +313,17 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 		}
 	}
 
+	// Set the path of the directory where the application can store files.
+	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
+	if len(domain) == 0 {
+		return errors.New("no domain given for application")
+	}
+
+	err = server.addResourceOwner("/applications/"+name, "file", name+"@"+domain, rbacpb.SubjectType_APPLICATION)
+	if err != nil {
+		return err
+	}
+
 	// here is a little workaround to be sure the bundle.js file will not be cached in the brower...
 	indexHtml, err := ioutil.ReadFile(abosolutePath + "/index.html")
 	if err != nil {
@@ -342,224 +352,6 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	}
 
 	return err
-}
-
-// Deloyed a web application to a globular node. Mostly use a develeopment time.
-func (server *server) DeployApplication(stream applications_managerpb.ApplicationManagerService_DeployApplicationServer) error {
-
-	// - Get the information from the package.json (npm package, the version, the keywords and set the package descriptor with it.
-	var token string
-	var user string
-	var domain string
-
-	if md, ok := metadata.FromIncomingContext(stream.Context()); ok {
-		token = strings.Join(md["token"], "")
-		if len(token) == 0 {
-			return errors.New("Application Manager DeployApplication no token was given")
-		} else {
-			claims, err := security.ValidateToken(token)
-			if err != nil {
-				return err
-			}
-			user = claims.Id + "@" + claims.UserDomain
-			domain = claims.Domain
-		}
-
-	}
-
-	// The bundle will cantain the necessary information to install the service.
-	var buffer bytes.Buffer
-
-	// Here is necessary information to publish an application.
-	var name string
-	var organization string
-	var version string
-	var description string
-	var repositoryId string
-	var discoveryId string
-	var keywords []string
-	var actions []string
-	var icon string
-	var alias string
-	var roles []*resourcepb.Role
-	var groups []*resourcepb.Group
-	var set_as_default bool
-
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF || msg == nil || len(msg.Data) == 0 {
-			// end of stream...
-			err_ := stream.SendAndClose(&applications_managerpb.DeployApplicationResponse{
-				
-			})
-			if err_ != nil {
-				fmt.Println("fail send response and close stream with error ", err_)
-				return err_
-			}
-			err = nil
-			break
-		} else if err != nil {
-			return err
-		} else {
-			buffer.Write(msg.Data)
-		}
-
-		if len(msg.Name) > 0 {
-			name = msg.Name
-		}
-
-		if len(msg.Alias) > 0 {
-			alias = msg.Alias
-		}
-
-		if len(msg.Organization) > 0 {
-			organization = msg.Organization
-		}
-
-		if len(msg.User) > 0 {
-			user = msg.User
-		}
-
-		if len(msg.Version) > 0 {
-			version = msg.Version
-		}
-		if len(msg.Description) > 0 {
-			description = msg.Description
-		}
-		if msg.Keywords != nil {
-			keywords = msg.Keywords
-		}
-		if len(msg.Repository) > 0 {
-			repositoryId = msg.Repository
-		}
-		if len(msg.Discovery) > 0 {
-			discoveryId = msg.Discovery
-		}
-
-		if len(msg.Roles) > 0 {
-			roles = msg.Roles
-		}
-
-		if len(msg.Groups) > 0 {
-			groups = msg.Groups
-		}
-
-		if len(msg.Actions) > 0 {
-			actions = msg.Actions
-		}
-
-		if len(msg.Icon) > 0 {
-			icon = msg.Icon
-		}
-
-		if msg.SetAsDefault {
-			set_as_default = true
-		}
-
-	}
-
-	if len(domain) == 0 {
-		return errors.New("No domain was found")
-	}
-
-	if len(repositoryId) == 0 {
-		repositoryId = domain
-	}
-
-	if len(discoveryId) == 0 {
-		discoveryId = domain
-	}
-
-	// Retreive the actual application installed version.
-	previousVersion, _ := server.getApplicationVersion(name)
-
-	// Now I will save the bundle into a file in the temp directory.
-	path := os.TempDir() + "/" + Utility.RandomUUID()
-	defer os.RemoveAll(path)
-
-	err := ioutil.WriteFile(path, buffer.Bytes(), 0644)
-	if err != nil {
-		return err
-	}
-
-	server.logServiceInfo("PublishApplication", Utility.FileLine(), Utility.FunctionName(), "A new version of "+alias+" version "+version+" was publish")
-
-	// Publish application...
-	err = server.publishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
-	if err != nil {
-		return err
-	}
-
-	// convert struct...
-	roles_ := make([]*resourcepb.Role, len(roles))
-	for i := 0; i < len(roles); i++ {
-		roles_[i] = new(resourcepb.Role)
-		roles_[i].Id = roles[i].Id
-		roles_[i].Name = roles[i].Name
-		roles_[i].Domain = roles[i].Domain
-		roles_[i].Actions = roles[i].Actions
-	}
-
-	groups_ := make([]*resourcepb.Group, len(groups))
-	for i := 0; i < len(groups); i++ {
-		groups_[i] = new(resourcepb.Group)
-		groups_[i].Id = groups[i].Id
-		groups_[i].Name = groups[i].Name
-		groups_[i].Domain = groups[i].Domain
-		groups_[i].Description = groups[i].Description
-	}
-
-	// Read bytes and extract it in the current directory.
-	server.logServiceInfo("Install application", Utility.FileLine(), Utility.FunctionName(), "")
-	r := bytes.NewReader(buffer.Bytes())
-	err = server.installApplication(token, domain, name, organization, version, description, icon, alias, r, actions, keywords, roles_, groups_, set_as_default)
-	if err != nil {
-		return err
-	}
-
-	// If the version has change I will notify current users and undate the applications.
-	if previousVersion != version {
-		// Send application notification...
-		server.publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
-
-		message := `<div style="display: flex; flex-direction: column">
-              <div>A new version of <span style="font-weight: 500;">` + alias + `</span> (v.` + version + `) is available.
-              </div>
-              <div>
-                Press <span style="font-weight: 500;">f5</span> to refresh the page.
-              </div>
-            </div>
-            `
-		return server.sendApplicationNotification(name, message)
-	}
-
-	// Set the path of the directory where the application can store files.
-	Utility.CreateDirIfNotExist(config.GetDataDir() + "/files/applications/" + name)
-	if len(domain) == 0 {
-		return errors.New("no domain given for application")
-	}
-
-	err = server.addResourceOwner("/applications/"+name, "file", name+"@"+domain, rbacpb.SubjectType_APPLICATION)
-	if err != nil {
-		return err
-	}
-
-	if len(organization) > 0 {
-		err = server.addResourceOwner(name+"@"+domain, "application", organization, rbacpb.SubjectType_ORGANIZATION)
-		if err != nil {
-			return err
-		}
-
-	} else if len(user) > 0 {
-
-		err = server.addResourceOwner(name+"@"+domain, "application", user, rbacpb.SubjectType_ACCOUNT)
-		if err != nil {
-			return err
-		}
-
-	}
-
-	return nil
 }
 
 /**

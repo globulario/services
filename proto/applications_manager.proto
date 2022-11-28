@@ -3,8 +3,6 @@ package applications_manager;
 
 option go_package="applications_manager/applications_managerpb";
 
-import "resource.proto";
-
 message InstallApplicationRequest{
 	string dicorveryId = 1;
 	string applicationId = 2;
@@ -30,29 +28,6 @@ message UninstallApplicationResponse{
 	bool result = 1;
 }
 
-message DeployApplicationRequest{
-	string name = 1;
-	string domain = 2;
-	bytes data = 3;
-	string user = 4;
-	string organization = 5;
-	string version = 6;
-	repeated string keywords = 7;
-	string description = 8;
-	repeated string actions = 9; // That need to be use by the application...
-	string repository = 10;
-	string discovery = 11;
-	string icon = 12;
-	string alias = 13;
-	repeated resource.Role roles = 14;
-	repeated resource.Group groups = 15;
-	bool set_as_default = 16;
-}
-
-message DeployApplicationResponse{
-	
-}
-
 service ApplicationManagerService {
 
   // Install application...
@@ -60,8 +35,5 @@ service ApplicationManagerService {
 
   // Uninstall application...
   rpc UninstallApplication(UninstallApplicationRequest) returns (UninstallApplicationResponse);
-
-  // Pulbish and install application, use at development time...
-  rpc DeployApplication(stream DeployApplicationRequest) returns (DeployApplicationResponse);
 
 }

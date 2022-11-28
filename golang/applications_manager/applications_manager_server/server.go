@@ -512,16 +512,6 @@ func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, erro
 	return discoveryClient, nil
 }
 
-func (server *server) publishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
-	discoveryClient, err := server.getDsicoveryClient()
-
-	if err != nil {
-		return err
-	}
-
-	// Publish the application...
-	return discoveryClient.PublishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId, actions, keywords, roles, groups)
-}
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 

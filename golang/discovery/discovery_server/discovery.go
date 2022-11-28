@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -68,13 +67,13 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 	}
 
 	// Publish the service package.
-	err := server.publishPackage(token, rqst.User, rqst.Organization, rqst.DicorveryId, rqst.RepositoryId, rqst.Platform, rqst.Path, descriptor)
-
+	err := server.publishPackageDescriptor(descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 
 	return &discoverypb.PublishServiceResponse{
 		Result: true,
@@ -84,25 +83,25 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 // Publish a web application to a globular node. That must be use at development mostly...
 func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
 
-	fmt.Println("try to publish application ", rqst.Name, "...")
+	
 	var token string
-	var publisherId string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
 		if len(token) > 0 {
-			claims, err := security.ValidateToken(token)
+			_, err := security.ValidateToken(token)
 			if err != nil {
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
-
-			publisherId = claims.Id + "@" + claims.UserDomain
-			domain = claims.Domain
-
 		} else {
 			return nil, errors.New("PublishApplication no token was given")
 		}
+	}
+
+	publisherId := rqst.User
+	if len(rqst.Organization) > 0 {
+		publisherId = rqst.Organization
 	}
 
 	// Now I will upload the service to the repository...
@@ -120,15 +119,13 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 		Alias:        rqst.Alias,
 	}
 
-	// Publish the application package.
-	err := server.publishPackage(token, rqst.User, rqst.Organization, rqst.Discovery, rqst.Repository, "webapp", rqst.Path, descriptor)
+	// Fist of all publish the package descriptor.
+	err := server.publishPackageDescriptor(descriptor)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// So here I will 
 
 	return &discoverypb.PublishApplicationResponse{}, nil
 }
