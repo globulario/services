@@ -2,7 +2,6 @@ package applications_manager_client
 
 import (
 	"context"
-	"fmt"
 
 	"strconv"
 	"strings"
@@ -260,8 +259,6 @@ func (client *Applications_Manager_Client) InstallApplication(token,  domain, us
 	}
 
 	_, err := client.c.InstallApplication(ctx, rqst)
-	fmt.Println("----------------> install application: ", err)
-
 	return err
 }
 
