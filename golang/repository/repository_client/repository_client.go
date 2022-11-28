@@ -3,9 +3,11 @@ package repository_client
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
+	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -13,6 +15,7 @@ import (
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
+	"github.com/golang/protobuf/jsonpb"
 	"google.golang.org/grpc"
 
 	"bytes"
@@ -389,15 +392,23 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
 		if err != nil {
-			return -1, err 
+			return -1, err
 		}
-		if !strings.Contains(user, "@"){
-			user += "@" +claims.UserDomain
+		if !strings.Contains(user, "@") {
+			user += "@" + claims.UserDomain
 		}
-	} 
+	}
+
+	resource_client_, err := resource_client.NewResourceService_Client(domain, "rbac.RbacService")
+	if err != nil {
+		return -1, err
+	}
+
+	// Retreive the actual application installed version.
+	previousVersion, _ := resource_client_.GetApplicationVersion(name)
 
 	publisherId := user
-	if len(organization) > 0{
+	if len(organization) > 0 {
 		publisherId = organization
 	}
 
@@ -409,6 +420,139 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	}
 
 	defer os.RemoveAll(packagePath)
+
+	rbac_client_, err := rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+	if err != nil {
+		return -1, err
+	}
+
+	var permissions *rbacpb.Permissions
+	resource_path := publisherId + "|" + name + "|" + version
+	permissions, err = rbac_client_.GetResourcePermissions(resource_path)
+
+	if err != nil {
+		if len(organization) > 0 {
+			// Create the permission...
+			permissions = &rbacpb.Permissions{
+				Allowed: []*rbacpb.Permission{},
+				Denied:  []*rbacpb.Permission{},
+				Owners: &rbacpb.Permission{
+					Name:          "owner",
+					Accounts:      []string{},
+					Applications:  []string{},
+					Groups:        []string{},
+					Peers:         []string{},
+					Organizations: []string{organization},
+				},
+				Path:         resource_path,
+				ResourceType: "package",
+			}
+		} else {
+			// Create the permission...
+			permissions = &rbacpb.Permissions{
+				Allowed: []*rbacpb.Permission{},
+				Denied:  []*rbacpb.Permission{},
+				Owners: &rbacpb.Permission{
+					Name:          "owner",
+					Accounts:      []string{user},
+					Applications:  []string{},
+					Groups:        []string{},
+					Peers:         []string{},
+					Organizations: []string{},
+				},
+				Path:         resource_path,
+				ResourceType: "package",
+			}
+		}
+
+		// Set the permissions.
+		err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
+		if err != nil {
+			fmt.Println("fail to publish package with error: ", err.Error())
+			return -1, err
+		}
+	}
+
+	// Append the user into the list of owner if is not already part of it.
+	if len(organization) == 0 {
+		if !Utility.Contains(permissions.Owners.Accounts, user) {
+			permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
+		}
+	}
+
+	// Save the permissions.
+	err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
+	if err != nil {
+		return -1, err
+	}
+
+	if len(organization) > 0 {
+		err = rbac_client_.AddResourceOwner(name+"@"+domain, "application", organization, rbacpb.SubjectType_ORGANIZATION)
+		if err != nil {
+			return -1, err
+		}
+
+	} else if len(user) > 0 {
+		err = rbac_client_.AddResourceOwner(name+"@"+domain, "application", user, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return -1, err
+		}
+	}
+
+	// If the version has change I will notify current users and undate the applications.
+	if previousVersion != version {
+		event_client_, err := event_client.NewEventService_Client(domain, "event.EventService")
+		if err != nil {
+			return -1, err
+		}
+
+		applications, err := resource_client_.GetApplications(`{"_id":"` + name + `"}`)
+		if err != nil {
+			return -1, err
+		}
+
+		if len(applications) > 0 {
+			application := applications[0]
+
+			// Send application notification...
+			event_client_.Publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
+
+			message := `<div style="display: flex; flex-direction: column">
+				  <div>A new version of <span style="font-weight: 500;">` + application.Alias + `</span> (v.` + version + `) is available.
+				  </div>
+				  <div>
+					Press <span style="font-weight: 500;">f5</span> to refresh the page.
+				  </div>
+				</div>
+				`
+
+			// That service made user of persistence service.
+			notification := new(resourcepb.Notification)
+			notification.Id = Utility.RandomUUID()
+			notification.NotificationType = resourcepb.NotificationType_APPLICATION_NOTIFICATION
+			notification.Message = message
+			notification.Recipient = application.Id
+			notification.Date = time.Now().Unix()
+
+			notification.Sender = `{"_id":"` + application.Id + `", "name":"` + application.Name + `","icon":"` + application.Icon + `", "alias":"` + application.Alias + `"}`
+
+			err = resource_client_.CreateNotification(notification)
+			if err != nil {
+				return -1, err
+			}
+
+			var marshaler jsonpb.Marshaler
+			jsonStr, err := marshaler.MarshalToString(notification)
+			if err != nil {
+				return -1, err
+			}
+
+			err = event_client_.Publish(application.Id+"_notification_event", []byte(jsonStr))
+			if err != nil {
+				return -1, err
+			}
+		}
+	}
 
 	// Upload the bundle to the repository server.
 	return client.UploadBundle(domain, name, publisherId, version, "webapp", packagePath)
@@ -446,15 +590,15 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 	if len(token) > 0 {
 		claims, err := security.ValidateToken(token)
 		if err != nil {
-			return err 
+			return err
 		}
-		if !strings.Contains(user, "@"){
-			user += "@" +claims.UserDomain
+		if !strings.Contains(user, "@") {
+			user += "@" + claims.UserDomain
 		}
-	} 
+	}
 
 	publisherId := user
-	if len(organization) > 0{
+	if len(organization) > 0 {
 		publisherId = organization
 	}
 
@@ -505,15 +649,14 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 		return err
 	}
 
-	// Ladies and Gentlemans After one year after tow years services as resource!
-	// So here I will set the permissions
 	rbac_client_, err := rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
 	if err != nil {
 		return err
 	}
 
 	var permissions *rbacpb.Permissions
-	permissions, err = rbac_client_.GetResourcePermissions(s["PublisherId"].(string) + "|" + s["Name"].(string) + "|" + s["Id"].(string) + "|" + s["Version"].(string))
+	resource_path := s["PublisherId"].(string) + "|" + s["Name"].(string) + "|" + s["Id"].(string) + "|" + s["Version"].(string)
+	permissions, err = rbac_client_.GetResourcePermissions(resource_path)
 
 	if err != nil {
 		if len(organization) > 0 {
@@ -529,7 +672,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 					Peers:         []string{},
 					Organizations: []string{organization},
 				},
-				Path:         path_,
+				Path:         resource_path,
 				ResourceType: "package",
 			}
 		} else {
@@ -545,13 +688,13 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 					Peers:         []string{},
 					Organizations: []string{},
 				},
-				Path:         path_,
+				Path:         resource_path,
 				ResourceType: "package",
 			}
 		}
 
 		// Set the permissions.
-		err = rbac_client_.SetResourcePermissions(token, path_, "package", permissions)
+		err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
 		if err != nil {
 			fmt.Println("fail to publish package with error: ", err.Error())
 			return err
@@ -566,7 +709,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 	}
 
 	// Save the permissions.
-	err = rbac_client_.SetResourcePermissions(token, s["PublisherId"].(string) + "|" + s["Name"].(string) + "|" + s["Id"].(string) + "|" + s["Version"].(string), "package", permissions)
+	err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
 	if err != nil {
 		return err
 	}
@@ -578,7 +721,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 func (client *Repository_Service_Client) createPackageArchive(publisherId string, id string, version string, platform string, path string) (string, error) {
 
 	// Take the information from the configuration...
-	archive_name := id  + "%" + version + "%" + id + "%" + platform
+	archive_name := id + "%" + version + "%" + id + "%" + platform
 
 	// tar + gzip
 	var buf bytes.Buffer

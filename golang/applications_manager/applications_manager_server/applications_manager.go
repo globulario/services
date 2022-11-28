@@ -354,6 +354,8 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	return err
 }
 
+
+
 /**
  * Send a application notification.
  * That function will send notification to all connected user of that application.

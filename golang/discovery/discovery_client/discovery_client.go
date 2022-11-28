@@ -370,5 +370,11 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 
 	_, err := client.c.PublishApplication(ctx, rqst)
 
+	if err != nil {
+		return err
+	}
+
+
+
 	return err
 }
