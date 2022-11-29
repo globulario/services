@@ -344,7 +344,7 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 	if err != nil {
 		return -1, err
 	}
-
+	percent_ := 0
 	for {
 		var data [BufferSize]byte
 		bytesread, err := buffer.Read(data[0:BufferSize])
@@ -357,7 +357,10 @@ func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.Package
 		}
 
 		size += bytesread
-		fmt.Println("transfert ", size, "of", total, " ", int(float64(size)/float64(total)*100), "%")
+		if percent_ != int(float64(size)/float64(total)*100) {
+			percent_ = int(float64(size) / float64(total) * 100)
+			fmt.Println("transfert ", size, "of", total, " ", percent_, "%")
+		}
 
 		if err == io.EOF {
 			err = nil
@@ -399,7 +402,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		}
 	}
 
-	resource_client_, err := resource_client.NewResourceService_Client(domain, "rbac.RbacService")
+	resource_client_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
 	if err != nil {
 		return -1, err
 	}
@@ -426,97 +429,49 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		return -1, err
 	}
 
-	var permissions *rbacpb.Permissions
-	resource_path := publisherId + "|" + name + "|" + version
-	permissions, err = rbac_client_.GetResourcePermissions(resource_path)
+	// If the version has change I will notify current users and undate the applications.
 
-	if err != nil {
-		if len(organization) > 0 {
-			// Create the permission...
-			permissions = &rbacpb.Permissions{
-				Allowed: []*rbacpb.Permission{},
-				Denied:  []*rbacpb.Permission{},
-				Owners: &rbacpb.Permission{
-					Name:          "owner",
-					Accounts:      []string{},
-					Applications:  []string{},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{organization},
-				},
-				Path:         resource_path,
-				ResourceType: "package",
-			}
-		} else {
-			// Create the permission...
-			permissions = &rbacpb.Permissions{
-				Allowed: []*rbacpb.Permission{},
-				Denied:  []*rbacpb.Permission{},
-				Owners: &rbacpb.Permission{
-					Name:          "owner",
-					Accounts:      []string{user},
-					Applications:  []string{},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{},
-				},
-				Path:         resource_path,
-				ResourceType: "package",
-			}
-		}
-
-		// Set the permissions.
-		err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
-		if err != nil {
-			fmt.Println("fail to publish package with error: ", err.Error())
-			return -1, err
-		}
-	}
-
-	// Append the user into the list of owner if is not already part of it.
-	if len(organization) == 0 {
-		if !Utility.Contains(permissions.Owners.Accounts, user) {
-			permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
-		}
-	}
-
-	// Save the permissions.
-	err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
+	event_client_, err := event_client.NewEventService_Client(domain, "event.EventService")
 	if err != nil {
 		return -1, err
 	}
 
-	if len(organization) > 0 {
-		err = rbac_client_.AddResourceOwner(name+"@"+domain, "application", organization, rbacpb.SubjectType_ORGANIZATION)
-		if err != nil {
-			return -1, err
-		}
-
-	} else if len(user) > 0 {
-		err = rbac_client_.AddResourceOwner(name+"@"+domain, "application", user, rbacpb.SubjectType_ACCOUNT)
-		if err != nil {
-			return -1, err
-		}
+	applications, err := resource_client_.GetApplications(`{"_id":"` + name + `"}`)
+	if err != nil {
+		return -1, err
 	}
 
-	// If the version has change I will notify current users and undate the applications.
-	if previousVersion != version {
-		event_client_, err := event_client.NewEventService_Client(domain, "event.EventService")
-		if err != nil {
-			return -1, err
+	if len(applications) > 0 {
+		application := applications[0]
+
+		resource_path := application.Publisherid + "|" + application.Id + "|" + application.Name + "|" + application.Version
+
+		if len(organization) > 0 {
+			err = rbac_client_.AddResourceOwner(name+"@"+strings.Split(domain, ":")[0], "application", organization, rbacpb.SubjectType_ORGANIZATION)
+			if err != nil {
+				return -1, err
+			}
+
+			err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
+			if err != nil {
+				return -1, err
+			}
+
+		} else if len(user) > 0 {
+			err = rbac_client_.AddResourceOwner(name+"@"+strings.Split(domain, ":")[0] , "application", user, rbacpb.SubjectType_ACCOUNT)
+			if err != nil {
+				return -1, err
+			}
+
+			err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
+			if err != nil {
+				return -1, err
+			}
 		}
 
-		applications, err := resource_client_.GetApplications(`{"_id":"` + name + `"}`)
-		if err != nil {
-			return -1, err
-		}
-
-		if len(applications) > 0 {
-			application := applications[0]
-
-			// Send application notification...
-			event_client_.Publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
-
+		// Send application notification...
+		event_client_.Publish("update_"+strings.Split(domain, ":")[0]+"_"+name+"_evt", []byte(version))
+		if previousVersion != version {
 			message := `<div style="display: flex; flex-direction: column">
 				  <div>A new version of <span style="font-weight: 500;">` + application.Alias + `</span> (v.` + version + `) is available.
 				  </div>
@@ -654,64 +609,21 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 		return err
 	}
 
-	var permissions *rbacpb.Permissions
-	resource_path := s["PublisherId"].(string) + "|" + s["Name"].(string) + "|" + s["Id"].(string) + "|" + s["Version"].(string)
-	permissions, err = rbac_client_.GetResourcePermissions(resource_path)
+	resource_path := s["PublisherId"].(string) + "|" + s["Id"].(string) + "|" + s["Name"].(string) + "|" + s["Version"].(string)
 
-	if err != nil {
-		if len(organization) > 0 {
-			// Create the permission...
-			permissions = &rbacpb.Permissions{
-				Allowed: []*rbacpb.Permission{},
-				Denied:  []*rbacpb.Permission{},
-				Owners: &rbacpb.Permission{
-					Name:          "owner",
-					Accounts:      []string{},
-					Applications:  []string{},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{organization},
-				},
-				Path:         resource_path,
-				ResourceType: "package",
-			}
-		} else {
-			// Create the permission...
-			permissions = &rbacpb.Permissions{
-				Allowed: []*rbacpb.Permission{},
-				Denied:  []*rbacpb.Permission{},
-				Owners: &rbacpb.Permission{
-					Name:          "owner",
-					Accounts:      []string{user},
-					Applications:  []string{},
-					Groups:        []string{},
-					Peers:         []string{},
-					Organizations: []string{},
-				},
-				Path:         resource_path,
-				ResourceType: "package",
-			}
-		}
+	if len(organization) > 0 {
 
-		// Set the permissions.
-		err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
+		err = rbac_client_.AddResourceOwner(resource_path, "package", organization, rbacpb.SubjectType_ORGANIZATION)
 		if err != nil {
-			fmt.Println("fail to publish package with error: ", err.Error())
 			return err
 		}
-	}
 
-	// Append the user into the list of owner if is not already part of it.
-	if len(organization) == 0 {
-		if !Utility.Contains(permissions.Owners.Accounts, user) {
-			permissions.Owners.Accounts = append(permissions.Owners.Accounts, user)
+	} else if len(user) > 0 {
+		fmt.Println("add resource owner ", resource_path, user)
+		err = rbac_client_.AddResourceOwner(resource_path, "package", user, rbacpb.SubjectType_ACCOUNT)
+		if err != nil {
+			return err
 		}
-	}
-
-	// Save the permissions.
-	err = rbac_client_.SetResourcePermissions(token, resource_path, "package", permissions)
-	if err != nil {
-		return err
 	}
 
 	return nil

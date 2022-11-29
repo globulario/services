@@ -3935,8 +3935,14 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 		descriptor.Description = data[i].(map[string]interface{})["description"].(string)
 		descriptor.PublisherId = data[i].(map[string]interface{})["publisherid"].(string)
 		descriptor.Version = data[i].(map[string]interface{})["version"].(string)
-		descriptor.Icon = data[i].(map[string]interface{})["icon"].(string)
-		descriptor.Alias = data[i].(map[string]interface{})["alias"].(string)
+		if data[i].(map[string]interface{})["icon"] !=nil {
+			descriptor.Icon = data[i].(map[string]interface{})["icon"].(string)
+		}
+		
+		if  data[i].(map[string]interface{})["alias"] != nil {
+			descriptor.Alias = data[i].(map[string]interface{})["alias"].(string)
+		}
+
 		descriptor.Type = resourcepb.PackageType(Utility.ToInt(data[i].(map[string]interface{})["type"]))
 
 		if data[i].(map[string]interface{})["keywords"] != nil {

@@ -23,7 +23,7 @@ var (
 
 // Publish a service. The service must be install localy on the server.
 func (server *server) PublishService(ctx context.Context, rqst *discoverypb.PublishServiceRequest) (*discoverypb.PublishServiceResponse, error) {
-	
+
 	// Make sure the user is part of the organization if one is given.
 	publisherId := rqst.User
 	if len(rqst.Organization) > 0 {
@@ -74,7 +74,6 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	return &discoverypb.PublishServiceResponse{
 		Result: true,
 	}, nil
@@ -83,7 +82,6 @@ func (server *server) PublishService(ctx context.Context, rqst *discoverypb.Publ
 // Publish a web application to a globular node. That must be use at development mostly...
 func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.PublishApplicationRequest) (*discoverypb.PublishApplicationResponse, error) {
 
-	
 	var token string
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		token = strings.Join(md["token"], "")
@@ -117,6 +115,7 @@ func (server *server) PublishApplication(ctx context.Context, rqst *discoverypb.
 		Type:         resourcepb.PackageType_APPLICATION_TYPE,
 		Icon:         rqst.Icon,
 		Alias:        rqst.Alias,
+		Actions:      rqst.Actions,
 	}
 
 	// Fist of all publish the package descriptor.

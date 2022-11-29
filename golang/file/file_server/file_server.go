@@ -3602,7 +3602,7 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 	Utility.CreateDirIfNotExist(output)
 
 	if !Utility.Exists(output + "/preview.gif") {
-		cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", `-loop`, `0`, `preview.gif`)
+		cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer", `-loop`, `0`, `preview.gif`)
 		cmd.Dir = output // the output directory...
 		err := cmd.Run()
 		if err != nil {
@@ -3611,13 +3611,12 @@ func generateVideoPreview(path string, fps, scale, duration int, force bool) err
 		}
 	}
 
-	//ffmpeg -y -i /mnt/synology_disk_01/porn/ph605344042edbd.mp4 -ss 00:00:10 -t 30 -filter_complex "[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=320:-2" -an outputfile.mp4
+	//ffmpeg -y -i /mnt/synology_disk_01/porn/ph5b4d49c0180fb.mp4 -ss 00:00:10 -t 30 -movflags +faststart -filter_complex "[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=320:-2" -an outputfile.mp4
 	if !Utility.Exists(output + "/preview.mp4") {
 		cmd := exec.Command("ffmpeg", "-y", "-i", path, "-ss", Utility.ToString(duration_total*.1), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=`+Utility.ToString(scale)+`:-2`, "-an", "preview.mp4")
 		cmd.Dir = output // the output directory...
 		err := cmd.Run()
 		if err != nil {
-			fmt.Println("---------------> fail to generate preview for ", path, err)
 			os.Remove(output + "/preview.mp4")
 			return err
 		}
