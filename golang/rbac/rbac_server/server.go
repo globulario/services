@@ -57,6 +57,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -235,8 +237,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -435,9 +450,9 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
 
 	var err error
@@ -462,14 +477,14 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 	var domain string
 
 	if strings.Contains(accountId, "@") {
-		if len(strings.Split(accountId, "@")[1])  > 0 {
+		if len(strings.Split(accountId, "@")[1]) > 0 {
 			domain = strings.Split(accountId, "@")[1]
 		}
 		accountId = strings.Split(accountId, "@")[0]
 
 	}
 
-	if localDomain != domain  && len(domain) > 0{
+	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the account from it domain resource manager.
 		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
@@ -504,8 +519,6 @@ func (server *server) accountExist(id string) (bool, string) {
 		return false, ""
 	}
 
-
-
 	return true, a.Id + "@" + a.Domain
 
 }
@@ -519,13 +532,13 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 
 	if strings.Contains(groupId, "@") {
 
-		if len(strings.Split(groupId, "@")[1])  > 0 {
+		if len(strings.Split(groupId, "@")[1]) > 0 {
 			domain = strings.Split(groupId, "@")[1]
 		}
 		groupId = strings.Split(groupId, "@")[0]
 	}
 
-	if localDomain != domain  && len(domain) > 0{
+	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the group from it domain resource manager.
 		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
@@ -583,15 +596,15 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 	var domain string
 
 	if strings.Contains(applicationId, "@") {
-		if len(strings.Split(applicationId, "@")[1])  > 0 {
+		if len(strings.Split(applicationId, "@")[1]) > 0 {
 			domain = strings.Split(applicationId, "@")[1]
 		}
-		
+
 		applicationId = strings.Split(applicationId, "@")[0]
 
 	}
 
-	if localDomain != domain && len(domain) > 0{
+	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the account from it domain resource manager.
 		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
@@ -679,14 +692,14 @@ func (server *server) getOrganization(organizationId string) (*resourcepb.Organi
 	var domain string
 
 	if strings.Contains(organizationId, "@") {
-		if len(strings.Split(organizationId, "@")[1])  > 0 {
+		if len(strings.Split(organizationId, "@")[1]) > 0 {
 			domain = strings.Split(organizationId, "@")[1]
 		}
 		organizationId = strings.Split(organizationId, "@")[0]
 
 	}
 
-	if localDomain != domain  && len(domain) > 0{
+	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the account from it domain resource manager.
 		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
@@ -746,14 +759,14 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 	localDomain, _ := config.GetDomain()
 	var domain string
 	if strings.Contains(roleId, "@") {
-		if len(strings.Split(roleId, "@")[1])  > 0 {
+		if len(strings.Split(roleId, "@")[1]) > 0 {
 			domain = strings.Split(roleId, "@")[1]
 		}
 
 		roleId = strings.Split(roleId, "@")[0]
 	}
 
-	if localDomain != domain  && len(domain) > 0{
+	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the role from it domain resource manager.
 		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
@@ -802,9 +815,9 @@ func (server *server) roleExist(id string) (bool, string) {
 
 }
 
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 // RBAC specific functions
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 func (server *server) GetPermissions() []interface{} {
 	return server.Permissions
 }

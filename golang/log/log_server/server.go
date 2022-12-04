@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
@@ -49,6 +50,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -109,6 +112,24 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
+}
+
+
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the configuration.
@@ -239,10 +260,6 @@ func (server *server) SetDependency(dependency string) {
 	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
-}
-
-func (server *server) GetPlatform() string {
-	return globular.GetPlatform()
 }
 
 // The path of the executable.
@@ -418,7 +435,7 @@ func (server *server) StopService() error {
 	return globular.StopService(server, server.grpcServer)
 }
 
-//////////////////////////////// Event client /////////////////////////////////
+// ////////////////////////////// Event client /////////////////////////////////
 var (
 	event_client_ *event_client.Event_Client
 )
@@ -473,11 +490,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

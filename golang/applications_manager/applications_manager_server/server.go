@@ -57,6 +57,8 @@ type server struct {
 	PublisherId     string
 	KeepUpToDate    bool
 	KeepAlive       bool
+	Checksum        string
+	Plaform         string
 	Description     string
 	Keywords        []string
 	Repositories    []string
@@ -174,6 +176,23 @@ func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
+}
+
 // The description of the service
 func (svr *server) GetDescription() string {
 	return svr.Description
@@ -228,10 +247,6 @@ func (server *server) SetDependency(dependency string) {
 	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
-}
-
-func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
 }
 
 // The path of the executable.
@@ -413,9 +428,9 @@ var (
 	log_client_     *log_client.Log_Client
 )
 
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
 	var err error
 	if resourceClient != nil {
@@ -498,7 +513,7 @@ func (svr *server) createNotification(notification *resourcepb.Notification) err
 	return resourceClient.CreateNotification(notification)
 }
 
-//////////////////////// Package Repository services /////////////////////////////////
+// ////////////////////// Package Repository services /////////////////////////////////
 func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, error) {
 	if discoveryClient != nil {
 		return discoveryClient, nil
@@ -511,7 +526,6 @@ func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, erro
 
 	return discoveryClient, nil
 }
-
 
 ///////////////////////  Log Services functions ////////////////////////////////////////////////
 
@@ -546,7 +560,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-///////////////////// event service functions ////////////////////////////////////
+// /////////////////// event service functions ////////////////////////////////////
 func (svr *server) getEventClient() (*event_client.Event_Client, error) {
 	var err error
 	if event_client_ != nil {
@@ -637,7 +651,7 @@ func main() {
 		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
@@ -650,7 +664,6 @@ func main() {
 
 	// The user must part of owner in order to be able to deploy an application...
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/applications_manager.ApplicationManagerService/DeployApplication", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
-
 
 	// Start the service.
 	s_impl.StartService()

@@ -53,6 +53,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -62,7 +64,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 
 	TLS bool
@@ -225,8 +227,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
 func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -463,8 +478,8 @@ func main() {
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
@@ -473,7 +488,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
-
 
 	// Register the echo services
 	echopb.RegisterEchoServiceServer(s_impl.grpcServer, s_impl)

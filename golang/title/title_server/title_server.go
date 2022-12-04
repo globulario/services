@@ -63,6 +63,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -278,8 +280,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (srv *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -580,7 +595,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// Now I will get the title thumbnail...
-	thumbnail_path := os.TempDir() +"/"+rqst.Title.Poster.URL[strings.LastIndex(rqst.Title.Poster.URL, "/")+1:]
+	thumbnail_path := os.TempDir() + "/" + rqst.Title.Poster.URL[strings.LastIndex(rqst.Title.Poster.URL, "/")+1:]
 	defer os.Remove(thumbnail_path)
 
 	// Dowload the file.
@@ -588,8 +603,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if err == nil {
 		thumbnail, err := Utility.CreateThumbnail(thumbnail_path, 300, 180)
 		if err == nil {
-			fmt.Println("--------------> thumnail was create successfully!")
-			rqst.Title.Poster.ContentUrl = thumbnail;
+			rqst.Title.Poster.ContentUrl = thumbnail
 		}
 	}
 
@@ -677,7 +691,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	// information. If the title is lost it will be possible to recreate it from
 	// that url.
 	if strings.HasSuffix(rqst.IndexPath, "/search/titles") {
-		title, err := srv.getTitleById(rqst.IndexPath,  generateUUID(rqst.TitleId))
+		title, err := srv.getTitleById(rqst.IndexPath, generateUUID(rqst.TitleId))
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -687,7 +701,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if title.Poster != nil {
 			title.Poster.ContentUrl = title.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
-		
+
 		var marshaler jsonpb.Marshaler
 		jsonStr, err := marshaler.MarshalToString(title)
 		if err != nil {
@@ -695,12 +709,12 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		}
 
 		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
-		if fileInfo.IsDir(){
+		if fileInfo.IsDir() {
 			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
-					if err != nil {
-						return nil, err
-					}
-		}else{
+			if err != nil {
+				return nil, err
+			}
+		} else {
 			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
 			if err != nil {
 				return nil, status.Errorf(
@@ -708,7 +722,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 			}
 		}
-
 
 	} else if strings.HasSuffix(rqst.IndexPath, "/search/videos") {
 		video, err := srv.getVideoById(rqst.IndexPath, generateUUID(rqst.TitleId))
@@ -721,13 +734,13 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		if video == nil {
 			return nil, status.Errorf(
 				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video with id " + rqst.TitleId + " was not found")))
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("video with id "+rqst.TitleId+" was not found")))
 		}
 
 		if video.Poster != nil {
 			video.Poster.ContentUrl = video.Poster.URL // set the Content url with the lnk instead of data url to save space.
 		}
-		
+
 		var marshaler jsonpb.Marshaler
 		jsonStr, err := marshaler.MarshalToString(video)
 		encoded := base64.StdEncoding.EncodeToString([]byte(jsonStr))
@@ -737,12 +750,12 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
 
-		if fileInfo.IsDir(){
+		if fileInfo.IsDir() {
 			err = os.WriteFile(absolutefilePath+"/infos.json", []byte(jsonStr), 0664)
-					if err != nil {
-						return nil, err
-					}
-		}else{
+			if err != nil {
+				return nil, err
+			}
+		} else {
 			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
 			if err != nil {
 				return nil, status.Errorf(
@@ -767,6 +780,9 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		// is not a directory
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
+
+
+	fmt.Println("associate file ", absolutefilePath, uuid)
 
 	if srv.associations == nil {
 		srv.associations = make(map[string]*storage_store.Badger_store)
@@ -1298,7 +1314,7 @@ func (srv *server) GetPersonById(ctx context.Context, rqst *titlepb.GetPersonByI
 
 // Insert a video in the database or update it if it already exist.
 func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoRequest) (*titlepb.CreateVideoResponse, error) {
-	
+
 	if rqst.Video == nil {
 		fmt.Println("no video was given")
 		return nil, status.Errorf(
@@ -1360,7 +1376,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Println("---------> try to find video with id: ", id)
+	
 	query := bleve.NewQueryStringQuery(id)
 	searchRequest := bleve.NewSearchRequest(query)
 	searchResult, err := index.Search(searchRequest)
@@ -1469,8 +1485,6 @@ func (srv *server) GetFileVideos(ctx context.Context, rqst *titlepb.GetFileVideo
 			absolutefilePath = config.GetDataDir() + "/files" + absolutefilePath
 		}
 	}
-
-	fmt.Println("1401 -----------> ", absolutefilePath)
 
 	if !Utility.Exists(absolutefilePath) {
 
@@ -2055,7 +2069,6 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	}
 
 	if !Utility.Exists(absolutefilePath) {
-		fmt.Println("---------> 2075 ", absolutefilePath)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found with path "+absolutefilePath)))
@@ -2093,7 +2106,6 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	if err == nil {
 		err = json.Unmarshal(data, association)
 		if err != nil {
-			fmt.Println("---------> 2113 ", err)
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -2105,8 +2117,6 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 		audio, err := srv.getAudioById(rqst.IndexPath, generateUUID(association.Titles[i]))
 		if err == nil {
 			audios = append(audios, audio)
-		} else {
-			fmt.Println("---------> 2126 ", err)
 		}
 	}
 

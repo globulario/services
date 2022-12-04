@@ -52,6 +52,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -61,7 +63,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 
 	TLS bool
@@ -227,8 +229,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -408,9 +423,9 @@ var (
 	resourceClient *resource_client.Resource_Client
 )
 
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
 	var err error
 	if resourceClient != nil {
@@ -437,7 +452,7 @@ func (server *server) getPackageBundleChecksum(id string) (string, error) {
 	return resourceClient.GetPackageBundleChecksum(id)
 }
 
-///////////////////////  Log Services functions ////////////////////////////////////////////////
+// /////////////////////  Log Services functions ////////////////////////////////////////////////
 var (
 	log_client_ *log_client.Log_Client
 )
@@ -473,7 +488,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-/////////////////////// Repositiory specific function /////////////////////////////////
+// ///////////////////// Repositiory specific function /////////////////////////////////
 func (server *server) setPackageBundle(checksum, platform string, size int32, modified int64, descriptor *resourcepb.PackageDescriptor) error {
 	resourceClient, err := server.getResourceClient()
 	if err != nil {
@@ -523,11 +538,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

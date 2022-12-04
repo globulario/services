@@ -93,7 +93,7 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 	currentVideo.Casting = make([]*titlepb.Person, 0)
 	currentVideo.Genres = []string{"adult"}
 	currentVideo.Tags = []string{} // keep empty...
-
+	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
 	currentVideo.URL = video_url
 	currentVideo.ID = id
 
@@ -180,6 +180,7 @@ func indexXhamsterVideo(token, video_id, video_url, index_path, video_path, file
 	currentVideo.Tags = []string{} // keep empty...
 	currentVideo.URL = video_url
 	currentVideo.ID = video_id
+	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
 
 	currentVideo.Poster = new(titlepb.Poster)
 	currentVideo.Poster.ID = currentVideo.ID + "-thumnail"
@@ -252,6 +253,7 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 	currentVideo.Genres = []string{"adult"}
 	currentVideo.Tags = []string{} // keep empty...
 	currentVideo.URL = video_url
+	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
 
 	currentVideo.ID = video_id
 
@@ -294,9 +296,9 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 			values := strings.Split(child.Text, "-")
 			if currentVideo.PublisherId != nil {
 				txt := strings.TrimSpace(values[0])
-				currentVideo.Duration = txt[len(currentVideo.PublisherId.Name)+1:]
+				currentVideo.PublisherId.Name = txt[len(currentVideo.PublisherId.Name)+1:]
 			} else {
-				currentVideo.Duration = strings.TrimSpace(values[0])
+				currentVideo.PublisherId.Name = strings.TrimSpace(values[0])
 			}
 
 			// The number of view
@@ -373,6 +375,7 @@ func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_
 	currentVideo.ID = video_id
 	currentVideo.Poster = new(titlepb.Poster)
 	currentVideo.Poster.ID = currentVideo.ID + "-thumnail"
+	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
 	var err error
 	currentVideo.Poster.ContentUrl, err = downloadThumbnail(currentVideo.ID, video_url, file_path) //e.Attr("src")
 	if err != nil {
@@ -389,13 +392,6 @@ func indexXvideosVideo(token, video_id, video_url, index_path, video_path, file_
 	movieCollector.OnHTML(".page-title", func(e *colly.HTMLElement) {
 
 		currentVideo.Description = strings.TrimSpace(e.Text)
-		e.ForEach(".duration", func(index int, child *colly.HTMLElement) {
-			// The poster
-			currentVideo.Duration = child.Text
-			currentVideo.Description = currentVideo.Description[0:strings.Index(currentVideo.Description, currentVideo.Duration)]
-			currentVideo.Description = strings.TrimSpace(currentVideo.Description)
-		})
-
 		e.ForEach(".video-hd-mark", func(index int, child *colly.HTMLElement) {
 			// The poster
 			tag := strings.TrimSpace(child.Text)
@@ -497,6 +493,7 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 	currentVideo.PublisherId.ID = target["author_name"].(string)
 	currentVideo.PublisherId.Name = target["author_name"].(string)
 	currentVideo.Description = target["title"].(string)
+	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
 
 	return currentVideo, nil
 }

@@ -60,6 +60,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -248,8 +250,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
 func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -593,7 +608,7 @@ func (svr *server) processTorrent() {
 								err := Utility.CopyFile(src, dst)
 								if err != nil {
 									fmt.Println("fail to copy torrent file with error ", err)
-								}else{
+								} else {
 									// Generate event...
 								}
 							}

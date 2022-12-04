@@ -54,7 +54,7 @@ type server struct {
 	ConfigPath      string
 	LastError       string
 	ModTime         int64
-	State 		    string
+	State           string
 
 	// event_server-signed X.509 public keys for distribution
 	CertFile string
@@ -66,6 +66,8 @@ type server struct {
 	Version            string
 	PublisherId        string
 	KeepUpToDate       bool
+	Checksum           string
+	Plaform            string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -207,8 +209,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (event_server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -619,12 +634,12 @@ func main() {
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
-	
+
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 

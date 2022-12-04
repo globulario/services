@@ -187,7 +187,7 @@ message ConvertVideoToHlsResponse{
 
 // Process video request.
 message StartProcessVideoRequest {
-	
+	string path = 1; // if Empty it will process all videos...
 }
 
 message StartProcessVideoResponse {

@@ -62,6 +62,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -238,8 +240,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
 func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -395,7 +410,7 @@ var (
 	persistence_client_ *persistence_client.Persistence_Client
 )
 
-///////////////////// resource service functions ////////////////////////////////////
+// /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	var err error
 	if event_client_ != nil {
@@ -421,7 +436,7 @@ func (server *server) publishEvent(evt string, data []byte, domain string) error
 		}
 
 		return client.Publish(evt, data)
-	}else{
+	} else {
 		client, err := event_client.NewEventService_Client(domain, "event.EventService")
 		if err != nil {
 			return err
@@ -443,7 +458,7 @@ func (server *server) publishRemoteEvent(address, evt string, data []byte) error
 	return client.Publish(evt, data)
 }
 
-/////////////////////////////////////// return the peers infos from a given peer /////////////////////////////
+// ///////////////////////////////////// return the peers infos from a given peer /////////////////////////////
 func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
@@ -534,7 +549,7 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 	return hosts.Save()
 }
 
-/////////////////////////////////////// Get Persistence Client //////////////////////////////////////////
+// ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
 	var err error
 	if persistence_client_ == nil {

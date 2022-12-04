@@ -248,6 +248,7 @@ type Service interface {
 	SetDescription(string)
 
 	// The plaform of the services.
+	SetPlatform(string)
 	GetPlatform() string
 
 	// The keywords.
@@ -314,6 +315,10 @@ type Service interface {
 	// Can be a ip address or domain name.
 	GetDomain() string
 	SetDomain(string)
+
+	// This information is use to keep the exec update to the last avalaible exec.
+	GetChecksum() string
+	SetChecksum(string)
 
 	// TLS section
 
@@ -468,6 +473,10 @@ func InitService(s Service) error {
 	// here the service is runing...
 	s.SetState("running")
 	s.SetProcess(os.Getpid())
+
+	// Now the platform.
+	s.SetPlatform(runtime.GOOS + "_" +runtime.GOARCH) 
+	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
 	if len(os.Args) < 3 {

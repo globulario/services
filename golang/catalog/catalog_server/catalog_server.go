@@ -76,6 +76,8 @@ type server struct {
 	PublisherId        string
 	KeepUpToDate       bool
 	KeepAlive          bool
+	Checksum           string
+	Plaform            string
 	ModTime            int64
 
 	// Contain the list of service use by the catalog server.
@@ -176,6 +178,23 @@ func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
+}
+
 // The description of the service
 func (svr *server) GetDescription() string {
 	return svr.Description
@@ -216,10 +235,6 @@ func (server *server) SetDependency(dependency string) {
 	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
-}
-
-func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
 }
 
 func (svr *server) GetRepositories() []string {

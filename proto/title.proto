@@ -76,7 +76,7 @@ message Video {
 
 	Poster poster = 12; // Thumbnail
 	Preview preview = 13; // short play...
-	string Duration = 14;
+	int32 Duration = 14;
 	string UUID = 15;
 }
 

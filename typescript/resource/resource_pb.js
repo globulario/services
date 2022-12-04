@@ -282,7 +282,7 @@ proto.resource.PackageBundle.deserializeBinaryFromReader = function(msg, reader)
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPlaform(value);
+      msg.SetPlatform(value);
       break;
     case 4:
       var value = /** @type {number} */ (reader.readInt32());
@@ -437,7 +437,7 @@ proto.resource.PackageBundle.prototype.getPlaform = function() {
 
 
 /** @param {string} value */
-proto.resource.PackageBundle.prototype.setPlaform = function(value) {
+proto.resource.PackageBundle.prototype.SetPlatform = function(value) {
   jspb.Message.setProto3StringField(this, 3, value);
 };
 

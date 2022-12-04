@@ -123,7 +123,7 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 
 			protos, _ := Utility.FindFileByName(server.Root+"/services/"+descriptor.PublisherId+"/"+descriptor.Name+"/"+descriptor.Version, ".proto")
 			if len(protos) == 0 {
-				return errors.New("no configuration file was found")
+				return errors.New("no service was found")
 			}
 
 			// I will replace the path inside the config...

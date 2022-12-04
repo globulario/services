@@ -80,6 +80,8 @@ type server struct {
 	TLS                bool
 	PublisherId        string
 	KeepUpToDate       bool
+	Plaform            string
+	Checksum           string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -241,9 +243,21 @@ func (server *server) SetDependency(dependency string) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
 }
+func (svr *server) GetChecksum() string {
 
-func (server *server) GetPlatform() string {
-	return globular.GetPlatform()
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -463,7 +477,7 @@ func (server *server) connect(id string, userId string, pwd string) (*LDAP.Conn,
 	return conn, nil
 }
 
-///////////////////// resource service functions ////////////////////////////////////
+// /////////////////// resource service functions ////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
 	var err error
 	if resource_client_ != nil {
@@ -554,24 +568,25 @@ func (server *server) Synchronize(ctx context.Context, rqst *ldappb.SynchronizeR
 }
 
 // Append synchronize information.
-// "LdapSyncInfos": {
-//     "my__ldap":
-//       {
-//         "ConnectionId": "my__ldap",
-//         "GroupSyncInfo": {
-//           "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
-//           "Id": "name",
-//           "Query": "((objectClass=group))"
-//         },
-//         "Refresh": 1,
-//         "UserSyncInfo": {
-//           "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
-//           "Email": "mail",
-//           "Id": "userPrincipalName",
-//           "Query": "(|(objectClass=person)(objectClass=user))"
-//         }
-//       }
-//  }
+//
+//	"LdapSyncInfos": {
+//	    "my__ldap":
+//	      {
+//	        "ConnectionId": "my__ldap",
+//	        "GroupSyncInfo": {
+//	          "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//	          "Id": "name",
+//	          "Query": "((objectClass=group))"
+//	        },
+//	        "Refresh": 1,
+//	        "UserSyncInfo": {
+//	          "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//	          "Email": "mail",
+//	          "Id": "userPrincipalName",
+//	          "Query": "(|(objectClass=person)(objectClass=user))"
+//	        }
+//	      }
+//	 }
 func (server *server) SetLdapSyncInfo(ctx context.Context, rqst *ldappb.SetLdapSyncInfoRequest) (*ldappb.SetLdapSyncInfoResponse, error) {
 	info := make(map[string]interface{}, 0)
 
@@ -770,24 +785,25 @@ func (server *server) Close(ctx context.Context, rqst *ldappb.CloseRqst) (*ldapp
 
 // Synchronize the list user and group whith resources...
 // Here is an exemple of ldap configuration...
-// "LdapSyncInfos": {
-//     "my__ldap":
-//       {
-//         "ConnectionId": "my__ldap",
-//         "GroupSyncInfo": {
-//           "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
-//           "Id": "name",
-//           "Query": "((objectClass=group))"
-//         },
-//         "Refresh": 1,
-//         "UserSyncInfo": {
-//           "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
-//           "Email": "mail",
-//           "Id": "userPrincipalName",
-//           "Query": "(|(objectClass=person)(objectClass=user))"
-//         }
-//       }
-//  }
+//
+//	"LdapSyncInfos": {
+//	    "my__ldap":
+//	      {
+//	        "ConnectionId": "my__ldap",
+//	        "GroupSyncInfo": {
+//	          "Base": "OU=Access_Groups,OU=Groups,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//	          "Id": "name",
+//	          "Query": "((objectClass=group))"
+//	        },
+//	        "Refresh": 1,
+//	        "UserSyncInfo": {
+//	          "Base": "OU=Users,OU=MON,OU=CA,DC=UD6,DC=UF6",
+//	          "Email": "mail",
+//	          "Id": "userPrincipalName",
+//	          "Query": "(|(objectClass=person)(objectClass=user))"
+//	        }
+//	      }
+//	 }
 func (server *server) synchronize() error {
 
 	// Here I will get the local token to generate the groups

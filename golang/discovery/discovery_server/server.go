@@ -55,6 +55,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -227,8 +229,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -460,9 +475,9 @@ func (svr *server) addResourceOwner(path, resourceType, subject string, subjectT
 	return rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 }
 
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 func (server *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	var err error
 	if resourceClient != nil {
@@ -478,7 +493,7 @@ func (server *server) getResourceClient(address string) (*resource_client.Resour
 	return resourceClient, nil
 }
 
-/////////////////////// Resource function ///////////////////////////////////////////
+// ///////////////////// Resource function ///////////////////////////////////////////
 func (server *server) isOrganizationMember(user, organization string) (bool, error) {
 
 	address, _ := config.GetAddress()
@@ -486,7 +501,6 @@ func (server *server) isOrganizationMember(user, organization string) (bool, err
 		address = strings.Split(user, "@")[1]
 		user = strings.Split(user, "@")[0]
 	}
-	
 
 	resourceClient, err := server.getResourceClient(address)
 	if err != nil {
@@ -507,7 +521,7 @@ func (server *server) publishPackageDescriptor(descriptor *resourcepb.PackageDes
 	return resourceClient.SetPackageDescriptor(descriptor)
 }
 
-///////////////////////  Log Services functions ////////////////////////////////////////////////
+// /////////////////////  Log Services functions ////////////////////////////////////////////////
 var (
 	log_client_ *log_client.Log_Client
 )

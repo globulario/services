@@ -66,6 +66,8 @@ type server struct {
 	Version            string
 	PublisherId        string
 	KeepUpToDate       bool
+	Plaform            string
+	Checksum           string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -80,7 +82,6 @@ type server struct {
 
 	// Specific to file server.
 	Root string
-
 
 	search_engine search_engine.SearchEngine
 }
@@ -226,8 +227,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (search_server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -445,11 +459,10 @@ func (search_server *server) SearchDocuments(rqst *searchpb.SearchDocumentsReque
 	results := new(searchpb.SearchResults)
 	var err error
 
-		results, err = search_server.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
-		if err != nil {
-			return err
-		}
-	
+	results, err = search_server.search_engine.SearchDocuments(rqst.Paths, rqst.Language, rqst.Fields, rqst.Query, rqst.Offset, rqst.PageSize, rqst.SnippetLength)
+	if err != nil {
+		return err
+	}
 
 	stream.Send(&searchpb.SearchDocumentsResponse{
 		Results: results,

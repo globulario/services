@@ -75,6 +75,8 @@ type server struct {
 	Version            string
 	PublisherId        string
 	KeepUpToDate       bool
+	Plaform            string
+	Checksum           string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -83,7 +85,7 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
-	State           string
+	State              string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -234,8 +236,21 @@ func (monitoring_server *server) SetDiscoveries(discoveries []string) {
 	monitoring_server.Discoveries = discoveries
 }
 
-func (monitoring_server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -439,7 +454,7 @@ func (monitoring_server *server) Stop(context.Context, *monitoringpb.StopRequest
 	return &monitoringpb.StopResponse{}, monitoring_server.StopService()
 }
 
-///////////////////// Monitoring specific functions ////////////////////////////
+// /////////////////// Monitoring specific functions ////////////////////////////
 func (monitoring_server *server) createConnection(id string, host string, port int32, storeType monitoringpb.StoreType) error {
 	var c connection
 

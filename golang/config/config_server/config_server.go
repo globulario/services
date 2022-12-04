@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	//"fmt"
 	"log"
 	"os"
@@ -56,6 +57,8 @@ type server struct {
 	PublisherId     string
 	KeepUpToDate    bool
 	KeepAlive       bool
+	Checksum        string
+	Plaform         string
 	Description     string
 	Keywords        []string
 	Repositories    []string
@@ -178,6 +181,23 @@ func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
+}
+
 // The list of keywords of the services.
 func (svr *server) GetKeywords() []string {
 	return svr.Keywords
@@ -224,10 +244,6 @@ func (server *server) SetDependency(dependency string) {
 	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
-}
-
-func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
 }
 
 // The path of the executable.
@@ -403,7 +419,6 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-
 /////////////////////// Config service specific function /////////////////////////////////
 
 // Get the list of all services configurations
@@ -450,8 +465,6 @@ func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.S
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-
 
 	return &configpb.SetServiceConfigurationResponse{}, nil
 }

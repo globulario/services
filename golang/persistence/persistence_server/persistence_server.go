@@ -77,7 +77,7 @@ type server struct {
 	AllowAllOrigins    bool
 	AllowedOrigins     string // comma separated string.
 	Domain             string
-	Address         string
+	Address            string
 	Description        string
 	Keywords           []string
 	Repositories       []string
@@ -89,6 +89,8 @@ type server struct {
 	Version            string
 	PublisherId        string
 	KeepUpToDate       bool
+	Plaform            string
+	Checksum           string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -97,7 +99,7 @@ type server struct {
 	ConfigPath         string
 	LastError          string
 	ModTime            int64
-	State           string
+	State              string
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -253,8 +255,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (persistence_server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -492,9 +507,9 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
-////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////
 func (persistence_server *server) createConnection(ctx context.Context, user, password, id, name, host string, port int32, store persistencepb.StoreType, save bool) error {
 
 	var c connection
@@ -1191,8 +1206,8 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 

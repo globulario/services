@@ -63,6 +63,8 @@ type server struct {
 	PublisherId     string
 	KeepUpToDate    bool
 	KeepAlive       bool
+	Checksum        string
+	Plaform         string
 	Description     string
 	Keywords        []string
 	Repositories    []string
@@ -73,7 +75,7 @@ type server struct {
 	ConfigPort      int
 	LastError       string
 	ModTime         int64
-	State 		    string
+	State           string
 	TLS             bool
 
 	// server-signed X.509 public keys for distribution
@@ -189,6 +191,23 @@ func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
+}
+
 // The description of the service
 func (server *server) GetDescription() string {
 	return server.Description
@@ -257,10 +276,6 @@ func (server *server) SetDependency(dependency string) {
 	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
-}
-
-func (server *server) GetPlatform() string {
-	return globular.GetPlatform()
 }
 
 // The path of the executable.
@@ -495,7 +510,7 @@ func (svr *server) addResourceOwner(path, resourceType, subject string, subjectT
 		return err
 	}
 
-	err = rbac_client_.AddResourceOwner(path,resourceType, subject, subjectType)
+	err = rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
 	if err != nil {
 		fmt.Println("----------------> fail to add resource owner: ", err)
 	}
@@ -536,7 +551,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-///////////////////// event service functions ////////////////////////////////////
+// /////////////////// event service functions ////////////////////////////////////
 func (svr *server) getEventClient() (*event_client.Event_Client, error) {
 	var err error
 	if event_client_ != nil {
@@ -558,7 +573,7 @@ func (svr *server) publish(event string, data []byte) error {
 	return eventClient.Publish(event, data)
 }
 
-///////////////////// resource service functions ////////////////////////////////////
+// /////////////////// resource service functions ////////////////////////////////////
 func (svr *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
 	var err error
 	if resource_client_ != nil {
@@ -743,12 +758,12 @@ func main() {
 	s_impl.exit_ = make(chan bool)
 	s_impl.LdapConnectionId = ""
 	s_impl.authentications_ = make([]string, 0)
-	
+
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 

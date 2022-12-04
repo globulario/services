@@ -72,7 +72,7 @@ type server struct {
 	ProxyProcess    int
 	ConfigPath      string
 	LastError       string
-	State 		    string
+	State           string
 	ModTime         int64
 
 	// storage_server-signed X.509 public keys for distribution
@@ -84,7 +84,9 @@ type server struct {
 	TLS                bool
 	Version            string
 	PublisherId        string
+	Plaform            string
 	KeepUpToDate       bool
+	Checksum           string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -142,7 +144,6 @@ func (svr *server) SetState(state string) {
 	svr.State = state
 }
 
-
 func (svr *server) GetLastError() string {
 	return svr.LastError
 }
@@ -150,6 +151,7 @@ func (svr *server) GetLastError() string {
 func (svr *server) SetLastError(err string) {
 	svr.LastError = err
 }
+
 // The modeTime
 func (svr *server) SetModTime(modtime int64) {
 	svr.ModTime = modtime
@@ -239,8 +241,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (storage_server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -524,7 +539,7 @@ func (storage_server *server) Open(ctx context.Context, rqst *storagepb.OpenRqst
 		store = storage_store.NewLevelDB_store()
 	} else if conn.Type == storagepb.StoreType_BIG_CACHE {
 		store = storage_store.NewBigCache_store()
-	}else if conn.Type == storagepb.StoreType_BADGER_DB {
+	} else if conn.Type == storagepb.StoreType_BADGER_DB {
 		store = storage_store.NewBadger_store()
 	}
 
@@ -614,7 +629,7 @@ func (storage_server *server) SetLargeItem(stream storagepb.StorageService_SetLa
 		rqst, err = stream.Recv()
 		if err == io.EOF {
 			// end of stream...
-			err_:= stream.SendAndClose(&storagepb.SetLargeItemResponse{})
+			err_ := stream.SendAndClose(&storagepb.SetLargeItemResponse{})
 			if err_ != nil {
 				fmt.Println("fail send response and close stream with error ", err_)
 				return err_
@@ -816,11 +831,11 @@ func main() {
 
 	if len(os.Args) == 2 {
 		s_impl.Id = os.Args[1] // The second argument must be the port number
-	}else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

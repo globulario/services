@@ -72,6 +72,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Plaform         string
+	Checksum        string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -261,8 +263,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
 func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.
@@ -443,7 +458,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-///////////////////// resource service functions ////////////////////////////////////
+// /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	var err error
 	if event_client_ != nil {
@@ -646,7 +661,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 		rqst.Language = "en"
 	}
 
-	mac, _:= Utility.MyMacAddr(Utility.MyLocalIP())
+	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
 
 	conversation := &conversationpb.Conversation{
 		Uuid:            uuid,
@@ -656,7 +671,7 @@ func (svr *server) CreateConversation(ctx context.Context, rqst *conversationpb.
 		LastMessageTime: 0,
 		Language:        rqst.Language,
 		Participants:    []string{clientId},
-		Mac: mac,
+		Mac:             mac,
 	}
 
 	err = svr.saveConversation(conversation)
@@ -1336,8 +1351,7 @@ func (svr *server) SendInvitation(ctx context.Context, rqst *conversationpb.Send
 		}
 	}
 
-
-	mac, _:= Utility.MyMacAddr(Utility.MyLocalIP())
+	mac, _ := Utility.MyMacAddr(Utility.MyLocalIP())
 	rqst.Invitation.Mac = mac
 
 	// I will save the invitation into the clientId invitation.
@@ -1566,7 +1580,7 @@ func (svr *server) AcceptInvitation(ctx context.Context, rqst *conversationpb.Ac
 				return nil, status.Errorf(
 					codes.Internal,
 					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			} 
+			}
 			clientId = claims.Id + "@" + claims.UserDomain
 		} else {
 			return nil, status.Errorf(
@@ -2138,7 +2152,6 @@ func main() {
 	s_impl.Permissions[0] = map[string]interface{}{"action": "/conversation.ConversationService/DeleteConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 	s_impl.Permissions[1] = map[string]interface{}{"action": "/conversation.ConversationService/KickoutFromConversation", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 
-	
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

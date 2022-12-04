@@ -6106,7 +6106,7 @@ proto.file.StartProcessVideoRequest.prototype.toObject = function(opt_includeIns
  */
 proto.file.StartProcessVideoRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-
+    path: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
 
   if (includeInstance) {
@@ -6143,6 +6143,10 @@ proto.file.StartProcessVideoRequest.deserializeBinaryFromReader = function(msg, 
     }
     var field = reader.getFieldNumber();
     switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setPath(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -6172,6 +6176,28 @@ proto.file.StartProcessVideoRequest.prototype.serializeBinary = function() {
  */
 proto.file.StartProcessVideoRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
+  f = message.getPath();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string path = 1;
+ * @return {string}
+ */
+proto.file.StartProcessVideoRequest.prototype.getPath = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/** @param {string} value */
+proto.file.StartProcessVideoRequest.prototype.setPath = function(value) {
+  jspb.Message.setProto3StringField(this, 1, value);
 };
 
 

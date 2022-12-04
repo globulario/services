@@ -80,6 +80,8 @@ type server struct {
 	TLS                bool
 	PublisherId        string
 	KeepUpToDate       bool
+	Plaform            string
+	Checksum           string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -243,8 +245,21 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
 func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
 }
 
 // The path of the executable.

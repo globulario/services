@@ -1198,7 +1198,7 @@ proto.title.Video.toObject = function(includeInstance, msg) {
     proto.title.Person.toObject, includeInstance),
     poster: (f = msg.getPoster()) && proto.title.Poster.toObject(includeInstance, f),
     preview: (f = msg.getPreview()) && proto.title.Preview.toObject(includeInstance, f),
-    duration: jspb.Message.getFieldWithDefault(msg, 14, ""),
+    duration: jspb.Message.getFieldWithDefault(msg, 14, 0),
     uuid: jspb.Message.getFieldWithDefault(msg, 15, "")
   };
 
@@ -1293,7 +1293,7 @@ proto.title.Video.deserializeBinaryFromReader = function(msg, reader) {
       msg.setPreview(value);
       break;
     case 14:
-      var value = /** @type {string} */ (reader.readString());
+      var value = /** @type {number} */ (reader.readInt32());
       msg.setDuration(value);
       break;
     case 15:
@@ -1425,8 +1425,8 @@ proto.title.Video.serializeBinaryToWriter = function(message, writer) {
     );
   }
   f = message.getDuration();
-  if (f.length > 0) {
-    writer.writeString(
+  if (f !== 0) {
+    writer.writeInt32(
       14,
       f
     );
@@ -1726,17 +1726,17 @@ proto.title.Video.prototype.hasPreview = function() {
 
 
 /**
- * optional string Duration = 14;
- * @return {string}
+ * optional int32 Duration = 14;
+ * @return {number}
  */
 proto.title.Video.prototype.getDuration = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 14, ""));
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 14, 0));
 };
 
 
-/** @param {string} value */
+/** @param {number} value */
 proto.title.Video.prototype.setDuration = function(value) {
-  jspb.Message.setProto3StringField(this, 14, value);
+  jspb.Message.setProto3IntField(this, 14, value);
 };
 
 

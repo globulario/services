@@ -472,7 +472,7 @@ proto.repository.DownloadBundleRequest.deserializeBinaryFromReader = function(ms
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPlaform(value);
+      msg.SetPlatform(value);
       break;
     default:
       reader.skipField();
@@ -561,7 +561,7 @@ proto.repository.DownloadBundleRequest.prototype.getPlaform = function() {
 
 
 /** @param {string} value */
-proto.repository.DownloadBundleRequest.prototype.setPlaform = function(value) {
+proto.repository.DownloadBundleRequest.prototype.SetPlatform = function(value) {
   jspb.Message.setProto3StringField(this, 2, value);
 };
 

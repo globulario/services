@@ -59,6 +59,8 @@ type server struct {
 	Version         string
 	PublisherId     string
 	KeepUpToDate    bool
+	Checksum        string
+	Plaform         string
 	KeepAlive       bool
 	Description     string
 	Keywords        []string
@@ -194,6 +196,23 @@ func (svr *server) SetMac(mac string) {
 	svr.Mac = mac
 }
 
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
+}
+
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
+}
+
 // The list of keywords of the services.
 func (svr *server) GetKeywords() []string {
 	return svr.Keywords
@@ -240,10 +259,6 @@ func (server *server) SetDependency(dependency string) {
 	if !Utility.Contains(server.Dependencies, dependency) {
 		server.Dependencies = append(server.Dependencies, dependency)
 	}
-}
-
-func (svr *server) GetPlatform() string {
-	return globular.GetPlatform()
 }
 
 // The path of the executable.
@@ -488,7 +503,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
-///////////////////// resource service functions ////////////////////////////////////
+// /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
 	var err error
 	if event_client_ != nil {
@@ -579,9 +594,9 @@ func (svr *server) setActionResourcesPermissions(permissions map[string]interfac
 	return rbac_client_.SetActionResourcesPermissions(permissions)
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////////////
 // Blogger specific functions.
-////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) deleteAccountListener(evt *eventpb.Event) {
 	accountId := string(evt.Data)
 	blogs, err := svr.getBlogPostByAuthor(accountId)

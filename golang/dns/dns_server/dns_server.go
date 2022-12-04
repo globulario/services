@@ -85,6 +85,8 @@ type server struct {
 	Version            string
 	PublisherId        string
 	KeepUpToDate       bool
+	Checksum           string
+	Plaform            string
 	KeepAlive          bool
 	Permissions        []interface{} // contains the action permission for the services.
 	Dependencies       []string      // The list of services needed by this services.
@@ -235,10 +237,22 @@ func (server *server) SetDependency(dependency string) {
 	}
 }
 
-func (server *server) GetPlatform() string {
-	return globular.GetPlatform()
+func (svr *server) GetChecksum() string {
+
+	return svr.Checksum
 }
 
+func (svr *server) SetChecksum(checksum string) {
+	svr.Checksum = checksum
+}
+
+func (svr *server) GetPlatform() string {
+	return svr.Plaform
+}
+
+func (svr *server) SetPlatform(platform string) {
+	svr.Plaform = platform
+}
 func (server *server) GetRepositories() []string {
 	return server.Repositories
 }
@@ -1653,7 +1667,7 @@ func (server *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaReques
 	}, nil
 }
 
-/////////////////////// DNS Specific service //////////////////////
+// ///////////////////// DNS Specific service //////////////////////
 type handler struct{}
 
 func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
@@ -1843,7 +1857,7 @@ func (server *server) getTtl(uuid string) uint32 {
 	return binary.LittleEndian.Uint32(data)
 }
 
-///////////////////////  Log Services functions ////////////////////////////////////////////////
+// /////////////////////  Log Services functions ////////////////////////////////////////////////
 var (
 	log_client_ *log_client.Log_Client
 )
@@ -1883,7 +1897,7 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 /**
  * Get the rbac client.
  */
- func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
+func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 	var err error
 	if rbac_client_ == nil {
 		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
