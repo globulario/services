@@ -1580,15 +1580,6 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 		}
 	}
 
-	// Remove the file itself.
-	err = os.RemoveAll(path)
-
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
-
 	// Delete resource permission.
 	rbac_client_, err = getRbacClient()
 	if err != nil {
@@ -1613,10 +1604,19 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 
 	// Remove the permission itself...
 	rbac_client_.DeleteResourcePermissions(rqst.GetPath())
-
 	if err != nil {
 		log.Println(err)
 	}
+
+	// Remove the file itself.
+	err = os.RemoveAll(path)
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
 
 	return &filepb.DeleteDirResponse{
 		Result: true,
@@ -1746,15 +1746,9 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 	cache.RemoveItem(path)
 	cache.RemoveItem(filepath.Dir(path))
 
-	err := os.Remove(path)
 
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
 
-	rbac_client_, err = getRbacClient()
+	rbac_client_, err := getRbacClient()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -1778,6 +1772,14 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 		if err != nil {
 			fmt.Println(err)
 		}
+	}
+
+	err = os.Remove(path)
+
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
 	// Now I will disscociate the file.
@@ -4852,7 +4854,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 	if format == "mp3" {
 		cmdArgs = append(cmdArgs, []string{"-f", "bestaudio", "--extract-audio", "--audio-format", "mp3", "--audio-quality", "0", "--embed-thumbnail", "--embed-metadata", "--write-info-json", "-o", `%(id)s.%(ext)s`, url}...)
 	} else {
-		cmdArgs = append(cmdArgs, []string{"-f", "mp4", "--write-info-json", "--embed-thumbnail", "-o", `%(id)s.%(ext)s`, url}...)
+		cmdArgs = append(cmdArgs, []string{"-f", "mp4", "--write-info-json", "--embed-metadata", "--embed-thumbnail", "-o", `%(id)s.%(ext)s`, url}...)
 	}
 
 	cmd := exec.Command(baseCmd, cmdArgs...)

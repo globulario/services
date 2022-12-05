@@ -298,7 +298,7 @@ func indexXnxxVideo(token, video_id, video_url, index_path, video_path, file_pat
 				txt := strings.TrimSpace(values[0])
 				currentVideo.PublisherId.Name = txt[len(currentVideo.PublisherId.Name)+1:]
 			} else {
-				currentVideo.PublisherId.Name = strings.TrimSpace(values[0])
+				currentVideo.PublisherId = &titlepb.Publisher{ID:strings.TrimSpace(values[0]), Name:strings.TrimSpace(values[0]) }
 			}
 
 			// The number of view

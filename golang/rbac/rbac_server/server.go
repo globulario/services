@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -921,6 +922,18 @@ func main() {
 
 	if err != nil {
 		fmt.Println("Fail to connect to event channel generate_video_preview_event")
+	}
+
+	// I will remove used space values for the data base so It will be recalculated each time the server start...
+	ids_, err := s_impl.permissions.GetItem("USED_SPACE")
+	ids := make([]string, 0)
+	if err == nil {
+		err := json.Unmarshal(ids_, &ids)
+		if err == nil {
+			for i:=0; i < len(ids); i++ {
+				s_impl.permissions.RemoveItem(ids[i])
+			}
+		}
 	}
 
 	// Start the service.
