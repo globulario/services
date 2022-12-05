@@ -185,7 +185,7 @@ func refreshLocalToken(token string) (string, error) {
 		return GetPeerKey(claims.StandardClaims.Issuer)
 	})
 
-	if err != nil && !strings.HasPrefix(err.Error(), "token is expired") {
+	if err != nil && !strings.Contains(err.Error(), "token is expired") {
 		return "", err
 	}
 
