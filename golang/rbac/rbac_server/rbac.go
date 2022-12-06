@@ -648,6 +648,9 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 // Save the resource permission
 func (rbac_server *server) setResourcePermissions(path, resource_type string, permissions *rbacpb.Permissions) error {
 
+	// simply remove it from the cache...
+	rbac_server.cache.RemoveItem(path)
+
 	// be sure the path and the resource type are set in the permissions itself.
 	permissions.Path = path
 	permissions.ResourceType = resource_type
@@ -1069,7 +1072,7 @@ func (rbac_server *server) deleteResourceTypePathIndexation(resource_type string
  * Remove a resource path for an entity.
  */
 func (rbac_server *server) deleteSubjectResourcePermissions(subject string, path string) error {
-
+	rbac_server.cache.RemoveItem(path)
 	data, err := rbac_server.permissions.GetItem(subject)
 	if err != nil {
 		return err
@@ -1104,6 +1107,9 @@ func (rbac_server *server) deleteSubjectResourcePermissions(subject string, path
 
 // Remouve a resource permission
 func (rbac_server *server) deleteResourcePermissions(path string, permissions *rbacpb.Permissions) error {
+
+	// simply remove it from the cache...
+	rbac_server.cache.RemoveItem(path)
 
 	fmt.Println("--------------> 1091 ", path)
 	// Allowed resources
@@ -1545,7 +1551,16 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 
 // Return a resource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
-	fmt.Println("get resource permission for: ", path)
+	//fmt.Println("get resource permission for: ", path)
+	chached, err := rbac_server.cache.GetItem(path)
+	if err == nil && chached != nil {
+		permissions := new(rbacpb.Permissions)
+		err := jsonpb.UnmarshalString(string(chached), permissions )
+		if err == nil {
+			return permissions, nil
+		}
+	}
+
 	data, err := rbac_server.permissions.GetItem(path)
 	if err != nil {
 		return nil, err
@@ -1566,6 +1581,12 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 	// save the value...
 	if needSave {
 		rbac_server.setResourcePermissions(path, permissions.ResourceType, permissions)
+	}
+
+	var marshaler jsonpb.Marshaler
+	jsonStr, err := marshaler.MarshalToString(permissions)
+	if err  == nil {
+		rbac_server.cache.SetItem(path, []byte(jsonStr))
 	}
 
 	return permissions, nil

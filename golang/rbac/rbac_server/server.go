@@ -95,6 +95,10 @@ type server struct {
 
 	// RBAC store.
 	permissions *storage_store.Badger_store
+
+	// Here I will keep files info in memory...
+	cache *storage_store.BigCache_store // todo use cache instead of memory...
+
 }
 
 // The http address where the configuration can be found /config
@@ -935,6 +939,10 @@ func main() {
 			}
 		}
 	}
+
+	s_impl.cache = storage_store.NewBigCache_store()
+	s_impl.cache.Open("")
+
 
 	// Start the service.
 	s_impl.StartService()
