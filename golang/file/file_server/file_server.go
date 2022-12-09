@@ -1617,7 +1617,6 @@ func (file_server *server) DeleteDir(ctx context.Context, rqst *filepb.DeleteDir
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-
 	return &filepb.DeleteDirResponse{
 		Result: true,
 	}, nil
@@ -1740,13 +1739,26 @@ func (file_server *server) SaveFile(stream filepb.FileService_SaveFileServer) er
 // Delete file
 func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFileRequest) (*filepb.DeleteFileResponse, error) {
 
+	// return nil, errors.New("test phase...")
+
+	var token string
+	if ctx != nil {
+		// Now I will index the conversation to be retreivable for it creator...
+		if md, ok := metadata.FromIncomingContext(ctx); ok {
+			token = strings.Join(md["token"], "")
+			if len(token) == 0 {
+				return nil, errors.New("No token given")
+			}
+		}
+	} else {
+		return nil, errors.New("no valid context found")
+	}
+
 	path := file_server.formatPath(rqst.GetPath())
 
 	// Here I will remove the whole
 	cache.RemoveItem(path)
-	cache.RemoveItem(filepath.Dir(path))
-
-
+	cache.RemoveItem(filepath.Dir(path)) // force reload dir...
 
 	rbac_client_, err := getRbacClient()
 	if err != nil {
@@ -1784,6 +1796,22 @@ func (file_server *server) DeleteFile(ctx context.Context, rqst *filepb.DeleteFi
 
 	// Now I will disscociate the file.
 	dissociateFileWithTitle(rqst.GetPath())
+
+	
+	// Refresh playlist...
+	dir := strings.ReplaceAll(filepath.Dir(path), "\\", "/")
+
+	if Utility.Exists(dir + "/audio.m3u"){
+		cache.RemoveItem(dir + "/audio.m3u")
+		os.Remove(dir + "/audio.m3u")
+		file_server.generatePlaylist(dir, token)
+	}
+	
+	if Utility.Exists(dir + "/video.m3u"){
+		cache.RemoveItem(dir + "/video.m3u")
+		os.Remove(dir + "/video.m3u")
+		file_server.generatePlaylist(dir, token)
+	}
 
 	return &filepb.DeleteFileResponse{
 		Result: true,
@@ -3236,6 +3264,7 @@ func dissociateFileWithTitle(path string) error {
 			client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, path)
 		}
 	}
+
 	return nil
 }
 
@@ -4667,7 +4696,7 @@ func (file_server *server) getVideoInfos(url, path, format string) (string, []ma
 		Utility.CreateDirIfNotExist(path_ + "/.hidden")
 
 		// I will save the playlist in the  .hidden directory.
-		playlist_ := map[string]interface{}{"url": url, "path": path, "format":format, "items": playlist}
+		playlist_ := map[string]interface{}{"url": url, "path": path, "format": format, "items": playlist}
 		jsonStr, _ = Utility.ToJson(playlist_)
 
 		err = os.WriteFile(path_+"/.hidden/playlist.json", []byte(jsonStr), 0644)
@@ -4742,7 +4771,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	if playlist != nil {
+	if playlist != nil && len(playlist) > 0 {
 		files, _ := Utility.ReadDir(path_)
 
 		client, err := getTitleClient()
@@ -4750,10 +4779,29 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			return err
 		}
 
+		// finish processing already downloaded files...
+		for i := 0; i < len(files); i++ {
+			f := files[i]
+			if strings.HasSuffix(f.Name(), ".info.json") {
+				dest := rqst.Dest + "/" + playlist[0]["playlist"].(string)
+				info_path := path_ + "/" + f.Name()
+				fileName := path_ + "/" + strings.ReplaceAll(f.Name(), ".info.json", ".mp4")
+				if Utility.Exists(fileName) {
+					err = file_server.createVideoInfo(token, dest, fileName, info_path)
+					if err == nil {
+						file_server.createPermission(token, dest+"/"+filepath.Base(fileName))
+					}
+					os.Remove(info_path)
+				}
+			}
+		}
+
+		file_server.generatePlaylist(path, "")
+
 		// remove incomplete download...
 		for i := 0; i < len(files); i++ {
 			f := files[i]
-			if strings.Contains(f.Name(), ".temp.") || strings.HasSuffix(f.Name(), ".ytdl")|| strings.HasSuffix(f.Name(), ".webp")|| strings.HasSuffix(f.Name(), ".png") || strings.HasSuffix(f.Name(), ".jpg") || strings.HasSuffix(f.Name(), ".info.json") || strings.Contains(f.Name(), ".part-") {
+			if strings.Contains(f.Name(), ".temp.") || strings.HasSuffix(f.Name(), ".ytdl") || strings.HasSuffix(f.Name(), ".webp") || strings.HasSuffix(f.Name(), ".png") || strings.HasSuffix(f.Name(), ".jpg") || strings.HasSuffix(f.Name(), ".info.json") || strings.Contains(f.Name(), ".part-") {
 				os.Remove(path_ + "/" + f.Name())
 			}
 
@@ -5062,6 +5110,7 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 		// Remove previous playlist...
 		playlists := Utility.GetFilePathsByExtension(path, "m3u")
 		for i := 0; i < len(playlists); i++ {
+			cache.RemoveItem(playlists[i])
 			os.Remove(playlists[i])
 		}
 

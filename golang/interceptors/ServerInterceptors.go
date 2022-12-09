@@ -188,16 +188,22 @@ func validateAction(token, application, address, organization, method, subject s
 
 	rbac_client_, err := GetRbacClient(address)
 	if err != nil {
+		fmt.Println("fail to connecto the the rbac service!")
 		return false, err
 	}
+
 
 	hasAccess, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
 		return false, err
 	}
 
+	
+	// fmt.Println("validate ", subject, method, infos, hasAccess)
+
 	// Here I will set the access in the cache.
-	//log(domain, application, subject, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  "+subject+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
+	// (domain, application, subject, method, Utility.FileLine(), Utility.FunctionName(), "validate action "+method+" for  "+subject+" at domain "+domain, logpb.LogLevel_INFO_MESSAGE)
+	
 	cache.Store(uuid, map[string]interface{}{"hasAccess": hasAccess, "expiredAt": time.Now().Add(time.Minute * 15).Unix()})
 
 	return hasAccess, nil

@@ -292,7 +292,6 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	// Here I will get the configuration information from http...
 	var resp *http.Response
 	var err error
-	fmt.Println("Get remote config... ", address, port, id)
 	// The default port address.
 	if port == 0 {
 		port = 80

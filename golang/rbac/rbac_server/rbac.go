@@ -550,8 +550,6 @@ func (rbac_server *server) initSubjectUsedSpace(subject string, subject_type rba
 		fi, err := os.Stat(rbac_server.formatPath(path))
 		if err == nil {
 			if !fi.IsDir() {
-				fmt.Println(path, fi.Size())
-				
 				used_space += uint64(fi.Size())
 			}
 		} else {
@@ -834,7 +832,6 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 
 					// Here I will set the used space.
 					if permissions.ResourceType == "file" {
-						fmt.Println("try to set the used space for ", owners.Accounts[j], path)
 						used_space, err := rbac_server.getSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT)
 						if err != nil {
 							used_space, err = rbac_server.initSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT)
@@ -846,8 +843,6 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 								used_space += uint64(fi.Size())
 								rbac_server.setSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT, used_space)
 							}
-						} else {
-							fmt.Println("-------------> 805 ", err)
 						}
 					}
 
@@ -1111,7 +1106,6 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 	// simply remove it from the cache...
 	rbac_server.cache.RemoveItem(path)
 
-	fmt.Println("--------------> 1091 ", path)
 	// Allowed resources
 	allowed := permissions.Allowed
 	if allowed != nil {
@@ -2142,6 +2136,8 @@ func isPublic(path string) bool {
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 
+	fmt.Println("validate access: ", subject, name, path)
+
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 
 		exist, a := rbac_server.accountExist(subject)
@@ -2640,6 +2636,7 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
 
+	fmt.Println("validate action: ", action, subject, resources)
 	// Exception
 	if len(resources) == 0 {
 		if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") || action == "/file.FileService/GetFileInfo" {
@@ -2654,7 +2651,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	}
 
 	// Test if the guest role contain the action...
-	if Utility.Contains(guest.Actions, action) == true {
+	if Utility.Contains(guest.Actions, action) == true && len(resources) == 0 {
 		return true, nil
 	}
 

@@ -63,7 +63,6 @@ func getCaCertificate_(address string, port int, protocol string) (string, error
 
 	// I will firt try with http protocol...
 	var caAddress = protocol + "://" + address + ":" + Utility.ToString(port) + "/get_ca_certificate"
-	fmt.Println("get ca certificate: ", caAddress)
 	resp, err = http.Get(caAddress)
 	if err != nil {
 		return "", err
@@ -135,7 +134,6 @@ func InstallCertificates(domain string, port int, path string) (string, string, 
  */
 func getCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
-	fmt.Println("get credential config for domain: ", domain, ":", port)
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 

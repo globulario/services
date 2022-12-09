@@ -648,7 +648,6 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
  * Test if a application exist.
  */
 func (server *server) applicationExist(id string) (bool, string) {
-	fmt.Println("try to find application: ", id)
 	a, err := server.getApplication(id)
 	if err != nil || a == nil {
 		return false, ""
@@ -758,8 +757,6 @@ func (server *server) organizationExist(id string) (bool, string) {
  * Return a role with a given id
  */
 func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
-
-	fmt.Println("try to find role: ", roleId)
 
 	localDomain, _ := config.GetDomain()
 	var domain string

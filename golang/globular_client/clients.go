@@ -128,7 +128,6 @@ func InitClient(client Client, address string, id string) error {
 
 	localConfig, _ := config.GetLocalConfig(true)
 	if !strings.Contains(address, ":") {
-		fmt.Println("--------------> 123 ", address_)
 		if strings.HasPrefix(address_, address) {
 			// this is local
 			if localConfig["Protocol"].(string) == "https" {

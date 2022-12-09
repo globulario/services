@@ -241,6 +241,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 	if err == nil {
 		// set the user infos....
 		if user_data != nil {
+
 			user_data_ := user_data.(map[string]interface{})
 			if user_data_["profilePicture_"] != nil {
 				a.ProfilePicture = user_data_["profilePicture_"].(string)
@@ -257,7 +258,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 		}
 	} else {
-		fmt.Println("---> fail to retreive user data ", db, accountId, err)
+		fmt.Println("fail to retreive user data ", db, accountId, err)
 	}
 
 	return &resourcepb.GetAccountRsp{
@@ -489,7 +490,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 			}
 		} else {
-			fmt.Println("---> fail to retreive user data ", db, a.Id, err)
+			fmt.Println("-------------------------------------------------------------------------------------------------------------------------> fail to retreive user data ", db, a.Id, err)
 		}
 
 		values = append(values, a)
@@ -924,7 +925,7 @@ func (resource_server *server) CreateRole(ctx context.Context, rqst *resourcepb.
 /**
  * Create a group with a given name of update existing one.
  */
- func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRqst) (*resourcepb.UpdateRoleRsp, error) {
+func (resource_server *server) UpdateRole(ctx context.Context, rqst *resourcepb.UpdateRoleRqst) (*resourcepb.UpdateRoleRsp, error) {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return nil, status.Errorf(
@@ -3935,11 +3936,11 @@ func (server *server) GetPackagesDescriptor(rqst *resourcepb.GetPackagesDescript
 		descriptor.Description = data[i].(map[string]interface{})["description"].(string)
 		descriptor.PublisherId = data[i].(map[string]interface{})["publisherid"].(string)
 		descriptor.Version = data[i].(map[string]interface{})["version"].(string)
-		if data[i].(map[string]interface{})["icon"] !=nil {
+		if data[i].(map[string]interface{})["icon"] != nil {
 			descriptor.Icon = data[i].(map[string]interface{})["icon"].(string)
 		}
-		
-		if  data[i].(map[string]interface{})["alias"] != nil {
+
+		if data[i].(map[string]interface{})["alias"] != nil {
 			descriptor.Alias = data[i].(map[string]interface{})["alias"].(string)
 		}
 
@@ -4260,8 +4261,7 @@ func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourc
 	db += "_db"
 
 	query := `{"$or":[{"caller":"` + rqst.AccountId + `"},{"callee":"` + rqst.AccountId + `"} ]}`
-
-	results, err := p.Find(context.Background(), "local_resource", "local_resource", "Accounts", query, "")
+	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -4271,7 +4271,7 @@ func (resource_server *server) GetCallHistory(ctx context.Context, rqst *resourc
 	calls := make([]*resourcepb.Call, len(results))
 	for i := 0; i < len(results); i++ {
 		call := results[i].(map[string]interface{})
-		calls[i] = &resourcepb.Call{Caller: call["caller"].(string), Callee: call["callee"].(string), Uuid: call["_id"].(string), StartTime: call["start_time"].(int64), EndTime: call["end_time"].(int64)}
+		calls[i] = &resourcepb.Call{Caller: call["caller"].(string), Callee: call["callee"].(string), Uuid: call["_id"].(string), StartTime: int64(call["start_time"].(int32)), EndTime: int64(call["end_time"].(int32))}
 	}
 
 	return &resourcepb.GetCallHistoryRsp{Calls: calls}, nil

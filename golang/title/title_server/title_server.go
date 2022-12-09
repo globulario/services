@@ -636,14 +636,16 @@ func (srv *server) DeleteTitle(ctx context.Context, rqst *titlepb.DeleteTitleReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.TitleId)
+	id := generateUUID(rqst.TitleId)
+	err = index.Delete(id)
+
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.TitleId))
+	err = index.DeleteInternal([]byte(id))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -781,7 +783,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 		uuid = Utility.CreateFileChecksum(absolutefilePath)
 	}
 
-
 	fmt.Println("associate file ", absolutefilePath, uuid)
 
 	if srv.associations == nil {
@@ -902,8 +903,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		if err != nil {
 			return err
 		}
-	} else {
-		fmt.Println("-----------> no file association found with error ", err)
 	}
 
 	// so here i will remove the path from the list of path.
@@ -928,8 +927,6 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 		if err != nil {
 			return err
 		}
-	} else {
-		fmt.Println("-----------> no title association found with error ", indexPath, titleId, err)
 	}
 
 	// so here i will remove the path from the list of path.
@@ -937,6 +934,23 @@ func (srv *server) dissociateFileWithTitle(indexPath, titleId, absoluteFilePath 
 
 	if len(title_association.Paths) == 0 {
 		srv.associations[indexPath].RemoveItem(titleId)
+
+		// I will also delete the title itself from the search engine...
+		index, err := srv.getIndex(indexPath)
+		if err != nil {
+			return err
+		}
+
+		err = index.Delete(titleId)
+		if err != nil {
+			return err
+		}
+
+		err = index.DeleteInternal([]byte(titleId))
+		if err != nil {
+			return err
+		}
+
 	} else {
 		// Now I will set back the item in the store.
 		data, _ := json.Marshal(title_association)
@@ -1376,7 +1390,7 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	query := bleve.NewQueryStringQuery(id)
 	searchRequest := bleve.NewSearchRequest(query)
 	searchResult, err := index.Search(searchRequest)
@@ -1443,28 +1457,40 @@ func (srv *server) GetVideoById(ctx context.Context, rqst *titlepb.GetVideoByIdR
 
 // Delete a video from the database.
 func (srv *server) DeleteVideo(ctx context.Context, rqst *titlepb.DeleteVideoRequest) (*titlepb.DeleteVideoResponse, error) {
+
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
+
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.VideoId)
+	id := generateUUID(rqst.VideoId)
+	err = index.Delete(id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.VideoId))
+	err = index.DeleteInternal([]byte(id))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// TODO remove asscociated files...
+	val, err := index.GetInternal([]byte(id))
+	if err == nil {
+		return nil, errors.New("fail to remove " + rqst.VideoId)
+	}
+
+	if val != nil {
+		return nil, errors.New("expected nil, got" + string(val))
+	}
+
+	// Now I will remove the file association...
 
 	return &titlepb.DeleteVideoResponse{}, nil
 }
@@ -1682,10 +1708,15 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		},
 	})
 
+	if srv.associations[rqst.IndexPath] == nil {
+		srv.associations[rqst.IndexPath] = storage_store.NewBadger_store()
+		// open in it own thread
+		srv.associations[rqst.IndexPath].Open(`{"path":"` + rqst.IndexPath + `", "name":"titles"}`)
+	}
+
 	// Now I will generate the hits informations...
 	for i, hit := range result.Hits {
 		id := hit.ID
-
 		hit_ := new(titlepb.SearchHit)
 		hit_.Score = hit.Score
 		hit_.Index = int32(i)
@@ -1706,18 +1737,38 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 		// Here I will get the title itself.
 		raw, err := index.GetInternal([]byte(id))
 		if err == nil {
+			// the title must contain file association...
+
+			//if err == nil {
+
 			title := new(titlepb.Title)
-			err := jsonpb.UnmarshalString(string(raw), title)
+			err = jsonpb.UnmarshalString(string(raw), title)
 			if err == nil {
 				hit_.Result = &titlepb.SearchHit_Title{
 					Title: title,
 				}
+
+				hasFile := true
+				files, err := srv.getTitleFiles(rqst.IndexPath, title.ID)
+				if err != nil {
+					hasFile = false
+				} else {
+					hasFile = len(files) > 0
+				}
+				
 				// Here I will send the search result...
-				stream.Send(&titlepb.SearchTitlesResponse{
-					Result: &titlepb.SearchTitlesResponse_Hit{
-						Hit: hit_,
-					},
-				})
+				if hasFile {
+					stream.Send(&titlepb.SearchTitlesResponse{
+						Result: &titlepb.SearchTitlesResponse_Hit{
+							Hit: hit_,
+						},
+					})
+				} else {
+
+					index.Delete(id)
+					index.DeleteInternal([]byte(id))
+				}
+
 			} else {
 				// Here I will try with a video...
 				video := new(titlepb.Video)
@@ -1726,12 +1777,28 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 					hit_.Result = &titlepb.SearchHit_Video{
 						Video: video,
 					}
+
+					hasFile := true
+					files, err := srv.getTitleFiles(rqst.IndexPath, video.ID)
+					if err != nil {
+						hasFile = false
+					} else {
+						hasFile = len(files) > 0
+					}
+					
 					// Here I will send the search result...
-					stream.Send(&titlepb.SearchTitlesResponse{
-						Result: &titlepb.SearchTitlesResponse_Hit{
-							Hit: hit_,
-						},
-					})
+					if hasFile {
+						stream.Send(&titlepb.SearchTitlesResponse{
+							Result: &titlepb.SearchTitlesResponse_Hit{
+								Hit: hit_,
+							},
+						})
+					} else {
+
+						index.Delete(id)
+						index.DeleteInternal([]byte(id))
+					}
+
 				} else {
 					audio := new(titlepb.Audio)
 					err := jsonpb.UnmarshalString(string(raw), audio)
@@ -1739,14 +1806,30 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 						hit_.Result = &titlepb.SearchHit_Audio{
 							Audio: audio,
 						}
-						// Here I will send the search result...
-						stream.Send(&titlepb.SearchTitlesResponse{
-							Result: &titlepb.SearchTitlesResponse_Hit{
-								Hit: hit_,
-							},
-						})
+
+						hasFile := true
+						files, err := srv.getTitleFiles(rqst.IndexPath, audio.ID)
+						if err != nil {
+							hasFile = false
+						} else {
+							hasFile = len(files) > 0
+						}
+						
+						if hasFile {
+							// Here I will send the search result...
+							stream.Send(&titlepb.SearchTitlesResponse{
+								Result: &titlepb.SearchTitlesResponse_Hit{
+									Hit: hit_,
+								},
+							})
+						} else {
+							index.Delete(id)
+							index.DeleteInternal([]byte(id))
+						}
+
 					}
 				}
+
 			}
 		}
 	}
@@ -2005,14 +2088,16 @@ func (srv *server) DeleteAudio(ctx context.Context, rqst *titlepb.DeleteAudioReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.Delete(rqst.AudioId)
+	id := generateUUID(rqst.AudioId)
+
+	err = index.Delete(id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = index.DeleteInternal([]byte(rqst.AudioId))
+	err = index.DeleteInternal([]byte(id))
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2151,6 +2236,7 @@ func main() {
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
+	s_impl.associations = make(map[string]*storage_store.Badger_store)
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {

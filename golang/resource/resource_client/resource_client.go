@@ -63,7 +63,6 @@ type Resource_Client struct {
 func NewResourceService_Client(address string, id string) (*Resource_Client, error) {
 
 	client := new(Resource_Client)
-	fmt.Println("new resource connection at address ", address, id)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
 		fmt.Println("fail to create resource client with error: ", err)
