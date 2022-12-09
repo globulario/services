@@ -4285,6 +4285,7 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 	playlist := "#EXTM3U\n\n"
 	playlist += "#PLAYLIST: " + strings.ReplaceAll(path, config.GetDataDir()+"/files/", "/") + "\n\n"
 
+
 	for i := 0; i < len(paths); i++ {
 
 		videos := make(map[string][]*titlepb.Video, 0)
@@ -4376,19 +4377,46 @@ func (file_server *server) generatePlaylist(path, token string) error {
 	// here I will generate the audio playlist
 	fmt.Println("audio found ", audios)
 	if len(audios) > 0 {
-		file_server.generateAudioPlaylist(path, token, audios)
+		file_server.generateAudioPlaylist(path, token, file_server.orderedPlayList(path, audios))
 	}
 
 	// Here I will generate video playlist.
 	fmt.Println("videos found ", videos)
 	if len(videos) > 0 {
-		file_server.generateVideoPlaylist(path, token, videos)
+		
+		file_server.generateVideoPlaylist(path, token, file_server.orderedPlayList(path, videos))
 	}
 
 	// tell client that something new append!!!
 	file_server.publishReloadDirEvent(path)
 
 	return nil
+}
+
+// Try to get playlist from playlist.json...
+func (file_server *server) orderedPlayList(path string, files []string) []string {
+	if Utility.Exists(path + "/.hidden/playlist.json"){
+
+		playlist := make(map[string]interface{})
+		data, _ := os.ReadFile(path + "/.hidden/playlist.json")
+		json.Unmarshal(data, &playlist)
+
+		items:=playlist["items"].([]interface {})
+		files_ := make([]string, len(items))
+
+		for i:=0; i < len(items); i++ {
+			item :=  items[i].(map[string]interface{})
+			files_[i] = path + "/" + item["id"].(string) + "." + playlist["format"].(string)
+			files = Utility.RemoveString(files, files_[i])
+		}
+
+		// append file if some remains...
+		files_ = append(files_, files...)
+
+		return files_
+	}else{
+		return files
+	}
 }
 
 // Generate the playlists for a directory...
