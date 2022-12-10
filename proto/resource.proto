@@ -689,6 +689,24 @@ message SetCallRsp{
   /** Nothing here **/
 }
 
+message DeleteCallRqst{
+  string account_id = 1;
+  string uuid = 2;
+}
+
+message DeleteCallRsp{
+  /** Nothing here **/
+}
+
+message ClearCallsRqst{
+  string account_id = 1;
+  string filter = 2;
+}
+
+message ClearCallsRsp{
+  /** Nothing here **/
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Notifications
 ////////////////////////////////////////////////////////////////////////////////
@@ -1116,5 +1134,10 @@ service ResourceService {
   /** Set calling information **/
   rpc SetCall(SetCallRqst) returns (SetCallRsp);
 
+  /** Delete a calling infos **/
+  rpc DeleteCall(DeleteCallRqst) returns(DeleteCallRsp);
+
+  /** Clear Call's **/
+  rpc ClearCalls(ClearCallsRqst) returns(ClearCallsRsp);
 
 }

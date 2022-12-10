@@ -16,7 +16,7 @@ const grpc = {};
 grpc.web = require('grpc-web');
 
 const proto = {};
-proto.resource = require('../resource/resource_pb.js');
+proto.resource = require('./resource_pb.js');
 
 /**
  * @param {string} hostname
@@ -4663,6 +4663,128 @@ proto.resource.ResourceServicePromiseClient.prototype.setCall =
       request,
       metadata || {},
       methodDescriptor_ResourceService_SetCall);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.DeleteCallRqst,
+ *   !proto.resource.DeleteCallRsp>}
+ */
+const methodDescriptor_ResourceService_DeleteCall = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/DeleteCall',
+  grpc.web.MethodType.UNARY,
+  proto.resource.DeleteCallRqst,
+  proto.resource.DeleteCallRsp,
+  /**
+   * @param {!proto.resource.DeleteCallRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.DeleteCallRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.DeleteCallRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.DeleteCallRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.DeleteCallRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.deleteCall =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/DeleteCall',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_DeleteCall,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.DeleteCallRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.DeleteCallRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.deleteCall =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/DeleteCall',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_DeleteCall);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.resource.ClearCallsRqst,
+ *   !proto.resource.ClearCallsRsp>}
+ */
+const methodDescriptor_ResourceService_ClearCalls = new grpc.web.MethodDescriptor(
+  '/resource.ResourceService/ClearCalls',
+  grpc.web.MethodType.UNARY,
+  proto.resource.ClearCallsRqst,
+  proto.resource.ClearCallsRsp,
+  /**
+   * @param {!proto.resource.ClearCallsRqst} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.resource.ClearCallsRsp.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.resource.ClearCallsRqst} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.resource.ClearCallsRsp)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.resource.ClearCallsRsp>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.resource.ResourceServiceClient.prototype.clearCalls =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/resource.ResourceService/ClearCalls',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_ClearCalls,
+      callback);
+};
+
+
+/**
+ * @param {!proto.resource.ClearCallsRqst} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.resource.ClearCallsRsp>}
+ *     Promise that resolves to the response
+ */
+proto.resource.ResourceServicePromiseClient.prototype.clearCalls =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/resource.ResourceService/ClearCalls',
+      request,
+      metadata || {},
+      methodDescriptor_ResourceService_ClearCalls);
 };
 
 

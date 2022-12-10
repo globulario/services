@@ -4348,3 +4348,92 @@ func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.Set
 
 	return &resourcepb.SetCallRsp{}, nil
 }
+
+func(resource_server *server) deleteCall(account_id, uuid string) error{
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return err
+	}
+
+	// Keep the id portion only...
+	accountId := account_id
+	if strings.Contains(accountId, "@") {
+		domain := strings.Split(accountId, "@")[1]
+		localDomain, _ := config.GetDomain()
+		if domain != localDomain {
+			return err
+		}
+		accountId = strings.Split(accountId, "@")[0]
+	}
+
+	// set the caller id.
+	db := accountId
+	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db += "_db"
+	
+	err = p.DeleteOne(context.Background(), "local_resource", db, "calls", `{"_id":"`+uuid+`"}`, "")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// * Delete a calling infos *
+func (resource_server *server) DeleteCall(ctx context.Context, rqst *resourcepb.DeleteCallRqst) (*resourcepb.DeleteCallRsp, error) {
+
+	err := resource_server.deleteCall(rqst.AccountId, rqst.Uuid)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &resourcepb.DeleteCallRsp{}, nil
+}
+
+// * Clear Call's *
+func (resource_server *server) ClearCalls(ctx context.Context, rqst *resourcepb.ClearCallsRqst) (*resourcepb.ClearCallsRsp, error) {
+
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Keep the id portion only...
+	accountId := rqst.AccountId
+	if strings.Contains(accountId, "@") {
+		domain := strings.Split(accountId, "@")[1]
+		localDomain, _ := config.GetDomain()
+		if domain != localDomain {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no account found with id "+accountId)))
+
+		}
+		accountId = strings.Split(accountId, "@")[0]
+	}
+
+	// set the caller id.
+	db := accountId
+	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
+	db += "_db"
+
+	query := rqst.Filter
+	results, err := p.Find(context.Background(), "local_resource", db, "calls", query, "")
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Delete the call.
+	for i := 0; i < len(results); i++ {
+		call := results[i].(map[string]interface{})
+		resource_server.deleteCall(rqst.AccountId, call["_id"].(string))
+	}
+
+	return &resourcepb.ClearCallsRsp{}, nil
+}
