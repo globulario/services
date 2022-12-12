@@ -2,7 +2,6 @@ package file_client
 
 import (
 	"io"
-	"log"
 	"os"
 
 	"context"
@@ -240,7 +239,7 @@ func (client *File_Client) StopService() {
 }
 
 // Read the content of a dir and return it info.
-func (client *File_Client) ReadDir(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
+func (client *File_Client) ReadDir(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) ([]*filepb.FileInfo, error) {
 
 	// Create a new client service...
 	rqst := &filepb.ReadDirRequest{
@@ -252,26 +251,25 @@ func (client *File_Client) ReadDir(path interface{}, recursive interface{}, thum
 
 	stream, err := client.c.ReadDir(client.GetCtx(), rqst)
 	if err != nil {
-		log.Println("---> 181 ", err)
-		return "", err
+		return nil, err
 	}
 
 	// Here I will create the final array
-	data := make([]byte, 0)
+	file_infos := make([]*filepb.FileInfo, 0)
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
 			// end of stream...
 			break
 		} else if err != nil {
-			return "", err
+			return nil, err
 		}
 
-		data = append(data, msg.Data...)
+		file_infos = append(file_infos, msg.Info)
 
 	}
 
-	return string(data), nil
+	return file_infos, nil
 }
 
 /**
@@ -355,7 +353,7 @@ func (client *File_Client) DeleteDir(path string) error {
 /**
  * Get a single file info.
  */
-func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (string, error) {
+func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, thumbnailHeight interface{}, thumbnailWidth interface{}) (*filepb.FileInfo, error) {
 
 	rqst := &filepb.GetFileInfoRequest{
 		Path:           Utility.ToString(path),
@@ -365,10 +363,12 @@ func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, 
 
 	rsp, err := client.c.GetFileInfo(client.GetCtx(), rqst)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return string(rsp.Data), nil
+	
+
+	return  rsp.GetInfo(), nil
 }
 
 /**

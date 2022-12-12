@@ -98,6 +98,7 @@ import {
   CreateArchiveResponse,
   CreateDirRequest,
   ReadDirRequest,
+  FileInfo,
 } from "./file/file_pb";
 
 import { Globular, EventHub } from "./services";
@@ -620,8 +621,6 @@ export function readDir(
   rqst.setThumnailheight(thumbnail_height);
   rqst.setThumnailwidth(thumbnail_width);
 
-  let uint8array = new Uint8Array(0);
-
   const stream = globular.fileService.readDir(rqst, {
     token:token,
     application: application.length > 0 ? application : globular.config.IndexApplication,
@@ -629,14 +628,29 @@ export function readDir(
     path: path,
   });
 
+  let files: any
+  files = {}
+
   stream.on("data", (rsp) => {
-    uint8array = mergeTypedArraysUnsafe(uint8array, rsp.getData());
+
+    let f = rsp.getInfo()
+    var parent = files[f.getPath().substring(0, f.getPath().lastIndexOf("/"))];
+    if (parent) {
+       let files_ = parent.getFilesList()
+       files_.push(f)
+       parent.setFilesList(files_)
+        // Here I will generate a local event... can be use to 
+        // make the interface more responsive...
+        globular.eventHub.publish("_read_dir_" + rqst.getPath(), f, true);
+    }
+    files[f.getPath()] = f;
   });
 
   stream.on("status", (status) => {
     if (status.code === 0) {
-      const content = JSON.parse(new TextDecoder("utf-8").decode(uint8array));
-      callback(content);
+      // return the dir initialyse with all it files infos...
+      let path =  decodeURIComponent(rqst.getPath())
+      callback(files[path]);
     } else {
       // error here...
       errorCallback({ message: status.details });

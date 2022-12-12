@@ -79,8 +79,9 @@ var (
 	// the authentication client
 	authentication_client_ *authentication_client.Authentication_Client
 
-	// Here I will keep files info in memory...
-	cache *storage_store.BigCache_store // todo use cache instead of memory...
+	// Here I will keep files info in cache...
+	// cache *storage_store.BigCache_store
+	cache *storage_store.Badger_store
 )
 
 const (
@@ -500,20 +501,6 @@ func (file_server *server) Stop(context.Context, *filepb.StopRequest) (*filepb.S
 	return &filepb.StopResponse{}, file_server.StopService()
 }
 
-type fileInfo struct {
-	Name    string      // base name of the file
-	Size    int64       // length in bytes for regular files; system-dependent for others
-	Mode    os.FileMode // file mode bits
-	ModTime time.Time   // modification time
-	IsDir   bool        // abbreviation for Mode().IsDir()
-	Path    string      // The path on the server.
-
-	Mime      string
-	Thumbnail string
-	Files     []*fileInfo
-	Checksum  string
-}
-
 func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
 	id := path + "_" + Utility.ToString(h) + "x" + Utility.ToString(w)
@@ -533,9 +520,9 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 	return t, nil
 }
 
-func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth int) (*fileInfo, error) {
+func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth int) (*filepb.FileInfo, error) {
 
-	info := new(fileInfo)
+	info := new(filepb.FileInfo)
 	info.Path = path
 
 	path = strings.ReplaceAll(path, "\\", "/")
@@ -564,7 +551,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	// Here I will try to get the info from the cache...
 	data, err_ := cache.GetItem(path)
 	if err_ == nil {
-		json.Unmarshal(data, &info)
+		jsonpb.UnmarshalString(string(data), info)
 		return info, nil
 	}
 
@@ -577,7 +564,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 	info.Size = fileStat.Size()
 	info.Name = fileStat.Name()
-	info.ModTime = fileStat.ModTime()
+	info.ModeTime = fileStat.ModTime().Unix()
 
 	// Now the section depending of the mime type...
 	if !strings.Contains(path, "/.hidden") {
@@ -735,15 +722,16 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		}
 	}
 
-	data, err = json.Marshal(info)
+	var marshaler jsonpb.Marshaler
+	data_, err := marshaler.MarshalToString(info)
 	if err == nil {
-		cache.SetItem(path, data)
+		cache.SetItem(path, []byte(data_))
 	}
 
 	return info, nil
 }
 
-func getThumbnails(info *fileInfo) []interface{} {
+func getThumbnails(info *filepb.FileInfo) []interface{} {
 	// The array of thumbnail
 	thumbnails := make([]interface{}, 0)
 
@@ -904,7 +892,7 @@ func readMetadata(s *server, path string, thumnailHeight, thumbnailWidth int) (m
 /**
  * Read the directory and return the file info.
  */
-func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string) (*fileInfo, error) {
+func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, thumbnailMaxHeight int32, readFiles bool, token string) (*filepb.FileInfo, error) {
 
 	// get the file info
 	info, err := getFileInfo(s, path, int(thumbnailMaxWidth), int(thumbnailMaxWidth))
@@ -1109,6 +1097,17 @@ func (file_server *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsR
 	return &filepb.GetPublicDirsResponse{Dirs: file_server.Public}, nil
 }
 
+// return the a list of all info  
+func getFileInfos(info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.FileInfo{
+	
+	infos = append(infos, info)
+	for i:=0; i < len(info.Files); i++ {
+		infos = getFileInfos(info.Files[i], infos)
+	}
+
+	return infos
+}
+
 func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.FileService_ReadDirServer) error {
 
 	var err error
@@ -1132,37 +1131,23 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	}
 
 	path := file_server.formatPath(rqst.Path)
-
+	
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
-
+	
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	// Here I will serialyse the data into JSON.
-	jsonStr, err := json.Marshal(info)
+	infos:= make([]*filepb.FileInfo, 0)
 
-	if err != nil {
-		return status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+	// Get info as array...
+	infos = getFileInfos(info, infos)
 
-	maxSize := 1024 * 5
-	size := int(math.Ceil(float64(len(jsonStr)) / float64(maxSize)))
-	for i := 0; i < size; i++ {
-		start := i * maxSize
-		end := start + maxSize
-		var data []byte
-		if end > len(jsonStr) {
-			data = jsonStr[start:]
-		} else {
-			data = jsonStr[start:end]
-		}
+	for i:=0; i < len(infos); i++ {
 		err = stream.Send(&filepb.ReadDirResponse{
-			Data: data,
+			Info: infos[i],
 		})
 		if err != nil {
 			return status.Errorf(
@@ -1642,16 +1627,11 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	var jsonStr string
-	jsonStr, err = Utility.ToJson(info)
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
+	infos :=make([]*filepb.FileInfo, 0)
+	infos = getFileInfos(info, infos)
 
 	return &filepb.GetFileInfoResponse{
-		Data: jsonStr,
+		Info: infos[0],
 	}, nil
 }
 
@@ -4856,6 +4836,11 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 
 		file_server.generatePlaylist(path, "")
 
+		title_client, err := getTitleClient()
+		if err != nil {
+			return err
+		}
+
 		// remove incomplete download...
 		for i := 0; i < len(files); i++ {
 			f := files[i]
@@ -4866,14 +4851,15 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 			// remove file with no asscociation...
 			if strings.HasSuffix(f.Name(), ".mp4") {
 				videos := make(map[string][]*titlepb.Video, 0)
-
-				err := file_server.getFileVideosAssociation(client, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
+				err := restoreVideoInfos(title_client, path_+"/"+f.Name())
 				if err != nil {
-					os.Remove(path_ + "/" + f.Name())
-				} else if len(videos) == 0 {
-					os.Remove(path_ + "/" + f.Name())
+					err := file_server.getFileVideosAssociation(client, strings.ReplaceAll(path_, config.GetDataDir()+"/files", "/")+"/"+f.Name(), videos)
+					if err != nil {
+						os.Remove(path_ + "/" + f.Name())
+					} else if len(videos) == 0 {
+						os.Remove(path_ + "/" + f.Name())
+					}
 				}
-
 			}
 		}
 
@@ -5354,8 +5340,9 @@ func main() {
 	s_impl.KeepAlive = true
 	s_impl.Public = make([]string, 0) // The list of public directory where files can be read...
 
-	cache = storage_store.NewBigCache_store()
-	cache.Open("")
+	// cache = storage_store.NewBigCache_store()
+	cache = storage_store.NewBadger_store()
+
 
 	// Video conversion retalted configuration.
 	s_impl.scheduler = gocron.NewScheduler()
@@ -5412,10 +5399,17 @@ func main() {
 	filepb.RegisterFileServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	Utility.CreateDirIfNotExist(s_impl.Root + "/cache")
+	err = cache.Open(s_impl.Root + "/cache")
+	if err != nil {
+		fmt.Println("fail to open cache with error:", err)
+	}
+
 	// Now the event client service.
 	go func() {
 
-		client, err := getEventClient()
+		event_client, err := getEventClient()
+		title_client, err := getTitleClient()
 		if err == nil {
 
 			channel_0 := make(chan string)
@@ -5471,14 +5465,15 @@ func main() {
 
 					case path := <-channel_1:
 						path_ := s_impl.formatPath(path)
-						restoreVideoInfos(path_)
+						restoreVideoInfos(title_client, path_)
+
 						createVideoPreview(s_impl, path_, 20, 128, false)
 						dir := string(path)[0:strings.LastIndex(string(path), "/")]
 
 						// remove it from the cache.
 						cache.RemoveItem(path_)
 
-						client.Publish("reload_dir_event", []byte(dir))
+						event_client.Publish("reload_dir_event", []byte(dir))
 						go func() {
 							channel_2 <- path
 						}()
@@ -5492,7 +5487,7 @@ func main() {
 			}()
 
 			// refresh dir event
-			err := client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
+			err := event_client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
 
 				channel_0 <- string(evt.Data)
 			})

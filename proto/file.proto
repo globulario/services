@@ -9,6 +9,24 @@ option go_package="file/filepb";
 
 message Empty {}
 
+/**
+ * That structure will keep file info.
+ */
+message FileInfo {
+	string name = 1;
+	int64 size = 2;
+	uint32 mode = 3;
+	int64 mode_time = 4;
+	bool is_dir = 5;
+	string path = 6;
+	string mime = 7;
+	string thumbnail = 8;
+	string checksum = 9;
+
+	// Can be left empty...
+	repeated FileInfo files = 10;
+}
+
 message ReadDirRequest {
 	string path = 1;
 	bool recursive = 2;
@@ -17,7 +35,8 @@ message ReadDirRequest {
 }
 
 message ReadDirResponse {
-	bytes data = 1; // The json string containing the list of files.
+	// bytes data = 1; // The json string containing the list of files.
+	FileInfo info = 1;
 }
 
 message CreateDirRequest {
@@ -72,7 +91,7 @@ message GetFileInfoRequest {
 }
 
 message GetFileInfoResponse {
-	string data = 1; // The json string containing the file info.
+	FileInfo info = 1;
 }
 
 // Read file as a binary file.
