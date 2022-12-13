@@ -663,6 +663,7 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	// information. If the title is lost it will be possible to recreate it from
 	// that url.
 	if strings.HasSuffix(rqst.IndexPath, "/search/titles") {
+
 		title, err := srv.getTitleById(rqst.IndexPath, generateUUID(rqst.TitleId))
 		if err != nil {
 			return nil, status.Errorf(
@@ -687,11 +688,31 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				return nil, err
 			}
 		} else {
-			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			// Here I will save metadata only if it has change...
+			infos, err := Utility.ReadMetadata(absolutefilePath)
+			needSave := true
+			if err == nil {
+				if infos["format"] != nil {
+					if infos["format"].(map[string]interface{})["tags"] != nil {
+						tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
+						if tags["comment"] != nil {
+							comment := tags["comment"].(string)
+							if len(comment) > 0 {
+								needSave = comment != encoded
+							}
+						}
+					}
+				}
+			}
+
+			if needSave {
+				fmt.Println("save metada for title", title.ID, title.Description, absolutefilePath)
+				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
+				if err != nil {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
 			}
 		}
 
@@ -728,11 +749,30 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 				return nil, err
 			}
 		} else {
-			err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			infos, err := Utility.ReadMetadata(absolutefilePath)
+			needSave := true
+			if err == nil {
+				if infos["format"] != nil {
+					if infos["format"].(map[string]interface{})["tags"] != nil {
+						tags := infos["format"].(map[string]interface{})["tags"].(map[string]interface{})
+						if tags["comment"] != nil {
+							comment := tags["comment"].(string)
+							if len(comment) > 0 {
+								needSave = comment != encoded
+							}
+						}
+					}
+				}
+			}
+
+			if needSave {
+				fmt.Println("save metada for title", video.ID, video.Description, absolutefilePath)
+				err = Utility.SetMetadata(absolutefilePath, "comment", encoded)
+				if err != nil {
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
 			}
 		}
 	}
@@ -1719,7 +1759,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 				} else {
 					hasFile = len(files) > 0
 				}
-				
+
 				// Here I will send the search result...
 				if hasFile {
 					stream.Send(&titlepb.SearchTitlesResponse{
@@ -1749,7 +1789,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 					} else {
 						hasFile = len(files) > 0
 					}
-					
+
 					// Here I will send the search result...
 					if hasFile {
 						stream.Send(&titlepb.SearchTitlesResponse{
@@ -1778,7 +1818,7 @@ func (srv *server) SearchTitles(rqst *titlepb.SearchTitlesRequest, stream titlep
 						} else {
 							hasFile = len(files) > 0
 						}
-						
+
 						if hasFile {
 							// Here I will send the search result...
 							stream.Send(&titlepb.SearchTitlesResponse{
