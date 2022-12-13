@@ -25,7 +25,8 @@ func (store *Badger_store) run() {
 		select {
 		case action := <-store.actions:
 			if action["name"].(string) == "Open" {
-				action["result"].(chan error) <- store.open( `{ "path":"` +action["path"].(string) + `"}`)
+				// action["result"].(chan error) <- store.open( `{ "path":"` +action["path"].(string) + `"}`)
+				action["result"].(chan error) <- store.open( action["path"].(string))
 			} else if action["name"].(string) == "SetItem" {
 				if action["val"] != nil {
 					action["result"].(chan error) <- store.setItem(action["key"].(string), action["val"].([]byte))

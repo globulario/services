@@ -6,6 +6,8 @@ replace github.com/davecourtois/Utility => ../../Utility
 
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.7.0
+	github.com/StalkR/httpcache v1.0.0
+	github.com/StalkR/imdb v1.0.10
 	github.com/alexbrainman/odbc v0.0.0-20200426075526-f0492dfa1575
 	github.com/allegro/bigcache v1.2.1
 	github.com/anacrolix/torrent v1.41.0
@@ -34,7 +36,6 @@ require (
 	github.com/mattn/go-sqlite3 v2.0.2+incompatible
 	github.com/mhale/smtpd v0.0.0-20210322105601-438c8edb069c
 	github.com/miekg/dns v1.1.42
-	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7
 	github.com/prometheus/client_golang v1.11.0
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/soheilhy/cmux v0.1.4
@@ -52,7 +53,6 @@ require (
 
 require (
 	github.com/PuerkitoBio/goquery v1.5.1 // indirect
-	github.com/StalkR/imdb v1.0.10 // indirect
 	github.com/andybalholm/cascadia v1.2.0 // indirect
 	github.com/antchfx/htmlquery v1.2.3 // indirect
 	github.com/antchfx/xmlquery v1.2.4 // indirect
@@ -61,6 +61,7 @@ require (
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
+	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/saintfish/chardet v0.0.0-20120816061221-3af4cd4741ca // indirect
 	github.com/temoto/robotstxt v1.1.1 // indirect

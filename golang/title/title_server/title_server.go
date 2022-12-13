@@ -9,13 +9,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
-	"github.com/globulario/services/golang/event/event_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
@@ -102,11 +100,6 @@ type server struct {
 	associations map[string]*storage_store.Badger_store
 }
 
-var (
-	// The event client.
-	event_client_ *event_client.Event_Client
-)
-
 /**
  *  The character - can't be part of uuid, bleeve use it in it query syntax so I will get rid of it
  **/
@@ -114,29 +107,6 @@ func generateUUID(id string) string {
 	uuid := Utility.GenerateUUID(id)
 	uuid = strings.ReplaceAll(uuid, "-", "_")
 	return uuid
-}
-
-/**
- * Return the event service.
- */
-func getEventClient() (*event_client.Event_Client, error) {
-	var err error
-	if event_client_ == nil {
-		address, _ := config.GetAddress()
-		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return event_client_, nil
-}
-
-func (srv *server) publishReloadDirEvent(path string) {
-	client, err := getEventClient()
-	if err != nil {
-		client.Publish("reload_dir_event", []byte(path))
-	}
 }
 
 // The http address where the configuration can be found /config
@@ -771,9 +741,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 	filePath := strings.ReplaceAll(rqst.FilePath, config.GetDataDir()+"/files", "")
 	filePath = strings.ReplaceAll(filePath, "\\", "/")
 
-	var parent string
-	parent = filepath.Dir(filePath)
-
 	// Depending if the filePath point to a dir or a file...
 	if fileInfo.IsDir() {
 		// is a directory
@@ -853,9 +820,6 @@ func (srv *server) AssociateFileWithTitle(ctx context.Context, rqst *titlepb.Ass
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
-
-	// Reload the dir...
-	srv.publishReloadDirEvent(parent)
 
 	// return empty response.
 	return &titlepb.AssociateFileWithTitleResponse{}, nil
