@@ -1191,7 +1191,7 @@ func (file_server *server) CreateDir(ctx context.Context, rqst *filepb.CreateDir
 		return nil, errors.New("no valid context found")
 	}
 
-	file_server.createPermission(token, rqst.GetPath()+"/"+rqst.GetName())
+	file_server.setOwner(token, rqst.GetPath()+"/"+rqst.GetName())
 	// The directory was successfuly created.
 	return &filepb.CreateDirResponse{
 		Result: true,
@@ -1238,6 +1238,8 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 		}
 	}
 
+	fmt.Println("---------> request for: ", rqst.Name)
+
 	// Here I will create the directory...
 	tmp := os.TempDir() + "/" + rqst.GetName()
 	createTempDir := true
@@ -1247,7 +1249,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 		path := rqst.Paths[0]
 		if !file_server.isPublic(path) {
 			// if the path is not in the Public list it must be in the path...
-			path = file_server.Root + path
+			path = file_server.formatPath(path)
 		}
 
 		// be sure the file exist.
@@ -1259,7 +1261,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 		info, _ := os.Stat(path)
 		if info.IsDir() {
-			tmp = file_server.Root + path
+			tmp = path
 			createTempDir = false
 		}
 	}
@@ -1272,9 +1274,8 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 			// The file or directory must be in the path.
 			if Utility.Exists(file_server.Root+rqst.Paths[i]) || file_server.isPublic(rqst.Paths[i]) {
 				path := rqst.Paths[i]
-				if !file_server.isPublic(rqst.Paths[i]) {
-					path = file_server.Root + path
-				}
+				path = file_server.formatPath(path)
+
 				info, _ := os.Stat(path)
 				fileName := path[strings.LastIndex(path, "/"):]
 				if info.IsDir() {
@@ -1288,10 +1289,12 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 	var buf bytes.Buffer
 	Utility.CompressDir(tmp, &buf)
-	dest := "/users/" + user + "@" + domain + "/" + rqst.GetName() + ".tgz"
+	dest := "/users/" + user + "@" + domain + "/" + rqst.GetName() + ".tar.gz"
+
+	fmt.Println("save file archive ", dest)
 
 	// Set user as owner.
-	file_server.createPermission(token, dest)
+	file_server.setOwner(token, dest)
 
 	// Now I will save the file to the destination.
 	err = ioutil.WriteFile(file_server.Root+dest, buf.Bytes(), 0644)
@@ -1308,7 +1311,7 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 
 }
 
-func (file_server *server) createPermission(token, path string) error {
+func (file_server *server) setOwner(token, path string) error {
 	var clientId string
 
 	if len(token) > 0 {
@@ -2570,7 +2573,6 @@ const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 
 const cacheTTL = 24 * time.Hour
 
-
 // customTransport implements http.RoundTripper interface to add some headers.
 type customTransport struct {
 	http.RoundTripper
@@ -2587,7 +2589,7 @@ func (e *customTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 // Otherwise a volatile memory cache is used.
 var http_client *http.Client
 
-func getHttpClient()  *http.Client {
+func getHttpClient() *http.Client {
 	if http_client != nil {
 		return http_client
 	}
@@ -2614,7 +2616,6 @@ func restoreVideoInfos(client *title_client.Title_Client, video_path string) err
 		return err
 	}
 
-	fmt.Println("try to resore info for ", video_path)
 
 	if err == nil && infos != nil {
 		if infos["format"] != nil {
@@ -2633,10 +2634,12 @@ func restoreVideoInfos(client *title_client.Title_Client, video_path string) err
 							t, _, err := client.GetTitleById(config.GetDataDir()+"/search/titles", title.ID)
 							if err != nil {
 								// the title was no found...
+								fmt.Println("try to resore info for ", video_path)
+
 								if t == nil {
-									client_ :=  getHttpClient()
+									client_ := getHttpClient()
 									title__, err := imdb.NewTitle(client_, title.ID)
-									
+
 									if err == nil {
 										title.Poster.URL = title__.Poster.ContentURL
 										title.Poster.ContentUrl = title__.Poster.ContentURL
@@ -2673,7 +2676,7 @@ func restoreVideoInfos(client *title_client.Title_Client, video_path string) err
 
 									err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
 									if err == nil {
-										
+
 										// now I will associate the path.
 										path := strings.Replace(video_path, config.GetDataDir()+"/files", "", -1)
 										path = strings.ReplaceAll(video_path, "/playlist.m3u8", "")
@@ -2707,6 +2710,9 @@ func restoreVideoInfos(client *title_client.Title_Client, video_path string) err
 
 									v, _, _ := client.GetVideoById(config.GetDataDir()+"/search/videos", video.ID)
 									if v == nil || video.Duration == 0 {
+
+										fmt.Println("try to resore info for ", video_path)
+
 										if video.Poster == nil {
 											video.Poster = new(titlepb.Poster)
 											video.Poster.ID = video.ID
@@ -2812,7 +2818,7 @@ func processVideoInfo(file_server *server, info_path string) error {
 				}
 
 				if err == nil {
-					err = file_server.createPermission(token, dest+"/"+filepath.Base(media_path))
+					err = file_server.setOwner(token, dest+"/"+filepath.Base(media_path))
 					return err
 				}
 
@@ -2847,7 +2853,6 @@ func processVideos(file_server *server, dirs []string) {
 			fmt.Println("fail to process video information with error ", err)
 		}
 	}
-
 
 	video_paths := getVideoPaths(dirs)
 
@@ -2885,7 +2890,7 @@ func processVideos(file_server *server, dirs []string) {
 										err = client.CreateTitle("", config.GetDataDir()+"/search/titles", title)
 										if err != nil {
 											fmt.Println("title for serie ", title.Description, " was restore.")
-										}else{
+										} else {
 											client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, dirs[i])
 										}
 									}
@@ -4388,7 +4393,7 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 
 		videos := make(map[string][]*titlepb.Video, 0)
 		file_server.getFileVideosAssociation(client, paths[i], videos)
-		fmt.Println("4311 generate playlis ", paths[i])
+		fmt.Println("add file to playlist ", paths[i])
 		duration := Utility.GetVideoDuration(paths[i])
 
 		if duration > 0 && len(videos[paths[i]]) > 0 {
@@ -4918,7 +4923,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 				if Utility.Exists(fileName) {
 					err = file_server.createVideoInfo(token, dest, fileName, info_path)
 					if err == nil {
-						file_server.createPermission(token, dest+"/"+filepath.Base(fileName))
+						file_server.setOwner(token, dest+"/"+filepath.Base(fileName))
 					}
 					os.Remove(info_path)
 				}
@@ -5109,7 +5114,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 			}
 
 			// create the file permission...
-			err = file_server.createPermission(token, dest+"/"+filepath.Base(fileName))
+			err = file_server.setOwner(token, dest+"/"+filepath.Base(fileName))
 			stream.Send(
 				&filepb.UploadVideoResponse{
 					Pid:    int32(pid),
@@ -5170,7 +5175,7 @@ func (file_server *server) uploadedVideo(token, url, dest, format, fileName stri
 		if Utility.Exists(info_path) {
 			needRefresh = true
 			// create the file permission...
-			err = file_server.createPermission(token, dest+"/"+filepath.Base(fileName))
+			err = file_server.setOwner(token, dest+"/"+filepath.Base(fileName))
 			if err != nil {
 				fmt.Println("fail to create video permission with error ", err)
 			}
@@ -5241,23 +5246,26 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 	} else {
 		path := file_server.formatPath(rqst.Path)
 		dirs = append(dirs, path)
-
-		fmt.Println("-----------> restore video: ", path)
-		// Remove previous playlist...
-		playlists := Utility.GetFilePathsByExtension(path, "m3u")
-		for i := 0; i < len(playlists); i++ {
-			cache.RemoveItem(playlists[i])
-			os.Remove(playlists[i])
-		}
-
-		// generate the playlist...
-		file_server.generatePlaylist(path, token)
 	}
 
 	// start conversion.
 	go func() {
 		// get the list of info .info.json (generated by ytdl)
 		processVideos(file_server, dirs) // Process files...
+
+		for i := 0; i < len(dirs); i++ {
+			path := dirs[i]
+			// Remove previous playlist...
+			playlists := Utility.GetFilePathsByExtension(path, "m3u")
+			for i := 0; i < len(playlists); i++ {
+				cache.RemoveItem(playlists[i])
+				os.Remove(playlists[i])
+			}
+
+			// generate the playlist...
+			file_server.generatePlaylist(path, token)
+		}
+
 	}()
 
 	// I will also process playlist...

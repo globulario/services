@@ -492,8 +492,7 @@ export function downloadFileHttp(
   token:string = getToken()
 ) {
   const req = new XMLHttpRequest();
-  req.timeout = 1500;
-  
+
   // Set the values also as parameters...
   url += "?domain=" + domain
   url += "&application=" + application

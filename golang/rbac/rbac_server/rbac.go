@@ -443,9 +443,9 @@ func (rbac_server *server) setSubjectUsedSpace(subject string, subject_type rbac
 		json.Unmarshal(values, &ids)
 	}
 
-	if !Utility.Contains(ids, id){
+	if !Utility.Contains(ids, id) {
 		ids = append(ids, id)
-		values,err = json.Marshal(ids)
+		values, err = json.Marshal(ids)
 		if err == nil {
 			err := rbac_server.permissions.SetItem("USED_SPACE", values)
 			if err != nil {
@@ -486,43 +486,63 @@ func (rbac_server *server) initSubjectUsedSpace(subject string, subject_type rba
 				if subject_type == rbacpb.SubjectType_ACCOUNT {
 					exist, a := rbac_server.accountExist(subject)
 					if exist {
-						if Utility.Contains(permissions[i].Owners.Accounts, a) {
-							if !Utility.Contains(owned_files, path) {
-								owned_files = append(owned_files, path)
+						if permissions[i].Owners != nil {
+							if permissions[i].Owners.Accounts != nil {
+								if Utility.Contains(permissions[i].Owners.Accounts, a) {
+									if !Utility.Contains(owned_files, path) {
+										owned_files = append(owned_files, path)
+									}
+								}
 							}
 						}
 					}
 				} else if subject_type == rbacpb.SubjectType_APPLICATION {
 					exist, a := rbac_server.applicationExist(subject)
 					if exist {
-						if Utility.Contains(permissions[i].Owners.Applications, a) {
-							if !Utility.Contains(owned_files, path) {
-								owned_files = append(owned_files, path)
+						if permissions[i].Owners != nil {
+							if permissions[i].Owners.Accounts != nil {
+								if Utility.Contains(permissions[i].Owners.Accounts, a) {
+									if !Utility.Contains(owned_files, path) {
+										owned_files = append(owned_files, path)
+									}
+								}
 							}
 						}
 					}
 				} else if subject_type == rbacpb.SubjectType_GROUP {
 					exist, g := rbac_server.groupExist(subject)
 					if exist {
-						if Utility.Contains(permissions[i].Owners.Groups, g) {
-							if !Utility.Contains(owned_files, path) {
-								owned_files = append(owned_files, path)
+						if permissions[i].Owners != nil {
+							if permissions[i].Owners.Groups != nil {
+								if Utility.Contains(permissions[i].Owners.Groups, g) {
+									if !Utility.Contains(owned_files, path) {
+										owned_files = append(owned_files, path)
+									}
+								}
 							}
 						}
 					}
 				} else if subject_type == rbacpb.SubjectType_ORGANIZATION {
 					exist, o := rbac_server.groupExist(subject)
 					if exist {
-						if Utility.Contains(permissions[i].Owners.Organizations, o) {
-							if !Utility.Contains(owned_files, path) {
-								owned_files = append(owned_files, path)
+						if permissions[i].Owners != nil {
+							if permissions[i].Owners.Organizations != nil {
+								if Utility.Contains(permissions[i].Owners.Organizations, o) {
+									if !Utility.Contains(owned_files, path) {
+										owned_files = append(owned_files, path)
+									}
+								}
 							}
 						}
 					}
 				} else if subject_type == rbacpb.SubjectType_PEER {
-					if Utility.Contains(permissions[i].Owners.Peers, subject) {
-						if !Utility.Contains(owned_files, path) {
-							owned_files = append(owned_files, path)
+					if permissions[i].Owners != nil {
+						if permissions[i].Owners.Peers != nil {
+							if Utility.Contains(permissions[i].Owners.Peers, subject) {
+								if !Utility.Contains(owned_files, path) {
+									owned_files = append(owned_files, path)
+								}
+							}
 						}
 					}
 				}
@@ -1016,6 +1036,18 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 // * Set resource permissions this method will replace existing permission at once *
 func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rbacpb.SetResourcePermissionsRqst) (*rbacpb.SetResourcePermissionsRqst, error) {
 
+	if len(rqst.Path) == 0 {
+		return nil, errors.New("no resource path given")
+	}
+
+	if len(rqst.ResourceType) == 0 {
+		return nil, errors.New("no resource type given")
+	}
+
+	if  rqst.Permissions == nil {
+		return nil, errors.New("no permissions given")
+	}
+
 	err := rbac_server.setResourcePermissions(rqst.Path, rqst.ResourceType, rqst.Permissions)
 
 	if err != nil {
@@ -1228,7 +1260,7 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 	if owners != nil {
 		// Acccounts
 		if owners.Accounts != nil {
-			
+
 			for j := 0; j < len(owners.Accounts); j++ {
 				exist, a := rbac_server.accountExist(owners.Accounts[j])
 				if exist {
@@ -1236,20 +1268,20 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 					if err != nil {
 						fmt.Println(err)
 					}
-					
+
 					if permissions.ResourceType == "file" {
 						used_space, err := rbac_server.getSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT)
 						if err != nil {
 							used_space, err = rbac_server.initSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT)
 						}
-						
+
 						fi, err := os.Stat(rbac_server.formatPath(path))
 						if err == nil {
 							if !fi.IsDir() {
 								used_space -= uint64(fi.Size())
 								rbac_server.setSubjectUsedSpace(owners.Accounts[j], rbacpb.SubjectType_ACCOUNT, used_space)
 							}
-						}else{
+						} else {
 							fmt.Println("no path found ", path, err)
 						}
 					}
@@ -1396,6 +1428,9 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 // test if all subject exist...
 func (rbac_server *server) cleanupPermission(permission *rbacpb.Permission) (bool, *rbacpb.Permission) {
 	hasChange := false
+	if permission == nil {
+		return false, nil
+	}
 
 	// fmt.Println("cleanupPermission")
 	// Cleanup owners from deleted subjects...
@@ -1549,7 +1584,7 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 	chached, err := rbac_server.cache.GetItem(path)
 	if err == nil && chached != nil {
 		permissions := new(rbacpb.Permissions)
-		err := jsonpb.UnmarshalString(string(chached), permissions )
+		err := jsonpb.UnmarshalString(string(chached), permissions)
 		if err == nil {
 			return permissions, nil
 		}
@@ -1579,7 +1614,7 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 
 	var marshaler jsonpb.Marshaler
 	jsonStr, err := marshaler.MarshalToString(permissions)
-	if err  == nil {
+	if err == nil {
 		rbac_server.cache.SetItem(path, []byte(jsonStr))
 	}
 
