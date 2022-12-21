@@ -422,7 +422,7 @@ func (client *Rbac_Client) ValidateSubjectSpace(subject string, subjectType rbac
 /**
  * Validata action...
  */
-func (client *Rbac_Client) ValidateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
+func (client *Rbac_Client) ValidateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool,bool, error) {
 	rqst := &rbacpb.ValidateActionRqst{
 		Action:  action,
 		Subject: subject,
@@ -432,10 +432,10 @@ func (client *Rbac_Client) ValidateAction(action string, subject string, subject
 
 	rsp, err := client.c.ValidateAction(client.GetCtx(), rqst)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
-	return rsp.Result, nil
+	return rsp.HasAccess, rsp.AccessDenied, nil
 
 }
 

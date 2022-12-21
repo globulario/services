@@ -194,7 +194,8 @@ message ValidateActionRqst {
 }
 
 message ValidateActionRsp {
-	bool result = 1;
+	bool hasAccess = 1; // if the user can run the action
+	bool accessDenied = 2; // if the resource path access is denied.
 }
 
 message SetActionResourcesPermissionsRqst{

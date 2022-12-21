@@ -197,7 +197,6 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 	permissions := make([]*rbacpb.Permissions, 0)
 
 	if err != nil {
-		fmt.Println("fail to retreive item with id ", id, "with error", err)
 		return permissions, nil
 	}
 
@@ -258,6 +257,7 @@ func (rbac_server *server) getSubjectAllocatedSpace(subject string, subject_type
 			return 0, errors.New("no account exist with id " + a)
 		}
 		id += "ACCOUNT/" + a
+
 	} else if subject_type == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
@@ -314,7 +314,6 @@ func (rbac_server *server) getSubjectOwnedFiles(dir string) ([]string, error) {
 			return nil
 		})
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 
@@ -666,7 +665,7 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 // Save the resource permission
 func (rbac_server *server) setResourcePermissions(path, resource_type string, permissions *rbacpb.Permissions) error {
 
-	// simply remove it from the cache...
+	// remove it from the cache...
 	rbac_server.cache.RemoveItem(path)
 
 	// be sure the path and the resource type are set in the permissions itself.
@@ -688,9 +687,7 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 	// Allowed resources
 	allowed := permissions.Allowed
 	if allowed != nil {
-
 		for i := 0; i < len(allowed); i++ {
-
 			// Accounts
 			if allowed[i].Accounts != nil {
 				for j := 0; j < len(allowed[i].Accounts); j++ {
@@ -836,9 +833,7 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 
 	// Owned resources
 	owners := permissions.Owners
-
 	if owners != nil {
-
 		// Acccounts
 		if owners.Accounts != nil {
 			for j := 0; j < len(owners.Accounts); j++ {
@@ -1030,6 +1025,8 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 		return err
 	}
 
+	fmt.Println("-----> permission was set for path ", path, permissions)
+
 	return nil
 }
 
@@ -1044,7 +1041,7 @@ func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rba
 		return nil, errors.New("no resource type given")
 	}
 
-	if  rqst.Permissions == nil {
+	if rqst.Permissions == nil {
 		return nil, errors.New("no permissions given")
 	}
 
@@ -1592,6 +1589,7 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 
 	data, err := rbac_server.permissions.GetItem(path)
 	if err != nil {
+
 		return nil, err
 	}
 
@@ -2155,426 +2153,425 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 }
 
 // Return true if the file is found in the public path...
-func isPublic(path string) bool {
+func isPublic(path string, exact_match bool) bool {
 	public := config.GetPublicDirs()
 	path = strings.ReplaceAll(path, "\\", "/")
 	if Utility.Exists(path) {
 		for i := 0; i < len(public); i++ {
-			if strings.HasPrefix(path, public[i]) {
-				return true
+			if !exact_match {
+				if strings.HasPrefix(path, public[i]) {
+					return true
+				}
+			} else {
+				if path == public[i] {
+					return true
+				}
 			}
 		}
 	}
 	return false
 }
 
-// Return  accessAllowed, accessDenied, error
-func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+func (rbac_server *server) validateSubject(subject string, subjectType rbacpb.SubjectType) (string, error) {
 
-	fmt.Println("validate access: ", subject, name, path)
-
+	// first of all I will validate if the subject exsit.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 
 		exist, a := rbac_server.accountExist(subject)
 		if !exist {
-			return false, false, errors.New("no account exist with id " + a)
+			return "", errors.New("no account exist with id " + a)
 		}
 
+		return a, nil
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
-			return false, false, errors.New("no application exist with id " + a)
+			return "", errors.New("no application exist with id " + a)
 		}
+
+		return a, nil
 
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		exist, g := rbac_server.groupExist(subject)
 		if !exist {
-			return false, false, errors.New("no group exist with id " + g)
+			return "", errors.New("no group exist with id " + g)
 		}
 
+		return g, nil
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		exist, o := rbac_server.organizationExist(subject)
 		if !exist {
-			return false, false, errors.New("no organization exist with id " + o)
+			return "", errors.New("no organization exist with id " + o)
 		}
+		return o, nil
+	} else if subjectType == rbacpb.SubjectType_ROLE {
+		exist, r := rbac_server.roleExist(subject)
+		if !exist {
+			return "", errors.New("no role exist with id " + r)
+		}
+		return r, nil
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		if !rbac_server.peerExist(subject) {
-			return false, false, errors.New("no peer exist with id " + subject)
+			return "", errors.New("no peer exist with id " + subject)
 		}
+
+		return subject, nil
 	}
 
+	return "", errors.New("no subject found with id " + subject)
+}
+
+// Return true if the subject own the resourse.
+func (rbac_server *server) isOwner(subject string, subjectType rbacpb.SubjectType, path string) bool {
+	subject, err := rbac_server.validateSubject(subject, subjectType)
+	if err != nil {
+		return false
+	}
+
+	// test if the subject is the direct owner of the resource.
+	permissions, err := rbac_server.getResourcePermissions(path)
+	if err == nil {
+		if permissions.Owners != nil {
+			owners := permissions.Owners
+
+			if owners != nil {
+				hasOwner := false
+				if owners.Accounts != nil {
+					if len(owners.Accounts) > 0 {
+						hasOwner = true
+					}
+				}
+
+				if owners.Applications != nil {
+					if len(owners.Applications) > 0 {
+						hasOwner = true
+					}
+				}
+
+				if owners.Groups != nil {
+					if len(owners.Groups) > 0 {
+						hasOwner = true
+					}
+				}
+
+				if owners.Organizations != nil {
+					if len(owners.Organizations) > 0 {
+						hasOwner = true
+					}
+				}
+
+				if owners.Peers != nil {
+					if len(owners.Peers) > 0 {
+						hasOwner = true
+					}
+				}
+
+				if hasOwner {
+					if subjectType == rbacpb.SubjectType_ACCOUNT {
+
+						if owners.Accounts != nil {
+							if Utility.Contains(owners.Accounts, subject) {
+								return true
+							}
+						} else {
+							account, err := rbac_server.getAccount(subject)
+
+							if account.Groups != nil && err == nil {
+								for i := 0; i < len(account.Groups); i++ {
+									groupId := account.Groups[i]
+									isOwner := rbac_server.isOwner(groupId, rbacpb.SubjectType_GROUP, path)
+									if isOwner {
+										return true
+									}
+								}
+							}
+
+							// from the account I will get the list of group.
+							if account.Organizations != nil && err == nil {
+								for i := 0; i < len(account.Organizations); i++ {
+									organizationId := account.Organizations[i]
+									isOwner := rbac_server.isOwner(organizationId, rbacpb.SubjectType_ORGANIZATION, path)
+									if isOwner {
+										return true
+									}
+								}
+							}
+						}
+
+					} else if subjectType == rbacpb.SubjectType_APPLICATION {
+
+						exist, a := rbac_server.applicationExist(subject)
+						if owners.Applications != nil && exist {
+							if Utility.Contains(owners.Applications, subject) || Utility.Contains(owners.Applications, a) {
+								return true
+							}
+						}
+
+					} else if subjectType == rbacpb.SubjectType_GROUP {
+
+						exist, g := rbac_server.groupExist(subject)
+						if owners.Groups != nil && exist {
+							if Utility.Contains(owners.Groups, subject) || Utility.Contains(owners.Groups, g) {
+								return true
+							}
+						}
+
+					} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+						exist, o := rbac_server.organizationExist(subject)
+						if owners.Organizations != nil && exist {
+							if Utility.Contains(owners.Organizations, subject) || Utility.Contains(owners.Organizations, o) {
+								return true
+							}
+						}
+					} else if subjectType == rbacpb.SubjectType_PEER {
+						if owners.Peers != nil {
+							if Utility.Contains(owners.Peers, subject) {
+								return true
+							}
+						}
+					}
+				} else if strings.LastIndex(path, "/") > 0 {
+					return rbac_server.isOwner(subject, subjectType, path[0:strings.LastIndex(path, "/")])
+				}
+
+			}
+		}
+	} else if strings.LastIndex(path, "/") > 0 {
+		return rbac_server.isOwner(subject, subjectType, path[0:strings.LastIndex(path, "/")])
+	}
+
+	return false
+}
+
+/**
+ * Validate if access to a resource at given path is denied for subject
+ */
+func (rbac_server *server) validateAccessDenied(subject string, subjectType rbacpb.SubjectType, name string, path string) bool {
+
+	subject, err := rbac_server.validateSubject(subject, subjectType)
+	if err != nil {
+		return false
+	}
+
+	// test if the subject is the direct owner of the resource.
+	permissions, err := rbac_server.getResourcePermissions(path)
+
+	if err == nil {
+		if permissions.Denied != nil {
+			var denied *rbacpb.Permission
+			for i := 0; i < len(permissions.Denied); i++ {
+				if permissions.Denied[i].Name == name {
+					denied = permissions.Denied[i]
+					break
+				}
+			}
+
+			if denied != nil {
+
+				if subjectType == rbacpb.SubjectType_ACCOUNT {
+
+					if denied.Accounts != nil {
+						if Utility.Contains(denied.Accounts, subject) {
+							return true
+						}
+					} else {
+						account, err := rbac_server.getAccount(subject)
+
+						if account.Groups != nil && err == nil {
+							for i := 0; i < len(account.Groups); i++ {
+								groupId := account.Groups[i]
+								isDenied := rbac_server.validateAccessDenied(groupId, rbacpb.SubjectType_GROUP, name, path)
+								if isDenied {
+									return true
+								}
+							}
+						}
+
+						// from the account I will get the list of group.
+						if account.Organizations != nil && err == nil {
+							for i := 0; i < len(account.Organizations); i++ {
+								organizationId := account.Organizations[i]
+								isDenied := rbac_server.validateAccessDenied(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+								if isDenied {
+									return true
+								}
+							}
+						}
+					}
+
+				} else if subjectType == rbacpb.SubjectType_APPLICATION {
+
+					exist, a := rbac_server.applicationExist(subject)
+					if denied.Applications != nil && exist {
+						if Utility.Contains(denied.Applications, subject) || Utility.Contains(denied.Applications, a) {
+							return true
+						}
+					}
+
+				} else if subjectType == rbacpb.SubjectType_GROUP {
+
+					exist, g := rbac_server.groupExist(subject)
+					if denied.Groups != nil && exist {
+						if Utility.Contains(denied.Groups, subject) || Utility.Contains(denied.Groups, g) {
+							return true
+						}
+					}
+
+				} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+					exist, o := rbac_server.organizationExist(subject)
+					if denied.Organizations != nil && exist {
+						if Utility.Contains(denied.Organizations, subject) || Utility.Contains(denied.Organizations, o) {
+							return true
+						}
+					}
+				} else if subjectType == rbacpb.SubjectType_PEER {
+					if denied.Peers != nil {
+						if Utility.Contains(denied.Peers, subject) {
+							return true
+						}
+					}
+				}
+			} else if strings.LastIndex(path, "/") > 0 {
+				return rbac_server.validateAccessDenied(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
+			}
+		}
+	} else if strings.LastIndex(path, "/") > 0 {
+		return rbac_server.validateAccessDenied(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
+	}
+
+	return false
+}
+
+func (rbac_server *server) validateAccessAllowed(subject string, subjectType rbacpb.SubjectType, name string, path string) bool {
+	subject, err := rbac_server.validateSubject(subject, subjectType)
+	if err != nil {
+		return false
+	}
+
+	// test if the subject is the direct owner of the resource.
+	permissions, err := rbac_server.getResourcePermissions(path)
+
+	if err == nil {
+		if permissions.Allowed != nil {
+			var allowed *rbacpb.Permission
+			for i := 0; i < len(permissions.Allowed); i++ {
+				if permissions.Denied[i].Name == name {
+					allowed = permissions.Allowed[i]
+					break
+				}
+			}
+
+			if allowed != nil {
+				if subjectType == rbacpb.SubjectType_ACCOUNT {
+					if allowed.Accounts != nil {
+						if len(allowed.Accounts) > 0 {
+							if Utility.Contains(allowed.Accounts, subject) {
+								return true
+							}
+						}
+					} else {
+						account, err := rbac_server.getAccount(subject)
+						if err == nil {
+							if account.Groups != nil && err == nil {
+								for i := 0; i < len(account.Groups); i++ {
+									groupId := account.Groups[i]
+									isAllowed := rbac_server.validateAccessAllowed(groupId, rbacpb.SubjectType_GROUP, name, path)
+									if isAllowed {
+										return true
+									}
+								}
+							}
+
+							// from the account I will get the list of group.
+							if account.Organizations != nil && err == nil {
+								for i := 0; i < len(account.Organizations); i++ {
+									organizationId := account.Organizations[i]
+									isAllowed := rbac_server.validateAccessAllowed(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
+									if isAllowed {
+										return true
+									}
+								}
+							}
+						}
+					}
+				} else if subjectType == rbacpb.SubjectType_APPLICATION {
+					if allowed.Applications != nil {
+						if Utility.Contains(allowed.Applications, subject) {
+							return true
+						}
+					}
+
+				} else if subjectType == rbacpb.SubjectType_GROUP {
+					if Utility.Contains(allowed.Groups, subject) {
+						return true
+					}
+
+				} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
+					if allowed.Organizations != nil {
+						if Utility.Contains(allowed.Organizations, subject) {
+							return true
+						}
+					}
+				} else if subjectType == rbacpb.SubjectType_PEER {
+					if allowed.Peers != nil {
+						if Utility.Contains(allowed.Peers, subject) {
+							return true
+						}
+					}
+				}
+
+				return false
+			} else if strings.LastIndex(path, "/") > 0 {
+				return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
+			}
+		}
+	} else if strings.LastIndex(path, "/") > 0 {
+		return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
+	}
+
+	return true // if no permission was set is allowed by default.
+}
+
+// Return  accessAllowed, accessDenied, error
+func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
+
+	fmt.Println("validate access ", subject, name, path)
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
 
 	// .hidden files can be read by all... also file in public directory can be read by all...
-	if strings.Contains(path, "/.hidden/") || (isPublic(path) && name == "read") {
+	if strings.Contains(path, "/.hidden/") {
 		return true, false, nil
+	}
+
+	// validate if the subject exist
+	subject, err := rbac_server.validateSubject(subject, subjectType)
+	if err != nil {
+		return false, false, err
+	}
+
+	// validate ownership...
+	if rbac_server.isOwner(subject, subjectType, path) {
+		return true, false, nil
+	} else if name == "owner" {
+		// must be owner...
+		return false, false, nil
+	}
+
+	// validate if subect has it access denied...
+	isDenied := rbac_server.validateAccessDenied(subject, subjectType, name, path)
+	if isDenied {
+		return false, isDenied, nil
 	}
 
 	// first I will test if permissions is define
-	permissions, err := rbac_server.getResourcePermissions(path)
-	if err != nil {
-		if permissions == nil {
-			fmt.Println("no permission exist for ", path)
-			// so here I will recursively get it parent permission...
-			if strings.LastIndex(path, "/") > 0 {
-				return rbac_server.validateAccess(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
-			} else {
-				return true, false, nil // No permission is define for that resource so I need to give access in that case.
-			}
-		}
-		return false, false, err
+	isAllowed := rbac_server.validateAccessAllowed(subject, subjectType, name, path)
+	if !isAllowed {
+		return false, false, nil
 	}
 
-	// Test if the Subject is owner of the resource in that case I will git him access.
-	owners := permissions.Owners
-	subjectStr := ""
-	if owners != nil {
-		if subjectType == rbacpb.SubjectType_ACCOUNT {
-			subjectStr = "Account"
-			exist, a := rbac_server.accountExist(subject)
-			if !exist {
-				return false, false, errors.New("no account exist with id " + a)
-			}
-			if owners.Accounts != nil {
-				if Utility.Contains(owners.Accounts, subject) || Utility.Contains(owners.Accounts, a) {
-					return true, false, nil
-				}
-			} else {
-				account, err := rbac_server.getAccount(subject)
-				if err != nil {
-					return false, false, errors.New("no account named " + subject + " exist")
-				}
-
-				if account.Groups != nil {
-					for i := 0; i < len(account.Groups); i++ {
-						groupId := account.Groups[i]
-						isOwner, _, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
-						if isOwner {
-							return true, false, nil
-						}
-					}
-				}
-
-				// from the account I will get the list of group.
-				if account.Organizations != nil {
-					for i := 0; i < len(account.Organizations); i++ {
-						organizationId := account.Organizations[i]
-						isOwner, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-						if isOwner {
-							return true, false, nil
-						}
-					}
-				}
-
-			}
-
-		} else if subjectType == rbacpb.SubjectType_APPLICATION {
-			subjectStr = "Application"
-			exist, a := rbac_server.applicationExist(subject)
-			if !exist {
-				return false, false, errors.New("no application exist with id " + a)
-			}
-			if owners.Applications != nil {
-				if Utility.Contains(owners.Applications, subject) || Utility.Contains(owners.Applications, subject) {
-					return true, false, nil
-				}
-			}
-		} else if subjectType == rbacpb.SubjectType_GROUP {
-			subjectStr = "Group"
-			exist, g := rbac_server.groupExist(subject)
-			if !exist {
-				return false, false, errors.New("no group exist with id " + g)
-			}
-			if owners.Groups != nil {
-				if Utility.Contains(owners.Groups, subject) || Utility.Contains(owners.Groups, g) {
-					return true, false, nil
-				}
-			}
-		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
-			subjectStr = "Organization"
-			exist, o := rbac_server.organizationExist(subject)
-			if !exist {
-				return false, false, errors.New("no organization exist with id " + o)
-			}
-			if owners.Organizations != nil {
-				if Utility.Contains(owners.Organizations, subject) || Utility.Contains(owners.Organizations, o) {
-					return true, false, nil
-				}
-			}
-		} else if subjectType == rbacpb.SubjectType_PEER {
-			subjectStr = "Peer"
-			if !rbac_server.peerExist(subject) {
-				return false, false, errors.New("no peer exist with id " + subject)
-			}
-
-			if owners.Peers != nil {
-				if Utility.Contains(owners.Peers, subject) {
-					return true, false, nil
-				}
-			}
-		}
-	}
-
-	// if the permission is owner...
-	if name == "owner" {
-		return false, false, errors.New("no valid owner found for " + path)
-	}
-
-	if len(permissions.Allowed) == 0 && len(permissions.Denied) == 0 {
-
-		// In that case I will try to get parent resource permission.
-		if len(strings.Split(path, "/")) > 1 {
-			parentPath := path[0:strings.LastIndex(path, "/")]
-			// test for it parent.
-			return rbac_server.validateAccess(subject, subjectType, name, parentPath)
-		}
-
-		// if no permission are define for a resource anyone can access it.
-		return true, false, nil
-	}
-
-	// First I will validate that the permission is not denied...
-	var denied *rbacpb.Permission
-	for i := 0; i < len(permissions.Denied); i++ {
-		if permissions.Denied[i].Name == name {
-			denied = permissions.Denied[i]
-			break
-		}
-	}
-
-	////////////////////// Test if the access is denied first. /////////////////////
-	accessDenied := false
-
-	// Here the Subject is not the owner...
-	if denied != nil {
-		if subjectType == rbacpb.SubjectType_ACCOUNT {
-
-			// Here the subject is an account.
-			if denied.Accounts != nil {
-				accessDenied = Utility.Contains(denied.Accounts, subject)
-			}
-
-			// The access is not denied for the account itself, I will validate
-			// that the account is not part of denied group.
-			if !accessDenied {
-
-				// from the account I will get the list of group.
-				account, err := rbac_server.getAccount(subject)
-				if err != nil {
-					return false, false, errors.New("no account named " + subject + " exist")
-				}
-
-				if account.Groups != nil {
-					for i := 0; i < len(account.Groups); i++ {
-						groupId := account.Groups[i]
-						_, accessDenied_, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
-						if accessDenied_ {
-							return false, true, errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
-						}
-					}
-				}
-
-				// from the account I will get the list of group.
-				if account.Organizations != nil {
-					for i := 0; i < len(account.Organizations); i++ {
-						organizationId := account.Organizations[i]
-						_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-						if accessDenied_ {
-							return false, true, errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
-						}
-					}
-				}
-
-			}
-
-		} else if subjectType == rbacpb.SubjectType_APPLICATION {
-			// Here the Subject is an application.
-			exist, a := rbac_server.applicationExist(subject)
-			if !exist {
-				return false, false, errors.New("no application exist with id " + a)
-			}
-			if denied.Applications != nil {
-				accessDenied = Utility.Contains(denied.Applications, subject) || Utility.Contains(denied.Applications, a)
-			}
-		} else if subjectType == rbacpb.SubjectType_GROUP {
-			exist, g := rbac_server.groupExist(subject)
-			if !exist {
-				return false, false, errors.New("no group exist with id " + g)
-			}
-			// Here the Subject is a group
-			if denied.Groups != nil {
-				accessDenied = Utility.Contains(denied.Groups, subject) || Utility.Contains(denied.Groups, g)
-			}
-
-			// The access is not denied for the account itself, I will validate
-			// that the account is not part of denied group.
-			if !accessDenied {
-
-				// from the account I will get the list of group.
-				group, err := rbac_server.getGroup(subject)
-				if err != nil {
-					return false, false, errors.New("no account named " + subject + " exist")
-				}
-
-				if group.Organizations != nil {
-					for i := 0; i < len(group.Organizations); i++ {
-						organizationId := group.Organizations[i]
-						_, accessDenied_, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-						if accessDenied_ {
-							return false, true, errors.New("access denied for " + subjectStr + " " + organizationId + " " + name + " " + path)
-						}
-					}
-				}
-
-			}
-
-		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
-			exist, o := rbac_server.organizationExist(subject)
-			if !exist {
-				return false, false, errors.New("no organization exist with id " + o)
-			}
-			// Here the Subject is an organizations.
-			if denied.Organizations != nil {
-				accessDenied = Utility.Contains(denied.Organizations, subject) || Utility.Contains(denied.Organizations, o)
-			}
-		} else if subjectType == rbacpb.SubjectType_PEER {
-			if !rbac_server.peerExist(subject) {
-				return false, false, errors.New("no peer exist with id " + subject)
-			}
-
-			// Here the Subject is a Peer.
-			if denied.Peers != nil {
-				accessDenied = Utility.Contains(denied.Peers, subject)
-			}
-		}
-	}
-
-	if accessDenied {
-		err := errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
-		return false, true, err
-	}
-
-	var allowed *rbacpb.Permission
-	for i := 0; i < len(permissions.Allowed); i++ {
-		if permissions.Allowed[i].Name == name {
-			allowed = permissions.Allowed[i]
-			break
-		}
-	}
-
-	hasAccess := false
-	if allowed != nil {
-		// Test if the access is allowed
-		if subjectType == rbacpb.SubjectType_ACCOUNT {
-			exist, a := rbac_server.accountExist(subject)
-			if !exist {
-				return false, false, errors.New("no account exist with id " + a)
-			}
-			if allowed.Accounts != nil {
-				hasAccess = Utility.Contains(allowed.Accounts, subject) || Utility.Contains(allowed.Accounts, a)
-				if hasAccess {
-					return true, false, nil
-				}
-			}
-			if !hasAccess {
-
-				account, err := rbac_server.getAccount(subject)
-				if err == nil {
-					// from the account I will get the list of group.
-					if account.Groups != nil {
-						for i := 0; i < len(account.Groups); i++ {
-							groupId := account.Groups[i]
-							hasAccess_, _, _ := rbac_server.validateAccess(groupId, rbacpb.SubjectType_GROUP, name, path)
-							if hasAccess_ {
-								return true, false, nil
-							}
-						}
-					}
-
-					// from the account I will get the list of group.
-					if account.Organizations != nil {
-						for i := 0; i < len(account.Organizations); i++ {
-							organizationId := account.Organizations[i]
-							hasAccess_, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-							if hasAccess_ {
-								return true, false, nil
-							}
-						}
-
-					}
-				}
-			}
-
-		} else if subjectType == rbacpb.SubjectType_GROUP {
-			// validate the group access
-			if allowed.Groups != nil {
-				exist, g := rbac_server.groupExist(subject)
-				if !exist {
-					return false, false, errors.New("no group exist with id " + g)
-				}
-				hasAccess = Utility.Contains(allowed.Groups, subject) || Utility.Contains(allowed.Groups, g)
-				if hasAccess {
-					return true, false, nil
-				}
-			}
-
-			if !hasAccess {
-				group, err := rbac_server.getGroup(subject)
-				if err == nil {
-					if group.Organizations != nil {
-						for i := 0; i < len(group.Organizations); i++ {
-							organizationId := group.Organizations[i]
-							hasAccess_, _, _ := rbac_server.validateAccess(organizationId, rbacpb.SubjectType_ORGANIZATION, name, path)
-							if hasAccess_ {
-								return true, false, nil
-							}
-						}
-					}
-				}
-			}
-		} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
-			exist, o := rbac_server.organizationExist(subject)
-			if !exist {
-				return false, false, errors.New("no organization exist with id " + o)
-			}
-			if allowed.Organizations != nil {
-				hasAccess = Utility.Contains(allowed.Organizations, subject) || Utility.Contains(allowed.Organizations, subject)
-				if hasAccess {
-					return true, false, nil
-				}
-			}
-		} else if subjectType == rbacpb.SubjectType_PEER {
-			// Here the Subject is an application.
-			if allowed.Peers != nil {
-				hasAccess = Utility.Contains(allowed.Peers, subject)
-				if hasAccess {
-					return true, false, nil
-				}
-			}
-		} else if subjectType == rbacpb.SubjectType_APPLICATION {
-			// Here the Subject is an application.
-			exist, a := rbac_server.applicationExist(subject)
-			if !exist {
-				return false, false, errors.New("no application exist with id " + a)
-			}
-
-			if allowed.Applications != nil {
-				hasAccess = Utility.Contains(allowed.Applications, subject) || Utility.Contains(allowed.Applications, a)
-				if hasAccess {
-					return true, false, nil
-				}
-			}
-		}
-	}
-
-	if !hasAccess {
-		err := errors.New("access denied for " + subjectStr + " " + subject + " " + name + " " + path)
-		return false, false, err
-	}
-
-	// The permission is set.
+	// The user has access.
 	return true, false, nil
 }
 
@@ -2669,56 +2666,33 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
 /**
  * Validate an action and also validate it resources
  */
-func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, error) {
+func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, bool, error) {
 
-	fmt.Println("validate action: ", action, subject, resources)
 	// Exception
 	if len(resources) == 0 {
-		if strings.HasPrefix(action, "/echo.EchoService") || strings.HasPrefix(action, "/resource.ResourceService") || strings.HasPrefix(action, "/event.EventService") || action == "/file.FileService/GetFileInfo" {
-			return true, nil
+		if strings.HasPrefix(action, "/echo.EchoService") ||
+			strings.HasPrefix(action, "/resource.ResourceService") ||
+			strings.HasPrefix(action, "/event.EventService") ||
+			action == "/file.FileService/GetFileInfo" {
+			return true, false, nil
 		}
 	}
 
 	// Guest role.
 	guest, err := rbac_server.getRole("guest")
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	// Test if the guest role contain the action...
 	if Utility.Contains(guest.Actions, action) == true && len(resources) == 0 {
-		return true, nil
+		return true, false, nil
 	}
 
 	// test if the subject exist.
-	if subjectType == rbacpb.SubjectType_ACCOUNT {
-		exist, a := rbac_server.accountExist(subject)
-		if !exist {
-			return false, errors.New("no account exist with id " + subject)
-		}
-		subject = a
-	} else if subjectType == rbacpb.SubjectType_APPLICATION {
-		exist, a := rbac_server.applicationExist(subject)
-		if !exist {
-			return false, errors.New("no application exist with id " + subject)
-		}
-		subject = a
-	} else if subjectType == rbacpb.SubjectType_GROUP {
-		exist, g := rbac_server.groupExist(subject)
-		if !exist {
-			return false, errors.New("no group exist with id " + subject)
-		}
-		subject = g
-	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
-		exist, o := rbac_server.organizationExist(subject)
-		if !exist {
-			return false, errors.New("no organization exist with id " + subject)
-		}
-		subject = o
-	} else if subjectType == rbacpb.SubjectType_PEER {
-		if !rbac_server.peerExist(subject) {
-			return false, errors.New("no peer exist with id " + subject)
-		}
+	subject, err = rbac_server.validateSubject(subject, subjectType)
+	if err != nil {
+		return false, false, err
 	}
 
 	var actions []string
@@ -2732,48 +2706,52 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		application, err := rbac_server.getApplication(subject)
 		if err != nil {
 			rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "fail to retreive application "+subject+" from the resource...")
-			return false, err
+			return false, false, err
 		}
 		actions = application.Actions
+
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for peer "+subject)
 		peer, err := rbac_server.getPeer(subject)
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
-			return false, err
+			return false, false, err
 		}
 		actions = peer.Actions
+
 	} else if subjectType == rbacpb.SubjectType_ROLE {
 		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for role "+subject)
 		role, err := rbac_server.getRole(subject)
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
-			return false, err
+			return false, false, err
 		}
 
 		// If the role is sa then I will it has all permission...
 		domain, _ := config.GetDomain()
 		if role.Domain == domain && role.Name == "admin" {
-			return true, nil
+			return true, false, nil
 		}
 
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
-			return false, err
+			return false, false, err
 		}
+
 		actions = role.Actions
+
 	} else if subjectType == rbacpb.SubjectType_ACCOUNT {
 		//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "validate action "+action+" for account "+subject)
 		// If the user is the super admin i will return true.
 		localDomain, _ := config.GetDomain()
 		if subject == "sa@"+localDomain {
-			return true, nil
+			return true, false, nil
 		}
 
 		account, err := rbac_server.getAccount(subject)
 		if err != nil {
 			rbac_server.logServiceError("", Utility.FileLine(), Utility.FunctionName(), err.Error())
-			return false, err
+			return false, false, err
 		}
 
 		// call the rpc method.
@@ -2783,11 +2761,11 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 				roleId := account.Roles[i]
 				// if the role id is local admin
 				if roleId == "admin@"+localDomain {
-					return true, nil
+					return true, false, nil
 				} else if strings.HasSuffix(roleId, "@"+localDomain) {
-					hasAccess_, _ := rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
-					if hasAccess_ {
-						hasAccess = hasAccess_
+
+					hasAccess, _, _ = rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
+					if hasAccess {
 						break
 					}
 				}
@@ -2808,37 +2786,34 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 	}
 
 	if !hasAccess {
-		err := errors.New("Access denied for " + subject + " to call method " + action)
-		return false, err
+		return false, true, nil
 	} else if subjectType == rbacpb.SubjectType_ROLE {
-		return true, nil
+		// I will not validate the resource access for the role only the method.
+		return true, false, nil
 	}
 
-	// Now I will validate the resource access.
-	// infos
+	// Now I will validate the resource access infos
 	permissions_, _ := rbac_server.getActionResourcesPermissions(action)
 	if len(resources) > 0 {
 		if permissions_ == nil {
 			err := errors.New("no resources path are given for validations")
-			return false, err
+			return false, false, err
 		}
 		for i := 0; i < len(resources); i++ {
 			if len(resources[i].Path) > 0 { // Here if the path is empty i will simply not validate it.
-				hasAccess, accessDenied, _ := rbac_server.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
-				if !hasAccess || accessDenied {
-					err := errors.New("subject " + subject + " can call the method '" + action + "' but has not the permission to " + resources[i].Permission + " resource '" + resources[i].Path + "'")
-					return false, err
-				} else if hasAccess {
-
-					//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action+"' and has permission to "+resources[i].Permission+" resource '"+resources[i].Path+"'")
-					return true, nil
+				fmt.Println("------> validate resource access ", subject, action, resources[i].Permission, resources[i].Path)
+				hasAccess, accessDenied, err := rbac_server.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
+				if err != nil {
+					return false, false, err
 				}
+
+				return hasAccess, accessDenied, nil
 			}
 		}
 	}
 
 	//rbac_server.logServiceInfo("", Utility.FileLine(), Utility.FunctionName(), "subject "+subject+" can call the method '"+action)
-	return true, nil
+	return true, false, nil
 }
 
 // * Validate the actions...
@@ -2853,7 +2828,7 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 	}
 
 	// If the address is local I will give the permission.
-	hasAccess, err := rbac_server.validateAction(rqst.Action, rqst.Subject, rqst.Type, rqst.Infos)
+	hasAccess, accessDenied, err := rbac_server.validateAction(rqst.Action, rqst.Subject, rqst.Type, rqst.Infos)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2861,7 +2836,8 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 	}
 
 	return &rbacpb.ValidateActionRsp{
-		Result: hasAccess,
+		HasAccess:    hasAccess,
+		AccessDenied: accessDenied,
 	}, nil
 }
 
@@ -2922,7 +2898,7 @@ func (rbac_server *server) unsetSubjectSharedResource(subject, resourceUuid stri
 
 // Save / Create a Share.
 func (rbac_server *server) shareResource(share *rbacpb.Share) error {
-	// fmt.Println("shareResource")
+
 	// the id will be compose of the domain @ path ex. domain@/usr/toto/titi
 	uuid := Utility.GenerateUUID(share.Domain + share.Path)
 

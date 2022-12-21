@@ -293,7 +293,7 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 /**
  * Upload a service bundle.
  */
-func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, publisherId, version, platform, packagePath string) (int, error) {
+func (client *Repository_Service_Client) UploadBundle(token, discoveryId, serviceId, publisherId, version, platform, packagePath string) (int, error) {
 
 	// The service bundle...
 	bundle := new(resourcepb.PackageBundle)
@@ -322,16 +322,27 @@ func (client *Repository_Service_Client) UploadBundle(discoveryId, serviceId, pu
 		bundle.Binairies = data
 	}
 
-	return client.uploadBundle(bundle, len(data))
+	return client.uploadBundle(token, bundle, len(data))
 }
 
 /**
  * Upload a bundle into the service repository.
  */
-func (client *Repository_Service_Client) uploadBundle(bundle *resourcepb.PackageBundle, total int) (int, error) {
+func (client *Repository_Service_Client) uploadBundle(token string, bundle *resourcepb.PackageBundle, total int) (int, error) {
 
+	ctx := client.GetCtx()
+	if len(token) > 0 {
+		md, _ := metadata.FromOutgoingContext(ctx)
+
+		if len(md.Get("token")) != 0 {
+			md.Set("token", token)
+		}
+		ctx = metadata.NewOutgoingContext(context.Background(), md)
+	}
+
+	
 	// Open the stream...
-	stream, err := client.c.UploadBundle(client.GetCtx())
+	stream, err := client.c.UploadBundle(ctx)
 	if err != nil {
 		return -1, err
 	}
@@ -510,7 +521,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	}
 
 	// Upload the bundle to the repository server.
-	return client.UploadBundle(domain, name, publisherId, version, "webapp", packagePath)
+	return client.UploadBundle(token, domain, name, publisherId, version, "webapp", packagePath)
 
 }
 
@@ -599,7 +610,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 	defer os.RemoveAll(packagePath)
 
 	// Upload the bundle to the repository server.
-	_, err = client.UploadBundle(domain, s["Id"].(string), s["PublisherId"].(string), s["Version"].(string), platform, packagePath)
+	_, err = client.UploadBundle(token, domain, s["Id"].(string), s["PublisherId"].(string), s["Version"].(string), platform, packagePath)
 	if err != nil {
 		return err
 	}

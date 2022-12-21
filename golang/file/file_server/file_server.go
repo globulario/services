@@ -1136,6 +1136,8 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 
 	path := file_server.formatPath(rqst.Path)
 
+	fmt.Println("-------> 1139 read dir: ", path)
+
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
 
 	if err != nil {
