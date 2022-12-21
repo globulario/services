@@ -2334,7 +2334,11 @@ func (rbac_server *server) isOwner(subject string, subjectType rbacpb.SubjectTyp
 					return rbac_server.isOwner(subject, subjectType, path[0:strings.LastIndex(path, "/")])
 				}
 
+			} else if strings.LastIndex(path, "/") > 0 {
+				return rbac_server.isOwner(subject, subjectType, path[0:strings.LastIndex(path, "/")])
 			}
+		} else if strings.LastIndex(path, "/") > 0 {
+			return rbac_server.isOwner(subject, subjectType, path[0:strings.LastIndex(path, "/")])
 		}
 	} else if strings.LastIndex(path, "/") > 0 {
 		return rbac_server.isOwner(subject, subjectType, path[0:strings.LastIndex(path, "/")])
@@ -2355,7 +2359,6 @@ func (rbac_server *server) validateAccessDenied(subject string, subjectType rbac
 
 	// test if the subject is the direct owner of the resource.
 	permissions, err := rbac_server.getResourcePermissions(path)
-
 	if err == nil {
 		if permissions.Denied != nil {
 			var denied *rbacpb.Permission
@@ -2367,9 +2370,7 @@ func (rbac_server *server) validateAccessDenied(subject string, subjectType rbac
 			}
 
 			if denied != nil {
-
 				if subjectType == rbacpb.SubjectType_ACCOUNT {
-
 					if denied.Accounts != nil {
 						if Utility.Contains(denied.Accounts, subject) {
 							return true
@@ -2434,6 +2435,8 @@ func (rbac_server *server) validateAccessDenied(subject string, subjectType rbac
 			} else if strings.LastIndex(path, "/") > 0 {
 				return rbac_server.validateAccessDenied(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 			}
+		} else if strings.LastIndex(path, "/") > 0 {
+			return rbac_server.validateAccessDenied(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 		}
 	} else if strings.LastIndex(path, "/") > 0 {
 		return rbac_server.validateAccessDenied(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
@@ -2524,18 +2527,24 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 			} else if strings.LastIndex(path, "/") > 0 {
 				return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 			}
+		}else if strings.LastIndex(path, "/") > 0 {
+			return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 		}
 	} else if strings.LastIndex(path, "/") > 0 {
 		return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 	}
 
-	return true // if no permission was set is allowed by default.
+	// read only access by default if no permission are set...
+	if name == "read"{
+		return true;
+	}
+
+	return false
 }
 
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 
-	fmt.Println("validate access ", subject, name, path)
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
@@ -2545,6 +2554,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		return true, false, nil
 	}
 
+	fmt.Println("validate access ", subject, name, path)
 	// validate if the subject exist
 	subject, err := rbac_server.validateSubject(subject, subjectType)
 	if err != nil {
