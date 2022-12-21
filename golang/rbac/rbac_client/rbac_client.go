@@ -308,13 +308,19 @@ func (client *Rbac_Client) GetResourcePermissionsByResourceType(resource_type st
 
 	for {
 		msg, err := stream.Recv()
-		if err == io.EOF || len(msg.Permissions) == 0 {
-			// end of stream...
-			break
-		} else if err != nil {
-			return nil, err
-		} else {
-			permissions = append(permissions, msg.Permissions...)
+		if err != nil {
+			if err ==  io.EOF {
+				break
+			}else {
+				return nil, err
+			}
+
+		} else if msg != nil {
+			if len(msg.Permissions) == 0 {
+				break
+			}else{
+				permissions = append(permissions, msg.Permissions...)
+			}
 		}
 	}
 

@@ -551,13 +551,31 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	// Here I will try to get the info from the cache...
 	data, err_ := cache.GetItem(path)
 	if err_ == nil {
-		jsonpb.UnmarshalString(string(data), info)
-		return info, nil
+		err := jsonpb.UnmarshalString(string(data), info)
+		if err == nil {
+			// change the mime type to stream if the dir contain a playlist.
+			if info.IsDir {
+				if Utility.Exists(path + "/playlist.m3u8") {
+					info.Mime = "video/hls-stream"
+				}
+			}
+			return info, nil
+		}
+
+		// remove it from the cache...
+		cache.RemoveItem(path)
+
 	}
 
 	info.IsDir = fileStat.IsDir()
 	if info.IsDir {
 		info.Mime = "inode/directory"
+		path_, err := os.Getwd()
+		if err == nil {
+			path_ = strings.ReplaceAll(path_, "\\", "/")
+			path_ = path_ + "/mimetypes/inode-directory.png"
+			info.Thumbnail, _ = s.getMimeTypesUrl(path_)
+		}
 	} else {
 		info.Checksum = Utility.CreateFileChecksum(path)
 	}
@@ -595,7 +613,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			if err == nil {
 				path_ = strings.ReplaceAll(path_, "\\", "/")
 				path_ = path_ + "/mimetypes/unknown.png"
-				info.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
+				info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 			}
 
 			if err == nil {
@@ -664,7 +682,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 							path_ = strings.ReplaceAll(path_, "\\", "/")
 							path_ = path_ + "/mimetypes/video-x-generic.png"
 
-							info.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
+							info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 						}
 					}
 
@@ -683,18 +701,11 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					if err == nil {
 						path_ = strings.ReplaceAll(path_, "\\", "/")
 						path_ = path_ + "/mimetypes/" + strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-") + ".png"
-						info.Thumbnail, _ = s.getThumbnail(path_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+						info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 					}
 				}
 			}
 		} else {
-			/*path_, err := os.Getwd()
-			if err == nil {
-				path_ = strings.ReplaceAll(path_, "\\", "/")
-				path_ = path_ + "/mimetypes/inode-directory.png"
-				info.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
-			}*/
-
 			if Utility.Exists(path + "/playlist.m3u8") {
 				path_ := path[0:strings.LastIndex(path, "/")]
 				fileName := path[strings.LastIndex(path, "/")+1:]
@@ -715,7 +726,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					if err == nil {
 						path_ = strings.ReplaceAll(path_, "\\", "/")
 						path_ = path_ + "/mimetypes/video-x-generic.png"
-						info.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
+						info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 					}
 				}
 			}
@@ -974,8 +985,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 						if err == nil {
 							path_ = strings.ReplaceAll(path_, "\\", "/")
 							path_ = path_ + "/mimetypes/" + strings.ReplaceAll(strings.Split(info_.Mime, ";")[0], "/", "-") + ".png"
-
-							info_.Thumbnail, err = s.getThumbnail(path_, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+							info_.Thumbnail, _ = s.getMimeTypesUrl(path_)
 							if err != nil {
 								fmt.Println("fail to create thumbnail with error ", err)
 							}
@@ -988,7 +998,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 							path_ = strings.ReplaceAll(path_, "\\", "/")
 							path_ = strings.ReplaceAll(path_, "\\", "/")
 							path_ = path_ + "/mimetypes/unknown.png"
-							info_.Thumbnail, _ = s.getThumbnail(path_, 80, 80)
+							info_.Thumbnail, _ = s.getMimeTypesUrl(path_)
 						}
 					}
 				}
@@ -999,6 +1009,16 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 	}
 	return info, err
+}
+
+// return the icon address...
+func (file_server *server) getMimeTypesUrl(path string) (string, error) {
+
+	// http link...
+
+	// data url...
+	image_url, err := file_server.getThumbnail(path, int(80), int(80))
+	return image_url, err
 }
 
 func (file_server *server) formatPath(path string) string {
@@ -1135,9 +1155,6 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	}
 
 	path := file_server.formatPath(rqst.Path)
-
-	fmt.Println("-------> 1139 read dir: ", path)
-
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
 
 	if err != nil {
@@ -2059,6 +2076,8 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 			err := Utility.Move(from, dest)
 
 			if err == nil {
+				// remove it from the cache.
+				cache.RemoveItem(from)
 				// Associate titles...
 				for f, titles_ := range titles {
 					for _, title := range titles_ {
@@ -2618,6 +2637,8 @@ func restoreVideoInfos(client *title_client.Title_Client, video_path string) err
 		return err
 	}
 
+	// remove it from the cache.
+	cache.RemoveItem(video_path)
 
 	if err == nil && infos != nil {
 		if infos["format"] != nil {
@@ -3072,6 +3093,7 @@ func processVideos(file_server *server, dirs []string) {
 				}
 
 			} else {
+				cache.RemoveItem(video)
 				os.Remove(video)
 			}
 		}
@@ -3241,6 +3263,8 @@ func getStreamFrameRateInterval(path string) (int, error) {
  * Convert all kind of video to mp4 h64 container so all browser will be able to read it.
  */
 func createVideoMpeg4H264(path string) (string, error) {
+
+	cache.RemoveItem(path)
 
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
@@ -3494,6 +3518,9 @@ func getCodec(path string) string {
 // rate_monitor_buffer_ratio	maximum buffer size between bitrate conformance checks
 func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
 
+	// remove it from the cache.
+	cache.RemoveItem(src)
+
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
 		return errors.New("number of ffmeg instance has been reach, try it latter")
@@ -3629,6 +3656,9 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 
 // Create a stream from a vide file, mkv, mpeg4, avi etc...
 func createHlsStreamFromMpeg4H264(path string) error {
+
+	// remove it from the cache.
+	cache.RemoveItem(path)
 
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
