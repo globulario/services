@@ -4423,16 +4423,23 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 
 	for i := 0; i < len(paths); i++ {
 
+		path__ := paths[i]
+
 		videos := make(map[string][]*titlepb.Video, 0)
-		file_server.getFileVideosAssociation(client, paths[i], videos)
+		if strings.HasSuffix(paths[i], ".m3u8"){
+			path__ = filepath.Dir(paths[i])
+		}
+			
+		file_server.getFileVideosAssociation(client, path__, videos)
+		
+		
 		fmt.Println("add file to playlist ", paths[i])
-		duration := Utility.GetVideoDuration(paths[i])
 
-		if duration > 0 && len(videos[paths[i]]) > 0 {
+		if len(videos[path__]) > 0 {
 
-			playlist += "#EXTINF:" + Utility.ToString(duration)
+			videoInfo := videos[path__][0]
+			playlist += "#EXTINF:" +  Utility.ToString(videoInfo.GetDuration())
 
-			videoInfo := videos[paths[i]][0]
 			playlist += ` tvg-id="` + videoInfo.ID + `"` + ` tvg-url="` + videoInfo.URL + `"` + "," + videoInfo.Description
 
 			playlist += "\n"
@@ -4498,8 +4505,12 @@ func (file_server *server) generatePlaylist(path, token string) error {
 
 	for i := 0; i < len(infos); i++ {
 		filename := filepath.Join(path, infos[i].Name())
-		if !strings.HasSuffix(filename, ".m3u") {
-			info, err := getFileInfo(file_server, filename, -1, -1)
+		info, err := getFileInfo(file_server, filename, -1, -1)
+		if info.IsDir {
+			if Utility.Exists(info.Path + "/playlist.m3u8") {
+				videos = append(videos, info.Path+"/playlist.m3u8")
+			}
+		} else if !strings.HasSuffix(filename, ".m3u") {
 			if err == nil {
 				if strings.HasPrefix(info.Mime, "audio/") {
 					audios = append(audios, filename)

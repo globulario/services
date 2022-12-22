@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	//"fmt"
 
 	"github.com/davecourtois/Utility"
 	"github.com/dgrijalva/jwt-go"
@@ -266,7 +265,6 @@ func GetLocalToken(mac string) (string, error) {
 
 	token, _ := getLocalToken(mac)
 
-
 	// Here I will validate the token...
 	claims, err := ValidateToken(string(token))
 
@@ -284,6 +282,7 @@ func GetLocalToken(mac string) (string, error) {
 		return "", err
 	}
 
+	fmt.Println("------> 286")
 	// keep the token in the map...
 	tokens.Store(mac, newToken)
 

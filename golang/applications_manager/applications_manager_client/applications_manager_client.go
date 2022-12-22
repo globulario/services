@@ -5,7 +5,6 @@ import (
 
 	"strconv"
 	"strings"
-
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	"github.com/globulario/services/golang/config/config_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -120,7 +119,7 @@ func (client *Applications_Manager_Client) GetCtx() context.Context {
 	token, err := security.GetLocalToken(client.GetMac())
 	if err == nil {
 		md := metadata.New(map[string]string{"token": string(token), "domain": client.domain, "mac": client.GetMac()})
-		client.ctx = metadata.NewOutgoingContext(client.GetCtx(), md)
+		client.ctx = metadata.NewOutgoingContext(client.ctx, md)
 	}
 	return client.ctx
 }
@@ -247,17 +246,14 @@ func (client *Applications_Manager_Client) InstallApplication(token,  domain, us
 	rqst.ApplicationId = applicationId
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
 	rqst.SetAsDefault = set_as_default
-
 	ctx := client.GetCtx()
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
-
 		if len(md.Get("token")) != 0 {
 			md.Set("token", token)
 		}
 		ctx = metadata.NewOutgoingContext(ctx, md)
 	}
-
 	_, err := client.c.InstallApplication(ctx, rqst)
 	return err
 }
@@ -273,8 +269,8 @@ func (client *Applications_Manager_Client) UninstallApplication(token string, do
 	rqst.ApplicationId = applicationId
 	rqst.Version = version
 	rqst.Domain = strings.Split(domain, ":")[0] // remove the port if one is given...
-
 	ctx := client.GetCtx()
+
 	if len(token) > 0 {
 		md, _ := metadata.FromOutgoingContext(ctx)
 		if len(md.Get("token")) != 0 {
