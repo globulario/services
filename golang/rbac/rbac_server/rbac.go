@@ -2527,7 +2527,7 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 			} else if strings.LastIndex(path, "/") > 0 {
 				return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 			}
-		}else if strings.LastIndex(path, "/") > 0 {
+		} else if strings.LastIndex(path, "/") > 0 {
 			return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 		}
 	} else if strings.LastIndex(path, "/") > 0 {
@@ -2535,8 +2535,8 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 	}
 
 	// read only access by default if no permission are set...
-	if name == "read"{
-		return true;
+	if name == "read" {
+		return true
 	}
 
 	return false
@@ -2545,7 +2545,12 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 
-	fmt.Println("validate access", subject, path)
+	// validate if the subject exist
+	subject, err := rbac_server.validateSubject(subject, subjectType)
+	if err != nil {
+		return false, false, err
+	}
+
 	if len(path) == 0 {
 		return false, false, errors.New("no path was given to validate access for suject " + subject)
 	}
@@ -2555,11 +2560,13 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		return true, false, nil
 	}
 
-	fmt.Println("validate access ", subject, name, path)
-	// validate if the subject exist
-	subject, err := rbac_server.validateSubject(subject, subjectType)
-	if err != nil {
-		return false, false, err
+	path_ := rbac_server.formatPath(path)
+	fmt.Println("validate file at path ", path_)
+	if strings.HasSuffix(path_, ".ts") == true {
+		fmt.Println("test if ", filepath.Dir(path_) + "/playlist.m3u8", "exist", Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8"))
+		if Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8") {
+			return true, false, nil
+		}
 	}
 
 	// validate ownership...
@@ -2813,7 +2820,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 		for i := 0; i < len(resources); i++ {
 			if len(resources[i].Path) > 0 { // Here if the path is empty i will simply not validate it.
-				fmt.Println("------> validate resource access ", subject, action, resources[i].Permission, resources[i].Path)
 				hasAccess, accessDenied, err := rbac_server.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
 				if err != nil {
 					return false, false, err
