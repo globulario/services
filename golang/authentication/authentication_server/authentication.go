@@ -391,12 +391,13 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 		return tokenString, nil
 	}
-
+	
 	// Here I will get the account info.
 	account, err := server.getAccount(accountId)
 	if err != nil {
 		return "", err
 	}
+
 
 	err = server.validatePassword(pwd, account.Password)
 	if err != nil {
@@ -474,21 +475,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	// Set the mac addresse
 	if len(rqst.Issuer) == 0 {
 		rqst.Issuer = mac
-	} /*else {
-		// The request came from external source...
-		if rqst.Issuer != mac {
-			localDomain, err := config.GetDomain()
-			if err != nil {
-				return nil, err
-			}
-
-			// Try autenticate...
-			if strings.HasSuffix(rqst.Name, "@"+localDomain) {
-				rqst.Issuer = mac
-				rqst.Name = rqst.Name[0:strings.Index(rqst.Name, "@")]
-			}
-		}
-	}*/
+	}
 
 	// Try to authenticate on the server directy...
 	tokenString, err := server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)

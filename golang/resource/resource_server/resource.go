@@ -3552,6 +3552,23 @@ func (resource_server *server) RemoveGroupMemberAccount(ctx context.Context, rqs
 // * Create a notification
 func (resource_server *server) CreateNotification(ctx context.Context, rqst *resourcepb.CreateNotificationRqst) (*resourcepb.CreateNotificationRsp, error) {
 
+	p, err := resource_server.getPersistenceStore()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+	// so the recipient here is the id of the user...
+	recipient := strings.Split(rqst.Notification.Recipient, "@")[0]
+
+	count, _ := p.Count(context.Background(), "local_resource", recipient+"_db", "Notifications", `{"_id":"`+rqst.Notification.Id+`"}`, "")
+	if count > 0 {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Notification with id " + rqst.Notification.Id + " already exist")))
+	}
+
+
 	// if the account is not on the domain will redirect the request...
 	if rqst.Notification.NotificationType == resourcepb.NotificationType_USER_NOTIFICATION {
 		recipient := rqst.Notification.Recipient
@@ -3578,15 +3595,7 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 		}
 	}
 
-	// so the recipient here is the id of the user...
-	recipient := strings.Split(rqst.Notification.Recipient, "@")[0]
 
-	p, err := resource_server.getPersistenceStore()
-	if err != nil {
-		return nil, status.Errorf(
-			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-	}
 
 	_, err = p.InsertOne(context.Background(), "local_resource", recipient+"_db", "Notifications", rqst.Notification, "")
 	if err != nil {

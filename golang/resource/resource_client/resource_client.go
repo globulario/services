@@ -62,6 +62,7 @@ type Resource_Client struct {
 // Create a connection to the service.
 func NewResourceService_Client(address string, id string) (*Resource_Client, error) {
 
+
 	client := new(Resource_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
@@ -818,7 +819,9 @@ func (client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, err
 func (client *Resource_Client) UpdateGroup(token string, g *resourcepb.Group) error {
 	rqst := new(resourcepb.UpdateGroupRqst)
 	rqst.GroupId = g.Id
+	
 	rqst.Values = `{"$set":{"name":"` + g.Name + `","description":"` + g.Description + `", "domain":"` + g.Domain + `"}}`
+	fmt.Println(rqst.Values)
 
 	// set the token in the context...
 	md := metadata.New(map[string]string{"token": string(token), "domain": client.domain})

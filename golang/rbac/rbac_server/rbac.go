@@ -2679,6 +2679,7 @@ func (rbac_server *server) GetActionResourceInfos(ctx context.Context, rqst *rba
  */
 func (rbac_server *server) validateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, bool, error) {
 
+	fmt.Println("validate action ", action, " for ", subject)
 	// Exception
 	if len(resources) == 0 {
 		if strings.HasPrefix(action, "/echo.EchoService") ||

@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 	"sync"
 	"time"
+
+	//"fmt"
 
 	"github.com/davecourtois/Utility"
 	"github.com/dgrijalva/jwt-go"
@@ -61,7 +65,6 @@ func GenerateToken(timeout int, mac, userId, userName, email, userDomain string)
 
 	// Here I will get the key...
 	if len(audience) > 0 {
-
 		jwtKey, err = GetPeerKey(audience)
 		if err != nil {
 			return "", err
@@ -211,15 +214,49 @@ func refreshLocalToken(token string) (string, error) {
 // Here I will keep the token in a map so it will be less file reading...
 var tokens = new(sync.Map)
 
-func getLocalToken(domain string) (string, error) {
-	token, ok := tokens.Load(domain)
+func getLocalToken(mac string) (string, error) {
+	token, ok := tokens.Load(mac)
 	if ok {
 		if token != nil {
 			return token.(string), nil
 		}
 	}
 
+	// if the token is not in the local map I will try to read it from file...
+	// ex /etc/globular/config/tokens/globule-ryzen.globular.cloud_token
+	mac = strings.ReplaceAll(mac, ":", "_")
+	path := config.GetConfigDir() +"/tokens/"+mac+"_token"
+
+	if Utility.Exists(path){
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return string(data), nil
+		}
+	}
+
 	return "", errors.New("no token found")
+}
+
+func SetLocalToken(mac, domain, id, name, email string, timeout int) error{
+	mac = strings.ReplaceAll(mac, ":", "_")
+	os.Remove(config.GetConfigDir() +"/tokens/"+mac+"_token")
+
+	tokenString, err :=  GenerateToken(timeout, mac, id, name, email, domain)
+	if err != nil {
+		fmt.Println("fail to generate token with error: ", err)
+		return err
+	}
+
+	err = ioutil.WriteFile(config.GetConfigDir() +"/tokens/"+mac+"_token", []byte(tokenString), 0644)
+	if err != nil {
+		fmt.Println("fail to save local token with error: ", err)
+		return err
+	}
+
+	// keep in the local map...
+	tokens.Store(mac, tokenString)
+
+	return nil
 }
 
 /**
@@ -227,10 +264,8 @@ func getLocalToken(domain string) (string, error) {
  */
 func GetLocalToken(mac string) (string, error) {
 
-	token, err := getLocalToken(mac)
-	if err != nil {
-		return "", err
-	}
+	token, _ := getLocalToken(mac)
+
 
 	// Here I will validate the token...
 	claims, err := ValidateToken(string(token))
