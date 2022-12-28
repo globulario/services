@@ -2525,12 +2525,30 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 
 				return false
 			} else if strings.LastIndex(path, "/") > 0 {
+				if isPublic(path, false){
+					if name == "read" {
+						return true
+					}
+				}
+
 				return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 			}
 		} else if strings.LastIndex(path, "/") > 0 {
+			if isPublic(path, false){
+				if name == "read" {
+					return true
+				}
+			}
+
 			return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 		}
 	} else if strings.LastIndex(path, "/") > 0 {
+		if isPublic(path, false){
+			if name == "read" {
+				return true
+			}
+		}
+
 		return rbac_server.validateAccessAllowed(subject, subjectType, name, path[0:strings.LastIndex(path, "/")])
 	}
 
@@ -2561,7 +2579,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	}
 
 	path_ := rbac_server.formatPath(path)
-	fmt.Println("validate file at path ", path_)
+	fmt.Println("validate file at path ", path_, "for", subject, "and permission", name)
 	if strings.HasSuffix(path_, ".ts") == true {
 		fmt.Println("test if ", filepath.Dir(path_) + "/playlist.m3u8", "exist", Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8"))
 		if Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8") {
@@ -2586,10 +2604,12 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	// first I will test if permissions is define
 	isAllowed := rbac_server.validateAccessAllowed(subject, subjectType, name, path)
 	if !isAllowed {
+		fmt.Println(subject, "has", name, "not acces to", path)
 		return false, false, nil
 	}
 
 	// The user has access.
+	fmt.Println(subject, "has", name, "acces to", path)
 	return true, false, nil
 }
 
