@@ -5467,7 +5467,8 @@ proto.rbac.ValidateActionRsp.prototype.toObject = function(opt_includeInstance) 
  */
 proto.rbac.ValidateActionRsp.toObject = function(includeInstance, msg) {
   var f, obj = {
-    result: jspb.Message.getFieldWithDefault(msg, 1, false)
+    hasaccess: jspb.Message.getFieldWithDefault(msg, 1, false),
+    accessdenied: jspb.Message.getFieldWithDefault(msg, 2, false)
   };
 
   if (includeInstance) {
@@ -5506,7 +5507,11 @@ proto.rbac.ValidateActionRsp.deserializeBinaryFromReader = function(msg, reader)
     switch (field) {
     case 1:
       var value = /** @type {boolean} */ (reader.readBool());
-      msg.setResult(value);
+      msg.setHasaccess(value);
+      break;
+    case 2:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setAccessdenied(value);
       break;
     default:
       reader.skipField();
@@ -5537,10 +5542,17 @@ proto.rbac.ValidateActionRsp.prototype.serializeBinary = function() {
  */
 proto.rbac.ValidateActionRsp.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getResult();
+  f = message.getHasaccess();
   if (f) {
     writer.writeBool(
       1,
+      f
+    );
+  }
+  f = message.getAccessdenied();
+  if (f) {
+    writer.writeBool(
+      2,
       f
     );
   }
@@ -5548,19 +5560,36 @@ proto.rbac.ValidateActionRsp.serializeBinaryToWriter = function(message, writer)
 
 
 /**
- * optional bool result = 1;
+ * optional bool hasAccess = 1;
  * Note that Boolean fields may be set to 0/1 when serialized from a Java server.
  * You should avoid comparisons like {@code val === true/false} in those cases.
  * @return {boolean}
  */
-proto.rbac.ValidateActionRsp.prototype.getResult = function() {
+proto.rbac.ValidateActionRsp.prototype.getHasaccess = function() {
   return /** @type {boolean} */ (jspb.Message.getFieldWithDefault(this, 1, false));
 };
 
 
 /** @param {boolean} value */
-proto.rbac.ValidateActionRsp.prototype.setResult = function(value) {
+proto.rbac.ValidateActionRsp.prototype.setHasaccess = function(value) {
   jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional bool accessDenied = 2;
+ * Note that Boolean fields may be set to 0/1 when serialized from a Java server.
+ * You should avoid comparisons like {@code val === true/false} in those cases.
+ * @return {boolean}
+ */
+proto.rbac.ValidateActionRsp.prototype.getAccessdenied = function() {
+  return /** @type {boolean} */ (jspb.Message.getFieldWithDefault(this, 2, false));
+};
+
+
+/** @param {boolean} value */
+proto.rbac.ValidateActionRsp.prototype.setAccessdenied = function(value) {
+  jspb.Message.setProto3BooleanField(this, 2, value);
 };
 
 
@@ -6818,7 +6847,8 @@ proto.rbac.GetSharedResourceRqst.prototype.toObject = function(opt_includeInstan
 proto.rbac.GetSharedResourceRqst.toObject = function(includeInstance, msg) {
   var f, obj = {
     subject: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    type: jspb.Message.getFieldWithDefault(msg, 2, 0)
+    type: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    owner: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -6863,6 +6893,10 @@ proto.rbac.GetSharedResourceRqst.deserializeBinaryFromReader = function(msg, rea
       var value = /** @type {!proto.rbac.SubjectType} */ (reader.readEnum());
       msg.setType(value);
       break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOwner(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -6906,6 +6940,13 @@ proto.rbac.GetSharedResourceRqst.serializeBinaryToWriter = function(message, wri
       f
     );
   }
+  f = message.getOwner();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
 };
 
 
@@ -6936,6 +6977,21 @@ proto.rbac.GetSharedResourceRqst.prototype.getType = function() {
 /** @param {!proto.rbac.SubjectType} value */
 proto.rbac.GetSharedResourceRqst.prototype.setType = function(value) {
   jspb.Message.setProto3EnumField(this, 2, value);
+};
+
+
+/**
+ * optional string owner = 3;
+ * @return {string}
+ */
+proto.rbac.GetSharedResourceRqst.prototype.getOwner = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/** @param {string} value */
+proto.rbac.GetSharedResourceRqst.prototype.setOwner = function(value) {
+  jspb.Message.setProto3StringField(this, 3, value);
 };
 
 

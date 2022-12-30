@@ -536,7 +536,6 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 	var domain string
 
 	if strings.Contains(groupId, "@") {
-
 		if len(strings.Split(groupId, "@")[1]) > 0 {
 			domain = strings.Split(groupId, "@")[1]
 		}
@@ -551,8 +550,8 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 			return nil, err
 		}
 
-		groups, err := resource_.GetGroups(`{"_id":"` + groupId + `"}`)
-		if err != nil || len(groups) == 1 {
+		groups, err := resource_.GetGroups(`{"$or":[{"_id":"` + groupId + `"},{"name":"` + groupId + `"} ]}`)
+		if err != nil{
 			return nil, err
 		}
 
@@ -618,7 +617,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 		}
 
 		applications, err := resource_.GetApplications(`{"_id":"` + applicationId + `"}`)
-		if err != nil || len(applications) == 1 {
+		if err != nil || len(applications) != 1 {
 			return nil, err
 		}
 
@@ -712,7 +711,7 @@ func (server *server) getOrganization(organizationId string) (*resourcepb.Organi
 		}
 
 		organizations, err := resource_.GetOrganizations(`{"_id":"` + organizationId + `"}`)
-		if err != nil || len(organizations) == 1 {
+		if err != nil || len(organizations) != 1 {
 			return nil, err
 		}
 

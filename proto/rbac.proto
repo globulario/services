@@ -253,11 +253,13 @@ message UnshareResourceRsp {
 message GetSharedResourceRqst {
 	string subject = 1;
 	SubjectType type = 2; 
+	string owner = 3; // optional, it filter result for a given owner...
 }
 
 message GetSharedResourceRsp {
 	repeated Share sharedResource = 1;
 }
+
 
 /**
  * Remove Subject from the list of share.
