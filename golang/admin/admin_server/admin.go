@@ -92,7 +92,7 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	if platform != platform_ {
 		return errors.New("Wrong executable platform to update from! wants " + platform_ + " not " + platform)
 	}
-	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	serviceRoot := config.GetServicesRoot()
 	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
 	path := ""
 
@@ -163,7 +163,7 @@ func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularReque
 		return errors.New("Wrong executable platform to update from get " + platform + " want " + platform_)
 	}
 
-	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	serviceRoot := config.GetServicesRoot()
 	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
 	path := ""
 

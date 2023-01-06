@@ -4388,11 +4388,6 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 			}
 
 			url_ += path_
-
-			if !file_server.isPublic(path) && len(token) > 0 {
-				url_ += "?token=" + token
-			}
-
 			playlist += url_ + "\n\n"
 
 			file_server.createAudio(client, paths[i], duration, metadata)
@@ -4472,11 +4467,6 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 			}
 
 			url_ += path_
-
-			if !file_server.isPublic(path) && len(token) > 0 {
-				url_ += "?token=" + token
-			}
-
 			playlist += url_ + "\n\n"
 		}
 	}

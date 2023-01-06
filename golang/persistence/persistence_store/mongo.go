@@ -599,7 +599,7 @@ func (store *MongoStore) DeleteOne(ctx context.Context, connectionId string, dat
  */
 func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
 	// Here I will retreive the path of the mondod and use it to find the mongo command.
-	cmd := "mongo"
+	cmd := "mongosh" // now mongos since version 6
 	args := make([]string, 0)
 
 	// if the command need authentication.
@@ -661,7 +661,7 @@ func (store *MongoStore) stopMongod() error {
 		return nil
 	}
 
-	closeCmd := exec.Command("mongo", "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
+	closeCmd := exec.Command("mongosh", "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
 	return closeCmd.Run()
 }
 
@@ -753,9 +753,9 @@ func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
 
 	args = append(args, "--eval")
 	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
-	script := exec.Command("mongo", args...)
+	script := exec.Command("mongosh", args...)
 	err := script.Run()
-	fmt.Println("Try to start mongoDB with command: mongo -u " + store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
+	fmt.Println("Try to start mongoDB with command: mongosh -u " + store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
 	if err != nil {
 		if timeout == 0 {
 			return errors.New("mongod is not responding")

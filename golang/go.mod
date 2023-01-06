@@ -4,6 +4,8 @@ go 1.19
 
 replace github.com/davecourtois/Utility => ../../Utility
 
+replace github.com/davecourtois/GoXapian => ../../GoXapian
+
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.7.0
 	github.com/StalkR/httpcache v1.0.0
@@ -12,8 +14,8 @@ require (
 	github.com/allegro/bigcache v1.2.1
 	github.com/anacrolix/torrent v1.41.0
 	github.com/blevesearch/bleve v1.0.14
-	github.com/davecourtois/GoXapian v0.0.0-20201222213557-81c72bc9e73c
-	github.com/davecourtois/Utility v0.0.0-20210515191918-3118f6f72191
+	github.com/davecourtois/GoXapian v0.0.0-00010101000000-000000000000
+	github.com/davecourtois/Utility v0.0.0-00010101000000-000000000000
 	github.com/denisenkom/go-mssqldb v0.10.0
 	github.com/dgraph-io/badger/v3 v3.2103.2
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible

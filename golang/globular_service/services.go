@@ -395,7 +395,8 @@ func InitService(s Service) error {
 
 		// Now I will set the path where the configuation will be save in that case.
 		dir, _ := osext.ExecutableFolder()
-		serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+		serviceRoot := config.GetServicesRoot()
+		
 		path := strings.ReplaceAll(dir, "\\", "/")
 
 		if len(serviceRoot) > 0 {

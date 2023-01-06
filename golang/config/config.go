@@ -133,10 +133,22 @@ func GetServicesDir() string {
 	return GetRootDir() + "/services"
 }
 
+func GetServicesRoot() string{
+		// That variable is use in development to set services from diffrent location...
+		serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+
+		// TODO remove it...
+		serviceRoot = "/Users/dave/Documents/globulario/services"
+
+		serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
+		
+		return serviceRoot
+}
+
 func GetServicesConfigDir() string {
 
 	// That variable is use in development to set services from diffrent location...
-	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	serviceRoot := GetServicesRoot()
 
 	if len(serviceRoot) > 0 {
 		return strings.ReplaceAll(serviceRoot, "\\", "/")
@@ -836,6 +848,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 		case infos := <-saveServiceConfigChan:
 			s := infos["service_config"].(map[string]interface{})
 			path := s["ConfigPath"].(string)
+			fmt.Println("config path for ", s["Name"], path)
 			return_chan := infos["return"].(chan error)
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)

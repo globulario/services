@@ -23,12 +23,12 @@ go build  -buildvcs=false -o ./persistence/persistence_server ./persistence/pers
 go build  -buildvcs=false -o ./rbac/rbac_server ./rbac/rbac_server
 go build  -buildvcs=false -o ./repository/repository_server ./repository/repository_server
 go build  -buildvcs=false -o ./resource/resource_server ./resource/resource_server
-go build  -buildvcs=false -o ./search/search_server ./search/search_server
 go build  -buildvcs=false -o ./sql/sql_server ./sql/sql_server
 go build  -buildvcs=false -o ./storage/storage_server ./storage/storage_server
 go build  -buildvcs=false -o ./config/config_server ./config/config_server
 go build  -buildvcs=false -o ./title/title_server ./title/title_server
 go build  -buildvcs=false -o ./torrent/torrent_server ./torrent/torrent_server
+go build  -buildvcs=false -o ./search/search_server ./search/search_server
 
 # start services...
 export GLOBULAR_SERVICES_ROOT=/home/dave/globulario/services

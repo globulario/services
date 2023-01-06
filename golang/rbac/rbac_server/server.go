@@ -908,9 +908,14 @@ func main() {
 
 	// The rbac storage.
 	s_impl.permissions = storage_store.NewBadger_store()
+	if len(s_impl.Root) == 0 {
+		s_impl.Root = config.GetDataDir()
+	}
+
 	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
+
 	if err != nil {
-		log.Println(err)
+		fmt.Println("fail to read/create permissions folder with error: ",  s_impl.Root + "/permissions", err)
 	}
 
 	// Register the rbac services
