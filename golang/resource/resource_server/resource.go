@@ -490,7 +490,7 @@ func (resource_server *server) GetAccounts(rqst *resourcepb.GetAccountsRqst, str
 
 			}
 		} else {
-			fmt.Println("-------------------------------------------------------------------------------------------------------------------------> fail to retreive user data ", db, a.Id, err)
+			fmt.Println("fail to retreive user data ", db, a.Id, err)
 		}
 
 		values = append(values, a)

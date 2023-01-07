@@ -709,13 +709,18 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 		err := svr.store.Start(svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)), svr.DataPath)
 		if err != nil {
 			// codes.
+			fmt.Println("fail to start MongoDB store with error ", err )
 			return nil, err
 		}
 		err = svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
 		if err != nil {
+			fmt.Println("fail to connect MongoDB store with error ", err )
 			return nil, err
 		}
+
+		fmt.Println("MongoDB is up and runing!")
 	}
+	
 	return svr.store, nil
 }
 

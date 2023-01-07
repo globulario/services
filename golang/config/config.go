@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -80,7 +81,7 @@ func GetDomain() (string, error) {
 			domain += localConfig["Domain"].(string)
 		}
 		return strings.ToLower(domain), nil
-	}else{
+	} else {
 		fmt.Println("fail to retreive local configuration with error ", err)
 	}
 
@@ -92,7 +93,6 @@ func GetDomain() (string, error) {
 // directory where globular must be installed.
 func GetRootDir() string {
 	if runtime.GOOS == "windows" {
-
 		if runtime.GOARCH == "386" {
 			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
 			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular" // "C:/Program Files (x86)/globular"
@@ -100,8 +100,24 @@ func GetRootDir() string {
 			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
 			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular" // "C:/Program Files/globular"
 		}
-	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
+	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" {
 		return "/usr/local/share/globular"
+	} else if runtime.GOOS == "darwin" {
+
+		// Get the running exec dir as root instead of /var/local/share/globular...
+		dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+
+		// Move service configuration to /etc/globular/config/services if not already there.
+		if Utility.Exists(dir + "/etc/globular/config/services") {
+			// keep existing service configurations...
+			if !Utility.Exists("/etc/globular/config/services") {
+				Utility.Move(dir+"/etc/globular/config/services", "/etc/globular/config")
+			}
+
+			os.RemoveAll(dir + "/etc")
+		}
+
+		return dir
 	}
 
 	return "/globular"
@@ -130,26 +146,53 @@ func GetPublicDirs() []string {
 }
 
 func GetServicesDir() string {
-	return GetRootDir() + "/services"
+	// if services are taken from development environnement.
+	services_dir := GetServicesRoot()
+	if len(services_dir) > 0 {
+		return services_dir
+	}
+
+	root_dir :=  GetRootDir()
+
+	if Utility.Exists(GetRootDir() + "/services"){
+		return root_dir + "/services"
+	}
+
+	if Utility.Exists(root_dir[0:strings.LastIndex(root_dir, "/")] + "/services"){
+		return root_dir[0:strings.LastIndex(root_dir, "/")] + "/services"
+	}
+
+	return ""
 }
 
-func GetServicesRoot() string{
-		// That variable is use in development to set services from diffrent location...
-		serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+// If environement variable GLOBULAR_SERVICES_ROOT is set It will be use to retreive services on the
+// computer. It can also be set in the config.json file to specifie where services must reside.
+// It's mostly use at development time and must be left blank.
+func GetServicesRoot() string {
+	// That variable is use in development to set services from diffrent location...
+	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
+	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
 
-		// TODO remove it...
-		serviceRoot = "/Users/dave/Documents/globulario/services"
+	// if no value was found in environement variable I will test
+	if len(serviceRoot) == 0 {
+		localConfig, err := GetLocalConfig(true)
+		if err == nil {
+			if localConfig["GLOBULAR_SERVICES_ROOT"] != nil {
+				serviceRoot = localConfig["GLOBULAR_SERVICES_ROOT"].(string)
+			}
+		}
+	}
 
-		serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
-		
-		return serviceRoot
+	return serviceRoot
 }
 
+/**
+ * Return where service configuration can be found.
+ */
 func GetServicesConfigDir() string {
 
 	// That variable is use in development to set services from diffrent location...
 	serviceRoot := GetServicesRoot()
-
 	if len(serviceRoot) > 0 {
 		return strings.ReplaceAll(serviceRoot, "\\", "/")
 	}
@@ -188,7 +231,6 @@ func GetWebRootDir() string {
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/var/globular/webroot"
 	}
-
 	return "/globular/webroot"
 }
 
@@ -396,7 +438,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	config["Mac"] = macAddress
 
 	if lazy {
@@ -511,7 +553,7 @@ func GetServiceMethods(name string, publisherId string, version string) ([]strin
 	return methods, nil
 }
 
-//////////////////////////////////////// Port ////////////////////////////////////////////
+// ////////////////////////////////////// Port ////////////////////////////////////////////
 // The list of port in use.
 var (
 	portsInUse = make([]int, 0)
@@ -637,7 +679,12 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			// Here I will set the proto file path.
 			if s["Proto"] != nil {
 				if !Utility.Exists(s["Proto"].(string)) {
-					s["Proto"] = serviceDir + "/proto/" + strings.Split(s["Name"].(string), ".")[0] + ".proto"
+					files, err := Utility.FindFileByName(serviceDir,  strings.Split(s["Name"].(string), ".")[0] + ".proto")
+					if err == nil {
+						if len(files) > 0 {
+							s["Proto"] = files[0]
+						}
+					}
 				}
 			}
 
@@ -645,7 +692,13 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			if s["Path"] != nil {
 				if !Utility.Exists(s["Path"].(string)) {
 					name := s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/")+1:]
-					serviceDir += s["PublisherId"].(string) + "/" + name + "/" + s["Version"].(string)
+					//serviceDir += s["PublisherId"].(string) + "/" + name + "/" + s["Version"].(string)
+					files, err := Utility.FindFileByName(serviceDir, name)
+					if err == nil {
+						if len(files) > 0 {
+							s["Path"] = files[0]
+						}
+					}
 				}
 			}
 
@@ -770,15 +823,17 @@ func initConfig() {
 	// I will start configuation processing...
 
 	// Initialyse the liste of local services...
-	serviceDir := GetServicesConfigDir()
-	serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
-	fmt.Println("Load services configuration from: ", serviceDir)
-	files, err := Utility.FindFileByName(serviceDir, "config.json")
+	serviceConfigDir := GetServicesConfigDir()
+	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
+
 	if err != nil {
-		fmt.Println("fail to find service configurations at at path ", serviceDir, "with error ", err)
+		fmt.Println("fail to find service configurations at at path ", serviceConfigDir, "with error ", err)
 		return
 	}
 	services := make([]map[string]interface{}, 0)
+
+	// The service dir.
+	serviceDir := GetServicesDir()
 
 	// I will try to get configuration from services.
 	for i := 0; i < len(files); i++ {
@@ -812,8 +867,7 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 		info, _ := os.Stat(path)
 		if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
 			//fmt.Println(s["Name"], " actual modtime", s["ModTime"], info.ModTime().Unix())
-			serviceDir := GetServicesConfigDir()
-			serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
+			serviceDir := GetServicesDir()
 			s_, err := initServiceConfiguration(path, serviceDir)
 			if err == nil {
 				s_["ModTime"] = info.ModTime().Unix()
@@ -826,8 +880,6 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 // Main loop to read and write configuration.
 func accesServiceConfigurationFile(services []map[string]interface{}) {
 
-	serviceDir := GetServicesConfigDir()
-	serviceDir = strings.ReplaceAll(serviceDir, "\\", "/")
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal("NewWatcher failed: ", err)
@@ -848,7 +900,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 		case infos := <-saveServiceConfigChan:
 			s := infos["service_config"].(map[string]interface{})
 			path := s["ConfigPath"].(string)
-			fmt.Println("config path for ", s["Name"], path)
+
 			return_chan := infos["return"].(chan error)
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
@@ -988,7 +1040,6 @@ func GetServicesConfigurations() ([]map[string]interface{}, error) {
 
 	results_chan := infos["return"].(chan map[string]interface{})
 
-	
 	results := <-results_chan
 
 	if results["error"] != nil {

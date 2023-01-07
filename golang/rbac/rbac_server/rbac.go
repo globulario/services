@@ -3264,33 +3264,31 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 	if len(rqst.Owner) > 0 {
 		fmt.Println("get resource share with: ", rqst.Owner)
 		share_ := make([]*rbacpb.Share, 0)
-		fmt.Println("--------------> 3267 ", len(share))
 		for i := 0; i < len(share); i++ {
 			path := share[i].Path
-			fmt.Println("--------------> 3270 ", path)
 			exist, a := rbac_server.accountExist(rqst.Owner)
 			if exist {
-				fmt.Println("--------------> 3273 ", a)
+
 				if rbac_server.isOwner(a, rbacpb.SubjectType_ACCOUNT, path) {
 					share_ = append(share_, share[i])
 				}
 			} else { 
 				exist, g := rbac_server.groupExist(rqst.Owner)
 				if exist {
-					fmt.Println("--------------> 3280 ", g)
+
 					if rbac_server.isOwner(g, rbacpb.SubjectType_GROUP, path) {
 						share_ = append(share_, share[i])
 					}
 				} else {
 					exist, o := rbac_server.organizationExist(rqst.Owner)
 					if exist {
-						fmt.Println("--------------> 3286 ", o)
+				
 						if rbac_server.isOwner(o, rbacpb.SubjectType_GROUP, path) {
 							share_ = append(share_, share[i])
 						}
 					} else {
 						exist, a := rbac_server.applicationExist(rqst.Owner)
-						fmt.Println("--------------> 3293 ", a)
+	
 						if exist {
 							if rbac_server.isOwner(a, rbacpb.SubjectType_GROUP, path) {
 								share_ = append(share_, share[i])
@@ -3304,7 +3302,6 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 		share = share_
 	}
 
-	fmt.Println("-----------> 3301 ", share)
 	return &rbacpb.GetSharedResourceRsp{SharedResource: share}, nil
 }
 

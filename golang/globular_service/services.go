@@ -382,9 +382,10 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-
+	
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
+
 	s.SetPath(execPath)
 	if len(os.Args) == 3 {
 		s.SetId(os.Args[1])
@@ -395,11 +396,9 @@ func InitService(s Service) error {
 
 		// Now I will set the path where the configuation will be save in that case.
 		dir, _ := osext.ExecutableFolder()
-		serviceRoot := config.GetServicesRoot()
-		
 		path := strings.ReplaceAll(dir, "\\", "/")
-
-		if len(serviceRoot) > 0 {
+		
+		if Utility.Exists(path+"/config.json"){
 			fmt.Println("read config from ", path+"/config.json")
 			s.SetConfigurationPath(path + "/config.json")
 		} else {
@@ -414,6 +413,9 @@ func InitService(s Service) error {
 
 			// Here I will get the existing uuid...
 			values := strings.Split(execPath, "/")
+
+			fmt.Println("-------------------> 418 GetServicesConfigDir: ", serviceDir)
+			fmt.Println("-------------------> 419 execPath", execPath)
 			uuid := values[len(values)-2] // the path must be at /uuid/name_server.exe
 
 			if Utility.IsUuid(uuid) {

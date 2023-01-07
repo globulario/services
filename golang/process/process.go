@@ -115,12 +115,12 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		log.Println("No service found at path ", s["Path"].(string))
 		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
-
+/*
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
 		return -1, err
 	}
-
+*/
 	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
 	stdout, err := p.StdoutPipe()
 	if err != nil {

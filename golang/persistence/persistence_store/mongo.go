@@ -2,6 +2,7 @@ package persistence_store
 
 import (
 	"context"
+	"runtime"
 	"strconv"
 
 	"encoding/json"
@@ -10,8 +11,9 @@ import (
 	"os"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"net/url"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	//"github.com/iancoleman/orderedmap"
 
@@ -599,7 +601,14 @@ func (store *MongoStore) DeleteOne(ctx context.Context, connectionId string, dat
  */
 func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
 	// Here I will retreive the path of the mondod and use it to find the mongo command.
+
+
 	cmd := "mongosh" // now mongos since version 6
+
+	if runtime.GOOS == "darwin" {
+		cmd = "/usr/local/bin/" + cmd// now mongos since version 6
+	}
+
 	args := make([]string, 0)
 
 	// if the command need authentication.
@@ -657,11 +666,17 @@ func (store *MongoStore) stopMongod() error {
 		if len(pids) == 0 {
 			return nil
 		}
-	}else{
+	} else {
 		return nil
 	}
 
-	closeCmd := exec.Command("mongosh", "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
+	cmd := "mongosh"
+	if runtime.GOOS == "darwin" {
+		cmd = "/usr/local/bin/" + cmd// now mongos since version 6
+	}
+
+	closeCmd := exec.Command(cmd, "--eval", "db=db.getSiblingDB('admin');db.adminCommand( { shutdown: 1 } );")
+
 	return closeCmd.Run()
 }
 
@@ -694,6 +709,8 @@ func (store *MongoStore) registerSa() error {
 
 		// Now I will start the command
 		mongod := exec.Command("mongod", "--port", "27017", "--dbpath", dataPath)
+
+
 		err = mongod.Start()
 		if err != nil {
 			return err
@@ -705,7 +722,8 @@ func (store *MongoStore) registerSa() error {
 		createSaScript := fmt.Sprintf(
 			`db=db.getSiblingDB('admin');db.createUser({ user: '%s', pwd: '%s', roles: ['userAdminAnyDatabase','userAdmin','readWrite','dbAdmin','clusterAdmin','readWriteAnyDatabase','dbAdminAnyDatabase']});`, store.User, store.Password) // must be change...
 
-		createSaCmd := exec.Command("mongo", "--eval", createSaScript)
+		createSaCmd := exec.Command("mongosh", "--eval", createSaScript)
+
 
 		err = createSaCmd.Run()
 		if err != nil {
@@ -714,9 +732,9 @@ func (store *MongoStore) registerSa() error {
 			return err
 		}
 
-
 		store.stopMongod()
 	}
+
 
 	// Now I will start mongod with auth available.
 	mongod := exec.Command("mongod", "--auth", "--port", Utility.ToString(store.Port), "--bind_ip", "0.0.0.0", "--dbpath", dataPath)
@@ -755,6 +773,7 @@ func (store *MongoStore) waitForMongo(timeout int, withAuth bool) error {
 	args = append(args, "db=db.getSiblingDB('admin');db.getMongo().getDBNames()")
 	script := exec.Command("mongosh", args...)
 	err := script.Run()
+
 	fmt.Println("Try to start mongoDB with command: mongosh -u " + store.User + " -p " + store.Password + "--authenticationDatabase admin --eval \"db=db.getSiblingDB('admin');db.getMongo().getDBNames()\"")
 	if err != nil {
 		if timeout == 0 {
