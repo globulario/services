@@ -3,7 +3,6 @@ package persistence_store
 import (
 	"bytes"
 	"context"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -604,11 +603,6 @@ func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, u
 	// Here I will retreive the path of the mondod and use it to find the mongo command.
 
 	cmd := "mongosh" // now mongos since version 6
-
-	if runtime.GOOS == "darwin" {
-		cmd = "/usr/local/bin/" + cmd // now mongos since version 6
-	}
-
 	args := make([]string, 0)
 
 	// if the command need authentication.
