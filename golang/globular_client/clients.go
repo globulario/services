@@ -162,6 +162,7 @@ func InitClient(client Client, address string, id string) error {
 				config_, err = config.GetRemoteConfig(peer["domain"].(string), port, id)
 
 			} else {
+				// fmt.Println("-----> get remote config...", domain, port, id)
 				config_, err = config.GetRemoteConfig(domain, port, id)
 			}
 		}
@@ -227,6 +228,7 @@ func InitClient(client Client, address string, id string) error {
 
 		} else {
 
+			
 			// The address is not the local address so I want to get remote configuration value.
 			// Here I will retreive the credential or create it if not exist.
 			path := config.GetConfigDir() + "/tls/" + domain
@@ -234,6 +236,7 @@ func InitClient(client Client, address string, id string) error {
 			// install tls certificates if needed.
 			keyFile, certificateFile, caFile, err := security.InstallCertificates(domain, port, path)
 			if err != nil {
+				fmt.Println("----------> 239 ", err)
 				return err
 			}
 

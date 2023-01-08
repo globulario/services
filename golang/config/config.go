@@ -354,8 +354,10 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	// Try over
 	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
 	if err != nil {
+		fmt.Println("fail to retreive remote config at url: ", "http://" + address + ":" + Utility.ToString(port) + "/config")
 		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
 		if err != nil {
+			fmt.Println("fail to retreive remote config at url: ", "https://" + address + ":" + Utility.ToString(port) + "/config")
 			return nil, err
 		}
 
@@ -365,6 +367,7 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil && err.Error() != "EOF" {
+		fmt.Println("fail to read the config content with err ", err)
 		return nil, err
 	}
 	// set back the error to nil

@@ -1890,9 +1890,10 @@ func getLocalPeer() *resourcepb.Peer {
 // running at domain.
 func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
+	fmt.Println("connect to ressource client at address: ", address)
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
-		fmt.Println("fail to connect with client with error ", err)
+		fmt.Println("1896 fail to connect with client with error ", err)
 		return nil, "", err
 	}
 
