@@ -518,6 +518,7 @@ func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
 	// Finaly I will set the domain in the hosts file...
 	hosts, err := txeh.NewHostsDefault()
 	if err != nil {
+		fmt.Println("fail to set host entry ", peer.LocalIpAddress, peer.GetDomain(), " with error ", err)
 		return err
 	}
 
@@ -527,7 +528,12 @@ func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
 		return errors.New("the peer is not on the same local network")
 	}
 
-	return hosts.Save()
+	err = hosts.Save()
+	if err != nil {
+		fmt.Println("fail to save hosts ", peer.LocalIpAddress, peer.GetDomain(), " with error ", err)
+	}
+
+	return err
 }
 
 /** Set the host if it's part of the same local network. */
@@ -546,7 +552,12 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 		return errors.New("the peer is not on the same local network")
 	}
 
-	return hosts.Save()
+	err = hosts.Save()
+	if err != nil {
+		fmt.Println("fail to save hosts file with error ", err)
+	}
+
+	return err
 }
 
 // ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
@@ -703,7 +714,9 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
  */
 func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 	// That service made user of persistence service.
+
 	if svr.store == nil {
+
 		svr.store = new(persistence_store.MongoStore)
 		// Start the store if is not already running...
 		err := svr.store.Start(svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)), svr.DataPath)
@@ -712,13 +725,13 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 			fmt.Println("fail to start MongoDB store with error ", err )
 			return nil, err
 		}
+
 		err = svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
 		if err != nil {
 			fmt.Println("fail to connect MongoDB store with error ", err )
 			return nil, err
 		}
-
-		fmt.Println("MongoDB is up and runing!")
+		
 	}
 	
 	return svr.store, nil
@@ -857,8 +870,6 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 			return nil
 		}
 	}
-
-	fmt.Println("-----------> remove local target Id ", targetId)
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", targetCollection, `{"_id":"`+targetId+`"}`, ``)
 	if err != nil {
@@ -1304,17 +1315,14 @@ func main() {
 	resourcepb.RegisterResourceServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
-	// That will start the persistence store.
-	_, err = s_impl.getPersistenceStore()
-	if err != nil {
-		log.Println("Fail to start mongo db with error ", err)
-		return
-	}
 
-	/** Can do anything */
+	// Start the service.
+	s_impl.StartService()
+	
+	// Can do anything 
 	s_impl.createRole("admin", "admin", "sa", []string{})
 
-	/** Regist the guest role **/
+	//  Register the guest role
 	s_impl.createRole("guest", "guest", "sa", []string{
 		"/admin.AdminService/RunCmd",
 		"/admin.AdminService/SaveConfig",
@@ -1388,7 +1396,6 @@ func main() {
 	// Here I will create user directories if their not already exist...
 	s_impl.CreateAccountDir()
 
-	// Start the service.
-	s_impl.StartService()
+
 
 }

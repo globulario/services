@@ -3050,6 +3050,8 @@ func processVideos(file_server *server, dirs []string) {
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
 
 								cmd := exec.Command("ffmpeg", "-i", video, "-c:v", "copy", "-ac", "2", "-c:a", "aac", "-b:a", "192k", output)
+								cmd.Dir = filepath.Dir(video)
+
 								err := cmd.Run()
 								if err == nil {
 									err := os.Remove(video)
@@ -3234,6 +3236,8 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 	path = strings.ReplaceAll(path, "\\", "/")
 	// ffprobe -v error -show_format -show_streams -print_format json
 	cmd := exec.Command("ffprobe", "-v", "error", "-show_format", "-show_streams", "-print_format", "json", path)
+	cmd.Dir = filepath.Dir(path)
+
 	data, _ := cmd.CombinedOutput()
 	infos := make(map[string]interface{})
 	err := json.Unmarshal(data, &infos)
@@ -3250,6 +3254,8 @@ func getStreamInfos(path string) (map[string]interface{}, error) {
 func getStreamFrameRateInterval(path string) (int, error) {
 	path = strings.ReplaceAll(path, "\\", "/")
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v", "-of", "default=noprint_wrappers=1:nokey=1", "-show_entries", "stream=r_frame_rate", path)
+	cmd.Dir = filepath.Dir(path)
+
 	data, err := cmd.CombinedOutput()
 	if err != nil {
 		return -1, err
@@ -3342,6 +3348,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
+	cmd.Dir = filepath.Dir(path)
 	err = cmd.Run()
 	if err != nil {
 		return "", errors.New(cmd.String() + " " + err.Error())
@@ -3496,7 +3503,10 @@ func reassociatePath(path, new_path string) error {
 
 func hasEnableCudaNvcc() bool {
 	getVersion := exec.Command("ffmpeg", "-encoders")
+	getVersion.Dir = os.TempDir()
+
 	encoders, _ := getVersion.CombinedOutput()
+
 
 	if strings.Index(string(encoders), "hevc_nvenc") > -1 {
 		return true
@@ -3508,6 +3518,7 @@ func getCodec(path string) string {
 
 	// ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 video.mkv
 	getVersion := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", path)
+	getVersion.Dir = os.TempDir()
 	codec, _ := getVersion.CombinedOutput()
 	return strings.TrimSpace(string(codec))
 }
@@ -3635,7 +3646,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	}
 
 	cmd := exec.Command("ffmpeg", args...)
-
+	cmd.Dir = filepath.Dir(src)
 	cmd_str_ := "ffmpeg"
 	for i := 0; i < len(args); i++ {
 		cmd_str_ += " " + args[i]
@@ -4061,7 +4072,7 @@ func getVideoResolution(path string) (int, int) {
 
 	// original command...
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "default=nw=1", path)
-
+	cmd.Dir = filepath.Dir(path)
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -4840,6 +4851,7 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 // https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
 func (file_server *server) getVideoInfos(url, path, format string) (string, []map[string]interface{}, map[string]interface{}, error) {
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
+	cmd.Dir = filepath.Dir(path)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", nil, nil, err
@@ -4881,6 +4893,7 @@ func (file_server *server) getVideoInfos(url, path, format string) (string, []ma
 
 func (file_server *server) getVideoInfo(url string) (map[string]interface{}, error) {
 	cmd := exec.Command("yt-dlp", "-j", "--dump-json", "--skip-download", url)
+	cmd.Dir = os.TempDir()
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err

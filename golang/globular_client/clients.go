@@ -380,16 +380,21 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 		if err != nil {
 			fmt.Println("fail to dial address ", err)
 			return nil, err
+		}else if cc != nil{
+			return cc, nil
 		}
 	} else {
 		//fmt.Println("client connection not use tls")
 		cc, err = grpc.Dial(address, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
+		}else if cc != nil{
+			return cc, nil
 		}
 	}
 
-	return cc, nil
+	return nil, errors.New("fail to connect to grpc service")
+	
 }
 
 /**

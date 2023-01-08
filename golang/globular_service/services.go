@@ -413,9 +413,6 @@ func InitService(s Service) error {
 
 			// Here I will get the existing uuid...
 			values := strings.Split(execPath, "/")
-
-			fmt.Println("-------------------> 418 GetServicesConfigDir: ", serviceDir)
-			fmt.Println("-------------------> 419 execPath", execPath)
 			uuid := values[len(values)-2] // the path must be at /uuid/name_server.exe
 
 			if Utility.IsUuid(uuid) {
@@ -472,6 +469,7 @@ func InitService(s Service) error {
 	s.SetMac(macAddress)
 	s.SetAddress(address)
 	s.SetDomain(domain)
+	
 
 	// here the service is runing...
 	s.SetState("running")
@@ -497,7 +495,6 @@ func SaveService(s Service) error {
 	s.SetModTime(time.Now().Unix())
 	config_, err := Utility.ToMap(s)
 	if err != nil {
-		//fmt.Println("--------------------> fail to save service")
 		return err
 	}
 	return config_client.SaveServiceConfiguration(config_)

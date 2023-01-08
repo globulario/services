@@ -116,12 +116,15 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
 /*
+	// That command can't be run by launchd... So be sure the permissions are correctly set for
+	// all service executable in order for service to start correctly...
 	err = os.Chmod(s["Path"].(string), 0755)
 	if err != nil {
 		return -1, err
 	}
 */
 	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
+	p.Dir = filepath.Dir(s["Path"].(string))
 	stdout, err := p.StdoutPipe()
 	if err != nil {
 		return -1, err
@@ -349,6 +352,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	// start the proxy service one time
 	//fmt.Println(proxyPath, proxyArgs)
 	proxyProcess := exec.Command(cmd, proxyArgs...)
+	proxyProcess.Dir = filepath.Dir(cmd)
 	proxyProcess.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
@@ -358,6 +362,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` {
 			if Utility.Exists(config.GetRootDir() + "/bin/" + cmd) {
 				proxyProcess = exec.Command(config.GetRootDir()+"/bin/"+cmd, proxyArgs...)
+				proxyProcess.Dir = config.GetRootDir()+"/bin/"
 				err = proxyProcess.Start()
 				if err != nil {
 					return -1, err
@@ -370,6 +375,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 				exPath := filepath.Dir(ex)
 				if Utility.Exists(exPath + "/bin/" + cmd) {
 					proxyProcess = exec.Command(exPath+"/bin/"+cmd, proxyArgs...)
+					proxyProcess.Dir = exPath+"/bin/"
 					err = proxyProcess.Start()
 					if err != nil {
 						return -1, err
@@ -544,6 +550,8 @@ inhibit_rules:
 	}
 
 	prometheusCmd := exec.Command("prometheus", "--web.listen-address", "0.0.0.0:9090", "--config.file", config.GetConfigDir()+"/prometheus.yml", "--storage.tsdb.path", dataPath)
+	prometheusCmd.Dir = os.TempDir()
+
 	err = prometheusCmd.Start()
 	prometheusCmd.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
@@ -629,6 +637,8 @@ inhibit_rules:
 	}()
 
 	alertmanager := exec.Command("alertmanager", "--config.file", config.GetConfigDir()+"/alertmanager.yml")
+	alertmanager.Dir = os.TempDir()
+
 	alertmanager.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
@@ -640,6 +650,8 @@ inhibit_rules:
 	}
 
 	node_exporter := exec.Command("node_exporter")
+	node_exporter.Dir = os.TempDir()
+	
 	node_exporter.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}

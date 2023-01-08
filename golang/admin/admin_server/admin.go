@@ -140,13 +140,7 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	if err != nil {
 		return err
 	}
-
-	// restart globular... (see if it must be keep in system-ctlr)
-	/*cmd := exec.Command(path)
-	if err := cmd.Start(); err != nil {
-		return err
-	}*/
-
+	
 	return nil
 }
 

@@ -282,7 +282,6 @@ func GetLocalToken(mac string) (string, error) {
 		return "", err
 	}
 
-	fmt.Println("------> 286")
 	// keep the token in the map...
 	tokens.Store(mac, newToken)
 
