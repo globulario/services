@@ -1929,6 +1929,7 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 // * Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
 
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -1936,6 +1937,9 @@ func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcep
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// set the remote peer in /etc/hosts
+	resource_server.setLocalHosts(rqst.Peer)
 
 	// Here I will first look if a peer with a same name already exist on the
 	// resources...
@@ -2300,6 +2304,7 @@ func (resource_server *server) GetPeerApprovalState(ctx context.Context, rqst *r
 		}
 	}
 
+	fmt.Println("try to get peer info from ", rqst.RemotePeerAddress)
 	peer, err := resource_server.getPeerInfos(rqst.RemotePeerAddress, mac)
 	if err != nil {
 		return nil, status.Errorf(

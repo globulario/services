@@ -195,7 +195,6 @@ func validateAction(token, application, address, organization, method, subject s
 
 	hasAccess, accessDenied, err := rbac_client_.ValidateAction(method, subject, subjectType, infos)
 	if err != nil {
-		fmt.Println("----------------------------------------> 199 ", method, subject, subjectType, infos, hasAccess, accessDenied, err)
 		return hasAccess, accessDenied, err
 	}
 

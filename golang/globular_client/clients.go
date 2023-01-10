@@ -236,7 +236,6 @@ func InitClient(client Client, address string, id string) error {
 			// install tls certificates if needed.
 			keyFile, certificateFile, caFile, err := security.InstallCertificates(domain, port, path)
 			if err != nil {
-				fmt.Println("----------> 239 ", err)
 				return err
 			}
 

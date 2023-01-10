@@ -95,7 +95,7 @@ namespace Globular
             this.interceptor = new Globular.ServerUnaryInterceptor(this);
 
             // Set the service root...
-            this.Root = Environment.ExpandEnvironmentVariables("%GLOBULAR_SERVICES_ROOT%").Replace("\\", "/");
+            this.Root = Environment.ExpandEnvironmentVariables("%ServicesRoot%").Replace("\\", "/");
             if (this.Root.Length == 0)
             {
                 this.Root = "C:/Program Files/globular/services";

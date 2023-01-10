@@ -367,6 +367,7 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  * Return the list of all services configurations
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
+	
 	client, err := getConfigClient()
 	if err == nil {
 		// If a configuration client exist I will use it...
