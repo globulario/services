@@ -721,6 +721,11 @@ func GenerateServicesCertificates(pwd string, expiration_delay int, domain strin
 	if Utility.Exists(path + "/client.crt") {
 		return nil // certificate are already created.
 	}
+
+	if len(organization) == 0 {
+		country = "GLOBULARIO"
+	}
+
 	alternateDomains_ := make([]string, 0)
 	for i := 0; i < len(alternateDomains); i++ {
 		alternateDomains_ = append(alternateDomains_, alternateDomains[i].(string))
