@@ -195,6 +195,7 @@ func InstallCertificates(domain string, port int, path string, country string, s
  */
 func getCredentialConfig(path string, domain string, country string, state string, city string, organization string, alternateDomains []interface{}, port int) (keyPath string, certPath string, caPath string, err error) {
 
+	
 	// TODO Clarify the use of the password here.
 	pwd := "1111"
 
