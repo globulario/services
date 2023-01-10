@@ -489,10 +489,15 @@ func indexYoutubeVideo(token, video_id, video_url, index_path, video_path, file_
 
 	// console.log()
 	currentVideo.PublisherId = new(titlepb.Publisher)
-	currentVideo.PublisherId.URL = target["author_url"].(string)
-	currentVideo.PublisherId.ID = target["author_name"].(string)
-	currentVideo.PublisherId.Name = target["author_name"].(string)
-	currentVideo.Description = target["title"].(string)
+	if  target["author_url"] != nil {
+		currentVideo.PublisherId.URL = target["author_url"].(string)
+		if  target["author_name"] != nil {
+			currentVideo.PublisherId.Name = target["author_name"].(string)
+			currentVideo.Description = target["title"].(string)
+		}	
+	}
+
+
 	currentVideo.Duration = int32(Utility.GetVideoDuration(file_path))
 
 	return currentVideo, nil

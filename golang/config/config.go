@@ -742,6 +742,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 	if err != nil {
 		return nil, err
 	}
+
 	if s["Protocol"] != nil {
 		// If a configuration file exist It will be use to start services,
 		// otherwise the service configuration file will be use.
@@ -768,7 +769,6 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			if s["Path"] != nil {
 				if !Utility.Exists(s["Path"].(string)) {
 					name := s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/")+1:]
-					//serviceDir += s["PublisherId"].(string) + "/" + name + "/" + s["Version"].(string)
 					files, err := Utility.FindFileByName(serviceDir, name)
 					if err == nil {
 						if len(files) > 0 {
@@ -914,12 +914,17 @@ func initConfig() {
 	// I will try to get configuration from services.
 	for i := 0; i < len(files); i++ {
 		path := files[i]
+		//fmt.Println("init service from config at path: ", path)
 		s, err := initServiceConfiguration(path, serviceDir)
 		if err != nil {
-			fmt.Println("fail to initialyse service configuration from file "+path, " with error ", err)
+			fmt.Println("fail to initialyse service configuration from file "+path, "with error", err)
 		} else {
 			// save back the file...
 			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
+			s["Process"] = -1
+			s["Proxy"] = -1
+			s["State"] = "stopped"
+
 			services = append(services, s)
 		}
 	}
@@ -1032,7 +1037,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 			var s map[string]interface{}
 			var err error
-			id := infos["id"].(string)
+			id := infos["id"].(string) // can be id or configuration path...
 
 			for i := 0; i < len(services); i++ {
 				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
@@ -1044,10 +1049,12 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 					break
 				}
 			}
+
 			if s == nil {
 				fmt.Println("no service found with id " + id)
 				err = errors.New("no service found with id " + id)
 			}
+
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"service": s, "error": err}
 
 		case infos := <-getServicesConfigurationsByNameChan:
