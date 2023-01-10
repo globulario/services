@@ -404,10 +404,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 	}
 
 	if len(token) > 0 {
-		claims, err := security.ValidateToken(token)
-		if err != nil {
-			return -1, err
-		}
+		claims, _ := security.ValidateToken(token)
 		if !strings.Contains(user, "@") {
 			user += "@" + claims.UserDomain
 		}

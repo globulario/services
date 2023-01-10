@@ -269,19 +269,16 @@ func getCredentialConfig(path string, domain string, country string, state strin
 	if err != nil {
 		return "", "", "", err
 	}
-	fmt.Println("---> 211")
 	// Step 3: Generate client signed certificate.
 	client_csr, err := ioutil.ReadFile(path + "/client.csr")
 	if err != nil {
 		return "", "", "", err
 	}
-	fmt.Println("---> 217")
 	// Sign the certificate from the server ca...
 	client_crt, err := signCaCertificate(domain, string(client_csr), Utility.ToInt(port))
 	if err != nil {
 		return "", "", "", err
 	}
-	fmt.Println("---> 223")
 	// Write bact the client certificate in file on the disk
 	err = ioutil.WriteFile(path+"/client.crt", []byte(client_crt), 0444)
 	if err != nil {

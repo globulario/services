@@ -1,8 +1,5 @@
 
 #There is the command to build all services at once.
-# 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
-#There is the command to build all services at once.
-# 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
 go build  -buildvcs=false -o ./admin/admin_server ./admin/admin_server
 go build  -buildvcs=false -o ./applications_manager/applications_manager_server ./applications_manager/applications_manager_server
 go build  -buildvcs=false -o ./services_manager/services_manager_server ./services_manager/services_manager_server
@@ -31,7 +28,7 @@ go build  -buildvcs=false -o ./torrent/torrent_server ./torrent/torrent_server
 go build  -buildvcs=false -o ./search/search_server ./search/search_server
 
 # start services...
-export GLOBULAR_SERVICES_ROOT=/home/dave/globulario/services
+export ServicesRoot=/home/dave/globulario/services
 ./admin/admin_server/admin_server &
 ./blog/blog_server/blog_server &
 ./applications_manager/applications_manager_server/applications_manager_server &

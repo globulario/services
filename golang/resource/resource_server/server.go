@@ -460,15 +460,15 @@ func (server *server) publishRemoteEvent(address, evt string, data []byte) error
 
 // ///////////////////////////////////// return the peers infos from a given peer /////////////////////////////
 func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
-	
+
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
+		fmt.Println("fail to connect with remote resource service with err: ", err)
 		return nil, err
 	}
 
 	// Close the client when no more needed.
 	defer client.Close()
-
 	peers, err := client.GetPeers(`{"mac":"` + mac + `"}`)
 	if err != nil {
 		return nil, err
@@ -516,6 +516,7 @@ func (server *server) getPeerPublicKey(address, mac string) (string, error) {
 
 /** Set the host if it's part of the same local network. */
 func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
+	fmt.Println("try to set ip and domain in /etc/host with value ip:", peer.LocalIpAddress, " domain:", peer.GetDomain())
 	// Finaly I will set the domain in the hosts file...
 	hosts, err := txeh.NewHostsDefault()
 	if err != nil {
@@ -526,15 +527,19 @@ func (server *server) setLocalHosts(peer *resourcepb.Peer) error {
 	if peer.ExternalIpAddress == Utility.MyIP() {
 		hosts.AddHost(peer.LocalIpAddress, peer.GetDomain())
 	} else {
+		fmt.Println("528 peer is not on the same network...")
 		return errors.New("the peer is not on the same local network")
 	}
 
 	err = hosts.Save()
 	if err != nil {
 		fmt.Println("fail to save hosts ", peer.LocalIpAddress, peer.GetDomain(), " with error ", err)
+		return err
 	}
 
-	return err
+	fmt.Println("peer whit address ", peer.LocalIpAddress, " was added to /etc/hosts with domain: ", peer.GetDomain())
+
+	return nil
 }
 
 /** Set the host if it's part of the same local network. */
@@ -723,18 +728,18 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 		err := svr.store.Start(svr.Backend_user, svr.Backend_password, int(int32(svr.Backend_port)), svr.DataPath)
 		if err != nil {
 			// codes.
-			fmt.Println("fail to start MongoDB store with error ", err )
+			fmt.Println("fail to start MongoDB store with error ", err)
 			return nil, err
 		}
 
 		err = svr.store.Connect("local_resource", svr.Backend_address, int32(svr.Backend_port), svr.Backend_user, svr.Backend_password, "local_resource", 5000, "")
 		if err != nil {
-			fmt.Println("fail to connect MongoDB store with error ", err )
+			fmt.Println("fail to connect MongoDB store with error ", err)
 			return nil, err
 		}
-		
+
 	}
-	
+
 	return svr.store, nil
 }
 
@@ -1316,87 +1321,86 @@ func main() {
 	resourcepb.RegisterResourceServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
 
+	go func() {
+		// Can do anything
+		s_impl.createRole("admin", "admin", "sa", []string{})
+
+		//  Register the guest role
+		s_impl.createRole("guest", "guest", "sa", []string{
+			"/admin.AdminService/RunCmd",
+			"/admin.AdminService/SaveConfig",
+			"/conversation.ConversationService/AcceptInvitation",
+			"/conversation.ConversationService/Connect",
+			"/conversation.ConversationService/CreateConversation",
+			"/conversation.ConversationService/DeclineInvitation",
+			"/conversation.ConversationService/DeleteConversation",
+			"/conversation.ConversationService/DeleteMessage",
+			"/conversation.ConversationService/Disconnect",
+			"/conversation.ConversationService/DislikeMessage",
+			"/conversation.ConversationService/FindConversations",
+			"/conversation.ConversationService/FindMessages",
+			"/conversation.ConversationService/GetConversations",
+			"/conversation.ConversationService/GetReceivedInvitations",
+			"/conversation.ConversationService/GetSentInvitations",
+			"/conversation.ConversationService/JoinConversation",
+			"/conversation.ConversationService/KickoutFromConversation",
+			"/conversation.ConversationService/LeaveConversation",
+			"/conversation.ConversationService/LikeMessage",
+			"/conversation.ConversationService/RevokeInvitation",
+			"/conversation.ConversationService/SendInvitation",
+			"/conversation.ConversationService/SendMessage",
+			"/conversation.ConversationService/SetMessageRead",
+			"/file.FileService/Copy",
+			"/file.FileService/CreateAchive",
+			"/file.FileService/CreateDir",
+			"/file.FileService/DeleteDir",
+			"/file.FileService/DeleteFile",
+			"/file.FileService/FileUploadHandler",
+			"/file.FileService/GetFileInfo",
+			"/file.FileService/GetThumbnails",
+			"/file.FileService/Move",
+			"/file.FileService/ReadDir",
+			"/file.FileService/ReadFile",
+			"/file.FileService/Rename",
+			"/file.FileService/SaveFile",
+			"/file.FileService/WriteExcelFile",
+			"/file.FileService/CreateAchive",
+			"/log.LogService/GetLog",
+			"/log.LogService/Log",
+			"/persistence.PersistenceService/Count",
+			"/persistence.PersistenceService/CreateConnection",
+			"/persistence.PersistenceService/Delete",
+			"/persistence.PersistenceService/DeleteOne",
+			"/persistence.PersistenceService/Find",
+			"/persistence.PersistenceService/FindOne",
+			"/persistence.PersistenceService/InsertOne",
+			"/persistence.PersistenceService/ReplaceOne",
+			"/persistence.PersistenceService/UpdateOne",
+			"/rbac.RbacService/DeleteResourcePermission",
+			"/rbac.RbacService/DeleteResourcePermissions",
+			"/rbac.RbacService/DeleteSubjectShare",
+			"/rbac.RbacService/GetResourcePermissions",
+			"/rbac.RbacService/GetSharedResource",
+			"/rbac.RbacService/SetActionResourcesPermissions",
+			"/rbac.RbacService/SetResourcePermission",
+			"/rbac.RbacService/SetResourcePermissions",
+			"/resource.ResourceService/GetGroups",
+			"/resource.ResourceService/GetApplications",
+			"/resource.ResourceService/GetOrganizations",
+			"/resource.ResourceService/GetRoles",
+			"/resource.ResourceService/GetPeers",
+			"/resource.ResourceService/GetAccounts",
+			"/resource.ResourceService/SetAccountContact",
+			"/resource.ResourceService/GetNotifications",
+			"/resource.ResourceService/CreateNotification",
+			"/resource.ResourceService/DeleteNotification",
+		})
+
+		// Here I will create user directories if their not already exist...
+		s_impl.CreateAccountDir()
+	}()
 
 	// Start the service.
 	s_impl.StartService()
-	
-	// Can do anything 
-	s_impl.createRole("admin", "admin", "sa", []string{})
-
-	//  Register the guest role
-	s_impl.createRole("guest", "guest", "sa", []string{
-		"/admin.AdminService/RunCmd",
-		"/admin.AdminService/SaveConfig",
-		"/conversation.ConversationService/AcceptInvitation",
-		"/conversation.ConversationService/Connect",
-		"/conversation.ConversationService/CreateConversation",
-		"/conversation.ConversationService/DeclineInvitation",
-		"/conversation.ConversationService/DeleteConversation",
-		"/conversation.ConversationService/DeleteMessage",
-		"/conversation.ConversationService/Disconnect",
-		"/conversation.ConversationService/DislikeMessage",
-		"/conversation.ConversationService/FindConversations",
-		"/conversation.ConversationService/FindMessages",
-		"/conversation.ConversationService/GetConversations",
-		"/conversation.ConversationService/GetReceivedInvitations",
-		"/conversation.ConversationService/GetSentInvitations",
-		"/conversation.ConversationService/JoinConversation",
-		"/conversation.ConversationService/KickoutFromConversation",
-		"/conversation.ConversationService/LeaveConversation",
-		"/conversation.ConversationService/LikeMessage",
-		"/conversation.ConversationService/RevokeInvitation",
-		"/conversation.ConversationService/SendInvitation",
-		"/conversation.ConversationService/SendMessage",
-		"/conversation.ConversationService/SetMessageRead",
-		"/file.FileService/Copy",
-		"/file.FileService/CreateAchive",
-		"/file.FileService/CreateDir",
-		"/file.FileService/DeleteDir",
-		"/file.FileService/DeleteFile",
-		"/file.FileService/FileUploadHandler",
-		"/file.FileService/GetFileInfo",
-		"/file.FileService/GetThumbnails",
-		"/file.FileService/Move",
-		"/file.FileService/ReadDir",
-		"/file.FileService/ReadFile",
-		"/file.FileService/Rename",
-		"/file.FileService/SaveFile",
-		"/file.FileService/WriteExcelFile",
-		"/file.FileService/CreateAchive",
-		"/log.LogService/GetLog",
-		"/log.LogService/Log",
-		"/persistence.PersistenceService/Count",
-		"/persistence.PersistenceService/CreateConnection",
-		"/persistence.PersistenceService/Delete",
-		"/persistence.PersistenceService/DeleteOne",
-		"/persistence.PersistenceService/Find",
-		"/persistence.PersistenceService/FindOne",
-		"/persistence.PersistenceService/InsertOne",
-		"/persistence.PersistenceService/ReplaceOne",
-		"/persistence.PersistenceService/UpdateOne",
-		"/rbac.RbacService/DeleteResourcePermission",
-		"/rbac.RbacService/DeleteResourcePermissions",
-		"/rbac.RbacService/DeleteSubjectShare",
-		"/rbac.RbacService/GetResourcePermissions",
-		"/rbac.RbacService/GetSharedResource",
-		"/rbac.RbacService/SetActionResourcesPermissions",
-		"/rbac.RbacService/SetResourcePermission",
-		"/rbac.RbacService/SetResourcePermissions",
-		"/resource.ResourceService/GetGroups",
-		"/resource.ResourceService/GetApplications",
-		"/resource.ResourceService/GetOrganizations",
-		"/resource.ResourceService/GetRoles",
-		"/resource.ResourceService/GetPeers",
-		"/resource.ResourceService/GetAccounts",
-		"/resource.ResourceService/SetAccountContact",
-		"/resource.ResourceService/GetNotifications",
-		"/resource.ResourceService/CreateNotification",
-		"/resource.ResourceService/DeleteNotification",
-	})
-
-	// Here I will create user directories if their not already exist...
-	s_impl.CreateAccountDir()
-
-
 
 }

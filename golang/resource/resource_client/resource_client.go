@@ -85,7 +85,7 @@ func (client *Resource_Client) Reconnect() error {
 	if err != nil {
 		return err
 	}
-
+	
 	client.c = resourcepb.NewResourceServiceClient(client.cc)
 	return nil
 }
@@ -1110,15 +1110,16 @@ func (client *Resource_Client) GetPeerPublicKey(mac string) (string, error) {
 }
 
 /**
- * Remove action from a given application.
+ * Get the list of peers.
  */
 func (client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error) {
 	rqst := &resourcepb.GetPeersRqst{
 		Query: query,
 	}
-
+	
 	stream, err := client.c.GetPeers(client.GetCtx(), rqst)
 	if err != nil {
+		
 		return nil, err
 	}
 

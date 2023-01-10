@@ -283,10 +283,7 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 	repositories := []interface{}{domain}
 
 	if len(token) > 0 {
-		claims, err := security.ValidateToken(token)
-		if err != nil {
-			return err 
-		}
+		claims, _ := security.ValidateToken(token)
 		if !strings.Contains(user, "@"){
 			user += "@" +claims.UserDomain
 		}
@@ -331,10 +328,8 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 func (client *Dicovery_Client) PublishApplication(token, user, organization, path, name, domain, version, description, icon, alias, repositoryId, discoveryId string, actions, keywords []string, roles []*resourcepb.Role, groups []*resourcepb.Group) error {
 	// TODO upload the package and publish the application after see old admin client code bundle from the path...
 	if len(token) > 0 {
-		claims, err := security.ValidateToken(token)
-		if err != nil {
-			return err 
-		}
+		claims, _ := security.ValidateToken(token)
+		
 		if !strings.Contains(user, "@"){
 			user += "@" + claims.UserDomain
 		}

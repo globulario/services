@@ -327,9 +327,11 @@ func (server *server) setKey(mac string) error {
 /* Authenticate a user */
 func (server *server) authenticate(accountId, pwd, issuer string) (string, error) {
 	fmt.Println("authenticate ", accountId, "issuer", issuer)
+
 	// If the user is the root...
-	if accountId == "sa" {
+	if accountId == "sa" || strings.HasPrefix(accountId,"sa@") {
 		fmt.Println("autenticate sa")
+
 		// The root password will be
 		if !Utility.Exists(configPath) {
 			return "", status.Errorf(
@@ -370,7 +372,8 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 			}
 		}
 
-		// In that particular case I will set the issuer to the current mac...
+		// In that particular case I will set the issuer to the current mac so the token will be valid for that globule.
+		// otherwise the globule will need to be set as a peer to be able to authenticate and generate a valid token.
 		issuer, err := Utility.MyMacAddr(Utility.MyLocalIP())
 		if err != nil {
 			return "", err
@@ -385,9 +388,12 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// Create the user file directory.
-		path := "/users/sa"
-		Utility.CreateDirIfNotExist(dataPath + "/files" + path)
-		server.addResourceOwner(path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
+		if strings.Contains(accountId, "@"){
+			path := "/users/" + accountId
+			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
+			server.addResourceOwner(path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
+		}
+
 
 		return tokenString, nil
 	}
@@ -477,7 +483,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 		rqst.Issuer = mac
 	}
 
-	// Try to authenticate on the server directy...
+	// Try to authenticate on the server directly...
 	tokenString, err := server.authenticate(rqst.Name, rqst.Password, rqst.Issuer)
 
 	// Now I will try each peer...

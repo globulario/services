@@ -58,6 +58,7 @@ func GetName() (string, error) {
 		}
 	}
 
+	// Return the name
 	hostname, err := os.Hostname()
 	if err != nil {
 		return "", err
@@ -101,7 +102,12 @@ func GetRootDir() string {
 			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular" // "C:/Program Files/globular"
 		}
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" {
-		return "/usr/local/share/globular"
+		// the root will be where the start from... if globular was installed with .deb 
+		// it will return /usr/local/share/globular
+		dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+		
+		return dir
+		
 	} else if runtime.GOOS == "darwin" {
 
 		// Get the running exec dir as root instead of /var/local/share/globular...
@@ -152,38 +158,36 @@ func GetServicesDir() string {
 		return services_dir
 	}
 
-	root_dir :=  GetRootDir()
-
-	if Utility.Exists(GetRootDir() + "/services"){
+	root_dir := GetRootDir()
+	if Utility.Exists(GetRootDir() + "/services") {
 		return root_dir + "/services"
 	}
 
-	if Utility.Exists(root_dir[0:strings.LastIndex(root_dir, "/")] + "/services"){
+	// in case the of the Globular(.exe) exec
+	if Utility.Exists(root_dir[0:strings.LastIndex(root_dir, "/")] + "/services") {
 		return root_dir[0:strings.LastIndex(root_dir, "/")] + "/services"
 	}
 
+	// in case of service exec
+	if strings.Contains(root_dir, "/services/") {
+		return root_dir[0:strings.LastIndex(root_dir, "/services/")] + "/services"
+	}
+
+	fmt.Println("fail to find services from", root_dir)
 	return ""
 }
 
-// If environement variable GLOBULAR_SERVICES_ROOT is set It will be use to retreive services on the
+// If environement variable ServicesRoot is set It will be use to retreive services on the
 // computer. It can also be set in the config.json file to specifie where services must reside.
 // It's mostly use at development time and must be left blank.
 func GetServicesRoot() string {
-	// That variable is use in development to set services from diffrent location...
-	serviceRoot := os.Getenv("GLOBULAR_SERVICES_ROOT")
-	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
-
-	// if no value was found in environement variable I will test
-	if len(serviceRoot) == 0 {
-		localConfig, err := GetLocalConfig(true)
-		if err == nil {
-			if localConfig["GLOBULAR_SERVICES_ROOT"] != nil {
-				serviceRoot = localConfig["GLOBULAR_SERVICES_ROOT"].(string)
-			}
+	localConfig, err := GetLocalConfig(true)
+	if err == nil {
+		if localConfig["ServicesRoot"] != nil {
+			return localConfig["ServicesRoot"].(string)
 		}
 	}
-
-	return serviceRoot
+	return ""
 }
 
 /**
@@ -197,6 +201,7 @@ func GetServicesConfigDir() string {
 		return strings.ReplaceAll(serviceRoot, "\\", "/")
 	}
 
+	// ex. /etc/globular/services
 	if Utility.Exists(GetConfigDir() + "/services") {
 		return GetConfigDir() + "/services"
 	}
@@ -354,10 +359,10 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	// Try over
 	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
 	if err != nil {
-		fmt.Println("fail to retreive remote config at url: ", "http://" + address + ":" + Utility.ToString(port) + "/config")
+		fmt.Println("fail to retreive remote config at url: ", "http://"+address+":"+Utility.ToString(port)+"/config", err)
 		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
 		if err != nil {
-			fmt.Println("fail to retreive remote config at url: ", "https://" + address + ":" + Utility.ToString(port) + "/config")
+			fmt.Println("fail to retreive remote config at url: ", "https://"+address+":"+Utility.ToString(port)+"/config", err)
 			return nil, err
 		}
 
@@ -420,7 +425,6 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	ConfigPath := GetConfigDir() + "/config.json"
 	if !Utility.Exists(ConfigPath) {
 		err := errors.New("no local Globular configuration found")
-		fmt.Println(err)
 		return nil, err
 	}
 
@@ -452,7 +456,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	// Now I will read the services configurations...
 	config["Services"] = make(map[string]interface{})
 
-	// use the GLOBULAR_SERVICES_ROOT path if it set... or the Root (/usr/local/share/globular)
+	// use the ServicesRoot path if it set... or the Root (/usr/local/share/globular)
 	services_config, err := GetServicesConfigurations()
 	if err != nil {
 		return nil, err
@@ -665,6 +669,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 
 	info, _ := os.Stat(path)
 	s["ModTime"] = info.ModTime().Unix()
+
 	localConfig, err := GetLocalConfig(true)
 	if err != nil {
 		return nil, err
@@ -682,7 +687,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			// Here I will set the proto file path.
 			if s["Proto"] != nil {
 				if !Utility.Exists(s["Proto"].(string)) {
-					files, err := Utility.FindFileByName(serviceDir,  strings.Split(s["Name"].(string), ".")[0] + ".proto")
+					files, err := Utility.FindFileByName(serviceDir, strings.Split(s["Name"].(string), ".")[0]+".proto")
 					if err == nil {
 						if len(files) > 0 {
 							s["Proto"] = files[0]
