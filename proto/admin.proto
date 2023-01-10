@@ -61,11 +61,15 @@ message UnsetEnvironmentVariableResponse {
 	/** Nothing here **/
 }
 
-
 message GetCertificatesRequest {
    string domain = 1;
    int32 port = 2; // 80 by default
    string path = 3; // tmp by default
+   string country = 4;
+   string state = 5;
+   string city = 6;
+   string organization = 7;
+   repeated string alternateDomains = 8;
 }
 
 message GetCertificatesResponse {

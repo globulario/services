@@ -338,8 +338,9 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
 /**
  * Get the remote client configuration, made use of http request to do so.
  */
-func GetRemoteConfig(address string, port int, id string) (map[string]interface{}, error) {
+func GetRemoteServiceConfig(address string, port int, id string) (map[string]interface{}, error) {
 
+	
 	if len(address) == 0 {
 		return nil, errors.New("no address was given")
 	}
@@ -377,7 +378,6 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	}
 	// set back the error to nil
 	err = nil
-
 	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
 
 		if port == 0 {
@@ -396,6 +396,7 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 	}
 
 	var config map[string]interface{}
+
 	err = json.Unmarshal(body, &config)
 	if err != nil {
 		return nil, err
@@ -408,6 +409,73 @@ func GetRemoteConfig(address string, port int, id string) (map[string]interface{
 				return s.(map[string]interface{}), nil
 			}
 		}
+	}
+
+	return config, nil
+}
+
+
+/**
+ * Get the remote client configuration, made use of http request to do so.
+ */
+ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
+
+	
+	if len(address) == 0 {
+		return nil, errors.New("no address was given")
+	}
+
+	// Here I will get the configuration information from http...
+	var resp *http.Response
+	var err error
+	// The default port address.
+	if port == 0 {
+		port = 80
+	}
+
+	// Try over
+	resp, err = http.Get("http://" + address + ":" + Utility.ToString(port) + "/config")
+	if err != nil {
+		fmt.Println("fail to retreive remote config at url: ", "http://"+address+":"+Utility.ToString(port)+"/config", err)
+		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
+		if err != nil {
+			fmt.Println("fail to retreive remote config at url: ", "https://"+address+":"+Utility.ToString(port)+"/config", err)
+			return nil, err
+		}
+
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil && err.Error() != "EOF" {
+		fmt.Println("fail to read the config content with err ", err)
+		return nil, err
+	}
+	// set back the error to nil
+	err = nil
+	if strings.Contains(string(body), "Client sent an HTTP request to an HTTPS server.") {
+
+		if port == 0 {
+			port = 443
+		}
+		resp, err = http.Get("https://" + address + ":" + Utility.ToString(port) + "/config")
+		if err != nil {
+			return nil, err
+		}
+
+		body, err = ioutil.ReadAll(resp.Body)
+		if err != nil && err.Error() != "EOF" {
+			return nil, err
+		}
+		err = nil
+	}
+
+	var config map[string]interface{}
+
+	err = json.Unmarshal(body, &config)
+	if err != nil {
+		return nil, err
 	}
 
 	return config, nil

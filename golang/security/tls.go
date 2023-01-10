@@ -186,8 +186,8 @@ func signCaCertificate_(address string, csr string, port int, protocol string) (
 }
 
 //////////////////////////////// Certificate Authority /////////////////////////
-func InstallCertificates(domain string, port int, path string) (string, string, string, error) {
-	return getCredentialConfig(path, domain, "", "", "", "", []interface{}{}, port)
+func InstallCertificates(domain string, port int, path string, country string, state string, city string, organization string, alternateDomains []interface{}) (string, string, string, error) {
+	return getCredentialConfig(path, domain, country, state, city, organization, alternateDomains, port)
 }
 
 /**
@@ -720,10 +720,6 @@ func KeyToPem(name string, path string, pwd string) error {
 func GenerateServicesCertificates(pwd string, expiration_delay int, domain string, path string, country string, state string, city string, organization string, alternateDomains []interface{}) error {
 	if Utility.Exists(path + "/client.crt") {
 		return nil // certificate are already created.
-	}
-
-	if len(organization) == 0 {
-		country = "GLOBULARIO"
 	}
 
 	alternateDomains_ := make([]string, 0)

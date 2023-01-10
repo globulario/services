@@ -146,7 +146,33 @@ func InitClient(client Client, address string, id string) error {
 	port := Utility.ToInt(values[1])
 	isLocal := address_ == address
 
+	// San Certificate informations
+	var san_country string
+	var san_state string
+	var san_city string
+	var san_organization string
+	san_alternateDomains := make( []interface{}, 0)
+
 	if isLocal {
+
+		// get san values from the globule itself...
+		globule_config, _ := config.GetLocalConfig(true)
+		if globule_config["Country"] != nil {
+			san_country = globule_config["Country"].(string)
+		}
+		if globule_config["State"] != nil {
+			san_state = globule_config["State"].(string)
+		}
+		if globule_config["City"] != nil {
+			san_city = globule_config["City"].(string)
+		}
+		if globule_config["Organization"] != nil {
+			san_organization = globule_config["Organization"].(string)
+		}
+		if globule_config["AlternateDomains"] != nil {
+			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
+		}
+
 		// Local client configuration
 		config_, err = client.GetConfiguration(address, id)
 		if err != nil {
@@ -155,16 +181,42 @@ func InitClient(client Client, address string, id string) error {
 	} else {
 		// so here I try to get more information from peers...
 		if localConfig["Peers"] != nil {
+			var globule_config map[string]interface{}
+
 			if localConfig["Peers"].(map[string]interface{})[domain] != nil {
 				peer := localConfig["Peers"].(map[string]interface{})[domain].(map[string]interface{})
 				port = Utility.ToInt(peer["port"])
 				address = peer["domain"].(string) + ":" + Utility.ToString(peer["port"])
-				config_, err = config.GetRemoteConfig(peer["domain"].(string), port, id)
 
+				globule_config, err = config.GetRemoteConfig(peer["domain"].(string), port)
+				if err == nil {
+					config_, err = config.GetRemoteServiceConfig(peer["domain"].(string), port, id)
+				}
 			} else {
-				// fmt.Println("-----> get remote config...", domain, port, id)
-				config_, err = config.GetRemoteConfig(domain, port, id)
+
+				globule_config, err = config.GetRemoteConfig(domain, port)
+				if err == nil {
+					config_, err = config.GetRemoteServiceConfig(domain, port, id)
+				}
 			}
+
+			// set san values
+			if globule_config["Country"] != nil {
+				san_country = globule_config["Country"].(string)
+			}
+			if globule_config["State"] != nil {
+				san_state = globule_config["State"].(string)
+			}
+			if globule_config["City"] != nil {
+				san_city = globule_config["City"].(string)
+			}
+			if globule_config["Organization"] != nil {
+				san_organization = globule_config["Organization"].(string)
+			}
+			if globule_config["AlternateDomains"] != nil {
+				san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
+			}
+
 		}
 
 	}
@@ -212,7 +264,7 @@ func InitClient(client Client, address string, id string) error {
 	if config_["State"] != nil {
 		client.SetState(config_["State"].(string))
 	} else {
-		return errors.New("no port found for service " + id)
+		return errors.New("no state found for service " + id)
 	}
 
 	// Set security values.
@@ -228,13 +280,12 @@ func InitClient(client Client, address string, id string) error {
 
 		} else {
 
-			
 			// The address is not the local address so I want to get remote configuration value.
 			// Here I will retreive the credential or create it if not exist.
 			path := config.GetConfigDir() + "/tls/" + domain
 
 			// install tls certificates if needed.
-			keyFile, certificateFile, caFile, err := security.InstallCertificates(domain, port, path)
+			keyFile, certificateFile, caFile, err := security.InstallCertificates(domain, port, path, san_country, san_state, san_city, san_organization, san_alternateDomains)
 			if err != nil {
 				return err
 			}
@@ -382,7 +433,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 		if err != nil {
 			fmt.Println("fail to dial address ", err)
 			return nil, err
-		}else if cc != nil{
+		} else if cc != nil {
 			return cc, nil
 		}
 	} else {
@@ -390,13 +441,13 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 		cc, err = grpc.Dial(address, grpc.WithInsecure())
 		if err != nil {
 			return nil, err
-		}else if cc != nil{
+		} else if cc != nil {
 			return cc, nil
 		}
 	}
 
 	return nil, errors.New("fail to connect to grpc service")
-	
+
 }
 
 /**
