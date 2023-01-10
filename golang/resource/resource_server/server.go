@@ -460,6 +460,7 @@ func (server *server) publishRemoteEvent(address, evt string, data []byte) error
 
 // ///////////////////////////////////// return the peers infos from a given peer /////////////////////////////
 func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
+	
 	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
 	if err != nil {
 		return nil, err

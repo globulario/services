@@ -2323,6 +2323,7 @@ func initPeer(values interface{}) *resourcepb.Peer {
 
 // * Return the list of authorized peers *
 func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.ResourceService_GetPeersServer) error {
+	
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
