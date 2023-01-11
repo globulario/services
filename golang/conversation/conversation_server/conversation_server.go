@@ -113,7 +113,7 @@ type server struct {
 	exit chan bool
 
 	// The search engine..
-	search_engine *search_engine.XapianEngine
+	search_engine *search_engine.BleveSearchEngine
 
 	// Store global conversation information like conversation owner's participant...
 	store *storage_store.LevelDB_store
@@ -561,7 +561,7 @@ func (svr *server) Init() error {
 	}
 
 	// Initialyse the search engine.
-	svr.search_engine = new(search_engine.XapianEngine)
+	svr.search_engine = new(search_engine.BleveSearchEngine)
 
 	// Create a new local store.
 	svr.store = storage_store.NewLevelDB_store()
@@ -2159,7 +2159,7 @@ func main() {
 	}
 
 	// The search engine use to search into message, file and conversation.
-	s_impl.search_engine = new(search_engine.XapianEngine)
+	s_impl.search_engine = new(search_engine.BleveSearchEngine)
 
 	// The map of db connections.
 	s_impl.conversations = new(sync.Map)
