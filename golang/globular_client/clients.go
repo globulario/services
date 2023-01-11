@@ -187,11 +187,11 @@ func InitClient(client Client, address string, id string) error {
 				peer := localConfig["Peers"].(map[string]interface{})[domain].(map[string]interface{})
 				port = Utility.ToInt(peer["port"])
 				address = peer["domain"].(string) + ":" + Utility.ToString(peer["port"])
-
 				globule_config, err = config.GetRemoteConfig(peer["domain"].(string), port)
 				if err == nil {
 					config_, err = config.GetRemoteServiceConfig(peer["domain"].(string), port, id)
 				}
+
 			} else {
 
 				globule_config, err = config.GetRemoteConfig(domain, port)

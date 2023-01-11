@@ -382,7 +382,7 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-	
+
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
 
@@ -394,22 +394,15 @@ func InitService(s Service) error {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
 
-		// Now I will set the path where the configuation will be save in that case.
-		dir, _ := osext.ExecutableFolder()
-		path := strings.ReplaceAll(dir, "\\", "/")
-		
-		if Utility.Exists(path+"/config.json"){
-			fmt.Println("read config from ", path+"/config.json")
-			s.SetConfigurationPath(path + "/config.json")
+		// In that case the path will be create from the service properties.
+		var serviceDir = config.GetServicesConfigDir() + "/"
+		if len(s.GetPublisherId()) == 0 {
+			serviceDir += s.GetDomain() + "/" + s.GetName() + "/" + s.GetVersion()
 		} else {
+			serviceDir += s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion()
+		}
 
-			// In that case the path will be create from the service properties.
-			var serviceDir = config.GetServicesConfigDir() + "/"
-			if len(s.GetPublisherId()) == 0 {
-				serviceDir += s.GetDomain() + "/" + s.GetName() + "/" + s.GetVersion()
-			} else {
-				serviceDir += s.GetPublisherId() + "/" + s.GetName() + "/" + s.GetVersion()
-			}
+		if Utility.Exists(serviceDir) {
 
 			// Here I will get the existing uuid...
 			values := strings.Split(execPath, "/")
@@ -429,6 +422,13 @@ func InitService(s Service) error {
 				s.SetConfigurationPath(configPath)
 			}
 
+		} else {
+			// here I will simply save the configuration beside it executable.
+			dir, _ := osext.ExecutableFolder()
+			path := strings.ReplaceAll(dir, "\\", "/")
+
+			fmt.Println("read config from ", path+"/config.json")
+			s.SetConfigurationPath(path + "/config.json")
 		}
 	}
 
@@ -469,14 +469,13 @@ func InitService(s Service) error {
 	s.SetMac(macAddress)
 	s.SetAddress(address)
 	s.SetDomain(domain)
-	
 
 	// here the service is runing...
 	s.SetState("running")
 	s.SetProcess(os.Getpid())
 
 	// Now the platform.
-	s.SetPlatform(runtime.GOOS + "_" +runtime.GOARCH) 
+	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())

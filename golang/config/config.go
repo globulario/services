@@ -93,26 +93,13 @@ func GetDomain() (string, error) {
 // Those function are use to get the correct
 // directory where globular must be installed.
 func GetRootDir() string {
-	if runtime.GOOS == "windows" {
-		if runtime.GOARCH == "386" {
-			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular" // "C:/Program Files (x86)/globular"
-		} else {
-			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
-			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular" // "C:/Program Files/globular"
-		}
-	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" {
-		// the root will be where the start from... if globular was installed with .deb 
-		// it will return /usr/local/share/globular
-		dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
-		
-		return dir
-		
-	} else if runtime.GOOS == "darwin" {
+	// Get the running exec dir as root instead of /var/local/share/globular...
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	dir = strings.ReplaceAll(dir, "\\", "/")
 
-		// Get the running exec dir as root instead of /var/local/share/globular...
-		dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	// So here the root dir can be the client exec itself or globular.
 
+	if runtime.GOOS == "darwin" {
 		// Move service configuration to /etc/globular/config/services if not already there.
 		if Utility.Exists(dir + "/etc/globular/config/services") {
 			// keep existing service configurations...
@@ -123,10 +110,9 @@ func GetRootDir() string {
 			os.RemoveAll(dir + "/etc")
 		}
 
-		return dir
 	}
 
-	return "/globular"
+	return dir
 }
 
 // Return the list of public dir.
@@ -177,9 +163,7 @@ func GetServicesDir() string {
 	return ""
 }
 
-// If environement variable ServicesRoot is set It will be use to retreive services on the
-// computer. It can also be set in the config.json file to specifie where services must reside.
-// It's mostly use at development time and must be left blank.
+// Force service to be read from a specific directory.
 func GetServicesRoot() string {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
@@ -195,34 +179,60 @@ func GetServicesRoot() string {
  */
 func GetServicesConfigDir() string {
 
-	// That variable is use in development to set services from diffrent location...
-	serviceRoot := GetServicesRoot()
-	if len(serviceRoot) > 0 {
-		return strings.ReplaceAll(serviceRoot, "\\", "/")
+	dir := filepath.Dir(os.Args[0])
+	dir = strings.ReplaceAll(dir, "\\", "/")
+
+	// first I will get the exec name.
+	execname:=filepath.Base(os.Args[0])
+	if strings.HasPrefix(execname, "Globular"){
+		if Utility.Exists(dir + "/services"){
+			return dir + "/services"
+		} else if Utility.Exists("/usr/local/share/globular/services") {
+			return "/usr/local/share/globular/services"
+		}
+	}else{
+		
+		// if config near the service has priority over config found from other location...
+		if Utility.Exists(dir + "/config.conf"){
+			return GetServicesDir()  
+		}
+
+		if Utility.Exists( GetConfigDir() + "/services"){
+			return GetConfigDir() + "/services"
+		}
 	}
 
-	// ex. /etc/globular/services
-	if Utility.Exists(GetConfigDir() + "/services") {
-		return GetConfigDir() + "/services"
-	}
-
-	// Look in the service dir directly...
-	return GetServicesDir()
+	return GetServicesDir()  
 }
 
+// Must be call from Globular exec...
 func GetConfigDir() string {
 	if runtime.GOOS == "windows" {
-		return GetRootDir() + "/config"
+		// Here by default the configuration will 
+		if runtime.GOARCH == "386" {
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/config" // "C:/Program Files (x86)/globular"
+		} else {
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/config" // "C:/Program Files/globular"
+		}
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/etc/globular/config"
 	}
 
-	return "/globular/config"
+	return ""
 }
 
+// Must be call from Globular exec...
 func GetDataDir() string {
 	if runtime.GOOS == "windows" {
-		return GetRootDir() + "/data"
+		if runtime.GOARCH == "386" {
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/data" // "C:/Program Files (x86)/globular"
+		} else {
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/data" // "C:/Program Files/globular"
+		}
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/var/globular/data"
 	}
@@ -230,9 +240,16 @@ func GetDataDir() string {
 	return "/globular/data"
 }
 
+// Must be call from Globular exec...
 func GetWebRootDir() string {
 	if runtime.GOOS == "windows" {
-		return GetRootDir() + "/webroot"
+		if runtime.GOARCH == "386" {
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/webroot" // "C:/Program Files (x86)/globular"
+		} else {
+			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES")
+			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/webroot" // "C:/Program Files/globular"
+		}
 	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "darwin" {
 		return "/var/globular/webroot"
 	}
@@ -340,7 +357,6 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
  */
 func GetRemoteServiceConfig(address string, port int, id string) (map[string]interface{}, error) {
 
-	
 	if len(address) == 0 {
 		return nil, errors.New("no address was given")
 	}
@@ -414,13 +430,11 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
 	return config, nil
 }
 
-
 /**
  * Get the remote client configuration, made use of http request to do so.
  */
- func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
+func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 
-	
 	if len(address) == 0 {
 		return nil, errors.New("no address was given")
 	}
@@ -491,8 +505,9 @@ var config_ map[string]interface{}
 func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	// display configuration value.
 	ConfigPath := GetConfigDir() + "/config.json"
+
 	if !Utility.Exists(ConfigPath) {
-		err := errors.New("no local Globular configuration found")
+		err := errors.New("no local Globular configuration found with path " + ConfigPath)
 		return nil, err
 	}
 
@@ -900,12 +915,13 @@ func initConfig() {
 
 	// Initialyse the liste of local services...
 	serviceConfigDir := GetServicesConfigDir()
+	fmt.Println("retreive list of services from ", serviceConfigDir)
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
-
 	if err != nil {
 		fmt.Println("fail to find service configurations at at path ", serviceConfigDir, "with error ", err)
 		return
 	}
+
 	services := make([]map[string]interface{}, 0)
 
 	// The service dir.
@@ -914,6 +930,7 @@ func initConfig() {
 	// I will try to get configuration from services.
 	for i := 0; i < len(files); i++ {
 		path := files[i]
+		
 		//fmt.Println("init service from config at path: ", path)
 		s, err := initServiceConfiguration(path, serviceDir)
 		if err != nil {
