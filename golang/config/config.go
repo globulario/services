@@ -263,14 +263,11 @@ func GetWebRootDir() string {
 /**
  * Read token for a given domain.
  */
-func GetToken(domain string) (string, error) {
-	domain, err := GetDomain()
-	if err != nil {
-		return "", err
-	}
-	path := GetConfigDir() + "/tokens/" + domain + "_token"
+func GetToken(mac string) (string, error) {
+
+	path := GetConfigDir() + "/tokens/" + strings.ReplaceAll(mac, ":", "_") + "_token"
 	if !Utility.Exists(path) {
-		return "", errors.New("no token found for domain " + domain + " at path " + path)
+		return "", errors.New("no token found for domain " + mac + " at path " + path)
 	}
 
 	token, err := os.ReadFile(path)

@@ -417,7 +417,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 			}
 			// set back the password.
 			// the old password can be left blank if the token was generated for sa.
-			token, err := config.GetToken(server.Domain)
+			token, err := config.GetToken(server.Mac)
 			if err != nil {
 				return "", err
 			}
