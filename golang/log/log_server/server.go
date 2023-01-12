@@ -114,7 +114,6 @@ func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
 }
 
-
 func (svr *server) GetChecksum() string {
 
 	return svr.Checksum
@@ -441,6 +440,18 @@ var (
 )
 
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	// validate the port has not change...
+	if event_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(event_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != event_client_.GetPort() {
+				event_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if event_client_ != nil {
 		return event_client_, nil

@@ -460,6 +460,17 @@ var (
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	// validate the port has not change...
+	if event_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(event_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != event_client_.GetPort() {
+				event_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
 	var err error
 	if event_client_ != nil {
 		return event_client_, nil
@@ -490,6 +501,18 @@ func (server *server) publishUpdateServiceConfigEvent(config map[string]interfac
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
+	// validate the port has not change...
+	if resource_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(resource_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != resource_client_.GetPort() {
+				resource_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if resource_client_ != nil {
 		return resource_client_, nil
@@ -549,6 +572,18 @@ func (server *server) setRoleActions(roleId string, actions []string) error {
  * Get the rbac client.
  */
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+		// validate the port has not change...
+		if rbac_client_ != nil {
+			// here I will validate the port is the same.
+			config, err := config.GetServiceConfigurationById(rbac_client_.GetId())
+			if err == nil && config != nil {
+				port := Utility.ToInt(config["Port"])
+				if port != rbac_client_.GetPort() {
+					rbac_client_ = nil // force the client to reconnect...
+				}
+			}
+		}
+
 	var err error
 	if rbac_client_ == nil {
 		address, _ := config.GetAddress()
@@ -575,6 +610,18 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+		// validate the port has not change...
+		if log_client_ != nil {
+			// here I will validate the port is the same.
+			config, err := config.GetServiceConfigurationById(log_client_.GetId())
+			if err == nil && config != nil {
+				port := Utility.ToInt(config["Port"])
+				if port != log_client_.GetPort() {
+					log_client_ = nil // force the client to reconnect...
+				}
+			}
+		}
+		
 	var err error
 	if log_client_ == nil {
 		address, _ := config.GetAddress()

@@ -1871,6 +1871,19 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
  * Return the event service.
  */
 func getEventClient() (*event_client.Event_Client, error) {
+
+	// validate the port has not change...
+	if event_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(event_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != event_client_.GetPort() {
+				event_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if event_client_ == nil {
 		address, _ := config.GetAddress()
@@ -1887,6 +1900,19 @@ func getEventClient() (*event_client.Event_Client, error) {
  * Return an instance of the title client.
  */
 func getTitleClient() (*title_client.Title_Client, error) {
+
+	// validate the port has not change...
+	if title_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(title_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != title_client_.GetPort() {
+				title_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if title_client_ == nil {
 		address, _ := config.GetAddress()
@@ -1900,6 +1926,18 @@ func getTitleClient() (*title_client.Title_Client, error) {
 }
 
 func getRbacClient() (*rbac_client.Rbac_Client, error) {
+	// validate the port has not change...
+	if rbac_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(rbac_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != rbac_client_.GetPort() {
+				rbac_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if rbac_client_ == nil {
 		address, _ := config.GetAddress()
@@ -1913,6 +1951,18 @@ func getRbacClient() (*rbac_client.Rbac_Client, error) {
 }
 
 func getAuticationClient() (*authentication_client.Authentication_Client, error) {
+	// validate the port has not change...
+	if authentication_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(authentication_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != authentication_client_.GetPort() {
+				authentication_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if authentication_client_ == nil {
 		address, _ := config.GetAddress()
@@ -3507,7 +3557,6 @@ func hasEnableCudaNvcc() bool {
 
 	encoders, _ := getVersion.CombinedOutput()
 
-
 	if strings.Index(string(encoders), "hevc_nvenc") > -1 {
 		return true
 	}
@@ -4432,19 +4481,18 @@ func (file_server *server) generateVideoPlaylist(path, token string, paths []str
 		path__ := paths[i]
 
 		videos := make(map[string][]*titlepb.Video, 0)
-		if strings.HasSuffix(paths[i], ".m3u8"){
+		if strings.HasSuffix(paths[i], ".m3u8") {
 			path__ = filepath.Dir(paths[i])
 		}
-			
+
 		file_server.getFileVideosAssociation(client, path__, videos)
-		
-		
+
 		fmt.Println("add file to playlist ", paths[i])
 
 		if len(videos[path__]) > 0 {
 
 			videoInfo := videos[path__][0]
-			playlist += "#EXTINF:" +  Utility.ToString(videoInfo.GetDuration())
+			playlist += "#EXTINF:" + Utility.ToString(videoInfo.GetDuration())
 
 			playlist += ` tvg-id="` + videoInfo.ID + `"` + ` tvg-url="` + videoInfo.URL + `"` + "," + videoInfo.Description
 

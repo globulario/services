@@ -432,6 +432,18 @@ var (
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+	// validate the port has not change...
+	if resourceClient != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(resourceClient.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != resourceClient.GetPort() {
+				resourceClient = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if resourceClient != nil {
 		return resourceClient, nil
@@ -515,6 +527,18 @@ func (svr *server) createNotification(notification *resourcepb.Notification) err
 
 // ////////////////////// Package Repository services /////////////////////////////////
 func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, error) {
+	// validate the port has not change...
+	if discoveryClient != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(discoveryClient.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != discoveryClient.GetPort() {
+				discoveryClient = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	if discoveryClient != nil {
 		return discoveryClient, nil
 	}
@@ -533,6 +557,18 @@ func (svr *server) getDsicoveryClient() (*discovery_client.Dicovery_Client, erro
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	// validate the port has not change...
+	if log_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(log_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != log_client_.GetPort() {
+				log_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if log_client_ == nil {
 		address, _ := config.GetAddress()
@@ -562,6 +598,19 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 
 // /////////////////// event service functions ////////////////////////////////////
 func (svr *server) getEventClient() (*event_client.Event_Client, error) {
+
+	// validate the port has not change...
+	if event_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(event_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != event_client_.GetPort() {
+				event_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if event_client_ != nil {
 		return event_client_, nil
@@ -583,6 +632,19 @@ func (svr *server) publish(event string, data []byte) error {
 }
 
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+
+	// validate the port has not change...
+	if rbac_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(rbac_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != rbac_client_.GetPort() {
+				rbac_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if rbac_client_ == nil {
 		address, _ := config.GetAddress()

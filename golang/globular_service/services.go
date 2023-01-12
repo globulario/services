@@ -672,6 +672,18 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 var event_client_ *event_client.Event_Client
 
 func getEventClient() (*event_client.Event_Client, error) {
+	// validate the port has not change...
+	if event_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(event_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != event_client_.GetPort() {
+				event_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	if event_client_ == nil {
 		address, err := config.GetAddress()
 		if err != nil {

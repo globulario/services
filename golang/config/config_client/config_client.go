@@ -76,12 +76,12 @@ func NewConfigService_Client(address string, id string) (*Config_Client, error) 
 	return client, nil
 }
 
-func (client *Config_Client) Reconnect () error{
+func (client *Config_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = configpb.NewConfigServiceClient(client.cc)
@@ -309,6 +309,18 @@ var config_client_ *Config_Client
 
 // A singleton to the configuration client.
 func getConfigClient() (*Config_Client, error) {
+	// validate the port has not change...
+	if config_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(config_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != config_client_.GetPort() {
+				config_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	if config_client_ != nil {
 		return config_client_, nil
 	}
@@ -366,7 +378,7 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  * Return the list of all services configurations
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
-	
+
 	client, err := getConfigClient()
 	if err == nil {
 		// If a configuration client exist I will use it...

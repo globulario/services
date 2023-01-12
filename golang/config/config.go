@@ -941,7 +941,7 @@ func initConfig() {
 			// save back the file...
 			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
 			s["Process"] = -1
-			s["Proxy"] = -1
+			s["ProxyProcess"] = -1
 			s["State"] = "stopped"
 
 			services = append(services, s)
@@ -949,7 +949,6 @@ func initConfig() {
 			// If the execname is globular I will set the services path from exec found in that path...
 			if strings.HasPrefix(execname, "Globular"){
 				service_name :=  filepath.Base(s["Path"].(string)) 
-				//fmt.Println("-------------> service exec name: ", service_name)
 				files, err := Utility.FindFileByName(serviceDir, service_name)
 				if err == nil {
 					if len(files) > 0 {

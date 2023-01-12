@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -479,6 +480,18 @@ func (server *server) connect(id string, userId string, pwd string) (*LDAP.Conn,
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+	// validate the port has not change...
+	if resource_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(resource_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != resource_client_.GetPort() {
+				resource_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if resource_client_ != nil {
 		return resource_client_, nil

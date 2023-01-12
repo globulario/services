@@ -406,6 +406,18 @@ func (server *server) SetPermissions(permissions []interface{}) {
 }
 
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
+	// validate the port has not change...
+	if rbac_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(rbac_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != log_client_.GetPort() {
+				rbac_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if rbac_client_ == nil {
 		address, _ := config.GetAddress()
@@ -1866,6 +1878,18 @@ var (
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	// validate the port has not change...
+	if log_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(log_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != log_client_.GetPort() {
+				log_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if log_client_ == nil {
 		address, _ := config.GetAddress()

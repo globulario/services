@@ -401,6 +401,18 @@ var (
 ////////////////////////////////////////////////////////////////////////////////////////
 
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	// validate the port has not change...
+	if event_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(event_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != event_client_.GetPort() {
+				event_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if event_client_ == nil {
 		address, _ := config.GetAddress()
@@ -428,6 +440,18 @@ func (server *server) publish(event string, data []byte) error {
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
+	// validate the port has not change...
+	if log_client_ != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(log_client_.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != log_client_.GetPort() {
+				log_client_ = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if log_client_ == nil {
 		address, _ := config.GetAddress()
@@ -437,6 +461,7 @@ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 		}
 
 	}
+
 	return log_client_, nil
 }
 func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
@@ -459,6 +484,17 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
 func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
+	// validate the port has not change...
+	if resourceClient != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(resourceClient.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != resourceClient.GetPort() {
+				resourceClient = nil // force the client to reconnect...
+			}
+		}
+	}
 
 	var err error
 	if resourceClient != nil {
@@ -551,7 +587,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 		}
 
 		groups, err := resource_.GetGroups(`{"$or":[{"_id":"` + groupId + `"},{"name":"` + groupId + `"} ]}`)
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 
@@ -915,7 +951,7 @@ func main() {
 	err = s_impl.permissions.Open(`{"path":"` + s_impl.Root + `", "name":"permissions"}`)
 
 	if err != nil {
-		fmt.Println("fail to read/create permissions folder with error: ",  s_impl.Root + "/permissions", err)
+		fmt.Println("fail to read/create permissions folder with error: ", s_impl.Root+"/permissions", err)
 	}
 
 	// Register the rbac services
@@ -935,7 +971,7 @@ func main() {
 	if err == nil {
 		err := json.Unmarshal(ids_, &ids)
 		if err == nil {
-			for i:=0; i < len(ids); i++ {
+			for i := 0; i < len(ids); i++ {
 				s_impl.permissions.RemoveItem(ids[i])
 			}
 		}
@@ -943,7 +979,6 @@ func main() {
 
 	s_impl.cache = storage_store.NewBigCache_store()
 	s_impl.cache.Open("")
-
 
 	// Start the service.
 	s_impl.StartService()

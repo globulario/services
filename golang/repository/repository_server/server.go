@@ -427,6 +427,19 @@ var (
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
+
+	// validate the port has not change...
+	if resourceClient != nil {
+		// here I will validate the port is the same.
+		config, err := config.GetServiceConfigurationById(resourceClient.GetId())
+		if err == nil && config != nil {
+			port := Utility.ToInt(config["Port"])
+			if port != resourceClient.GetPort() {
+				resourceClient = nil // force the client to reconnect...
+			}
+		}
+	}
+
 	var err error
 	if resourceClient != nil {
 		return resourceClient, nil
