@@ -643,7 +643,6 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 /** Create a service package **/
 func (client *Repository_Service_Client) createPackageArchive(publisherId string, id string, version string, platform string, path string) (string, error) {
 
-	fmt.Println("---------------> 643 ", path)
 	// Take the information from the configuration...
 	archive_name := id + "%" + version + "%" + id + "%" + platform
 

@@ -930,9 +930,6 @@ func initConfig() {
 	// The service dir.
 	serviceDir := GetServicesDir()
 
-
-	fmt.Println("----------> 934 services dir: ", serviceDir)
-
 	execname := filepath.Base(os.Args[0])
 
 	// I will try to get configuration from services.

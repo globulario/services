@@ -2071,8 +2071,6 @@ func (rbac_server *server) RemoveResourceOwner(ctx context.Context, rqst *rbacpb
 
 // * That function must be call when a subject is removed to clean up permissions.
 func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.DeleteAllAccessRqst) (*rbacpb.DeleteAllAccessRsp, error) {
-
-	fmt.Println("----------> delete all access for ", rqst.Subject)
 	subjectId := ""
 	if rqst.Type == rbacpb.SubjectType_ACCOUNT {
 		exist, a := rbac_server.accountExist(rqst.Subject)

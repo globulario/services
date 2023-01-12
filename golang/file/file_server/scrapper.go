@@ -118,7 +118,6 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 
 	// function call on visition url...
 	movieCollector.OnHTML(".inlineFree", func(e *colly.HTMLElement) {
-		fmt.Println("------------------> ", e.Text)
 		currentVideo.Description = strings.TrimSpace(e.Text)
 	})
 
