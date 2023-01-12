@@ -144,7 +144,10 @@ func GetServicesDir() string {
 		return services_dir
 	}
 
+	// return the dir where the exec is
 	root_dir := GetRootDir()
+
+	// if a dir with /services exist it will be taken as services dir.
 	if Utility.Exists(GetRootDir() + "/services") {
 		return root_dir + "/services"
 	}
@@ -184,16 +187,17 @@ func GetServicesConfigDir() string {
 
 	// first I will get the exec name.
 	execname:=filepath.Base(os.Args[0])
+	
 	if strings.HasPrefix(execname, "Globular"){
+		// if a directory named /services is found in the same directory of the exec Globular 
+		// it means the configurations must resides in configuration directory...
 		if Utility.Exists(dir + "/services"){
-			return dir + "/services"
-		} else if Utility.Exists("/usr/local/share/globular/services") {
-			return "/usr/local/share/globular/services"
+			return GetConfigDir() + "/services"
 		}
 	}else{
 		
 		// if config near the service has priority over config found from other location...
-		if Utility.Exists(dir + "/config.conf"){
+		if Utility.Exists(dir + "/config.json"){
 			return GetServicesDir()  
 		}
 
@@ -983,7 +987,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 		log.Fatal("NewWatcher failed: ", err)
 	}
 	defer watcher.Close()
-
 	// register file to watch...
 	for i := 0; i < len(services); i++ {
 		// watch for configuration change
@@ -1058,7 +1061,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 			for i := 0; i < len(services); i++ {
 				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
-				//fmt.Println("-------------> services: ", services[i])
 				if services[i]["Id"].(string) == id || services[i]["Name"].(string) == id || strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
 					setServiceConfiguration(i, services)
 					data, _ := json.Marshal(services[i])
@@ -1199,7 +1201,9 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  * Return a service with a given configuration id.
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
+	
 	initConfig()
+	
 	infos := make(map[string]interface{})
 	infos["id"] = id
 	infos["return"] = make(chan map[string]interface{})
