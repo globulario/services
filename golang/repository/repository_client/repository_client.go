@@ -340,7 +340,6 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
 
-	
 	// Open the stream...
 	stream, err := client.c.UploadBundle(ctx)
 	if err != nil {
@@ -394,6 +393,8 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
  *  Create the application bundle and push it on the server
  */
 func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, domain, name, version string) (int, error) {
+	/*
+	// 
 	dir, err := os.Getwd()
 	if err != nil {
 		return -1, err
@@ -401,7 +402,9 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 
 	if !strings.HasPrefix(path, "/") {
 		path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
-	}
+	}*/
+
+	path = strings.ReplaceAll(path, "\\", "/")
 
 	if len(token) > 0 {
 		claims, _ := security.ValidateToken(token)
@@ -466,7 +469,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 			}
 
 		} else if len(user) > 0 {
-			err = rbac_client_.AddResourceOwner(name+"@"+strings.Split(domain, ":")[0] , "application", user, rbacpb.SubjectType_ACCOUNT)
+			err = rbac_client_.AddResourceOwner(name+"@"+strings.Split(domain, ":")[0], "application", user, rbacpb.SubjectType_ACCOUNT)
 			if err != nil {
 				return -1, err
 			}
@@ -640,6 +643,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 /** Create a service package **/
 func (client *Repository_Service_Client) createPackageArchive(publisherId string, id string, version string, platform string, path string) (string, error) {
 
+	fmt.Println("---------------> 643 ", path)
 	// Take the information from the configuration...
 	archive_name := id + "%" + version + "%" + id + "%" + platform
 

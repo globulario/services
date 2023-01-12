@@ -1058,6 +1058,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 			for i := 0; i < len(services); i++ {
 				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
+				//fmt.Println("-------------> services: ", services[i])
 				if services[i]["Id"].(string) == id || services[i]["Name"].(string) == id || strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
 					setServiceConfiguration(i, services)
 					data, _ := json.Marshal(services[i])

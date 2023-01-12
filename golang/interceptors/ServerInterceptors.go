@@ -397,7 +397,7 @@ func (l ServerStreamInterceptorStream) RecvMsg(rqst interface{}) error {
 	// if the cache contain the uuid it means permission is allowed
 	_, ok := cache.Load(l.uuid)
 	if ok {
-		fmt.Println("permission found in cache user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.address + " application:" + l.application)
+		//fmt.Println("permission found in cache user " + l.clientId + " has permission to execute method: " + l.method + " domain:" + l.address + " application:" + l.application)
 		return nil
 	}
 
