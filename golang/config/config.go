@@ -916,20 +916,24 @@ func initConfig() {
 	isInit = true
 
 	// I will start configuation processing...
-
-	// Initialyse the liste of local services...
 	serviceConfigDir := GetServicesConfigDir()
-	fmt.Println("retreive list of services from ", serviceConfigDir)
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
 	if err != nil {
 		fmt.Println("fail to find service configurations at at path ", serviceConfigDir, "with error ", err)
 		return
 	}
 
+	
+
 	services := make([]map[string]interface{}, 0)
 
 	// The service dir.
 	serviceDir := GetServicesDir()
+
+
+	fmt.Println("----------> 934 services dir: ", serviceDir)
+
+	execname := filepath.Base(os.Args[0])
 
 	// I will try to get configuration from services.
 	for i := 0; i < len(files); i++ {
@@ -947,6 +951,23 @@ func initConfig() {
 			s["State"] = "stopped"
 
 			services = append(services, s)
+
+			// If the execname is globular I will set the services path from exec found in that path...
+			if strings.HasPrefix(execname, "Globular"){
+				service_name :=  filepath.Base(s["Path"].(string)) 
+				//fmt.Println("-------------> service exec name: ", service_name)
+				files, err := Utility.FindFileByName(serviceDir, service_name)
+				if err == nil {
+					if len(files) > 0 {
+						s["Path"] = files[0]
+						// I will also save the configuration.
+						jsonStr, err := Utility.ToJson(s)
+						if err == nil{
+							os.WriteFile(path, []byte(jsonStr), 0644)
+						}
+					}
+				}
+			}
 		}
 	}
 
