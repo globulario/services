@@ -9,8 +9,8 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
-	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldap_client"
@@ -71,7 +71,6 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
-	ConfigPath      string
 	ConfigPort      int
 	LastError       string
 	ModTime         int64
@@ -129,15 +128,6 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The current service state
@@ -464,15 +454,13 @@ var (
  * Get the rbac client.
  */
 func GetLdapClient(address string) (*ldap_client.LDAP_Client, error) {
-	var err error
-	if ldap_client_ == nil {
-		ldap_client_, err = ldap_client.NewLdapService_Client(address, "ldap.LdapService")
-		if err != nil {
-			return nil, err
-		}
 
+	client, err := globular_client.GetClient(address, "ldap.LdapService", "ldap_client.NewLdapService_Client")
+	if err != nil {
+		return nil, err
 	}
-	return ldap_client_, nil
+
+	return client.(*ldap_client.LDAP_Client), nil
 }
 
 // Authenticate user with LDAP server.
@@ -492,15 +480,11 @@ func (svr *server) authenticateLdap(userId string, password string) error {
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	var err error
-	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
-		if err != nil {
-			return nil, err
-		}
-
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	if err != nil {
+		return nil, err
 	}
-	return rbac_client_, nil
+	return client.(*rbac_client.Rbac_Client), nil
 }
 
 func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
@@ -524,28 +508,13 @@ func (svr *server) addResourceOwner(path, resourceType, subject string, subjectT
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
-	// validate the port has not change...
-	if log_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(log_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != log_client_.GetPort() {
-				log_client_ = nil // force the client to reconnect...
-			}
-		}
+
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	if err != nil {
+		return nil, err
 	}
 
-	var err error
-	if log_client_ == nil {
-		address, _ := config.GetAddress()
-		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return log_client_, nil
+	return client.(*log_client.Log_Client), nil
 }
 func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
 	log_client_, err := server.GetLogClient()
@@ -565,28 +534,13 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 
 // /////////////////// event service functions ////////////////////////////////////
 func (svr *server) getEventClient() (*event_client.Event_Client, error) {
-	// validate the port has not change...
-	if event_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(event_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != event_client_.GetPort() {
-				event_client_ = nil // force the client to reconnect...
-			}
-		}
-	}
+	client, err := globular_client.GetClient(svr.Address, "event.EventService", "event_client.NewEventService_Client")
 
-	var err error
-	if event_client_ != nil {
-		return event_client_, nil
-	}
-	event_client_, err = event_client.NewEventService_Client(svr.Address, "event.EventService")
 	if err != nil {
 		return nil, err
 	}
 
-	return event_client_, nil
+	return client.(*event_client.Event_Client), nil
 }
 
 func (svr *server) publish(event string, data []byte) error {
@@ -599,18 +553,11 @@ func (svr *server) publish(event string, data []byte) error {
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (svr *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
-	var err error
-	if resource_client_ != nil {
-		return resource_client_, nil
-	}
-
-	resource_client_, err = resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "resource_client.NewResourceService_Client")
 	if err != nil {
-		resource_client_ = nil
 		return nil, err
 	}
-
-	return resource_client_, nil
+	return client.(*resource_client.Resource_Client), nil
 }
 
 /**
@@ -785,10 +732,7 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

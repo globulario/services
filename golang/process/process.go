@@ -21,6 +21,7 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -70,15 +71,11 @@ var (
  * Get the log client.
  */
 func getLogClient(address string) (*log_client.Log_Client, error) {
-	var err error
-	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
-		if err != nil {
-			return nil, err
-		}
-
+	client, err := globular_client.GetClient(address, "log.LogService", "log_client.NewLogService_Client")
+	if err != nil {
+		return nil, err
 	}
-	return log_client_, nil
+	return client.(*log_client.Log_Client), nil
 }
 
 func logInfo(name, address, fileLine, functionName, message string, level logpb.LogLevel) {
@@ -269,15 +266,11 @@ var (
  * Get local event client.
  */
 func getEventClient(address string) (*event_client.Event_Client, error) {
-	var err error
-	if event_client_ == nil {
-		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
-		if err != nil {
-			return nil, err
-		}
+	client, err := globular_client.GetClient(address, "event.EventService", "event_client.NewEventService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	return event_client_, nil
+	return client.(*event_client.Event_Client), nil
 }
 
 // Start a service process.

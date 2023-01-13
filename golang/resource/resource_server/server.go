@@ -12,6 +12,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -71,7 +72,6 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
-	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -131,15 +131,6 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The last error
@@ -411,64 +402,44 @@ var (
 )
 
 // /////////////////// resource service functions ////////////////////////////////////
-func (server *server) getEventClient() (*event_client.Event_Client, error) {
-	var err error
-	if event_client_ != nil {
-		return event_client_, nil
-	}
-	address, _ := config.GetAddress()
-	event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+func GetEventClient(address string) (*event_client.Event_Client, error) {
+	client, err := globular_client.GetClient(address, "event.EventService", "event_client.NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
-
-	return event_client_, nil
+	return client.(*event_client.Event_Client), nil
 }
 
 // when services state change that publish
 func (server *server) publishEvent(evt string, data []byte, domain string) error {
-
-	localDomain_, _ := config.GetDomain()
-	if domain == localDomain_ {
-		client, err := server.getEventClient()
-		if err != nil {
-			return err
-		}
-
-		return client.Publish(evt, data)
-	} else {
-		client, err := event_client.NewEventService_Client(domain, "event.EventService")
-		if err != nil {
-			return err
-		}
-
-		return client.Publish(evt, data)
+	client, err := GetEventClient(domain)
+	if err != nil {
+		return err
 	}
+
+	return client.Publish(evt, data)
 }
 
 // Public event to a peer other than the default one...
 func (server *server) publishRemoteEvent(address, evt string, data []byte) error {
 
-	client, err := event_client.NewEventService_Client(address, "event.EventService")
+	client, err := GetEventClient(address)
 	if err != nil {
 		return err
 	}
 
-	defer client.Close()
 	return client.Publish(evt, data)
 }
 
 // ///////////////////////////////////// return the peers infos from a given peer /////////////////////////////
 func (server *server) getPeerInfos(address, mac string) (*resourcepb.Peer, error) {
 
-	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	client, err := GetResourceClient(address)
 	if err != nil {
 		fmt.Println("fail to connect with remote resource service with err: ", err)
 		return nil, err
 	}
 
-	// Close the client when no more needed.
-	defer client.Close()
 	peers, err := client.GetPeers(`{"mac":"` + mac + `"}`)
 	if err != nil {
 		return nil, err
@@ -503,13 +474,11 @@ func (server *server) getPeerPublicKey(address, mac string) (string, error) {
 		return string(key), nil
 	}
 
-	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	client, err := GetResourceClient(address)
 	if err != nil {
 		return "", err
 	}
 
-	// Close the client when no more needed.
-	defer client.Close()
 
 	return client.GetPeerPublicKey(mac)
 }
@@ -568,18 +537,11 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 
 // ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
-	var err error
-	if persistence_client_ == nil {
-		persistence_client_, err = persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
-		if err != nil {
-			persistence_client_ = nil
-			log.Println("fail to get persistence client with error ", err)
-			return nil, err
-		}
-
+	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "persistence_client.NewPersistenceService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	return persistence_client_, nil
+	return client.(*persistence_client.Persistence_Client), nil
 }
 
 // Create the application connections in the backend.
@@ -603,15 +565,11 @@ func (server *server) createApplicationConnection(app *resourcepb.Application) e
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	var err error
-	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
-		if err != nil {
-			return nil, err
-		}
-
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	if err != nil {
+		return nil, err
 	}
-	return rbac_client_, nil
+	return client.(*rbac_client.Rbac_Client), nil
 }
 
 func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
@@ -646,7 +604,7 @@ func (svr *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType
 func (svr *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewresourceService_Client", resource_client.NewResourceService_Client)
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
 
 	// Get the configuration path.
 	err := globular.InitService(svr)
@@ -684,28 +642,11 @@ func (svr *server) StopService() error {
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
-	// validate the port has not change...
-	if log_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(log_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != log_client_.GetPort() {
-				log_client_ = nil // force the client to reconnect...
-			}
-		}
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	if log_client_ == nil {
-		address, _ := config.GetAddress()
-		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return log_client_, nil
+	return client.(*log_client.Log_Client), nil
 }
 func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
 	log_client_, err := server.GetLogClient()
@@ -875,7 +816,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 
 		if localDomain != domain {
 			// so here I will redirect the call to the resource server at remote location.
-			client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+			client, err :=GetResourceClient(domain)
 			if err != nil {
 				return err
 			}
@@ -920,7 +861,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 
 func (resource_server *server) getRemoteAccount(id string, domain string) (*resourcepb.Account, error) {
 	fmt.Println("get account ", id, "from", domain)
-	client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+	client, err := GetResourceClient(domain)
 	if err != nil {
 		return nil, err
 	}
@@ -943,7 +884,7 @@ func (resource_server *server) createReference(p persistence_store.Store, id, so
 
 		if localDomain != domain {
 			// so here I will redirect the call to the resource server at remote location.
-			client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+			client, err := GetResourceClient(domain)
 			if err != nil {
 				return err
 			}
@@ -1313,10 +1254,7 @@ func main() {
 	s_impl.Permissions[22] = map[string]interface{}{"action": "/resource.ResourceService/RemoveApplicationsAction", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

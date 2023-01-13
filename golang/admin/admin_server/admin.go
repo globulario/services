@@ -92,22 +92,8 @@ func (admin_server *server) Update(stream adminpb.AdminService_UpdateServer) err
 	if platform != platform_ {
 		return errors.New("Wrong executable platform to update from! wants " + platform_ + " not " + platform)
 	}
-	serviceRoot := config.GetServicesDir()
-	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
-	path := ""
 
-	if len(serviceRoot) > 0 {
-		path = serviceRoot[0:strings.LastIndex(serviceRoot, "/")+1] + "Globular"
-	} else {
-		path = config.GetRootDir()
-	}
-
-	path += "/Globular"
-	path = strings.ReplaceAll(path, "\\", "/")
-
-	if runtime.GOOS == "windows" {
-		path += ".exe"
-	}
+	path := config.GetGlobularExecPath()
 
 	existing_checksum := Utility.CreateFileChecksum(path)
 	checksum := Utility.CreateDataChecksum(buffer.Bytes())
@@ -157,22 +143,7 @@ func (admin_server *server) DownloadGlobular(rqst *adminpb.DownloadGlobularReque
 		return errors.New("Wrong executable platform to update from get " + platform + " want " + platform_)
 	}
 
-	serviceRoot := config.GetServicesDir()
-	serviceRoot = strings.ReplaceAll(serviceRoot, "\\", "/")
-	path := ""
-
-	if len(serviceRoot) > 0 {
-		path = serviceRoot[0:strings.LastIndex(serviceRoot, "/")+1] + "Globular"
-	} else {
-		path = config.GetRootDir()
-	}
-
-	path += "/Globular"
-	path = strings.ReplaceAll(path, "\\", "/")
-
-	if runtime.GOOS == "windows" {
-		path += ".exe"
-	}
+	path :=  config.GetGlobularExecPath()
 
 	if !Utility.Exists(path) {
 		return errors.New("fail to retreive exec at path: " + path)

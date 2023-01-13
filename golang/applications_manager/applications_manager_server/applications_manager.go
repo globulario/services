@@ -18,6 +18,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -156,6 +157,24 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 	return errors.New("no application pacakage found with path " + path)
 }
 
+//////////////////////// Resource Client ////////////////////////////////////////////
+func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*resource_client.Resource_Client), nil
+}
+
+//////////////////////// Repository Client ////////////////////////////////////////////
+func GetRepositoryClient(domain string) (*repository_client.Repository_Service_Client, error) {
+	client, err := globular_client.GetClient(domain, "repository.PackageRepository", "repository_client.NewRepositoryService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*repository_client.Repository_Service_Client), nil
+}
+
 // Install web Application
 func (server *server) InstallApplication(ctx context.Context, rqst *applications_managerpb.InstallApplicationRequest) (*applications_managerpb.InstallApplicationResponse, error) {
 	var token string
@@ -175,7 +194,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 	}
 
 	// Connect to the dicovery services
-	resource_client_, err := resource_client.NewResourceService_Client(rqst.DicorveryId, "resource.ResourceService")
+	resource_client_, err := GetResourceClient(rqst.DicorveryId)
 
 	if err != nil {
 		return nil, status.Errorf(
@@ -202,7 +221,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 
 	for i := 0; i < len(descriptor.Repositories); i++ {
 
-		package_repository, err := repository_client.NewRepositoryService_Client(descriptor.Repositories[i], "repository.PackageRepository")
+		package_repository, err := GetRepositoryClient(descriptor.Repositories[i])
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,

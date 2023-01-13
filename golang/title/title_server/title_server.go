@@ -70,7 +70,6 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
-	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -132,15 +131,6 @@ func (srv *server) GetProxyProcess() int {
 
 func (srv *server) SetProxyProcess(pid int) {
 	srv.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (srv *server) GetConfigurationPath() string {
-	return srv.ConfigPath
-}
-
-func (srv *server) SetConfigurationPath(path string) {
-	srv.ConfigPath = path
 }
 
 // The current service state
@@ -2244,10 +2234,7 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

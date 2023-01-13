@@ -3,6 +3,7 @@ package config_client
 import (
 	"context"
 	"encoding/json"
+
 	//"fmt"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/configpb"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/security"
 	"google.golang.org/grpc"
@@ -99,11 +101,11 @@ func (client *Config_Client) SetAddress(address string) {
 func (client *Config_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
 	// If the configuration is on the client domain...
 	if !strings.HasPrefix(strings.ToLower(address), strings.ToLower(client.GetDomain())) {
-		client_, err := NewConfigService_Client(address, id)
+		client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
 		if err != nil {
 			return nil, err
 		}
-		return client_.GetServiceConfiguration(id)
+		return client_.(*Config_Client).GetServiceConfiguration(id)
 	}
 
 	// This is the only client that must be initialyse directlty from the configuration file...
@@ -309,33 +311,18 @@ var config_client_ *Config_Client
 
 // A singleton to the configuration client.
 func getConfigClient() (*Config_Client, error) {
-	// validate the port has not change...
-	if config_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(config_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != config_client_.GetPort() {
-				config_client_ = nil // force the client to reconnect...
-			}
-		}
-	}
-
-	if config_client_ != nil {
-		return config_client_, nil
-	}
 
 	address, err := config.GetAddress()
 	if err != nil {
 		return nil, err
 	}
 
-	config_client_, err = NewConfigService_Client(address, "config.ConfigService")
+	client, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
-
-	return config_client_, nil
+	
+	return client.(*Config_Client), nil
 }
 
 /**
@@ -350,9 +337,8 @@ func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
 			//fmt.Println("309 ",  config["Name"], config["State"])
 			return config, nil
 		}
-
-		//fmt.Println("fail to get configuration for service with id ", id)
 	}
+
 	// I will use the synchronize file version.
 	return config.GetServiceConfigurationById(id)
 }

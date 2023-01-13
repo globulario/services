@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
-	"github.com/fsnotify/fsnotify"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
@@ -66,6 +64,18 @@ func GetName() (string, error) {
 	return strings.ToLower(hostname), nil
 }
 
+// Return the path of Globular executable file
+func GetGlobularExecPath() string {
+	localConfig, err := GetLocalConfig(true)
+	if err == nil {
+		if len(localConfig["Path"].(string)) != 0 {
+			return strings.ToLower(localConfig["Path"].(string))
+		}
+	}
+
+	return ""
+}
+
 /**
  * Return the Domain.
  */
@@ -96,31 +106,26 @@ func GetRootDir() string {
 	// Get the running exec dir as root instead of /var/local/share/globular...
 	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	dir = strings.ReplaceAll(dir, "\\", "/")
-
-	// So here the root dir can be the client exec itself or globular.
-
-	if runtime.GOOS == "darwin" {
-		// Move service configuration to /etc/globular/config/services if not already there.
-		if Utility.Exists(dir + "/etc/globular/config/services") {
-			// keep existing service configurations...
-			if !Utility.Exists("/etc/globular/config/services") {
-				Utility.Move(dir+"/etc/globular/config/services", "/etc/globular/config")
-			}
-
-			os.RemoveAll(dir + "/etc")
-		}
-
-	}
-
 	return dir
+}
+
+// Force service to be read from a specific directory.
+func GetServicesRoot() string {
+	localConfig, err := GetLocalConfig(true)
+	if err == nil {
+		if localConfig["ServicesRoot"] != nil {
+			return localConfig["ServicesRoot"].(string)
+		}
+	}
+	return ""
 }
 
 // Return the list of public dir.
 func GetPublicDirs() []string {
-
 	public := make([]string, 0)
+	
 	// Retreive all configurations
-	services, err := GetOrderedServicesConfigurations()
+	services, err := GetServicesConfigurations()
 	if err == nil {
 		for i := 0; i < len(services); i++ {
 			s := services[i]
@@ -135,78 +140,6 @@ func GetPublicDirs() []string {
 	}
 
 	return public
-}
-
-func GetServicesDir() string {
-	// if services are taken from development environnement.
-	services_dir := GetServicesRoot()
-	if len(services_dir) > 0 {
-		return services_dir
-	}
-
-	// return the dir where the exec is
-	root_dir := GetRootDir()
-
-	// if a dir with /services exist it will be taken as services dir.
-	if Utility.Exists(GetRootDir() + "/services") {
-		return root_dir + "/services"
-	}
-
-	// in case the of the Globular(.exe) exec
-	if Utility.Exists(root_dir[0:strings.LastIndex(root_dir, "/")] + "/services") {
-		return root_dir[0:strings.LastIndex(root_dir, "/")] + "/services"
-	}
-
-	// in case of service exec
-	if strings.Contains(root_dir, "/services/") {
-		return root_dir[0:strings.LastIndex(root_dir, "/services/")] + "/services"
-	}
-
-	fmt.Println("fail to find services from", root_dir)
-	return ""
-}
-
-// Force service to be read from a specific directory.
-func GetServicesRoot() string {
-	localConfig, err := GetLocalConfig(true)
-	if err == nil {
-		if localConfig["ServicesRoot"] != nil {
-			return localConfig["ServicesRoot"].(string)
-		}
-	}
-	return ""
-}
-
-/**
- * Return where service configuration can be found.
- */
-func GetServicesConfigDir() string {
-
-	dir := filepath.Dir(os.Args[0])
-	dir = strings.ReplaceAll(dir, "\\", "/")
-
-	// first I will get the exec name.
-	execname:=filepath.Base(os.Args[0])
-	
-	if strings.HasPrefix(execname, "Globular"){
-		// if a directory named /services is found in the same directory of the exec Globular 
-		// it means the configurations must resides in configuration directory...
-		if Utility.Exists(dir + "/services"){
-			return GetConfigDir() + "/services"
-		}
-	}else{
-		
-		// if config near the service has priority over config found from other location...
-		if Utility.Exists(dir + "/config.json"){
-			return GetServicesDir()  
-		}
-
-		if Utility.Exists( GetConfigDir() + "/services"){
-			return GetConfigDir() + "/services"
-		}
-	}
-
-	return GetServicesDir()  
 }
 
 // Must be call from Globular exec...
@@ -258,99 +191,6 @@ func GetWebRootDir() string {
 		return "/var/globular/webroot"
 	}
 	return "/globular/webroot"
-}
-
-/**
- * Read token for a given domain.
- */
-func GetToken(mac string) (string, error) {
-
-	path := GetConfigDir() + "/tokens/" + strings.ReplaceAll(mac, ":", "_") + "_token"
-	if !Utility.Exists(path) {
-		return "", errors.New("no token found for domain " + mac + " at path " + path)
-	}
-
-	token, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Println()
-		return "", errors.New("fail to read token at path " + path + " with error: " + err.Error())
-	}
-
-	return string(token), nil
-}
-
-/**
- * Insert an object to an array at a given index
- */
-func insertObject(array []map[string]interface{}, value map[string]interface{}, index int) []map[string]interface{} {
-	return append(array[:index], append([]map[string]interface{}{value}, array[index:]...)...)
-}
-
-func removeObject(array []map[string]interface{}, index int) []map[string]interface{} {
-	return append(array[:index], array[index+1:]...)
-}
-
-func moveObject(array []map[string]interface{}, srcIndex int, dstIndex int) []map[string]interface{} {
-	value := array[srcIndex]
-	return insertObject(removeObject(array, srcIndex), value, dstIndex)
-}
-
-/**
- * Return the services index in a slice.
- */
-func getObjectIndex(value, name string, objects []map[string]interface{}) int {
-	for i := 0; i < len(objects); i++ {
-		if objects[i][name].(string) == value {
-			return i
-		}
-	}
-	return -1
-}
-
-// That function can be call by globular directly.
-func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
-	services, err := GetServicesConfigurations()
-	if err != nil {
-		return nil, err
-	}
-
-	// Now I will order the services in a way required service will start first...
-	servicesNames := make([]string, len(services))
-	for i := 0; i < len(services); i++ {
-		servicesNames[i] = services[i]["Name"].(string)
-	}
-
-	// Now I will move the services below all it dependencie in the array...
-	for i := 0; i < len(servicesNames); i++ {
-		index := getObjectIndex(servicesNames[i], "Name", services)
-		if services[index]["Dependencies"] != nil {
-			dependencies := services[index]["Dependencies"].([]interface{})
-
-			for j := 0; j < len(dependencies); j++ {
-				index_ := getObjectIndex(dependencies[j].(string), "Name", services)
-				if index_ != -1 {
-					if index < index_ {
-						// move the services in the array...
-						services = moveObject(services, index_, index)
-					}
-				}
-			}
-		}
-	}
-
-	// Here I will try to put the configuration service as the first services.
-	for i := 0; i < len(services); i++ {
-		if services[i]["Name"] == "config.ConfigService" {
-			configService := services[i]
-			// remove it from the array
-			services = append(services[:i], services[i+1:]...)
-			// insert it at first element.
-			services = append([]map[string]interface{}{configService}, services...)
-			break
-		}
-	}
-
-	return services, nil
 }
 
 /**
@@ -496,9 +336,6 @@ func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
 	return config, nil
 }
 
-// keep the value in memory
-var config_ map[string]interface{}
-
 /**
  * Return the server local configuration if one exist.
  * if lazy is set to true service will not be set in the configuration.
@@ -533,7 +370,6 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	config["Mac"] = macAddress
 
 	if lazy {
-		config_ = config
 		return config, nil
 	}
 
@@ -724,511 +560,34 @@ func IsPortAvailable(port int, portRange_ string) bool {
 	return false
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Synchronized access functions.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Init the service form the file.
-func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, error) {
-
-	path = strings.ReplaceAll(path, "\\", "/")
-	for isLocked(path) {
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	config, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(config) == 0 {
-		return nil, errors.New("empty configuration found at path " + path)
-	}
-
-	s := make(map[string]interface{})
-	err = json.Unmarshal(config, &s)
-	if err != nil {
-		return nil, err
-	}
-
-	info, _ := os.Stat(path)
-	s["ModTime"] = info.ModTime().Unix()
-
-	localConfig, err := GetLocalConfig(true)
-	if err != nil {
-		return nil, err
-	}
-
-	if s["Protocol"] != nil {
-		// If a configuration file exist It will be use to start services,
-		// otherwise the service configuration file will be use.
-		if s["Name"] != nil {
-
-			// if no id was given I will generate a uuid.
-			if s["Id"] == nil {
-				s["Id"] = Utility.RandomUUID()
-			}
-
-			// Here I will set the proto file path.
-			if s["Proto"] != nil {
-				if !Utility.Exists(s["Proto"].(string)) {
-					files, err := Utility.FindFileByName(serviceDir, strings.Split(s["Name"].(string), ".")[0]+".proto")
-					if err == nil {
-						if len(files) > 0 {
-							s["Proto"] = files[0]
-						}
-					}
-				}
-			}
-
-			// Now the exec path.
-			if s["Path"] != nil {
-				if !Utility.Exists(s["Path"].(string)) {
-					name := s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/")+1:]
-					files, err := Utility.FindFileByName(serviceDir, name)
-					if err == nil {
-						if len(files) > 0 {
-							s["Path"] = files[0]
-						}
-					}
-				}
-			}
-
-			// Keep the configuration path in the object...
-			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/")
-
-			if s["Root"] != nil {
-				if s["Name"] == "file.FileService" {
-					s["Root"] = GetDataDir() + "/files"
-				} else {
-					s["Root"] = GetDataDir()
-				}
-			}
-
-			// Set paremeter fro the globule itself.
-			if len(localConfig["Certificate"].(string)) > 0 && localConfig["Protocol"].(string) == "https" {
-				// set tls file...
-				s["TLS"] = true
-				s["KeyFile"] = GetConfigDir() + "/tls/server.pem"
-				s["CertFile"] = GetConfigDir() + "/tls/server.crt"
-				s["CertAuthorityTrust"] = GetConfigDir() + "/tls/ca.crt"
-
-				if s["CertificateAuthorityBundle"] != nil {
-					s["CertificateAuthorityBundle"] = localConfig["CertificateAuthorityBundle"]
-				}
-
-				if s["Certificate"] != nil {
-					s["Certificate"] = localConfig["Certificate"]
-				}
-			} else {
-				s["TLS"] = false
-				s["KeyFile"] = ""
-				s["CertFile"] = ""
-				s["CertAuthorityTrust"] = ""
-			}
-
-			// Save back the values...
-			s["Domain"], _ = GetDomain()
-			s["Address"], _ = GetAddress()
-			s["Mac"] = localConfig["Mac"]
-
-			// Set the session timeout in minutes (resource has that values.)
-			if s["SessionTimeout"] != nil {
-				s["SessionTimeout"] = localConfig["SessionTimeout"]
-			}
-		}
-	}
-
-	return s, nil
-}
-
-var (
-	// Help to sync file access.
-	saveServiceConfigChan               = make(chan map[string]interface{})
-	getServicesConfigChan               = make(chan map[string]interface{})
-	getServiceConfigurationByIdChan     = make(chan map[string]interface{})
-	getServicesConfigurationsByNameChan = make(chan map[string]interface{})
-	// Help to determine if the process loop is running.
-	isInit bool
-)
-
-func isLocked(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-	isLock := Utility.Exists(lock)
-	if isLock {
-		fmt.Println("file " + path + " is lock")
-	}
-	return Utility.Exists(lock)
-}
-
-func lock(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-	err := Utility.WriteStringToFile(lock, "")
-	if err == nil {
-		return true
-	}
-	return false
-}
-
-func unlock(path string) bool {
-	lock := strings.Replace(path, "json", "lock", -1)
-
-	for Utility.Exists(lock) {
-		time.Sleep(10 * time.Millisecond)
-		os.Remove(lock)
-	}
-
-	return true
-}
-
-// Remove all file lock.
-func removeAllLocks() {
-	locks, err := Utility.FindFileByName(GetServicesConfigDir(), "config.lock")
-	if err == nil {
-		for i := 0; i < len(locks); i++ {
-			os.Remove(locks[i])
-		}
-	}
-
-	locks, err = Utility.FindFileByName(GetConfigDir(), "config.lock")
-	if err == nil {
-		for i := 0; i < len(locks); i++ {
-			os.Remove(locks[i])
-		}
-	}
-}
-
-/**
- * Read all existing configuration and keep it in memory...
- */
-func initConfig() {
-	if isInit {
-		return
-	}
-
-	// get sure all files are unlock
-	removeAllLocks()
-
-	// Create communication channels...
-	isInit = true
-
-	// I will start configuation processing...
-	serviceConfigDir := GetServicesConfigDir()
-	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
-	if err != nil {
-		fmt.Println("fail to find service configurations at at path ", serviceConfigDir, "with error ", err)
-		return
-	}
-
-	
-
-	services := make([]map[string]interface{}, 0)
-
-	// The service dir.
-	serviceDir := GetServicesDir()
-
-	execname := filepath.Base(os.Args[0])
-
-	// I will try to get configuration from services.
-	for i := 0; i < len(files); i++ {
-		path := files[i]
-		
-		//fmt.Println("init service from config at path: ", path)
-		s, err := initServiceConfiguration(path, serviceDir)
-		if err != nil {
-			fmt.Println("fail to initialyse service configuration from file "+path, "with error", err)
-		} else {
-			// save back the file...
-			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
-			s["Process"] = -1
-			s["ProxyProcess"] = -1
-			s["State"] = "stopped"
-
-			services = append(services, s)
-
-			// If the execname is globular I will set the services path from exec found in that path...
-			if strings.HasPrefix(execname, "Globular"){
-				service_name :=  filepath.Base(s["Path"].(string)) 
-				files, err := Utility.FindFileByName(serviceDir, service_name)
-				if err == nil {
-					if len(files) > 0 {
-						s["Path"] = files[0]
-						// I will also save the configuration.
-						jsonStr, err := Utility.ToJson(s)
-						if err == nil{
-							os.WriteFile(path, []byte(jsonStr), 0644)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// start the loop.
-	go accesServiceConfigurationFile(services)
-
-}
-
-// Test if the service configuration has change and if so
-// read it last values to update the service configuration in
-// memory
-func setServiceConfiguration(index int, services []map[string]interface{}) {
-	s := services[index]
-	path := s["ConfigPath"].(string)
-	path = strings.ReplaceAll(path, "\\", "/")
-	if s["ModTime"] == nil {
-		s["ModTime"] = 0
-	}
-	if Utility.Exists(path) {
-		info, _ := os.Stat(path)
-		if Utility.ToInt(s["ModTime"]) < Utility.ToInt(info.ModTime().Unix()) {
-			//fmt.Println(s["Name"], " actual modtime", s["ModTime"], info.ModTime().Unix())
-			serviceDir := GetServicesDir()
-			s_, err := initServiceConfiguration(path, serviceDir)
-			if err == nil {
-				s_["ModTime"] = info.ModTime().Unix()
-				services[index] = s_
-			}
-		}
-	}
-}
-
-// Main loop to read and write configuration.
-func accesServiceConfigurationFile(services []map[string]interface{}) {
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal("NewWatcher failed: ", err)
-	}
-	defer watcher.Close()
-	// register file to watch...
-	for i := 0; i < len(services); i++ {
-		// watch for configuration change
-		err = watcher.Add(services[i]["ConfigPath"].(string))
-		if err != nil {
-			log.Fatal("Add failed:", err)
-		}
-	}
-
-	for {
-		select {
-		case infos := <-saveServiceConfigChan:
-			s := infos["service_config"].(map[string]interface{})
-			path := s["ConfigPath"].(string)
-
-			return_chan := infos["return"].(chan error)
-			// Save it config...
-			jsonStr, err := Utility.ToJson(s)
-			if err != nil {
-				fmt.Println("fail to save service configuration", err)
-				return_chan <- err
-			} else if len(jsonStr) == 0 {
-				return_chan <- errors.New("no configuration to save")
-			} else {
-				for isLocked(path) {
-					time.Sleep(50 * time.Millisecond)
-				}
-				lock(path) // lock the file access
-				err := os.WriteFile(path, []byte(jsonStr), 0644)
-				unlock(path) // unlock the file access
-				if err != nil {
-					fmt.Println("fail to save service configuration.", err)
-					infos["return"].(chan error) <- err
-				}
-				index := -1
-				for i := 0; i < len(services); i++ {
-					if services[i]["Id"] == s["Id"] {
-						index = i
-						break
-					}
-				}
-				if index == -1 {
-					index = len(services)
-					services = append(services, s)
-				}
-
-				services[index]["ModTime"] = int64(0)
-
-				// Set the service...
-				setServiceConfiguration(index, services)
-
-				return_chan <- nil
-			}
-
-		case infos := <-getServicesConfigChan:
-			services_ := make([]map[string]interface{}, 0)
-			for index, _ := range services {
-				setServiceConfiguration(index, services)
-				// Here I will create a detach copy of the map...
-				data, _ := json.Marshal(services[index])
-				s := make(map[string]interface{})
-				json.Unmarshal(data, &s)
-				services_ = append(services_, s)
-			}
-			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": services_}
-
-		case infos := <-getServiceConfigurationByIdChan:
-
-			var s map[string]interface{}
-			var err error
-			id := infos["id"].(string) // can be id or configuration path...
-
-			for i := 0; i < len(services); i++ {
-				// Can be the id, the path or the name (return the first instance of a service with a given name in that case.)
-				if services[i]["Id"].(string) == id || services[i]["Name"].(string) == id || strings.ReplaceAll(services[i]["ConfigPath"].(string), "\\", "/") == id {
-					setServiceConfiguration(i, services)
-					data, _ := json.Marshal(services[i])
-					s = make(map[string]interface{})
-					json.Unmarshal(data, &s)
-					break
-				}
-			}
-
-			if s == nil {
-				fmt.Println("no service found with id " + id)
-				err = errors.New("no service found with id " + id)
-			}
-
-			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"service": s, "error": err}
-
-		case infos := <-getServicesConfigurationsByNameChan:
-			name := infos["name"].(string)
-			var err error
-			services_ := make([]map[string]interface{}, 0)
-			for i := 0; i < len(services); i++ {
-				if services[i]["Name"] == name {
-					setServiceConfiguration(i, services)
-					data, _ := json.Marshal(services[i])
-					s := make(map[string]interface{})
-					json.Unmarshal(data, &s)
-
-					services_ = append(services_, s)
-				}
-			}
-
-			if len(services_) == 0 {
-				err = errors.New("no services found with name " + name)
-			}
-			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": services_, "error": err}
-
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return
-			}
-			if event.Op == fsnotify.Write {
-				data, err := os.ReadFile(event.Name)
-				s := make(map[string]interface{})
-				err = json.Unmarshal(data, &s)
-				if err == nil {
-					// set the service values found from the file.
-					for i := 0; i < len(services); i++ {
-						if services[i]["Id"] == s["Id"] {
-							services[i] = s
-							// Here I will send service change event.
-
-							break
-						}
-					}
-
-				}
-			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return
-			}
-			fmt.Println("error:", err)
-		}
-
-	}
-}
+///////////////////////////////////////////////////////////////////////////////////////////
+// Services configurations
+///////////////////////////////////////////////////////////////////////////////////////////
 
 /**
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
-
-	initConfig()
-
-	infos := make(map[string]interface{})
-	infos["return"] = make(chan map[string]interface{})
-
-	// Wait\
-	getServicesConfigChan <- infos
-
-	results_chan := infos["return"].(chan map[string]interface{})
-
-	results := <-results_chan
-
-	if results["error"] != nil {
-		return nil, results["error"].(error)
-	}
-
-	return results["services"].([]map[string]interface{}), nil
+	return nil, errors.New("not implemented")
 }
 
 /**
  * Save a service configuration.
  */
 func SaveServiceConfiguration(s map[string]interface{}) error {
-
-	initConfig()
-
-	infos := make(map[string]interface{})
-	data, _ := json.Marshal(s)
-	s_ := make(map[string]interface{})
-	json.Unmarshal(data, &s_)
-
-	infos["service_config"] = s_
-	infos["return"] = make(chan error)
-
-	// set the info in the channel
-	saveServiceConfigChan <- infos
-
-	return <-infos["return"].(chan error)
+	return errors.New("not implemented")
 }
 
 /**
  * Return the list of service that match a given name.
  */
 func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
-
-	initConfig()
-
-	infos := make(map[string]interface{})
-	infos["name"] = name
-	infos["return"] = make(chan map[string]interface{})
-
-	// Wait
-	getServicesConfigurationsByNameChan <- infos
-
-	results_chan := infos["return"].(chan map[string]interface{})
-	results := <-results_chan
-
-	if results["error"] != nil {
-		return nil, results["error"].(error)
-	}
-
-	return results["services"].([]map[string]interface{}), nil
+	return nil, errors.New("not implemented")
 }
 
 /**
  * Return a service with a given configuration id.
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
-	
-	initConfig()
-	
-	infos := make(map[string]interface{})
-	infos["id"] = id
-	infos["return"] = make(chan map[string]interface{})
-
-	// Wait
-	getServiceConfigurationByIdChan <- infos
-	results_chan := infos["return"].(chan map[string]interface{})
-	results := <-results_chan
-	if results["error"] != nil {
-		return nil, results["error"].(error)
-	}
-
-	return results["service"].(map[string]interface{}), nil
+	return nil, errors.New("not implemented")
 }

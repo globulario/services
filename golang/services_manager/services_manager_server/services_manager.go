@@ -16,6 +16,7 @@ import (
 	"github.com/emicklei/proto"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/process"
 	"github.com/globulario/services/golang/repository/repository_client"
@@ -23,8 +24,8 @@ import (
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -51,6 +52,14 @@ func (server *server) UninstallService(ctx context.Context, rqst *services_manag
 	}, nil
 }
 
+func GetRepositoryClient(domain string) (*repository_client.Repository_Service_Client, error) {
+	client, err := globular_client.GetClient(domain, "repository.PackageRepository", "repository_client.NewRepositoryService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*repository_client.Repository_Service_Client), nil
+}
+
 // Install/Update a service on globular instance.
 // file postinst, postrm, preinst, postinst
 func (server *server) installService(token string, descriptor *resourcepb.PackageDescriptor) error {
@@ -60,7 +69,7 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 	}
 
 	for i := 0; i < len(descriptor.Repositories); i++ {
-		services_repository, err := repository_client.NewRepositoryService_Client(descriptor.Repositories[i], "repository.PackageRepository")
+		services_repository, err := GetRepositoryClient(descriptor.Repositories[i])
 		if err != nil {
 			return err
 		}
@@ -178,6 +187,14 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 	return nil
 }
 
+func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*resource_client.Resource_Client), nil
+}
+
 // Install/Update a service on globular instance.
 func (server *server) InstallService(ctx context.Context, rqst *services_managerpb.InstallServiceRequest) (*services_managerpb.InstallServiceResponse, error) {
 	var token string
@@ -189,7 +206,7 @@ func (server *server) InstallService(ctx context.Context, rqst *services_manager
 	}
 
 	// Connect to the dicovery services
-	resource_client_, err := resource_client.NewResourceService_Client(rqst.DicorveryId, "resource.ResourceService")
+	resource_client_, err := GetResourceClient(rqst.DicorveryId)
 
 	if err != nil {
 		return nil, status.Errorf(

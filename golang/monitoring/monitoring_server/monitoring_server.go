@@ -120,15 +120,6 @@ func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
 }
 
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
-}
-
 // The current service state
 func (svr *server) GetState() string {
 	return svr.State
@@ -957,7 +948,7 @@ func main() {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
 	}
 	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1]) // The second argument must be the port number
+		s_impl.Port, _ = strconv.Atoi(os.Args[1])
 	}
 
 	// Register the echo services

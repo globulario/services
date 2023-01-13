@@ -8,6 +8,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
@@ -109,11 +110,11 @@ func (client *Repository_Service_Client) SetAddress(address string) {
 }
 
 func (client *Repository_Service_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
-	return client_.GetServiceConfiguration(id)
+	return client_.(*config_client.Config_Client).GetServiceConfiguration(id)
 }
 
 func (client *Repository_Service_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {
@@ -290,6 +291,15 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 	return bundle, err
 }
 
+// ////////////////////// Resource Client ////////////////////////////////////////////
+func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*resource_client.Resource_Client), nil
+}
+
 /**
  * Upload a service bundle.
  */
@@ -300,7 +310,7 @@ func (client *Repository_Service_Client) UploadBundle(token, discoveryId, servic
 	bundle.Plaform = platform
 
 	// Here I will find the service descriptor from the given information.
-	resource_client_, err := resource_client.NewResourceService_Client(client.address, "resource.ResourceService")
+	resource_client_, err := GetResourceClient(client.address)
 	if err != nil {
 		resource_client_ = nil
 		return -1, err
@@ -390,6 +400,26 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 }
 
 /**
+ * Get the rbac client.
+ */
+ func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+	client, err := globular_client.GetClient(domain, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*rbac_client.Rbac_Client), nil
+}
+
+func GetEventClient(domain string) (*event_client.Event_Client, error) {
+	client, err := globular_client.GetClient(domain, "event.EventService", "event_client.NewEventService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*event_client.Event_Client), nil
+}
+
+
+/**
  *  Create the application bundle and push it on the server
  */
 func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, domain, name, version string) (int, error) {
@@ -413,7 +443,7 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 		}
 	}
 
-	resource_client_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+	resource_client_, err := GetResourceClient(domain)
 	if err != nil {
 		return -1, err
 	}
@@ -435,14 +465,13 @@ func (client *Repository_Service_Client) UploadApplicationPackage(user, organiza
 
 	defer os.RemoveAll(packagePath)
 
-	rbac_client_, err := rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+	rbac_client_, err := GetRbacClient(domain)
 	if err != nil {
 		return -1, err
 	}
 
 	// If the version has change I will notify current users and undate the applications.
-
-	event_client_, err := event_client.NewEventService_Client(domain, "event.EventService")
+	event_client_, err := GetEventClient(domain)
 	if err != nil {
 		return -1, err
 	}
@@ -615,7 +644,7 @@ func (client *Repository_Service_Client) UploadServicePackage(user string, organ
 		return err
 	}
 
-	rbac_client_, err := rbac_client.NewRbacService_Client(domain, "rbac.RbacService")
+	rbac_client_, err := GetRbacClient(domain)
 	if err != nil {
 		return err
 	}

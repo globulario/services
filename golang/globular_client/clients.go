@@ -23,6 +23,14 @@ var (
 	tokensPath = config.GetConfigDir() + "/tokens"
 )
 
+
+
+// Factory method.
+func GetClient(address, name, constructor  string) (Client, error) {
+
+	return nil, errors.New("no implemented")
+}
+
 // The client service interface.
 type Client interface {
 

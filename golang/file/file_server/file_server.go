@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/StalkR/httpcache"
 	"github.com/StalkR/imdb"
 
@@ -34,6 +35,7 @@ import (
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbac_client"
@@ -190,15 +192,6 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The current service state
@@ -1871,108 +1864,41 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
  * Return the event service.
  */
 func getEventClient() (*event_client.Event_Client, error) {
-
-	// validate the port has not change...
-	if event_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(event_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != event_client_.GetPort() {
-				event_client_ = nil // force the client to reconnect...
-			}
-		}
+	address, _ := config.GetAddress()
+	client, err := globular_client.GetClient(address, "event.EventService", "event_client.NewEventService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	if event_client_ == nil {
-		address, _ := config.GetAddress()
-		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return event_client_, nil
+	return client.(*event_client.Event_Client), nil
 }
 
 /**
  * Return an instance of the title client.
  */
 func getTitleClient() (*title_client.Title_Client, error) {
-
-	// validate the port has not change...
-	if title_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(title_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != title_client_.GetPort() {
-				title_client_ = nil // force the client to reconnect...
-			}
-		}
+	address, _ := config.GetAddress()
+	client, err := globular_client.GetClient(address, "title.TitleService", "title_client.NewTitleService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	if title_client_ == nil {
-		address, _ := config.GetAddress()
-		title_client_, err = title_client.NewTitleService_Client(address, "title.TitleService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return title_client_, nil
+	return client.(*title_client.Title_Client), nil
 }
 
 func getRbacClient() (*rbac_client.Rbac_Client, error) {
-	// validate the port has not change...
-	if rbac_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(rbac_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != rbac_client_.GetPort() {
-				rbac_client_ = nil // force the client to reconnect...
-			}
-		}
+	address, _ := config.GetAddress()
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	if rbac_client_ == nil {
-		address, _ := config.GetAddress()
-		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return rbac_client_, nil
+	return client.(*rbac_client.Rbac_Client), nil
 }
 
-func getAuticationClient() (*authentication_client.Authentication_Client, error) {
-	// validate the port has not change...
-	if authentication_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(authentication_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != authentication_client_.GetPort() {
-				authentication_client_ = nil // force the client to reconnect...
-			}
-		}
+func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
+	client, err := globular_client.GetClient(address, "authentication.AuthenticationService", "authentication_client.NewAuthenticationService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	if authentication_client_ == nil {
-		address, _ := config.GetAddress()
-		authentication_client_, err = authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return authentication_client_, nil
+	return client.(*authentication_client.Authentication_Client), nil
 }
 
 func (server *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
@@ -5061,7 +4987,7 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 				// here I will validate the token...
 				_, err = security.ValidateToken(token)
 				if err != nil {
-					client, err := authentication_client.NewAuthenticationService_Client(domain, "authentication.AuthenticationService")
+					client, err := getAuticationClient(domain)
 					if err != nil {
 						return err
 					}
@@ -5567,12 +5493,8 @@ func main() {
 	}
 
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
-
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

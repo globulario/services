@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
@@ -141,15 +142,6 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The current service state
@@ -706,6 +698,14 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 	return nil
 }
 
+func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "persistence_client.NewPersistenceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*persistence_client.Persistence_Client), nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // IMAP functions.
 ////////////////////////////////////////////////////////////////////////////////
@@ -754,10 +754,7 @@ func main() {
 	s_impl.Persistence_address, _ = config.GetAddress() // default set to the same server...
 
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
 
 	// Here I will retreive the list of connections from file if there are some...
@@ -780,7 +777,7 @@ func main() {
 		}
 
 		// The backend connection.
-		store, err := persistence_client.NewPersistenceService_Client(s_impl.Persistence_address, "persistence.PersistenceService")
+		store, err := GetPersistenceClient(s_impl.Persistence_address)
 		if err != nil {
 			return
 		}

@@ -8,6 +8,7 @@ import (
 	"github.com/globulario/services/golang/admin/admin_client"
 	"github.com/globulario/services/golang/admin/adminpb"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbac_client"
@@ -58,7 +59,6 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
-	ConfigPath      string
 	LastError       string
 	ModTime         int64
 	State           string
@@ -193,15 +193,6 @@ func (svr *server) GetDiscoveries() []string {
 }
 func (svr *server) SetDiscoveries(discoveries []string) {
 	svr.Discoveries = discoveries
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The last error
@@ -388,7 +379,7 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 func (svr *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewadminService_Client", admin_client.NewAdminService_Client)
+	Utility.RegisterFunction("NewAdminService_Client", admin_client.NewAdminService_Client)
 
 	// Get the configuration path.
 	err := globular.InitService(svr)
@@ -430,16 +421,11 @@ var (
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	var err error
-	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
-		if err != nil {
-
-			return nil, err
-		}
-
+	client, err := globular_client.GetClient(domain, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	if err != nil {
+		return nil, err
 	}
-	return rbac_client_, nil
+	return client.(*rbac_client.Rbac_Client), nil
 }
 
 func (svr *server) setActionResourcesPermissions(permissions map[string]interface{}) error {
@@ -489,10 +475,7 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

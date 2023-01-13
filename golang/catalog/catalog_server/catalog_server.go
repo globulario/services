@@ -13,6 +13,7 @@ import (
 	"github.com/globulario/services/golang/catalog/catalogpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/persistence/persistence_client"
@@ -61,7 +62,6 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
-	ConfigPath      string
 	State           string
 	LastError       string
 
@@ -115,15 +115,6 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The current service state
@@ -388,6 +379,22 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 	svr.Permissions = permissions
 }
 
+func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "persistence_client.NewPersistenceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*persistence_client.Persistence_Client), nil
+}
+
+func GetEventClient(domain string) (*event_client.Event_Client, error) {
+	client, err := globular_client.GetClient(domain, "event.EventService", "event_client.NewEventService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*event_client.Event_Client), nil
+}
+
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
 
@@ -410,7 +417,7 @@ func (svr *server) Init() error {
 	if svr.Services["Persistence"] != nil {
 		persistence_service := svr.Services["Persistence"].(map[string]interface{})
 		address := persistence_service["Address"].(string)
-		svr.persistenceClient, err = persistence_client.NewPersistenceService_Client(address, "persistence.PersistenceService")
+		svr.persistenceClient, err = GetPersistenceClient(address)
 		if err != nil {
 			log.Println("fail to connect to persistence service ", err)
 		}
@@ -419,7 +426,7 @@ func (svr *server) Init() error {
 	if svr.Services["Event"] != nil {
 		event_service := svr.Services["Event"].(map[string]interface{})
 		address := event_service["Address"].(string)
-		svr.eventClient, err = event_client.NewEventService_Client(address, "event.EventService")
+		svr.eventClient, err =  GetEventClient(address)
 		if err != nil {
 			log.Println("fail to connect to event service ", err)
 		}
@@ -2512,11 +2519,9 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

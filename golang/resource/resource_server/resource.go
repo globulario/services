@@ -14,6 +14,7 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
@@ -1886,12 +1887,22 @@ func getLocalPeer() *resourcepb.Peer {
 	return local_peer_
 }
 
+// ////////////////////// Resource Client ////////////////////////////////////////////
+func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*resource_client.Resource_Client), nil
+}
+
+
 // Register the actual peer (the one that running the resource server) to the one
 // running at domain.
 func (resource_server *server) registerPeer(token, address string) (*resourcepb.Peer, string, error) {
 	// Connect to remote server and call Register peer on it...
 	fmt.Println("connect to ressource client at address: ", address)
-	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	client, err := GetResourceClient(address)
 	if err != nil {
 		fmt.Println("1896 fail to connect with client with error ", err)
 		return nil, "", err
@@ -2387,7 +2398,7 @@ func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream re
 
 func (resource_server *server) deletePeer(token, address string) error {
 	// Connect to remote server and call Register peer on it...
-	client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+	client, err := GetResourceClient(address)
 	if err != nil {
 		return err
 	}
@@ -3583,7 +3594,7 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 			domain := strings.Split(recipient, "@")[1]
 			localDomain, _ := config.GetDomain()
 			if localDomain != domain {
-				client, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+				client, err := GetResourceClient(domain)
 				if err != nil {
 					return nil, status.Errorf(
 						codes.Internal,

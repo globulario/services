@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
 	"github.com/globulario/services/golang/resource/resource_client"
@@ -127,15 +127,6 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The current service state
@@ -480,30 +471,11 @@ func (server *server) connect(id string, userId string, pwd string) (*LDAP.Conn,
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	// validate the port has not change...
-	if resource_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(resource_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != resource_client_.GetPort() {
-				resource_client_ = nil // force the client to reconnect...
-			}
-		}
-	}
-
-	var err error
-	if resource_client_ != nil {
-		return resource_client_, nil
-	}
-
-	resource_client_, err = resource_client.NewResourceService_Client(svr.Address, "resource.ResourceService")
+	client, err := globular_client.GetClient(svr.Address, "resource.ResourceService", "resource_client.NewResourceService_Client")
 	if err != nil {
-		resource_client_ = nil
 		return nil, err
 	}
-
-	return resource_client_, nil
+	return client.(*resource_client.Resource_Client), nil
 }
 
 // Create an empty group.
@@ -964,10 +936,7 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

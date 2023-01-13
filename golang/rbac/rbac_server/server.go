@@ -11,6 +11,7 @@ import (
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
@@ -67,7 +68,6 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
-	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -124,15 +124,6 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
-}
-
-// The path of the configuration.
-func (svr *server) GetConfigurationPath() string {
-	return svr.ConfigPath
-}
-
-func (svr *server) SetConfigurationPath(path string) {
-	svr.ConfigPath = path
 }
 
 // The current service state
@@ -401,28 +392,11 @@ var (
 ////////////////////////////////////////////////////////////////////////////////////////
 
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
-	// validate the port has not change...
-	if event_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(event_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != event_client_.GetPort() {
-				event_client_ = nil // force the client to reconnect...
-			}
-		}
+	client, err := globular_client.GetClient(server.Address, "event.EventService", "event_client.NewEventService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	if event_client_ == nil {
-		address, _ := config.GetAddress()
-		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return event_client_, nil
+	return client.(*event_client.Event_Client), nil
 }
 
 func (server *server) publish(event string, data []byte) error {
@@ -441,28 +415,11 @@ func (server *server) publish(event string, data []byte) error {
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	// validate the port has not change...
-	if log_client_ != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(log_client_.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != log_client_.GetPort() {
-				log_client_ = nil // force the client to reconnect...
-			}
-		}
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	var err error
-	if log_client_ == nil {
-		address, _ := config.GetAddress()
-		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
-		if err != nil {
-			return nil, err
-		}
-
-	}
-
-	return log_client_, nil
+	return client.(*log_client.Log_Client), nil
 }
 func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
 	log_client_, err := server.GetLogClient()
@@ -483,32 +440,14 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
-func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	// validate the port has not change...
-	if resourceClient != nil {
-		// here I will validate the port is the same.
-		config, err := config.GetServiceConfigurationById(resourceClient.GetId())
-		if err == nil && config != nil {
-			port := Utility.ToInt(config["Port"])
-			if port != resourceClient.GetPort() {
-				resourceClient = nil // force the client to reconnect...
-			}
-		}
-	}
-
-	var err error
-	if resourceClient != nil {
-		return resourceClient, nil
-	}
-	address, _ := config.GetAddress()
-	resourceClient, err = resource_client.NewResourceService_Client(address, "resource.ResourceService")
+func (server *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "resource_client.NewResourceService_Client")
 	if err != nil {
-		resourceClient = nil
 		return nil, err
 	}
-
-	return resourceClient, nil
+	return client.(*resource_client.Resource_Client), nil
 }
+
 
 /**
  * Return an application with a given id
@@ -528,7 +467,7 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		resource_, err := server.getResourceClient(domain)
 		if err != nil {
 			return nil, err
 		}
@@ -542,7 +481,7 @@ func (server *server) getAccount(accountId string) (*resourcepb.Account, error) 
 		return account, nil
 
 	} else {
-		resourceClient, err := server.getResourceClient()
+		resourceClient, err := server.getResourceClient(server.Address)
 		if err != nil {
 			fmt.Println("fail to get account ", accountId)
 			return nil, err
@@ -581,7 +520,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the group from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		resource_, err := server.getResourceClient(domain)
 		if err != nil {
 			return nil, err
 		}
@@ -595,7 +534,7 @@ func (server *server) getGroup(groupId string) (*resourcepb.Group, error) {
 		return groups[0], nil
 
 	} else {
-		resourceClient, err := server.getResourceClient()
+		resourceClient, err := server.getResourceClient(domain)
 		if err != nil {
 			return nil, err
 		}
@@ -647,7 +586,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		resource_, err := server.getResourceClient(domain)
 		if err != nil {
 			return nil, err
 		}
@@ -661,7 +600,7 @@ func (server *server) getApplication(applicationId string) (*resourcepb.Applicat
 		return applications[0], nil
 
 	} else {
-		resourceClient, err := server.getResourceClient()
+		resourceClient, err := server.getResourceClient(localDomain)
 		if err != nil {
 			return nil, err
 		}
@@ -694,7 +633,8 @@ func (server *server) applicationExist(id string) (bool, string) {
  * Return a peer with a given id
  */
 func (server *server) getPeer(peerId string) (*resourcepb.Peer, error) {
-	resourceClient, err := server.getResourceClient()
+	address, _ := config.GetAddress()
+	resourceClient, err := server.getResourceClient(address)
 	if err != nil {
 		return nil, err
 	}
@@ -741,7 +681,7 @@ func (server *server) getOrganization(organizationId string) (*resourcepb.Organi
 	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the account from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		resource_, err := server.getResourceClient(domain)
 		if err != nil {
 			return nil, err
 		}
@@ -756,7 +696,7 @@ func (server *server) getOrganization(organizationId string) (*resourcepb.Organi
 
 	} else {
 
-		resourceClient, err := server.getResourceClient()
+		resourceClient, err := server.getResourceClient(localDomain)
 		if err != nil {
 			return nil, err
 		}
@@ -806,7 +746,7 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 	if localDomain != domain && len(domain) > 0 {
 
 		// so here I will get the role from it domain resource manager.
-		resource_, err := resource_client.NewResourceService_Client(domain, "resource.ResourceService")
+		resource_, err := server.getResourceClient(domain)
 		if err != nil {
 			return nil, err
 		}
@@ -820,7 +760,7 @@ func (server *server) getRole(roleId string) (*resourcepb.Role, error) {
 		return roles[0], nil
 
 	} else {
-		resourceClient, err := server.getResourceClient()
+		resourceClient, err := server.getResourceClient(localDomain)
 		if err != nil {
 			return nil, err
 		}
@@ -866,7 +806,7 @@ func (server *server) SetPermissions(permissions []interface{}) {
 func (server *server) Init() error {
 
 	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewrbacService_Client", rbac_client.NewRbacService_Client)
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
 
 	err := globular.InitService(server)
 	if err != nil {
@@ -930,10 +870,7 @@ func main() {
 	s_impl.KeepAlive = true
 
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1] // The second argument must be the port number
-	} else if len(os.Args) == 3 {
-		s_impl.Id = os.Args[1]         // The second argument must be the port number
-		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+		s_impl.Id = os.Args[1]
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

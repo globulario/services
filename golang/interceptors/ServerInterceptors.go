@@ -51,61 +51,43 @@ var (
 )
 
 func GetLogClient(address string) (*log_client.Log_Client, error) {
-	var err error
-	if log_client_ == nil {
-		log_client_, err = log_client.NewLogService_Client(address, "log.LogService")
-		if err != nil {
-			return nil, err
-		}
+	client, err := globular_client.GetClient(address, "log.LogService", "log_client.NewLogService_Client")
+	if err != nil {
+		return nil, err
 	}
-
-	return log_client_, nil
+	return client.(*log_client.Log_Client), nil
 }
 
 /**
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	var err error
-	if rbac_client_ == nil {
-		rbac_client_, err = rbac_client.NewRbacService_Client(address, "rbac.RbacService")
-		if err != nil {
-			return nil, err
-		}
-
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	if err != nil {
+		return nil, err
 	}
-	return rbac_client_, nil
+	return client.(*rbac_client.Rbac_Client), nil
 }
 
 /**
  * Get a client
  */
 func getClient(name, address string) (globular_client.Client, error) {
-	id := Utility.GenerateUUID(name + "|" + address)
-
-	// Here I get existing client if it exist...
-	val, ok := clients.Load(id)
-	if ok {
-		return val.(globular_client.Client), nil
-	}
-
 	if name == "persistence.PersistenceService" {
-		client, err := persistence_client.NewPersistenceService_Client(address, name)
+		client, err := globular_client.GetClient(address, "persistence.PersistenceService", "persistence_client.NewPersistenceService_Client")
 		if err != nil {
 			return nil, err
 		}
-		clients.Store(id, client)
-		return client, nil
-	} else if name == "resource.ResourceService" {
-		client, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
-		if err != nil {
-			return nil, err
-		}
-		clients.Store(id, client)
-		// simply redirect the rquest the the good address and return the result to the caller...
-		return client, nil
-	}
+		return client.(*persistence_client.Persistence_Client), nil
 
+	} else if name == "resource.ResourceService" {
+		client, err := globular_client.GetClient(address, "resource.ResourceService", "resource_client.NewResourceService_Client")
+		if err != nil {
+			return nil, err
+		}
+		return client.(*resource_client.Resource_Client), nil
+	}
+	
 	return nil, errors.New("no service register with name " + name + " was found at address " + address)
 }
 

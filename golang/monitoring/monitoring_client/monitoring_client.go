@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/globulario/services/golang/config/config_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
 	"github.com/globulario/services/golang/security"
@@ -94,11 +95,11 @@ func (client *Monitoring_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Monitoring_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := config_client.NewConfigService_Client(address, "config.ConfigService")
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
-	return client_.GetServiceConfiguration(id)
+	return client_.(*config_client.Config_Client).GetServiceConfiguration(id)
 }
 
 func (client *Monitoring_Client) Invoke(method string, rqst interface{}, ctx context.Context) (interface{}, error) {

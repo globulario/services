@@ -9,17 +9,17 @@ import (
 	"time"
 
 	"io/ioutil"
-	
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/authentication/authentication_client"
 	"github.com/globulario/services/golang/authentication/authenticationpb"
 	"github.com/globulario/services/golang/config"
+	config_ "github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
-	config_ "github.com/globulario/services/golang/config"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -417,7 +417,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 			}
 			// set back the password.
 			// the old password can be left blank if the token was generated for sa.
-			token, err := config.GetToken(server.Mac)
+			token, err := security.GetLocalToken(server.Mac)
 			if err != nil {
 				return "", err
 			}
@@ -470,6 +470,23 @@ func (server *server) processFiles() {
 
 }
 
+func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*resource_client.Resource_Client), nil
+}
+
+func GetAuthenticationClient(domain string) (*authentication_client.Authentication_Client, error) {
+	client, err := globular_client.GetClient(domain, "authentication.AuthenticationService", "authentication_client.NewAuthenticationService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*authentication_client.Authentication_Client), nil
+}
+
+
 //* Authenticate a user *
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 
@@ -510,13 +527,13 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 				} else {
 					address += ":" + Utility.ToString(peer.PortHttp)
 				}
-				resource_client_, err := resource_client.NewResourceService_Client(address, "resource.ResourceService")
+				resource_client_, err := GetResourceClient(address)
 				if err == nil {
 					defer resource_client_.Close()
 					account, err := resource_client_.GetAccount(rqst.Name)
 					if err == nil {
 						// an account was found with that name...
-						authentication_client_, err := authentication_client.NewAuthenticationService_Client(address, "authentication.AuthenticationService")
+						authentication_client_, err := GetAuthenticationClient(address)
 						if err == nil {
 							defer authentication_client_.Close()
 							tokenString, err := authentication_client_.Authenticate(account.Id, rqst.Password)
