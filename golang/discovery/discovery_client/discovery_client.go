@@ -80,12 +80,12 @@ func NewDiscoveryService_Client(address string, id string) (*Dicovery_Client, er
 	return client, nil
 }
 
-func (client *Dicovery_Client) Reconnect () error{
+func (client *Dicovery_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = discoverypb.NewPackageDiscoveryClient(client.cc)
@@ -99,7 +99,8 @@ func (client *Dicovery_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Dicovery_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +248,7 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 	if len(configs) == 0 {
 		return errors.New("no configuration file was found")
 	}
-	
+
 	s := make(map[string]interface{})
 	data, err := ioutil.ReadFile(configs[0])
 	if err != nil {
@@ -265,30 +266,30 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 			keywords = append(keywords, s["Keywords"].([]interface{})[i].(string))
 		}
 	}
-/*
-	if s["Repositories"] == nil {
-		s["Repositories"] = []interface{}{domain}
-	}
+	/*
+		if s["Repositories"] == nil {
+			s["Repositories"] = []interface{}{domain}
+		}
 
-	repositories := s["Repositories"].([]interface{})
-	if len(repositories) == 0 {
-		repositories = []interface{}{"localhost"}
-	}
+		repositories := s["Repositories"].([]interface{})
+		if len(repositories) == 0 {
+			repositories = []interface{}{"localhost"}
+		}
 
-	if s["Discoveries"] == nil {
-		return errors.New("no discovery was set on that server")
-	}
-*/
+		if s["Discoveries"] == nil {
+			return errors.New("no discovery was set on that server")
+		}
+	*/
 
 	discoveries := []interface{}{domain}
 	repositories := []interface{}{domain}
 
 	if len(token) > 0 {
 		claims, _ := security.ValidateToken(token)
-		if !strings.Contains(user, "@"){
-			user += "@" +claims.UserDomain
+		if !strings.Contains(user, "@") {
+			user += "@" + claims.UserDomain
 		}
-	} 
+	}
 
 	for i := 0; i < len(discoveries); i++ {
 		rqst := new(discoverypb.PublishServiceRequest)
@@ -330,11 +331,11 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 	// TODO upload the package and publish the application after see old admin client code bundle from the path...
 	if len(token) > 0 {
 		claims, _ := security.ValidateToken(token)
-		
-		if !strings.Contains(user, "@"){
+
+		if !strings.Contains(user, "@") {
 			user += "@" + claims.UserDomain
 		}
-	} 
+	}
 
 	rqst := &discoverypb.PublishApplicationRequest{
 		User:         user,
@@ -369,8 +370,6 @@ func (client *Dicovery_Client) PublishApplication(token, user, organization, pat
 	if err != nil {
 		return err
 	}
-
-
 
 	return err
 }

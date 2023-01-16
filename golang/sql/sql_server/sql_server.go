@@ -18,9 +18,9 @@ import (
 	"runtime"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/sql/sql_client"
 	"github.com/globulario/services/golang/sql/sqlpb"
 
 	iconv "github.com/djimenez/iconv-go"
@@ -51,9 +51,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	// The default domain
-	domain string = "localhost"
 )
 
 // Keep connection information here.
@@ -156,12 +153,21 @@ type server struct {
 	LastError          string
 	ModTime            int64
 	State              string
-
+	ConfigPath         string
 	// The grpc server.
 	grpcServer *grpc.Server
 
 	// The map of connection...
 	Connections map[string]connection
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -453,8 +459,6 @@ func (sql_server *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (sql_server *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewSqlService_Client", sql_client.NewSqlService_Client)
 	err := globular.InitService(sql_server)
 	if err != nil {
 		return err
@@ -904,8 +908,10 @@ func main() {
 	s_impl.Proto = sqlpb.File_sql_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
+	s_impl.Path = os.Args[0]
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	// TODO set it from the program arguments...
 	s_impl.AllowAllOrigins = allow_all_origins
@@ -920,8 +926,12 @@ func main() {
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
 
+	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

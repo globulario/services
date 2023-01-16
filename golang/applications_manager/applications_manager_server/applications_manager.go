@@ -157,18 +157,20 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 	return errors.New("no application pacakage found with path " + path)
 }
 
-//////////////////////// Resource Client ////////////////////////////////////////////
+// ////////////////////// Resource Client ////////////////////////////////////////////
 func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*resource_client.Resource_Client), nil
 }
 
-//////////////////////// Repository Client ////////////////////////////////////////////
+// ////////////////////// Repository Client ////////////////////////////////////////////
 func GetRepositoryClient(domain string) (*repository_client.Repository_Service_Client, error) {
-	client, err := globular_client.GetClient(domain, "repository.PackageRepository", "repository_client.NewRepositoryService_Client")
+	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
+	client, err := globular_client.GetClient(domain, "repository.PackageRepository", "NewRepositoryService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -372,8 +374,6 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 
 	return err
 }
-
-
 
 /**
  * Send a application notification.

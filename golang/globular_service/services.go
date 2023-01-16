@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -25,13 +26,13 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/event/event_client"
-	"github.com/globulario/services/golang/globular_client"
 	"github.com/improbable-eng/grpc-web/go/grpcweb"
 	"github.com/kardianos/osext"
 	"github.com/soheilhy/cmux"
 	"golang.org/x/sync/errgroup"
 
 	//"github.com/globulario/services/golang/config"
+	"github.com/fsnotify/fsnotify"
 	"github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
@@ -262,6 +263,10 @@ type Service interface {
 	GetState() string
 	SetState(string)
 
+	// The path of the configuration.
+	GetConfigurationPath() string
+	SetConfigurationPath(string)
+
 	// The last error
 	GetLastError() string
 	SetLastError(string)
@@ -377,11 +382,51 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-
-	// keep track on the exec path in the service itself.
+	
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
+
 	s.SetPath(execPath)
+	if len(os.Args) == 3 {
+		s.SetId(os.Args[1])
+		s.SetConfigurationPath(strings.ReplaceAll(os.Args[2], "\\", "/"))
+	} else if len(os.Args) == 2 {
+		s.SetId(os.Args[1])
+	} else if len(os.Args) == 1 {
+		// Now I will set the path where the configuation will be save in that case.
+		dir, _ := osext.ExecutableFolder()
+		path := strings.ReplaceAll(dir, "\\", "/")
+		s.SetConfigurationPath(path + "/config.json")
+	}
+
+	if len(s.GetConfigurationPath()) == 0 {
+		fmt.Println("fail to retreive configuration for service " + s.GetId())
+		return errors.New("fail to retreive configuration for service " + s.GetId())
+	}
+
+	// if the service configuration does not exist.
+	if Utility.Exists(s.GetConfigurationPath()) {
+		// Here I will get the configuration from the Configuration server...
+		config_, err := config_client.GetServiceConfigurationById(s.GetConfigurationPath())
+		if err != nil {
+			fmt.Println("fail to retreive configuration at path ", s.GetConfigurationPath(), err)
+			return err
+		}
+
+		// If no configuration was found from the configuration server i will get it from the configuration file.
+		str, err := json.Marshal(config_)
+		if err != nil {
+			fmt.Println("fail to marshal configuration at path ", s.GetConfigurationPath(), err)
+			return err
+		}
+
+		err = json.Unmarshal(str, &s)
+		if err != nil {
+			return err
+		}
+	} else {
+		s.SetId(Utility.RandomUUID())
+	}
 
 	// set contextual values.
 	address, _ := config.GetAddress()
@@ -391,17 +436,17 @@ func InitService(s Service) error {
 	s.SetMac(macAddress)
 	s.SetAddress(address)
 	s.SetDomain(domain)
+	
 
 	// here the service is runing...
 	s.SetState("running")
 	s.SetProcess(os.Getpid())
 
 	// Now the platform.
-	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
+	s.SetPlatform(runtime.GOOS + "_" +runtime.GOARCH) 
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
-
 	if len(os.Args) < 3 {
 		SaveService(s)
 	}
@@ -419,7 +464,6 @@ func SaveService(s Service) error {
 	if err != nil {
 		return err
 	}
-	
 	return config_client.SaveServiceConfiguration(config_)
 }
 
@@ -593,16 +637,21 @@ func InitGrpcServer(s Service, unaryInterceptor grpc.UnaryServerInterceptor, str
 	return server, nil
 }
 
+var event_client_ *event_client.Event_Client
+
 func getEventClient() (*event_client.Event_Client, error) {
-	address, err := config.GetAddress()
-	if err != nil {
-		return nil, err
+	if event_client_ == nil {
+		address, err := config.GetAddress()
+		if err != nil {
+			return nil, err
+		}
+		event_client_, err = event_client.NewEventService_Client(address, "event.EventService")
+		if err != nil {
+			return nil, err
+		}
 	}
-	client, err := globular_client.GetClient(address, "event.EventService", "event_client.NewEventService_Client")
-	if err != nil {
-		return nil, err
-	}
-	return client.(*event_client.Event_Client), nil
+
+	return event_client_, nil
 }
 
 func StartService(s Service, server *grpc.Server) error {
@@ -645,6 +694,58 @@ func StartService(s Service, server *grpc.Server) error {
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
+
+	/**
+	Every breath you take
+	And every change you make
+	Every bond you break
+	Every step you take
+	I'll be watching you
+	*/
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal("NewWatcher failed: ", err)
+	}
+	defer watcher.Close()
+
+	go func() {
+
+		defer close(ch)
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op == fsnotify.Write {
+					// reinit the service...
+					data, err := os.ReadFile(s.GetConfigurationPath())
+					err = json.Unmarshal(data, &s)
+					if err == nil {
+						// Publish the configuration change event.
+						event_client_, err := getEventClient()
+						if err == nil {
+							event_client_.Publish("update_globular_service_configuration_evt", data)
+						}
+					}
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				fmt.Println("error:", err)
+			}
+		}
+
+	}()
+
+	// watch for configuration change
+	err = watcher.Add(s.GetConfigurationPath())
+	if err != nil {
+		log.Fatal("Add failed:", err)
+	}
+
 	<-ch
 
 	fmt.Println("stop service name: ", s.GetName()+":"+s.GetId())

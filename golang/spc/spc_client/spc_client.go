@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -13,9 +14,9 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // SPC Client Service
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 type SPC_Client struct {
 	cc *grpc.ClientConn
 	c  spcpb.SpcServiceClient
@@ -73,12 +74,12 @@ func NewSpcService_Client(address string, id string) (*SPC_Client, error) {
 	return client, nil
 }
 
-func (client *SPC_Client) Reconnect () error{
+func (client *SPC_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = spcpb.NewSpcServiceClient(client.cc)
@@ -92,7 +93,8 @@ func (client *SPC_Client) SetAddress(address string) {
 }
 
 func (client *SPC_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}

@@ -4,8 +4,6 @@ go 1.19
 
 replace github.com/davecourtois/Utility => ../../Utility
 
-replace github.com/davecourtois/GoXapian => ../../GoXapian
-
 require (
 	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.7.0
 	github.com/StalkR/httpcache v1.0.0

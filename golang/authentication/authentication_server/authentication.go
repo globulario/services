@@ -31,7 +31,7 @@ var (
 	tokensPath = config.GetConfigDir() + "/tokens"
 )
 
-//* Validate a token *
+// * Validate a token *
 func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.ValidateTokenRqst) (*authenticationpb.ValidateTokenRsp, error) {
 
 	claims, err := security.ValidateToken(rqst.Token)
@@ -46,7 +46,7 @@ func (server *server) ValidateToken(ctx context.Context, rqst *authenticationpb.
 	}, nil
 }
 
-//* Refresh token get a new token *
+// * Refresh token get a new token *
 func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.RefreshTokenRqst) (*authenticationpb.RefreshTokenRsp, error) {
 
 	// first of all I will validate the current token.
@@ -105,7 +105,7 @@ func (server *server) RefreshToken(ctx context.Context, rqst *authenticationpb.R
 	}, nil
 }
 
-//* Set the account password *
+// * Set the account password *
 func (server *server) SetPassword(ctx context.Context, rqst *authenticationpb.SetPasswordRequest) (*authenticationpb.SetPasswordResponse, error) {
 
 	// Here I will get the account info.
@@ -251,7 +251,7 @@ func (server *server) SetRootPassword(ctx context.Context, rqst *authenticationp
 	}, nil
 }
 
-//Set the root email
+// Set the root email
 func (server *server) SetRootEmail(ctx context.Context, rqst *authenticationpb.SetRootEmailRequest) (*authenticationpb.SetRootEmailResponse, error) {
 
 	// The root password will be
@@ -329,7 +329,7 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 	fmt.Println("authenticate ", accountId, "issuer", issuer)
 
 	// If the user is the root...
-	if accountId == "sa" || strings.HasPrefix(accountId,"sa@") {
+	if accountId == "sa" || strings.HasPrefix(accountId, "sa@") {
 		fmt.Println("autenticate sa")
 
 		// The root password will be
@@ -388,22 +388,20 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 		}
 
 		// Create the user file directory.
-		if strings.Contains(accountId, "@"){
+		if strings.Contains(accountId, "@") {
 			path := "/users/" + accountId
 			Utility.CreateDirIfNotExist(dataPath + "/files" + path)
 			server.addResourceOwner(path, "file", "sa", rbacpb.SubjectType_ACCOUNT)
 		}
 
-
 		return tokenString, nil
 	}
-	
+
 	// Here I will get the account info.
 	account, err := server.getAccount(accountId)
 	if err != nil {
 		return "", err
 	}
-
 
 	err = server.validatePassword(pwd, account.Password)
 	if err != nil {
@@ -448,9 +446,9 @@ func (server *server) authenticate(accountId, pwd, issuer string) (string, error
 
 	// Create the user file directory.
 	Utility.CreateDirIfNotExist(dataPath + "/files/users/" + claims.Id + "@" + account.Domain)
-	
+
 	// be sure the user is the owner of that directory...
-	server.addResourceOwner("/users/" + claims.Id + "@" + account.Domain, "file", claims.Id+"@"+account.Domain, rbacpb.SubjectType_ACCOUNT)
+	server.addResourceOwner("/users/"+claims.Id+"@"+account.Domain, "file", claims.Id+"@"+account.Domain, rbacpb.SubjectType_ACCOUNT)
 
 	session.ExpireAt = claims.StandardClaims.ExpiresAt
 	session.State = resourcepb.SessionState_ONLINE
@@ -471,7 +469,8 @@ func (server *server) processFiles() {
 }
 
 func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -479,15 +478,15 @@ func GetResourceClient(domain string) (*resource_client.Resource_Client, error) 
 }
 
 func GetAuthenticationClient(domain string) (*authentication_client.Authentication_Client, error) {
-	client, err := globular_client.GetClient(domain, "authentication.AuthenticationService", "authentication_client.NewAuthenticationService_Client")
+	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
+	client, err := globular_client.GetClient(domain, "authentication.AuthenticationService", "NewAuthenticationService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*authentication_client.Authentication_Client), nil
 }
 
-
-//* Authenticate a user *
+// * Authenticate a user *
 func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.AuthenticateRqst) (*authenticationpb.AuthenticateRsp, error) {
 
 	mac, err := Utility.MyMacAddr(Utility.MyLocalIP())
@@ -559,7 +558,7 @@ func (server *server) Authenticate(ctx context.Context, rqst *authenticationpb.A
 	}, nil
 }
 
-//* Generate a token for a peer with a given mac address *
+// * Generate a token for a peer with a given mac address *
 func (server *server) GeneratePeerToken(ctx context.Context, rqst *authenticationpb.GeneratePeerTokenRequest) (*authenticationpb.GeneratePeerTokenResponse, error) {
 
 	var userId, userName, email, userDomain string

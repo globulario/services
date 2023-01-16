@@ -4,6 +4,7 @@ import (
 	"context"
 
 	//"github.com/davecourtois/Utility"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -74,12 +75,12 @@ func NewServicesManagerService_Client(address string, id string) (*Services_Mana
 	return client, nil
 }
 
-func (client *Services_Manager_Client) Reconnect () error{
+func (client *Services_Manager_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = services_managerpb.NewServicesManagerServiceClient(client.cc)
@@ -93,7 +94,8 @@ func (client *Services_Manager_Client) SetAddress(address string) {
 }
 
 func (client *Services_Manager_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
-	"github.com/globulario/services/golang/file/file_client"
 	"github.com/globulario/services/golang/file/filepb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -66,9 +65,6 @@ var (
 	// comma separeated values.
 	allowed_origins string = ""
 
-	// The default domain.
-	domain string = "localhost"
-
 	// Client to validate and change file and directory permission.
 	rbac_client_ *rbac_client.Rbac_Client
 
@@ -82,7 +78,6 @@ var (
 	authentication_client_ *authentication_client.Authentication_Client
 
 	// Here I will keep files info in cache...
-	// cache *storage_store.BigCache_store
 	cache *storage_store.Badger_store
 )
 
@@ -167,6 +162,15 @@ type server struct {
 
 	// Generate playlist and titles for video and movies (series and episode.)
 	isProcessingVideo bool
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -457,9 +461,6 @@ func (file_server *server) SetPermissions(permissions []interface{}) {
 
 // Create the configuration file if is not already exist.
 func (file_server *server) Init() error {
-
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewFileService_Client", file_client.NewFileService_Client)
 
 	err := globular.InitService(file_server)
 	if err != nil {
@@ -1865,7 +1866,8 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
  */
 func getEventClient() (*event_client.Event_Client, error) {
 	address, _ := config.GetAddress()
-	client, err := globular_client.GetClient(address, "event.EventService", "event_client.NewEventService_Client")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -1877,7 +1879,8 @@ func getEventClient() (*event_client.Event_Client, error) {
  */
 func getTitleClient() (*title_client.Title_Client, error) {
 	address, _ := config.GetAddress()
-	client, err := globular_client.GetClient(address, "title.TitleService", "title_client.NewTitleService_Client")
+	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
+	client, err := globular_client.GetClient(address, "title.TitleService", "NewTitleService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -1886,7 +1889,8 @@ func getTitleClient() (*title_client.Title_Client, error) {
 
 func getRbacClient() (*rbac_client.Rbac_Client, error) {
 	address, _ := config.GetAddress()
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -1894,7 +1898,8 @@ func getRbacClient() (*rbac_client.Rbac_Client, error) {
 }
 
 func getAuticationClient(address string) (*authentication_client.Authentication_Client, error) {
-	client, err := globular_client.GetClient(address, "authentication.AuthenticationService", "authentication_client.NewAuthenticationService_Client")
+	Utility.RegisterFunction("NewAuthenticationService_Client", authentication_client.NewAuthenticationService_Client)
+	client, err := globular_client.GetClient(address, "authentication.AuthenticationService", "NewAuthenticationService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -5442,10 +5447,12 @@ func main() {
 	// The name must the same as the grpc service name.
 	s_impl.Name = string(filepb.File_file_proto.Services().Get(0).FullName())
 	s_impl.Proto = filepb.File_file_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -5492,9 +5499,14 @@ func main() {
 		s_impl.Root = os.TempDir()
 	}
 
+	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

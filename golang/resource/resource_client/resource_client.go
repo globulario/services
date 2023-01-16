@@ -62,7 +62,7 @@ type Resource_Client struct {
 
 // Create a connection to the service.
 func NewResourceService_Client(address string, id string) (*Resource_Client, error) {
-	
+
 	client := new(Resource_Client)
 	err := globular.InitClient(client, address, id)
 	if err != nil {
@@ -86,7 +86,7 @@ func (client *Resource_Client) Reconnect() error {
 	if err != nil {
 		return err
 	}
-	
+
 	client.c = resourcepb.NewResourceServiceClient(client.cc)
 	return nil
 }
@@ -97,7 +97,8 @@ func (client *Resource_Client) SetAddress(address string) {
 }
 
 func (client *Resource_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -819,7 +820,7 @@ func (client *Resource_Client) GetGroups(query string) ([]*resourcepb.Group, err
 func (client *Resource_Client) UpdateGroup(token string, g *resourcepb.Group) error {
 	rqst := new(resourcepb.UpdateGroupRqst)
 	rqst.GroupId = g.Id
-	
+
 	rqst.Values = `{"$set":{"name":"` + g.Name + `","description":"` + g.Description + `", "domain":"` + g.Domain + `"}}`
 	fmt.Println(rqst.Values)
 
@@ -1117,10 +1118,10 @@ func (client *Resource_Client) GetPeers(query string) ([]*resourcepb.Peer, error
 	rqst := &resourcepb.GetPeersRqst{
 		Query: query,
 	}
-	
+
 	stream, err := client.c.GetPeers(client.GetCtx(), rqst)
 	if err != nil {
-		
+
 		return nil, err
 	}
 
@@ -1376,10 +1377,10 @@ func (client *Resource_Client) GetPackageDescriptor(pacakageId, publisherId, ver
 			if lastVersion == nil {
 				lastVersion = Utility.NewVersion(descriptors[i].Version)
 				descriptor = descriptors[i]
-			}else{
+			} else {
 				version_ := Utility.NewVersion(descriptors[i].Version)
 				if version_.Compare(lastVersion) == 1 {
-					lastVersion = version_;
+					lastVersion = version_
 					descriptor = descriptors[i]
 				}
 			}

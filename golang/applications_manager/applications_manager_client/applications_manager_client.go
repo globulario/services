@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/applications_manager/applications_managerpb"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
@@ -76,12 +77,12 @@ func NewApplicationsManager_Client(address string, id string) (*Applications_Man
 	return client, nil
 }
 
-func (client *Applications_Manager_Client) Reconnect () error{
+func (client *Applications_Manager_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = applications_managerpb.NewApplicationManagerServiceClient(client.cc)
@@ -90,7 +91,6 @@ func (client *Applications_Manager_Client) Reconnect () error{
 
 }
 
-
 // The address where the client can connect.
 func (client *Applications_Manager_Client) SetAddress(address string) {
 	client.address = address
@@ -98,7 +98,8 @@ func (client *Applications_Manager_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Applications_Manager_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +241,7 @@ func (Applications_Manager_Client *Applications_Manager_Client) SetCaFile(caFile
 /**
  * Intall a new application or update an existing one.
  */
-func (client *Applications_Manager_Client) InstallApplication(token,  domain, user, discoveryId, publisherId, applicationId string, set_as_default bool) error {
+func (client *Applications_Manager_Client) InstallApplication(token, domain, user, discoveryId, publisherId, applicationId string, set_as_default bool) error {
 
 	rqst := new(applications_managerpb.InstallApplicationRequest)
 	rqst.DicorveryId = discoveryId
@@ -285,4 +286,3 @@ func (client *Applications_Manager_Client) UninstallApplication(token string, do
 
 	return err
 }
-

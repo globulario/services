@@ -15,7 +15,6 @@ import (
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/config/configpb"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/storage/storage_store"
 
 	//"github.com/globulario/services/golang/interceptors"
 	"google.golang.org/grpc"
@@ -36,7 +35,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-	domain          string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -66,6 +64,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	ModTime         int64
 	State           string
@@ -86,9 +85,6 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
-
-	// The storage
-	configs *storage_store.Badger_store
 }
 
 // The http address where the configuration can be found /config
@@ -114,6 +110,15 @@ func (svr *server) GetProxyProcess() int {
 
 func (svr *server) SetProxyProcess(pid int) {
 	svr.ProxyProcess = pid
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The current service state
@@ -413,41 +418,11 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-//////////////////////////////// private functions ///////////////////////////////////////
-
-/**
- * Return the list of services all installed serverices on a server.
- */
-func (svr *server) getServicesConfigurations() ([]map[string]interface{}, error) {
-	return nil, errors.New("not implemented")
-}
-
-/**
- * Save a service configuration.
- */
-func (svr *server) saveServiceConfiguration(s map[string]interface{}) error {
-	return errors.New("not implemented")
-}
-
-/**
- * Return the list of service that match a given name.
- */
-func (svr *server) getServicesConfigurationsByName(name string) ([]map[string]interface{}, error) {
-	return nil, errors.New("not implemented")
-}
-
-/**
- * Return a service with a given configuration id.
- */
-func (svr *server) getServiceConfigurationById(id string) (map[string]interface{}, error) {
-	return nil, errors.New("not implemented")
-}
-
 /////////////////////// Config service specific function /////////////////////////////////
 
 // Get the list of all services configurations
 func (svr *server) GetServiceConfiguration(ctx context.Context, rqst *configpb.GetServiceConfigurationRequest) (*configpb.GetServiceConfigurationResponse, error) {
-	config__, err := svr.getServiceConfigurationById(rqst.Path)
+	config__, err := config.GetServiceConfigurationById(rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -483,7 +458,7 @@ func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.S
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no configuration file found at "+configPath)))
 	}
 
-	err := svr.saveServiceConfiguration(config_)
+	err := config.SaveServiceConfiguration(config_)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -495,7 +470,7 @@ func (svr *server) SetServiceConfiguration(ctx context.Context, rqst *configpb.S
 
 // Get service configuration with a given id.
 func (svr *server) GetServiceConfigurationById(ctx context.Context, rqst *configpb.GetServiceConfigurationByIdRequest) (*configpb.GetServiceConfigurationByIdResponse, error) {
-	config_, err := svr.getServiceConfigurationById(rqst.Id)
+	config_, err := config.GetServiceConfigurationById(rqst.Id)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -508,7 +483,7 @@ func (svr *server) GetServiceConfigurationById(ctx context.Context, rqst *config
 // Get list of service configuration with a given name
 func (svr *server) GetServicesConfigurationsByName(ctx context.Context, rqst *configpb.GetServicesConfigurationsByNameRequest) (*configpb.GetServicesConfigurationsByNameResponse, error) {
 
-	configs, err := svr.getServicesConfigurationsByName(rqst.Name)
+	configs, err := config.GetServicesConfigurationsByName(rqst.Name)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -526,8 +501,7 @@ func (svr *server) GetServicesConfigurationsByName(ctx context.Context, rqst *co
 
 // Get the list of all services configurations
 func (svr *server) GetServicesConfigurations(ctx context.Context, rqst *configpb.GetServicesConfigurationsRequest) (*configpb.GetServicesConfigurationsResponse, error) {
-
-	configs, err := svr.getServicesConfigurations()
+	configs, err := config.GetServicesConfigurations()
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -556,8 +530,10 @@ func main() {
 	s_impl.Proto = configpb.File_config_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
+	s_impl.Path = os.Args[0]
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "Configuration manager to get synchronize access to services configurations"
@@ -574,7 +550,10 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...
@@ -586,11 +565,6 @@ func main() {
 	// Register the config services
 	configpb.RegisterConfigServiceServer(s_impl.grpcServer, s_impl)
 	reflection.Register(s_impl.grpcServer)
-
-	// The storage where config are keep.
-	s_impl.configs = storage_store.NewBadger_store()
-
-	err = s_impl.configs.Open(`{"path":"` + config.GetConfigDir() + "/services" + `", "name":"permissions"}`)
 
 	// Start the service.
 	s_impl.StartService()

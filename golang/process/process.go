@@ -60,8 +60,6 @@ func KillServiceProcess(s map[string]interface{}) error {
 }
 
 var (
-	log_client_ *log_client.Log_Client
-
 	// Monitor the cpu usage of process.
 	servicesCpuUsage    *prometheus.GaugeVec
 	servicesMemoryUsage *prometheus.GaugeVec
@@ -71,7 +69,8 @@ var (
  * Get the log client.
  */
 func getLogClient(address string) (*log_client.Log_Client, error) {
-	client, err := globular_client.GetClient(address, "log.LogService", "log_client.NewLogService_Client")
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
+	client, err := globular_client.GetClient(address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -112,14 +111,14 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		log.Println("No service found at path ", s["Path"].(string))
 		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
-/*
-	// That command can't be run by launchd... So be sure the permissions are correctly set for
-	// all service executable in order for service to start correctly...
-	err = os.Chmod(s["Path"].(string), 0755)
-	if err != nil {
-		return -1, err
-	}
-*/
+	/*
+		// That command can't be run by launchd... So be sure the permissions are correctly set for
+		// all service executable in order for service to start correctly...
+		err = os.Chmod(s["Path"].(string), 0755)
+		if err != nil {
+			return -1, err
+		}
+	*/
 	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
 	p.Dir = filepath.Dir(s["Path"].(string))
 	stdout, err := p.StdoutPipe()
@@ -258,15 +257,12 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 	return pid, nil
 }
 
-var (
-	event_client_ *event_client.Event_Client
-)
-
 /**
  * Get local event client.
  */
 func getEventClient(address string) (*event_client.Event_Client, error) {
-	client, err := globular_client.GetClient(address, "event.EventService", "event_client.NewEventService_Client")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +351,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` {
 			if Utility.Exists(config.GetRootDir() + "/bin/" + cmd) {
 				proxyProcess = exec.Command(config.GetRootDir()+"/bin/"+cmd, proxyArgs...)
-				proxyProcess.Dir = config.GetRootDir()+"/bin/"
+				proxyProcess.Dir = config.GetRootDir() + "/bin/"
 				err = proxyProcess.Start()
 				if err != nil {
 					return -1, err
@@ -368,7 +364,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 				exPath := filepath.Dir(ex)
 				if Utility.Exists(exPath + "/bin/" + cmd) {
 					proxyProcess = exec.Command(exPath+"/bin/"+cmd, proxyArgs...)
-					proxyProcess.Dir = exPath+"/bin/"
+					proxyProcess.Dir = exPath + "/bin/"
 					err = proxyProcess.Start()
 					if err != nil {
 						return -1, err
@@ -644,7 +640,7 @@ inhibit_rules:
 
 	node_exporter := exec.Command("node_exporter")
 	node_exporter.Dir = os.TempDir()
-	
+
 	node_exporter.SysProcAttr = &syscall.SysProcAttr{
 		//CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}

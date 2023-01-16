@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -77,12 +78,12 @@ func NewLogService_Client(address string, id string) (*Log_Client, error) {
 	return client, nil
 }
 
-func (client *Log_Client) Reconnect () error{
+func (client *Log_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = logpb.NewLogServiceClient(client.cc)
@@ -96,7 +97,8 @@ func (client *Log_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Log_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +259,7 @@ func (client *Log_Client) Log(application string, user string, method string, le
 	info.Message = message
 
 	rqst.Info = info
-	rqst.Occurence = occurence                
+	rqst.Occurence = occurence
 	_, err := client.c.Log(client.GetCtx(), rqst)
 
 	fmt.Println(application, user, method, level, message)

@@ -90,20 +90,19 @@ func NewConversationService_Client(address string, id string) (*Conversation_Cli
 	return client, nil
 }
 
-func (client *Conversation_Client) Reconnect () error{
+func (client *Conversation_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
 		return err
 	}
 	client.c = conversationpb.NewConversationServiceClient(client.cc)
 
-
 	// Open a connection with the server. In case the server is not readyz
 	// It will wait 5 second and try it again.
 	nb_try_connect := 10
-	
+
 	go func() {
 		for nb_try_connect > 0 {
 			err := client.run()
@@ -177,7 +176,8 @@ func (client *Conversation_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Conversation_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +314,7 @@ func (client *Conversation_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-////////////////// Api //////////////////////
+// //////////////// Api //////////////////////
 // Stop the service.
 func (client *Conversation_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &conversationpb.StopRequest{})

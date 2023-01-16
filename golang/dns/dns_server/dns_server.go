@@ -14,7 +14,7 @@ import (
 	"encoding/binary"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/dns/dns_client"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/dns/dnspb"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
@@ -44,14 +44,8 @@ var (
 	// comma separeated values.
 	allowed_origins string = ""
 
-	// Thr IPV4 address
-	domain string = "localhost"
-
 	// pointer to the sever implementation.
 	s *server
-
-	// Use to set permissions
-	rbac_client_ *rbac_client.Rbac_Client
 )
 
 // Value need by Globular to start the services...
@@ -74,7 +68,6 @@ type server struct {
 	Repositories    []string
 	Discoveries     []string
 	State           string
-
 	// server-signed X.509 public keys for distribution
 	CertFile string
 	// a private RSA key to sign and authenticate the public key
@@ -108,6 +101,15 @@ type server struct {
 	store *storage_store.LevelDB_store
 
 	connection_is_open bool
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -397,7 +399,8 @@ func (server *server) SetPermissions(permissions []interface{}) {
 }
 
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(server.Address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +442,7 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 	}
 
 	// Set the owner of the conversation.
-	rbac_client_, err = server.GetRbacClient()
+	rbac_client_, err := server.GetRbacClient()
 	if err != nil {
 		return err
 	}
@@ -455,9 +458,6 @@ func (server *server) createPermission(ctx context.Context, path string) error {
 
 // Create the configuration file if is not already exist.
 func (server *server) Init() error {
-
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewDnsService_Client", dns_client.NewDnsService_Client)
 
 	// Get the configuration path.
 	err := globular.InitService(server)
@@ -590,8 +590,11 @@ func (server *server) RemoveA(ctx context.Context, rqst *dnspb.RemoveARequest) (
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	rbac_client_, err := server.GetRbacClient()
 	// remove the permission
-	rbac_client_.DeleteResourcePermissions(domain)
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(domain)
+	}
 
 	return &dnspb.RemoveAResponse{
 		Result: true, // return the full domain.
@@ -706,7 +709,11 @@ func (server *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequ
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(domain)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(domain)
+	}
+	
 
 	return &dnspb.RemoveAAAAResponse{
 		Result: true, // return the full domain.
@@ -877,7 +884,11 @@ func (server *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequ
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
+	
 
 	return &dnspb.RemoveTextResponse{
 		Result: true, // return the full domain.
@@ -970,7 +981,10 @@ func (server *server) RemoveNs(ctx context.Context, rqst *dnspb.RemoveNsRequest)
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
 
 	return &dnspb.RemoveNsResponse{
 		Result: true, // return the full domain.
@@ -1065,7 +1079,10 @@ func (server *server) RemoveCName(ctx context.Context, rqst *dnspb.RemoveCNameRe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
 
 	return &dnspb.RemoveCNameResponse{
 		Result: true, // return the full domain.
@@ -1133,6 +1150,7 @@ func (server *server) getMx(id string) (map[string]interface{}, uint32, error) {
 
 // Retreive a text value
 func (server *server) GetMx(ctx context.Context, rqst *dnspb.GetMxRequest) (*dnspb.GetMxResponse, error) {
+	domain, _ := config.GetDomain()
 	fmt.Println("Try get dns mx ", domain)
 	err := server.openConnection()
 	if err != nil {
@@ -1185,7 +1203,10 @@ func (server *server) RemoveMx(ctx context.Context, rqst *dnspb.RemoveMxRequest)
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
 
 	return &dnspb.RemoveMxResponse{
 		Result: true, // return the full domain.
@@ -1253,6 +1274,7 @@ func (server *server) getSoa(id string) (*dnspb.SOA, uint32, error) {
 
 // Retreive a text value
 func (server *server) GetSoa(ctx context.Context, rqst *dnspb.GetSoaRequest) (*dnspb.GetSoaResponse, error) {
+	domain, _ := config.GetDomain()
 	fmt.Println("Try get dns soa ", domain)
 	err := server.openConnection()
 	if err != nil {
@@ -1301,7 +1323,10 @@ func (server *server) RemoveSoa(ctx context.Context, rqst *dnspb.RemoveSoaReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
 
 	return &dnspb.RemoveSoaResponse{
 		Result: true, // return the full domain.
@@ -1368,6 +1393,7 @@ func (server *server) getUri(id string) (*dnspb.URI, uint32, error) {
 
 // Retreive a text value
 func (server *server) GetUri(ctx context.Context, rqst *dnspb.GetUriRequest) (*dnspb.GetUriResponse, error) {
+	domain, _ := config.GetDomain()
 	fmt.Println("Try get dns uri ", domain)
 	err := server.openConnection()
 	if err != nil {
@@ -1416,7 +1442,10 @@ func (server *server) RemoveUri(ctx context.Context, rqst *dnspb.RemoveUriReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
 
 	return &dnspb.RemoveUriResponse{
 		Result: true, // return the full domain.
@@ -1483,6 +1512,7 @@ func (server *server) getAfsdb(id string) (*dnspb.AFSDB, uint32, error) {
 
 // Retreive a AFSDB value
 func (server *server) GetAfsdb(ctx context.Context, rqst *dnspb.GetAfsdbRequest) (*dnspb.GetAfsdbResponse, error) {
+	domain, _ := config.GetDomain()
 	fmt.Println("Try get dns AFSDB ", domain)
 	err := server.openConnection()
 	if err != nil {
@@ -1531,7 +1561,10 @@ func (server *server) RemoveAfsdb(ctx context.Context, rqst *dnspb.RemoveAfsdbRe
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
 
 	return &dnspb.RemoveAfsdbResponse{
 		Result: true, // return the full domain.
@@ -1598,6 +1631,7 @@ func (server *server) getCaa(id string) (*dnspb.CAA, uint32, error) {
 
 // Retreive a AFSDB value
 func (server *server) GetCaa(ctx context.Context, rqst *dnspb.GetCaaRequest) (*dnspb.GetCaaResponse, error) {
+	domain, _ := config.GetDomain()
 	fmt.Println("Try get dns CAA ", domain)
 	err := server.openConnection()
 	if err != nil {
@@ -1646,7 +1680,10 @@ func (server *server) RemoveCaa(ctx context.Context, rqst *dnspb.RemoveCaaReques
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	rbac_client_.DeleteResourcePermissions(rqst.Id)
+	rbac_client_, err := server.GetRbacClient()
+	if err == nil {
+		rbac_client_.DeleteResourcePermissions(rqst.Id)
+	}
 
 	return &dnspb.RemoveCaaResponse{
 		Result: true, // return the full domain.
@@ -1696,6 +1733,7 @@ func (hd *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		msg.Authoritative = true
 		id := msg.Question[0].Name
 		afsdb, ttl, err := s.getAfsdb(id)
+		domain, _ := config.GetDomain()
 		if err == nil {
 			msg.Answer = append(msg.Answer, &dns.AFSDB{
 				Hdr:      dns.RR_Header{Name: domain, Rrtype: dns.TypeAFSDB, Class: dns.ClassINET, Ttl: ttl},
@@ -1844,35 +1882,33 @@ func (server *server) getTtl(uuid string) uint32 {
 }
 
 // /////////////////////  Log Services functions ////////////////////////////////////////////////
-var (
-	log_client_ *log_client.Log_Client
-)
 
 /**
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 //////////////////////////////////////// RBAC Functions ///////////////////////////////////////////////
@@ -1880,7 +1916,8 @@ func (server *server) logServiceError(method, fileLine, functionName, infos stri
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -1909,10 +1946,12 @@ func main() {
 	Utility.RegisterType(s_impl) // must be call dynamically
 	s_impl.Name = string(dnspb.File_dns_proto.Services().Get(0).FullName())
 	s_impl.Proto = dnspb.File_dns_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.DnsPort = 5353 // The default dns port.
 	s_impl.StorageDataPath = os.TempDir() + "/dns"
@@ -1938,7 +1977,10 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

@@ -21,7 +21,6 @@ import (
 	"github.com/globulario/services/golang/process"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
-	service_manager_client "github.com/globulario/services/golang/services_manager/services_manager_client"
 	"github.com/globulario/services/golang/services_manager/services_managerpb"
 	"google.golang.org/grpc"
 
@@ -38,8 +37,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -69,6 +66,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -116,6 +114,15 @@ type server struct {
 
 	// When the service is stop...
 	done chan bool
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -407,9 +414,6 @@ func (server *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (server *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewServicesManagerService_Client", service_manager_client.NewServicesManagerService_Client)
-
 	// Get the configuration path.
 	err := globular.InitService(server)
 	if err != nil {
@@ -440,16 +444,10 @@ func (server *server) StopService() error {
 	return globular.StopService(server, server.grpcServer)
 }
 
-var (
-	resource_client_ *resource_client.Resource_Client
-	rbac_client_     *rbac_client.Rbac_Client
-	log_client_      *log_client.Log_Client
-	event_client_    *event_client.Event_Client
-)
-
 // /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
-	client, err := globular_client.GetClient(server.GetAddress(), "event.EventService", "event_client.NewEventService_Client")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(server.GetAddress(), "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +471,8 @@ func (server *server) publishUpdateServiceConfigEvent(config map[string]interfac
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(server.Address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +524,8 @@ func (server *server) setRoleActions(roleId string, actions []string) error {
  * Get the rbac client.
  */
 func (server *server) GetRbacClient() (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(server.Address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -546,27 +546,27 @@ func (server *server) setActionResourcesPermissions(permissions map[string]inter
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
-
-func (server *server) logServiceInfo(name string, infos string) {
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, name, logpb.LogLevel_INFO_MESSAGE, infos, Utility.FileLine(), Utility.FunctionName())
+	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(name string, infos string) {
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, name, logpb.LogLevel_ERROR_MESSAGE, infos, Utility.FileLine(), Utility.FunctionName())
+	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 ///////////////////////////// Service manager functions ///////////////////////////////////
@@ -680,8 +680,10 @@ func main() {
 	s_impl.Proto = services_managerpb.File_services_manager_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
+	s_impl.Path = os.Args[0]
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "Mircoservice manager service"
@@ -709,8 +711,12 @@ func main() {
 	s_impl.DataPath = config.GetDataDir()
 	s_impl.Creds = config.GetConfigDir() + "/tls"
 
+	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

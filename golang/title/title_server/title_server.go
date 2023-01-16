@@ -16,7 +16,6 @@ import (
 	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/storage/storage_store"
-	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
 	"github.com/golang/protobuf/jsonpb"
 
@@ -39,8 +38,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -70,6 +67,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -97,6 +95,15 @@ type server struct {
 
 	// Contain the file and title asscociation.
 	associations map[string]*storage_store.Badger_store
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 /**
@@ -396,9 +403,6 @@ func (srv *server) SetPermissions(permissions []interface{}) {
 
 // Create the configuration file if is not already exist.
 func (srv *server) Init() error {
-
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewTitleService_Client", title_client.NewTitleService_Client)
 
 	// Get the configuration path.
 	err := globular.InitService(srv)
@@ -2215,8 +2219,10 @@ func main() {
 	s_impl.Proto = titlepb.File_title_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
+	s_impl.Path = os.Args[0]
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "Functionalities to find Title information and asscociate it with file."
@@ -2233,8 +2239,12 @@ func main() {
 	s_impl.associations = make(map[string]*storage_store.Badger_store)
 
 	// Give base info to retreive it configuration.
+	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

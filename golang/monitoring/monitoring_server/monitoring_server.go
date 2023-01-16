@@ -5,12 +5,11 @@ import (
 	"errors"
 	"log"
 	"os"
-	"strconv"
 	"time"
 
+	"github.com/globulario/services/golang/config"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/monitoring/monitoring_client"
 	"github.com/globulario/services/golang/monitoring/monitoring_store"
 	"github.com/globulario/services/golang/monitoring/monitoringpb"
 
@@ -33,8 +32,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Keep connection information here.
@@ -93,6 +90,15 @@ type server struct {
 	// That map contain the list of active connections.
 	Connections map[string]connection
 	stores      map[string]monitoring_store.Store
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -385,9 +391,6 @@ func (monitoring_server *server) SetPermissions(permissions []interface{}) {
 func (monitoring_server *server) Init() error {
 	monitoring_server.stores = make(map[string]monitoring_store.Store)
 	monitoring_server.Connections = make(map[string]connection)
-
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewMonitoringService_Client", monitoring_client.NewMonitoringService_Client)
 
 	err := globular.InitService(monitoring_server)
 	if err != nil {
@@ -925,11 +928,13 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(monitoringpb.File_monitoring_proto.Services().Get(0).FullName())
 	s_impl.Proto = monitoringpb.File_monitoring_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.PublisherId = "globulario"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.Permissions = make([]interface{}, 0)
 	s_impl.Keywords = make([]string, 0)
@@ -942,13 +947,19 @@ func main() {
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
 	s_impl.KeepAlive = true
+
+	// Give base info to retreive it configuration.
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
+	}
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
-	}
-	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1])
 	}
 
 	// Register the echo services

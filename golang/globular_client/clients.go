@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"time"
+
 	//"log"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -21,14 +24,40 @@ import (
 
 var (
 	tokensPath = config.GetConfigDir() + "/tokens"
+	clients    *sync.Map
 )
 
-
-
 // Factory method.
-func GetClient(address, name, constructor  string) (Client, error) {
+func GetClient(address, name, fct string) (Client, error) {
 
-	return nil, errors.New("no implemented")
+	//log.Panicln("----------> kill in the name off!")
+	if clients == nil {
+		clients = new(sync.Map)
+	}
+
+	id := Utility.GenerateUUID(name + ":" + address)
+	existing_client_, ok := clients.Load(id)
+	if ok {
+		return existing_client_.(Client), nil
+	}
+
+	results, err := Utility.CallFunction(fct, address, name)
+	if err != nil {
+		fmt.Println("fail to call function ", fct, "with params", address, name, "error:", err)
+		return nil, err
+	}
+
+	if !results[1].IsNil() {
+		err := results[1].Interface().(error)
+		fmt.Println("fail to call function ", fct, "with params", address, name, "error:", err)
+		return nil, err
+	}
+
+	client := results[0].Interface().(Client)
+	clients.Store(id, client)
+
+	fmt.Println("Connection with ", client.GetName()+":"+client.GetId(), "at address", client.GetAddress()+" was created")
+	return client, nil
 }
 
 // The client service interface.
@@ -159,7 +188,7 @@ func InitClient(client Client, address string, id string) error {
 	var san_state string
 	var san_city string
 	var san_organization string
-	san_alternateDomains := make( []interface{}, 0)
+	san_alternateDomains := make([]interface{}, 0)
 
 	if isLocal {
 
@@ -336,35 +365,32 @@ func clientInterceptor(client_ Client) func(
 		// Calls the invoker to execute RPC
 		err := invoker(ctx, method, req, reply, cc, opts...)
 		// Logic after invoking the invoker
-		if client_ != nil && err != nil {
-			// fmt.Println("Invoked RPC method=%s; Duration=%s; Error=%v", method, time.Since(start), err);
-			if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) {
-				// here the connection was lost an a new connection must be made...
-				config_, err := client_.GetConfiguration(client_.GetAddress(), client_.GetId())
-				if err == nil {
-					// Here I will test if the service as restarted...
 
-					// Here I will test if the process his the same...
-					err := InitClient(client_, client_.GetAddress(), client_.GetId())
-					if err == nil {
+		if client_ != nil && err != nil {
+			if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) {
+
+				// Here I will test if the service as restarted...
+				fmt.Println(":: Reconnecting to service ", client_.GetName(), "at", client_.GetAddress())
+
+				// Here I will test if the process his the same...
+				err := InitClient(client_, client_.GetAddress(), client_.GetId())
+				if err == nil {
+					nbTry := 10
+					for i := 0; i < nbTry; i++ {
 						err := client_.Reconnect()
 						if err != nil {
-							fmt.Println("fail to reconnect ", client_.GetId(), err)
-							fmt.Println("port:", config_["Port"], "process:", config_["Process"])
+							nbTry--
+							time.Sleep(1 * time.Second)
+						}else{
+							return invoker(ctx, method, req, reply, cc, opts...)
 						}
-
-						err = invoker(ctx, method, req, reply, cc, opts...)
-						if err != nil {
-							// display the error message to debug...
-							//fmt.Println("Connection to client ",  config_["Name"], " at address ", config_["Address"], config_["State"], config_["Process"],config_["Port"], "could not be made...", err)
-						}
-						return err
-					} else {
-						fmt.Println("fail to get configuation for ", client_.GetId(), err)
 					}
+					
 				} else {
-					fmt.Println("fail to get configuation for ", client_.GetId(), err)
+
+					fmt.Println("fail to initialyse client ", client_.GetName() + ":" + client_.GetId(), err)
 				}
+
 			}
 			//fmt.Println("------------> error ", err)
 		}
@@ -446,7 +472,7 @@ func GetClientConnection(client Client) (*grpc.ClientConn, error) {
 		}
 	} else {
 		//fmt.Println("client connection not use tls")
-		cc, err = grpc.Dial(address, grpc.WithInsecure())
+		cc, err = grpc.Dial(address, grpc.WithInsecure(), grpc.WithUnaryInterceptor(clientInterceptor(client)))
 		if err != nil {
 			return nil, err
 		} else if cc != nil {

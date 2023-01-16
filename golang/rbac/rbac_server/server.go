@@ -16,7 +16,6 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/log/log_client"
 	"github.com/globulario/services/golang/log/logpb"
-	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/storage/storage_store"
@@ -37,8 +36,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -68,6 +65,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -99,6 +97,15 @@ type server struct {
 	// Here I will keep files info in memory...
 	cache *storage_store.BigCache_store // todo use cache instead of memory...
 
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -380,19 +387,13 @@ func (server *server) SetKeepAlive(val bool) {
 	server.KeepAlive = val
 }
 
-// Singleton.
-var (
-	resourceClient *resource_client.Resource_Client
-	event_client_  *event_client.Event_Client
-	log_client_    *log_client.Log_Client
-)
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // Event function
 ////////////////////////////////////////////////////////////////////////////////////////
 
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "event.EventService", "event_client.NewEventService_Client")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -415,39 +416,41 @@ func (server *server) publish(event string, data []byte) error {
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	// validate the port has not change...
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 // //////////////////////////////////////////////////////////////////////////////////////
 // Resource manager function
 // //////////////////////////////////////////////////////////////////////////////////////
 func (server *server) getResourceClient(address string) (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(address, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*resource_client.Resource_Client), nil
 }
-
 
 /**
  * Return an application with a given id
@@ -495,7 +498,6 @@ func (server *server) accountExist(id string) (bool, string) {
 
 	a, err := server.getAccount(id)
 	if err != nil {
-		fmt.Println("fail to find account ", id, domain, err)
 		return false, ""
 	}
 
@@ -805,9 +807,6 @@ func (server *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (server *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
-
 	err := globular.InitService(server)
 	if err != nil {
 		return err
@@ -851,10 +850,12 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(rbacpb.File_rbac_proto.Services().Get(0).FullName())
 	s_impl.Proto = rbacpb.File_rbac_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "The authencation server, validate user authentity"
@@ -869,8 +870,12 @@ func main() {
 	s_impl.AllowedOrigins = allowed_origins
 	s_impl.KeepAlive = true
 
+	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

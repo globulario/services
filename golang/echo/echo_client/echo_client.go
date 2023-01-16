@@ -74,18 +74,17 @@ func NewEchoService_Client(address string, id string) (*Echo_Client, error) {
 	return client, nil
 }
 
-func (client *Echo_Client) Reconnect () error{
+func (client *Echo_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = echopb.NewEchoServiceClient(client.cc)
 	return nil
 }
-
 
 // The address where the client can connect.
 func (client *Echo_Client) SetAddress(address string) {
@@ -94,7 +93,8 @@ func (client *Echo_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Echo_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func (client *Echo_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-////////////////// Api //////////////////////
+// //////////////// Api //////////////////////
 // Stop the service.
 func (client *Echo_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &echopb.StopRequest{})

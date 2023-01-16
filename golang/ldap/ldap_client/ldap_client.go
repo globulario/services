@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -80,12 +81,12 @@ func NewLdapService_Client(address string, id string) (*LDAP_Client, error) {
 	return client, nil
 }
 
-func (client *LDAP_Client) Reconnect () error{
+func (client *LDAP_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = ldappb.NewLdapServiceClient(client.cc)
@@ -99,7 +100,8 @@ func (client *LDAP_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *LDAP_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +235,7 @@ func (client *LDAP_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-////////////////////////// LDAP ////////////////////////////////////////////////
+// //////////////////////// LDAP ////////////////////////////////////////////////
 // Stop the service.
 func (client *LDAP_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &ldappb.StopRequest{})
@@ -275,7 +277,6 @@ func (client *LDAP_Client) Authenticate(connectionId string, userId string, pass
 		Pwd:   password,
 	}
 
-	
 	_, err := client.c.Authenticate(client.GetCtx(), rqst)
 
 	return err

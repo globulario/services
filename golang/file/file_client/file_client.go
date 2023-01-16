@@ -78,12 +78,12 @@ func NewFileService_Client(address string, id string) (*File_Client, error) {
 	return client, nil
 }
 
-func (client *File_Client) Reconnect () error{
+func (client *File_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = filepb.NewFileServiceClient(client.cc)
@@ -97,7 +97,8 @@ func (client *File_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *File_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -367,9 +368,7 @@ func (client *File_Client) GetFileInfo(path interface{}, recursive interface{}, 
 		return nil, err
 	}
 
-	
-
-	return  rsp.GetInfo(), nil
+	return rsp.GetInfo(), nil
 }
 
 /**

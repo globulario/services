@@ -53,7 +53,8 @@ func (server *server) UninstallService(ctx context.Context, rqst *services_manag
 }
 
 func GetRepositoryClient(domain string) (*repository_client.Repository_Service_Client, error) {
-	client, err := globular_client.GetClient(domain, "repository.PackageRepository", "repository_client.NewRepositoryService_Client")
+	Utility.RegisterFunction("NewRepositoryService_Client", repository_client.NewRepositoryService_Client)
+	client, err := globular_client.GetClient(domain, "repository.PackageRepository", "NewRepositoryService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +189,8 @@ func (server *server) installService(token string, descriptor *resourcepb.Packag
 }
 
 func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}

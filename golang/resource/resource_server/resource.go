@@ -166,6 +166,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 		return nil, err
 	}
 
+	domain, _  := config.GetDomain()
 	accountId := rqst.AccountId
 	if strings.Contains(accountId, "@") {
 		domain = strings.Split(accountId, "@")[1]
@@ -691,13 +692,13 @@ func (resource_server *server) IsOrgnanizationMember(ctx context.Context, rqst *
 func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resourcepb.DeleteAccountRqst) (*resourcepb.DeleteAccountRsp, error) {
 	accountId := rqst.Id
 	localDomain, _ := config.GetDomain()
+	domain, _  := config.GetDomain()
 
 	if strings.Contains(accountId, "@") {
-		domain := strings.Split(accountId, "@")[1]
+		domain = strings.Split(accountId, "@")[1]
 		accountId = strings.Split(accountId, "@")[0]
 
 		if localDomain != domain {
-
 			return nil, status.Errorf(
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("i cant's delete object from domain "+domain+" from domain "+localDomain)))
@@ -769,7 +770,6 @@ func (resource_server *server) DeleteAccount(ctx context.Context, rqst *resource
 	}
 
 	name := account["name"].(string)
-	domain := account["domain"].(string)
 	name = strings.ReplaceAll(strings.ReplaceAll(name, ".", "_"), "@", "_")
 
 	// so before remove database I need to remove the accout from it contacts...
@@ -1889,13 +1889,13 @@ func getLocalPeer() *resourcepb.Peer {
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
 func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*resource_client.Resource_Client), nil
 }
-
 
 // Register the actual peer (the one that running the resource server) to the one
 // running at domain.
@@ -1939,7 +1939,6 @@ func (resource_server *server) registerPeer(token, address string) (*resourcepb.
 
 // * Connect tow peer toggether on the network.
 func (resource_server *server) RegisterPeer(ctx context.Context, rqst *resourcepb.RegisterPeerRqst) (*resourcepb.RegisterPeerRsp, error) {
-
 
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
@@ -2339,7 +2338,7 @@ func initPeer(values interface{}) *resourcepb.Peer {
 
 // * Return the list of authorized peers *
 func (resource_server *server) GetPeers(rqst *resourcepb.GetPeersRqst, stream resourcepb.ResourceService_GetPeersServer) error {
-	
+
 	// Get the persistence connection
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
@@ -3583,9 +3582,8 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 	if count > 0 {
 		return nil, status.Errorf(
 			codes.Internal,
-			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Notification with id " + rqst.Notification.Id + " already exist")))
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("Notification with id "+rqst.Notification.Id+" already exist")))
 	}
-
 
 	// if the account is not on the domain will redirect the request...
 	if rqst.Notification.NotificationType == resourcepb.NotificationType_USER_NOTIFICATION {
@@ -3612,8 +3610,6 @@ func (resource_server *server) CreateNotification(ctx context.Context, rqst *res
 			}
 		}
 	}
-
-
 
 	_, err = p.InsertOne(context.Background(), "local_resource", recipient+"_db", "Notifications", rqst.Notification, "")
 	if err != nil {
@@ -4376,7 +4372,7 @@ func (resource_server *server) SetCall(ctx context.Context, rqst *resourcepb.Set
 	return &resourcepb.SetCallRsp{}, nil
 }
 
-func(resource_server *server) deleteCall(account_id, uuid string) error{
+func (resource_server *server) deleteCall(account_id, uuid string) error {
 	p, err := resource_server.getPersistenceStore()
 	if err != nil {
 		return err
@@ -4397,7 +4393,7 @@ func(resource_server *server) deleteCall(account_id, uuid string) error{
 	db := accountId
 	db = strings.ReplaceAll(strings.ReplaceAll(db, ".", "_"), "@", "_")
 	db += "_db"
-	
+
 	err = p.DeleteOne(context.Background(), "local_resource", db, "calls", `{"_id":"`+uuid+`"}`, "")
 	if err != nil {
 		return err

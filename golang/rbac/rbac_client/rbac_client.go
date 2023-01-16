@@ -5,6 +5,7 @@ import (
 	"io"
 
 	// "github.com/davecourtois/Utility"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -96,7 +97,8 @@ func (client *Rbac_Client) SetAddress(address string) {
 }
 
 func (client *Rbac_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -240,9 +242,9 @@ func (client *Rbac_Client) SetResourcePermissions(token, path, resource_type str
 	permissions.ResourceType = resource_type
 
 	rqst := &rbacpb.SetResourcePermissionsRqst{
-		Path:        path,
+		Path:         path,
 		ResourceType: resource_type,
-		Permissions: permissions,
+		Permissions:  permissions,
 	}
 
 	// set the token in the context...
@@ -294,7 +296,7 @@ func (client *Rbac_Client) DeleteResourcePermissions(path string) error {
 }
 
 /** Get the list of resource permission by type **/
-func (client *Rbac_Client) GetResourcePermissionsByResourceType(resource_type string) ([]*rbacpb.Permissions, error){
+func (client *Rbac_Client) GetResourcePermissionsByResourceType(resource_type string) ([]*rbacpb.Permissions, error) {
 	rqst := &rbacpb.GetResourcePermissionsByResourceTypeRqst{
 		ResourceType: resource_type,
 	}
@@ -309,16 +311,16 @@ func (client *Rbac_Client) GetResourcePermissionsByResourceType(resource_type st
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
-			if err ==  io.EOF {
+			if err == io.EOF {
 				break
-			}else {
+			} else {
 				return nil, err
 			}
 
 		} else if msg != nil {
 			if len(msg.Permissions) == 0 {
 				break
-			}else{
+			} else {
 				permissions = append(permissions, msg.Permissions...)
 			}
 		}
@@ -326,7 +328,6 @@ func (client *Rbac_Client) GetResourcePermissionsByResourceType(resource_type st
 
 	return permissions, nil
 }
-
 
 /** Delete a specific resource permission **/
 func (client *Rbac_Client) DeleteResourcePermission(path string, permissionName string, permissionType rbacpb.PermissionType) error {
@@ -355,9 +356,9 @@ func (client *Rbac_Client) SetResourcePermission(path string, permission *rbacpb
 /** Add resource owner do nothing if it already exist */
 func (client *Rbac_Client) AddResourceOwner(path, resourceType, owner string, subjectType rbacpb.SubjectType) error {
 	rqst := &rbacpb.AddResourceOwnerRqst{
-		Type:    subjectType,
-		Subject: owner,
-		Path:    path,
+		Type:         subjectType,
+		Subject:      owner,
+		Path:         path,
 		ResourceType: resourceType,
 	}
 
@@ -412,14 +413,14 @@ func (client *Rbac_Client) ValidateAccess(subject string, subjectType rbacpb.Sub
 func (client *Rbac_Client) ValidateSubjectSpace(subject string, subjectType rbacpb.SubjectType, required_space uint64) (bool, error) {
 
 	rqst := &rbacpb.ValidateSubjectSpaceRqst{
-		Subject:    subject,
-		Type:       subjectType,
+		Subject:       subject,
+		Type:          subjectType,
 		RequiredSpace: required_space,
 	}
 
 	rsp, err := client.c.ValidateSubjectSpace(client.GetCtx(), rqst)
 	if err != nil {
-		return  false, err
+		return false, err
 	}
 
 	return rsp.HasSpace, nil
@@ -428,7 +429,7 @@ func (client *Rbac_Client) ValidateSubjectSpace(subject string, subjectType rbac
 /**
  * Validata action...
  */
-func (client *Rbac_Client) ValidateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool,bool, error) {
+func (client *Rbac_Client) ValidateAction(action string, subject string, subjectType rbacpb.SubjectType, resources []*rbacpb.ResourceInfos) (bool, bool, error) {
 	rqst := &rbacpb.ValidateActionRqst{
 		Action:  action,
 		Subject: subject,

@@ -101,7 +101,8 @@ func (client *Config_Client) SetAddress(address string) {
 func (client *Config_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
 	// If the configuration is on the client domain...
 	if !strings.HasPrefix(strings.ToLower(address), strings.ToLower(client.GetDomain())) {
-		client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+		Utility.RegisterFunction("NewConfigService_Client", NewConfigService_Client)
+		client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 		if err != nil {
 			return nil, err
 		}
@@ -316,12 +317,12 @@ func getConfigClient() (*Config_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	client, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", NewConfigService_Client)
+	client, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return client.(*Config_Client), nil
 }
 

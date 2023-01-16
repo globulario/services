@@ -68,6 +68,9 @@ type Event_Client struct {
 
 	// Return true if the client is connected.
 	isConnected bool
+
+	// it will be started at first subjecribe...
+	isRunning bool
 }
 
 // Create a connection to the service.
@@ -78,7 +81,7 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	client.uuid = Utility.RandomUUID()
 
 	// The channel where data will be exchange.
@@ -93,7 +96,7 @@ func NewEventService_Client(address string, id string) (*Event_Client, error) {
 }
 
 // Try to connect...
-func (client *Event_Client) Reconnect () error{
+func (client *Event_Client) Reconnect() error {
 	var err error
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
@@ -102,22 +105,6 @@ func (client *Event_Client) Reconnect () error{
 
 	client.c = eventpb.NewEventServiceClient(client.cc)
 
-
-	// Open a connection with the server. In case the server is not readyz
-	// It will wait 5 second and try it again.
-	nb_try_connect := 10
-	
-	go func() {
-		for nb_try_connect > 0 {
-			err := client.run()
-			if err != nil && nb_try_connect == 0 {
-				fmt.Println("Fail to create event client: ", client.GetAddress(), client.GetId(), err)
-				return
-			}
-			time.Sleep(500 * time.Millisecond) // wait five seconds.
-			nb_try_connect--
-		}
-	}()
 	return nil
 }
 
@@ -128,6 +115,7 @@ func (client *Event_Client) Reconnect () error{
  */
 func (client *Event_Client) run() error {
 
+	fmt.Println("---------------------------> start listen to incomming event...")
 	// Create the channel.
 	data_channel := make(chan *eventpb.Event, 0)
 
@@ -139,6 +127,7 @@ func (client *Event_Client) run() error {
 
 	// the map that will contain the event handler.
 	handlers := make(map[string]map[string]func(*eventpb.Event))
+	client.isRunning = true
 
 	for {
 		select {
@@ -165,10 +154,12 @@ func (client *Event_Client) run() error {
 				}
 			} else if action["action"].(string) == "stop" {
 				client.isConnected = false
+				client.isRunning = false
 				break
 			}
 		}
 	}
+
 
 }
 
@@ -179,7 +170,8 @@ func (client *Event_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Event_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +318,7 @@ func (client *Event_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-///////////////////// API ///////////////////////
+// /////////////////// API ///////////////////////
 // Stop the service.
 func (client *Event_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &eventpb.StopRequest{})
@@ -334,6 +326,7 @@ func (client *Event_Client) StopService() {
 
 // Publish and event over the network
 func (client *Event_Client) Publish(name string, data interface{}) error {
+
 	rqst := &eventpb.PublishRequest{
 		Evt: &eventpb.Event{
 			Name: name,
@@ -343,9 +336,10 @@ func (client *Event_Client) Publish(name string, data interface{}) error {
 
 	_, err := client.c.Publish(client.GetCtx(), rqst)
 	if err != nil {
+		fmt.Println("fail to publish event", name, "with error", err)
 		return err
 	}
-
+	fmt.Println("evt", name, "was publish")
 	return nil
 }
 
@@ -387,8 +381,25 @@ func (client *Event_Client) onEvent(uuid string, data_channel chan *eventpb.Even
  * Maximize chance to connect with the event server...
  **/
 func (client *Event_Client) Subscribe(name string, uuid string, fct func(evt *eventpb.Event)) error {
-	registered := false
+	if !client.isRunning {
+		// Open a connection with the server. In case the server is not readyz
+		// It will wait 5 second and try it again.
+		nb_try_connect := 10
 
+		go func() {
+			for nb_try_connect > 0 {
+				err := client.run()
+				if err != nil && nb_try_connect == 0 {
+					fmt.Println("Fail to create event client: ", client.GetAddress(), client.GetId(), err)
+					return
+				}
+				time.Sleep(500 * time.Millisecond) // wait five seconds.
+				nb_try_connect--
+			}
+		}()
+	}
+
+	registered := false
 	for nbTry := 30; !registered && nbTry > 0; nbTry-- {
 		err := client.subscribe(name, uuid, fct)
 		if err == nil {

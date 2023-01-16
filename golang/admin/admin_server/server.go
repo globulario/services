@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/admin/admin_client"
 	"github.com/globulario/services/golang/admin/adminpb"
 	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
@@ -59,6 +58,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	ModTime         int64
 	State           string
@@ -210,6 +210,15 @@ func (svr *server) SetModTime(modtime int64) {
 }
 func (svr *server) GetModTime() int64 {
 	return svr.ModTime
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // Dist
@@ -378,9 +387,6 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewAdminService_Client", admin_client.NewAdminService_Client)
-
 	// Get the configuration path.
 	err := globular.InitService(svr)
 	if err != nil {
@@ -413,15 +419,12 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-var (
-	rbac_client_ *rbac_client.Rbac_Client
-)
-
 /**
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(domain, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -453,10 +456,12 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(adminpb.File_admin_proto.Services().Get(0).FullName())
 	s_impl.Proto = adminpb.File_admin_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "Admin service must be use with priviled"
@@ -475,7 +480,10 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

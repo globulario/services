@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -76,18 +77,17 @@ func NewSearchService_Client(address string, id string) (*Search_Client, error) 
 	return client, nil
 }
 
-func (client *Search_Client) Reconnect () error{
+func (client *Search_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = searchpb.NewSearchServiceClient(client.cc)
 	return nil
 }
-
 
 // The address where the client can connect.
 func (client *Search_Client) SetAddress(address string) {
@@ -95,7 +95,8 @@ func (client *Search_Client) SetAddress(address string) {
 }
 
 func (client *Search_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +231,7 @@ func (client *Search_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-////////////////// Api //////////////////////
+// //////////////// Api //////////////////////
 // Stop the service.
 func (client *Search_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &searchpb.StopRequest{})

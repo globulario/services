@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/globular_client"
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/ldap/ldappb"
@@ -22,7 +23,6 @@ import (
 
 	//"google.golang.org/grpc/grpclog"
 	globular "github.com/globulario/services/golang/globular_service"
-	"github.com/globulario/services/golang/ldap/ldap_client"
 	LDAP "github.com/go-ldap/ldap/v3"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
@@ -37,12 +37,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	// The default domain
-	domain string = "localhost"
-
-	// The resource service to register account and create group...
-	resource_client_ *resource_client.Resource_Client
 )
 
 // Keep connection information here.
@@ -392,9 +386,6 @@ func (server *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (server *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewLdapService_Client", ldap_client.NewLdapService_Client)
-
 	// Get the configuration path.
 	err := globular.InitService(server)
 	if err != nil {
@@ -471,7 +462,8 @@ func (server *server) connect(id string, userId string, pwd string) (*LDAP.Conn,
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (svr *server) getResourceClient() (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(svr.Address, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(svr.Address, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -917,10 +909,12 @@ func main() {
 	s_impl.Connections = make(map[string]connection)
 	s_impl.Name = string(ldappb.File_ldap_proto.Services().Get(0).FullName())
 	s_impl.Proto = ldappb.File_ldap_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -936,7 +930,10 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...
@@ -956,6 +953,15 @@ func main() {
 	// Start the service.
 	s_impl.StartService()
 
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 /**

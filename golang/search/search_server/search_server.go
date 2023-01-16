@@ -4,11 +4,10 @@ import (
 	"context"
 	"log"
 	"os"
-	"strconv"
 
 	"github.com/davecourtois/Utility"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/interceptors"
-	"github.com/globulario/services/golang/search/search_client"
 	"github.com/globulario/services/golang/search/searchpb"
 
 	"google.golang.org/grpc"
@@ -32,8 +31,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -84,6 +81,15 @@ type server struct {
 	Root string
 
 	search_engine search_engine.SearchEngine
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -375,9 +381,6 @@ func (search_server *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (search_server *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
-
 	// Get the configuration path.
 	err := globular.InitService(search_server)
 	if err != nil {
@@ -490,8 +493,10 @@ func main() {
 	s_impl.Proto = searchpb.File_search_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
+	s_impl.Path = os.Args[0]
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Permissions = make([]interface{}, 0)
@@ -505,17 +510,18 @@ func main() {
 	s_impl.Dependencies = make([]string, 0)
 
 	// Set the root path if is pass as argument.
-	if len(os.Args) > 2 {
-		s_impl.Root = os.Args[2]
+	// Give base info to retreive it configuration.
+	if len(os.Args) == 2 {
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
 		log.Fatalf("Fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
-	}
-	if len(os.Args) == 2 {
-		s_impl.Port, _ = strconv.Atoi(os.Args[1])
 	}
 
 	// Register the search services

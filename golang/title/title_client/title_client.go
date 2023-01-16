@@ -6,6 +6,7 @@ import (
 	"io"
 
 	//"github.com/davecourtois/Utility"
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -21,7 +22,7 @@ import (
 
 type Title_Client struct {
 	cc *grpc.ClientConn
-	c titlepb.TitleServiceClient
+	c  titlepb.TitleServiceClient
 
 	// The id of the service
 	id string
@@ -76,18 +77,17 @@ func NewTitleService_Client(address string, id string) (*Title_Client, error) {
 	return client, nil
 }
 
-func (client *Title_Client) Reconnect () error{
+func (client *Title_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = titlepb.NewTitleServiceClient(client.cc)
 	return nil
 }
-
 
 // The address where the client can connect.
 func (client *Title_Client) SetAddress(address string) {
@@ -96,7 +96,8 @@ func (client *Title_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Title_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -231,11 +232,11 @@ func (client *Title_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-////////////////// Api //////////////////////
-func (client *Title_Client) CreateTitle( token, path string, title *titlepb.Title) error{
+// //////////////// Api //////////////////////
+func (client *Title_Client) CreateTitle(token, path string, title *titlepb.Title) error {
 
 	rqst := &titlepb.CreateTitleRequest{
-		Title: title,
+		Title:     title,
 		IndexPath: path,
 	}
 
@@ -245,17 +246,16 @@ func (client *Title_Client) CreateTitle( token, path string, title *titlepb.Titl
 		md.Append("token", string(token))
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	
-	_, err := client.c.CreateTitle(ctx, rqst)
 
+	_, err := client.c.CreateTitle(ctx, rqst)
 
 	return err
 }
 
-func (client *Title_Client) CreateAudio( token, path string, track *titlepb.Audio) error{
+func (client *Title_Client) CreateAudio(token, path string, track *titlepb.Audio) error {
 
 	rqst := &titlepb.CreateAudioRequest{
-		Audio: track,
+		Audio:     track,
 		IndexPath: path,
 	}
 
@@ -265,15 +265,16 @@ func (client *Title_Client) CreateAudio( token, path string, track *titlepb.Audi
 		md.Append("token", string(token))
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	
+
 	_, err := client.c.CreateAudio(ctx, rqst)
 
 	return err
 }
+
 /**
  * Return the list of title asscociated with a given path.
  */
-func (client *Title_Client)  GetTitleFiles(indexPath, titleId string)  ([]string, error){
+func (client *Title_Client) GetTitleFiles(indexPath, titleId string) ([]string, error) {
 	rqst := &titlepb.GetTitleFilesRequest{IndexPath: indexPath, TitleId: titleId}
 
 	rsp, err := client.c.GetTitleFiles(client.GetCtx(), rqst)
@@ -284,7 +285,7 @@ func (client *Title_Client)  GetTitleFiles(indexPath, titleId string)  ([]string
 	return rsp.FilePaths, nil
 }
 
-func (client *Title_Client)  GetFileTitles(indexPath, path string)  ([]*titlepb.Title, error){
+func (client *Title_Client) GetFileTitles(indexPath, path string) ([]*titlepb.Title, error) {
 	rqst := &titlepb.GetFileTitlesRequest{IndexPath: indexPath, FilePath: path}
 
 	rsp, err := client.c.GetFileTitles(client.GetCtx(), rqst)
@@ -299,8 +300,7 @@ func (client *Title_Client)  GetFileTitles(indexPath, path string)  ([]*titlepb.
 	return rsp.Titles.Titles, nil
 }
 
-
-func (client *Title_Client)  GetFileVideos(indexPath, path string)  ([]*titlepb.Video, error){
+func (client *Title_Client) GetFileVideos(indexPath, path string) ([]*titlepb.Video, error) {
 	rqst := &titlepb.GetFileVideosRequest{IndexPath: indexPath, FilePath: path}
 
 	rsp, err := client.c.GetFileVideos(client.GetCtx(), rqst)
@@ -316,7 +316,7 @@ func (client *Title_Client)  GetFileVideos(indexPath, path string)  ([]*titlepb.
 }
 
 // Return the list of audios for a given path...
-func (client *Title_Client)  GetFileAudios(indexPath, path string)  ([]*titlepb.Audio, error){
+func (client *Title_Client) GetFileAudios(indexPath, path string) ([]*titlepb.Audio, error) {
 	rqst := &titlepb.GetFileAudiosRequest{IndexPath: indexPath, FilePath: path}
 
 	rsp, err := client.c.GetFileAudios(client.GetCtx(), rqst)
@@ -334,10 +334,10 @@ func (client *Title_Client)  GetFileAudios(indexPath, path string)  ([]*titlepb.
 /**
  * Get the title by it id.
  */
-func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []string, error){
+func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []string, error) {
 	rqst := &titlepb.GetTitleByIdRequest{
 		IndexPath: path,
-		TitleId: id,
+		TitleId:   id,
 	}
 
 	rsp, err := client.c.GetTitleById(client.GetCtx(), rqst)
@@ -352,10 +352,10 @@ func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []str
 /**
  * Get the video by it id.
  */
- func (client *Title_Client) GetVideoById(path, id string) (*titlepb.Video, []string, error){
+func (client *Title_Client) GetVideoById(path, id string) (*titlepb.Video, []string, error) {
 	rqst := &titlepb.GetVideoByIdRequest{
 		IndexPath: path,
-		VidoeId: id,
+		VidoeId:   id,
 	}
 
 	rsp, err := client.c.GetVideoById(client.GetCtx(), rqst)
@@ -370,11 +370,11 @@ func (client *Title_Client) GetTitleById(path, id string) (*titlepb.Title, []str
 /**
  * Search titles with a query, title, genre etc...
  */
-func (client *Title_Client) SearchTitle(path, query string, fields []string) (*titlepb.SearchSummary, []*titlepb.SearchHit, *titlepb.SearchFacets, error){
+func (client *Title_Client) SearchTitle(path, query string, fields []string) (*titlepb.SearchSummary, []*titlepb.SearchHit, *titlepb.SearchFacets, error) {
 	rqst := &titlepb.SearchTitlesRequest{
 		IndexPath: path,
-		Query: query,
-		Fields: fields,
+		Query:     query,
+		Fields:    fields,
 	}
 
 	stream, err := client.c.SearchTitles(client.GetCtx(), rqst)
@@ -410,14 +410,13 @@ func (client *Title_Client) SearchTitle(path, query string, fields []string) (*t
 	return summary, hits, facets, nil
 }
 
-
 /**
  * Delete a given title from the indexation.
  */
-func (client *Title_Client) DeleteTitle(path, id string) error{
+func (client *Title_Client) DeleteTitle(path, id string) error {
 	rqst := &titlepb.DeleteTitleRequest{
 		IndexPath: path,
-		TitleId: id,
+		TitleId:   id,
 	}
 
 	_, err := client.c.DeleteTitle(client.GetCtx(), rqst)
@@ -427,11 +426,11 @@ func (client *Title_Client) DeleteTitle(path, id string) error{
 /**
  * Asscociate a title with a given file.
  */
-func (client *Title_Client) AssociateFileWithTitle(indexPath, titleId, filePath string) error{
+func (client *Title_Client) AssociateFileWithTitle(indexPath, titleId, filePath string) error {
 	rqst := &titlepb.AssociateFileWithTitleRequest{
 		IndexPath: indexPath,
-		TitleId: titleId,
-		FilePath: filePath,
+		TitleId:   titleId,
+		FilePath:  filePath,
 	}
 
 	_, err := client.c.AssociateFileWithTitle(client.GetCtx(), rqst)
@@ -441,11 +440,11 @@ func (client *Title_Client) AssociateFileWithTitle(indexPath, titleId, filePath 
 /**
  * Dissociate file from it title.
  */
-func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath string) error{
+func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath string) error {
 	rqst := &titlepb.DissociateFileWithTitleRequest{
 		IndexPath: indexPath,
-		TitleId: titleId,
-		FilePath: filePath,
+		TitleId:   titleId,
+		FilePath:  filePath,
 	}
 
 	_, err := client.c.DissociateFileWithTitle(client.GetCtx(), rqst)
@@ -455,10 +454,10 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 /**
  * Create video
  */
- func (client *Title_Client) CreateVideo( token, path string, video *titlepb.Video) error{
+func (client *Title_Client) CreateVideo(token, path string, video *titlepb.Video) error {
 
 	rqst := &titlepb.CreateVideoRequest{
-		Video: video,
+		Video:     video,
 		IndexPath: path,
 	}
 
@@ -468,7 +467,7 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 		md.Append("token", string(token))
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	
+
 	_, err := client.c.CreateVideo(ctx, rqst)
 
 	return err
@@ -477,10 +476,10 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 /**
  * Create a person (video participant, cast)
  */
- func (client *Title_Client) CreatePerson( token, path string, p *titlepb.Person) error{
+func (client *Title_Client) CreatePerson(token, path string, p *titlepb.Person) error {
 
 	rqst := &titlepb.CreatePersonRequest{
-		Person: p,
+		Person:    p,
 		IndexPath: path,
 	}
 
@@ -490,13 +489,13 @@ func (client *Title_Client) DissociateFileWithTitle(indexPath, titleId, filePath
 		md.Append("token", string(token))
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	
+
 	_, err := client.c.CreatePerson(ctx, rqst)
 
 	return err
 }
 
-func (client *Title_Client) CreatePublisher( token, path string, p *titlepb.Publisher) error{
+func (client *Title_Client) CreatePublisher(token, path string, p *titlepb.Publisher) error {
 
 	rqst := &titlepb.CreatePublisherRequest{
 		Publisher: p,
@@ -509,7 +508,7 @@ func (client *Title_Client) CreatePublisher( token, path string, p *titlepb.Publ
 		md.Append("token", string(token))
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
 	}
-	
+
 	_, err := client.c.CreatePublisher(ctx, rqst)
 
 	return err

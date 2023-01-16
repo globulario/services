@@ -15,9 +15,9 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // SQL Client Service
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 type SQL_Client struct {
 	cc *grpc.ClientConn
 	c  sqlpb.SqlServiceClient
@@ -67,7 +67,6 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 		return nil, err
 	}
 
-
 	err = client.Reconnect()
 	if err != nil {
 		return nil, err
@@ -76,12 +75,12 @@ func NewSqlService_Client(address string, id string) (*SQL_Client, error) {
 	return client, nil
 }
 
-func (client *SQL_Client) Reconnect () error{
+func (client *SQL_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = sqlpb.NewSqlServiceClient(client.cc)
@@ -89,14 +88,14 @@ func (client *SQL_Client) Reconnect () error{
 	return nil
 }
 
-
 // The address where the client can connect.
 func (client *SQL_Client) SetAddress(address string) {
 	client.address = address
 }
 
 func (client *SQL_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +230,7 @@ func (client *SQL_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-////////////////////////// API ////////////////////////////
+// //////////////////////// API ////////////////////////////
 // Stop the service.
 func (client *SQL_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &sqlpb.StopRequest{})

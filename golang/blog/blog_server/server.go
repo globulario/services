@@ -10,8 +10,8 @@ import (
 
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/blog/blog_client"
 	"github.com/globulario/services/golang/blog/blogpb"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/event/event_client"
 	"github.com/globulario/services/golang/event/eventpb"
 	"github.com/globulario/services/golang/globular_client"
@@ -37,8 +37,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -68,6 +66,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	ModTime         int64
 	State           string
@@ -100,6 +99,15 @@ type server struct {
 
 	// Contain indexation.
 	indexs map[string]bleve.Index
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -391,9 +399,6 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewBlogService_Client", blog_client.NewBlogService_Client)
-
 	// Get the configuration path.
 	err := globular.InitService(svr)
 	if err != nil {
@@ -427,13 +432,6 @@ func (svr *server) StopService() error {
 	return globular.StopService(svr, svr.grpcServer)
 }
 
-// Singleton.
-var (
-	rbac_client_  *rbac_client.Rbac_Client
-	log_client_   *log_client.Log_Client
-	event_client_ *event_client.Event_Client
-)
-
 /**
  * Return indexation for a given path...
  */
@@ -466,32 +464,34 @@ func (srv *server) getIndex(path string) (bleve.Index, error) {
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 // /////////////////// resource service functions ////////////////////////////////////
 func (server *server) getEventClient() (*event_client.Event_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "event.EventService", "event_client.NewEventService_Client")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +521,8 @@ func (svr *server) subscribe(evt string, listener func(evt *eventpb.Event)) erro
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -772,10 +773,12 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(blogpb.File_blog_proto.Services().Get(0).FullName())
 	s_impl.Proto = blogpb.File_blog_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "The Hello world of gRPC service!"
@@ -792,7 +795,10 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Set the root path if is pass as argument.

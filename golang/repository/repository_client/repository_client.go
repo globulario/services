@@ -110,7 +110,8 @@ func (client *Repository_Service_Client) SetAddress(address string) {
 }
 
 func (client *Repository_Service_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +294,8 @@ func (client *Repository_Service_Client) DownloadBundle(descriptor *resourcepb.P
 
 // ////////////////////// Resource Client ////////////////////////////////////////////
 func GetResourceClient(domain string) (*resource_client.Resource_Client, error) {
-	client, err := globular_client.GetClient(domain, "resource.ResourceService", "resource_client.NewResourceService_Client")
+	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+	client, err := globular_client.GetClient(domain, "resource.ResourceService", "NewResourceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -402,8 +404,9 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 /**
  * Get the rbac client.
  */
- func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(domain, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+func GetRbacClient(domain string) (*rbac_client.Rbac_Client, error) {
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(domain, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -411,28 +414,28 @@ func (client *Repository_Service_Client) uploadBundle(token string, bundle *reso
 }
 
 func GetEventClient(domain string) (*event_client.Event_Client, error) {
-	client, err := globular_client.GetClient(domain, "event.EventService", "event_client.NewEventService_Client")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(domain, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*event_client.Event_Client), nil
 }
 
-
 /**
  *  Create the application bundle and push it on the server
  */
 func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, domain, name, version string) (int, error) {
 	/*
-	// 
-	dir, err := os.Getwd()
-	if err != nil {
-		return -1, err
-	}
+		//
+		dir, err := os.Getwd()
+		if err != nil {
+			return -1, err
+		}
 
-	if !strings.HasPrefix(path, "/") {
-		path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
-	}*/
+		if !strings.HasPrefix(path, "/") {
+			path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
+		}*/
 
 	path = strings.ReplaceAll(path, "\\", "/")
 

@@ -84,12 +84,12 @@ func NewAdminService_Client(address string, id string) (*Admin_Client, error) {
 	return client, nil
 }
 
-func (client *Admin_Client) Reconnect () error{
+func (client *Admin_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = adminpb.NewAdminServiceClient(client.cc)
@@ -103,7 +103,8 @@ func (client *Admin_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Admin_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,6 @@ func (client *Admin_Client) SetName(name string) {
 func (client *Admin_Client) SetState(state string) {
 	client.state = state
 }
-
 
 func (client *Admin_Client) SetMac(mac string) {
 	client.mac = mac

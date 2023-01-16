@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/davecourtois/Utility"
-	"github.com/globulario/services/golang/echo/echo_client"
+	"github.com/globulario/services/golang/config"
 	"github.com/globulario/services/golang/echo/echopb"
 	globular "github.com/globulario/services/golang/globular_service"
 
@@ -31,8 +31,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -62,6 +60,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -83,6 +82,15 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -374,9 +382,6 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewEchoService_Client", echo_client.NewEchoService_Client)
-
 	// Get the configuration path.
 	err := globular.InitService(svr)
 	if err != nil {
@@ -447,10 +452,12 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(echopb.File_echo_proto.Services().Get(0).FullName())
 	s_impl.Proto = echopb.File_echo_proto.Path()
+	s_impl.Path = os.Args[0]
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "The Hello world of gRPC service!"
@@ -467,7 +474,10 @@ func main() {
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

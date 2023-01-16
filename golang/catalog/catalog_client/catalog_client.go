@@ -74,12 +74,12 @@ func NewCatalogService_Client(address string, id string) (*Catalog_Client, error
 	return client, nil
 }
 
-func (client *Catalog_Client) Reconnect () error{
+func (client *Catalog_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = catalogpb.NewCatalogServiceClient(client.cc)
@@ -95,7 +95,8 @@ func (client *Catalog_Client) SetAddress(address string) {
 
 // Return the configuration from the configuration server.
 func (client *Catalog_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +233,7 @@ func (client *Catalog_Client) SetCaFile(caFile string) {
 	client.caFile = caFile
 }
 
-////////////////////////// API ////////////////////////
+// //////////////////////// API ////////////////////////
 // Stop the service.
 func (client *Catalog_Client) StopService() {
 	client.c.Stop(client.GetCtx(), &catalogpb.StopRequest{})

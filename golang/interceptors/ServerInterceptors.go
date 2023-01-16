@@ -32,12 +32,6 @@ import (
 
 var (
 
-	// The rbac client
-	rbac_client_ *rbac_client.Rbac_Client
-
-	// The logger.
-	log_client_ *log_client.Log_Client
-
 	// That will contain the permission in memory to limit the number
 	// of resource request...
 	// TODO made use of real cache instead of a memory map to limit the memory usage...
@@ -51,7 +45,8 @@ var (
 )
 
 func GetLogClient(address string) (*log_client.Log_Client, error) {
-	client, err := globular_client.GetClient(address, "log.LogService", "log_client.NewLogService_Client")
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
+	client, err := globular_client.GetClient(address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +57,8 @@ func GetLogClient(address string) (*log_client.Log_Client, error) {
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -74,20 +70,22 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
  */
 func getClient(name, address string) (globular_client.Client, error) {
 	if name == "persistence.PersistenceService" {
-		client, err := globular_client.GetClient(address, "persistence.PersistenceService", "persistence_client.NewPersistenceService_Client")
+		Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
+		client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 		if err != nil {
 			return nil, err
 		}
 		return client.(*persistence_client.Persistence_Client), nil
 
 	} else if name == "resource.ResourceService" {
-		client, err := globular_client.GetClient(address, "resource.ResourceService", "resource_client.NewResourceService_Client")
+		Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
+		client, err := globular_client.GetClient(address, "resource.ResourceService", "NewResourceService_Client")
 		if err != nil {
 			return nil, err
 		}
 		return client.(*resource_client.Resource_Client), nil
 	}
-	
+
 	return nil, errors.New("no service register with name " + name + " was found at address " + address)
 }
 
@@ -145,7 +143,6 @@ func ValidateSubjectSpace(subject, address string, subjectType rbacpb.SubjectTyp
 }
 
 func validateAction(token, application, address, organization, method, subject string, subjectType rbacpb.SubjectType, infos []*rbacpb.ResourceInfos) (bool, bool, error) {
-
 
 	id := address + method + token
 	for i := 0; i < len(infos); i++ {
@@ -288,11 +285,11 @@ func ServerUnaryInterceptor(ctx context.Context, rqst interface{}, info *grpc.Un
 		}
 	}
 
-	if !hasAccess && len(application) > 0 && accessDenied{
+	if !hasAccess && len(application) > 0 && accessDenied {
 		hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, application, rbacpb.SubjectType_APPLICATION, address)
 	}
 
-	if !hasAccess && len(issuer) > 0 && !accessDenied{
+	if !hasAccess && len(issuer) > 0 && !accessDenied {
 		macAddress, _ := Utility.MyMacAddr(Utility.MyIP())
 		if issuer != macAddress {
 			hasAccess, accessDenied, _ = validateActionRequest(token, application, organization, rqst, method, issuer, rbacpb.SubjectType_PEER, address)

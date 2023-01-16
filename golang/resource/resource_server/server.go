@@ -21,7 +21,6 @@ import (
 	"github.com/globulario/services/golang/persistence/persistence_store"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
-	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
 	"github.com/globulario/services/golang/security"
 	"github.com/txn2/txeh"
@@ -41,8 +40,6 @@ var (
 
 	// comma separeated values.
 	allowed_origins string = ""
-
-	domain string = "localhost"
 )
 
 // Value need by Globular to start the services...
@@ -72,6 +69,7 @@ type server struct {
 	Discoveries     []string
 	Process         int
 	ProxyProcess    int
+	ConfigPath      string
 	LastError       string
 	State           string
 	ModTime         int64
@@ -106,6 +104,15 @@ type server struct {
 
 	// The grpc server.
 	grpcServer *grpc.Server
+}
+
+// The path of the configuration.
+func (svr *server) GetConfigurationPath() string {
+	return svr.ConfigPath
+}
+
+func (svr *server) SetConfigurationPath(path string) {
+	svr.ConfigPath = path
 }
 
 // The http address where the configuration can be found /config
@@ -394,16 +401,10 @@ func (svr *server) SetPermissions(permissions []interface{}) {
 	svr.Permissions = permissions
 }
 
-var (
-	rbac_client_        *rbac_client.Rbac_Client
-	log_client_         *log_client.Log_Client
-	event_client_       *event_client.Event_Client
-	persistence_client_ *persistence_client.Persistence_Client
-)
-
 // /////////////////// resource service functions ////////////////////////////////////
 func GetEventClient(address string) (*event_client.Event_Client, error) {
-	client, err := globular_client.GetClient(address, "event.EventService", "event_client.NewEventService_Client")
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(address, "event.EventService", "NewEventService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +480,6 @@ func (server *server) getPeerPublicKey(address, mac string) (string, error) {
 		return "", err
 	}
 
-
 	return client.GetPeerPublicKey(mac)
 }
 
@@ -537,7 +537,8 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 
 // ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
-	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "persistence_client.NewPersistenceService_Client")
+	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
+	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -565,7 +566,8 @@ func (server *server) createApplicationConnection(app *resourcepb.Application) e
  * Get the rbac client.
  */
 func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
-	client, err := globular_client.GetClient(address, "rbac.RbacService", "rbac_client.NewRbacService_Client")
+	Utility.RegisterFunction("NewRbacService_Client", rbac_client.NewRbacService_Client)
+	client, err := globular_client.GetClient(address, "rbac.RbacService", "NewRbacService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -603,9 +605,6 @@ func (svr *server) deleteAllAccess(suject string, subjectType rbacpb.SubjectType
 // Create the configuration file if is not already exist.
 func (svr *server) Init() error {
 
-	// That function is use to get access to other server.
-	Utility.RegisterFunction("NewResourceService_Client", resource_client.NewResourceService_Client)
-
 	// Get the configuration path.
 	err := globular.InitService(svr)
 	if err != nil {
@@ -642,26 +641,27 @@ func (svr *server) StopService() error {
  * Get the log client.
  */
 func (server *server) GetLogClient() (*log_client.Log_Client, error) {
-	client, err := globular_client.GetClient(server.Address, "log.LogService", "log_client.NewLogService_Client")
+	Utility.RegisterFunction("NewLogService_Client", log_client.NewLogService_Client)
+	client, err := globular_client.GetClient(server.Address, "log.LogService", "NewLogService_Client")
 	if err != nil {
 		return nil, err
 	}
 	return client.(*log_client.Log_Client), nil
 }
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) {
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) {
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
 	log_client_, err := server.GetLogClient()
 	if err != nil {
-		return
+		return err
 	}
-	log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
+	return log_client_.Log(server.Name, server.Address, method, logpb.LogLevel_ERROR_MESSAGE, infos, fileLine, functionName)
 }
 
 ////////////////////////////////// Resource functions ///////////////////////////////////////////////
@@ -816,7 +816,7 @@ func (resource_server *server) deleteReference(p persistence_store.Store, refId,
 
 		if localDomain != domain {
 			// so here I will redirect the call to the resource server at remote location.
-			client, err :=GetResourceClient(domain)
+			client, err := GetResourceClient(domain)
 			if err != nil {
 				return err
 			}
@@ -1195,9 +1195,11 @@ func main() {
 	s_impl.Name = string(resourcepb.File_resource_proto.Services().Get(0).FullName())
 	s_impl.Proto = resourcepb.File_resource_proto.Path()
 	s_impl.Port = defaultPort
+	s_impl.Path = os.Args[0]
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
-	s_impl.Domain = domain
+	s_impl.Domain, _ = config.GetDomain()
+	s_impl.Address, _ = config.GetAddress()
 	s_impl.Version = "0.0.1"
 	s_impl.PublisherId = "globulario"
 	s_impl.Description = "Resource manager service. Resources are Group, Account, Role, Organization and Peer."
@@ -1253,8 +1255,12 @@ func main() {
 	s_impl.Permissions[21] = map[string]interface{}{"action": "/resource.ResourceService/RemoveApplicationAction", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 	s_impl.Permissions[22] = map[string]interface{}{"action": "/resource.ResourceService/RemoveApplicationsAction", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "owner"}}}
 
+	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
-		s_impl.Id = os.Args[1]
+		s_impl.Id = os.Args[1] // The second argument must be the port number
+	} else if len(os.Args) == 3 {
+		s_impl.Id = os.Args[1]         // The second argument must be the port number
+		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
 
 	// Here I will retreive the list of connections from file if there are some...

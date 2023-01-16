@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	//"fmt"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -55,7 +54,6 @@ func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error
 			occurence.UserId = claims.Id
 			occurence.UserName = claims.Username // keep only the user name
 		}
-
 	}
 
 	// Return the log information.
@@ -91,7 +89,7 @@ func (server *server) log(info *logpb.LogInfo, occurence *logpb.Occurence) error
 	server.logs.SetItem(key, []byte(jsonStr))
 
 	// That must be use to keep all logger upto date...
-	server.publish("new_log_evt", []byte(jsonStr))
+	err = server.publish("new_log_evt", []byte(jsonStr))
 
 	return nil
 }

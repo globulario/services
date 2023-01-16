@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 
+	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_client"
@@ -15,9 +16,9 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 // storage Client Service
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 const BufferSize = 1024 * 5 // the chunck size.
 
 type Storage_Client struct {
@@ -77,12 +78,12 @@ func NewStorageService_Client(address string, id string) (*Storage_Client, error
 	return client, nil
 }
 
-func (client *Storage_Client) Reconnect () error{
+func (client *Storage_Client) Reconnect() error {
 	var err error
-	
+
 	client.cc, err = globular.GetClientConnection(client)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	client.c = storagepb.NewStorageServiceClient(client.cc)
@@ -90,14 +91,14 @@ func (client *Storage_Client) Reconnect () error{
 	return nil
 }
 
-
 // The address where the client can connect.
 func (client *Storage_Client) SetAddress(address string) {
 	client.address = address
 }
 
 func (client *Storage_Client) GetConfiguration(address, id string) (map[string]interface{}, error) {
-	client_, err := globular_client.GetClient(address, "config.ConfigService", "config_client.NewConfigService_Client")
+	Utility.RegisterFunction("NewConfigService_Client", config_client.NewConfigService_Client)
+	client_, err := globular_client.GetClient(address, "config.ConfigService", "NewConfigService_Client")
 	if err != nil {
 		return nil, err
 	}
@@ -243,14 +244,14 @@ func (client *Storage_Client) StopService() {
 }
 
 func (client *Storage_Client) CreateConnection(id string, name string, connectionType_ float64) error {
-	var connectionType  storagepb.StoreType
+	var connectionType storagepb.StoreType
 	if connectionType_ == 0 {
 		connectionType = storagepb.StoreType_LEVEL_DB
-	}else if connectionType_ == 1 {
+	} else if connectionType_ == 1 {
 		connectionType = storagepb.StoreType_BIG_CACHE
-	}else if connectionType_ == 2 {
+	} else if connectionType_ == 2 {
 		connectionType = storagepb.StoreType_BADGER_DB
-	}else{
+	} else {
 		return errors.New("no store found for the given storage type")
 	}
 	rqst := &storagepb.CreateConnectionRqst{
