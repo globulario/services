@@ -31,8 +31,8 @@ func (rbac_server *server) formatPath(path string) string {
 		if len(path) > 1 {
 			if strings.HasPrefix(path, "/") {
 				// Must be in the root path if it's not in public path.
-				if Utility.Exists(config.GetRootDir() + path) {
-					path = config.GetRootDir() + path
+				if Utility.Exists(config.GetGlobularExecPath() + path) {
+					path = config.GetGlobularExecPath() + path
 				} else if Utility.Exists(config.GetWebRootDir() + path) {
 					path = config.GetWebRootDir() + path
 				} else if strings.HasPrefix(path, "/users/") || strings.HasPrefix(path, "/applications/") {
@@ -40,7 +40,7 @@ func (rbac_server *server) formatPath(path string) string {
 				}
 
 			} else {
-				path = config.GetRootDir() + "/" + path
+				path = config.GetGlobularExecPath() + "/" + path
 			}
 		}
 	}

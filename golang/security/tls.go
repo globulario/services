@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	Root       = config_.GetRootDir()
+	Root       = config_.GetGlobularExecPath()
 	ConfigPath = config_.GetConfigDir() + "/config.json"
 	keyPath    = config_.GetConfigDir() + "/keys"
 )

@@ -705,7 +705,7 @@ func main() {
 	s_impl.PortsRange = "10000-10100"
 
 	// The server root...
-	s_impl.Root = config.GetRootDir()
+	s_impl.Root = config.GetGlobularExecPath()
 
 	// Set the paths
 	s_impl.DataPath = config.GetDataDir()

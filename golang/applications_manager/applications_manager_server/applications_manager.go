@@ -68,18 +68,20 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 // Install local package. found in the local directory...
 func (server *server) installLocalApplicationPackage(token, domain, applicationId, publisherId, version string) error {
 
-	path := config.GetRootDir() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
+	path := config.GetGlobularExecPath() + "/applications/" + applicationId + "_" + publisherId + "_" + version + ".tar.gz"
+
+	fmt.Println("try to get package ", path)
 
 	// so here I will try find package from the directory
 	if len(version) == 0 {
-		files, err := ioutil.ReadDir(config.GetRootDir() + "/applications")
+		files, err := ioutil.ReadDir(config.GetGlobularExecPath() + "/applications")
 		if err != nil {
 			return err
 		}
 
 		for _, file := range files {
 			if strings.Contains(file.Name(), applicationId) && strings.Contains(file.Name(), publisherId) {
-				path = config.GetRootDir() + "/applications/" + file.Name()
+				path = config.GetGlobularExecPath() + "/applications/" + file.Name()
 			}
 		}
 	}
@@ -154,7 +156,9 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 		return nil
 	}
 
-	return errors.New("no application pacakage found with path " + path)
+	err :=errors.New("no application pacakage found with path " + path)
+	fmt.Println("fail to get local application package with error: ", err)
+	return err
 }
 
 // ////////////////////// Resource Client ////////////////////////////////////////////

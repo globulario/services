@@ -115,7 +115,6 @@ func (client *Event_Client) Reconnect() error {
  */
 func (client *Event_Client) run() error {
 
-	fmt.Println("---------------------------> start listen to incomming event...")
 	// Create the channel.
 	data_channel := make(chan *eventpb.Event, 0)
 

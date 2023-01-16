@@ -118,7 +118,7 @@ func GetRootDir() string {
 /**
  * Return the location of globular executable.
  */
- func GetGlobularExecPath() string {
+func GetGlobularExecPath() string {
 	localConfig, err := GetLocalConfig(true)
 	if err == nil {
 		if len(localConfig["Path"].(string)) != 0 {
@@ -199,33 +199,33 @@ func GetServicesConfigDir() string {
 	dir = strings.ReplaceAll(dir, "\\", "/")
 
 	// first I will get the exec name.
-	execname:=filepath.Base(os.Args[0])
-	
-	if strings.HasPrefix(execname, "Globular"){
-		// if a directory named /services is found in the same directory of the exec Globular 
+	execname := filepath.Base(os.Args[0])
+
+	if strings.HasPrefix(execname, "Globular") {
+		// if a directory named /services is found in the same directory of the exec Globular
 		// it means the configurations must resides in configuration directory...
-		if Utility.Exists(dir + "/services"){
+		if Utility.Exists(dir + "/services") {
 			return GetConfigDir() + "/services"
 		}
-	}else{
-		
+	} else {
+
 		// if config near the service has priority over config found from other location...
-		if Utility.Exists(dir + "/config.json"){
-			return GetServicesDir()  
+		if Utility.Exists(dir + "/config.json") {
+			return GetServicesDir()
 		}
 
-		if Utility.Exists( GetConfigDir() + "/services"){
+		if Utility.Exists(GetConfigDir() + "/services") {
 			return GetConfigDir() + "/services"
 		}
 	}
 
-	return GetServicesDir()  
+	return GetServicesDir()
 }
 
 // Must be call from Globular exec...
 func GetConfigDir() string {
 	if runtime.GOOS == "windows" {
-		// Here by default the configuration will 
+		// Here by default the configuration will
 		if runtime.GOARCH == "386" {
 			programFilePath, _ := Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
 			return strings.ReplaceAll(programFilePath, "\\", "/") + "/globular/config" // "C:/Program Files (x86)/globular"
@@ -371,7 +371,6 @@ func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
  */
 func GetRemoteServiceConfig(address string, port int, id string) (map[string]interface{}, error) {
 
-	
 	if len(address) == 0 {
 		return nil, errors.New("no address was given")
 	}
@@ -449,7 +448,7 @@ func GetRemoteServiceConfig(address string, port int, id string) (map[string]int
  * Get the remote client configuration, made use of http request to do so.
  */
 func GetRemoteConfig(address string, port int) (map[string]interface{}, error) {
-	
+
 	if len(address) == 0 {
 		return nil, errors.New("no address was given")
 	}
@@ -521,7 +520,7 @@ func GetLocalConfig(lazy bool) (map[string]interface{}, error) {
 	if lazy && config_ != nil {
 		return config_, nil
 	}
-	
+
 	// display configuration value.
 	ConfigPath := GetConfigDir() + "/config.json"
 
@@ -938,8 +937,6 @@ func initConfig() {
 		return
 	}
 
-	
-
 	services := make([]map[string]interface{}, 0)
 
 	// The service dir.
@@ -950,7 +947,7 @@ func initConfig() {
 	// I will try to get configuration from services.
 	for i := 0; i < len(files); i++ {
 		path := files[i]
-		
+
 		//fmt.Println("init service from config at path: ", path)
 		s, err := initServiceConfiguration(path, serviceDir)
 		if err != nil {
@@ -965,8 +962,8 @@ func initConfig() {
 			services = append(services, s)
 
 			// If the execname is globular I will set the services path from exec found in that path...
-			if strings.HasPrefix(execname, "Globular"){
-				service_name :=  filepath.Base(s["Path"].(string)) 
+			if strings.HasPrefix(execname, "Globular") {
+				service_name := filepath.Base(s["Path"].(string))
 				//fmt.Println("-------------> service exec name: ", service_name)
 				files, err := Utility.FindFileByName(serviceDir, service_name)
 				if err == nil {
@@ -974,7 +971,7 @@ func initConfig() {
 						s["Path"] = files[0]
 						// I will also save the configuration.
 						jsonStr, err := Utility.ToJson(s)
-						if err == nil{
+						if err == nil {
 							os.WriteFile(path, []byte(jsonStr), 0644)
 						}
 					}
@@ -1233,9 +1230,9 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  * Return a service with a given configuration id.
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
-	
+
 	initConfig()
-	
+
 	infos := make(map[string]interface{})
 	infos["id"] = id
 	infos["return"] = make(chan map[string]interface{})

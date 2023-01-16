@@ -349,9 +349,9 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	err = proxyProcess.Start()
 	if err != nil {
 		if err.Error() == `exec: "grpcwebproxy": executable file not found in $PATH` {
-			if Utility.Exists(config.GetRootDir() + "/bin/" + cmd) {
-				proxyProcess = exec.Command(config.GetRootDir()+"/bin/"+cmd, proxyArgs...)
-				proxyProcess.Dir = config.GetRootDir() + "/bin/"
+			if Utility.Exists(config.GetGlobularExecPath() + "/bin/" + cmd) {
+				proxyProcess = exec.Command(config.GetGlobularExecPath()+"/bin/"+cmd, proxyArgs...)
+				proxyProcess.Dir = config.GetGlobularExecPath() + "/bin/"
 				err = proxyProcess.Start()
 				if err != nil {
 					return -1, err
