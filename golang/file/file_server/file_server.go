@@ -1117,6 +1117,12 @@ func getFileInfos(info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.Fil
 	infos = append(infos, info)
 	for i := 0; i < len(info.Files); i++ {
 		if Utility.Exists(info.Files[i].Path) {
+			// do not send Thumbnail...
+			if info.Files[i].IsDir == true {
+				if !Utility.Exists(info.Files[i].Path + "/playlist.m3u8") {
+					info.Files[i].Thumbnail = ""
+				}
+			}
 			infos = getFileInfos(info.Files[i], infos)
 		} else {
 			cache.RemoveItem(info.Files[i].Path)
