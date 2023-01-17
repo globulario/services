@@ -953,11 +953,9 @@ func initConfig() {
 		if err != nil {
 			fmt.Println("fail to initialyse service configuration from file "+path, "with error", err)
 		} else {
+		
 			// save back the file...
 			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
-			s["Process"] = -1
-			s["Proxy"] = -1
-			s["State"] = "stopped"
 
 			services = append(services, s)
 

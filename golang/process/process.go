@@ -151,6 +151,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 	// save the port and ProxyProcess
 	err = config_client.SaveServiceConfiguration(s)
 	if err != nil {
+		fmt.Println("fail to save service configuration", err)
 		return -1, err
 	}
 
@@ -166,6 +167,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 	if err != nil {
 		stdout.Close()
 		done <- true
+		fmt.Println("process exit with error ", err)
 		return -1, err
 	}
 
@@ -184,17 +186,22 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		s["Process"] = p.Process.Pid
 		s["State"] = "running"
 		s["LastError"] = ""
-		config_client.SaveServiceConfiguration(s)
+		err = config_client.SaveServiceConfiguration(s)
+		if err != nil {
+			fmt.Println("fail to save service configuration for", s["Name"], "with error", err)
+		}
 
 		// give back the process id.
 		waitUntilStart <- Utility.ToInt(s["Process"])
 
 		err = p.Wait()
+
 		// Here I will read the configuration to get more information about the process.
 		if err != nil {
 			fmt.Println("service "+s["Name"].(string)+" fail with error ", err)
 			s["State"] = "failed"
 		} else {
+			fmt.Println("service "+s["Name"].(string)+"was stop")
 			s["State"] = "stopped"
 		}
 
@@ -235,6 +242,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		stdout.Close()
 		done <- true
 
+		fmt.Println("Process", s["Process"],"running", s["Name"], "has terminate and set back to -1")
 		s["Process"] = -1
 
 		// kill it proxy process

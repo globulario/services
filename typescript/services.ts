@@ -372,7 +372,7 @@ export class EventHub {
       const enc = new TextEncoder(); // always utf-8
       // encode the string to a array of byte
       if (data != null) {
-        if(data.length > 0){
+        if (data.length > 0) {
           evt.setData(enc.encode(data))
         }
       }
@@ -467,6 +467,19 @@ export class Globular {
   }
   public set config(value: IConfig) {
     this._config = value;
+  }
+
+  // Return the domain of a globule from it configuration.
+  public get domain(): string {
+    let domain = this._config.Name
+    if (domain.length > 0 && !this._config.Domain.startsWith(this._config.Name)) {
+      if (this._config.Domain.length > 0) {
+        domain += "." + this._config.Domain;
+      }
+    } else {
+      domain = this._config.Domain;
+    }
+    return domain;
   }
 
   /** The admin service to access to other configurations. */

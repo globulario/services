@@ -338,7 +338,6 @@ func (client *Event_Client) Publish(name string, data interface{}) error {
 		fmt.Println("fail to publish event", name, "with error", err)
 		return err
 	}
-	fmt.Println("evt", name, "was publish")
 	return nil
 }
 
