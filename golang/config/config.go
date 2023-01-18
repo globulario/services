@@ -98,7 +98,6 @@ func GetRootDir() string {
 	dir = strings.ReplaceAll(dir, "\\", "/")
 
 	// So here the root dir can be the client exec itself or globular.
-
 	if runtime.GOOS == "darwin" {
 		// Move service configuration to /etc/globular/config/services if not already there.
 		if Utility.Exists(dir + "/etc/globular/config/services") {
@@ -106,7 +105,6 @@ func GetRootDir() string {
 			if !Utility.Exists("/etc/globular/config/services") {
 				Utility.Move(dir+"/etc/globular/config/services", "/etc/globular/config")
 			}
-
 			os.RemoveAll(dir + "/etc")
 		}
 
