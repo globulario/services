@@ -58,7 +58,7 @@ func (server *server) UninstallApplication(ctx context.Context, rqst *applicatio
 	}
 
 	// Remove the application directory... but keep application data...
-	os.RemoveAll(config.GetWebRootDir() + "/" + rqst.ApplicationId)
+	os.RemoveAll(config.GetWebRootDir() + "/" + strings.Split(rqst.ApplicationId, "@")[0] )
 
 	return &applications_managerpb.UninstallApplicationResponse{
 		Result: true,
