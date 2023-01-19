@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 
 	//"runtime/pprof"
@@ -382,11 +383,12 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-	
+
+	// The exec path
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
-
 	s.SetPath(execPath)
+
 	if len(os.Args) == 3 {
 		s.SetId(os.Args[1])
 		s.SetConfigurationPath(strings.ReplaceAll(os.Args[2], "\\", "/"))
@@ -428,6 +430,53 @@ func InitService(s Service) error {
 		s.SetId(Utility.RandomUUID())
 	}
 
+	// Get the execname
+	execName := filepath.Base(execPath)
+
+	// The proto file name
+	protoName := execName
+	if strings.Contains(protoName, ".") {
+		protoName = strings.Split(protoName, ".")[0]
+	}
+
+	if strings.Contains(protoName, "_server") {
+		protoName = execName[0:strings.LastIndex(protoName, "_server")]
+	}
+	protoName = protoName + ".proto"
+
+	// set the proto path.
+	files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
+	if err == nil {
+		if len(files) > 0 {
+			s.SetProto(files[0])
+		} else {
+			protoName = s.GetName() + ".proto"
+			files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
+			if err == nil {
+				if len(files) > 0 {
+					s.SetProto(files[0])
+				} else {
+					fmt.Println("459 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+				}
+			} else {
+				fmt.Println("462 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+			}
+		}
+	} else {
+		// try with the service name instead...
+		protoName = s.GetName() + ".proto"
+		files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
+		if err == nil {
+			if len(files) > 0 {
+				s.SetProto(files[0])
+			} else {
+				fmt.Println("473 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+			}
+		} else {
+			fmt.Println("476 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+		}
+	}
+
 	// set contextual values.
 	address, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
@@ -436,22 +485,20 @@ func InitService(s Service) error {
 	s.SetMac(macAddress)
 	s.SetAddress(address)
 	s.SetDomain(domain)
-	
 
 	// here the service is runing...
 	s.SetState("running")
 	s.SetProcess(os.Getpid())
 
 	// Now the platform.
-	s.SetPlatform(runtime.GOOS + "_" +runtime.GOARCH) 
+	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
-	if len(os.Args) < 3 {
-		SaveService(s)
-	}
+	
 
-	return nil
+	fmt.Println("----------------> proto file: ", s.GetProto())
+	return SaveService(s)
 }
 
 /**

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/davecourtois/Utility"
 	"github.com/emicklei/proto"
-	"github.com/fsnotify/fsnotify"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 )
 
@@ -784,18 +782,6 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 				s["Id"] = Utility.RandomUUID()
 			}
 
-			// Here I will set the proto file path.
-			if s["Proto"] != nil {
-				if !Utility.Exists(s["Proto"].(string)) {
-					files, err := Utility.FindFileByName(serviceDir, strings.Split(s["Name"].(string), ".")[0]+".proto")
-					if err == nil {
-						if len(files) > 0 {
-							s["Proto"] = files[0]
-						}
-					}
-				}
-			}
-
 			// Now the exec path.
 			if s["Path"] != nil {
 				if !Utility.Exists(s["Path"].(string)) {
@@ -817,6 +803,54 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 					s["Root"] = GetDataDir() + "/files"
 				} else {
 					s["Root"] = GetDataDir()
+				}
+			}
+
+			// Get the execname
+			execPath := s["Path"].(string)
+			execName := filepath.Base(execPath)
+
+			// The proto file name
+			protoName := execName
+			if strings.Contains(protoName, ".") {
+				protoName = strings.Split(protoName, ".")[0]
+			}
+
+			if strings.Contains(protoName, "_server") {
+				protoName = execName[0:strings.LastIndex(protoName, "_server")]
+			}
+			protoName = protoName + ".proto"
+
+			// set the proto path.
+			files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
+			if err == nil {
+				if len(files) > 0 {
+					s["Proto"] = files[0]
+				} else {
+					protoName = s["Name"].(string) + ".proto"
+					files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
+					if err == nil {
+						if len(files) > 0 {
+							s["Proto"] = files[0]
+						} else {
+							fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+						}
+					} else {
+						fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+					}
+				}
+			} else {
+				// try with the service name instead...
+				protoName = s["Name"].(string) + ".proto"
+				files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
+				if err == nil {
+					if len(files) > 0 {
+						s["Proto"] = files[0]
+					} else {
+						fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+					}
+				} else {
+					fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
 				}
 			}
 
@@ -951,16 +985,14 @@ func initConfig() {
 		if err != nil {
 			fmt.Println("fail to initialyse service configuration from file "+path, "with error", err)
 		} else {
-		
+
 			// save back the file...
 			s["ConfigPath"] = strings.ReplaceAll(path, "\\", "/") // set the service configuration path.
-
 			services = append(services, s)
 
 			// If the execname is globular I will set the services path from exec found in that path...
 			if strings.HasPrefix(execname, "Globular") {
 				service_name := filepath.Base(s["Path"].(string))
-				//fmt.Println("-------------> service exec name: ", service_name)
 				files, err := Utility.FindFileByName(serviceDir, service_name)
 				if err == nil {
 					if len(files) > 0 {
@@ -1008,26 +1040,13 @@ func setServiceConfiguration(index int, services []map[string]interface{}) {
 // Main loop to read and write configuration.
 func accesServiceConfigurationFile(services []map[string]interface{}) {
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal("NewWatcher failed: ", err)
-	}
-	defer watcher.Close()
-	// register file to watch...
-	for i := 0; i < len(services); i++ {
-		// watch for configuration change
-		err = watcher.Add(services[i]["ConfigPath"].(string))
-		if err != nil {
-			log.Fatal("Add failed:", err)
-		}
-	}
-
 	for {
 		select {
 		case infos := <-saveServiceConfigChan:
 			s := infos["service_config"].(map[string]interface{})
 			path := s["ConfigPath"].(string)
 			return_chan := infos["return"].(chan error)
+
 			// Save it config...
 			jsonStr, err := Utility.ToJson(s)
 			if err != nil {
@@ -1036,32 +1055,47 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			} else if len(jsonStr) == 0 {
 				return_chan <- errors.New("no configuration to save")
 			} else {
-				for isLocked(path) {
-					time.Sleep(50 * time.Millisecond)
-				}
-				lock(path) // lock the file access
-				err := os.WriteFile(path, []byte(jsonStr), 0644)
-				unlock(path) // unlock the file access
-				if err != nil {
-					fmt.Println("fail to save service configuration.", err)
-					infos["return"].(chan error) <- err
-				}
+
+				// so here I will test of the configuration has change before write it in the file.
 				index := -1
+				hasChange := true
+
 				for i := 0; i < len(services); i++ {
 					if services[i]["Id"] == s["Id"] {
 						index = i
 						break
 					}
 				}
+
 				if index == -1 {
 					index = len(services)
 					services = append(services, s)
+				} else {
+					// so here the service is found in services list...
+					s_ := services[index]
+					jsonStr_, _ := Utility.ToJson(s_)
+					hasChange = jsonStr_ != jsonStr
 				}
 
-				services[index]["ModTime"] = int64(0)
+				// if the configuration has change 
+				if hasChange {
+					for isLocked(path) {
+						time.Sleep(50 * time.Millisecond)
+					}
 
-				// Set the service...
-				setServiceConfiguration(index, services)
+					lock(path) // lock the file access
+					err := os.WriteFile(path, []byte(jsonStr), 0644)
+					unlock(path) // unlock the file access
+					if err != nil {
+						fmt.Println("fail to save service configuration.", err)
+						infos["return"].(chan error) <- err
+					}
+
+					services[index]["ModTime"] = int64(0)
+
+					// Set the service...
+					setServiceConfiguration(index, services)
+				}
 
 				return_chan <- nil
 			}
@@ -1121,33 +1155,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 				err = errors.New("no services found with name " + name)
 			}
 			infos["return"].(chan map[string]interface{}) <- map[string]interface{}{"services": services_, "error": err}
-
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return
-			}
-			if event.Op == fsnotify.Write {
-				data, err := os.ReadFile(event.Name)
-				s := make(map[string]interface{})
-				err = json.Unmarshal(data, &s)
-				if err == nil {
-					// set the service values found from the file.
-					for i := 0; i < len(services); i++ {
-						if services[i]["Id"] == s["Id"] {
-							services[i] = s
-							// Here I will send service change event.
-
-							break
-						}
-					}
-
-				}
-			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return
-			}
-			fmt.Println("error:", err)
 		}
 
 	}
