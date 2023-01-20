@@ -367,7 +367,7 @@ func clientInterceptor(client_ Client) func(
 		// Logic after invoking the invoker
 
 		if client_ != nil && err != nil {
-			if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) {
+			if strings.HasPrefix(err.Error(), `rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing dial tcp`) ||strings.HasPrefix(err.Error(), `rpc error: code = Unimplemented desc = unknown service`)   {
 
 				// Here I will test if the service as restarted...
 				fmt.Println(":: Reconnecting to service ", client_.GetName(), "at", client_.GetAddress())
