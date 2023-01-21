@@ -3,7 +3,6 @@ package search_engine
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/blevesearch/bleve"
 	"github.com/globulario/services/golang/search/searchpb"
 	"log"
@@ -139,7 +138,6 @@ func (search_engine *BleveSearchEngine) indexJsonObject(index bleve.Index, obj m
 // Index a given object.
 func (engine *BleveSearchEngine) IndexJsonObject(path string, jsonStr string, language string, id string, indexs []string, data string) error {
 
-	fmt.Println("Try to index object...", path)
 	index, err := engine.getIndex(path)
 	if err != nil {
 		return err

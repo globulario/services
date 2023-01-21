@@ -7,10 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/StalkR/httpcache"
-	"github.com/StalkR/imdb"
-
+	"image/jpeg"
 	"io"
 	"io/ioutil"
 	"log"
@@ -26,6 +23,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/StalkR/httpcache"
+	"github.com/StalkR/imdb"
+
+	"github.com/barasher/go-exiftool"
+	"github.com/karmdip-mi/go-fitz"
+
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
 	"github.com/dhowden/tag"
@@ -39,6 +42,8 @@ import (
 	"github.com/globulario/services/golang/interceptors"
 	"github.com/globulario/services/golang/rbac/rbac_client"
 	"github.com/globulario/services/golang/rbac/rbacpb"
+	"github.com/globulario/services/golang/search/search_client"
+	"github.com/globulario/services/golang/search/search_engine"
 	"github.com/globulario/services/golang/security"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
@@ -553,12 +558,12 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					info.Mime = "video/hls-stream"
 				}
 			}
+
 			return info, nil
 		}
 
 		// remove it from the cache...
 		cache.RemoveItem(path)
-
 	}
 
 	info.IsDir = fileStat.IsDir()
@@ -580,7 +585,6 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 	// Now the section depending of the mime type...
 	if !strings.Contains(path, "/.hidden") {
-
 		// the file
 		if !info.IsDir {
 
@@ -611,8 +615,23 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			}
 
 			if err == nil {
+
+				// If hidden folder exist for it...
+				path_ := filepath.Dir(path)
+				fileName := filepath.Base(path)
+				if strings.Contains(fileName, ".") {
+					fileName = fileName[0:strings.LastIndex(fileName, ".")]
+				}
+				hiddenFolder := path_ + "/.hidden/" + fileName
+
 				// in case of image...
-				if strings.HasPrefix(info.Mime, "image/") {
+				if Utility.Exists(hiddenFolder + "/__thumbnail__/data_url.txt") {
+					thumbnail, err := os.ReadFile(hiddenFolder + "/__thumbnail__/data_url.txt")
+					if err == nil {
+						info.Thumbnail = string(thumbnail)
+					}
+
+				} else if strings.HasPrefix(info.Mime, "image/") {
 					if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 						info.Thumbnail, _ = s.getThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 					} else {
@@ -620,15 +639,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					}
 				} else if strings.HasPrefix(info.Mime, "video/") {
 
-					// If hidden folder exist for it...
-					path_ := path[0:strings.LastIndex(path, "/")]
-					fileName := path[strings.LastIndex(path, "/")+1:]
-					if strings.Contains(fileName, ".") {
-						fileName = fileName[0:strings.LastIndex(fileName, ".")]
-					}
-					hiddenFolder := path_ + "/.hidden/" + fileName
 					if Utility.Exists(hiddenFolder) {
-
 						// Here I will auto generate preview if it not already exist...
 						if !Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
 							// generate the preview...
@@ -689,6 +700,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					}
 
 				} else if strings.Contains(info.Mime, "/") {
+
 					// In that case I will get read image from png file and create a
 					// thumbnail with it...
 					path_, err := os.Getwd()
@@ -1865,6 +1877,19 @@ func (file_server *server) HtmlToPdf(ctx context.Context, rqst *filepb.HtmlToPdf
 	return &filepb.HtmlToPdfResponse{
 		Pdf: data,
 	}, nil
+}
+
+/**
+ * Return the search service.
+ */
+func getSearchClient() (*search_client.Search_Client, error) {
+	address, _ := config.GetAddress()
+	Utility.RegisterFunction("NewSearchService_Client", search_client.NewSearchService_Client)
+	client, err := globular_client.GetClient(address, "search.SearchService", "NewSearchService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*search_client.Search_Client), nil
 }
 
 /**
@@ -5443,6 +5468,171 @@ func (file_server *server) GetVideoConversionLogs(ctx context.Context, rqst *fil
 	return &filepb.GetVideoConversionLogsResponse{Logs: logs}, nil
 }
 
+func ExtractMetada(path string) (map[string]interface{}, error) {
+	et, err := exiftool.NewExiftool()
+	if err != nil {
+		return nil, err
+	}
+
+	defer et.Close()
+
+	fileInfos := et.ExtractMetadata(path)
+	if len(fileInfos) > 0 {
+		return fileInfos[0].Fields, nil
+	}
+
+	return nil, errors.New("no metadata found for " + path)
+}
+
+// Index text contain in a pdf file
+func (file_server *server) indexPdfFile(path string, fileInfos *filepb.FileInfo) error {
+
+	// The hidden folder path...
+	path_ := path[0:strings.LastIndex(path, "/")]
+	lastIndex := -1
+	if strings.Contains(path, ".pdf") {
+		lastIndex = strings.LastIndex(path, ".")
+	}
+
+	name_ := path[strings.LastIndex(path, "/")+1:]
+	if lastIndex != -1 {
+		name_ = path[strings.LastIndex(path, "/")+1 : lastIndex]
+	}
+
+	hidden_folder := path_ + "/.hidden/" + name_
+
+	thumbnail_path := hidden_folder + "/__thumbnail__"
+	Utility.CreateIfNotExists(thumbnail_path, 0755)
+
+	indexation_path := hidden_folder + "/__index_db__"
+	Utility.CreateIfNotExists(indexation_path, 0755)
+
+	if Utility.Exists(thumbnail_path + "/data_url.txt") {
+		return errors.New("info already exist")
+	}
+
+	// Read and index pdf information.
+	doc, err := fitz.New(path)
+	if err != nil {
+		return err
+	}
+
+	metadata_, _ := ExtractMetada(path)
+	metadata_str, _ := Utility.ToJson(metadata_)
+
+	search_engine := new(search_engine.BleveSearchEngine)
+
+	err = search_engine.IndexJsonObject(indexation_path, metadata_str, "english", "SourceFile", []string{"FileName", "Author", "Producer", "Title"}, "")
+	fmt.Println(metadata_str)
+	if err != nil {
+		log.Println(err)
+	}
+
+	doc_ := make(map[string]interface{})
+
+	doc_["Metadata"] = doc.Metadata()
+	doc_["Pages"] = make([]interface{}, 0)
+
+	for i := 0; i < doc.NumPage(); i++ {
+
+		// first of all the first image will be use as cover.
+		if i == 0 {
+
+			// the metadata
+
+			// take the first image as cover.
+			img, err := doc.Image(0)
+
+			if err != nil {
+				panic(err)
+			}
+
+			tmpPath := os.TempDir() + "/" + Utility.RandomUUID() + ".jpg"
+			f, err := os.Create(tmpPath)
+			if err != nil {
+				return err
+			}
+
+			err = jpeg.Encode(f, img, &jpeg.Options{Quality: jpeg.DefaultQuality})
+			if err != nil {
+				return err
+			}
+
+			f.Close()
+			defer os.Remove(tmpPath)
+
+			data_url, err := Utility.CreateThumbnail(tmpPath, 256, 256)
+			if err != nil {
+				return err
+			}
+
+			// write the thumnail in the path
+			err = os.WriteFile(thumbnail_path+"/data_url.txt", []byte(data_url), 0755)
+			if err != nil {
+				return err
+			}
+
+			cache.RemoveItem(path)
+			event_client, err := getEventClient()
+			if err == nil {
+				dir := string(path)[0:strings.LastIndex(string(path), "/")]
+				dir = strings.ReplaceAll(dir, config.GetDataDir()+"/files", "")
+				event_client.Publish("reload_dir_event", []byte(dir))
+			}
+		}
+
+		// Now the text...
+		page := make(map[string]interface{})
+		page["Id"] = "page_" + Utility.ToString(i)
+		page["Number"] = i
+		txt, err := doc.Text(i)
+		if err == nil {
+			page["Text"] = txt // Indexation will be generate from plain text...
+			page_str, err := Utility.ToJson(page)
+
+			if err == nil {
+				err = search_engine.IndexJsonObject(indexation_path, page_str, "english", "Id", []string{"Text"}, "")
+				if err != nil {
+					fmt.Println("fail to index page: ", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// Index text contain in a pdf file
+func (file_server *server) indexTextFile(path string, fileInfos *filepb.FileInfo) error {
+	return nil
+}
+
+// That function is use to index file at given path so the user will be able to
+// search
+func (file_server *server) indexFile(path string) error {
+
+	// from the mime type I will choose how the document must be indexed.
+	fileInfos, err := getFileInfo(file_server, path, -1, -1)
+
+	if err != nil {
+		return err
+	}
+
+	if fileInfos.Mime == "application/pdf" {
+		return file_server.indexPdfFile(path, fileInfos)
+	} else if strings.HasPrefix(fileInfos.Mime, "text") {
+		return file_server.indexTextFile(path, fileInfos)
+	}
+
+	return errors.New("no indexation exist for file type " + fileInfos.Mime)
+}
+
+// Remove file indexation
+func (file_server *server) removeIndexation(path string) error {
+
+	return nil
+}
+
 // That service is use to give access to SQL.
 // port number must be pass as argument.
 func main() {
@@ -5548,6 +5738,7 @@ func main() {
 			channel_0 := make(chan string)
 			channel_1 := make(chan string)
 			channel_2 := make(chan string)
+			channel_3 := make(chan string)
 
 			// Process request received...
 			go func() {
@@ -5607,6 +5798,7 @@ func main() {
 						// remove it from the cache.
 						cache.RemoveItem(path_)
 
+						// force client to reload their informations.
 						event_client.Publish("reload_dir_event", []byte(dir))
 						go func() {
 							channel_2 <- path
@@ -5616,11 +5808,18 @@ func main() {
 						path_ := s_impl.formatPath(path)
 						generateVideoPreview(s_impl, path_, 10, 320, 30, false)
 						createVideoTimeLine(s_impl, path_, 180, .2, false) // 1 frame per 5 seconds.
+
+					case path := <-channel_3:
+						path_ := s_impl.formatPath(path)
+						err := s_impl.indexFile(path_)
+						if err != nil {
+							fmt.Println("fail to index file with error: ", err)
+						}
 					}
 				}
 			}()
 
-			// refresh dir event
+			// generate preview event
 			err := event_client.Subscribe("generate_video_preview_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
 
 				channel_0 <- string(evt.Data)
@@ -5628,6 +5827,16 @@ func main() {
 			if err != nil {
 				fmt.Println("Fail to connect to event channel generate_video_preview_event")
 			}
+
+			// index file event
+			err = event_client.Subscribe("index_file_event", Utility.RandomUUID(), func(evt *eventpb.Event) {
+
+				channel_3 <- string(evt.Data)
+			})
+			if err != nil {
+				fmt.Println("Fail to connect to event channel index_file_event")
+			}
+
 		}
 
 	}()

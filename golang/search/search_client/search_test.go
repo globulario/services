@@ -2,13 +2,14 @@ package search_client
 
 import (
 	//"encoding/json"
+	"fmt"
 	"log"
 	"testing"
 )
 
 var (
 	client    *Search_Client
-	tmpDir    = "C:/temp"
+	tmpDir    = "/tmp"
 	ebookPath = "E:/ebooks"
 )
 
@@ -16,15 +17,22 @@ func getClient() *Search_Client {
 	if client != nil {
 		return client
 	}
-	client, _ = NewSearchService_Client("globule-ryzen.globular.cloud:10002", "search.SearchService")
+	client, _ = NewSearchService_Client("globule-ryzen.globular.cloud:443", "search.SearchService")
 	return client
 }
 
+func TestIndexDocument(t *testing.T){
+	fmt.Println("test index document")
+
+}
+
 func TestIndexJsonObject(t *testing.T) {
+	fmt.Println("test index json object")
+
 	var str = `
 	[
 	    {
-		  "id": 1,
+		  "id": "1",
 	      "name": "Tom Cruise",
 	      "age": 56,
 	      "BornAt": "Syracuse, NY",
@@ -41,7 +49,7 @@ func TestIndexJsonObject(t *testing.T) {
 	      ]
 	    },
 	    {
-	      "id": 2,
+	      "id": "2",
 	      "name": "Robert Downey Jr.",
 	      "age": 53,
 	      "BornAt": "New York City, NY",

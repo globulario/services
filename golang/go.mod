@@ -11,8 +11,8 @@ require (
 	github.com/alexbrainman/odbc v0.0.0-20200426075526-f0492dfa1575
 	github.com/allegro/bigcache v1.2.1
 	github.com/anacrolix/torrent v1.41.0
+	github.com/barasher/go-exiftool v1.8.0
 	github.com/blevesearch/bleve v1.0.14
-	github.com/davecourtois/GoXapian v0.0.0-00010101000000-000000000000
 	github.com/davecourtois/Utility v0.0.0-00010101000000-000000000000
 	github.com/denisenkom/go-mssqldb v0.10.0
 	github.com/dgraph-io/badger/v3 v3.2103.2
@@ -32,6 +32,7 @@ require (
 	github.com/improbable-eng/grpc-web v0.15.0
 	github.com/jasonlvhit/gocron v0.0.1
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
+	github.com/karmdip-mi/go-fitz v0.0.0-20210702102225-a530a79566e9
 	github.com/lib/pq v1.10.2
 	github.com/mattn/go-sqlite3 v2.0.2+incompatible
 	github.com/mhale/smtpd v0.0.0-20210322105601-438c8edb069c
@@ -44,9 +45,9 @@ require (
 	github.com/tealeg/xlsx v1.0.5
 	github.com/txn2/txeh v1.3.0
 	go.mongodb.org/mongo-driver v1.5.2
-	golang.org/x/crypto v0.0.0-20220131195533-30dcbda58838
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
-	google.golang.org/grpc v1.38.0
+	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
+	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
+	google.golang.org/grpc v1.44.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/gomail.v1 v1.0.0-20150320132819-11b919ab4933
 )
@@ -60,12 +61,15 @@ require (
 	github.com/cenkalti/backoff/v4 v4.1.1 // indirect
 	github.com/desertbit/timer v0.0.0-20180107155436-c41aec40b27f // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
+	github.com/google/go-cmp v0.5.7 // indirect
 	github.com/kennygrant/sanitize v1.2.4 // indirect
 	github.com/polds/imgbase64 v0.0.0-20140820003345-cb7bf37298b7 // indirect
 	github.com/rs/cors v1.7.0 // indirect
 	github.com/saintfish/chardet v0.0.0-20120816061221-3af4cd4741ca // indirect
+	github.com/stretchr/testify v1.7.1 // indirect
 	github.com/temoto/robotstxt v1.1.1 // indirect
-	google.golang.org/appengine v1.6.6 // indirect
+	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect
+	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc/examples v0.0.0-20221006202345-c03925db8d3c // indirect
 	nhooyr.io/websocket v1.8.6 // indirect
 )
@@ -120,7 +124,7 @@ require (
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
-	github.com/golang/snappy v0.0.3 // indirect
+	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/flatbuffers v1.12.1 // indirect
 	github.com/google/uuid v1.3.0 // indirect
@@ -176,14 +180,14 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
-	go.opencensus.io v0.22.6 // indirect
+	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/sys v0.0.0-20220728004956-3c1f35247d10 // indirect
+	golang.org/x/text v0.4.0 // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/genproto v0.0.0-20210524171403-669157292da3 // indirect
+	google.golang.org/genproto v0.0.0-20220207164111-0872dc986b00 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v2 v2.0.0-20150314193201-9b4a113f96b3 // indirect
 	modernc.org/libc v1.11.82 // indirect
 	modernc.org/mathutil v1.4.1 // indirect
