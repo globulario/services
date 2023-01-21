@@ -1025,8 +1025,6 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 		return err
 	}
 
-	fmt.Println("-----> permission was set for path ", path, permissions)
-
 	return nil
 }
 

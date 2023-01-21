@@ -201,7 +201,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 			fmt.Println("service "+s["Name"].(string)+" fail with error ", err)
 			s["State"] = "failed"
 		} else {
-			fmt.Println("service "+s["Name"].(string)+"was stop")
+			fmt.Println("service " + s["Name"].(string) + "was stop")
 			s["State"] = "stopped"
 		}
 
@@ -242,7 +242,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		stdout.Close()
 		done <- true
 
-		fmt.Println("Process", s["Process"],"running", s["Name"], "has terminate and set back to -1")
+		fmt.Println("Process", s["Process"], "running", s["Name"], "has terminate and set back to -1")
 		s["Process"] = -1
 
 		// kill it proxy process
@@ -584,33 +584,32 @@ inhibit_rules:
 
 	// Start feeding the time series...
 	ticker := time.NewTicker(1 * time.Second)
-	go func() {
-		for {
-			select {
+	services, err := config_client.GetServicesConfigurations()
+	if err == nil {
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
 
-			case <-ticker.C:
+					execName := "Globular"
+					if runtime.GOOS == "windows" {
+						execName += ".exe" // in case of windows
+					}
 
-				execName := "Globular"
-				if runtime.GOOS == "windows" {
-					execName += ".exe" // in case of windows
-				}
-
-				// Monitor globular itserf...
-				pids, err := Utility.GetProcessIdsByName(execName)
-				if err == nil {
-					for i := 0; i < len(pids); i++ {
-						sysInfo, err := pidusage.GetStat(pids[i])
-						if err == nil {
-							//log.Println("---> set cpu for process ", pids[i], "Globular", sysInfo.CPU)
-							servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
-							//log.Println("---> set memory for process ", pids[i], "Globular", sysInfo.Memory)
-							servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
+					// Monitor globular itserf...
+					pids, err := Utility.GetProcessIdsByName(execName)
+					if err == nil {
+						for i := 0; i < len(pids); i++ {
+							sysInfo, err := pidusage.GetStat(pids[i])
+							if err == nil {
+								//log.Println("---> set cpu for process ", pids[i], "Globular", sysInfo.CPU)
+								servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
+								//log.Println("---> set memory for process ", pids[i], "Globular", sysInfo.Memory)
+								servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
+							}
 						}
 					}
-				}
 
-				services, err := config_client.GetServicesConfigurations()
-				if err == nil {
 					for i := 0; i < len(services); i++ {
 
 						pid := Utility.ToInt(services[i]["Process"])
@@ -625,14 +624,15 @@ inhibit_rules:
 							}
 						}
 					}
+
+				case <-exit:
+					break
 				}
-			case <-exit:
-				break
+
 			}
-		}
 
-	}()
-
+		}()
+	}
 	alertmanager := exec.Command("alertmanager", "--config.file", config.GetConfigDir()+"/alertmanager.yml")
 	alertmanager.Dir = os.TempDir()
 

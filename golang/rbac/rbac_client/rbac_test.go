@@ -20,7 +20,7 @@ var (
 
 /** Create All resource to be use to test permission **/
 func TestSetResources(t *testing.T) {
-	log.Println("----> Create resources...")
+
 	/** Create organization **/
 	err := resource_client_.CreateOrganization("organization_0", "Organization 0")
 	if err != nil {

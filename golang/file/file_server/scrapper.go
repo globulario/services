@@ -164,7 +164,6 @@ func indexPornhubVideo(token, id, video_url, index_path, video_path, file_path s
 		}
 	})
 
-	fmt.Println("-------> visit: ", video_url)
 	movieCollector.Visit(video_url)
 
 	return currentVideo, nil
