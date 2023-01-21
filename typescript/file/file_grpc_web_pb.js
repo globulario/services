@@ -19,6 +19,8 @@
 const grpc = {};
 grpc.web = require('grpc-web');
 
+
+var google_protobuf_struct_pb = require('google-protobuf/google/protobuf/struct_pb.js')
 const proto = {};
 proto.file = require('./file_pb.js');
 
@@ -798,6 +800,67 @@ proto.file.FileServicePromiseClient.prototype.getFileInfo =
       request,
       metadata || {},
       methodDescriptor_FileService_GetFileInfo);
+};
+
+
+/**
+ * @const
+ * @type {!grpc.web.MethodDescriptor<
+ *   !proto.file.GetFileMetadataRequest,
+ *   !proto.file.GetFileMetadataResponse>}
+ */
+const methodDescriptor_FileService_GetFileMetadata = new grpc.web.MethodDescriptor(
+  '/file.FileService/GetFileMetadata',
+  grpc.web.MethodType.UNARY,
+  proto.file.GetFileMetadataRequest,
+  proto.file.GetFileMetadataResponse,
+  /**
+   * @param {!proto.file.GetFileMetadataRequest} request
+   * @return {!Uint8Array}
+   */
+  function(request) {
+    return request.serializeBinary();
+  },
+  proto.file.GetFileMetadataResponse.deserializeBinary
+);
+
+
+/**
+ * @param {!proto.file.GetFileMetadataRequest} request The
+ *     request proto
+ * @param {?Object<string, string>} metadata User defined
+ *     call metadata
+ * @param {function(?grpc.web.RpcError, ?proto.file.GetFileMetadataResponse)}
+ *     callback The callback function(error, response)
+ * @return {!grpc.web.ClientReadableStream<!proto.file.GetFileMetadataResponse>|undefined}
+ *     The XHR Node Readable Stream
+ */
+proto.file.FileServiceClient.prototype.getFileMetadata =
+    function(request, metadata, callback) {
+  return this.client_.rpcCall(this.hostname_ +
+      '/file.FileService/GetFileMetadata',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GetFileMetadata,
+      callback);
+};
+
+
+/**
+ * @param {!proto.file.GetFileMetadataRequest} request The
+ *     request proto
+ * @param {?Object<string, string>=} metadata User defined
+ *     call metadata
+ * @return {!Promise<!proto.file.GetFileMetadataResponse>}
+ *     Promise that resolves to the response
+ */
+proto.file.FileServicePromiseClient.prototype.getFileMetadata =
+    function(request, metadata) {
+  return this.client_.unaryCall(this.hostname_ +
+      '/file.FileService/GetFileMetadata',
+      request,
+      metadata || {},
+      methodDescriptor_FileService_GetFileMetadata);
 };
 
 

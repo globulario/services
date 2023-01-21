@@ -48,6 +48,7 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/jasonlvhit/gocron"
 
@@ -5464,6 +5465,26 @@ func (file_server *server) GetVideoConversionLogs(ctx context.Context, rqst *fil
 	})
 
 	return &filepb.GetVideoConversionLogsResponse{Logs: logs}, nil
+}
+
+// Return the file metadata, more specific infos store in the file itself.
+func (file_server *server) GetFileMetadata(ctx context.Context, rqst *filepb.GetFileMetadataRequest) (*filepb.GetFileMetadataResponse, error) {
+	path := file_server.formatPath(rqst.Path)
+	metadata, err := ExtractMetada(path)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	obj, err := structpb.NewStruct(metadata)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	return &filepb.GetFileMetadataResponse{Result: obj}, nil
 }
 
 func ExtractMetada(path string) (map[string]interface{}, error) {

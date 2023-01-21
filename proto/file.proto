@@ -6,6 +6,7 @@ syntax = "proto3";
 package file;
 
 option go_package="file/filepb";
+import "google/protobuf/struct.proto";
 
 message Empty {}
 
@@ -92,6 +93,14 @@ message GetFileInfoRequest {
 
 message GetFileInfoResponse {
 	FileInfo info = 1;
+}
+
+message GetFileMetadataRequest {
+	string path = 1;
+}
+
+message GetFileMetadataResponse{
+	google.protobuf.Struct result = 1;
 }
 
 // Read file as a binary file.
@@ -413,6 +422,9 @@ service FileService {
 	
 	// Get file info, if the file exist it return the file size, name, thumnail...
 	rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse){};
+
+	// Return the file metadata, more specific infos store in the file itself.
+	rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse){};
 
 	// Read file, can be use for small to medium file...
 	rpc ReadFile(ReadFileRequest) returns (stream ReadFileResponse){};
