@@ -33,7 +33,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	//"github.com/globulario/services/golang/config"
-	"github.com/fsnotify/fsnotify"
 	"github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
@@ -514,6 +513,7 @@ func InitService(s Service) error {
  * Save a globular service.
  */
 func SaveService(s Service) error {
+	fmt.Println("------------> 517 SaveService ", s.GetName())
 	// Set current process
 	s.SetModTime(time.Now().Unix())
 	config_, err := Utility.ToMap(s)
@@ -750,57 +750,6 @@ func StartService(s Service, server *grpc.Server) error {
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
-
-	/**
-	Every breath you take
-	And every change you make
-	Every bond you break
-	Every step you take
-	I'll be watching you
-	*/
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal("NewWatcher failed: ", err)
-	}
-	defer watcher.Close()
-
-	go func() {
-
-		defer close(ch)
-
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if event.Op == fsnotify.Write {
-					// reinit the service...
-					data, err := os.ReadFile(s.GetConfigurationPath())
-					err = json.Unmarshal(data, &s)
-					if err == nil {
-						// Publish the configuration change event.
-						event_client_, err := getEventClient()
-						if err == nil {
-							event_client_.Publish("update_globular_service_configuration_evt", data)
-						}
-					}
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				fmt.Println("error:", err)
-			}
-		}
-
-	}()
-
-	// watch for configuration change
-	err = watcher.Add(s.GetConfigurationPath())
-	if err != nil {
-		log.Fatal("Add failed:", err)
-	}
 
 	<-ch
 

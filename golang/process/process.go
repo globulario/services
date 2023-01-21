@@ -148,13 +148,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 	s["ProxyProcess"] = -1
 	s["Process"] = -1
 
-	// save the port and ProxyProcess
-	err = config_client.SaveServiceConfiguration(s)
-	if err != nil {
-		fmt.Println("fail to save service configuration", err)
-		return -1, err
-	}
-
 	// Set the process dir.
 	p.Dir = s["Path"].(string)[0:strings.LastIndex(s["Path"].(string), "/")]
 
@@ -186,10 +179,6 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		s["Process"] = p.Process.Pid
 		s["State"] = "running"
 		s["LastError"] = ""
-		err = config_client.SaveServiceConfiguration(s)
-		if err != nil {
-			fmt.Println("fail to save service configuration for", s["Name"], "with error", err)
-		}
 
 		// give back the process id.
 		waitUntilStart <- Utility.ToInt(s["Process"])
@@ -211,10 +200,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
 				if s["KeepAlive"].(bool) == true {
-
-					// give ti some time to free resources like port files... etc.
-					pid, err := StartServiceProcess(s, portsRange)
-
+					
 					// so here I need to restart it proxy process...
 					proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
 					if proxyProcessPid != -1 {
@@ -225,10 +211,16 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 						}
 					}
 
+					// give ti some time to free resources like port files... etc.
+					pid, err := StartServiceProcess(s, portsRange)
 					if err == nil {
 						localConfig, _ := config.GetLocalConfig(true)
 						// Now I will restart it grpc service.
 						StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), localConfig["PortsRange"].(string), pid)
+					} else {
+						// save configuration info...
+						s["State"] = "failed"
+						s["LastError"] = err.Error()
 					}
 				}
 			}

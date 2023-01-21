@@ -1252,7 +1252,7 @@ func GetServicesConfigurationsByName(name string) ([]map[string]interface{}, err
  * Return a service with a given configuration id.
  */
 func GetServiceConfigurationById(id string) (map[string]interface{}, error) {
-
+	
 	initConfig()
 
 	infos := make(map[string]interface{})
