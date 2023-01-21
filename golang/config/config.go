@@ -129,15 +129,13 @@ func GetPublicDirs() []string {
 
 	public := make([]string, 0)
 	// Retreive all configurations
-	services, err := GetServicesConfigurations()
+	services, err := GetServicesConfigurationsByName("file.FileService")
 	if err == nil {
 		for i := 0; i < len(services); i++ {
 			s := services[i]
-			if s["Name"] == "file.FileService" {
-				if s["Public"] != nil {
-					for j := 0; j < len(s["Public"].([]interface{})); j++ {
-						public = append(public, s["Public"].([]interface{})[j].(string))
-					}
+			if s["Public"] != nil {
+				for j := 0; j < len(s["Public"].([]interface{})); j++ {
+					public = append(public, s["Public"].([]interface{})[j].(string))
 				}
 			}
 		}
@@ -318,6 +316,7 @@ func getObjectIndex(value, name string, objects []map[string]interface{}) int {
 
 // That function can be call by globular directly.
 func GetOrderedServicesConfigurations() ([]map[string]interface{}, error) {
+
 	services, err := GetServicesConfigurations()
 	if err != nil {
 		return nil, err
@@ -671,9 +670,12 @@ func GetNextAvailablePort(portRange_ string) (int, error) {
 	portRange := strings.Split(portRange_, "-")
 	start := Utility.ToInt(portRange[0]) + 1 // The first port of the range will be reserve to http configuration handler.
 	end := Utility.ToInt(portRange[1])
-
+	services, err := GetServicesConfigurations()
+	if err != nil {
+		return -1, err
+	}
 	for i := start; i < end; i++ {
-		if IsPortAvailable(i, portRange_) {
+		if IsPortAvailable(i, portRange_, services) {
 			portsInUse = append(portsInUse, i)
 			return i, nil
 		}
@@ -685,8 +687,8 @@ func GetNextAvailablePort(portRange_ string) (int, error) {
 /**
  * Get the list of port in Use
  */
-func getPortsInUse() []int {
-	services, _ := GetServicesConfigurations()
+func getPortsInUse(services []map[string]interface{}) []int {
+
 	_portsInUse_ := portsInUse
 
 	// I will test if the port is already taken by e services.
@@ -711,7 +713,7 @@ func getPortsInUse() []int {
 /**
  * test if a given port is avalaible.
  */
-func IsPortAvailable(port int, portRange_ string) bool {
+func IsPortAvailable(port int, portRange_ string, services []map[string]interface{}) bool {
 	portRange := strings.Split(portRange_, "-")
 	start := Utility.ToInt(portRange[0])
 	end := Utility.ToInt(portRange[1])
@@ -720,7 +722,7 @@ func IsPortAvailable(port int, portRange_ string) bool {
 		return false
 	}
 
-	portsInUse := getPortsInUse()
+	portsInUse := getPortsInUse(services)
 	for i := 0; i < len(portsInUse); i++ {
 		if portsInUse[i] == port {
 			return false
@@ -785,6 +787,7 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			// Now the exec path.
 			if s["Path"] != nil {
 				if !Utility.Exists(s["Path"].(string)) {
+					fmt.Println("-----------------> fail to find", s["Path"])
 					name := s["Path"].(string)[strings.LastIndex(s["Path"].(string), "/")+1:]
 					files, err := Utility.FindFileByName(serviceDir, name)
 					if err == nil {
@@ -810,47 +813,55 @@ func initServiceConfiguration(path, serviceDir string) (map[string]interface{}, 
 			execPath := s["Path"].(string)
 			execName := filepath.Base(execPath)
 
-			// The proto file name
-			protoName := execName
-			if strings.Contains(protoName, ".") {
-				protoName = strings.Split(protoName, ".")[0]
-			}
-
-			if strings.Contains(protoName, "_server") {
-				protoName = execName[0:strings.LastIndex(protoName, "_server")]
-			}
-			protoName = protoName + ".proto"
-
-			// set the proto path.
-			files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
-			if err == nil {
-				if len(files) > 0 {
-					s["Proto"] = files[0]
-				} else {
-					protoName = s["Name"].(string) + ".proto"
-					files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
-					if err == nil {
-						if len(files) > 0 {
-							s["Proto"] = files[0]
-						} else {
-							fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
-						}
-					} else {
-						fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
-					}
+			if !Utility.Exists(s["Proto"].(string)) {
+				// The proto file name
+				protoName := execName
+				if strings.Contains(protoName, ".") {
+					protoName = strings.Split(protoName, ".")[0]
 				}
-			} else {
-				// try with the service name instead...
-				protoName = s["Name"].(string) + ".proto"
-				files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
-				if err == nil {
-					if len(files) > 0 {
-						s["Proto"] = files[0]
-					} else {
-						fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+
+				if strings.Contains(protoName, "_server") {
+					protoName = execName[0:strings.LastIndex(protoName, "_server")]
+				}
+
+				protoName = protoName + ".proto"
+
+				// set the proto path.
+				protoPath := execPath[0:strings.Index(execPath, "/services/")] + "/services"
+				if s["Proto"].(string) != protoPath+"/"+protoName {
+					if Utility.Exists(protoPath) {
+						files, err := Utility.FindFileByName(protoPath, protoName)
+						if err == nil {
+							if len(files) > 0 {
+								s["Proto"] = files[0]
+							} else {
+								protoName = s["Name"].(string) + ".proto"
+								files, err := Utility.FindFileByName(protoPath, protoName)
+								if err == nil {
+									if len(files) > 0 {
+										s["Proto"] = files[0]
+									} else {
+										fmt.Println("no proto file found at path ", protoPath, "with name", protoName)
+									}
+								} else {
+									fmt.Println("no proto file found at path ", protoPath, "with name", protoName)
+								}
+							}
+						} else {
+							// try with the service name instead...
+							protoName = s["Name"].(string) + ".proto"
+							files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
+							if err == nil {
+								if len(files) > 0 {
+									s["Proto"] = files[0]
+								} else {
+									fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+								}
+							} else {
+								fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+							}
+						}
 					}
-				} else {
-					fmt.Println("no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
 				}
 			}
 
@@ -910,6 +921,8 @@ func isLocked(path string) bool {
 	return Utility.Exists(lock)
 }
 
+// keep lock paths in memory...
+
 func lock(path string) bool {
 	lock := strings.Replace(path, "json", "lock", -1)
 	err := Utility.WriteStringToFile(lock, "")
@@ -956,8 +969,10 @@ func initConfig() {
 	}
 
 	// get sure all files are unlock
-	removeAllLocks()
-
+	if strings.HasPrefix(filepath.Base(os.Args[0]), "Globular"){
+		removeAllLocks()
+	}
+	
 	// Create communication channels...
 	isInit = true
 
@@ -976,6 +991,8 @@ func initConfig() {
 
 	execname := filepath.Base(os.Args[0])
 
+	fmt.Println("init config call from", execname)
+
 	// I will try to get configuration from services.
 	for i := 0; i < len(files); i++ {
 		path := files[i]
@@ -992,15 +1009,17 @@ func initConfig() {
 
 			// If the execname is globular I will set the services path from exec found in that path...
 			if strings.HasPrefix(execname, "Globular") {
-				service_name := filepath.Base(s["Path"].(string))
-				files, err := Utility.FindFileByName(serviceDir, service_name)
-				if err == nil {
-					if len(files) > 0 {
-						s["Path"] = files[0]
-						// I will also save the configuration.
-						jsonStr, err := Utility.ToJson(s)
-						if err == nil {
-							os.WriteFile(path, []byte(jsonStr), 0644)
+				if !Utility.Exists(s["Path"].(string)) {
+					service_name := filepath.Base(s["Path"].(string))
+					files, err := Utility.FindFileByName(serviceDir, service_name)
+					if err == nil {
+						if len(files) > 0 {
+							s["Path"] = files[0]
+							// I will also save the configuration.
+							jsonStr, err := Utility.ToJson(s)
+							if err == nil {
+								os.WriteFile(path, []byte(jsonStr), 0644)
+							}
 						}
 					}
 				}
@@ -1077,7 +1096,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 					hasChange = jsonStr_ != jsonStr
 				}
 
-				// if the configuration has change 
+				// if the configuration has change
 				if hasChange {
 					for isLocked(path) {
 						time.Sleep(50 * time.Millisecond)
@@ -1164,7 +1183,7 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
  * Return the list of services all installed serverices on a server.
  */
 func GetServicesConfigurations() ([]map[string]interface{}, error) {
-
+	
 	initConfig()
 
 	infos := make(map[string]interface{})

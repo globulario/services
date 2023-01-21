@@ -433,47 +433,55 @@ func InitService(s Service) error {
 	// Get the execname
 	execName := filepath.Base(execPath)
 
-	// The proto file name
-	protoName := execName
-	if strings.Contains(protoName, ".") {
-		protoName = strings.Split(protoName, ".")[0]
-	}
-
-	if strings.Contains(protoName, "_server") {
-		protoName = execName[0:strings.LastIndex(protoName, "_server")]
-	}
-	protoName = protoName + ".proto"
-
-	// set the proto path.
-	files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
-	if err == nil {
-		if len(files) > 0 {
-			s.SetProto(files[0])
-		} else {
-			protoName = s.GetName() + ".proto"
-			files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
-			if err == nil {
-				if len(files) > 0 {
-					s.SetProto(files[0])
-				} else {
-					fmt.Println("459 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
-				}
-			} else {
-				fmt.Println("462 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
-			}
+	// set the proto path if is not found from it current configuration.
+	if !Utility.Exists(s.GetProto()) {
+		// The proto file name
+		protoName := execName
+		if strings.Contains(protoName, ".") {
+			protoName = strings.Split(protoName, ".")[0]
 		}
-	} else {
-		// try with the service name instead...
-		protoName = s.GetName() + ".proto"
-		files, err := Utility.FindFileByName(execPath[0:strings.Index(execPath, "/services/")]+"/services", protoName)
-		if err == nil {
-			if len(files) > 0 {
-				s.SetProto(files[0])
-			} else {
-				fmt.Println("473 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
+
+		if strings.Contains(protoName, "_server") {
+			protoName = execName[0:strings.LastIndex(protoName, "_server")]
+		}
+		protoName = protoName + ".proto"
+
+		protopath := execPath[0:strings.Index(execPath, "/services/")] + "/services"
+		if s.GetProto() != protopath+"/"+protoName {
+			if Utility.Exists(protopath) {
+				// set the proto path.
+				files, err := Utility.FindFileByName(protopath, protoName)
+				if err == nil {
+					if len(files) > 0 {
+						s.SetProto(files[0])
+					} else {
+						protoName = s.GetName() + ".proto"
+						files, err := Utility.FindFileByName(protopath, protoName)
+						if err == nil {
+							if len(files) > 0 {
+								s.SetProto(files[0])
+							} else {
+								fmt.Println("459 no proto file found at path ", protopath, "with name", protoName)
+							}
+						} else {
+							fmt.Println("462 no proto file found at path ", protopath, "with name", protoName)
+						}
+					}
+				} else {
+					// try with the service name instead...
+					protoName = s.GetName() + ".proto"
+					files, err := Utility.FindFileByName(protopath, protoName)
+					if err == nil {
+						if len(files) > 0 {
+							s.SetProto(files[0])
+						} else {
+							fmt.Println("473 no proto file found at path ", protopath, "with name", protoName)
+						}
+					} else {
+						fmt.Println("476 no proto file found at path ", protopath, "with name", protoName)
+					}
+				}
 			}
-		} else {
-			fmt.Println("476 no proto file found at path ", execPath[0:strings.Index(execPath, "/services/")]+"/services", "with name", protoName)
 		}
 	}
 
@@ -495,10 +503,11 @@ func InitService(s Service) error {
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
+	if len(os.Args) != 3{
+		return SaveService(s)
+	}
 	
-
-	fmt.Println("----------------> proto file: ", s.GetProto())
-	return SaveService(s)
+	return nil
 }
 
 /**

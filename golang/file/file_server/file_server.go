@@ -1257,8 +1257,6 @@ func (file_server *server) CreateAchive(ctx context.Context, rqst *filepb.Create
 		}
 	}
 
-	fmt.Println("---------> request for: ", rqst.Name)
-
 	// Here I will create the directory...
 	tmp := os.TempDir() + "/" + rqst.GetName()
 	createTempDir := true
