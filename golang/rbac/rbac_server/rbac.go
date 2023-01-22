@@ -2105,7 +2105,6 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 	// Here I must remove the subject from all permissions.
 	data, err := rbac_server.permissions.GetItem(subjectId)
 	if err != nil {
-		fmt.Println("----------> fail to retreive ", subjectId)
 		return nil, err
 	}
 

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -654,89 +653,6 @@ func GetServiceMethods(name string, publisherId string, version string) ([]strin
 	}
 
 	return methods, nil
-}
-
-// ////////////////////////////////////// Port ////////////////////////////////////////////
-// The list of port in use.
-var (
-	portsInUse = make([]int, 0)
-)
-
-/**
- * Return the next available port.
- **/
-func GetNextAvailablePort(portRange_ string) (int, error) {
-
-	portRange := strings.Split(portRange_, "-")
-	start := Utility.ToInt(portRange[0]) + 1 // The first port of the range will be reserve to http configuration handler.
-	end := Utility.ToInt(portRange[1])
-	services, err := GetServicesConfigurations()
-	if err != nil {
-		return -1, err
-	}
-	for i := start; i < end; i++ {
-		if IsPortAvailable(i, portRange_, services) {
-			portsInUse = append(portsInUse, i)
-			return i, nil
-		}
-	}
-
-	return -1, errors.New("No port are available in the range " + portRange_)
-}
-
-/**
- * Get the list of port in Use
- */
-func getPortsInUse(services []map[string]interface{}) []int {
-
-	_portsInUse_ := portsInUse
-
-	// I will test if the port is already taken by e services.
-	for i := 0; i < len(services); i++ {
-		s := services[i]
-		pid := -1
-		if s["Process"] != nil {
-			s["Process"] = Utility.ToInt(pid)
-		}
-
-		if pid != -1 {
-			exist, err := Utility.PidExists(pid)
-			if exist && err == nil {
-				port := Utility.ToInt(s["Port"])
-				_portsInUse_ = append(_portsInUse_, port)
-			}
-		}
-	}
-	return _portsInUse_
-}
-
-/**
- * test if a given port is avalaible.
- */
-func IsPortAvailable(port int, portRange_ string, services []map[string]interface{}) bool {
-	portRange := strings.Split(portRange_, "-")
-	start := Utility.ToInt(portRange[0])
-	end := Utility.ToInt(portRange[1])
-
-	if port < start || port > end {
-		return false
-	}
-
-	portsInUse := getPortsInUse(services)
-	for i := 0; i < len(portsInUse); i++ {
-		if portsInUse[i] == port {
-			return false
-		}
-	}
-
-	time.Sleep(50 * time.Millisecond)
-	l, err := net.Listen("tcp", "0.0.0.0:"+Utility.ToString(port))
-	if err == nil {
-		defer l.Close()
-		return true
-	}
-
-	return false
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////

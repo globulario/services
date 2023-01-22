@@ -319,13 +319,18 @@ func (server *server) startServiceInstance(serviceId string) error {
 		return err
 	}
 
-	processPid, err := process.StartServiceProcess(s, globular["PortsRange"].(string))
+	
+	port := Utility.ToInt(s["Port"])
+	proxyPort  := Utility.ToInt(s["ProxyPort"])
+
+	processPid, err := process.StartServiceProcess(s, port, proxyPort)
 	if err != nil {
 		return err
 	}
 
+
 	s["Process"] = processPid
-	s["ProxyProcess"], err = process.StartServiceProxyProcess(s, globular["CertificateAuthorityBundle"].(string), globular["Certificate"].(string), globular["PortsRange"].(string), processPid)
+	s["ProxyProcess"], err = process.StartServiceProxyProcess(s, globular["CertificateAuthorityBundle"].(string), globular["Certificate"].(string), proxyPort, processPid)
 	if err != nil {
 		return err
 	}

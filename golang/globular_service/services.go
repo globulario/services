@@ -13,7 +13,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 
 	//"runtime/pprof"
@@ -382,12 +381,11 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-
-	// The exec path
+	
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
-	s.SetPath(execPath)
 
+	s.SetPath(execPath)
 	if len(os.Args) == 3 {
 		s.SetId(os.Args[1])
 		s.SetConfigurationPath(strings.ReplaceAll(os.Args[2], "\\", "/"))
@@ -429,61 +427,6 @@ func InitService(s Service) error {
 		s.SetId(Utility.RandomUUID())
 	}
 
-	// Get the execname
-	execName := filepath.Base(execPath)
-
-	// set the proto path if is not found from it current configuration.
-	if !Utility.Exists(s.GetProto()) {
-		// The proto file name
-		protoName := execName
-		if strings.Contains(protoName, ".") {
-			protoName = strings.Split(protoName, ".")[0]
-		}
-
-		if strings.Contains(protoName, "_server") {
-			protoName = execName[0:strings.LastIndex(protoName, "_server")]
-		}
-		protoName = protoName + ".proto"
-
-		protopath := execPath[0:strings.Index(execPath, "/services/")] + "/services"
-		if s.GetProto() != protopath+"/"+protoName {
-			if Utility.Exists(protopath) {
-				// set the proto path.
-				files, err := Utility.FindFileByName(protopath, protoName)
-				if err == nil {
-					if len(files) > 0 {
-						s.SetProto(files[0])
-					} else {
-						protoName = s.GetName() + ".proto"
-						files, err := Utility.FindFileByName(protopath, protoName)
-						if err == nil {
-							if len(files) > 0 {
-								s.SetProto(files[0])
-							} else {
-								fmt.Println("459 no proto file found at path ", protopath, "with name", protoName)
-							}
-						} else {
-							fmt.Println("462 no proto file found at path ", protopath, "with name", protoName)
-						}
-					}
-				} else {
-					// try with the service name instead...
-					protoName = s.GetName() + ".proto"
-					files, err := Utility.FindFileByName(protopath, protoName)
-					if err == nil {
-						if len(files) > 0 {
-							s.SetProto(files[0])
-						} else {
-							fmt.Println("473 no proto file found at path ", protopath, "with name", protoName)
-						}
-					} else {
-						fmt.Println("476 no proto file found at path ", protopath, "with name", protoName)
-					}
-				}
-			}
-		}
-	}
-
 	// set contextual values.
 	address, _ := config.GetAddress()
 	domain, _ := config.GetDomain()
@@ -492,28 +435,25 @@ func InitService(s Service) error {
 	s.SetMac(macAddress)
 	s.SetAddress(address)
 	s.SetDomain(domain)
+	
 
 	// here the service is runing...
 	s.SetState("running")
 	s.SetProcess(os.Getpid())
 
 	// Now the platform.
-	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
+	s.SetPlatform(runtime.GOOS + "_" +runtime.GOARCH) 
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
-	if len(os.Args) != 3{
-		return SaveService(s)
-	}
-	
-	return nil
+
+	return SaveService(s)
 }
 
 /**
  * Save a globular service.
  */
 func SaveService(s Service) error {
-
 	// Set current process
 	s.SetModTime(time.Now().Unix())
 	config_, err := Utility.ToMap(s)
@@ -716,11 +656,11 @@ func StartService(s Service, server *grpc.Server) error {
 	// Create the channel to listen on
 	var lis net.Listener
 	var err error
-
+	
 	lis, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
 	if err != nil {
-		err_ := errors.New("could not list at domain " + s.GetDomain() + err.Error())
-		log.Print(err_)
+		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())
+		fmt.Println("fail to start service with error: ", s.GetName(), err)
 		return err_
 	}
 
@@ -730,21 +670,8 @@ func StartService(s Service, server *grpc.Server) error {
 		fmt.Println("service name: "+s.GetName()+" id:"+s.GetId()+" is listening at gRPC port", s.GetPort(), "and process id is ", s.GetProcess())
 
 		if err := server.Serve(lis); err != nil {
-			fmt.Println("service has error ", err)
 			return
 		}
-
-		// In case we want to use wrapped proxy...
-		/*options := NewWrapperedServerOptions("0.0.0.0:" + strconv.Itoa(s.GetPort()), s.GetCertAuthorityTrust(), s.GetKeyFile(), false)
-		s.SetProxy(s.GetPort())
-		s.Save()
-
-		wrapperedSrv := NewWrapperedGRPCWebServer(options, server)
-		if err := wrapperedSrv.Serve(); err != nil {
-			fmt.Println("wrappered grpc listening error: ", err)
-			return //err
-		}*/
-
 	}()
 
 	// Wait for signal to stop.
@@ -753,7 +680,6 @@ func StartService(s Service, server *grpc.Server) error {
 
 	<-ch
 
-	fmt.Println("stop service name: ", s.GetName()+":"+s.GetId())
 	server.Stop() // I kill it but not softly...
 
 	s.SetState("stopped")
