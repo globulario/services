@@ -513,7 +513,7 @@ func InitService(s Service) error {
  * Save a globular service.
  */
 func SaveService(s Service) error {
-	fmt.Println("------------> 517 SaveService ", s.GetName())
+
 	// Set current process
 	s.SetModTime(time.Now().Unix())
 	config_, err := Utility.ToMap(s)

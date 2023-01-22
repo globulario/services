@@ -147,6 +147,14 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 	s["Path"] = strings.ReplaceAll(s["Path"].(string), "\\", "/")
 	s["ProxyProcess"] = -1
 	s["Process"] = -1
+	s["state"] = "starting"
+
+	// save the port and ProxyProcess
+	err = config_client.SaveServiceConfiguration(s)
+	if err != nil {
+		fmt.Println("fail to save service configuration", err)
+		return -1, err
+	}
 
 	// Set the process dir.
 	p.Dir = s["Path"].(string)[0:strings.LastIndex(s["Path"].(string), "/")]
@@ -179,6 +187,10 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		s["Process"] = p.Process.Pid
 		s["State"] = "running"
 		s["LastError"] = ""
+		err = config_client.SaveServiceConfiguration(s)
+		if err != nil {
+			fmt.Println("fail to save service configuration for", s["Name"], "with error", err)
+		}
 
 		// give back the process id.
 		waitUntilStart <- Utility.ToInt(s["Process"])
@@ -190,7 +202,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 			fmt.Println("service "+s["Name"].(string)+" fail with error ", err)
 			s["State"] = "failed"
 		} else {
-			fmt.Println("service " + s["Name"].(string) + "was stop")
+			fmt.Println("service "+s["Name"].(string)+"was stop")
 			s["State"] = "stopped"
 		}
 
@@ -200,7 +212,10 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
 				if s["KeepAlive"].(bool) == true {
-					
+
+					// give ti some time to free resources like port files... etc.
+					pid, err := StartServiceProcess(s, portsRange)
+
 					// so here I need to restart it proxy process...
 					proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
 					if proxyProcessPid != -1 {
@@ -211,16 +226,10 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 						}
 					}
 
-					// give ti some time to free resources like port files... etc.
-					pid, err := StartServiceProcess(s, portsRange)
 					if err == nil {
 						localConfig, _ := config.GetLocalConfig(true)
 						// Now I will restart it grpc service.
 						StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), localConfig["PortsRange"].(string), pid)
-					} else {
-						// save configuration info...
-						s["State"] = "failed"
-						s["LastError"] = err.Error()
 					}
 				}
 			}
@@ -234,7 +243,7 @@ func StartServiceProcess(s map[string]interface{}, portsRange string) (int, erro
 		stdout.Close()
 		done <- true
 
-		fmt.Println("Process", s["Process"], "running", s["Name"], "has terminate and set back to -1")
+		fmt.Println("Process", s["Process"],"running", s["Name"], "has terminate and set back to -1")
 		s["Process"] = -1
 
 		// kill it proxy process
@@ -576,32 +585,33 @@ inhibit_rules:
 
 	// Start feeding the time series...
 	ticker := time.NewTicker(1 * time.Second)
-	services, err := config_client.GetServicesConfigurations()
-	if err == nil {
-		go func() {
-			for {
-				select {
-				case <-ticker.C:
+	go func() {
+		for {
+			select {
 
-					execName := "Globular"
-					if runtime.GOOS == "windows" {
-						execName += ".exe" // in case of windows
-					}
+			case <-ticker.C:
 
-					// Monitor globular itserf...
-					pids, err := Utility.GetProcessIdsByName(execName)
-					if err == nil {
-						for i := 0; i < len(pids); i++ {
-							sysInfo, err := pidusage.GetStat(pids[i])
-							if err == nil {
-								//log.Println("---> set cpu for process ", pids[i], "Globular", sysInfo.CPU)
-								servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
-								//log.Println("---> set memory for process ", pids[i], "Globular", sysInfo.Memory)
-								servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
-							}
+				execName := "Globular"
+				if runtime.GOOS == "windows" {
+					execName += ".exe" // in case of windows
+				}
+
+				// Monitor globular itserf...
+				pids, err := Utility.GetProcessIdsByName(execName)
+				if err == nil {
+					for i := 0; i < len(pids); i++ {
+						sysInfo, err := pidusage.GetStat(pids[i])
+						if err == nil {
+							//log.Println("---> set cpu for process ", pids[i], "Globular", sysInfo.CPU)
+							servicesCpuUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.CPU)
+							//log.Println("---> set memory for process ", pids[i], "Globular", sysInfo.Memory)
+							servicesMemoryUsage.WithLabelValues("Globular", "Globular").Set(sysInfo.Memory)
 						}
 					}
+				}
 
+				services, err := config_client.GetServicesConfigurations()
+				if err == nil {
 					for i := 0; i < len(services); i++ {
 
 						pid := Utility.ToInt(services[i]["Process"])
@@ -616,15 +626,14 @@ inhibit_rules:
 							}
 						}
 					}
-
-				case <-exit:
-					break
 				}
-
+			case <-exit:
+				break
 			}
+		}
 
-		}()
-	}
+	}()
+
 	alertmanager := exec.Command("alertmanager", "--config.file", config.GetConfigDir()+"/alertmanager.yml")
 	alertmanager.Dir = os.TempDir()
 
