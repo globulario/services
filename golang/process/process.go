@@ -144,7 +144,6 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 
 	// Set process values...
 	s["Path"] = strings.ReplaceAll(s["Path"].(string), "\\", "/")
-	s["ProxyProcess"] = -1
 	s["Process"] = -1
 
 	// save the port and ProxyProcess
@@ -185,7 +184,6 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 
 		// give back the process id.
 		waitUntilStart <-  p.Process.Pid
-
 		err = p.Wait()
 
 		// Here I will read the configuration to get more information about the process.
@@ -206,20 +204,22 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 
 					// give ti some time to free resources like port files... etc.
 					pid, err := StartServiceProcess(s, port, proxyPort)
+					if err != nil {
+						return // fail to restart the process...
+					}
+
+					localConfig, _ := config.GetLocalConfig(true)
 
 					// so here I need to restart it proxy process...
 					proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
 					if proxyProcessPid != -1 {
-						proxyProcess, err := os.FindProcess(proxyProcessPid)
-						if err == nil {
-							proxyProcess.Kill()
-							s["ProxyProcess"] = -1
+						_, err = os.FindProcess(proxyProcessPid)
+						if err != nil {
+							StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), proxyPort, pid)
 						}
-					}
-
-					if err == nil {
-						localConfig, _ := config.GetLocalConfig(true)
-						// Now I will restart it grpc service.
+						
+					}else{
+						// restart the proxy process.
 						StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), proxyPort, pid)
 					}
 				}
@@ -236,16 +236,6 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 
 		fmt.Println("Process", s["Process"],"running", s["Name"], "has terminate and set back to -1")
 		s["Process"] = -1
-
-		// kill it proxy process
-		proxyProcessPid := Utility.ToInt(s["ProxyProcess"])
-		if proxyProcessPid != -1 {
-			proxyProcess, err := os.FindProcess(proxyProcessPid)
-			if err == nil {
-				proxyProcess.Kill()
-				s["ProxyProcess"] = -1
-			}
-		}
 
 		config_client.SaveServiceConfiguration(s)
 
@@ -272,10 +262,14 @@ func getEventClient(address string) (*event_client.Event_Client, error) {
 // Start a service process.
 func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBundle, certificate string, proxyPort, processPid int) (int, error) {
 
+	if processPid == -1 {
+		return -1, errors.New("process pid must no be -1")
+	}
+
+	// Get the service port.
 	servicePort := Utility.ToInt(s["Port"])
 	pid := Utility.ToInt(s["ProxyProcess"])
 	if pid != -1 {
-		// Utility.TerminateProcess(pid, 0)
 		return -1, errors.New("proxy already exist for service " + s["Name"].(string))
 	}
 
@@ -372,6 +366,9 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}
 
 	str, _ := Utility.ToJson(s)
+	
+
+	wait := make(chan int);
 
 	// Get the process id...
 	go func() {
@@ -389,9 +386,15 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		s := make(map[string]interface{})
 		json.Unmarshal([]byte(str), &s)
 
+		fmt.Println("Service", s["Name"].(string)+":"+s["Id"].(string), "is running pid", processPid, "and lisen at port", s["Port"], "with proxy pid",  proxyProcess.Process.Pid, "lisen at port port", proxyPort )
+
+		wait <- proxyProcess.Process.Pid // ok the proxy pid must be other than -1
+
 		// wait to proxy
-		proxyProcess.Wait()
-		fmt.Println("gRpc proxy with pid:", proxyProcess.Process.Pid, "service:", s["Name"].(string)+":"+s["Id"].(string), "stop successfully")
+		err = proxyProcess.Wait()
+		if err != nil {
+			fmt.Println("proxy process stop with error: ", err)
+		}
 
 		if processPid != -1 {
 			exist, err := Utility.PidExists(processPid)
@@ -407,13 +410,14 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 	}()
 
+	// wait for proxy to start...
+	proxyProcessPid :=<- wait
+
 	// be sure the service
 	s["State"] = "running"
-	s["ProxyProcess"] = proxyProcess.Process.Pid
-	s["Proxy"] = proxyPort
+	s["ProxyProcess"] = proxyProcessPid
 
-	fmt.Println("gRpc proxy start successfully with pid:", s["ProxyProcess"], " for service:", s["Name"].(string)+":"+s["Id"].(string), "pid:", s["Process"], "http port:", proxyPort, "grpc port", s["Port"])
-	return proxyProcess.Process.Pid, config_client.SaveServiceConfiguration(s)
+	return proxyProcessPid, config_client.SaveServiceConfiguration(s)
 
 }
 
