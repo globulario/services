@@ -335,7 +335,6 @@ func (client *Event_Client) Publish(name string, data interface{}) error {
 
 	_, err := client.c.Publish(client.GetCtx(), rqst)
 	if err != nil {
-		fmt.Println("fail to publish event", name, "with error", err)
 		return err
 	}
 	return nil

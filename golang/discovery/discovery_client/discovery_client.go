@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"log"
-
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
 	"github.com/globulario/services/golang/discovery/discoverypb"
@@ -315,10 +313,7 @@ func (Services_Manager_Client *Dicovery_Client) PublishService(user, organizatio
 			ctx = metadata.NewOutgoingContext(context.Background(), md)
 		}
 
-		_, err = Services_Manager_Client.c.PublishService(ctx, rqst)
-		if err != nil {
-			log.Println("fail to publish service at ", discoveries[i], err)
-		}
+		Services_Manager_Client.c.PublishService(ctx, rqst)
 	}
 
 	return nil

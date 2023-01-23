@@ -165,7 +165,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 	if err != nil {
 		stdout.Close()
 		done <- true
-		fmt.Println("process exit with error ", err)
+		fmt.Println("fail to start service", s["Name"], err, "detail", stderr.String())
 		return -1, err
 	}
 

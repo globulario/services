@@ -690,7 +690,6 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 			fmt.Println("fail to connect MongoDB store with error ", err)
 			return nil, err
 		}
-
 	}
 
 	return svr.store, nil
