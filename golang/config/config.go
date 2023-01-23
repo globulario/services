@@ -830,10 +830,6 @@ var (
 
 func isLocked(path string) bool {
 	lock := strings.Replace(path, "json", "lock", -1)
-	isLock := Utility.Exists(lock)
-	if isLock {
-		fmt.Println("file " + path + " is lock")
-	}
 	return Utility.Exists(lock)
 }
 

@@ -381,7 +381,7 @@ type Service interface {
  * Initialise a globular service.
  */
 func InitService(s Service) error {
-	
+
 	execPath, _ := osext.Executable()
 	execPath = strings.ReplaceAll(execPath, "\\", "/")
 
@@ -435,14 +435,13 @@ func InitService(s Service) error {
 	s.SetMac(macAddress)
 	s.SetAddress(address)
 	s.SetDomain(domain)
-	
 
 	// here the service is runing...
 	s.SetState("running")
 	s.SetProcess(os.Getpid())
 
 	// Now the platform.
-	s.SetPlatform(runtime.GOOS + "_" +runtime.GOARCH) 
+	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
 	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
@@ -656,11 +655,11 @@ func StartService(s Service, server *grpc.Server) error {
 	// Create the channel to listen on
 	var lis net.Listener
 	var err error
-	
+
 	lis, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())
-		fmt.Println("fail to start service with error: ", s.GetName(), err)
+		fmt.Println("service", s.GetName(), "fail to lisent at port", s.GetPort(), "with error", err)
 		return err_
 	}
 
@@ -670,6 +669,7 @@ func StartService(s Service, server *grpc.Server) error {
 		fmt.Println("service name: "+s.GetName()+" id:"+s.GetId()+" is listening at gRPC port", s.GetPort(), "and process id is ", s.GetProcess())
 
 		if err := server.Serve(lis); err != nil {
+			fmt.Println("service",   s.GetName(),"exit with error", err)
 			return
 		}
 	}()
@@ -685,12 +685,10 @@ func StartService(s Service, server *grpc.Server) error {
 	s.SetState("stopped")
 	s.SetProcess(-1)
 	s.SetLastError("")
-	if len(os.Args) < 3 {
-		// managed by globular.
-		return SaveService(s)
-	}
 
-	return nil
+	// managed by globular.
+	return SaveService(s)
+
 }
 
 func StopService(s Service, server *grpc.Server) error {

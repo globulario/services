@@ -2,6 +2,7 @@ package process
 
 import (
 	//"encoding/json"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -115,6 +116,10 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 	*/
 	p := exec.Command(s["Path"].(string), s["Id"].(string), s["ConfigPath"].(string))
 	p.Dir = filepath.Dir(s["Path"].(string))
+
+	var stderr bytes.Buffer
+	p.Stderr = &stderr
+
 	stdout, err := p.StdoutPipe()
 	if err != nil {
 		return -1, err
@@ -185,7 +190,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 
 		// Here I will read the configuration to get more information about the process.
 		if err != nil {
-			fmt.Println("service "+s["Name"].(string)+" fail with error ", err)
+			fmt.Println("service "+s["Name"].(string)+" fail with error ", err, "detail", stderr.String())
 			s["State"] = "failed"
 		} else {
 			fmt.Println("service "+s["Name"].(string)+"was stop")

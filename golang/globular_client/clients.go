@@ -56,7 +56,6 @@ func GetClient(address, name, fct string) (Client, error) {
 	client := results[0].Interface().(Client)
 	clients.Store(id, client)
 
-	fmt.Println("Connection with ", client.GetName()+":"+client.GetId(), "at address", client.GetAddress()+" was created")
 	return client, nil
 }
 
