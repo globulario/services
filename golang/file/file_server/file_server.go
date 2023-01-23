@@ -525,6 +525,15 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	info := new(filepb.FileInfo)
 	info.Path = path
 
+	if thumbnailMaxHeight > 80 {
+		thumbnailMaxHeight = 80
+	}
+
+	if thumbnailMaxWidth > 80 {
+		thumbnailMaxWidth = 80
+	}
+
+
 	path = strings.ReplaceAll(path, "\\", "/")
 	fileStat, err := os.Stat(path)
 	if err != nil {
@@ -1133,7 +1142,7 @@ func getFileInfos(info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.Fil
 			// do not send Thumbnail...
 			if info.Files[i].IsDir == true {
 				if !Utility.Exists(info.Files[i].Path + "/playlist.m3u8") {
-					info.Files[i].Thumbnail = ""
+					info.Files[i].Thumbnail = "" // remove the icon  for dir
 				}
 			}
 			infos = getFileInfos(info.Files[i], infos)

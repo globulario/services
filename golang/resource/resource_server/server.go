@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -101,6 +102,7 @@ type server struct {
 
 	// Data store where account, role ect are keep...
 	store persistence_store.Store
+	isReady bool
 
 	// The grpc server.
 	grpcServer *grpc.Server
@@ -689,6 +691,19 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 		if err != nil {
 			fmt.Println("fail to connect MongoDB store with error ", err)
 			return nil, err
+		}
+
+		err = svr.store.Ping(context.Background(), "local_resource")
+		
+		svr.isReady = true
+
+	}else if !svr.isReady{
+		nbTry := 100
+		for i:=0; i < nbTry; i++{
+			time.Sleep(100 * time.Millisecond)
+			if svr.isReady {
+				break
+			}
 		}
 	}
 

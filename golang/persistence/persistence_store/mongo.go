@@ -5,6 +5,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	//"time"
 
 	"encoding/json"
 	"errors"
@@ -45,7 +46,10 @@ type MongoStore struct {
 func (store *MongoStore) Connect(connectionId string, host string, port int32, user string, password string, database string, timeout int32, optionsStr string) error {
 
 	ctx := context.Background()
-	//ctx, _ := context.WithTimeout(api.GetClientContext(store), time.Duration(timeout)*time.Second)
+	//ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+
+	// in case the connection fail.
+	//defer cancel()
 
 	if store.clients == nil {
 		store.clients = make(map[string]*mongo.Client)
@@ -65,10 +69,12 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 		opts = make([]*options.ClientOptions, 0)
 		err := json.Unmarshal([]byte(optionsStr), &opts)
 		if err != nil {
+
 			return err
 		}
 		client, err = mongo.NewClient(opts...)
 		if err != nil {
+
 			return err
 		}
 	} else {
@@ -80,6 +86,7 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 		var err error
 		client, err = mongo.NewClient(options.Client().ApplyURI(connectionStr))
 		if err != nil {
+
 			return err
 		}
 	}
@@ -90,6 +97,14 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 	}
 
 	store.clients[connectionId] = client
+
+	err = store.clients[connectionId].Ping(ctx, nil)
+
+	if err != nil {
+
+		return err // already connected.
+	}
+
 	return nil
 }
 
