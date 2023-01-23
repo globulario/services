@@ -444,8 +444,6 @@ func InitService(s Service) error {
 	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
 
-	fmt.Println("Start service name: ", s.GetName()+":"+s.GetId())
-
 	return SaveService(s)
 }
 
@@ -666,8 +664,6 @@ func StartService(s Service, server *grpc.Server) error {
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go func() {
 		// no web-rpc server.
-		fmt.Println("service name: "+s.GetName()+" id:"+s.GetId()+" is listening at gRPC port", s.GetPort(), "and process id is ", s.GetProcess())
-
 		if err := server.Serve(lis); err != nil {
 			fmt.Println("service",   s.GetName(),"exit with error", err)
 			return

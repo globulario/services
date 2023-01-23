@@ -55,7 +55,6 @@ func (store *Badger_store) run() {
 }
 
 func NewBadger_store() *Badger_store {
-	fmt.Println("create new badger store")
 	s := new(Badger_store)
 	s.actions = make(chan map[string]interface{})
 	go func(store *Badger_store) {

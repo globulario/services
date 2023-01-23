@@ -448,7 +448,6 @@ func (event_server *server) run() {
 				}
 
 				if !Utility.Contains(channels[a["name"].(string)], a["uuid"].(string)) {
-					fmt.Println("subscribe: ", a["name"].(string), a["uuid"].(string))
 					channels[a["name"].(string)] = append(channels[a["name"].(string)], a["uuid"].(string))
 				}
 			} else if action == "publish" {

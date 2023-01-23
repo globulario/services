@@ -90,7 +90,6 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 	}
 
 	store.clients[connectionId] = client
-	fmt.Println("connection is made ", connectionId)
 	return nil
 }
 

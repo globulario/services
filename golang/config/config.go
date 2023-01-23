@@ -903,7 +903,6 @@ func initConfig() {
 
 	execname := filepath.Base(os.Args[0])
 
-	fmt.Println("init config call from", execname)
 
 	// I will try to get configuration from services.
 	for i := 0; i < len(files); i++ {
