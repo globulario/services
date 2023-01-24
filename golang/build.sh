@@ -30,6 +30,7 @@ go build  -buildvcs=false -o ./search/search_server ./search/search_server
 # start services...
 export ServicesRoot=/home/dave/globulario/services
 ./admin/admin_server/admin_server &
+./authentication/authentication_server/authentication_server &
 ./blog/blog_server/blog_server &
 ./applications_manager/applications_manager_server/applications_manager_server &
 ./services_manager/services_manager_server/services_manager_server &

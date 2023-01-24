@@ -205,7 +205,7 @@ func GetServicesRoot() string {
  */
 func GetServicesConfigDir() string {
 
-	dir,_ := filepath.Abs(filepath.Dir(os.Args[0]))
+	dir, _ := filepath.Abs(filepath.Dir(os.Args[0]))
 	dir = strings.ReplaceAll(dir, "\\", "/")
 
 	// first I will get the exec name.
@@ -213,21 +213,21 @@ func GetServicesConfigDir() string {
 
 	if strings.HasPrefix(execname, "Globular") {
 		// Force to take service at a given location.
-		if len( GetServicesRoot()) > 0 {
+		if len(GetServicesRoot()) > 0 {
 			return GetServicesRoot()
 		}
 
 		if Utility.Exists(dir[0:strings.LastIndex(dir, "/")] + "/services") {
 			return dir[0:strings.LastIndex(dir, "/")] + "/services"
 		}
-	
+
 	} else {
 
 		// if config near the service has priority over config found from other location...
 		if Utility.Exists(dir + "/config.json") {
 			return GetServicesDir()
 		}
-	
+
 	}
 
 	// Use the default path
@@ -842,6 +842,8 @@ var (
 	getServicesConfigChan               = make(chan map[string]interface{})
 	getServiceConfigurationByIdChan     = make(chan map[string]interface{})
 	getServicesConfigurationsByNameChan = make(chan map[string]interface{})
+	exit                                = make(chan bool)
+
 	// Help to determine if the process loop is running.
 	isInit bool
 )
@@ -1013,6 +1015,9 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 
 	for {
 		select {
+		case <-exit:
+			break
+
 		case infos := <-saveServiceConfigChan:
 			s := infos["service_config"].(map[string]interface{})
 			path := s["ConfigPath"].(string)
@@ -1129,6 +1134,13 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 		}
 
 	}
+}
+
+/**
+ * stop processing configurations
+ */
+func Exit() {
+	exit <- true
 }
 
 /**

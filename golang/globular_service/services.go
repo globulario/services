@@ -30,6 +30,7 @@ import (
 	"github.com/kardianos/osext"
 	"github.com/soheilhy/cmux"
 	"golang.org/x/sync/errgroup"
+	"github.com/fsnotify/fsnotify"
 
 	//"github.com/globulario/services/golang/config"
 	"github.com/grpc-ecosystem/go-grpc-middleware"
@@ -673,6 +674,64 @@ func StartService(s Service, server *grpc.Server) error {
 	// Wait for signal to stop.
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
+/**
+	Every breath you take
+	And every change you make
+	Every bond you break
+	Every step you take
+	I'll be watching you
+	*/
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal("NewWatcher failed: ", err)
+	}
+	defer watcher.Close()
+
+	go func() {
+
+		defer close(ch)
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				if event.Op == fsnotify.Write {
+					// reinit the service...
+					data, err := os.ReadFile(s.GetConfigurationPath())
+					err = json.Unmarshal(data, &s)
+					if err == nil {
+						// Publish the configuration change event.
+						event_client_, err := getEventClient()
+						if err == nil {
+							event_client_.Publish("update_globular_service_configuration_evt", data)
+						}
+					}
+
+					
+					if s.GetState() == "stopped" {
+						config.Exit() // stop process config
+
+						// exit program.
+						os.Exit(0)
+					}
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				fmt.Println("error:", err)
+			}
+		}
+
+	}()
+
+	// watch for configuration change
+	err = watcher.Add(s.GetConfigurationPath())
+	if err != nil {
+		log.Fatal("Add failed:", err)
+	}
 
 	<-ch
 

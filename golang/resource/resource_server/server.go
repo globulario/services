@@ -540,6 +540,7 @@ func (server *server) removeFromLocalHosts(peer *resourcepb.Peer) error {
 
 // ///////////////////////////////////// Get Persistence Client //////////////////////////////////////////
 func GetPersistenceClient(address string) (*persistence_client.Persistence_Client, error) {
+	//fmt.Println("------------> 543")
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 	client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {

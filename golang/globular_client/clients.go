@@ -259,7 +259,7 @@ func InitClient(client Client, address string, id string) error {
 
 	// fmt.Println("try to retreive configuration", id, "at address ", address, " is local ", isLocal, " given local address is ", address_)
 	if err != nil {
-		fmt.Println("fail to initialyse client with error ", err)
+		fmt.Println("fail to initialyse client", id, "with error", err)
 		return err
 	}
 

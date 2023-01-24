@@ -702,6 +702,7 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 }
 
 func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
+	//fmt.Println("------------> 705 ", domain)
 	Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 	client, err := globular_client.GetClient(domain, "persistence.PersistenceService", "NewPersistenceService_Client")
 	if err != nil {

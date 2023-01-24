@@ -69,6 +69,7 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
  * Get a client
  */
 func getClient(name, address string) (globular_client.Client, error) {
+	//fmt.Println("------------> 72")
 	if name == "persistence.PersistenceService" {
 		Utility.RegisterFunction("NewPersistenceService_Client", persistence_client.NewPersistenceService_Client)
 		client, err := globular_client.GetClient(address, "persistence.PersistenceService", "NewPersistenceService_Client")

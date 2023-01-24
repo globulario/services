@@ -187,6 +187,10 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		waitUntilStart <-  p.Process.Pid
 		err = p.Wait()
 
+		// reload the config directly from the file...
+		data, err := os.ReadFile(s["ConfigPath"].(string))
+		json.Unmarshal(data, &s)
+		
 		// Here I will read the configuration to get more information about the process.
 		if err != nil {
 			fmt.Println("service "+s["Name"].(string)+" fail with error ", err, "detail", stderr.String())
@@ -202,7 +206,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
 				if s["KeepAlive"].(bool) == true {
-
+					
 					// give ti some time to free resources like port files... etc.
 					pid, err := StartServiceProcess(s, port, proxyPort)
 					if err != nil {
@@ -393,9 +397,11 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 
 		// wait to proxy
 		err = proxyProcess.Wait()
-		if err != nil {
-			fmt.Println("proxy process stop with error: ", err)
-		}
+
+		// reload the config directly from the file...
+		data, err := os.ReadFile(s["ConfigPath"].(string))
+		json.Unmarshal(data, &s)
+		processPid = Utility.ToInt(s["Process"])
 
 		if processPid != -1 {
 			exist, err := Utility.PidExists(processPid)
