@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -553,7 +554,7 @@ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	}
 	return client.(*log_client.Log_Client), nil
 }
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -561,7 +562,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -680,7 +681,7 @@ func main() {
 	s_impl.Proto = services_managerpb.File_services_manager_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Protocol = "grpc"
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()

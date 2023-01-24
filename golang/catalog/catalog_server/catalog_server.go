@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/davecourtois/Utility"
@@ -2500,10 +2501,10 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(catalogpb.File_catalog_proto.Services().Get(0).FullName())
 	s_impl.Proto = catalogpb.File_catalog_proto.Path()
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Protocol = "grpc"
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()

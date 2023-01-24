@@ -5,6 +5,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+
 	//"time"
 
 	"encoding/json"
@@ -69,12 +70,10 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 		opts = make([]*options.ClientOptions, 0)
 		err := json.Unmarshal([]byte(optionsStr), &opts)
 		if err != nil {
-
 			return err
 		}
 		client, err = mongo.NewClient(opts...)
 		if err != nil {
-
 			return err
 		}
 	} else {
@@ -82,34 +81,39 @@ func (store *MongoStore) Connect(connectionId string, host string, port int32, u
 		// basic connection string to begin with.
 		password_ := url.QueryEscape(password)
 		user_ := url.QueryEscape(user)
-		connectionStr := "mongodb://" + user_ + ":" + password_ + "@" + host + ":" + strconv.Itoa(int(port)) + "/" + database + "?authSource=admin&compressors=disabled&gssapiServiceName=mongodb&ssl=false"
-		var err error
-		client, err = mongo.NewClient(options.Client().ApplyURI(connectionStr))
-		if err != nil {
 
+		var err error
+		clientOpts := options.Client().SetHosts(
+			[]string{host + ":" + strconv.Itoa(int(port))},
+		).SetAuth(
+			options.Credential{
+				AuthSource:    "admin",
+				AuthMechanism: "SCRAM-SHA-256",
+				Username:      user_,
+				Password:      password_,
+			},
+		)
+
+		client, err = mongo.NewClient(clientOpts)
+		if err != nil {
+			fmt.Println("fail to create client connection with error: ", err)
 			return err
 		}
 	}
 
 	err := client.Connect(ctx)
 	if err != nil {
+		fmt.Println("fail to connect with error: ", err)
 		return err
 	}
 
 	store.clients[connectionId] = client
 
-	err = store.clients[connectionId].Ping(ctx, nil)
-
-	if err != nil {
-
-		return err // already connected.
-	}
-
 	return nil
 }
 
 func (store *MongoStore) Disconnect(connectionId string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -129,7 +133,7 @@ func (store *MongoStore) GetStoreType() string {
  * Return the nil on success.
  */
 func (store *MongoStore) Ping(ctx context.Context, connectionId string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -140,7 +144,7 @@ func (store *MongoStore) Ping(ctx context.Context, connectionId string) error {
  * return the number of entry in a table.
  */
 func (store *MongoStore) Count(ctx context.Context, connectionId string, database string, collection string, query string, optionsStr string) (int64, error) {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return -1, errors.New("no connection found with name " + connectionId)
 	}
 
@@ -171,7 +175,7 @@ func (store *MongoStore) CreateDatabase(ctx context.Context, connectionId string
  * Delete a database
  */
 func (store *MongoStore) DeleteDatabase(ctx context.Context, connectionId string, name string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -182,7 +186,7 @@ func (store *MongoStore) DeleteDatabase(ctx context.Context, connectionId string
  * Create a Collection
  */
 func (store *MongoStore) CreateCollection(ctx context.Context, connectionId string, database string, name string, optionsStr string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -212,7 +216,7 @@ func (store *MongoStore) CreateCollection(ctx context.Context, connectionId stri
  * Delete collection
  */
 func (store *MongoStore) DeleteCollection(ctx context.Context, connectionId string, database string, name string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -227,7 +231,7 @@ func (store *MongoStore) DeleteCollection(ctx context.Context, connectionId stri
  * Insert one value in the store.
  */
 func (store *MongoStore) InsertOne(ctx context.Context, connectionId string, database string, collection string, entity interface{}, optionsStr string) (interface{}, error) {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return nil, errors.New("no connection found with name " + connectionId)
 	}
 
@@ -256,7 +260,7 @@ func (store *MongoStore) InsertOne(ctx context.Context, connectionId string, dat
  * Insert many results at time.
  */
 func (store *MongoStore) InsertMany(ctx context.Context, connectionId string, database string, collection string, entities []interface{}, optionsStr string) ([]interface{}, error) {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return nil, errors.New("no connection found with name " + connectionId)
 	}
 
@@ -289,7 +293,7 @@ func (store *MongoStore) InsertMany(ctx context.Context, connectionId string, da
  * Find many values from a query
  */
 func (store *MongoStore) Find(ctx context.Context, connectionId string, database string, collection string, query string, optionsStr string) ([]interface{}, error) {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return nil, errors.New("no connection found with name " + connectionId)
 	}
 
@@ -348,7 +352,7 @@ func (store *MongoStore) Find(ctx context.Context, connectionId string, database
  * Aggregate result from a collection.
  */
 func (store *MongoStore) Aggregate(ctx context.Context, connectionId string, database string, collection string, pipeline string, optionsStr string) ([]interface{}, error) {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return nil, errors.New("no connection found with name " + connectionId)
 	}
 
@@ -406,7 +410,7 @@ func (store *MongoStore) Aggregate(ctx context.Context, connectionId string, dat
  * Find one result at time.
  */
 func (store *MongoStore) FindOne(ctx context.Context, connectionId string, database string, collection string, query string, optionsStr string) (interface{}, error) {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return nil, errors.New("no connection found with name " + connectionId)
 	}
 
@@ -451,7 +455,7 @@ func (store *MongoStore) FindOne(ctx context.Context, connectionId string, datab
  * Update one or more value that match the query.
  */
 func (store *MongoStore) Update(ctx context.Context, connectionId string, database string, collection string, query string, value string, optionsStr string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -497,8 +501,8 @@ func (store *MongoStore) Update(ctx context.Context, connectionId string, databa
  * Update one document at time
  */
 func (store *MongoStore) UpdateOne(ctx context.Context, connectionId string, database string, collection string, query string, value string, optionsStr string) error {
-	
-	if store.clients[connectionId] ==nil {
+
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -544,7 +548,7 @@ func (store *MongoStore) UpdateOne(ctx context.Context, connectionId string, dat
  * Replace a document by another.
  */
 func (store *MongoStore) ReplaceOne(ctx context.Context, connectionId string, database string, collection string, query string, value string, optionsStr string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -595,10 +599,10 @@ func (store *MongoStore) ReplaceOne(ctx context.Context, connectionId string, da
  * Remove one or more value depending of the query results.
  */
 func (store *MongoStore) Delete(ctx context.Context, connectionId string, database string, collection string, query string, optionsStr string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
-	
+
 	if store.clients[connectionId].Database(database) == nil {
 		return errors.New("No database found with name " + database)
 	}
@@ -636,7 +640,7 @@ func (store *MongoStore) Delete(ctx context.Context, connectionId string, databa
  */
 func (store *MongoStore) DeleteOne(ctx context.Context, connectionId string, database string, collection string, query string, optionsStr string) error {
 
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -678,7 +682,7 @@ func (store *MongoStore) DeleteOne(ctx context.Context, connectionId string, dat
 func (store *MongoStore) RunAdminCmd(ctx context.Context, connectionId string, user string, password string, script string) error {
 	// Here I will retreive the path of the mondod and use it to find the mongo command.
 
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -732,7 +736,7 @@ func (store *MongoStore) Stop() error {
  * privileges ex. [{ resource: { db: "mytest", collection: "col2"}, actions: ["find"]}], roles: []}
  */
 func (store *MongoStore) CreateRole(ctx context.Context, connectionId string, role string, privileges string, options string) error {
-	if store.clients[connectionId] ==nil {
+	if store.clients[connectionId] == nil {
 		return errors.New("no connection found with name " + connectionId)
 	}
 
@@ -759,7 +763,6 @@ func (store *MongoStore) stopMongod() error {
 
 /** Create the super administrator in the db. not the sa globular account!!! **/
 func (store *MongoStore) registerSa() error {
-
 
 	// Here I will test if mongo db exist on the store.
 	existMongo := exec.Command("mongod", "--version")
@@ -788,7 +791,7 @@ func (store *MongoStore) registerSa() error {
 		}
 
 		go startMongoDB(store.Port, dataPath, false, wait)
-		<- wait
+		<-wait
 
 		// Now I will create a new user name sa and give it all admin write.
 		createSaScript := fmt.Sprintf(
@@ -809,8 +812,8 @@ func (store *MongoStore) registerSa() error {
 
 	// wait until mongo was started...
 	go startMongoDB(store.Port, dataPath, true, wait)
-	<- wait
-	
+	<-wait
+
 	// Get the list of all services method.
 	return nil
 }
@@ -866,7 +869,7 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan bool) erro
 						fmt.Println("mongoDB is running with pid: ", pid)
 						wait <- true // unblock it...
 					}
-				}else{
+				} else {
 					if strings.Contains(result, "Operating System") {
 						fmt.Println("mongoDB is running with pid: ", pid)
 						wait <- true // unblock it...
@@ -881,7 +884,7 @@ func startMongoDB(port int, dataPath string, withAuth bool, wait chan bool) erro
 	go Utility.ReadOutput(output, stdout)
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("fail to run mongod with error ", fmt.Sprint(err) + ": " + stderr.String())
+		fmt.Println("fail to run mongod with error ", fmt.Sprint(err)+": "+stderr.String())
 		return errors.New(fmt.Sprint(err) + ": " + stderr.String())
 	}
 

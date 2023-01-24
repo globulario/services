@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -101,7 +102,7 @@ type server struct {
 	SessionTimeout int
 
 	// Data store where account, role ect are keep...
-	store persistence_store.Store
+	store   persistence_store.Store
 	isReady bool
 
 	// The grpc server.
@@ -650,7 +651,7 @@ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	}
 	return client.(*log_client.Log_Client), nil
 }
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -658,7 +659,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -694,12 +695,12 @@ func (svr *server) getPersistenceStore() (persistence_store.Store, error) {
 		}
 
 		err = svr.store.Ping(context.Background(), "local_resource")
-		
+
 		svr.isReady = true
 
-	}else if !svr.isReady{
+	} else if !svr.isReady {
 		nbTry := 100
-		for i:=0; i < nbTry; i++{
+		for i := 0; i < nbTry; i++ {
 			time.Sleep(100 * time.Millisecond)
 			if svr.isReady {
 				break
@@ -1209,7 +1210,7 @@ func main() {
 	s_impl.Name = string(resourcepb.File_resource_proto.Services().Get(0).FullName())
 	s_impl.Proto = resourcepb.File_resource_proto.Path()
 	s_impl.Port = defaultPort
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
 	s_impl.Domain, _ = config.GetDomain()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	//"fmt"
 	"io"
@@ -730,7 +731,7 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(mailpb.File_mail_proto.Services().Get(0).FullName())
 	s_impl.Proto = mailpb.File_mail_proto.Path()
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
 	s_impl.Proxy = defaultProxy

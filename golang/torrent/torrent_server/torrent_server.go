@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -917,7 +918,7 @@ func main() {
 	s_impl.Proto = torrentpb.File_torrent_proto.Path()
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Protocol = "grpc"
 	s_impl.Domain, _ = config.GetDomain()
 	s_impl.Address, _ = config.GetAddress()
@@ -944,7 +945,7 @@ func main() {
 		s_impl.Id = os.Args[1]         // The second argument must be the port number
 		s_impl.ConfigPath = os.Args[2] // The second argument must be the port number
 	}
-	
+
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	//"fmt"
 	"io"
@@ -483,7 +484,7 @@ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -491,7 +492,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -531,6 +532,7 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 			// In that case I will save it in file.
 			err = persistence_server.Save()
 			if err != nil {
+				fmt.Println("---------> 534 ", err)
 				return err
 			}
 		} else {
@@ -554,7 +556,10 @@ func (persistence_server *server) createConnection(ctx context.Context, user, pa
 
 	// test if the connection is reacheable.
 	err = persistence_server.stores[c.Id].Ping(ctx, c.Id)
+
+	// fail to connect with error
 	if err != nil {
+		fmt.Println("fail to connect with error ", err)
 		persistence_server.stores[c.Id].Disconnect(c.Id)
 		if _, ok := persistence_server.connections[id]; ok {
 			delete(persistence_server.connections, id)
@@ -1179,7 +1184,7 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(persistencepb.File_persistence_proto.Services().Get(0).FullName())
 	s_impl.Port = defaultPort
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Proto = persistencepb.File_persistence_proto.Path()
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

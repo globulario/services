@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -713,7 +714,6 @@ func (server *server) RemoveAAAA(ctx context.Context, rqst *dnspb.RemoveAAAARequ
 	if err == nil {
 		rbac_client_.DeleteResourcePermissions(domain)
 	}
-	
 
 	return &dnspb.RemoveAAAAResponse{
 		Result: true, // return the full domain.
@@ -888,7 +888,6 @@ func (server *server) RemoveText(ctx context.Context, rqst *dnspb.RemoveTextRequ
 	if err == nil {
 		rbac_client_.DeleteResourcePermissions(rqst.Id)
 	}
-	
 
 	return &dnspb.RemoveTextResponse{
 		Result: true, // return the full domain.
@@ -1895,7 +1894,7 @@ func (server *server) GetLogClient() (*log_client.Log_Client, error) {
 	return client.(*log_client.Log_Client), nil
 }
 
-func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceInfo(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -1903,7 +1902,7 @@ func (server *server) logServiceInfo(method, fileLine, functionName, infos strin
 	return log_client_.Log(server.Name, server.Domain, method, logpb.LogLevel_INFO_MESSAGE, infos, fileLine, functionName)
 }
 
-func (server *server) logServiceError(method, fileLine, functionName, infos string) error{
+func (server *server) logServiceError(method, fileLine, functionName, infos string) error {
 	log_client_, err := server.GetLogClient()
 	if err != nil {
 		return err
@@ -1946,7 +1945,7 @@ func main() {
 	Utility.RegisterType(s_impl) // must be call dynamically
 	s_impl.Name = string(dnspb.File_dns_proto.Services().Get(0).FullName())
 	s_impl.Proto = dnspb.File_dns_proto.Path()
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

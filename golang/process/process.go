@@ -104,6 +104,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 
 	if !Utility.Exists(s["Path"].(string)) {
 		log.Println("No service found at path ", s["Path"].(string))
+		// before give up I will try to retreive the exec 
 		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
 	/*

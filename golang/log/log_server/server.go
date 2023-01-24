@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
@@ -455,7 +456,7 @@ func main() {
 	s_impl := new(server)
 	s_impl.Name = string(logpb.File_log_proto.Services().Get(0).FullName())
 	s_impl.Proto = logpb.File_log_proto.Path()
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"

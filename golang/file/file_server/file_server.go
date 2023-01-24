@@ -48,9 +48,9 @@ import (
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/title_client"
 	"github.com/globulario/services/golang/title/titlepb"
-	"google.golang.org/protobuf/types/known/structpb"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/jasonlvhit/gocron"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/tealeg/xlsx"
 	"google.golang.org/grpc"
@@ -532,7 +532,6 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	if thumbnailMaxWidth > 80 {
 		thumbnailMaxWidth = 80
 	}
-
 
 	path = strings.ReplaceAll(path, "\\", "/")
 	fileStat, err := os.Stat(path)
@@ -5671,7 +5670,7 @@ func main() {
 	// The name must the same as the grpc service name.
 	s_impl.Name = string(filepb.File_file_proto.Services().Get(0).FullName())
 	s_impl.Proto = filepb.File_file_proto.Path()
-	s_impl.Path = os.Args[0]
+	s_impl.Path, _ = filepath.Abs(filepath.Dir(os.Args[0]))
 	s_impl.Port = defaultPort
 	s_impl.Proxy = defaultProxy
 	s_impl.Protocol = "grpc"
