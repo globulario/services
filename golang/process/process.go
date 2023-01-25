@@ -187,6 +187,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		waitUntilStart <-  p.Process.Pid
 		err = p.Wait()
 
+		
 		// reload the config directly from the file...
 		data, err := os.ReadFile(s["ConfigPath"].(string))
 		json.Unmarshal(data, &s)

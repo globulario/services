@@ -81,8 +81,6 @@ func runCmd(name string, args []string, wait chan bool) error {
 		return errors.New(cmd_str + " </br> " + fmt.Sprint(err) + ": " + stderr.String())
 	}
 
-	cmd.Wait()
-
 	// Close the output.
 	stdout.Close()
 	done <- true

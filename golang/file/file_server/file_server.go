@@ -1190,13 +1190,20 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	infos = getFileInfos(info, infos)
 
 	for i := 0; i < len(infos); i++ {
-		err = stream.Send(&filepb.ReadDirResponse{
+		infos[i].Files = make([]*filepb.FileInfo, 0) // empty the it list, no needed by the client.
+		err := stream.Send(&filepb.ReadDirResponse{
 			Info: infos[i],
 		})
 		if err != nil {
-			return status.Errorf(
-				codes.Internal,
-				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+
+			fmt.Println("fail to send file info ", infos[i].Path+"/"+infos[i].Name, "thumbnail width:", rqst.GetThumnailWidth(), "thumbnail height", rqst.GetThumnailHeight())
+			fmt.Println("error: ", err)
+
+			if err.Error() == "rpc error: code = Canceled desc = context canceled" {
+				return status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
 		}
 	}
 
@@ -2510,9 +2517,70 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 	return nil
 }
 
+func runCmd(name, dir string, args []string, wait chan error) {
+
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+
+	pid := -1
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		// exit
+		wait <- err
+		return
+	}
+
+	fmt.Println("run command: ", name, args)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	output := make(chan string)
+	done := make(chan error)
+
+	// Process message util the command is done.
+	go func() {
+		for {
+			select {
+			case err := <-done:
+				wait <- err // unblock it...
+				break
+
+			case result := <-output:
+				if cmd.Process != nil {
+					pid = cmd.Process.Pid
+				}
+				// display command output...
+				fmt.Println(name+":", pid, result)
+			}
+		}
+	}()
+
+	// Start reading the output
+	go Utility.ReadOutput(output, stdout)
+	err = cmd.Run()
+	if err != nil {
+		cmd_str := name
+		for i := 0; i < len(args); i++ {
+			cmd_str += " " + args[i]
+		}
+		done <- errors.New(cmd_str + " </br> " + fmt.Sprint(err) + ": " + stderr.String())
+		return // no need to wait here...
+	}
+
+	//err = cmd.Wait() // wait for the command to complete.
+
+	// Close the output.
+	stdout.Close()
+
+	done <- err
+}
+
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 func (file_server *server) getStartTime() time.Time {
 	values := strings.Split(file_server.StartVideoConversionHour, ":")
 	var startTime time.Time
@@ -3066,12 +3134,12 @@ func processVideos(file_server *server, dirs []string) {
 
 							if audio_encoding != "aac" {
 								// sudo ffmpeg -i Andor\ S01E01.mp4 -c:v copy -ac 2 -c:a aac -b:a 192k Andor\ S01E01.acc.mp4
+
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
-
-								cmd := exec.Command("ffmpeg", "-i", video, "-c:v", "copy", "-ac", "2", "-c:a", "aac", "-b:a", "192k", output)
-								cmd.Dir = filepath.Dir(video)
-
-								err := cmd.Run()
+								wait := make(chan error)
+								runCmd("ffmpeg", filepath.Dir(video), []string{"-i", video, "-c:v", "copy", "-ac", "2", "-c:a", "aac", "-b:a", "192k", output}, wait)
+								err := <-wait
+								// if error...
 								if err == nil {
 									err := os.Remove(video)
 									if err == nil {
@@ -3317,7 +3385,7 @@ func createVideoMpeg4H264(path string) (string, error) {
 		Utility.MoveFile(output, path)
 	}
 
-	var cmd *exec.Cmd
+	var args []string
 
 	streamInfos, err := getStreamInfos(path)
 
@@ -3338,11 +3406,11 @@ func createVideoMpeg4H264(path string) (string, error) {
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
 	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
-			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output)
+			args = []string{"-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output}
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
+			args = []string{"-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p", output}
 
 		} else {
 			err := errors.New("no encoding command foud for " + video_encoding)
@@ -3352,25 +3420,22 @@ func createVideoMpeg4H264(path string) (string, error) {
 	} else {
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
-			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", output)
+			args = []string{"-i", path, "-c:v", "libx264", "-c:a", "aac", output}
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output)
+			args = []string{"-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output}
 		} else {
 			err := errors.New("no encoding command foud for " + video_encoding)
 			return "", err
 		}
 	}
 
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	cmd.Dir = filepath.Dir(path)
-	err = cmd.Run()
+	wait := make(chan error)
+	runCmd("ffmpeg", filepath.Dir(path), args, wait)
+	err = <-wait
 	if err != nil {
-		return "", errors.New(cmd.String() + " " + err.Error())
+		return "", err
 	}
 
 	// Here I will remove the input file...
@@ -3594,7 +3659,6 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
 			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
 			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-c:a", "aac"}
 		} else {
@@ -3663,21 +3727,14 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 `
 	}
 
-	cmd := exec.Command("ffmpeg", args...)
-	cmd.Dir = filepath.Dir(src)
-	cmd_str_ := "ffmpeg"
-	for i := 0; i < len(args); i++ {
-		cmd_str_ += " " + args[i]
-	}
+	wait := make(chan error)
+	runCmd("ffmpeg", filepath.Dir(src), args, wait)
 
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err = cmd.Run()
+	err = <-wait
 	if err != nil {
 		return err
 	}
+
 	os.WriteFile(dest+"/playlist.m3u8", []byte(master_playlist), 0644)
 
 	return nil
@@ -3848,9 +3905,9 @@ func generateVideoPreview(s *server, path string, fps, scale, duration int, forc
 	Utility.CreateDirIfNotExist(output)
 
 	if !Utility.Exists(output + "/preview.gif") {
-		cmd := exec.Command("ffmpeg", "-ss", Utility.ToString(duration_total/10), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps="+Utility.ToString(fps)+",scale="+Utility.ToString(scale)+":-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer", `-loop`, `0`, `preview.gif`)
-		cmd.Dir = output // the output directory...
-		err := cmd.Run()
+		wait := make(chan error)
+		runCmd("ffmpeg", output, []string{"-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps=" + Utility.ToString(fps) + ",scale=" + Utility.ToString(scale) + ":-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer", `-loop`, `0`, `preview.gif`}, wait)
+		err := <-wait
 		if err != nil {
 			os.Remove(output + "/preview.gif")
 			return err
@@ -3859,9 +3916,9 @@ func generateVideoPreview(s *server, path string, fps, scale, duration int, forc
 
 	//ffmpeg -y -i /mnt/synology_disk_01/porn/ph5b4d49c0180fb.mp4 -ss 00:00:10 -t 30 -movflags +faststart -filter_complex "[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=320:-2" -an outputfile.mp4
 	if !Utility.Exists(output + "/preview.mp4") {
-		cmd := exec.Command("ffmpeg", "-y", "-i", path, "-ss", Utility.ToString(duration_total/10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=`+Utility.ToString(scale)+`:-2`, "-an", "preview.mp4")
-		cmd.Dir = output // the output directory...
-		err := cmd.Run()
+		wait := make(chan error)
+		runCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "preview.mp4"}, wait)
+		err := <-wait
 		if err != nil {
 			os.Remove(output + "/preview.mp4")
 			return err
@@ -3967,14 +4024,9 @@ func createVideoTimeLine(s *server, path string, width int, fps float32, force b
 	}
 
 	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
-	cmd := exec.Command("ffmpeg", "-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:"+Utility.ToString(width)+",fps="+Utility.ToString(fps), "thumbnail_%05d.jpg")
-	cmd.Dir = output // the output directory...
-
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+	wait := make(chan error)
+	runCmd("ffmpeg", output, []string{"-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:"+Utility.ToString(width)+",fps="+Utility.ToString(fps), "thumbnail_%05d.jpg"}, wait)
+	err := <- wait
 	if err != nil {
 		fmt.Println("fail to create time line with error: ", err)
 		return err
@@ -4052,15 +4104,9 @@ func createVideoPreview(s *server, path string, nb int, height int, force bool) 
 		// Create dir fail for no reason in windows so I will try repeat it until it succed... give im time...
 		Utility.CreateDirIfNotExist(output)
 
-		cmd := exec.Command("ffmpeg", "-i", path, "-ss", Utility.ToString(start), "-t", Utility.ToString(laps), "-vf", "scale="+Utility.ToString(height)+":-1,fps=.250", "preview_%05d.jpg")
-		cmd.Dir = output // the output directory...
-
-		var out bytes.Buffer
-		var stderr bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &stderr
-
-		err = cmd.Run()
+		wait :=make(chan error)
+		runCmd("ffmpeg", output, []string{"-i", path, "-ss", Utility.ToString(start), "-t", Utility.ToString(laps), "-vf", "scale="+Utility.ToString(height)+":-1,fps=.250", "preview_%05d.jpg"}, wait)
+		err := <- wait
 		if err == nil {
 			break
 		}
@@ -4867,6 +4913,7 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 // Use yt-dlp to get channel or video information...
 // https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
 func (file_server *server) getVideoInfos(url, path, format string) (string, []map[string]interface{}, map[string]interface{}, error) {
+	
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
 	cmd.Dir = filepath.Dir(path)
 	out, err := cmd.Output()
