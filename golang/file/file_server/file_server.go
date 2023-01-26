@@ -702,7 +702,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 				} else if strings.HasPrefix(info.Mime, "audio/") || strings.HasSuffix(path, ".flac") || strings.HasSuffix(path, ".mp3") {
 					// duration := Utility.GetVideoDuration(path)
-					metadata, err := readMetadata(s, path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+					metadata, err := readAudioMetadata(s, path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 
 					if err == nil {
 						info.Thumbnail = metadata["ImageUrl"].(string)
@@ -784,7 +784,7 @@ func fileNameWithoutExtension(fileName string) string {
 	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
 
-func readMetadata(s *server, path string, thumnailHeight, thumbnailWidth int) (map[string]interface{}, error) {
+func readAudioMetadata(s *server, path string, thumnailHeight, thumbnailWidth int) (map[string]interface{}, error) {
 
 	path = strings.ReplaceAll(path, "\\", "/")
 	f_, err := os.Open(path)
@@ -1133,22 +1133,27 @@ func (file_server *server) GetPublicDirs(context.Context, *filepb.GetPublicDirsR
 }
 
 // return the a list of all info
-func getFileInfos(info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.FileInfo {
+func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInfo) []*filepb.FileInfo {
 
 	infos = append(infos, info)
 	for i := 0; i < len(info.Files); i++ {
-		if Utility.Exists(info.Files[i].Path) {
+		path_ := server.formatPath(info.Files[i].Path)
+		if Utility.Exists(path_) {
 			// do not send Thumbnail...
 			if info.Files[i].IsDir == true {
 				if !Utility.Exists(info.Files[i].Path + "/playlist.m3u8") {
 					info.Files[i].Thumbnail = "" // remove the icon  for dir
 				}
 			}
-			infos = getFileInfos(info.Files[i], infos)
+			infos = getFileInfos(server, info.Files[i], infos)
 		} else {
+			cache.RemoveItem(path_)
 			cache.RemoveItem(info.Files[i].Path)
 		}
 	}
+
+	// empty the arrays...
+	info.Files = make([]*filepb.FileInfo, 0)
 
 	return infos
 }
@@ -1178,6 +1183,7 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	path := file_server.formatPath(rqst.Path)
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
 
+	fmt.Println("read dir ", info.Path, "has", len(info.Files))
 	if err != nil {
 		return status.Errorf(
 			codes.Internal,
@@ -1187,13 +1193,13 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	infos := make([]*filepb.FileInfo, 0)
 
 	// Get info as array...
-	infos = getFileInfos(info, infos)
-
+	infos = getFileInfos(file_server, info, infos)
 	for i := 0; i < len(infos); i++ {
-		infos[i].Files = make([]*filepb.FileInfo, 0) // empty the it list, no needed by the client.
 		err := stream.Send(&filepb.ReadDirResponse{
+			
 			Info: infos[i],
 		})
+		fmt.Println("send file ", infos[i].GetPath())
 		if err != nil {
 
 			fmt.Println("fail to send file info ", infos[i].Path+"/"+infos[i].Name, "thumbnail width:", rqst.GetThumnailWidth(), "thumbnail height", rqst.GetThumnailHeight())
@@ -1680,7 +1686,7 @@ func (file_server *server) GetFileInfo(ctx context.Context, rqst *filepb.GetFile
 	}
 
 	infos := make([]*filepb.FileInfo, 0)
-	infos = getFileInfos(info, infos)
+	infos = getFileInfos(file_server, info, infos)
 
 	return &filepb.GetFileInfoResponse{
 		Info: infos[0],
@@ -3917,7 +3923,11 @@ func generateVideoPreview(s *server, path string, fps, scale, duration int, forc
 	//ffmpeg -y -i /mnt/synology_disk_01/porn/ph5b4d49c0180fb.mp4 -ss 00:00:10 -t 30 -movflags +faststart -filter_complex "[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=320:-2" -an outputfile.mp4
 	if !Utility.Exists(output + "/preview.mp4") {
 		wait := make(chan error)
-		runCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "preview.mp4"}, wait)
+		if hasEnableCudaNvcc() {
+			runCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "h264_nvenc", "preview.mp4"}, wait)
+		} else {
+			runCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "libx264", "preview.mp4"}, wait)
+		}
 		err := <-wait
 		if err != nil {
 			os.Remove(output + "/preview.mp4")
@@ -4425,8 +4435,7 @@ func (file_server *server) generateAudioPlaylist(path, token string, paths []str
 	playlist += "#PLAYLIST: " + strings.ReplaceAll(path, config.GetDataDir()+"/files/", "/") + "\n\n"
 
 	for i := 0; i < len(paths); i++ {
-		metadata, err := readMetadata(file_server, paths[i], 300, 300)
-		fmt.Println("3887 generate playlis ", paths[i])
+		metadata, err := readAudioMetadata(file_server, paths[i], 300, 300)
 		duration := Utility.GetVideoDuration(paths[i])
 		if duration > 0 && err == nil {
 
