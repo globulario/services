@@ -3137,7 +3137,7 @@ func processVideos(file_server *server, dirs []string) {
 
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
 								wait := make(chan error)
-								runCmd("ffmpeg", filepath.Dir(video), []string{"-i", video, "-c:v", "copy", "-ac", "2", "-c:a", "aac", "-b:a", "192k", output}, wait)
+								runCmd("ffmpeg", filepath.Dir(video), []string{"-i", video, "-c:v", "copy", "-ac", "2", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-b:a", "192k", output}, wait)
 								err := <-wait
 								// if error...
 								if err == nil {
@@ -3406,11 +3406,11 @@ func createVideoMpeg4H264(path string) (string, error) {
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
 	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
-			args = []string{"-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", output}
+			args = []string{"-i", path, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output}
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			args = []string{"-i", path, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p", output}
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output)
+			args = []string{"-i", path, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p", output}
 
 		} else {
 			err := errors.New("no encoding command foud for " + video_encoding)
@@ -3420,11 +3420,11 @@ func createVideoMpeg4H264(path string) (string, error) {
 	} else {
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
-			args = []string{"-i", path, "-c:v", "libx264", "-c:a", "aac", output}
+			args = []string{"-i", path, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output}
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			args = []string{"-i", path, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p", output}
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output)
+			args = []string{"-i", path, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p", output}
 		} else {
 			err := errors.New("no encoding command foud for " + video_encoding)
 			return "", err
@@ -3642,11 +3642,11 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
 	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p"}
-			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "hevc_nvenc", "-c:a", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p"}
+			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "hevc_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
 
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
@@ -3656,11 +3656,11 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	} else {
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
-			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-c:a", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p"}
+			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 			fmt.Println(err.Error())
@@ -4025,8 +4025,8 @@ func createVideoTimeLine(s *server, path string, width int, fps float32, force b
 
 	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
 	wait := make(chan error)
-	runCmd("ffmpeg", output, []string{"-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:"+Utility.ToString(width)+",fps="+Utility.ToString(fps), "thumbnail_%05d.jpg"}, wait)
-	err := <- wait
+	runCmd("ffmpeg", output, []string{"-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:" + Utility.ToString(width) + ",fps=" + Utility.ToString(fps), "thumbnail_%05d.jpg"}, wait)
+	err := <-wait
 	if err != nil {
 		fmt.Println("fail to create time line with error: ", err)
 		return err
@@ -4104,9 +4104,9 @@ func createVideoPreview(s *server, path string, nb int, height int, force bool) 
 		// Create dir fail for no reason in windows so I will try repeat it until it succed... give im time...
 		Utility.CreateDirIfNotExist(output)
 
-		wait :=make(chan error)
-		runCmd("ffmpeg", output, []string{"-i", path, "-ss", Utility.ToString(start), "-t", Utility.ToString(laps), "-vf", "scale="+Utility.ToString(height)+":-1,fps=.250", "preview_%05d.jpg"}, wait)
-		err := <- wait
+		wait := make(chan error)
+		runCmd("ffmpeg", output, []string{"-i", path, "-ss", Utility.ToString(start), "-t", Utility.ToString(laps), "-vf", "scale=" + Utility.ToString(height) + ":-1,fps=.250", "preview_%05d.jpg"}, wait)
+		err := <-wait
 		if err == nil {
 			break
 		}
@@ -4913,7 +4913,7 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 // Use yt-dlp to get channel or video information...
 // https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
 func (file_server *server) getVideoInfos(url, path, format string) (string, []map[string]interface{}, map[string]interface{}, error) {
-	
+
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
 	cmd.Dir = filepath.Dir(path)
 	out, err := cmd.Output()
