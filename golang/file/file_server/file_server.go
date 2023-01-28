@@ -25,7 +25,8 @@ import (
 
 	"github.com/StalkR/httpcache"
 	"github.com/StalkR/imdb"
-
+	"golang.org/x/text/language"
+    "golang.org/x/text/language/display"
 	"github.com/barasher/go-exiftool"
 	"github.com/karmdip-mi/go-fitz"
 
@@ -1183,8 +1184,8 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	path := file_server.formatPath(rqst.Path)
 	info, err := readDir(file_server, path, rqst.GetRecursive(), rqst.GetThumnailWidth(), rqst.GetThumnailHeight(), true, token)
 
-	fmt.Println("read dir ", info.Path, "has", len(info.Files))
 	if err != nil {
+
 		return status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1196,7 +1197,7 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 	infos = getFileInfos(file_server, info, infos)
 	for i := 0; i < len(infos); i++ {
 		err := stream.Send(&filepb.ReadDirResponse{
-			
+
 			Info: infos[i],
 		})
 		fmt.Println("send file ", infos[i].GetPath())
@@ -3085,6 +3086,9 @@ func processVideos(file_server *server, dirs []string) {
 			createVideoTimeLineLog.Status = "done"
 			file_server.publishConvertionLogEvent(createVideoTimeLineLog)
 		}
+
+		// To scketchy... wait for attoption of the audioTracks https://caniuse.com/?search=audioTracks
+		// extractAudioTracks(video)
 	}
 
 	// Step 3 Convert .mp4 to stream...
@@ -3618,9 +3622,6 @@ func getCodec(path string) string {
 // rate_monitor_buffer_ratio	maximum buffer size between bitrate conformance checks
 func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_ratio, rate_monitor_buffer_ratio float32) error {
 
-	// remove it from the cache.
-	cache.RemoveItem(src)
-
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
 		return errors.New("number of ffmeg instance has been reach, try it latter")
@@ -3648,11 +3649,11 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
 	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p"}
-			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "hevc_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "hevc_nvenc", "-c:a", "aac"}
 
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
@@ -3662,11 +3663,12 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	} else {
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p"}
-			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac"}
+			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
+			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-c:a", "aac"}
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 			fmt.Println(err.Error())
@@ -3733,10 +3735,10 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 `
 	}
 
+
 	wait := make(chan error)
 	runCmd("ffmpeg", filepath.Dir(src), args, wait)
-
-	err = <-wait
+	err = <- wait
 	if err != nil {
 		return err
 	}
@@ -3857,6 +3859,94 @@ func formatDuration(duration time.Duration) string {
 	str += ".000"
 
 	return str
+}
+
+func getAudioTrackInfos(path string) []interface{} {
+	// ffprobe Sample.mp4 -show_entries stream=index:stream_tags=language -select_streams a -of compact=p=0:nk=1
+
+	getVersion := exec.Command("ffprobe", "-v", "error", path, "-show_entries", `stream=index,codec_name,codec_type:stream_tags=language `, `-select_streams`, `a`, `-of`, `compact=p=0:nk=1`, "-print_format", "json")
+	getVersion.Dir = filepath.Dir(path)
+	output_, err := getVersion.CombinedOutput()
+
+	if err == nil {
+		infos := make(map[string]interface{})
+		err := json.Unmarshal(output_, &infos)
+		if err == nil {
+			return infos["streams"].([]interface{})
+		}
+	}
+
+	return nil
+}
+
+// Because only one browser support audioTracks (2022) I will manage it from the backend.
+func extractAudioTracks(video_path string) error {
+
+	track_infos := getAudioTrackInfos(video_path)
+	if len(track_infos) == 0 {
+		return errors.New("no audio track found")
+	}else if  len(track_infos) == 1 {
+		return nil // only one language found...
+	}
+
+	// Must be an HVEC64 file.
+	if !strings.HasSuffix(video_path, ".mp4"){
+		return errors.New("please convert the the " + filepath.Base(video_path) + " to mp4 before extracting audio track")
+	}
+
+	lastIndex := -1
+	if strings.Contains(video_path, ".") {
+		lastIndex = strings.LastIndex(video_path, ".")
+	}
+
+	path_ := video_path[0:strings.LastIndex(video_path, "/")]
+
+	name_ := video_path[strings.LastIndex(video_path, "/")+1:]
+	if lastIndex != -1 {
+		name_ = video_path[strings.LastIndex(video_path, "/")+1 : lastIndex]
+	}
+
+	dest := path_ + "/.hidden/" + name_ + "/__tracks__"
+
+	// nothing to do here...
+	if Utility.Exists(dest){
+		return errors.New("audio tracks for " + filepath.Base(video_path) +" already exist")
+	}
+
+	Utility.CreateDirIfNotExist(dest)
+
+	args := []string{"-i", video_path}
+
+	for i := 0; i < len(track_infos); i++ {
+		track_info := track_infos[i].(map[string]interface{})
+		language_code := track_info["tags"].(map[string]interface{})["language"].(string)
+		nativeTag := language.MustParse(language_code)
+		fmt.Println(display.Self.Name(nativeTag))   // ex jap display--> 日本語
+	
+		// To get the language names in English
+		en := display.English.Languages()
+		fmt.Println(en.Name(nativeTag)) 
+		
+		filename := en.Name(nativeTag) 
+
+		// also display it in it original language.
+		if filename!= "English"{
+			filename+= " " + display.Self.Name(nativeTag)
+		}
+
+		//filename = language_code
+		
+		args = append(args, "-map", "0:a:"+Utility.ToString(i), "-c", "copy", filename +"."+track_info["codec_name"].(string))
+	}
+
+	wait := make(chan error)
+	runCmd("ffmpeg", dest, args, wait)
+	err := <-wait
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	return err
 }
 
 // Create the video preview...
@@ -4713,46 +4803,22 @@ func (file_server *server) CreateVideoTimeLine(ctx context.Context, rqst *filepb
 
 // Convert a file from mkv, avi or other format to MPEG-4 AVC
 func (file_server *server) ConvertVideoToMpeg4H264(ctx context.Context, rqst *filepb.ConvertVideoToMpeg4H264Request) (*filepb.ConvertVideoToMpeg4H264Response, error) {
-	if !Utility.Exists(rqst.Path) {
-		return nil, errors.New("no file found at path " + rqst.Path)
+
+	path_ := file_server.formatPath(rqst.Path)
+	if !Utility.Exists(path_) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
 	}
 
-	createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
-	createVideoMpeg4H264Log.LogTime = time.Now().Unix()
-	createVideoMpeg4H264Log.Msg = "Convert video to mp4"
-	createVideoMpeg4H264Log.Path = rqst.Path
-	createVideoMpeg4H264Log.Status = "running"
-
-	file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
-	file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-
-	_, err := createVideoMpeg4H264(rqst.Path)
+	info, err := getFileInfo(file_server, path_, -1, -1)
 	if err != nil {
-		file_server.publishConvertionLogError(rqst.Path, err)
-		createVideoMpeg4H264Log.Status = "fail"
-		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	createVideoMpeg4H264Log.Status = "done"
-	file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-
-	return &filepb.ConvertVideoToMpeg4H264Response{}, nil
-}
-
-// Convert a video file (must be  MPEG-4 H264) to HLS stream... That will automatically generate the
-// the streams for various resolutions. (see script create-vod-hls.sh for more info)
-func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.ConvertVideoToHlsRequest) (*filepb.ConvertVideoToHlsResponse, error) {
-	if !Utility.Exists(rqst.Path) {
-		return nil, errors.New("no file found at path " + rqst.Path)
-	}
-
-	// in case of a mkv Need conversion before...
-	if strings.HasSuffix(rqst.Path, ".avi") || strings.HasPrefix(rqst.Path, ".AVI") || strings.HasSuffix(rqst.Path, ".mkv") || strings.HasPrefix(rqst.Path, ".MKV") || getCodec(rqst.Path) == "hevc" {
-		var err error
+	if !info.IsDir {
 		createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
 		createVideoMpeg4H264Log.LogTime = time.Now().Unix()
 		createVideoMpeg4H264Log.Msg = "Convert video to mp4"
@@ -4761,7 +4827,8 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 
 		file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
 		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
-		rqst.Path, err = createVideoMpeg4H264(rqst.Path)
+
+		_, err := createVideoMpeg4H264(path_)
 		if err != nil {
 			file_server.publishConvertionLogError(rqst.Path, err)
 			createVideoMpeg4H264Log.Status = "fail"
@@ -4771,31 +4838,165 @@ func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.C
 				codes.Internal,
 				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 		}
+
 		createVideoMpeg4H264Log.Status = "done"
 		file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+	} else {
+		files := Utility.GetFilePathsByExtension(path_, ".mkv")
+		files = append(files, Utility.GetFilePathsByExtension(path_, ".avi")...)
+		for i := 0; i < len(files); i++ {
+			fmt.Println("start convert ", files[i])
+			createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
+			createVideoMpeg4H264Log.LogTime = time.Now().Unix()
+			createVideoMpeg4H264Log.Msg = "Convert video to mp4"
+			createVideoMpeg4H264Log.Path = files[i]
+			createVideoMpeg4H264Log.Status = "running"
+
+			file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
+			_, err := createVideoMpeg4H264(files[i])
+			if err != nil {
+				file_server.publishConvertionLogError(files[i], err)
+				createVideoMpeg4H264Log.Status = "fail"
+				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			createVideoMpeg4H264Log.Status = "done"
+			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			fmt.Println("done convert ", files[i])
+		}
 	}
 
-	// Create the hls stream from MPEG-4 H264 file.
-	createHlsStreamFromMpeg4H264Log := new(filepb.VideoConversionLog)
-	createHlsStreamFromMpeg4H264Log.LogTime = time.Now().Unix()
-	createHlsStreamFromMpeg4H264Log.Msg = "Convert video to stream"
-	createHlsStreamFromMpeg4H264Log.Path = rqst.Path
-	createHlsStreamFromMpeg4H264Log.Status = "running"
-	file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
-	file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+	return &filepb.ConvertVideoToMpeg4H264Response{}, nil
+}
 
-	err := createHlsStreamFromMpeg4H264(rqst.Path)
+// Convert a video file (must be  MPEG-4 H264) to HLS stream... That will automatically generate the
+// the streams for various resolutions. (see script create-vod-hls.sh for more info)
+func (file_server *server) ConvertVideoToHls(ctx context.Context, rqst *filepb.ConvertVideoToHlsRequest) (*filepb.ConvertVideoToHlsResponse, error) {
+
+	path_ := file_server.formatPath(rqst.Path)
+	if !Utility.Exists(path_) {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), errors.New("no file found at path "+rqst.Path)))
+	}
+
+	if !Utility.Exists(path_) {
+		return nil, errors.New("no file found at path " + path_)
+	}
+	info, err := getFileInfo(file_server, path_, -1, -1)
 	if err != nil {
-		file_server.publishConvertionLogError(rqst.Path, err)
-		createHlsStreamFromMpeg4H264Log.Status = "fail"
-		file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	createHlsStreamFromMpeg4H264Log.Status = "done"
-	file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+	if !info.IsDir {
+		// in case of a mkv Need conversion before...
+		if strings.HasSuffix(rqst.Path, ".avi") || strings.HasPrefix(rqst.Path, ".AVI") || strings.HasSuffix(rqst.Path, ".mkv") || strings.HasPrefix(rqst.Path, ".MKV") || getCodec(rqst.Path) == "hevc" {
+			var err error
+			createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
+			createVideoMpeg4H264Log.LogTime = time.Now().Unix()
+			createVideoMpeg4H264Log.Msg = "Convert video to mp4"
+			createVideoMpeg4H264Log.Path = rqst.Path
+			createVideoMpeg4H264Log.Status = "running"
+
+			file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			rqst.Path, err = createVideoMpeg4H264(path_)
+			if err != nil {
+				file_server.publishConvertionLogError(rqst.Path, err)
+				createVideoMpeg4H264Log.Status = "fail"
+				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+			createVideoMpeg4H264Log.Status = "done"
+			file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+		}
+
+		// Create the hls stream from MPEG-4 H264 file.
+		createHlsStreamFromMpeg4H264Log := new(filepb.VideoConversionLog)
+		createHlsStreamFromMpeg4H264Log.LogTime = time.Now().Unix()
+		createHlsStreamFromMpeg4H264Log.Msg = "Convert video to stream"
+		createHlsStreamFromMpeg4H264Log.Path = rqst.Path
+		createHlsStreamFromMpeg4H264Log.Status = "running"
+		file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
+		file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+
+		err := createHlsStreamFromMpeg4H264(rqst.Path)
+		if err != nil {
+			file_server.publishConvertionLogError(rqst.Path, err)
+			createHlsStreamFromMpeg4H264Log.Status = "fail"
+			file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		createHlsStreamFromMpeg4H264Log.Status = "done"
+		file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+	} else {
+		files := Utility.GetFilePathsByExtension(path_, ".mkv")
+		files = append(files, Utility.GetFilePathsByExtension(path_, ".avi")...)
+		for i := 0; i < len(files); i++ {
+
+			// in case of a mkv Need conversion before...
+			if strings.HasSuffix(files[i], ".avi") || strings.HasPrefix(files[i], ".AVI") || strings.HasSuffix(files[i], ".mkv") || strings.HasPrefix(files[i], ".MKV") || getCodec(files[i]) == "hevc" {
+				var err error
+				createVideoMpeg4H264Log := new(filepb.VideoConversionLog)
+				createVideoMpeg4H264Log.LogTime = time.Now().Unix()
+				createVideoMpeg4H264Log.Msg = "Convert video to mp4"
+				createVideoMpeg4H264Log.Path = files[i]
+				createVideoMpeg4H264Log.Status = "running"
+
+				file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
+				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+				rqst.Path, err = createVideoMpeg4H264(path_)
+				if err != nil {
+					file_server.publishConvertionLogError(files[i], err)
+					createVideoMpeg4H264Log.Status = "fail"
+					file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+
+					return nil, status.Errorf(
+						codes.Internal,
+						Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+				}
+				createVideoMpeg4H264Log.Status = "done"
+				file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+			}
+
+			// Create the hls stream from MPEG-4 H264 file.
+			createHlsStreamFromMpeg4H264Log := new(filepb.VideoConversionLog)
+			createHlsStreamFromMpeg4H264Log.LogTime = time.Now().Unix()
+			createHlsStreamFromMpeg4H264Log.Msg = "Convert video to stream"
+			createHlsStreamFromMpeg4H264Log.Path = files[i]
+			createHlsStreamFromMpeg4H264Log.Status = "running"
+			file_server.videoConversionLogs.Store(createHlsStreamFromMpeg4H264Log.LogTime, createHlsStreamFromMpeg4H264Log)
+			file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+
+			err := createHlsStreamFromMpeg4H264(files[i])
+			if err != nil {
+				file_server.publishConvertionLogError(files[i], err)
+				createHlsStreamFromMpeg4H264Log.Status = "fail"
+				file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+				return nil, status.Errorf(
+					codes.Internal,
+					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+			}
+
+			createHlsStreamFromMpeg4H264Log.Status = "done"
+			file_server.publishConvertionLogEvent(createHlsStreamFromMpeg4H264Log)
+		}
+
+	}
 
 	return &filepb.ConvertVideoToHlsResponse{}, nil
 }
