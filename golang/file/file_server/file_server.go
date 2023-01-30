@@ -25,10 +25,10 @@ import (
 
 	"github.com/StalkR/httpcache"
 	"github.com/StalkR/imdb"
-	"golang.org/x/text/language"
-    "golang.org/x/text/language/display"
 	"github.com/barasher/go-exiftool"
 	"github.com/karmdip-mi/go-fitz"
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 
 	wkhtml "github.com/SebastiaanKlippert/go-wkhtmltopdf"
 	"github.com/davecourtois/Utility"
@@ -523,6 +523,7 @@ func (s *server) getThumbnail(path string, h, w int) (string, error) {
 
 func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth int) (*filepb.FileInfo, error) {
 
+	path = strings.ReplaceAll(path, "\\", "/")
 	info := new(filepb.FileInfo)
 	info.Path = path
 
@@ -534,19 +535,15 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		thumbnailMaxWidth = 80
 	}
 
-	path = strings.ReplaceAll(path, "\\", "/")
 	fileStat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
 
 	// Cut the root part of the path if it start with the root path.
-	if len(s.Root) > 0 {
-		startindex := strings.Index(info.Path, s.Root)
-		if startindex == 0 {
-			info.Path = info.Path[len(s.Root):]
-			info.Path = strings.Replace(info.Path, "\\", "/", -1) // Set the slash instead of back slash.
-		}
+
+	if strings.HasPrefix(info.Path, config.GetDataDir()+"/files") {
+		info.Path = info.Path[len(config.GetDataDir()+"/files"):]
 	}
 
 	if strings.Contains(path, "/.hidden") {
@@ -597,7 +594,6 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	if !strings.Contains(path, "/.hidden") {
 		// the file
 		if !info.IsDir {
-
 			if strings.Contains(fileStat.Name(), ".") {
 				fileExtension := fileStat.Name()[strings.LastIndex(fileStat.Name(), "."):]
 				info.Mime = mime.TypeByExtension(fileExtension)
@@ -692,11 +688,9 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 
 					} else {
 						path_, err := os.Getwd()
+						path_ = strings.ReplaceAll(path_, "\\", "/")
 						if err == nil {
-
-							path_ = strings.ReplaceAll(path_, "\\", "/")
 							path_ = path_ + "/mimetypes/video-x-generic.png"
-
 							info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 						}
 					}
@@ -704,7 +698,6 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 				} else if strings.HasPrefix(info.Mime, "audio/") || strings.HasSuffix(path, ".flac") || strings.HasSuffix(path, ".mp3") {
 					// duration := Utility.GetVideoDuration(path)
 					metadata, err := readAudioMetadata(s, path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-
 					if err == nil {
 						info.Thumbnail = metadata["ImageUrl"].(string)
 					}
@@ -1012,7 +1005,6 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 						if err == nil {
 							path_ = strings.ReplaceAll(path_, "\\", "/")
-							path_ = strings.ReplaceAll(path_, "\\", "/")
 							path_ = path_ + "/mimetypes/unknown.png"
 							info_.Thumbnail, _ = s.getMimeTypesUrl(path_)
 						}
@@ -1139,22 +1131,28 @@ func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInf
 	infos = append(infos, info)
 	for i := 0; i < len(info.Files); i++ {
 		path_ := server.formatPath(info.Files[i].Path)
+		fmt.Println("----------------> path ", path_)
 		if Utility.Exists(path_) {
 			// do not send Thumbnail...
 			if info.Files[i].IsDir == true {
-				if !Utility.Exists(info.Files[i].Path + "/playlist.m3u8") {
+				if !Utility.Exists(path_ + "/playlist.m3u8") {
 					info.Files[i].Thumbnail = "" // remove the icon  for dir
 				}
 			}
 			infos = getFileInfos(server, info.Files[i], infos)
 		} else {
-			cache.RemoveItem(path_)
 			cache.RemoveItem(info.Files[i].Path)
 		}
 	}
 
 	// empty the arrays...
-	info.Files = make([]*filepb.FileInfo, 0)
+	if info.IsDir == true {
+		path_ := server.formatPath(info.Path)
+		fmt.Println("----------------> path ", path_)
+		if !Utility.Exists(path_ + "/playlist.m3u8") {
+			info.Files = make([]*filepb.FileInfo, 0)
+		}
+	}
 
 	return infos
 }
@@ -2524,65 +2522,6 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 	return nil
 }
 
-func runCmd(name, dir string, args []string, wait chan error) {
-
-	cmd := exec.Command(name, args...)
-	cmd.Dir = dir
-
-	pid := -1
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		// exit
-		wait <- err
-		return
-	}
-
-	fmt.Println("run command: ", name, args)
-
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-
-	output := make(chan string)
-	done := make(chan error)
-
-	// Process message util the command is done.
-	go func() {
-		for {
-			select {
-			case err := <-done:
-				wait <- err // unblock it...
-				break
-
-			case result := <-output:
-				if cmd.Process != nil {
-					pid = cmd.Process.Pid
-				}
-				// display command output...
-				fmt.Println(name+":", pid, result)
-			}
-		}
-	}()
-
-	// Start reading the output
-	go Utility.ReadOutput(output, stdout)
-	err = cmd.Run()
-	if err != nil {
-		cmd_str := name
-		for i := 0; i < len(args); i++ {
-			cmd_str += " " + args[i]
-		}
-		done <- errors.New(cmd_str + " </br> " + fmt.Sprint(err) + ": " + stderr.String())
-		return // no need to wait here...
-	}
-
-	//err = cmd.Wait() // wait for the command to complete.
-
-	// Close the output.
-	stdout.Close()
-
-	done <- err
-}
 
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
@@ -3086,9 +3025,6 @@ func processVideos(file_server *server, dirs []string) {
 			createVideoTimeLineLog.Status = "done"
 			file_server.publishConvertionLogEvent(createVideoTimeLineLog)
 		}
-
-		// To scketchy... wait for attoption of the audioTracks https://caniuse.com/?search=audioTracks
-		// extractAudioTracks(video)
 	}
 
 	// Step 3 Convert .mp4 to stream...
@@ -3113,6 +3049,8 @@ func processVideos(file_server *server, dirs []string) {
 						createVideoMpeg4H264Log.Status = "running"
 						file_server.videoConversionLogs.Store(createVideoMpeg4H264Log.LogTime, createVideoMpeg4H264Log)
 						file_server.publishConvertionLogEvent(createVideoMpeg4H264Log)
+						// To scketchy... wait for attoption of the audioTracks https://caniuse.com/?search=audioTracks
+						// extract the video track
 
 						video_, err := createVideoMpeg4H264(video)
 						if err != nil {
@@ -3147,7 +3085,10 @@ func processVideos(file_server *server, dirs []string) {
 
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
 								wait := make(chan error)
-								runCmd("ffmpeg", filepath.Dir(video), []string{"-i", video, "-c:v", "copy", "-ac", "2", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-b:a", "192k", output}, wait)
+								args :=  []string{"-i", video, "-c:v", "copy"}
+								args = append(args, "-c:a", "copy",  "-c:s", "mov_text", "-map", "0")
+								args = append(args,"-b:a", "192k", output)
+								Utility.RunCmd("ffmpeg", filepath.Dir(video), args, wait)
 								err := <-wait
 								// if error...
 								if err == nil {
@@ -3369,6 +3310,8 @@ func createVideoMpeg4H264(path string) (string, error) {
 
 	cache.RemoveItem(path)
 
+	extractSubtitleTracks(path)
+
 	process, _ := Utility.GetProcessIdsByName("ffmpeg")
 	if len(process) > MAX_FFMPEG_INSTANCE {
 		return "", errors.New("number of ffmeg instance has been reach, try it latter")
@@ -3414,13 +3357,14 @@ func createVideoMpeg4H264(path string) (string, error) {
 	}
 
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
+	args = []string{"-i", path, "-c:v"}
+
 	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
-			args = []string{"-i", path, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output}
+			args = append(args, "h264_nvenc")
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output)
-			args = []string{"-i", path, "-c:v", "h264_nvenc", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p", output}
+			args = append(args, "h264_nvenc", "-pix_fmt", "yuv420p")
 
 		} else {
 			err := errors.New("no encoding command foud for " + video_encoding)
@@ -3430,19 +3374,22 @@ func createVideoMpeg4H264(path string) (string, error) {
 	} else {
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(video_encoding, "H.264") || strings.HasPrefix(video_encoding, "MPEG-4 part 2") {
-			args = []string{"-i", path, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output}
+			args = append(args, "libx264")
 		} else if strings.HasPrefix(video_encoding, "H.265") || strings.HasPrefix(video_encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
-			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", output)
-			args = []string{"-i", path, "-c:v", "libx264", "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac", "-pix_fmt", "yuv420p", output}
+			args = append(args, "libx264", "-pix_fmt", "yuv420p")
 		} else {
 			err := errors.New("no encoding command foud for " + video_encoding)
 			return "", err
 		}
 	}
+	args = append(args, "-map", "0:v")
+	args = append(args,  "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac")
+	args = append(args,  "-map", "0:s:0?", "-c:s:0", "mov_text", "-map", "0:s:1?", "-c:s:1", "mov_text", "-map", "0:s:2?", "-c:s:2", "mov_text", "-map", "0:s:3?", "-c:s:3", "mov_text", "-map", "0:s:4?", "-c:s:4", "mov_text", "-map", "0:s:5?", "-c:s:5", "mov_text", "-map", "0:s:6?", "-c:s:6", "mov_text", "-map", "0:s:7?", "-c:s:7", "mov_text")
+	args = append(args, output)
 
 	wait := make(chan error)
-	runCmd("ffmpeg", filepath.Dir(path), args, wait)
+	Utility.RunCmd("ffmpeg", filepath.Dir(path), args, wait)
 	err = <-wait
 	if err != nil {
 		return "", err
@@ -3646,15 +3593,15 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		}
 	}
 
+	args = []string{"-hide_banner", "-y", "-i", src, "-c:v"}
+
 	//  https://docs.nvidia.com/video-technologies/video-codec-sdk/ffmpeg-with-nvidia-gpu/
 	if hasEnableCudaNvcc() {
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac"}
+			args = append(args, "h264_nvenc")
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
-
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "h264_nvenc", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			args = append(args, "h264_nvenc", "-pix_fmt", "yuv420p")
 			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "hevc_nvenc", "-c:a", "aac"}
-
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
 			return err
@@ -3663,11 +3610,11 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 	} else {
 		// ffmpeg -i input.mkv -c:v libx264 -c:a aac output.mp4
 		if strings.HasPrefix(encoding, "H.264") || strings.HasPrefix(encoding, "MPEG-4 part 2") {
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac"}
+			args = append(args, "libx264")
 		} else if strings.HasPrefix(encoding, "H.265") || strings.HasPrefix(encoding, "Motion JPEG") {
 			// in future when all browser will support H.265 I will compile it with this line instead.
 			//cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx265", "-c:a", "aac", output)
-			args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx264", "-c:a", "aac", "-pix_fmt", "yuv420p"}
+			args = append(args, "libx264", "-pix_fmt", "yuv420p")
 			//args = []string{"-hide_banner", "-y", "-i", src, "-c:v", "libx265", "-c:a", "aac"}
 		} else {
 			err := errors.New("no encoding command foud for " + encoding)
@@ -3678,8 +3625,8 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 
 	// resolution  bitrate  audio-rate
 	renditions := make([]map[string]interface{}, 0)
-
 	w, _ := getVideoResolution(src)
+
 	if w >= 426 {
 		renditions = append(renditions, map[string]interface{}{"resolution": "426x240", "bitrate": "400k", "audio-rate": "64k"})
 	}
@@ -3725,9 +3672,11 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		bandwidth := Utility.ToInt(bitrate[0:len(bitrate)-1]) * 1000
 		name := height + "p"
 		args = append(args, static_params...)
-		args = append(args, []string{"-vf", "scale=-2:min(" + width + "\\,if(mod(ih\\,2)\\,ih-1\\,ih))"}...)
-		args = append(args, []string{"-b:v", Utility.ToString(bitrate), "-maxrate", Utility.ToString(maxrate) + "k", "-bufsize", Utility.ToString(bufsize) + "k", "-b:a", audiorate}...)
-		args = append(args, []string{"-hls_segment_filename", dest + "/" + name + `_%04d.ts`, dest + "/" + name + ".m3u8"}...)
+		args = append(args, "-vf", "scale=-2:min("+width+"\\,if(mod(ih\\,2)\\,ih-1\\,ih))")
+		//args = append(args, "-c:a","aac")
+		args = append(args, "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac")
+		args = append(args, "-b:v", Utility.ToString(bitrate), "-maxrate", Utility.ToString(maxrate)+"k", "-bufsize", Utility.ToString(bufsize)+"k", "-b:a", audiorate)
+		args = append(args, "-hls_segment_filename", dest+"/"+name+`_%04d.ts`, dest+"/"+name+".m3u8")
 
 		// static_params = append(static_params, )
 		master_playlist += `#EXT-X-STREAM-INF:BANDWIDTH=` + Utility.ToString(bandwidth) + `,RESOLUTION=` + resolution + `
@@ -3735,10 +3684,9 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 `
 	}
 
-
 	wait := make(chan error)
-	runCmd("ffmpeg", filepath.Dir(src), args, wait)
-	err = <- wait
+	Utility.RunCmd("ffmpeg", filepath.Dir(src), args, wait)
+	err = <-wait
 	if err != nil {
 		return err
 	}
@@ -3861,10 +3809,10 @@ func formatDuration(duration time.Duration) string {
 	return str
 }
 
-func getAudioTrackInfos(path string) []interface{} {
+func getTrackInfos(path, stream_type string) []interface{} {
 	// ffprobe Sample.mp4 -show_entries stream=index:stream_tags=language -select_streams a -of compact=p=0:nk=1
 
-	getVersion := exec.Command("ffprobe", "-v", "error", path, "-show_entries", `stream=index,codec_name,codec_type:stream_tags=language `, `-select_streams`, `a`, `-of`, `compact=p=0:nk=1`, "-print_format", "json")
+	getVersion := exec.Command("ffprobe", "-v", "error", path, "-show_entries", `stream=index,codec_name,codec_type:stream_tags=language `, `-select_streams`, stream_type, `-of`, `compact=p=0:nk=1`, "-print_format", "json")
 	getVersion.Dir = filepath.Dir(path)
 	output_, err := getVersion.CombinedOutput()
 
@@ -3880,18 +3828,15 @@ func getAudioTrackInfos(path string) []interface{} {
 }
 
 // Because only one browser support audioTracks (2022) I will manage it from the backend.
-func extractAudioTracks(video_path string) error {
+func extractSubtitleTracks(video_path string) error {
 
-	track_infos := getAudioTrackInfos(video_path)
+	fmt.Println("---------------> extract subtitle for video_path")
+	track_infos := getTrackInfos(video_path, "s") // s= subtitle a=audio
+
 	if len(track_infos) == 0 {
-		return errors.New("no audio track found")
-	}else if  len(track_infos) == 1 {
+		return errors.New("no subtitle track found")
+	} else if len(track_infos) == 1 {
 		return nil // only one language found...
-	}
-
-	// Must be an HVEC64 file.
-	if !strings.HasSuffix(video_path, ".mp4"){
-		return errors.New("please convert the the " + filepath.Base(video_path) + " to mp4 before extracting audio track")
 	}
 
 	lastIndex := -1
@@ -3906,41 +3851,53 @@ func extractAudioTracks(video_path string) error {
 		name_ = video_path[strings.LastIndex(video_path, "/")+1 : lastIndex]
 	}
 
-	dest := path_ + "/.hidden/" + name_ + "/__tracks__"
+	dest := path_ + "/.hidden/" + name_ + "/__subtitles__"
 
+	fmt.Println("---------------> path ", dest)
 	// nothing to do here...
-	if Utility.Exists(dest){
-		return errors.New("audio tracks for " + filepath.Base(video_path) +" already exist")
+	if Utility.Exists(dest) {
+		return errors.New("audio tracks for " + filepath.Base(video_path) + " already exist")
 	}
 
 	Utility.CreateDirIfNotExist(dest)
-
-	args := []string{"-i", video_path}
+	args := []string{"-y", "-i", video_path}
 
 	for i := 0; i < len(track_infos); i++ {
 		track_info := track_infos[i].(map[string]interface{})
 		language_code := track_info["tags"].(map[string]interface{})["language"].(string)
 		nativeTag := language.MustParse(language_code)
-		fmt.Println(display.Self.Name(nativeTag))   // ex jap display--> 日本語
-	
+		fmt.Println(display.Self.Name(nativeTag)) // ex jap display--> 日本語
+
 		// To get the language names in English
-		en := display.English.Languages()
-		fmt.Println(en.Name(nativeTag)) 
-		
-		filename := en.Name(nativeTag) 
+		filename := filepath.Base(video_path)[0:strings.Index(filepath.Base(video_path), ".")]
 
-		// also display it in it original language.
-		if filename!= "English"{
-			filename+= " " + display.Self.Name(nativeTag)
+		// ext
+		if track_info["codec_name"].(string) == "ass" ||
+			track_info["codec_name"].(string) == "ssa" ||
+			track_info["codec_name"].(string) == "dvbsub" ||
+			track_info["codec_name"].(string) == "dvdsub" ||
+			track_info["codec_name"].(string) == "jacosub" ||
+			track_info["codec_name"].(string) == "microdvd" ||
+			track_info["codec_name"].(string) == "mpl2" ||
+			track_info["codec_name"].(string) == "pjs" ||
+			track_info["codec_name"].(string) == "realtext" ||
+			track_info["codec_name"].(string) == "sami" ||
+			track_info["codec_name"].(string) == "webvtt" ||
+			track_info["codec_name"].(string) == "vplayer" ||
+			track_info["codec_name"].(string) == "subviewer1" ||
+			track_info["codec_name"].(string) == "text" ||
+			track_info["codec_name"].(string) == "subrip" ||
+			track_info["codec_name"].(string) == "srt" ||
+			track_info["codec_name"].(string) == "stl" ||
+			track_info["codec_name"].(string) == "mov_text" {
+			filename += "." + language_code
+			index := Utility.ToInt(track_info["index"])
+			args = append(args, "-map", "0:"+Utility.ToString(index), filename+".vtt")
 		}
-
-		//filename = language_code
-		
-		args = append(args, "-map", "0:a:"+Utility.ToString(i), "-c", "copy", filename +"."+track_info["codec_name"].(string))
 	}
 
 	wait := make(chan error)
-	runCmd("ffmpeg", dest, args, wait)
+	Utility.RunCmd("ffmpeg", dest, args, wait)
 	err := <-wait
 	if err != nil {
 		fmt.Println(err)
@@ -4002,7 +3959,7 @@ func generateVideoPreview(s *server, path string, fps, scale, duration int, forc
 
 	if !Utility.Exists(output + "/preview.gif") {
 		wait := make(chan error)
-		runCmd("ffmpeg", output, []string{"-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps=" + Utility.ToString(fps) + ",scale=" + Utility.ToString(scale) + ":-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer", `-loop`, `0`, `preview.gif`}, wait)
+		Utility.RunCmd("ffmpeg", output, []string{"-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-i", path, "-vf", "fps=" + Utility.ToString(fps) + ",scale=" + Utility.ToString(scale) + ":-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=32[p];[s1][p]paletteuse=dither=bayer", `-loop`, `0`, `preview.gif`}, wait)
 		err := <-wait
 		if err != nil {
 			os.Remove(output + "/preview.gif")
@@ -4014,9 +3971,9 @@ func generateVideoPreview(s *server, path string, fps, scale, duration int, forc
 	if !Utility.Exists(output + "/preview.mp4") {
 		wait := make(chan error)
 		if hasEnableCudaNvcc() {
-			runCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "h264_nvenc", "preview.mp4"}, wait)
+			Utility.RunCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "h264_nvenc", "preview.mp4"}, wait)
 		} else {
-			runCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "libx264", "preview.mp4"}, wait)
+			Utility.RunCmd("ffmpeg", output, []string{"-y", "-i", path, "-ss", Utility.ToString(duration_total / 10), "-t", Utility.ToString(duration), "-filter_complex", `[0:v]select='lt(mod(t,1/10),1)',setpts=N/(FRAME_RATE*TB),scale=` + Utility.ToString(scale) + `:-2`, "-an", "-vcodec", "libx264", "preview.mp4"}, wait)
 		}
 		err := <-wait
 		if err != nil {
@@ -4125,7 +4082,7 @@ func createVideoTimeLine(s *server, path string, width int, fps float32, force b
 
 	// ffmpeg -i bob_ross_img-0-Animated.mp4 -ss 15 -t 16 -f image2 preview_%05d.jpg
 	wait := make(chan error)
-	runCmd("ffmpeg", output, []string{"-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:" + Utility.ToString(width) + ",fps=" + Utility.ToString(fps), "thumbnail_%05d.jpg"}, wait)
+	Utility.RunCmd("ffmpeg", output, []string{"-i", path, "-ss", "0", "-t", Utility.ToString(duration), "-vf", "scale=-1:" + Utility.ToString(width) + ",fps=" + Utility.ToString(fps), "thumbnail_%05d.jpg"}, wait)
 	err := <-wait
 	if err != nil {
 		fmt.Println("fail to create time line with error: ", err)
@@ -4205,7 +4162,7 @@ func createVideoPreview(s *server, path string, nb int, height int, force bool) 
 		Utility.CreateDirIfNotExist(output)
 
 		wait := make(chan error)
-		runCmd("ffmpeg", output, []string{"-i", path, "-ss", Utility.ToString(start), "-t", Utility.ToString(laps), "-vf", "scale=" + Utility.ToString(height) + ":-1,fps=.250", "preview_%05d.jpg"}, wait)
+		Utility.RunCmd("ffmpeg", output, []string{"-i", path, "-ss", Utility.ToString(start), "-t", Utility.ToString(laps), "-vf", "scale=" + Utility.ToString(height) + ":-1,fps=.250", "preview_%05d.jpg"}, wait)
 		err := <-wait
 		if err == nil {
 			break
@@ -5205,7 +5162,6 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 	}
 
 	path := file_server.formatPath(rqst.Dest)
-
 	if !Utility.Exists(path) {
 		return status.Errorf(
 			codes.Internal,
@@ -5213,7 +5169,6 @@ func (file_server *server) UploadVideo(rqst *filepb.UploadVideoRequest, stream f
 	}
 
 	// Now I will set the path to the hidden folder...
-	path = strings.ReplaceAll(path, "\\", "/")
 	Utility.CreateDirIfNotExist(path)
 
 	// First of all I will test if the url is a playlist or not...
@@ -5975,9 +5930,7 @@ func main() {
 	s_impl.Permissions[11] = map[string]interface{}{"action": "/file.FileService/FileUploadHandler", "resources": []interface{}{map[string]interface{}{"index": 0, "permission": "delete"}}}
 
 	// Set the root path if is pass as argument.
-	if len(s_impl.Root) == 0 {
-		s_impl.Root = os.TempDir()
-	}
+	s_impl.Root = config.GetDataDir() + "/files"
 
 	// Give base info to retreive it configuration.
 	if len(os.Args) == 2 {
