@@ -3675,6 +3675,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		args = append(args, "-vf", "scale=-2:min("+width+"\\,if(mod(ih\\,2)\\,ih-1\\,ih))")
 		//args = append(args, "-c:a","aac")
 		args = append(args, "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac")
+		args = append(args,  "-map", "0:s:0?", "-c:s:0", "mov_text", "-map", "0:s:1?", "-c:s:1", "mov_text", "-map", "0:s:2?", "-c:s:2", "mov_text", "-map", "0:s:3?", "-c:s:3", "mov_text", "-map", "0:s:4?", "-c:s:4", "mov_text", "-map", "0:s:5?", "-c:s:5", "mov_text", "-map", "0:s:6?", "-c:s:6", "mov_text", "-map", "0:s:7?", "-c:s:7", "mov_text")
 		args = append(args, "-b:v", Utility.ToString(bitrate), "-maxrate", Utility.ToString(maxrate)+"k", "-bufsize", Utility.ToString(bufsize)+"k", "-b:a", audiorate)
 		args = append(args, "-hls_segment_filename", dest+"/"+name+`_%04d.ts`, dest+"/"+name+".m3u8")
 
@@ -3830,7 +3831,6 @@ func getTrackInfos(path, stream_type string) []interface{} {
 // Because only one browser support audioTracks (2022) I will manage it from the backend.
 func extractSubtitleTracks(video_path string) error {
 
-	fmt.Println("---------------> extract subtitle for video_path")
 	track_infos := getTrackInfos(video_path, "s") // s= subtitle a=audio
 
 	if len(track_infos) == 0 {
@@ -3853,7 +3853,6 @@ func extractSubtitleTracks(video_path string) error {
 
 	dest := path_ + "/.hidden/" + name_ + "/__subtitles__"
 
-	fmt.Println("---------------> path ", dest)
 	// nothing to do here...
 	if Utility.Exists(dest) {
 		return errors.New("audio tracks for " + filepath.Base(video_path) + " already exist")
@@ -3871,7 +3870,7 @@ func extractSubtitleTracks(video_path string) error {
 		// To get the language names in English
 		filename := filepath.Base(video_path)[0:strings.Index(filepath.Base(video_path), ".")]
 
-		// ext
+		// supported ffmpeg video codec.
 		if track_info["codec_name"].(string) == "ass" ||
 			track_info["codec_name"].(string) == "ssa" ||
 			track_info["codec_name"].(string) == "dvbsub" ||

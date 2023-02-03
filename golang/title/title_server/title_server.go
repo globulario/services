@@ -15,6 +15,8 @@ import (
 	"github.com/blevesearch/bleve"
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config"
+	"github.com/globulario/services/golang/event/event_client"
+	"github.com/globulario/services/golang/globular_client"
 	globular "github.com/globulario/services/golang/globular_service"
 	"github.com/globulario/services/golang/storage/storage_store"
 	"github.com/globulario/services/golang/title/titlepb"
@@ -471,31 +473,15 @@ func (srv *server) getTitleById(indexPath, titleId string) (*titlepb.Title, erro
 		return nil, err
 	}
 
-	query := bleve.NewQueryStringQuery(titleId)
-	searchRequest := bleve.NewSearchRequest(query)
-	searchResult, err := index.Search(searchRequest)
+	raw, err := index.GetInternal([]byte(titleId))
 	if err != nil {
 		return nil, err
 	}
 
-	// Now from the result I will
-	if searchResult.Total == 0 {
-		return nil, errors.New("No matches")
-	}
-
-	var title *titlepb.Title
-	// Now I will return the data
-	for _, val := range searchResult.Hits {
-		if titleId == val.ID {
-			raw, err := index.GetInternal([]byte(val.ID))
-			if err != nil {
-				return nil, err
-			}
-			title = new(titlepb.Title)
-			jsonpb.UnmarshalString(string(raw), title)
-			break
-		}
-
+	title := new(titlepb.Title)
+	err = jsonpb.UnmarshalString(string(raw), title)
+	if err != nil {
+		return nil, err
 	}
 
 	return title, nil
@@ -579,6 +565,17 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	if err == nil {
 		index.SetInternal([]byte(rqst.Title.UUID), []byte(jsonStr))
 	}
+
+	event_client, err := srv.getEventClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// send event to update the audio infos
+	event_client.Publish("update_title_infos_evt", jsonStr)
+
 
 	return &titlepb.CreateTitleResponse{}, nil
 }
@@ -1336,8 +1333,6 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 
 	}
 
-	fmt.Println("try to create video", rqst.Video.ID)
-
 	// So here Will create the indexation for the movie...
 	index, err := srv.getIndex(rqst.IndexPath)
 	if err != nil {
@@ -1348,9 +1343,7 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 
 	rqst.Video.UUID = generateUUID(rqst.Video.ID)
 	err = index.Index(rqst.Video.UUID, rqst.Video)
-
 	if err != nil {
-		fmt.Println("fail to index video with error", rqst.Video.ID, err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
@@ -1361,21 +1354,27 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	jsonStr, err := marshaler.MarshalToString(rqst.Video)
 
 	if err == nil {
-		index.SetInternal([]byte(rqst.Video.UUID), []byte(jsonStr))
+		err = index.SetInternal([]byte(rqst.Video.UUID), []byte(jsonStr))
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
 	} else {
-		fmt.Println("1353 fail to index video with error  ", rqst.Video.ID, err)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	test_, err := srv.getVideoById(rqst.IndexPath, rqst.Video.UUID)
-	if err != nil || test_ == nil {
-		fmt.Println("1362 fail to index video with error  ", rqst.Video.ID, err)
+	event_client, err := srv.getEventClient()
+	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
+	// send event to update the video infos
+	event_client.Publish("update_video_infos_evt", jsonStr)
 
 	return &titlepb.CreateVideoResponse{}, nil
 }
@@ -1390,34 +1389,15 @@ func (srv *server) getVideoById(indexPath, id string) (*titlepb.Video, error) {
 		return nil, err
 	}
 
-	query := bleve.NewQueryStringQuery(id)
-	searchRequest := bleve.NewSearchRequest(query)
-	searchResult, err := index.Search(searchRequest)
+	raw, err := index.GetInternal([]byte(id))
 	if err != nil {
 		return nil, err
 	}
 
-	// Now from the result I will
-	if searchResult.Total == 0 {
-		return nil, errors.New("No matches")
-	}
+	video := new(titlepb.Video)
+	jsonpb.UnmarshalString(string(raw), video)
 
-	var video *titlepb.Video
-
-	// Now I will return the data
-	for _, val := range searchResult.Hits {
-		if val.ID == id {
-			raw, err := index.GetInternal([]byte(val.ID))
-			if err != nil {
-				return nil, err
-			}
-
-			video = new(titlepb.Video)
-			jsonpb.UnmarshalString(string(raw), video)
-			break
-		}
-
-	}
+	fmt.Println(video.Description)
 
 	return video, nil
 }
@@ -1928,6 +1908,16 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 		}
 	}
 
+	event_client, err := srv.getEventClient()
+	if err != nil {
+		return nil, status.Errorf(
+			codes.Internal,
+			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// send event to update the audio infos
+	event_client.Publish("update_audio_infos_evt", jsonStr)
+
 	return &titlepb.CreateAudioResponse{}, nil
 }
 
@@ -1941,33 +1931,15 @@ func (srv *server) getAudioById(indexPath, id string) (*titlepb.Audio, error) {
 		return nil, err
 	}
 
-	query := bleve.NewQueryStringQuery(id)
-	searchRequest := bleve.NewSearchRequest(query)
-	searchResult, err := index.Search(searchRequest)
+	raw, err := index.GetInternal([]byte(id))
 	if err != nil {
 		return nil, err
 	}
 
-	// Now from the result I will
-	if searchResult.Total == 0 {
-		return nil, errors.New("No matches")
-	}
-
-	var audio *titlepb.Audio
-
-	// Now I will return the data
-	for _, val := range searchResult.Hits {
-		if val.ID == id {
-			raw, err := index.GetInternal([]byte(val.ID))
-			if err != nil {
-				return nil, err
-			}
-
-			audio = new(titlepb.Audio)
-			jsonpb.UnmarshalString(string(raw), audio)
-			break
-		}
-
+	audio := new(titlepb.Audio)
+	err = jsonpb.UnmarshalString(string(raw), audio)
+	if err != nil {
+		return nil, err
 	}
 
 	return audio, nil
@@ -2205,6 +2177,24 @@ func (srv *server) GetFileAudios(ctx context.Context, rqst *titlepb.GetFileAudio
 	}
 
 	return &titlepb.GetFileAudiosResponse{Audios: &titlepb.Audios{Audios: audios}}, nil
+}
+
+// /////////////////// resource service functions ////////////////////////////////////
+func (server *server) getEventClient() (*event_client.Event_Client, error) {
+	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
+	client, err := globular_client.GetClient(server.Address, "event.EventService", "NewEventService_Client")
+	if err != nil {
+		return nil, err
+	}
+	return client.(*event_client.Event_Client), nil
+}
+
+func (svr *server) publish(event string, data []byte) error {
+	eventClient, err := svr.getEventClient()
+	if err != nil {
+		return err
+	}
+	return eventClient.Publish(event, data)
 }
 
 // That service is use to give access to SQL.

@@ -697,8 +697,6 @@ func (svr *server) SendEmailWithAttachements(stream mailpb.MailService_SendEmail
 		}
 
 	}
-
-	return nil
 }
 
 func GetPersistenceClient(domain string) (*persistence_client.Persistence_Client, error) {
