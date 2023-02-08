@@ -916,7 +916,7 @@ func initConfig() {
 		return 
 	}
 
-	// Create communication channels...
+	// configuration was found so I will set init to true
 	isInit = true
 
 	// The service dir.
