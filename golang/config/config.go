@@ -222,7 +222,7 @@ func GetServicesConfigDir() string {
 		}
 
 	} else {
-
+		
 		// if config near the service has priority over config found from other location...
 		if Utility.Exists(dir + "/config.json") {
 			return GetServicesDir()
@@ -905,42 +905,19 @@ func initConfig() {
 		removeAllLocks()
 	}
 
-	// Create communication channels...
-	isInit = true
 
 	// I will start configuation processing...
 	serviceConfigDir := GetServicesConfigDir()
 	files, err := Utility.FindFileByName(serviceConfigDir, "config.json")
+	services := make([]map[string]interface{}, 0)
 
-	if err != nil {
-
-		// So here no service configuration was found at the given directory
-		// I will try to find some at installation dir...
-		var programFilePath string
-		// fmt.Println("fail to find service configurations at at path ", serviceConfigDir, "with error ", err)
-		if runtime.GOOS == "windows" {
-			if runtime.GOARCH == "386" {
-				programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES(X86)")
-			} else {
-				programFilePath, _ = Utility.GetEnvironmentVariable("PROGRAMFILES")
-			}
-		} else {
-			programFilePath = "/usr/local/share/globular"
-		}
-
-		serviceConfigDir = strings.ReplaceAll(programFilePath, "\\", "/") + "/Globular/config/services"
-		fmt.Println("try to find services from ", serviceConfigDir)
-		files, err = Utility.FindFileByName(serviceConfigDir, "config.json")
-		if err != nil {
-			return
-		}
-
-		if len(files) == 0 {
-			return
-		}
+	if err != nil || len(files) == 0 {
+		fmt.Println("no configuration found at ", serviceConfigDir)
+		return 
 	}
 
-	services := make([]map[string]interface{}, 0)
+	// Create communication channels...
+	isInit = true
 
 	// The service dir.
 	serviceDir := GetServicesDir()

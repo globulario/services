@@ -546,15 +546,17 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// Now I will get the title thumbnail...
-	thumbnail_path := os.TempDir() + "/" + rqst.Title.Poster.URL[strings.LastIndex(rqst.Title.Poster.URL, "/")+1:]
-	defer os.Remove(thumbnail_path)
+	if rqst.Title.Poster != nil {
+		thumbnail_path := os.TempDir() + "/" + rqst.Title.Poster.URL[strings.LastIndex(rqst.Title.Poster.URL, "/")+1:]
+		defer os.Remove(thumbnail_path)
 
-	// Dowload the file.
-	err = Utility.DownloadFile(rqst.Title.Poster.URL, thumbnail_path)
-	if err == nil {
-		thumbnail, err := Utility.CreateThumbnail(thumbnail_path, 300, 180)
+		// Dowload the file.
+		err = Utility.DownloadFile(rqst.Title.Poster.URL, thumbnail_path)
 		if err == nil {
-			rqst.Title.Poster.ContentUrl = thumbnail
+			thumbnail, err := Utility.CreateThumbnail(thumbnail_path, 300, 180)
+			if err == nil {
+				rqst.Title.Poster.ContentUrl = thumbnail
+			}
 		}
 	}
 
@@ -574,8 +576,7 @@ func (srv *server) CreateTitle(ctx context.Context, rqst *titlepb.CreateTitleReq
 	}
 
 	// send event to update the audio infos
-	event_client.Publish("update_title_infos_evt", jsonStr)
-
+	event_client.Publish("update_title_infos_evt", []byte(jsonStr))
 
 	return &titlepb.CreateTitleResponse{}, nil
 }
@@ -1341,6 +1342,8 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
+	fmt.Println("try to create video with id ", rqst.Video.ID)
+
 	rqst.Video.UUID = generateUUID(rqst.Video.ID)
 	err = index.Index(rqst.Video.UUID, rqst.Video)
 	if err != nil {
@@ -1374,7 +1377,7 @@ func (srv *server) CreateVideo(ctx context.Context, rqst *titlepb.CreateVideoReq
 	}
 
 	// send event to update the video infos
-	event_client.Publish("update_video_infos_evt", jsonStr)
+	event_client.Publish("update_video_infos_evt", []byte(jsonStr))
 
 	return &titlepb.CreateVideoResponse{}, nil
 }
@@ -1916,7 +1919,7 @@ func (srv *server) CreateAudio(ctx context.Context, rqst *titlepb.CreateAudioReq
 	}
 
 	// send event to update the audio infos
-	event_client.Publish("update_audio_infos_evt", jsonStr)
+	event_client.Publish("update_audio_infos_evt", []byte(jsonStr))
 
 	return &titlepb.CreateAudioResponse{}, nil
 }

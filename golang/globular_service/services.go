@@ -444,7 +444,7 @@ func InitService(s Service) error {
 	// Now the platform.
 	s.SetPlatform(runtime.GOOS + "_" + runtime.GOARCH)
 	s.SetChecksum(Utility.CreateFileChecksum(execPath))
-
+	
 	return SaveService(s)
 }
 
@@ -458,6 +458,13 @@ func SaveService(s Service) error {
 	if err != nil {
 		return err
 	}
+
+	// if the program was start directly without Globular.
+	if len(os.Args) == 1 {
+		data, _ := Utility.ToJson(config_)
+		return os.WriteFile(config_["ConfigPath"].(string), []byte(data), 0644)
+	}
+	
 	return config_client.SaveServiceConfiguration(config_)
 }
 
