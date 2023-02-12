@@ -3917,6 +3917,45 @@ func (server *server) GetPackageDescriptor(ctx context.Context, rqst *resourcepb
 				descriptors[i].Repositories[j] = descriptor["repositories"].([]interface{})[j].(string)
 			}
 		}
+
+		if descriptor["groups"] != nil {
+			descriptor["groups"] = []interface{}(descriptor["groups"].(primitive.A))
+			descriptors[i].Groups = make([]*resourcepb.Group, len(descriptor["discoveries"].([]interface{})))
+
+			for j := 0; j < len(descriptor["groups"].([]interface{})); j++ {
+				//roles[i].(map[string]interface{})
+				g_ := descriptor["groups"].([]interface{})[j].(map[string]interface{})
+				g := new(resourcepb.Group)
+				g.Id = g_["id"].(string)
+				g.Name = g_["name"].(string)
+				g.Domain, _ = config.GetDomain()
+				
+				descriptors[i].Groups[j] = g
+			}
+			
+		}
+
+		if descriptor["roles"] != nil {
+			descriptor["roles"] = []interface{}(descriptor["roles"].(primitive.A))
+			descriptors[i].Roles = make([]*resourcepb.Role, len(descriptor["discoveries"].([]interface{})))
+
+			roles_ := descriptor["roles"].([]interface {})
+			for j := 0; j < len(roles_); j++ {
+				//roles[i].(map[string]interface{})
+				role := roles_[i].(map[string]interface{})
+				role_ := new(resourcepb.Role)
+				role_.Id = role["id"].(string)
+				role_.Name = role["name"].(string)
+				role_.Domain, _ = config.GetDomain()
+
+				role_.Actions = make([]string, len([]interface{}(role["actions"].(primitive.A))))
+				for k:=0; k < len([]interface{}(role["actions"].(primitive.A))); k++ {
+					role_.Actions[k] = []interface{}(role["actions"].(primitive.A))[k].(string)
+				}
+				// set it back in the package descriptor.
+				descriptors[i].Roles[j] = role_
+			}
+		}
 	}
 	if len(descriptors) > 1 {
 		sort.Slice(descriptors[:], func(i, j int) bool {

@@ -143,9 +143,37 @@ func (server *server) installLocalApplicationPackage(token, domain, applicationI
 
 		// roles
 		roles := make([]*resourcepb.Role, 0)
+		if descriptor["roles"] != nil {
+			roles_ := descriptor["roles"].([]interface{})
+			for i := 0; i < len(roles_); i++ {
+				role_ := roles_[i].(map[string]interface{})
+				r := new(resourcepb.Role)
+				r.Id = role_["id"].(string)
+				r.Name = role_["name"].(string)
+				r.Domain, _ = config.GetDomain()
+				actions := role_["actions"].([]interface{})
+				r.Actions = make([]string, len(actions))
+				for j:=0; j <len(actions); i++ {
+					r.Actions[j] = actions[j].(string) 
+				}
+				roles = append(roles, r)
+			}
+		}
+		
 
 		// groups
 		groups := make([]*resourcepb.Group, 0)
+		if descriptor["groups"] != nil {
+			groups_ := descriptor["groups"].([]interface{})
+			for i := 0; i < len(groups); i++ {
+				group_ := groups_[i].(map[string]interface{})
+				g := new(resourcepb.Group)
+				g.Id = group_["id"].(string)
+				g.Domain, _ = config.GetDomain()
+				g.Name = group_["name"].(string)
+				groups = append(groups, g)
+			}
+		}
 
 		// Now I will install the applicaiton.
 		err = server.installApplication(token, domain, descriptor["id"].(string), descriptor["publisherId"].(string), descriptor["version"].(string), descriptor["description"].(string), descriptor["icon"].(string), descriptor["alias"].(string), r_, actions, keywords, roles, groups, false)
