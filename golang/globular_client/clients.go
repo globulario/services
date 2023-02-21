@@ -30,7 +30,6 @@ var (
 // Factory method.
 func GetClient(address, name, fct string) (Client, error) {
 
-	//log.Panicln("----------> kill in the name off!")
 	if clients == nil {
 		clients = new(sync.Map)
 	}
@@ -161,8 +160,8 @@ func InitClient(client Client, address string, id string) error {
 	// http server. If not given thas mean if it's local (on the same domain) I will retreive
 	// it from the local configuration. Otherwize if it's remove the port 80 will be taken.
 	address_, _ := config.GetAddress()
-
 	localConfig, _ := config.GetLocalConfig(true)
+
 	if !strings.Contains(address, ":") {
 		if strings.HasPrefix(address_, address) {
 			// this is local
@@ -172,8 +171,22 @@ func InitClient(client Client, address string, id string) error {
 				address += ":" + Utility.ToString(localConfig["PortHttp"])
 			}
 		} else {
-			// this is not local...
-			address += ":80"
+
+			// so here I will test if the domain is contain in peers...
+			if localConfig["Peers"] != nil {
+				peers := localConfig["Peers"].([]interface{})
+				for i := 0; i < len(peers); i++ {
+					p := peers[i].(map[string]interface{})
+					if p["Domain"].(string) == address {
+						address += ":" + Utility.ToString(p["Port"])
+						break
+					}
+				}
+			}
+
+			if !strings.Contains(address, ":") {
+				address += ":80"
+			}
 		}
 	}
 
@@ -216,43 +229,27 @@ func InitClient(client Client, address string, id string) error {
 		}
 	} else {
 		// so here I try to get more information from peers...
-		if localConfig["Peers"] != nil {
-			var globule_config map[string]interface{}
+		var globule_config map[string]interface{}
+		globule_config, err = config.GetRemoteConfig(domain, port)
+		if err == nil {
+			config_, err = config.GetRemoteServiceConfig(domain, port, id)
+		}
 
-			if localConfig["Peers"].(map[string]interface{})[domain] != nil {
-				peer := localConfig["Peers"].(map[string]interface{})[domain].(map[string]interface{})
-				port = Utility.ToInt(peer["port"])
-				address = peer["domain"].(string) + ":" + Utility.ToString(peer["port"])
-				globule_config, err = config.GetRemoteConfig(peer["domain"].(string), port)
-				if err == nil {
-					config_, err = config.GetRemoteServiceConfig(peer["domain"].(string), port, id)
-				}
-
-			} else {
-
-				globule_config, err = config.GetRemoteConfig(domain, port)
-				if err == nil {
-					config_, err = config.GetRemoteServiceConfig(domain, port, id)
-				}
-			}
-
-			// set san values
-			if globule_config["Country"] != nil {
-				san_country = globule_config["Country"].(string)
-			}
-			if globule_config["State"] != nil {
-				san_state = globule_config["State"].(string)
-			}
-			if globule_config["City"] != nil {
-				san_city = globule_config["City"].(string)
-			}
-			if globule_config["Organization"] != nil {
-				san_organization = globule_config["Organization"].(string)
-			}
-			if globule_config["AlternateDomains"] != nil {
-				san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
-			}
-
+		// set san values
+		if globule_config["Country"] != nil {
+			san_country = globule_config["Country"].(string)
+		}
+		if globule_config["State"] != nil {
+			san_state = globule_config["State"].(string)
+		}
+		if globule_config["City"] != nil {
+			san_city = globule_config["City"].(string)
+		}
+		if globule_config["Organization"] != nil {
+			san_organization = globule_config["Organization"].(string)
+		}
+		if globule_config["AlternateDomains"] != nil {
+			san_alternateDomains = globule_config["AlternateDomains"].([]interface{})
 		}
 
 	}

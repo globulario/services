@@ -5538,6 +5538,16 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 
 			// generate the playlist...
 			file_server.generatePlaylist(path, token)
+
+			// Now I will refresh the .vtt files...
+			// vtt file contain list of url who can change if the server address change.
+			timelineImagesFiles := Utility.GetFilePathsByExtension(path, ".vtt")
+			for j:=0; j < len(timelineImagesFiles); j++ {
+				if filepath.Base(timelineImagesFiles[j]) == "thumbnails.vtt"{
+					os.Remove(timelineImagesFiles[j])
+					createVttFile(filepath.Dir(timelineImagesFiles[j]), 0.2)
+				}
+			}
 		}
 
 	}()

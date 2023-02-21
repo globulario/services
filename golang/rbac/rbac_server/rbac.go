@@ -2576,7 +2576,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	path_ := rbac_server.formatPath(path)
 	fmt.Println("validate file at path ", path_, "for", subject, "and permission", name)
 	if strings.HasSuffix(path_, ".ts") == true {
-		fmt.Println("test if ", filepath.Dir(path_)+"/playlist.m3u8", "exist", Utility.Exists(filepath.Dir(path_)+"/playlist.m3u8"))
 		if Utility.Exists(filepath.Dir(path_) + "/playlist.m3u8") {
 			return true, false, nil
 		}
@@ -2586,6 +2585,12 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	if rbac_server.isOwner(subject, subjectType, path) {
 		return true, false, nil
 	} else if name == "owner" {
+		_, err := rbac_server.getResourcePermissions(path)
+		if(err != nil ){
+			if strings.HasPrefix(err.Error(), "item not found"){
+				return true, false, nil
+			}
+		}
 		// must be owner...
 		return false, false, nil
 	}
@@ -2611,6 +2616,7 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 // * Validate if a account can get access to a given resource for a given operation (read, write...) That function is recursive. *
 func (rbac_server *server) ValidateAccess(ctx context.Context, rqst *rbacpb.ValidateAccessRqst) (*rbacpb.ValidateAccessRsp, error) {
 	// Here I will get information from context.
+	fmt.Println("2619 -------------------> validate access ", rqst.Path, rqst.Type, rqst.Permission)
 	hasAccess, accessDenied, err := rbac_server.validateAccess(rqst.Subject, rqst.Type, rqst.Permission, rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
@@ -2788,6 +2794,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			return false, false, err
 		}
 
+		
 		// call the rpc method.
 		if account.Roles != nil {
 			localDomain, _ := config.GetDomain()
@@ -2797,7 +2804,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 				if roleId == "admin@"+localDomain {
 					return true, false, nil
 				} else if strings.HasSuffix(roleId, "@"+localDomain) {
-
+					
 					hasAccess, _, _ = rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
 					if hasAccess {
 						break
@@ -2835,6 +2842,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 		for i := 0; i < len(resources); i++ {
 			if len(resources[i].Path) > 0 { // Here if the path is empty i will simply not validate it.
+				fmt.Println("2845 -------------------> validate access ", resources[i].Path, subjectType, resources[i].Permission)
 				hasAccess, accessDenied, err := rbac_server.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
 				if err != nil {
 					return false, false, err

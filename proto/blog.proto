@@ -141,8 +141,9 @@ message CreateBlogPostResponse {
 
 /** Update a blog post */
 message SaveBlogPostRequest {
-  BlogPost blog_post = 1;
-  string indexPath = 2;
+  string uuid = 1;
+  BlogPost blog_post = 2;
+  string indexPath = 3;
 }
 
 message SaveBlogPostResponse {

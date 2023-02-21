@@ -84,8 +84,14 @@ type server struct {
 	LastError       string
 	State           string
 	ModTime         int64
+
 	// Specific configuration.
 	Root string // Where to look for conversation data, file.. etc.
+
+	// The port number where the sfu server will listen.
+	// This work with ion-sfu, (Pion a webRTC framework), be sure sfu-v2 exec is in the path with
+	// it configuration (config.toml) beside.
+	PortSFU int
 
 	TLS bool
 
@@ -2120,6 +2126,7 @@ func main() {
 	s_impl.Permissions = make([]interface{}, 2)
 	s_impl.Process = -1
 	s_impl.ProxyProcess = -1
+	s_impl.PortSFU = 5551
 	s_impl.KeepAlive = true
 	s_impl.AllowAllOrigins = allow_all_origins
 	s_impl.AllowedOrigins = allowed_origins
@@ -2166,6 +2173,24 @@ func main() {
 		// subscribe to account delete event events
 		s_impl.subscribe("delete_account_evt", s_impl.deleteAccountListener)
 	}()
+
+	// Now I will start the sfu service.
+	/*
+	localConfig, err := config.GetLocalConfig(true)
+	if err == nil {
+		cert := config.GetConfigDir() + "/tls/" + localConfig["Certificate"].(string)
+		key := config.GetConfigDir() + "/tls/server.pem"
+		wait := make(chan error)
+		go func() {
+			// be sure the exec is in /usr/local/share
+			Utility.RunCmd("sfu-v2", "", []string{"-addr", ":" + Utility.ToString(s_impl.PortSFU), "-cert", cert, "-key", key }, wait)
+			err := <- wait
+			if err != nil {
+				fmt.Println("webRTC server fail with error ", err)
+			}
+		}()
+	}
+	*/
 
 	// Here I will make a signal hook to interrupt to exit cleanly.
 	go s_impl.run()

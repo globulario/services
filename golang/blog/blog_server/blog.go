@@ -132,6 +132,7 @@ func (srv *server) CreateBlogPost(ctx context.Context, rqst *blogpb.CreateBlogPo
 
 	// set back to the response.
 	blogPost.Text = text
+
 	// TODO send publish event also..
 	return &blogpb.CreateBlogPostResponse{BlogPost: blogPost}, nil
 }
@@ -202,7 +203,6 @@ func (srv *server) SaveBlogPost(ctx context.Context, rqst *blogpb.SaveBlogPostRe
 // Retreive Blog Post by author
 func (srv *server) GetBlogPostsByAuthors(rqst *blogpb.GetBlogPostsByAuthorsRequest, stream blogpb.BlogService_GetBlogPostsByAuthorsServer) error {
 
-	fmt.Println("Get globs for ", rqst.Authors)
 	// Retreive the list of all blogs.
 	blogs := make([]*blogpb.BlogPost, 0)
 	for i := 0; i < len(rqst.Authors); i++ {
