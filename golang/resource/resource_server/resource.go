@@ -195,6 +195,7 @@ func (resource_server *server) GetAccount(ctx context.Context, rqst *resourcepb.
 
 	values, err := p.FindOne(context.Background(), "local_resource", "local_resource", "Accounts", `{"$or":[{"_id":"`+accountId+`"},{"name":"`+accountId+`"} ]}`, ``)
 	if err != nil {
+		fmt.Println("fail to retreive account: ", accountId)
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))

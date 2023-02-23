@@ -1131,7 +1131,6 @@ func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInf
 	infos = append(infos, info)
 	for i := 0; i < len(info.Files); i++ {
 		path_ := server.formatPath(info.Files[i].Path)
-		fmt.Println("----------------> path ", path_)
 		if Utility.Exists(path_) {
 			// do not send Thumbnail...
 			if info.Files[i].IsDir == true {
@@ -1148,7 +1147,6 @@ func getFileInfos(server *server, info *filepb.FileInfo, infos []*filepb.FileInf
 	// empty the arrays...
 	if info.IsDir == true {
 		path_ := server.formatPath(info.Path)
-		fmt.Println("----------------> path ", path_)
 		if !Utility.Exists(path_ + "/playlist.m3u8") {
 			info.Files = make([]*filepb.FileInfo, 0)
 		}

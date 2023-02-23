@@ -2586,8 +2586,8 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 		return true, false, nil
 	} else if name == "owner" {
 		_, err := rbac_server.getResourcePermissions(path)
-		if(err != nil ){
-			if strings.HasPrefix(err.Error(), "item not found"){
+		if err != nil {
+			if strings.HasPrefix(err.Error(), "item not found") {
 				return true, false, nil
 			}
 		}
@@ -2794,7 +2794,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 			return false, false, err
 		}
 
-		
 		// call the rpc method.
 		if account.Roles != nil {
 			localDomain, _ := config.GetDomain()
@@ -2804,7 +2803,7 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 				if roleId == "admin@"+localDomain {
 					return true, false, nil
 				} else if strings.HasSuffix(roleId, "@"+localDomain) {
-					
+
 					hasAccess, _, _ = rbac_server.validateAction(action, roleId, rbacpb.SubjectType_ROLE, resources)
 					if hasAccess {
 						break
@@ -3158,6 +3157,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 			return nil, err
 		}
 	}
+
 	share_ := make([]*rbacpb.Share, 0)
 
 	// So now I go the list of shared uuid.
@@ -3174,6 +3174,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 
 	// Here I will get the share for groups.
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
+
 		account, err := rbac_server.getAccount(subject)
 		if err != nil {
 			return nil, err
@@ -3250,7 +3251,6 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 			}
 		}
 	}
-
 	return share_, nil
 }
 
@@ -3265,36 +3265,59 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 	}
 
 	if len(rqst.Owner) > 0 {
-		fmt.Println("get resource share with: ", rqst.Owner)
+		// fmt.Println("get resource share with: ", rqst.Owner)
 		share_ := make([]*rbacpb.Share, 0)
 		for i := 0; i < len(share); i++ {
 			path := share[i].Path
 			exist, a := rbac_server.accountExist(rqst.Owner)
-			if exist {
+			exist_, a_ := rbac_server.accountExist(rqst.Subject)
 
+			if exist {
 				if rbac_server.isOwner(a, rbacpb.SubjectType_ACCOUNT, path) {
 					share_ = append(share_, share[i])
 				}
-			} else { 
+				/*else if Utility.Contains(share[i].Accounts, a) {
+					share_ = append(share_, share[i])
+				}*/
+
+			} else {
 				exist, g := rbac_server.groupExist(rqst.Owner)
 				if exist {
-
-					if rbac_server.isOwner(g, rbacpb.SubjectType_GROUP, path) {
-						share_ = append(share_, share[i])
+					if Utility.Contains(share[i].Groups, g) {
+						if exist_ {
+							// no set file from group where I'm the owner...
+							if !rbac_server.isOwner(a_, rbacpb.SubjectType_ACCOUNT, path) {
+								share_ = append(share_, share[i])
+							}
+						}else{
+							share_ = append(share_, share[i])
+						}
 					}
 				} else {
 					exist, o := rbac_server.organizationExist(rqst.Owner)
 					if exist {
-				
-						if rbac_server.isOwner(o, rbacpb.SubjectType_GROUP, path) {
-							share_ = append(share_, share[i])
+						if Utility.Contains(share[i].Organizations, o) {
+							if exist_ {
+								// no set file from group where I'm the owner...
+								if !rbac_server.isOwner(a_, rbacpb.SubjectType_ACCOUNT, path) {
+									share_ = append(share_, share[i])
+								}
+							}else{
+								share_ = append(share_, share[i])
+							}
 						}
 					} else {
 						exist, a := rbac_server.applicationExist(rqst.Owner)
-	
 						if exist {
-							if rbac_server.isOwner(a, rbacpb.SubjectType_GROUP, path) {
-								share_ = append(share_, share[i])
+							if Utility.Contains(share[i].Applications, a) {
+								if exist_ {
+									// no set file from group where I'm the owner...
+									if !rbac_server.isOwner(a_, rbacpb.SubjectType_ACCOUNT, path) {
+										share_ = append(share_, share[i])
+									}
+								}else{
+									share_ = append(share_, share[i])
+								}
 							}
 						}
 					}
