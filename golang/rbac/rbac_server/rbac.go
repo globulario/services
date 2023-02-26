@@ -3291,6 +3291,8 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 
 // Get the list of accessible shared resources.
 func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.GetSharedResourceRqst) (*rbacpb.GetSharedResourceRsp, error) {
+	
+	// retreive all shared resource for a given subject.
 	share, err := rbac_server.getSharedResource(rqst.Subject, rqst.Type)
 
 	if err != nil {
@@ -3418,6 +3420,7 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 		}
 
 	} else if subjectType == rbacpb.SubjectType_GROUP {
+
 		share.Groups = Utility.RemoveString(share.Groups, subject)
 		exist, g := rbac_server.groupExist(subject)
 		if exist {

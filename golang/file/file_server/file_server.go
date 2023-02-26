@@ -527,21 +527,12 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	info := new(filepb.FileInfo)
 	info.Path = path
 
-	if thumbnailMaxHeight > 80 {
-		thumbnailMaxHeight = 80
-	}
-
-	if thumbnailMaxWidth > 80 {
-		thumbnailMaxWidth = 80
-	}
-
 	fileStat, err := os.Stat(path)
 	if err != nil {
 		return nil, err
 	}
 
 	// Cut the root part of the path if it start with the root path.
-
 	if strings.HasPrefix(info.Path, config.GetDataDir()+"/files") {
 		info.Path = info.Path[len(config.GetDataDir()+"/files"):]
 	}
@@ -572,7 +563,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		// remove it from the cache...
 		cache.RemoveItem(path)
 	}
-
+	
 	info.IsDir = fileStat.IsDir()
 	if info.IsDir {
 		info.Mime = "inode/directory"
@@ -589,154 +580,148 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	info.Size = fileStat.Size()
 	info.Name = fileStat.Name()
 	info.ModeTime = fileStat.ModTime().Unix()
-
+	
 	// Now the section depending of the mime type...
-	if !strings.Contains(path, "/.hidden") {
-		// the file
-		if !info.IsDir {
-			if strings.Contains(fileStat.Name(), ".") {
-				fileExtension := fileStat.Name()[strings.LastIndex(fileStat.Name(), "."):]
-				info.Mime = mime.TypeByExtension(fileExtension)
-			} else {
-				f_, err := os.Open(path)
-				if err != nil {
-					return nil, err
-				}
-
-				info.Mime, err = Utility.GetFileContentType(f_)
-				defer f_.Close()
-			}
-
-			if err != nil {
-				return nil, status.Errorf(
-					codes.Internal,
-					Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
-			}
-
-			path_, err := os.Getwd()
-			if err == nil {
-				path_ = strings.ReplaceAll(path_, "\\", "/")
-				path_ = path_ + "/mimetypes/unknown.png"
-				info.Thumbnail, _ = s.getMimeTypesUrl(path_)
-			}
-
-			if err == nil {
-
-				// If hidden folder exist for it...
-				path_ := filepath.Dir(path)
-				fileName := filepath.Base(path)
-				if strings.Contains(fileName, ".") {
-					fileName = fileName[0:strings.LastIndex(fileName, ".")]
-				}
-				hiddenFolder := path_ + "/.hidden/" + fileName
-
-				// in case of image...
-				if Utility.Exists(hiddenFolder + "/__thumbnail__/data_url.txt") {
-					thumbnail, err := os.ReadFile(hiddenFolder + "/__thumbnail__/data_url.txt")
-					if err == nil {
-						info.Thumbnail = string(thumbnail)
-					}
-
-				} else if strings.HasPrefix(info.Mime, "image/") {
-					if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
-						info.Thumbnail, _ = s.getThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-					} else {
-						info.Thumbnail, _ = s.getThumbnail(path, 80, 80)
-					}
-				} else if strings.HasPrefix(info.Mime, "video/") {
-
-					if Utility.Exists(hiddenFolder) {
-						// Here I will auto generate preview if it not already exist...
-						if !Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
-							// generate the preview...
-							os.RemoveAll(hiddenFolder + "/__preview__") // be sure it will
-							go createVideoPreview(s, info.Path, 20, 128, true)
-
-							os.RemoveAll(hiddenFolder + "/__timeline__")        // be sure it will
-							go createVideoTimeLine(s, info.Path, 180, .2, true) // 1 frame per 5 seconds.
-						}
-
-						if Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
-							// So here if the mime type is a video I will get thumbnail from it preview images.
-							info.Thumbnail, err = s.getThumbnail(hiddenFolder+"/__preview__/preview_00001.jpg", -1, -1)
-							if err != nil {
-								fmt.Println("fail to create thumbnail with error: ", err)
-							}
-
-						} else if Utility.Exists(hiddenFolder + "/__thumbnail__/data_url.txt") {
-							thumbnail, err := os.ReadFile(hiddenFolder + "/__thumbnail__/data_url.txt")
-							if err == nil {
-								info.Thumbnail = string(thumbnail)
-							}
-
-						} else if Utility.Exists(hiddenFolder + "/__thumbnail__") {
-							// Here I will try to read data from the thumbnail dir...
-
-							files, err := Utility.ReadDir(hiddenFolder + "/__thumbnail__")
-							if err == nil {
-								for i := 0; i < len(files); i++ {
-									f := files[i]
-
-									info.Thumbnail, err = s.getThumbnail(hiddenFolder+"/__thumbnail__"+"/"+f.Name(), 72, 128)
-									if err == nil {
-										os.WriteFile(hiddenFolder+"/__thumbnail__/data_url.txt", []byte(info.Thumbnail), 0644)
-										break
-									}
-								}
-							}
-						}
-
-					} else {
-						path_, err := os.Getwd()
-						path_ = strings.ReplaceAll(path_, "\\", "/")
-						if err == nil {
-							path_ = path_ + "/mimetypes/video-x-generic.png"
-							info.Thumbnail, _ = s.getMimeTypesUrl(path_)
-						}
-					}
-
-				} else if strings.HasPrefix(info.Mime, "audio/") || strings.HasSuffix(path, ".flac") || strings.HasSuffix(path, ".mp3") {
-					// duration := Utility.GetVideoDuration(path)
-					metadata, err := readAudioMetadata(s, path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
-					if err == nil {
-						info.Thumbnail = metadata["ImageUrl"].(string)
-					}
-
-				} else if strings.Contains(info.Mime, "/") {
-
-					// In that case I will get read image from png file and create a
-					// thumbnail with it...
-					path_, err := os.Getwd()
-					if err == nil {
-						path_ = strings.ReplaceAll(path_, "\\", "/")
-						path_ = path_ + "/mimetypes/" + strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-") + ".png"
-						info.Thumbnail, _ = s.getMimeTypesUrl(path_)
-					}
-				}
-			}
+	if !info.IsDir {
+		if strings.Contains(fileStat.Name(), ".") {
+			fileExtension := fileStat.Name()[strings.LastIndex(fileStat.Name(), "."):]
+			info.Mime = mime.TypeByExtension(fileExtension)
 		} else {
-			if Utility.Exists(path + "/playlist.m3u8") {
-				path_ := path[0:strings.LastIndex(path, "/")]
-				fileName := path[strings.LastIndex(path, "/")+1:]
-				hiddenFolder := path_ + "/.hidden/" + fileName
-				if Utility.Exists(hiddenFolder) {
-					previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
-					if Utility.Exists(previewImage) {
-						// So here if the mime type is a video I will get thumbnail from it preview images.
+			f_, err := os.Open(path)
+			if err != nil {
+				return nil, err
+			}
 
-						info.Thumbnail, err = s.getThumbnail(previewImage, -1, -1)
+			info.Mime, err = Utility.GetFileContentType(f_)
+			defer f_.Close()
+		}
+		
+		if err != nil {
+			return nil, status.Errorf(
+				codes.Internal,
+				Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+		}
+
+		path_, err := os.Getwd()
+		if err == nil {
+			path_ = strings.ReplaceAll(path_, "\\", "/")
+			path_ = path_ + "/mimetypes/unknown.png"
+			info.Thumbnail, _ = s.getMimeTypesUrl(path_)
+
+			// If hidden folder exist for it...
+			path_ := filepath.Dir(path)
+			fileName := filepath.Base(path)
+			if strings.Contains(fileName, ".") {
+				fileName = fileName[0:strings.LastIndex(fileName, ".")]
+			}
+
+			hiddenFolder := path_ + "/.hidden/" + fileName
+		
+			// in case of image...
+			if strings.HasPrefix(info.Mime, "image/") {
+				if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
+					info.Thumbnail, _ = s.getThumbnail(path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+				} else {
+					info.Thumbnail, _ = s.getThumbnail(path, 80, 80)
+				}
+			} else if strings.HasPrefix(info.Mime, "video/") {
+
+				if Utility.Exists(hiddenFolder) {
+					// Here I will auto generate preview if it not already exist...
+					if !Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
+						// generate the preview...
+						os.RemoveAll(hiddenFolder + "/__preview__") // be sure it will
+						go createVideoPreview(s, info.Path, 20, 128, true)
+
+						os.RemoveAll(hiddenFolder + "/__timeline__")        // be sure it will
+						go createVideoTimeLine(s, info.Path, 180, .2, true) // 1 frame per 5 seconds.
+					}
+
+					if Utility.Exists(hiddenFolder + "/__preview__/preview_00001.jpg") {
+						// So here if the mime type is a video I will get thumbnail from it preview images.
+						info.Thumbnail, err = s.getThumbnail(hiddenFolder+"/__preview__/preview_00001.jpg", -1, -1)
 						if err != nil {
 							fmt.Println("fail to create thumbnail with error: ", err)
 						}
 
+					} else if Utility.Exists(hiddenFolder + "/__thumbnail__/data_url.txt") {
+						thumbnail, err := os.ReadFile(hiddenFolder + "/__thumbnail__/data_url.txt")
+						if err == nil {
+							info.Thumbnail = string(thumbnail)
+						}
+
+					} else if Utility.Exists(hiddenFolder + "/__thumbnail__") {
+						// Here I will try to read data from the thumbnail dir...
+
+						files, err := Utility.ReadDir(hiddenFolder + "/__thumbnail__")
+						if err == nil {
+							for i := 0; i < len(files); i++ {
+								f := files[i]
+
+								info.Thumbnail, err = s.getThumbnail(hiddenFolder+"/__thumbnail__"+"/"+f.Name(), 72, 128)
+								if err == nil {
+									os.WriteFile(hiddenFolder+"/__thumbnail__/data_url.txt", []byte(info.Thumbnail), 0644)
+									break
+								}
+							}
+						}
 					}
+
 				} else {
 					path_, err := os.Getwd()
+					path_ = strings.ReplaceAll(path_, "\\", "/")
 					if err == nil {
-						path_ = strings.ReplaceAll(path_, "\\", "/")
 						path_ = path_ + "/mimetypes/video-x-generic.png"
 						info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 					}
+				}
+
+			} else if strings.HasPrefix(info.Mime, "audio/") || strings.HasSuffix(path, ".flac") || strings.HasSuffix(path, ".mp3") {
+				// duration := Utility.GetVideoDuration(path)
+				metadata, err := readAudioMetadata(s, path, int(thumbnailMaxHeight), int(thumbnailMaxWidth))
+				if err == nil {
+					info.Thumbnail = metadata["ImageUrl"].(string)
+				}
+
+			}else if Utility.Exists(hiddenFolder + "/__thumbnail__/data_url.txt") {
+				thumbnail, err := os.ReadFile(hiddenFolder + "/__thumbnail__/data_url.txt")
+				if err == nil {
+					info.Thumbnail = string(thumbnail)
+				}
+			} else if strings.Contains(info.Mime, "/") {
+
+				// In that case I will get read image from png file and create a
+				// thumbnail with it...
+				path_, err := os.Getwd()
+				if err == nil {
+					path_ = strings.ReplaceAll(path_, "\\", "/")
+					path_ = path_ + "/mimetypes/" + strings.ReplaceAll(strings.Split(info.Mime, ";")[0], "/", "-") + ".png"
+					info.Thumbnail, _ = s.getMimeTypesUrl(path_)
+				}
+			}
+		}
+	} else {
+		if Utility.Exists(path + "/playlist.m3u8") {
+			path_ := path[0:strings.LastIndex(path, "/")]
+			fileName := path[strings.LastIndex(path, "/")+1:]
+			hiddenFolder := path_ + "/.hidden/" + fileName
+			if Utility.Exists(hiddenFolder) {
+				previewImage := hiddenFolder + "/__preview__/preview_00001.jpg"
+				if Utility.Exists(previewImage) {
+					// So here if the mime type is a video I will get thumbnail from it preview images.
+
+					info.Thumbnail, err = s.getThumbnail(previewImage, -1, -1)
+					if err != nil {
+						fmt.Println("fail to create thumbnail with error: ", err)
+					}
+
+				}
+			} else {
+				path_, err := os.Getwd()
+				if err == nil {
+					path_ = strings.ReplaceAll(path_, "\\", "/")
+					path_ = path_ + "/mimetypes/video-x-generic.png"
+					info.Thumbnail, _ = s.getMimeTypesUrl(path_)
 				}
 			}
 		}
@@ -940,7 +925,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			// Test if a file named playlist.m3u8 exist...
 			isHls := Utility.Exists(dirPath + "/playlist.m3u8")
 
-			if recursive && !isHls {
+			if recursive && !isHls && f.Name() != ".hidden" {
 				info_, err := readDir(s, dirPath, recursive, thumbnailMaxWidth, thumbnailMaxHeight, true, token)
 				if err != nil {
 					return nil, err
@@ -958,7 +943,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				info.Files = append(info.Files, info_)
 			}
 
-		} else if readFiles {
+		}else if readFiles {
 
 			info_, err := getFileInfo(s, path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			if err != nil {
@@ -966,22 +951,21 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 			}
 
 			if !info_.IsDir && readFiles {
-				f_, err := os.Open(path + "/" + f.Name())
-				if err != nil {
-					return nil, err
-				}
-
-				defer f_.Close()
-
 				if strings.Contains(f.Name(), ".") {
 					fileExtension := f.Name()[strings.LastIndex(f.Name(), "."):]
 					info_.Mime = mime.TypeByExtension(fileExtension)
 				} else {
+					f_, err := os.Open(path + "/" + f.Name())
+					if err != nil {
+						return nil, err
+					}
 					info_.Mime, _ = Utility.GetFileContentType(f_)
+					f_.Close()
 				}
 
 				// Create thumbnail if the path is not in hidden file...
 				if !strings.Contains(path, ".hidden") && len(info_.Thumbnail) == 0 {
+					
 					if strings.HasPrefix(info_.Mime, "image/") {
 						if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 							info_.Thumbnail, _ = s.getThumbnail(path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
@@ -1196,7 +1180,7 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 
 			Info: infos[i],
 		})
-		fmt.Println("send file ", infos[i].GetPath())
+		
 		if err != nil {
 
 			fmt.Println("fail to send file info ", infos[i].Path+"/"+infos[i].Name, "thumbnail width:", rqst.GetThumnailWidth(), "thumbnail height", rqst.GetThumnailHeight())
@@ -2520,7 +2504,6 @@ func (file_server *server) writeExcelFile(path string, sheets map[string]interfa
 	return nil
 }
 
-
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ffmpeg and video conversion stuff...
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3083,9 +3066,9 @@ func processVideos(file_server *server, dirs []string) {
 
 								output := strings.ReplaceAll(video, ".mp4", ".temp.mp4")
 								wait := make(chan error)
-								args :=  []string{"-i", video, "-c:v", "copy"}
-								args = append(args, "-c:a", "copy",  "-c:s", "mov_text", "-map", "0")
-								args = append(args,"-b:a", "192k", output)
+								args := []string{"-i", video, "-c:v", "copy"}
+								args = append(args, "-c:a", "copy", "-c:s", "mov_text", "-map", "0")
+								args = append(args, "-b:a", "192k", output)
 								Utility.RunCmd("ffmpeg", filepath.Dir(video), args, wait)
 								err := <-wait
 								// if error...
@@ -3382,8 +3365,8 @@ func createVideoMpeg4H264(path string) (string, error) {
 		}
 	}
 	args = append(args, "-map", "0:v")
-	args = append(args,  "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac")
-	args = append(args,  "-map", "0:s:0?", "-c:s:0", "mov_text", "-map", "0:s:1?", "-c:s:1", "mov_text", "-map", "0:s:2?", "-c:s:2", "mov_text", "-map", "0:s:3?", "-c:s:3", "mov_text", "-map", "0:s:4?", "-c:s:4", "mov_text", "-map", "0:s:5?", "-c:s:5", "mov_text", "-map", "0:s:6?", "-c:s:6", "mov_text", "-map", "0:s:7?", "-c:s:7", "mov_text")
+	args = append(args, "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac")
+	args = append(args, "-map", "0:s:0?", "-c:s:0", "mov_text", "-map", "0:s:1?", "-c:s:1", "mov_text", "-map", "0:s:2?", "-c:s:2", "mov_text", "-map", "0:s:3?", "-c:s:3", "mov_text", "-map", "0:s:4?", "-c:s:4", "mov_text", "-map", "0:s:5?", "-c:s:5", "mov_text", "-map", "0:s:6?", "-c:s:6", "mov_text", "-map", "0:s:7?", "-c:s:7", "mov_text")
 	args = append(args, output)
 
 	wait := make(chan error)
@@ -3673,7 +3656,7 @@ func createHlsStream(src, dest string, segment_target_duration int, max_bitrate_
 		args = append(args, "-vf", "scale=-2:min("+width+"\\,if(mod(ih\\,2)\\,ih-1\\,ih))")
 		//args = append(args, "-c:a","aac")
 		args = append(args, "-map", "0:v", "-map", "0:a:0?", "-c:a:0", "aac", "-map", "0:a:1?", "-c:a:1", "aac", "-map", "0:a:2?", "-c:a:2", "aac", "-map", "0:a:3?", "-c:a:3", "aac", "-map", "0:a:4?", "-c:a:4", "aac", "-map", "0:a:5?", "-c:a:5", "aac", "-map", "0:a:6?", "-c:a:6", "aac", "-map", "0:a:7?", "-c:a:7", "aac")
-		args = append(args,  "-map", "0:s:0?", "-c:s:0", "mov_text", "-map", "0:s:1?", "-c:s:1", "mov_text", "-map", "0:s:2?", "-c:s:2", "mov_text", "-map", "0:s:3?", "-c:s:3", "mov_text", "-map", "0:s:4?", "-c:s:4", "mov_text", "-map", "0:s:5?", "-c:s:5", "mov_text", "-map", "0:s:6?", "-c:s:6", "mov_text", "-map", "0:s:7?", "-c:s:7", "mov_text")
+		args = append(args, "-map", "0:s:0?", "-c:s:0", "mov_text", "-map", "0:s:1?", "-c:s:1", "mov_text", "-map", "0:s:2?", "-c:s:2", "mov_text", "-map", "0:s:3?", "-c:s:3", "mov_text", "-map", "0:s:4?", "-c:s:4", "mov_text", "-map", "0:s:5?", "-c:s:5", "mov_text", "-map", "0:s:6?", "-c:s:6", "mov_text", "-map", "0:s:7?", "-c:s:7", "mov_text")
 		args = append(args, "-b:v", Utility.ToString(bitrate), "-maxrate", Utility.ToString(maxrate)+"k", "-bufsize", Utility.ToString(bufsize)+"k", "-b:a", audiorate)
 		args = append(args, "-hls_segment_filename", dest+"/"+name+`_%04d.ts`, dest+"/"+name+".m3u8")
 
@@ -5542,8 +5525,8 @@ func (file_server *server) StartProcessVideo(ctx context.Context, rqst *filepb.S
 			// Now I will refresh the .vtt files...
 			// vtt file contain list of url who can change if the server address change.
 			timelineImagesFiles := Utility.GetFilePathsByExtension(path, ".vtt")
-			for j:=0; j < len(timelineImagesFiles); j++ {
-				if filepath.Base(timelineImagesFiles[j]) == "thumbnails.vtt"{
+			for j := 0; j < len(timelineImagesFiles); j++ {
+				if filepath.Base(timelineImagesFiles[j]) == "thumbnails.vtt" {
 					os.Remove(timelineImagesFiles[j])
 					createVttFile(filepath.Dir(timelineImagesFiles[j]), 0.2)
 				}
