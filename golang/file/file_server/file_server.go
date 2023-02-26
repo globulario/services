@@ -5078,6 +5078,8 @@ func (file_server *server) createVideoInfo(token, path, file_path, info_path str
 // https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
 func (file_server *server) getVideoInfos(url, path, format string) (string, []map[string]interface{}, map[string]interface{}, error) {
 
+	// wait := make(chan error)
+	//Utility.RunCmd("yt-dlp", path, []string{"-j", "--flat-playlist", "--skip-download", url},  wait)
 	cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--skip-download", url)
 	cmd.Dir = filepath.Dir(path)
 	out, err := cmd.Output()

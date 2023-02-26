@@ -661,8 +661,9 @@ func StartService(s Service, server *grpc.Server) error {
 	// Create the channel to listen on
 	var lis net.Listener
 	var err error
+	address := "0.0.0.0" //Utility.MyLocalIP() // 
 
-	lis, err = net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(s.GetPort()))
+	lis, err = net.Listen("tcp", address + ":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())
 		fmt.Println("service", s.GetName(), "fail to lisent at port", s.GetPort(), "with error", err)

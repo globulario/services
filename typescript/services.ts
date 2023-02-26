@@ -62,6 +62,13 @@ export interface IServices {
   [key: string]: IServiceConfig;
 }
 
+
+export interface IPeer {
+  Domain: string;
+  Mac: string;
+  Port: number;
+}
+
 /**
  * The application server informations.
  */
@@ -93,6 +100,9 @@ export interface IConfig {
 
   // The map of service object.
   Services: IServices;
+
+  // The array of Peers.
+  Peers: IPeer[];
 }
 
 /**
@@ -437,6 +447,7 @@ export class Globular {
 
   /** The configuation. */
   constructor(url: string, callback: () => void, errorcallback: (err: any) => void) {
+    
     // Keep the config...
     getFileConfig(url, (config: any) => {
 

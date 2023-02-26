@@ -2228,7 +2228,6 @@ func (rbac_server *server) isOwner(subject string, subjectType rbacpb.SubjectTyp
 	if err == nil {
 		if permissions.Owners != nil {
 			owners := permissions.Owners
-
 			if owners != nil {
 				hasOwner := false
 				if owners.Accounts != nil {
@@ -2449,7 +2448,24 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 	// test if the subject is the direct owner of the resource.
 	permissions, err := rbac_server.getResourcePermissions(path)
 
-	if err == nil {
+	hasOwner := false 
+	if err == nil && permissions != nil {
+		if permissions.Owners != nil {
+			if len(permissions.Owners.Accounts) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Applications) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Organizations) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Groups) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Peers) > 0 {
+				hasOwner = true
+			}
+		}
+	}
+
+	if hasOwner {
 		if permissions.Allowed != nil {
 			var allowed *rbacpb.Permission
 			for i := 0; i < len(permissions.Allowed); i++ {
@@ -2585,11 +2601,31 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 	if rbac_server.isOwner(subject, subjectType, path) {
 		return true, false, nil
 	} else if name == "owner" {
-		_, err := rbac_server.getResourcePermissions(path)
+		permissions, err := rbac_server.getResourcePermissions(path)
 		if err != nil {
 			if strings.HasPrefix(err.Error(), "item not found") {
 				return true, false, nil
 			}
+		} else if permissions.Owners == nil {
+			// no owner so permissions are open...
+			return true, false, nil
+		}else if permissions.Owners != nil {
+			hasOwner := false
+			if len(permissions.Owners.Accounts) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Applications) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Organizations) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Groups) > 0 {
+				hasOwner = true
+			}else if len(permissions.Owners.Peers) > 0 {
+				hasOwner = true
+			}
+			if !hasOwner {
+				return true, false, nil
+			}
+
 		}
 		// must be owner...
 		return false, false, nil
@@ -2841,7 +2877,6 @@ func (rbac_server *server) validateAction(action string, subject string, subject
 		}
 		for i := 0; i < len(resources); i++ {
 			if len(resources[i].Path) > 0 { // Here if the path is empty i will simply not validate it.
-				fmt.Println("2845 -------------------> validate access ", resources[i].Path, subjectType, resources[i].Permission)
 				hasAccess, accessDenied, err := rbac_server.validateAccess(subject, subjectType, resources[i].Permission, resources[i].Path)
 				if err != nil {
 					return false, false, err
@@ -3333,7 +3368,6 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 
 func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rbacpb.SubjectType, resourceId string) error {
 
-	// fmt.Println("removeSubjectFromShare")
 	data, err := rbac_server.permissions.GetItem(resourceId)
 	if err != nil {
 		return err
@@ -3345,6 +3379,12 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 		return err
 	}
 
+	// if no permission exist at the path I will return an error.
+	permissions, err := rbac_server.getResourcePermissions(share.Path)
+	if err != nil {
+		return err
+	}
+
 	// Remove the subject from the share...
 	if subjectType == rbacpb.SubjectType_ACCOUNT {
 		share.Accounts = Utility.RemoveString(share.Accounts, subject)
@@ -3352,25 +3392,69 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 		if exist {
 			share.Accounts = Utility.RemoveString(share.Accounts, a)
 		}
+
+		// remove the permission.
+		for i:=0; i < len(permissions.Allowed); i++ {
+			permissions.Allowed[i].Accounts = Utility.RemoveString(permissions.Allowed[i].Accounts, subject)
+		}
+
+		for i:=0; i < len(permissions.Denied); i++ {
+			permissions.Denied[i].Accounts = Utility.RemoveString(permissions.Denied[i].Accounts, subject)
+		}
+
 	} else if subjectType == rbacpb.SubjectType_APPLICATION {
 		share.Applications = Utility.RemoveString(share.Applications, subject)
 		exist, a := rbac_server.applicationExist(subject)
 		if !exist {
 			share.Applications = Utility.RemoveString(share.Applications, a)
 		}
+
+		for i:=0; i < len(permissions.Allowed); i++ {
+			permissions.Allowed[i].Applications = Utility.RemoveString(permissions.Allowed[i].Applications, subject)
+		}
+
+		for i:=0; i < len(permissions.Denied); i++ {
+			permissions.Denied[i].Applications = Utility.RemoveString(permissions.Denied[i].Applications, subject)
+		}
+
 	} else if subjectType == rbacpb.SubjectType_GROUP {
 		share.Groups = Utility.RemoveString(share.Groups, subject)
 		exist, g := rbac_server.groupExist(subject)
 		if exist {
 			share.Groups = Utility.RemoveString(share.Groups, g)
 		}
+
+		for i:=0; i < len(permissions.Allowed); i++ {
+			permissions.Allowed[i].Groups = Utility.RemoveString(permissions.Allowed[i].Groups, subject)
+		}
+
+		for i:=0; i < len(permissions.Denied); i++ {
+			permissions.Denied[i].Groups = Utility.RemoveString(permissions.Denied[i].Groups, subject)
+		}
+
 	} else if subjectType == rbacpb.SubjectType_PEER {
 		share.Peers = Utility.RemoveString(share.Peers, subject)
+		for i:=0; i < len(permissions.Allowed); i++ {
+			permissions.Allowed[i].Peers = Utility.RemoveString(permissions.Allowed[i].Peers, subject)
+		}
+
+		for i:=0; i < len(permissions.Denied); i++ {
+			permissions.Denied[i].Peers = Utility.RemoveString(permissions.Denied[i].Peers, subject)
+		}
+
 	} else if subjectType == rbacpb.SubjectType_ORGANIZATION {
 		share.Organizations = Utility.RemoveString(share.Organizations, subject)
 		exist, o := rbac_server.organizationExist(subject)
 		if exist {
 			share.Organizations = Utility.RemoveString(share.Organizations, o)
+		}
+
+		for i:=0; i < len(permissions.Allowed); i++ {
+			permissions.Allowed[i].Organizations = Utility.RemoveString(permissions.Allowed[i].Organizations, subject)
+		}
+
+		for i:=0; i < len(permissions.Denied); i++ {
+			permissions.Denied[i].Organizations = Utility.RemoveString(permissions.Denied[i].Organizations, subject)
 		}
 	}
 
@@ -3378,6 +3462,19 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 	if err != nil {
 		return err
 	}
+
+	// save the permissions.
+	data_, err := json.Marshal(permissions)
+	if err != nil {
+		return err
+	}
+
+	err = rbac_server.permissions.SetItem(share.Path, data_)
+	if err != nil {
+		return err
+	}
+
+	rbac_server.cache.RemoveItem(share.Path) // remove from the cache
 
 	return nil
 }
@@ -3390,7 +3487,6 @@ func (rbac_server *server) RemoveSubjectFromShare(ctx context.Context, rqst *rba
 	uuid := Utility.GenerateUUID(rqst.Domain + rqst.Path)
 
 	err := rbac_server.removeSubjectFromShare(rqst.Subject, rqst.Type, uuid)
-
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
