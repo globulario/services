@@ -12,6 +12,7 @@ message TorrentLnk {
 	string Name = 2;
 	string Dest = 3;
 	bool Seed = 4;
+	string Owner = 5;
 }
 
 message GetTorrentLnksRequest {

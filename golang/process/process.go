@@ -104,7 +104,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 
 	if !Utility.Exists(s["Path"].(string)) {
 		log.Println("No service found at path ", s["Path"].(string))
-		// before give up I will try to retreive the exec 
+		// before give up I will try to retreive the exec
 		return -1, errors.New("No service found at path " + s["Path"].(string) + " be sure globular is install correctly, or the configuration at path " + s["ConfigPath"].(string) + " point at correct service path.")
 	}
 	/*
@@ -184,20 +184,18 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		}
 
 		// give back the process id.
-		waitUntilStart <-  p.Process.Pid
-		err = p.Wait()
+		waitUntilStart <- p.Process.Pid
+		err = p.Wait() // wait util the process exit.
 
-		
-		// reload the config directly from the file...
-		data, err := os.ReadFile(s["ConfigPath"].(string))
-		json.Unmarshal(data, &s)
-		
 		// Here I will read the configuration to get more information about the process.
 		if err != nil {
 			fmt.Println("service "+s["Name"].(string)+" fail with error ", err, "detail", stderr.String())
 			s["State"] = "failed"
 		} else {
-			fmt.Println("service "+s["Name"].(string)+"was stop")
+
+			// reload the config directly from the file...
+			data, _ := os.ReadFile(s["ConfigPath"].(string))
+			json.Unmarshal(data, &s)
 			s["State"] = "stopped"
 		}
 
@@ -207,7 +205,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 			if s["State"].(string) == "failed" || s["State"].(string) == "killed" {
 				fmt.Println("the service ", s["Name"], "with process id", s["Process"], "has been terminate")
 				if s["KeepAlive"].(bool) == true {
-					
+
 					// give ti some time to free resources like port files... etc.
 					pid, err := StartServiceProcess(s, port, proxyPort)
 					if err != nil {
@@ -223,8 +221,8 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 						if err != nil {
 							StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), proxyPort, pid)
 						}
-						
-					}else{
+
+					} else {
 						// restart the proxy process.
 						StartServiceProxyProcess(s, localConfig["CertificateAuthorityBundle"].(string), localConfig["Certificate"].(string), proxyPort, pid)
 					}
@@ -240,7 +238,7 @@ func StartServiceProcess(s map[string]interface{}, port, proxyPort int) (int, er
 		stdout.Close()
 		done <- true
 
-		fmt.Println("Process", s["Process"],"running", s["Name"], "has terminate and set back to -1")
+		fmt.Println("Process", s["Process"], "running", s["Name"], "has terminate and set back to -1")
 		s["Process"] = -1
 
 		config_client.SaveServiceConfiguration(s)
@@ -372,9 +370,8 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}
 
 	str, _ := Utility.ToJson(s)
-	
 
-	wait := make(chan int);
+	wait := make(chan int)
 
 	// Get the process id...
 	go func() {
@@ -392,7 +389,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 		s := make(map[string]interface{})
 		json.Unmarshal([]byte(str), &s)
 
-		fmt.Println("Service", s["Name"].(string)+":"+s["Id"].(string), "is running pid", processPid, "and lisen at port", s["Port"], "with proxy pid",  proxyProcess.Process.Pid, "lisen at port port", proxyPort )
+		fmt.Println("Service", s["Name"].(string)+":"+s["Id"].(string), "is running pid", processPid, "and lisen at port", s["Port"], "with proxy pid", proxyProcess.Process.Pid, "lisen at port port", proxyPort)
 
 		wait <- proxyProcess.Process.Pid // ok the proxy pid must be other than -1
 
@@ -419,7 +416,7 @@ func StartServiceProxyProcess(s map[string]interface{}, certificateAuthorityBund
 	}()
 
 	// wait for proxy to start...
-	proxyProcessPid :=<- wait
+	proxyProcessPid := <-wait
 
 	// be sure the service
 	s["State"] = "running"

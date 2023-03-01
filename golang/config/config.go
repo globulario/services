@@ -225,7 +225,9 @@ func GetServicesConfigDir() string {
 		
 		// if config near the service has priority over config found from other location...
 		if Utility.Exists(dir + "/config.json") {
-			return GetServicesDir()
+			if strings.Contains(dir, "/services/golang/"){
+				return GetServicesDir()
+			}
 		}
 
 	}
@@ -921,6 +923,7 @@ func initConfig() {
 
 	// The service dir.
 	serviceDir := GetServicesDir()
+	
 
 	execname := filepath.Base(os.Args[0])
 
@@ -930,6 +933,7 @@ func initConfig() {
 
 		//fmt.Println("init service from config at path: ", path)
 		s, err := initServiceConfiguration(path, serviceDir)
+
 		if err != nil {
 			fmt.Println("fail to initialyse service configuration from file "+path, "with error", err)
 		} else {
@@ -942,6 +946,7 @@ func initConfig() {
 			if strings.HasPrefix(execname, "Globular") {
 				if !Utility.Exists(s["Path"].(string)) {
 					service_name := filepath.Base(s["Path"].(string))
+					// set the executable path
 					files, err := Utility.FindFileByName(serviceDir, service_name)
 					if err == nil {
 						if len(files) > 0 {
@@ -1083,7 +1088,6 @@ func accesServiceConfigurationFile(services []map[string]interface{}) {
 			}
 
 			if s == nil {
-				fmt.Println("no service found with id " + id)
 				err = errors.New("no service found with id " + id)
 			}
 

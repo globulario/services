@@ -100,6 +100,21 @@ type server struct {
 
 }
 
+// Set item value
+func (svr *server) setItem(key string, value []byte) error {
+	return svr.permissions.SetItem(key, value)
+}
+
+// Retreive item
+func (svr *server) getItem(key string) ([]byte, error) {
+	return svr.permissions.GetItem(key)
+}
+
+// Remove item.
+func (svr *server) removeItem(key string) error {
+	return svr.permissions.RemoveItem(key)
+}
+
 // The path of the configuration.
 func (svr *server) GetConfigurationPath() string {
 	return svr.ConfigPath
@@ -882,7 +897,7 @@ func main() {
 	// Here I will retreive the list of connections from file if there are some...
 	err := s_impl.Init()
 	if err != nil {
-		log.Fatalf("fail to initialyse service %s: %s", s_impl.Name, s_impl.Id)
+		log.Fatalf("fail to initialyse service %s: %s with error: %s", s_impl.Name, s_impl.Id,err.Error())
 	}
 
 	// The rbac storage.

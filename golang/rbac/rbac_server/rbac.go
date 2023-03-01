@@ -10,9 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-
 	"strings"
-
 	"encoding/binary"
 
 	"github.com/davecourtois/Utility"
@@ -51,7 +49,7 @@ func (rbac_server *server) formatPath(path string) string {
 // Return a resource permission.
 func (rbac_server *server) getResourceTypePathIndexation(resource_type string) ([]*rbacpb.Permissions, error) {
 
-	data, err := rbac_server.permissions.GetItem(resource_type)
+	data, err := rbac_server.getItem(resource_type)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +80,7 @@ func (rbac_server *server) setResourceTypePathIndexation(resource_type string, p
 
 	// fmt.Println("setSubjectResourcePermissions", path)
 	// Here I will retreive the actual list of paths use by this user.
-	data, err := rbac_server.permissions.GetItem(resource_type)
+	data, err := rbac_server.getItem(resource_type)
 	paths_ := make([]interface{}, 0)
 
 	if err == nil {
@@ -108,13 +106,13 @@ func (rbac_server *server) setResourceTypePathIndexation(resource_type string, p
 	if err != nil {
 		return err
 	}
-	return rbac_server.permissions.SetItem(resource_type, data)
+	return rbac_server.setItem(resource_type, data)
 }
 
 func (rbac_server *server) setSubjectResourcePermissions(subject string, path string) error {
 
 	// Here I will retreive the actual list of paths use by this user.
-	data, _ := rbac_server.permissions.GetItem(subject)
+	data, _ := rbac_server.getItem(subject)
 	paths_ := make([]interface{}, 0)
 
 	if data != nil {
@@ -141,7 +139,7 @@ func (rbac_server *server) setSubjectResourcePermissions(subject string, path st
 		return err
 	}
 
-	err = rbac_server.permissions.SetItem(subject, data)
+	err = rbac_server.setItem(subject, data)
 	if err != nil {
 		return err
 	}
@@ -191,7 +189,7 @@ func (rbac_server *server) getSubjectResourcePermissions(subject, resource_type 
 	}
 
 	// Set the subject.
-	data, err := rbac_server.permissions.GetItem(id)
+	data, err := rbac_server.getItem(id)
 
 	// retreive path
 	permissions := make([]*rbacpb.Permissions, 0)
@@ -283,7 +281,7 @@ func (rbac_server *server) getSubjectAllocatedSpace(subject string, subject_type
 		id += "PEER/" + subject
 	}
 
-	data, err := rbac_server.permissions.GetItem(id)
+	data, err := rbac_server.getItem(id)
 	if err != nil {
 		return 0, err
 	}
@@ -292,7 +290,7 @@ func (rbac_server *server) getSubjectAllocatedSpace(subject string, subject_type
 	buf := bytes.NewBuffer(data)
 	err = binary.Read(buf, binary.LittleEndian, &ret)
 	if err != nil {
-		rbac_server.permissions.RemoveItem(id)
+		rbac_server.removeItem(id)
 		return 0, err
 	}
 
@@ -354,7 +352,7 @@ func (rbac_server *server) getSubjectUsedSpace(subject string, subject_type rbac
 		id += "PEER/" + subject
 	}
 
-	data, err := rbac_server.permissions.GetItem(id)
+	data, err := rbac_server.getItem(id)
 	if err != nil {
 		return 0, err
 	}
@@ -363,7 +361,7 @@ func (rbac_server *server) getSubjectUsedSpace(subject string, subject_type rbac
 	buf := bytes.NewBuffer(data)
 	err = binary.Read(buf, binary.LittleEndian, &ret)
 	if err != nil {
-		rbac_server.permissions.RemoveItem(id)
+		rbac_server.removeItem(id)
 		return 0, err
 	}
 
@@ -431,12 +429,12 @@ func (rbac_server *server) setSubjectUsedSpace(subject string, subject_type rbac
 
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, used_space)
-	err := rbac_server.permissions.SetItem(id, b)
+	err := rbac_server.setItem(id, b)
 	if err != nil {
 		return err
 	}
 
-	values, err := rbac_server.permissions.GetItem("USED_SPACE")
+	values, err := rbac_server.getItem("USED_SPACE")
 	ids := make([]string, 0)
 	if err == nil {
 		json.Unmarshal(values, &ids)
@@ -446,7 +444,7 @@ func (rbac_server *server) setSubjectUsedSpace(subject string, subject_type rbac
 		ids = append(ids, id)
 		values, err = json.Marshal(ids)
 		if err == nil {
-			err := rbac_server.permissions.SetItem("USED_SPACE", values)
+			err := rbac_server.setItem("USED_SPACE", values)
 			if err != nil {
 				return err
 			}
@@ -652,7 +650,7 @@ func (rbac_server *server) SetSubjectAllocatedSpace(ctx context.Context, rqst *r
 
 	b := make([]byte, 8)
 	binary.LittleEndian.PutUint64(b, rqst.AllocatedSpace)
-	err := rbac_server.permissions.SetItem(id, b)
+	err := rbac_server.setItem(id, b)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -995,7 +993,7 @@ func (rbac_server *server) setResourcePermissions(path, resource_type string, pe
 		return err
 	}
 
-	err = rbac_server.permissions.SetItem(path, data)
+	err = rbac_server.setItem(path, data)
 	if err != nil {
 		return err
 	}
@@ -1043,6 +1041,7 @@ func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rba
 		return nil, errors.New("no permissions given")
 	}
 
+	// Now I will validate the access...
 	err := rbac_server.setResourcePermissions(rqst.Path, rqst.ResourceType, rqst.Permissions)
 
 	if err != nil {
@@ -1059,7 +1058,7 @@ func (rbac_server *server) SetResourcePermissions(ctx context.Context, rqst *rba
  */
 func (rbac_server *server) deleteResourceTypePathIndexation(resource_type string, path string) error {
 
-	data, err := rbac_server.permissions.GetItem(resource_type)
+	data, err := rbac_server.getItem(resource_type)
 	if err != nil {
 		return err
 	}
@@ -1087,7 +1086,7 @@ func (rbac_server *server) deleteResourceTypePathIndexation(resource_type string
 		return err
 	}
 
-	return rbac_server.permissions.SetItem(resource_type, data)
+	return rbac_server.setItem(resource_type, data)
 }
 
 /**
@@ -1095,7 +1094,7 @@ func (rbac_server *server) deleteResourceTypePathIndexation(resource_type string
  */
 func (rbac_server *server) deleteSubjectResourcePermissions(subject string, path string) error {
 	rbac_server.cache.RemoveItem(path)
-	data, err := rbac_server.permissions.GetItem(subject)
+	data, err := rbac_server.getItem(subject)
 	if err != nil {
 		return err
 	}
@@ -1123,7 +1122,7 @@ func (rbac_server *server) deleteSubjectResourcePermissions(subject string, path
 		return err
 	}
 
-	return rbac_server.permissions.SetItem(subject, data)
+	return rbac_server.setItem(subject, data)
 
 }
 
@@ -1401,7 +1400,7 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 	}
 
 	// Remove the path
-	err := rbac_server.permissions.RemoveItem(path)
+	err := rbac_server.removeItem(path)
 	if err != nil {
 		fmt.Println("fail to remove key ", path)
 	}
@@ -1417,7 +1416,7 @@ func (rbac_server *server) deleteResourcePermissions(path string, permissions *r
 		return err
 	}
 
-	return rbac_server.permissions.RemoveItem(path)
+	return rbac_server.removeItem(path)
 }
 
 // test if all subject exist...
@@ -1575,6 +1574,7 @@ func (rbac_server *server) cleanupSubjectPermissions(subjectType rbacpb.SubjectT
 
 // Return a resource permission.
 func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissions, error) {
+
 	//fmt.Println("get resource permission for: ", path)
 	chached, err := rbac_server.cache.GetItem(path)
 	if err == nil && chached != nil {
@@ -1585,7 +1585,7 @@ func (rbac_server *server) getResourcePermissions(path string) (*rbacpb.Permissi
 		}
 	}
 
-	data, err := rbac_server.permissions.GetItem(path)
+	data, err := rbac_server.getItem(path)
 	if err != nil {
 
 		return nil, err
@@ -1646,6 +1646,7 @@ func (rbac_server *server) DeleteResourcePermission(ctx context.Context, rqst *r
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
+
 	if rqst.Type == rbacpb.PermissionType_ALLOWED {
 		// Remove the permission from the allowed permission
 		allowed := make([]*rbacpb.Permission, 0)
@@ -2103,7 +2104,7 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 	}
 
 	// Here I must remove the subject from all permissions.
-	data, err := rbac_server.permissions.GetItem(subjectId)
+	data, err := rbac_server.getItem(subjectId)
 	if err != nil {
 		return nil, err
 	}
@@ -2137,7 +2138,7 @@ func (rbac_server *server) DeleteAllAccess(ctx context.Context, rqst *rbacpb.Del
 	}
 
 	// remove the indexation...
-	err = rbac_server.permissions.RemoveItem(subjectId)
+	err = rbac_server.removeItem(subjectId)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -2574,6 +2575,8 @@ func (rbac_server *server) validateAccessAllowed(subject string, subjectType rba
 // Return  accessAllowed, accessDenied, error
 func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.SubjectType, name string, path string) (bool, bool, error) {
 
+	fmt.Println("validate access for ", subject, name, path)
+
 	// validate if the subject exist
 	subject, err := rbac_server.validateSubject(subject, subjectType)
 	if err != nil {
@@ -2652,7 +2655,6 @@ func (rbac_server *server) validateAccess(subject string, subjectType rbacpb.Sub
 // * Validate if a account can get access to a given resource for a given operation (read, write...) That function is recursive. *
 func (rbac_server *server) ValidateAccess(ctx context.Context, rqst *rbacpb.ValidateAccessRqst) (*rbacpb.ValidateAccessRsp, error) {
 	// Here I will get information from context.
-	fmt.Println("2619 -------------------> validate access ", rqst.Path, rqst.Type, rqst.Permission)
 	hasAccess, accessDenied, err := rbac_server.validateAccess(rqst.Subject, rqst.Type, rqst.Permission, rqst.Path)
 	if err != nil {
 		return nil, status.Errorf(
@@ -2677,7 +2679,7 @@ func (rbac_server *server) setActionResourcesPermissions(permissions map[string]
 		return err
 	}
 
-	return rbac_server.permissions.SetItem(permissions["action"].(string), data)
+	return rbac_server.setItem(permissions["action"].(string), data)
 }
 
 /**
@@ -2701,7 +2703,7 @@ func (rbac_server *server) getActionResourcesPermissions(action string) ([]*rbac
 	if len(action) == 0 {
 		return nil, errors.New("no action given")
 	}
-	data, err := rbac_server.permissions.GetItem(action)
+	data, err := rbac_server.getItem(action)
 	infos_ := make([]*rbacpb.ResourceInfos, 0)
 	if err != nil {
 		if !strings.Contains(err.Error(), "item not found") {
@@ -2920,7 +2922,7 @@ func (rbac_server *server) ValidateAction(ctx context.Context, rqst *rbacpb.Vali
 func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string) error {
 
 	shared := make([]string, 0)
-	data, err := rbac_server.permissions.GetItem(subject)
+	data, err := rbac_server.getItem(subject)
 	if err == nil {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
@@ -2936,7 +2938,7 @@ func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string
 			return err
 		}
 
-		return rbac_server.permissions.SetItem(subject, data)
+		return rbac_server.setItem(subject, data)
 	}
 
 	return nil
@@ -2945,7 +2947,7 @@ func (rbac_server *server) setSubjectSharedResource(subject, resourceUuid string
 func (rbac_server *server) unsetSubjectSharedResource(subject, resourceUuid string) error {
 
 	shared := make([]string, 0)
-	data, err := rbac_server.permissions.GetItem(subject)
+	data, err := rbac_server.getItem(subject)
 	if err == nil {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
@@ -2965,7 +2967,7 @@ func (rbac_server *server) unsetSubjectSharedResource(subject, resourceUuid stri
 		if err != nil {
 			return err
 		}
-		return rbac_server.permissions.SetItem(subject, data_)
+		return rbac_server.setItem(subject, data_)
 	}
 
 	return nil
@@ -2988,7 +2990,7 @@ func (rbac_server *server) shareResource(share *rbacpb.Share) error {
 	}
 
 	// Now I will serialyse it and save it in the store.
-	err = rbac_server.permissions.SetItem(uuid, []byte(jsonStr))
+	err = rbac_server.setItem(uuid, []byte(jsonStr))
 	if err != nil {
 		return err
 	}
@@ -3076,7 +3078,7 @@ func (rbac_server *server) unshareResource(domain, path string) error {
 	uuid := Utility.GenerateUUID(domain + path)
 
 	var share *rbacpb.Share
-	data, err := rbac_server.permissions.GetItem(uuid)
+	data, err := rbac_server.getItem(uuid)
 	if err == nil {
 		share = new(rbacpb.Share)
 		err := jsonpb.UnmarshalString(string(data), share)
@@ -3129,7 +3131,7 @@ func (rbac_server *server) unshareResource(domain, path string) error {
 		}
 	}
 
-	return rbac_server.permissions.RemoveItem(uuid)
+	return rbac_server.removeItem(uuid)
 }
 
 // Remove the share
@@ -3185,7 +3187,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 
 	// Now I will retreive the list of existing path.
 	shared := make([]string, 0)
-	data, err := rbac_server.permissions.GetItem(id)
+	data, err := rbac_server.getItem(id)
 	if err == nil {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
@@ -3197,7 +3199,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 
 	// So now I go the list of shared uuid.
 	for i := 0; i < len(shared); i++ {
-		data, err := rbac_server.permissions.GetItem(shared[i])
+		data, err := rbac_server.getItem(shared[i])
 		if err == nil {
 			share := new(rbacpb.Share)
 			err := jsonpb.UnmarshalString(string(data), share)
@@ -3291,7 +3293,7 @@ func (rbac_server *server) getSharedResource(subject string, subjectType rbacpb.
 
 // Get the list of accessible shared resources.
 func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.GetSharedResourceRqst) (*rbacpb.GetSharedResourceRsp, error) {
-	
+
 	// retreive all shared resource for a given subject.
 	share, err := rbac_server.getSharedResource(rqst.Subject, rqst.Type)
 
@@ -3370,7 +3372,7 @@ func (rbac_server *server) GetSharedResource(ctx context.Context, rqst *rbacpb.G
 
 func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rbacpb.SubjectType, resourceId string) error {
 
-	data, err := rbac_server.permissions.GetItem(resourceId)
+	data, err := rbac_server.getItem(resourceId)
 	if err != nil {
 		return err
 	}
@@ -3472,7 +3474,7 @@ func (rbac_server *server) removeSubjectFromShare(subject string, subjectType rb
 		return err
 	}
 
-	err = rbac_server.permissions.SetItem(share.Path, data_)
+	err = rbac_server.setItem(share.Path, data_)
 	if err != nil {
 		return err
 	}
@@ -3540,7 +3542,7 @@ func (rbac_server *server) deleteSubjectShare(subject string, subjectType rbacpb
 
 	// Now I will retreive the list of existing path.
 	shared := make([]string, 0)
-	data, err := rbac_server.permissions.GetItem(id)
+	data, err := rbac_server.getItem(id)
 	if err == nil {
 		err := json.Unmarshal(data, &shared)
 		if err != nil {
@@ -3557,7 +3559,7 @@ func (rbac_server *server) deleteSubjectShare(subject string, subjectType rbacpb
 	}
 
 	// And finaly I will remove the entry with the id...
-	err = rbac_server.permissions.RemoveItem(id)
+	err = rbac_server.removeItem(id)
 	if err != nil {
 		return err
 	}
