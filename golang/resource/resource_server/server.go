@@ -416,12 +416,14 @@ func GetEventClient(address string) (*event_client.Event_Client, error) {
 
 // when services state change that publish
 func (server *server) publishEvent(evt string, data []byte, domain string) error {
+
 	client, err := GetEventClient(domain)
 	if err != nil {
 		return err
 	}
 
-	return client.Publish(evt, data)
+	err = client.Publish(evt, data)
+	return err
 }
 
 // Public event to a peer other than the default one...

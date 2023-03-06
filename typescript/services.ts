@@ -208,6 +208,7 @@ export class EventHub {
   connect(callback: () => void) {
     // Open the connection with the server.
     if (this.globular.eventService !== undefined) {
+      
       // The first step is to subscribe to an event channel.
       const rqst = new OnEventRequest()
       rqst.setUuid(this.uuid)
@@ -216,17 +217,22 @@ export class EventHub {
 
       // Get the stream and set event on it...
       stream.on('data', (rsp: any) => {
-        const evt = rsp.getEvt()
-        let bytes = evt.getData()
-        let data = ""
-        if (bytes != null) {
-          if (bytes.length > 0) {
-            data = new TextDecoder("utf-8").decode(bytes);
+        if (rsp.hasEvt()) {
+          const evt = rsp.getEvt()
+          let bytes = evt.getData()
+          let data = ""
+          if (bytes != null) {
+            if (bytes.length > 0) {
+              data = new TextDecoder("utf-8").decode(bytes);
+            }
           }
-        }
 
-        // dispatch the event localy.
-        this.dispatch(evt.getName(), data)
+          // dispatch the event localy.
+          this.dispatch(evt.getName(), data)
+
+        }else if(rsp.hasKa()){
+          /** Nothing to do here... */
+        }
       });
 
       stream.on('status', (status: any) => {
@@ -245,7 +251,7 @@ export class EventHub {
       stream.on('end', () => {
         // stream end signal
         /** Nothing to do here. */
-
+        
       });
 
       if (callback != undefined) {
@@ -447,7 +453,7 @@ export class Globular {
 
   /** The configuation. */
   constructor(url: string, callback: () => void, errorcallback: (err: any) => void) {
-    
+
     // Keep the config...
     getFileConfig(url, (config: any) => {
 

@@ -489,15 +489,10 @@ func GetRbacClient(address string) (*rbac_client.Rbac_Client, error) {
 func (svr *server) addResourceOwner(path, resourceType, subject string, subjectType rbacpb.SubjectType) error {
 	rbac_client_, err := GetRbacClient(svr.Address)
 	if err != nil {
-		fmt.Println("--------------> fail to get rbac client at address:", err)
 		return err
 	}
 
 	err = rbac_client_.AddResourceOwner(path, resourceType, subject, subjectType)
-	if err != nil {
-		fmt.Println("----------------> fail to add resource owner: ", err)
-	}
-
 	return err
 }
 

@@ -210,19 +210,22 @@ message SetActionResourcesPermissionsRsp{
  * Resource Shared. The resource can be share by the 
  */
 message Share {
+
+	// who share that resource
+	string share_by = 1;
 	
 	// The resource path must be unique on the domain.
-	string path = 1;
+	string path = 2;
 
 	// The domain from where the share is located.
-	string domain = 2;
+	string domain = 3;
 
 	// List of specific object to share with
-	repeated string applications = 3;
-	repeated string peers = 4;
-	repeated string accounts = 5;
-	repeated string groups = 6;
-	repeated string organizations = 7;
+	repeated string applications = 4;
+	repeated string peers = 5;
+	repeated string accounts = 6;
+	repeated string groups = 7;
+	repeated string organizations = 8;
 }
 
 /**

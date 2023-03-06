@@ -2,6 +2,7 @@ package applications_manager_client
 
 import (
 	"context"
+	"time"
 
 	"strconv"
 	"strings"
@@ -79,15 +80,20 @@ func NewApplicationsManager_Client(address string, id string) (*Applications_Man
 
 func (client *Applications_Manager_Client) Reconnect() error {
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = applications_managerpb.NewApplicationManagerServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = applications_managerpb.NewApplicationManagerServiceClient(client.cc)
-
-	return nil
+	return err
 
 }
 

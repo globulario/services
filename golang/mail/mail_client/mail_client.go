@@ -2,6 +2,7 @@ package mail_client
 
 import (
 	"context"
+	"time"
 
 	"fmt"
 	"io"
@@ -79,14 +80,20 @@ func NewMailService_Client(address string, id string) (*Mail_Client, error) {
 
 func (client *Mail_Client) Reconnect() error {
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = mailpb.NewMailServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = mailpb.NewMailServiceClient(client.cc)
-	return nil
+	return err
 }
 
 // The address where the client can connect.

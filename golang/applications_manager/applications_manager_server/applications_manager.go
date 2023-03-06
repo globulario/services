@@ -23,7 +23,6 @@ import (
 	"github.com/globulario/services/golang/repository/repository_client"
 	"github.com/globulario/services/golang/resource/resource_client"
 	"github.com/globulario/services/golang/resource/resourcepb"
-	"github.com/golang/protobuf/jsonpb"
 	"golang.org/x/net/html"
 	"google.golang.org/grpc/codes"
 
@@ -227,6 +226,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		}, nil
 	}
 
+
 	// Connect to the dicovery services
 	resource_client_, err := GetResourceClient(rqst.DicorveryId)
 
@@ -272,6 +272,7 @@ func (server *server) InstallApplication(ctx context.Context, rqst *applications
 		// Create the file.
 		r := bytes.NewReader(bundle.Binairies)
 
+
 		// Now I will install the applicaiton.
 		err = server.installApplication(token, rqst.Domain, descriptor.Id, descriptor.PublisherId, descriptor.Version, descriptor.Description, descriptor.Icon, descriptor.Alias, r, descriptor.Actions, descriptor.Keywords, descriptor.Roles, descriptor.Groups, rqst.SetAsDefault)
 		if err != nil {
@@ -294,6 +295,7 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 	// Here I will extract the file.
 	__extracted_path__, err := Utility.ExtractTarGz(r)
 	if err != nil {
+
 		return err
 	}
 
@@ -404,41 +406,6 @@ func (server *server) installApplication(token, domain, name, publisherId, versi
 		// server.IndexApplication = name
 	}
 
+	fmt.Println("--------------> 415 ", err)
 	return err
-}
-
-/**
- * Send a application notification.
- * That function will send notification to all connected user of that application.
- */
-func (server *server) sendApplicationNotification(application string, message string) error {
-
-	// That service made user of persistence service.
-	notification := new(resourcepb.Notification)
-	notification.Id = Utility.RandomUUID()
-	notification.NotificationType = resourcepb.NotificationType_APPLICATION_NOTIFICATION
-	notification.Message = message
-	notification.Recipient = application
-	notification.Date = time.Now().Unix()
-
-	// here I will get infos from the datastore.
-	application_, err := server.getApplication(application)
-	if err != nil {
-		return err
-	}
-
-	notification.Sender = `{"_id":"` + application_.Id + `", "name":"` + application_.Name + `","icon":"` + application_.Icon + `", "alias":"` + application_.Alias + `"}`
-
-	err = server.createNotification(notification)
-	if err != nil {
-		return err
-	}
-
-	var marshaler jsonpb.Marshaler
-	jsonStr, err := marshaler.MarshalToString(notification)
-	if err != nil {
-		return err
-	}
-
-	return server.publish(application+"_notification_event", []byte(jsonStr))
 }

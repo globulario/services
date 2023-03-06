@@ -6,8 +6,10 @@ package event;
 
 option go_package="event/eventpb";
 
+message KeepAlive {}
+
 message Event{
-	string name = 1; // The event Topic.
+	string name = 1; // The event name.
 	bytes data = 2; // must be anything...
 }
 
@@ -24,7 +26,10 @@ message OnEventRequest{
 }
 
 message OnEventResponse{
-	Event evt = 1;
+  oneof data {
+    Event evt = 1;
+    KeepAlive ka = 2;
+  }
 }
 
 message SubscribeRequest {

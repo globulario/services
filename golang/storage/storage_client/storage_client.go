@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
@@ -79,16 +80,22 @@ func NewStorageService_Client(address string, id string) (*Storage_Client, error
 }
 
 func (client *Storage_Client) Reconnect() error {
+
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = storagepb.NewStorageServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
-
-	client.c = storagepb.NewStorageServiceClient(client.cc)
-
-	return nil
+	
+	return err
 }
 
 // The address where the client can connect.

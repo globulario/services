@@ -2,6 +2,7 @@ package echo_client
 
 import (
 	"context"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/config/config_client"
@@ -75,15 +76,22 @@ func NewEchoService_Client(address string, id string) (*Echo_Client, error) {
 }
 
 func (client *Echo_Client) Reconnect() error {
-	var err error
 
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	var err error
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = echopb.NewEchoServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = echopb.NewEchoServiceClient(client.cc)
-	return nil
+	return err
 }
 
 // The address where the client can connect.

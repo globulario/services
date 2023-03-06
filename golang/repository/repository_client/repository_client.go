@@ -93,15 +93,22 @@ func NewRepositoryService_Client(address string, id string) (*Repository_Service
 }
 
 func (client *Repository_Service_Client) Reconnect() error {
+
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = repositorypb.NewPackageRepositoryClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
-
-	client.c = repositorypb.NewPackageRepositoryClient(client.cc)
-	return nil
+	
+	return err
 }
 
 // The address where the client can connect.
@@ -417,6 +424,7 @@ func GetEventClient(domain string) (*event_client.Event_Client, error) {
 	Utility.RegisterFunction("NewEventService_Client", event_client.NewEventService_Client)
 	client, err := globular_client.GetClient(domain, "event.EventService", "NewEventService_Client")
 	if err != nil {
+
 		return nil, err
 	}
 	return client.(*event_client.Event_Client), nil
@@ -426,17 +434,8 @@ func GetEventClient(domain string) (*event_client.Event_Client, error) {
  *  Create the application bundle and push it on the server
  */
 func (client *Repository_Service_Client) UploadApplicationPackage(user, organization, path, token, domain, name, version string) (int, error) {
-	/*
-		//
-		dir, err := os.Getwd()
-		if err != nil {
-			return -1, err
-		}
 
-		if !strings.HasPrefix(path, "/") {
-			path = strings.ReplaceAll(dir, "\\", "/") + "/" + path
-		}*/
-
+	fmt.Println("------------> 438")
 	path = strings.ReplaceAll(path, "\\", "/")
 
 	if len(token) > 0 {

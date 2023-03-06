@@ -2,6 +2,7 @@ package service_manager_client
 
 import (
 	"context"
+	"time"
 
 	//"github.com/davecourtois/Utility"
 	"github.com/davecourtois/Utility"
@@ -76,16 +77,22 @@ func NewServicesManagerService_Client(address string, id string) (*Services_Mana
 }
 
 func (client *Services_Manager_Client) Reconnect() error {
+
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = services_managerpb.NewServicesManagerServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
-
-	client.c = services_managerpb.NewServicesManagerServiceClient(client.cc)
-
-	return nil
+	
+	return err
 }
 
 // The address where the client can connect.

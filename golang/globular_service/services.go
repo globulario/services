@@ -394,9 +394,20 @@ func InitService(s Service) error {
 		s.SetId(os.Args[1])
 	} else if len(os.Args) == 1 {
 		// Now I will set the path where the configuation will be save in that case.
+		servicesDir := config.GetServicesDir()
 		dir, _ := osext.ExecutableFolder()
 		path := strings.ReplaceAll(dir, "\\", "/")
-		s.SetConfigurationPath(path + "/config.json")
+		if !strings.HasPrefix(path, servicesDir){
+			// this will create a new configuration config.json beside the exec if no configuration file
+			// already exist. Mostly use by development environnement.
+			s.SetConfigurationPath(path + "/config.json")
+		}else{
+			servicesConfigDir := config.GetServicesConfigDir()
+			configPath := strings.Replace(path, servicesDir, servicesConfigDir, -1)
+			if Utility.Exists(configPath + "/config.json"){
+				s.SetConfigurationPath(configPath + "/config.json")
+			}
+		}
 	}
 
 	if len(s.GetConfigurationPath()) == 0 {
@@ -663,6 +674,7 @@ func StartService(s Service, server *grpc.Server) error {
 	var err error
 	address := "0.0.0.0" //Utility.MyLocalIP() // 
 
+	fmt.Println("start service ", s.GetName(), "grpc port ", s.GetPort(), " proxy port ", s.GetProxy())
 	lis, err = net.Listen("tcp", address + ":"+strconv.Itoa(s.GetPort()))
 	if err != nil {
 		err_ := errors.New("could not listen at domain " + s.GetDomain() + err.Error())

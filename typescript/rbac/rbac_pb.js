@@ -6725,7 +6725,7 @@ proto.rbac.SetActionResourcesPermissionsRsp.serializeBinaryToWriter = function(m
  * @private {!Array<number>}
  * @const
  */
-proto.rbac.Share.repeatedFields_ = [3,4,5,6,7];
+proto.rbac.Share.repeatedFields_ = [4,5,6,7,8];
 
 
 
@@ -6758,13 +6758,14 @@ proto.rbac.Share.prototype.toObject = function(opt_includeInstance) {
  */
 proto.rbac.Share.toObject = function(includeInstance, msg) {
   var f, obj = {
-    path: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    domain: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    applicationsList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
-    peersList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
-    accountsList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
-    groupsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
-    organizationsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f
+    shareBy: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    path: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    domain: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    applicationsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
+    peersList: (f = jspb.Message.getRepeatedField(msg, 5)) == null ? undefined : f,
+    accountsList: (f = jspb.Message.getRepeatedField(msg, 6)) == null ? undefined : f,
+    groupsList: (f = jspb.Message.getRepeatedField(msg, 7)) == null ? undefined : f,
+    organizationsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f
   };
 
   if (includeInstance) {
@@ -6803,29 +6804,33 @@ proto.rbac.Share.deserializeBinaryFromReader = function(msg, reader) {
     switch (field) {
     case 1:
       var value = /** @type {string} */ (reader.readString());
-      msg.setPath(value);
+      msg.setShareBy(value);
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setDomain(value);
+      msg.setPath(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
-      msg.addApplications(value);
+      msg.setDomain(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
-      msg.addPeers(value);
+      msg.addApplications(value);
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.addAccounts(value);
+      msg.addPeers(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.addGroups(value);
+      msg.addAccounts(value);
       break;
     case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.addGroups(value);
+      break;
+    case 8:
       var value = /** @type {string} */ (reader.readString());
       msg.addOrganizations(value);
       break;
@@ -6858,52 +6863,59 @@ proto.rbac.Share.prototype.serializeBinary = function() {
  */
 proto.rbac.Share.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getPath();
+  f = message.getShareBy();
   if (f.length > 0) {
     writer.writeString(
       1,
       f
     );
   }
-  f = message.getDomain();
+  f = message.getPath();
   if (f.length > 0) {
     writer.writeString(
       2,
       f
     );
   }
-  f = message.getApplicationsList();
+  f = message.getDomain();
   if (f.length > 0) {
-    writer.writeRepeatedString(
+    writer.writeString(
       3,
       f
     );
   }
-  f = message.getPeersList();
+  f = message.getApplicationsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       4,
       f
     );
   }
-  f = message.getAccountsList();
+  f = message.getPeersList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       5,
       f
     );
   }
-  f = message.getGroupsList();
+  f = message.getAccountsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       6,
       f
     );
   }
-  f = message.getOrganizationsList();
+  f = message.getGroupsList();
   if (f.length > 0) {
     writer.writeRepeatedString(
       7,
+      f
+    );
+  }
+  f = message.getOrganizationsList();
+  if (f.length > 0) {
+    writer.writeRepeatedString(
+      8,
       f
     );
   }
@@ -6911,10 +6923,10 @@ proto.rbac.Share.serializeBinaryToWriter = function(message, writer) {
 
 
 /**
- * optional string path = 1;
+ * optional string share_by = 1;
  * @return {string}
  */
-proto.rbac.Share.prototype.getPath = function() {
+proto.rbac.Share.prototype.getShareBy = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
@@ -6923,16 +6935,16 @@ proto.rbac.Share.prototype.getPath = function() {
  * @param {string} value
  * @return {!proto.rbac.Share} returns this
  */
-proto.rbac.Share.prototype.setPath = function(value) {
+proto.rbac.Share.prototype.setShareBy = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
- * optional string domain = 2;
+ * optional string path = 2;
  * @return {string}
  */
-proto.rbac.Share.prototype.getDomain = function() {
+proto.rbac.Share.prototype.getPath = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -6941,17 +6953,35 @@ proto.rbac.Share.prototype.getDomain = function() {
  * @param {string} value
  * @return {!proto.rbac.Share} returns this
  */
-proto.rbac.Share.prototype.setDomain = function(value) {
+proto.rbac.Share.prototype.setPath = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
 /**
- * repeated string applications = 3;
+ * optional string domain = 3;
+ * @return {string}
+ */
+proto.rbac.Share.prototype.getDomain = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.rbac.Share} returns this
+ */
+proto.rbac.Share.prototype.setDomain = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * repeated string applications = 4;
  * @return {!Array<string>}
  */
 proto.rbac.Share.prototype.getApplicationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
 };
 
 
@@ -6960,7 +6990,7 @@ proto.rbac.Share.prototype.getApplicationsList = function() {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.setApplicationsList = function(value) {
-  return jspb.Message.setField(this, 3, value || []);
+  return jspb.Message.setField(this, 4, value || []);
 };
 
 
@@ -6970,7 +7000,7 @@ proto.rbac.Share.prototype.setApplicationsList = function(value) {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.addApplications = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
 };
 
 
@@ -6984,11 +7014,11 @@ proto.rbac.Share.prototype.clearApplicationsList = function() {
 
 
 /**
- * repeated string peers = 4;
+ * repeated string peers = 5;
  * @return {!Array<string>}
  */
 proto.rbac.Share.prototype.getPeersList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
 };
 
 
@@ -6997,7 +7027,7 @@ proto.rbac.Share.prototype.getPeersList = function() {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.setPeersList = function(value) {
-  return jspb.Message.setField(this, 4, value || []);
+  return jspb.Message.setField(this, 5, value || []);
 };
 
 
@@ -7007,7 +7037,7 @@ proto.rbac.Share.prototype.setPeersList = function(value) {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.addPeers = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
 };
 
 
@@ -7021,11 +7051,11 @@ proto.rbac.Share.prototype.clearPeersList = function() {
 
 
 /**
- * repeated string accounts = 5;
+ * repeated string accounts = 6;
  * @return {!Array<string>}
  */
 proto.rbac.Share.prototype.getAccountsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 5));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
 };
 
 
@@ -7034,7 +7064,7 @@ proto.rbac.Share.prototype.getAccountsList = function() {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.setAccountsList = function(value) {
-  return jspb.Message.setField(this, 5, value || []);
+  return jspb.Message.setField(this, 6, value || []);
 };
 
 
@@ -7044,7 +7074,7 @@ proto.rbac.Share.prototype.setAccountsList = function(value) {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.addAccounts = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 5, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
 };
 
 
@@ -7058,11 +7088,11 @@ proto.rbac.Share.prototype.clearAccountsList = function() {
 
 
 /**
- * repeated string groups = 6;
+ * repeated string groups = 7;
  * @return {!Array<string>}
  */
 proto.rbac.Share.prototype.getGroupsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 6));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
 };
 
 
@@ -7071,7 +7101,7 @@ proto.rbac.Share.prototype.getGroupsList = function() {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.setGroupsList = function(value) {
-  return jspb.Message.setField(this, 6, value || []);
+  return jspb.Message.setField(this, 7, value || []);
 };
 
 
@@ -7081,7 +7111,7 @@ proto.rbac.Share.prototype.setGroupsList = function(value) {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.addGroups = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 6, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
 };
 
 
@@ -7095,11 +7125,11 @@ proto.rbac.Share.prototype.clearGroupsList = function() {
 
 
 /**
- * repeated string organizations = 7;
+ * repeated string organizations = 8;
  * @return {!Array<string>}
  */
 proto.rbac.Share.prototype.getOrganizationsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 7));
+  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 8));
 };
 
 
@@ -7108,7 +7138,7 @@ proto.rbac.Share.prototype.getOrganizationsList = function() {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.setOrganizationsList = function(value) {
-  return jspb.Message.setField(this, 7, value || []);
+  return jspb.Message.setField(this, 8, value || []);
 };
 
 
@@ -7118,7 +7148,7 @@ proto.rbac.Share.prototype.setOrganizationsList = function(value) {
  * @return {!proto.rbac.Share} returns this
  */
 proto.rbac.Share.prototype.addOrganizations = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 7, value, opt_index);
+  return jspb.Message.addToRepeatedField(this, 8, value, opt_index);
 };
 
 

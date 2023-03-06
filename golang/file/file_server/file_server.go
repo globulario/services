@@ -563,7 +563,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 		// remove it from the cache...
 		cache.RemoveItem(path)
 	}
-	
+
 	info.IsDir = fileStat.IsDir()
 	if info.IsDir {
 		info.Mime = "inode/directory"
@@ -580,7 +580,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 	info.Size = fileStat.Size()
 	info.Name = fileStat.Name()
 	info.ModeTime = fileStat.ModTime().Unix()
-	
+
 	// Now the section depending of the mime type...
 	if !info.IsDir {
 		if strings.Contains(fileStat.Name(), ".") {
@@ -595,7 +595,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			info.Mime, err = Utility.GetFileContentType(f_)
 			defer f_.Close()
 		}
-		
+
 		if err != nil {
 			return nil, status.Errorf(
 				codes.Internal,
@@ -616,7 +616,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 			}
 
 			hiddenFolder := path_ + "/.hidden/" + fileName
-		
+
 			// in case of image...
 			if strings.HasPrefix(info.Mime, "image/") {
 				if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
@@ -683,7 +683,7 @@ func getFileInfo(s *server, path string, thumbnailMaxHeight, thumbnailMaxWidth i
 					info.Thumbnail = metadata["ImageUrl"].(string)
 				}
 
-			}else if Utility.Exists(hiddenFolder + "/__thumbnail__/data_url.txt") {
+			} else if Utility.Exists(hiddenFolder + "/__thumbnail__/data_url.txt") {
 				thumbnail, err := os.ReadFile(hiddenFolder + "/__thumbnail__/data_url.txt")
 				if err == nil {
 					info.Thumbnail = string(thumbnail)
@@ -943,7 +943,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 				info.Files = append(info.Files, info_)
 			}
 
-		}else if readFiles {
+		} else if readFiles {
 
 			info_, err := getFileInfo(s, path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
 			if err != nil {
@@ -965,7 +965,7 @@ func readDir(s *server, path string, recursive bool, thumbnailMaxWidth int32, th
 
 				// Create thumbnail if the path is not in hidden file...
 				if !strings.Contains(path, ".hidden") && len(info_.Thumbnail) == 0 {
-					
+
 					if strings.HasPrefix(info_.Mime, "image/") {
 						if thumbnailMaxHeight > 0 && thumbnailMaxWidth > 0 {
 							info_.Thumbnail, _ = s.getThumbnail(path+"/"+f.Name(), int(thumbnailMaxHeight), int(thumbnailMaxWidth))
@@ -1180,7 +1180,7 @@ func (file_server *server) ReadDir(rqst *filepb.ReadDirRequest, stream filepb.Fi
 
 			Info: infos[i],
 		})
-		
+
 		if err != nil {
 
 			fmt.Println("fail to send file info ", infos[i].Path+"/"+infos[i].Name, "thumbnail width:", rqst.GetThumnailWidth(), "thumbnail height", rqst.GetThumnailHeight())
@@ -1405,6 +1405,10 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 
 	path := file_server.formatPath(rqst.GetPath())
 
+	if Utility.Exists(path + "/" + rqst.NewName) {
+		return nil, errors.New("file with name '" + rqst.NewName + "' already exist at path '" + path + "'")
+	}
+
 	client, err := getTitleClient()
 	if err != nil {
 		return nil, err
@@ -1450,6 +1454,8 @@ func (file_server *server) Rename(ctx context.Context, rqst *filepb.RenameReques
 
 	cache.RemoveItem(path + "/" + rqst.OldName)
 	cache.RemoveItem(path)
+
+	fmt.Println("----------> move ", path+"/"+rqst.OldName, "to", path+"/"+rqst.NewName)
 
 	err = os.Rename(path+"/"+rqst.OldName, path+"/"+rqst.NewName)
 
@@ -2069,17 +2075,21 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 
 			// Dissociates titles...
 			for f, titles_ := range titles {
-				for _, title := range titles_ {
-					client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, f)
+				if f == rqst.Files[i] {
+					for _, title := range titles_ {
+						client.DissociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, f)
+					}
 				}
 			}
 
 			// Dissociates videos...
 			for f, video_ := range videos {
 				for _, video := range video_ {
-					err := client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f)
-					if err != nil {
-						fmt.Println("fail to dissocite file ", err)
+					if f == rqst.Files[i] {
+						err := client.DissociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f)
+						if err != nil {
+							fmt.Println("fail to dissocite file ", err)
+						}
 					}
 				}
 			}
@@ -2091,37 +2101,18 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 			if err == nil {
 				// remove it from the cache.
 				cache.RemoveItem(from)
+
 				// Associate titles...
 				for f, titles_ := range titles {
 					for _, title := range titles_ {
 						var f_ string
 						if !info.IsDir() {
-							f_ = rqst.Path + "/" + f[strings.LastIndex(f, "/")+1:]
+							f_ = rqst.Path + "/" + filepath.Base(f)
 						} else {
-							values := strings.Split(rqst.Files[i], "/")
-							dest := rqst.Path + "/" + values[len(values)-1]
+							dest := rqst.Path + "/" + filepath.Base(rqst.Files[i])
 							f_ = strings.ReplaceAll(f, rqst.Files[i], dest)
 						}
 						client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", title.ID, f_)
-						if err != nil {
-							fmt.Println("fail to asscociate file ", err)
-						}
-					}
-				}
-
-				// Associate titles...
-				for f, title_ := range titles {
-					for _, t := range title_ {
-						var f_ string
-						if !info.IsDir() {
-							f_ = rqst.Path + "/" + f[strings.LastIndex(f, "/")+1:]
-						} else {
-							values := strings.Split(rqst.Files[i], "/")
-							dest := rqst.Path + "/" + values[len(values)-1]
-							f_ = strings.ReplaceAll(f, rqst.Files[i], dest)
-						}
-
-						err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, f_)
 						if err != nil {
 							fmt.Println("fail to asscociate file ", err)
 						}
@@ -2133,10 +2124,9 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 					for _, video := range video_ {
 						var f_ string
 						if !info.IsDir() {
-							f_ = rqst.Path + "/" + f[strings.LastIndex(f, "/")+1:]
+							f_ = rqst.Path + "/" + filepath.Base(f)
 						} else {
-							values := strings.Split(rqst.Files[i], "/")
-							dest := rqst.Path + "/" + values[len(values)-1]
+							dest := rqst.Path + "/" + filepath.Base(rqst.Files[i])
 							f_ = strings.ReplaceAll(f, rqst.Files[i], dest)
 						}
 
@@ -2156,8 +2146,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 						p := file_permissions[j]
 						if strings.HasPrefix(p.Path, rqst.Files[i]) {
 							rbac_client_.DeleteResourcePermissions(p.Path)
-							values := strings.Split(rqst.Files[i], "/")
-							dest := rqst.Path + "/" + values[len(values)-1]
+							dest := rqst.Path + "/" + filepath.Base(rqst.Files[i])
 							p.Path = strings.ReplaceAll(p.Path, rqst.Files[i], dest)
 							err := rbac_client_.SetResourcePermissions(token, p.Path, p.ResourceType, p)
 							if err != nil {
@@ -2170,7 +2159,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 					permissions, err := rbac_client_.GetResourcePermissions(rqst.Files[i])
 					if err == nil && permissions != nil {
 						rbac_client_.DeleteResourcePermissions(rqst.Files[i])
-						permissions.Path = rqst.Path + "/" + permissions.Path[strings.LastIndex(permissions.Path, "/")+1:]
+						permissions.Path = rqst.Path + "/" + filepath.Base(permissions.Path)
 						err := rbac_client_.SetResourcePermissions(token, permissions.Path, permissions.ResourceType, permissions)
 						if err != nil {
 							fmt.Println("fail to update the permission: ", err)
@@ -2179,8 +2168,8 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 				}
 
 				// If hidden folder exist for it...
-				path_ := from[0:strings.LastIndex(from, "/")]
-				fileName := from[strings.LastIndex(from, "/")+1:]
+				path_ := filepath.Dir(from)
+				fileName := filepath.Base(from)
 				if strings.Contains(fileName, ".") {
 					fileName = fileName[0:strings.LastIndex(fileName, ".")]
 				}
@@ -2205,6 +2194,7 @@ func (file_server *server) Move(ctx context.Context, rqst *filepb.MoveRequest) (
 
 // Copy a file/directory
 func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (*filepb.CopyResponse, error) {
+
 	var token string
 	if ctx != nil {
 		// Now I will index the conversation to be retreivable for it creator...
@@ -2224,9 +2214,12 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 		return nil, err
 	}
 
+	// format the path to make it absolute on the server.
+	path := file_server.formatPath(rqst.Path)
+
 	// So here I will call the function mv at repetition for each path...
 	for i := 0; i < len(rqst.Files); i++ {
-		f := file_server.Root + rqst.Files[i]
+		f := file_server.formatPath(rqst.Files[i])
 
 		// So here I will try to retreive indexation for the file...
 		client, err := getTitleClient()
@@ -2248,14 +2241,14 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 			if err == nil {
 				if info.IsDir() {
 					// Copy the directory
-					Utility.CopyDir(f, file_server.Root+rqst.Path)
+					Utility.CopyDir(f, path)
 
 					// Associate titles...
 					for f, title_ := range titles {
 						for _, t := range title_ {
 							var f_ string
-							values := strings.Split(rqst.Files[i], "/")
-							dest := rqst.Path + "/" + values[len(values)-1]
+							filename := filepath.Base(rqst.Files[i])
+							dest := rqst.Path + "/" + filename
 							f_ = strings.ReplaceAll(f, rqst.Files[i], dest)
 
 							err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, f_)
@@ -2269,8 +2262,8 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 					for f, video_ := range videos {
 						for _, video := range video_ {
 							var f_ string
-							values := strings.Split(rqst.Files[i], "/")
-							dest := rqst.Path + "/" + values[len(values)-1]
+							filename := filepath.Base(rqst.Files[i])
+							dest := rqst.Path + "/" + filename
 							f_ = strings.ReplaceAll(f, rqst.Files[i], dest)
 							err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f_)
 							if err != nil {
@@ -2281,28 +2274,30 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 
 					// So here I will get the list of all file permission and change the one with
 					// the old file prefix...
-					for j := 0; j < len(file_permissions); j++ {
-						p := file_permissions[j]
-						if strings.HasPrefix(p.Path, rqst.Files[i]) {
-							values := strings.Split(rqst.Files[i], "/")
-							dest := rqst.Path + "/" + values[len(values)-1]
-							p.Path = strings.ReplaceAll(p.Path, rqst.Files[i], dest)
-							err := rbac_client_.SetResourcePermissions(token, p.Path, p.ResourceType, p)
-							if err != nil {
-								fmt.Println("fail to update the permission: ", err)
+					if file_permissions != nil {
+						for j := 0; j < len(file_permissions); j++ {
+							p := file_permissions[j]
+							if strings.HasPrefix(p.Path, rqst.Files[i]) {
+								filename := filepath.Base(rqst.Files[i])
+								dest := rqst.Path + "/" + filename
+								p.Path = strings.ReplaceAll(p.Path, rqst.Files[i], dest)
+								err := rbac_client_.SetResourcePermissions(token, p.Path, p.ResourceType, p)
+								if err != nil {
+									fmt.Println("fail to update the permission: ", err)
+								}
 							}
 						}
 					}
 
 				} else {
 					// Copy the file
-					Utility.CopyFile(f, file_server.Root+rqst.Path)
+					Utility.CopyFile(f, path)
 
 					// Associate titles...
 					for f, title_ := range titles {
 						for _, t := range title_ {
 							var f_ string
-							f_ = rqst.Path + "/" + f[strings.LastIndex(f, "/")+1:]
+							f_ = rqst.Path + "/" + filepath.Base(f)
 							err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/titles", t.ID, f_)
 							if err != nil {
 								fmt.Println("fail to asscociate file ", err)
@@ -2314,7 +2309,7 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 					for f, video_ := range videos {
 						for _, video := range video_ {
 							var f_ string
-							f_ = rqst.Path + "/" + f[strings.LastIndex(f, "/")+1:]
+							f_ = rqst.Path + "/" + filepath.Base(f)
 							err := client.AssociateFileWithTitle(config.GetDataDir()+"/search/videos", video.ID, f_)
 							if err != nil {
 								fmt.Println("fail to asscociate file ", err)
@@ -2322,22 +2317,24 @@ func (file_server *server) Copy(ctx context.Context, rqst *filepb.CopyRequest) (
 						}
 					}
 
-					permissions.Path = rqst.Path + "/" + permissions.Path[strings.LastIndex(permissions.Path, "/")+1:]
-					err := rbac_client_.SetResourcePermissions(token, permissions.Path, permissions.ResourceType, permissions)
-					if err != nil {
-						fmt.Println("fail to update the permission: ", err)
+					if permissions != nil {
+						permissions.Path = rqst.Path + "/" + filepath.Base(permissions.Path)
+						err := rbac_client_.SetResourcePermissions(token, permissions.Path, permissions.ResourceType, permissions)
+						if err != nil {
+							fmt.Println("fail to update the permission: ", err)
+						}
 					}
 
 					// If hidden folder exist for it...
-					path_ := f[0:strings.LastIndex(f, "/")]
-					fileName := f[strings.LastIndex(f, "/")+1:]
+					path_ := filepath.Dir(f)
+					fileName := filepath.Base(f)
 					if strings.Contains(fileName, ".") {
 						fileName = fileName[0:strings.LastIndex(fileName, ".")]
 					}
 					hiddenFolder := path_ + "/.hidden/" + fileName
 
 					if Utility.Exists(hiddenFolder) {
-						err := Utility.CopyDir(hiddenFolder, file_server.Root+rqst.Path+"/.hidden")
+						err := Utility.CopyDir(hiddenFolder, path+"/.hidden")
 						if err != nil {
 							fmt.Println(err)
 						}

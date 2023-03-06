@@ -215,25 +215,23 @@ func GetServicesConfigDir() string {
 		// Force to take service at a given location.
 		if len(GetServicesRoot()) > 0 {
 			return GetServicesRoot()
-		}
-
-		if Utility.Exists(dir[0:strings.LastIndex(dir, "/")] + "/services") {
+		}else if Utility.Exists(dir[0:strings.LastIndex(dir, "/")] + "/services") {
 			return dir[0:strings.LastIndex(dir, "/")] + "/services"
+		}else{
+			return GetConfigDir() + "/services"
 		}
 
 	} else {
-		
-		// if config near the service has priority over config found from other location...
-		if Utility.Exists(dir + "/config.json") {
-			if strings.Contains(dir, "/services/golang/"){
-				return GetServicesDir()
-			}
+		// test if service ServicesRoot is define, that will force to get services configurations
+		// from a given directory
+		if len(GetServicesRoot()) > 0 {
+			return GetServicesRoot()
+		}else if Utility.Exists(GetConfigDir() + "/services"){
+			return GetConfigDir() + "/services"
+		}else{
+			return GetServicesDir()
 		}
-
 	}
-
-	// Use the default path
-	return GetConfigDir() + "/services"
 }
 
 // Must be call from Globular exec...

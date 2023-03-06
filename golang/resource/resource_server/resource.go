@@ -3748,11 +3748,27 @@ func (resource_server *server) ClearNotificationsByType(ctx context.Context, rqs
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
 	}
 
-	err = p.Delete(context.Background(), "local_resource", rqst.Recipient+"_db", "Notifications", `{ "notificationtype":`+Utility.ToString(rqst.NotificationType)+`}`, ``)
+	notificationType := int32(rqst.NotificationType)
+
+	db := rqst.Recipient
+	if strings.Contains(db, "@"){
+		db = strings.Split(db, "@")[0]
+	}
+	db += "_db"
+
+	err = p.Delete(context.Background(), "local_resource", db, "Notifications", `{ "notificationtype":`+Utility.ToString(notificationType)+`}`, ``)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
 			Utility.JsonErrorStr(Utility.FunctionName(), Utility.FileLine(), err))
+	}
+
+	// Send event to all concern client.
+	domain, _ := config.GetDomain()
+	evt_client, err := GetEventClient(domain)
+	if err == nil {
+		evt := rqst.Recipient + "_clear_user_notifications_evt"
+		evt_client.Publish(evt, []byte{})
 	}
 
 	return &resourcepb.ClearNotificationsByTypeRsp{}, nil

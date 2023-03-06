@@ -3,6 +3,7 @@ package config_client
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	//"fmt"
 	"strings"
@@ -80,15 +81,20 @@ func NewConfigService_Client(address string, id string) (*Config_Client, error) 
 
 func (client *Config_Client) Reconnect() error {
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = configpb.NewConfigServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = configpb.NewConfigServiceClient(client.cc)
-
-	return nil
+	return err
 
 }
 

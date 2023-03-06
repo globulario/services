@@ -2,6 +2,7 @@ package catalog_client
 
 import (
 	"context"
+	"time"
 
 	"github.com/davecourtois/Utility"
 	"github.com/globulario/services/golang/catalog/catalogpb"
@@ -76,15 +77,20 @@ func NewCatalogService_Client(address string, id string) (*Catalog_Client, error
 
 func (client *Catalog_Client) Reconnect() error {
 	var err error
-
-	client.cc, err = globular.GetClientConnection(client)
-	if err != nil {
-		return err
+	nb_try_connect := 10
+	
+	for i:=0; i <nb_try_connect; i++ {
+		client.cc, err = globular.GetClientConnection(client)
+		if err == nil {
+			client.c = catalogpb.NewCatalogServiceClient(client.cc)
+			break
+		}
+		
+		// wait 500 millisecond before next try
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	client.c = catalogpb.NewCatalogServiceClient(client.cc)
-
-	return nil
+	return err
 
 }
 
